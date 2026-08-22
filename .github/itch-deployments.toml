@@ -1,0 +1,26 @@
+schema = 1
+publisher_action_sha = "3dc940c62fd012edd0862b19e9705b8cd789313b"
+
+[[deployment]]
+repository = "EBonura/voxide"
+workflow = ".github/workflows/deploy.yml"
+target = "bonnie-studios/voxide:psx"
+version_source = "VERSION"
+
+[[deployment]]
+repository = "EBonura/celeste-collection-psx"
+workflow = ".github/workflows/deploy.yml"
+target = "bonnie-studios/celeste-classic-collection-psx:psx"
+version_source = "VERSION"
+
+[[deployment]]
+repository = "EBonura/nitroxide"
+workflow = ".github/workflows/itch-release.yml"
+target = "bonnie-studios/nitroxide:psx"
+version_source = "game/Cargo.toml"
+
+[[deployment]]
+repository = "EBonura/PSoXide"
+workflow = ".github/workflows/itch-web.yml"
+target = "bonnie-studios/psoxide:html5"
+version_source = "VERSION"
