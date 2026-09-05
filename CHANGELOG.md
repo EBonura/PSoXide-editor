@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Sprint starts immediately, and evades cover less ground with a committed direction.
+- Sword sounds, trails and damage follow each swing, including both cyan heavy strikes.
+- Reworked the heavy enemy's two melee combos, attack tells and weapon contact.
+- Corrected all three light-enemy swings so their damage, trails and sounds follow the claw.
+- Improved the camera around pillars, low ceilings and fully compressed wall views.
+- Added pickup and gameplay-entry sounds, clearer module instructions, and quicker message transitions.
+- Combat music continues while the inventory is open. Default Cortex brightness is now 2.
 - Fixed Select detaching the camera and stopping player movement in Cortex Ignition.
 - New Game now starts a fresh run after returning to the title screen.
 - Raised the default menu music volume; saved volume settings are preserved.
