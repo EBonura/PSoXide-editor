@@ -1,5 +1,9 @@
 # PSoXide Editor
 
+Start with the [PSoXide Demo Disc](https://bonnie-studios.itch.io/psoxide-demo-disc): it includes Cortex Ignition 0.4b
+and the other Bonnie Studios PlayStation demos. Standalone downloads are available
+for testing just this project.
+
 The PlayStation editor, runtime engine and Cortex Ignition live together here.
 Author scenes, BSP geometry, materials, animation, audio and UI, then cook a
 project into a PS1 disc and playtest it with the integrated emulator.
@@ -58,3 +62,8 @@ pre-split repository paths.
 [GPL-2.0-or-later](LICENSE), with existing asset attribution and provenance
 preserved. Hardware-sensitive changes still require original-console evidence;
 emulator checks alone do not establish hardware correctness.
+
+## Recent changes
+
+Source snapshot **2026.09.05**: The editor, engine and Cortex Ignition now live in one repository with pinned SDK and emulator dependencies.
+See the [changelog](CHANGELOG.md) for the remaining changes and published download versions.
