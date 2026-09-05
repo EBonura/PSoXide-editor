@@ -35,14 +35,31 @@ def load(path: Path):
     if magic != b"PSXA":
         raise SystemExit(f"not a psxanim: {path}")
     joints, frames, rate, shift = struct.unpack_from("<HHHH", data, ASSET_HEADER)
-    record = {1: 30, 2: 24, 3: 20}[version]
+    record = {1: 30, 2: 24, 3: 20, 4: 16}[version]
     base = ASSET_HEADER + ANIM_HEADER
     poses = []
     for frame in range(frames):
         row = []
         for joint in range(joints):
             off = base + (frame * joints + joint) * record
-            if version == 3:
+            if version == 4:
+                block = data[off : off + 10]
+                rot = []
+                for pair in range(3):
+                    value = int.from_bytes(block[pair * 3 : pair * 3 + 3], "little")
+                    rot.extend((decode_q11(value & 0xFFF), decode_q11(value >> 12)))
+                a, b = rot[:3], rot[3:]
+                def rounded(value):
+                    return (value + 2048) // 4096 if value >= 0 else -((-value + 2048) // 4096)
+                third = [rounded(a[1]*b[2]-a[2]*b[1]), rounded(a[2]*b[0]-a[0]*b[2]), rounded(a[0]*b[1]-a[1]*b[0])]
+                axis, correction = block[9] & 3, block[9] >> 2
+                if correction >= 32:
+                    correction -= 64
+                if axis < 3:
+                    third[axis] += correction
+                rot.extend(max(-4096, min(4096, value)) for value in third)
+                tx, ty, tz = struct.unpack_from("<3h", data, off + 10)
+            elif version == 3:
                 block = data[off : off + 14]
                 packed = [
                     (block[p * 3] | (block[p * 3 + 1] << 8) | (block[p * 3 + 2] << 16))
@@ -115,4 +132,5 @@ def main() -> None:
         )
 
 
-main()
+if __name__ == "__main__":
+    main()
