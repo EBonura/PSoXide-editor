@@ -1382,3 +1382,11 @@ guest-symbol-gate:
 # assertions (checkpoint, door, kill, lava death, respawn, PVS).
 editor-souls-bsp-check:
 	sh tools/editor_souls_bsp_check.sh
+
+# Resolve the locked external source components before compiling anything.
+.PHONY: bootstrap verify-components
+bootstrap:
+	python3 tools/bootstrap-components.py
+verify-components:
+	python3 tools/bootstrap-components.py --check
+check test fmt lint run run-fast run-release psxed cook-playtest build-editor-playtest: | bootstrap
