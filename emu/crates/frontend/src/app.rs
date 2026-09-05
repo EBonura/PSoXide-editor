@@ -4494,11 +4494,13 @@ mod tests {
     fn half_scale_on_retina_yields_one_physical_pixel_per_ui_point() {
         let context = egui::Context::default();
         context.set_zoom_factor(ui_zoom_factor(50));
-        let mut input = egui::RawInput::default();
-        input.screen_rect = Some(egui::Rect::from_min_size(
-            egui::Pos2::ZERO,
-            egui::vec2(1920.0, 1080.0),
-        ));
+        let mut input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1920.0, 1080.0),
+            )),
+            ..Default::default()
+        };
         input
             .viewports
             .get_mut(&egui::ViewportId::ROOT)

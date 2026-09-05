@@ -859,7 +859,8 @@ impl EditorWorkspace {
         // Snapshot resource id + path first so cache mutation below
         // cannot fight the immutable project-resource walk.
         let project_root = self.project_dir.clone();
-        let sources: Vec<(ResourceId, String, Option<String>, Option<[u8; 3]>, bool)> = self
+        type ThumbnailSource = (ResourceId, String, Option<String>, Option<[u8; 3]>, bool);
+        let sources: Vec<ThumbnailSource> = self
             .project
             .resources
             .iter()

@@ -134,7 +134,7 @@ fn scroll_authoring_label_into_view(
     label: &str,
 ) {
     let pointer = Pos2::new(1300.0, 420.0);
-    for delta_y in std::iter::once(10_000.0).chain(std::iter::repeat(-160.0).take(16)) {
+    for delta_y in std::iter::once(10_000.0).chain(std::iter::repeat_n(-160.0, 16)) {
         *time += 1.0 / 60.0;
         let frame = real_egui_workspace_frame(
             ctx,

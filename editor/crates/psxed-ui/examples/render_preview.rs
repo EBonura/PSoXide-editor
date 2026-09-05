@@ -21,11 +21,7 @@ fn decode_atlas_banks(bytes: &[u8]) -> Vec<ColorImage> {
         15 => 0,
         _ => unreachable!("Texture parser rejects unsupported depths"),
     };
-    let bank_count = if entries_per_bank == 0 {
-        1
-    } else {
-        clut_entries / entries_per_bank
-    };
+    let bank_count = clut_entries.checked_div(entries_per_bank).unwrap_or(1);
     let mut banks = Vec::with_capacity(bank_count);
     for bank in 0..bank_count {
         let mut pixels = vec![Color32::BLACK; w * h];

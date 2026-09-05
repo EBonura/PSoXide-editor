@@ -2102,9 +2102,11 @@ impl EditorWorkspace {
                 .collect::<Vec<_>>()
                 .join(", ");
             let remaining = invalid.len().saturating_sub(8);
-            let more = (remaining > 0)
-                .then(|| format!(" (+{remaining} more)"))
-                .unwrap_or_default();
+            let more = if remaining > 0 {
+                format!(" (+{remaining} more)")
+            } else {
+                Default::default()
+            };
             self.status = format!(
                 "Snap level aborted: the {step}-unit grid cannot represent {} brush{} as valid grid-aligned solids ({preview}{more}); choose a finer grid",
                 invalid.len(),
@@ -4454,6 +4456,7 @@ impl EditorWorkspace {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn pick_brush_face_at_2d(&self, world: [f32; 2]) -> Option<(usize, usize)> {
         self.brush_face_hits_at_2d(world, 0.0).into_iter().next()
     }
@@ -6337,8 +6340,8 @@ impl EditorWorkspace {
             return (self.brush_vertex_snap_hover, None);
         };
         let source = drag.snap_source.map(|mut source| {
-            for axis in 0..3 {
-                source[axis] += f64::from(drag.applied[axis]);
+            for (coordinate, delta) in source.iter_mut().zip(drag.applied) {
+                *coordinate += f64::from(delta);
             }
             source
         });
@@ -6415,7 +6418,7 @@ impl EditorWorkspace {
                 self.status = "Vertex Snap: snapped".to_string();
                 let exact = vertex_snap_integer_delta(source, target)
                     .expect("target predicate accepted an exact integer delta");
-                std::array::from_fn(|axis| drag.axis_mask[axis].then_some(exact[axis]).unwrap_or(0))
+                std::array::from_fn(|axis| if drag.axis_mask[axis] { exact[axis] } else { 0 })
             } else {
                 self.status = "Vertex Snap: drag onto another brush corner".to_string();
                 std::array::from_fn(|axis| {
