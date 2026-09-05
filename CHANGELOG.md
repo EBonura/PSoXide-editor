@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Fixed Select detaching the camera and stopping player movement in Cortex Ignition.
+- New Game now starts a fresh run after returning to the title screen.
+- Raised the default menu music volume; saved volume settings are preserved.
+
 ## Source 2026.09.05
 
 This source snapshot is tagged `source-2026.09.05`. Download versions are

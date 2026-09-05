@@ -1123,7 +1123,7 @@
                 min: 0,
                 max: 100,
                 step: 5,
-                default: 25,
+                default: 75,
             ),
         ),
         /*[3]*/ (

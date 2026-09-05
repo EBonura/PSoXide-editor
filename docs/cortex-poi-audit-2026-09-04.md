@@ -42,7 +42,6 @@ Read from `engine/examples/editor-playtest/src/runtime_config.rs`,
 | Triangle | Swap stance. Only the active pool takes damage and only the resting pool recovers. Refused during the swap cooldown and while the target pool is broken. |
 | R3 | Lock on / lock off |
 | Cross | Interact: read a beacon, take an item, advance a message page |
-| Select | Free orbit camera (debug) |
 
 L1/L2 no longer attack (commit 11d40d32, on main). The live checkout on
 `fix/cortex-boss-theme` predates that commit, which is why they still fire there.

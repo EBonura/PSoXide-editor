@@ -142,7 +142,6 @@ Per-frame update:
 - CIRCLE tapped starts a directional `Roll` in both locked and unlocked
   movement. Lock-on remains active throughout the roll. A neutral tap travels
   forward in the current combat/free-movement facing. There is no backstep.
-- SELECT: toggle a free-orbit debug camera.
 - Right stick: manual third-person camera orbit when the pad is in
   analog mode.
 - Keyboard defaults: arrow keys emulate left stick; I/J/K/L emulate
