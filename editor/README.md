@@ -17,10 +17,10 @@ the repo-root HOST workspace (one lockfile shared with `crates/`,
 ## BSP level quickstart
 
 This is the shortest supported create/edit/play loop. From the repository
-root, launch the native editor directly:
+root, bootstrap its pinned dependencies and launch the native editor:
 
 ```bash
-cd emu
+make bootstrap
 cargo run -p frontend -- --editor --windowed
 ```
 
@@ -108,7 +108,7 @@ checkpoint/spawn respawn. It writes no screenshots or framebuffer dumps.
 | [`psxed`](crates/psxed) | Content-pipeline CLI. Cooks source assets into binary blobs the runtime consumes. |
 | [`psxed-project`](crates/psxed-project) | Editor project model: scenes, nodes, resources, and PS1-facing authoring metadata. |
 | [`psxed-ui`](crates/psxed-ui) | Reusable egui workspace panels for the editor. |
-| [`psxed-format`](crates/psxed-format) | Cooked-asset binary formats. Shared with the SDK's `psx-asset` parser so layout drift is impossible. |
+| [`psxed-format`](https://github.com/EBonura/PSoXide/tree/main/crates/psxed-format) | Cooked-asset binary formats. Shared with the SDK's `psx-asset` parser so layout drift is impossible. |
 | [`psxed-obj`](crates/psxed-obj) | OBJ parser + vertex-cluster decimator. Emits PSXM blobs. |
 | [`psxed-gltf`](crates/psxed-gltf) | glTF/GLB mesh importer. Cooks scene meshes into PSXM blobs. |
 | [`psxed-tex`](crates/psxed-tex) | PNG/JPG → PSXT texture cooker: crop, resample, quantise to 4/8-bit CLUT, pack for VRAM. |
@@ -116,7 +116,8 @@ checkpoint/spawn respawn. It writes no screenshots or framebuffer dumps.
 
 ## The format contract
 
-`psxed-format` is the single source of truth for cooked-asset layout: the
+`psxed-format` is owned by the SDK and imported under `crates/psxed-format`.
+It is the single source of truth for cooked-asset layout: the
 editor crates here are the **producers**, and the SDK's
 [`psx-asset`](../sdk/crates/psx-asset) is the **consumer**. Both depend on
 `psxed-format`, so a layout change can't drift between the two sides.

@@ -1,98 +1,76 @@
 # SDK, emulator and editor separation
 
-Status: repository extraction in progress on 5 September 2026. The existing
-`EBonura/PSoXide` URL becomes the SDK. `EBonura/PSoXide-editor` owns the editor,
-engine and Cortex; `EBonura/PSoXide-emulator` owns standalone emulation.
-`components.lock.json` is the executable dependency lock for this checkout.
-The acceptance list below includes downstream release work that must remain
-explicit until a complete demo-disc build has been verified.
-
-## Recommendation
-
-Keep **Cortex and the editor together**. Cortex is the reference game that
-exercises authoring, cooking, runtime and playtesting, so changes to those
-systems should still land in one commit. Establish the build boundaries
-before moving Git history, starting with the SDK.
+The repository split was completed on 5 September 2026. The existing
+`EBonura/PSoXide` URL is the SDK. Cortex stays with the editor and engine.
+The demo disc remains the integration and release owner for the complete set
+of components and games.
 
 | Repository | Contents |
 | --- | --- |
-| `EBonura/PSoXide` | Bare-metal crates, linker/runtime, shared hardware and cooked-format contracts, small examples, standalone bootstrap and disc tools |
-| `EBonura/PSoXide-emulator` | Emulator core, standalone frontend, renderer, debugging and profiling; consumes shared SDK contracts |
-| `EBonura/PSoXide-editor` | Authoring UI, cookers, engine/gameplay runtime, Cortex and its assets, New Project template and integration fixtures; pins SDK and emulator |
-| Demo disc | Existing integration/release repository: launcher, loader, packer, component/game locks and complete-disc validation |
-| Existing game repositories | Remain separate; consume the SDK plus engine/cookers/emulator components they actually use |
+| [PSoXide](https://github.com/EBonura/PSoXide) | Bare-metal SDK, linker/runtime, shared hardware and cooked-format contracts, small examples, bootstrap and disc tools |
+| [PSoXide-emulator](https://github.com/EBonura/PSoXide-emulator) | Emulator core, standalone desktop/web frontend, renderer, debugging and profiling |
+| [PSoXide-editor](https://github.com/EBonura/PSoXide-editor) | Authoring UI, cookers, engine/gameplay runtime, Cortex and assets, New Project template and hardware integration fixtures |
+| [PSoXide-demo-disc](https://github.com/EBonura/PSoXide-demo-disc) | Launcher, loader, packer, component/game locks, audio relocation and complete-disc validation |
+| Existing game repositories | Their game-specific runtime, assets and tools; consume the components they need |
 
-Cortex stays in the editor repository. Existing Git revisions at the SDK URL
-remain reachable so older game pins continue to resolve.
+Existing commits at the original SDK URL remain available for reproducible
+historical game pins. Moving the current tree does not remove assets from
+Git history. Engine/cooker exports omit authored Cortex projects, so ordinary
+downstream games do not need those assets or the editor UI.
 
-The [disc-wide dependency audit](demo-disc-dependencies.md) covers every
-game, the hardware suite and the demo build itself. The engine and host
-cookers must be distributable from the editor repository without bundling
-Cortex assets into every downstream SDK cache.
+## Building the editor
 
-## Why this helps
+From a fresh editor checkout:
 
-An SDK user should be able to build a triangle or a small game without fetching
-Cortex audio, editor experiments or an emulator GUI. SDK releases can then
-state their target/toolchain support and tested downstream versions clearly.
-The tools can continue shipping as one convenient application even when their
-source dependencies live elsewhere.
+```sh
+make bootstrap
+make verify-components
+make check
+make test
+make run
+```
 
-At the reviewed revision, the tracked tree contains 689,684,978 bytes across
-3,326 paths. `editor/` accounts for 555,394,561 bytes; `sdk/` is 5,172,256 bytes.
-These are sums of file sizes, not unique Git blob sizes, compressed clone size
-or installed size. Identical assets repeated in project versions count again.
-Moving files does not remove them from existing Git history.
+See the [root README](../README.md) for host dependencies. The root host
+workspace and `engine/` device workspace remain separate. The dependency-free
+`psxed-format` package moved to the SDK's `crates/psxed-format`; its package
+name and binary layouts are unchanged.
 
-## Dependencies to resolve first
+`components.lock.json` selects full SDK and emulator Git revisions.
+`tools/bootstrap-components.py` exports only the declared paths and writes
+an ignored `.components-receipt.json` with content hashes. It refuses to
+replace edited imported files. `make verify-components` checks the lock and
+receipt offline. Local exports still use the exact locked commit:
 
-1. Move `psxed-format` into a neutral shared package without changing the
-   binary format. SDK `psx-asset` must not require a path into an editor repo.
-2. Package `psx-hw` and the shared GTE, trace and disc contracts with explicit
-   ownership. Preserve one implementation and shared conformance tests.
-   Keep `psx-pack` tests against `psx-iso` available after extraction.
-3. Replace `psoxide-link` assumptions about `<root>/tools/psoxide-link` and
-   `<root>/sdk/psoxide.ld` with a documented SDK package layout. Support the
-   old layout during downstream migration. Copying the whole tree is not a
-   long-term SDK installer.
-4. Make the MIPS compiler, linker, host packer and minimal examples work from
-   a clean SDK-only checkout. Engine-dependent games additionally need a
-   pinned engine/runtime, not a hidden dependency on the tools' working tree.
-5. Give editor Play an explicit tools/runtime location and compatibility
-   check. Keep Cortex and the New Project template with the editor. Expose a
-   pinned emulator-core integration for the embedded Play viewport and keep
-   the standalone emulator frontend free of editor/game dependencies.
+```sh
+python3 tools/bootstrap-components.py \
+  --source sdk=/path/to/PSoXide \
+  --source emulator=/path/to/PSoXide-emulator
+```
 
-Cargo already supports explicit Git revisions and records them in lockfiles.
-That is sufficient for the first extraction; publishing every crate to a
-registry immediately is not necessary. Workspace-inherited metadata must be
-rewired when packages leave their current root. See the official
-[dependency reference](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#specifying-dependencies-from-git-repositories)
-and [workspace reference](https://doc.rust-lang.org/cargo/reference/workspaces.html).
+Develop shared code in its owning repository, commit it there, then update
+the editor lock and bootstrap. Do not use ignored imported files as a source
+checkout. Publish the dependency commit before publishing its consumer lock.
 
-## Migration sequence and acceptance
+## Release integration
 
-1. Define the SDK package manifest and move shared contracts inside the
-   existing repository. Preserve the current consumer paths through a
-   transition where needed. Keep this separate from gameplay changes.
-2. Add an SDK-only CI job that builds a minimal PS1 disc and tests the shared
-   hardware/format contracts without `editor/projects` or the GUI dependencies.
-3. Extract the SDK with its license, provenance, tests and reproducible build
-   instructions. Pin one small downstream game to it first.
-4. Verify that game and Cortex, Quake and Half-Life against the old build:
-   output sections/RAM budgets, symbol/hazard checks, deterministic gameplay
-   replay, audio offsets and performance. Investigate differences instead of
-   assuming a file move is harmless to a bare-metal build.
-5. Migrate every consumer in the [demo-disc matrix](demo-disc-dependencies.md),
-   including game cookers and emulator-linked tools. Extend disc provenance
-   and test both editions, every game entry and relocated CDDA mapping. Record
-   SDK, emulator and editor/runtime revisions. Retain Cortex with the editor;
-   archive historical captures and duplicate project versions separately when
-   their regression value and asset provenance are established.
+The [disc dependency matrix](demo-disc-dependencies.md) covers all games,
+Cortex, hardware tests and the demo itself. The demo's
+`release-components.json` and submodule revisions select the tested source
+combination; a newer component `main` is not automatically a release input.
+Ordinary games receive the bootstrapped editor tree through the existing
+`PSOXIDE_FROM` adapter. The top-level disc loader and packer use the SDK
+directly. The standalone emulator provides release replay evidence.
 
-The emulator extraction is the second step: its current frontend defaults to
-the editor feature and also has unconditional engine/format dependencies.
-Separate its application shell from the editor's embedded viewport before
-moving it, while preserving shared emulation code and conformance tests.
-The first useful deliverable is an independently usable SDK, not a set of
-repositories that still require the original layout to build.
+Quake retains its independently validated pre-split source/artifact pin.
+Other historical standalone game pins remain valid until deliberately
+advanced. Their combined-disc builds already receive explicit split inputs.
+A `.components.json` sidecar binds the final disc to its effective sources,
+toolchain and emulator/image hashes; existing Quake and HL receipts remain
+additional gates.
+
+The split acceptance covered SDK examples, editor/runtime tests, downstream
+cookers, both disc editions, every game route, guest instruction hazards,
+Cortex's forbidden-symbol check and relocated audio sectors. The detailed
+[dated validation record](https://github.com/EBonura/PSoXide-demo-disc/blob/main/docs/repository-split-validation-2026-09-05.md)
+lives with the demo disc. Original-console timing and burn acceptance remain
+separate from those host/emulator results.

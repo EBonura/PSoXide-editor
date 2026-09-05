@@ -3,14 +3,16 @@
 Narrative documentation: architecture deep-dives, hardware references, and
 planning/roadmap notes. For an overview of the codebase itself, start from
 the [root README](../README.md) and the per-area READMEs
-([`sdk/`](../sdk), [`engine/`](../engine), [`editor/`](../editor),
-[`emu/`](../emu)).
+([SDK](https://github.com/EBonura/PSoXide/tree/main/sdk),
+[`engine/`](../engine), [`editor/`](../editor), [`emu/`](../emu)).
+Imported SDK/emulator paths exist locally after `make bootstrap`; their
+canonical public documentation lives in their owning repositories.
 
 ## Start here
 
 - [Build and contribute](../CONTRIBUTING.md)
 - [Repository architecture and crate boundaries](repository-architecture.md)
-- [SDK extraction proposal](sdk-separation.md)
+- [Completed repository split and component workflow](sdk-separation.md)
 - [Demo-disc consumer matrix and migration checks](demo-disc-dependencies.md)
 - [Current repository review](repository-review-2026-09-05.md)
 - [Cortex Ignition 0.4b](../editor/projects/cortex-ignition-tech-demo-0.4b/)
