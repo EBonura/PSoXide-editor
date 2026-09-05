@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "components": {
+    "sdk": {
+      "repository": "EBonura/PSoXide",
+      "revision": "f327041ec5884d6732e2d33d345f6b8f4e89022b",
+      "paths": [
+        "sdk",
+        "crates",
+        "tools/mkisopsx",
+        "tools/psoxide-link",
+        "tools/hazard_scan.py",
+        "tools/hazard_patch.py",
+        "tools/guest_symbol_gate.sh",
+        "tools/check_mfc0.py",
+        "tools/sdk-examples.mk"
+      ]
+    },
+    "emulator": {
+      "repository": "EBonura/PSoXide-emulator",
+      "revision": "4964cfa9eab6f15a7a3188668d9dfcbfa36f206d",
+      "paths": [
+        "emu/crates/emulator-core",
+        "emu/crates/psoxide-settings",
+        "emu/crates/psoxide-validation",
+        "emu/crates/psx-gpu-render"
+      ]
+    }
+  }
+}

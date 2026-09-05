@@ -1,6 +1,6 @@
 # Contributing to PSoXide
 
-Start with the [quick start](README.md#quick-start), then the
+Start with the [quick start](README.md#build), then the
 [architecture guide](docs/repository-architecture.md) for the area you want to
 change. The project is pre-1.0; small, reproducible changes are easiest to review.
 
@@ -14,6 +14,7 @@ folder so host and MIPS settings do not get mixed.
 From the repository root:
 
 ```sh
+make bootstrap
 make fmt
 make check
 make cook-playtest
@@ -23,8 +24,8 @@ make lint
 
 `make cook-playtest` prepares fixtures needed by the full test suite. For a
 small change, start with the affected crate's tests, then run the checks above
-before merging code. CI also checks dependency policy, instruction hazards
-and the web publishing contracts. See [CI](.github/workflows/ci.yml) for the
+before merging code. The extracted CI checks host workspaces and selected engine contracts. SDK
+CI checks instruction hazards; release-level disc checks remain in the demo-disc repository. See [CI](.github/workflows/ci.yml) for the
 exact commands. Documentation-only edits need link and command checks rather
 than a fresh game-disc build.
 

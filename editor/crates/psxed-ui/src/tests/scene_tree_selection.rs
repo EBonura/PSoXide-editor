@@ -110,7 +110,7 @@ fn duplicating_point_of_interest_component_copies_its_complete_host() {
         "Point of Interest",
         NodeKind::PointOfInterest {
             pages: vec!["FIRST PAGE".to_string(), "SECOND PAGE".to_string()],
-            pages_it: Vec::new(),
+            pages_it: vec!["PRIMA PAGINA".to_string()],
             prompt: "READ".to_string(),
             radius: 640,
             marker_height: 160,
@@ -145,6 +145,7 @@ fn duplicating_point_of_interest_component_copies_its_complete_host() {
     assert_eq!(copied_component.parent, Some(copied_host_id));
     let NodeKind::PointOfInterest {
         pages,
+        pages_it,
         prompt,
         radius,
         marker_height,
@@ -157,6 +158,7 @@ fn duplicating_point_of_interest_component_copies_its_complete_host() {
         panic!("copied child must remain a POI component");
     };
     assert_eq!(pages, &["FIRST PAGE", "SECOND PAGE"]);
+    assert_eq!(pages_it, &["PRIMA PAGINA"]);
     assert_eq!(prompt, "READ");
     assert_eq!(*radius, 640);
     assert_eq!(*marker_height, 160);

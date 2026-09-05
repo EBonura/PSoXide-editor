@@ -1,60 +1,31 @@
 # Repository architecture
 
-PSoXide currently contains a development stack and its integration fixtures.
-A directory boundary is not yet an independently distributable package.
+The original `EBonura/PSoXide` repository owns the SDK. This repository owns
+the editor, engine and Cortex. PSoXide-emulator owns standalone emulation.
 
-| Area | Role | Cargo workspace |
+| Path here | Owner | Workspace |
 | --- | --- | --- |
-| `sdk/` | 19 bare-metal crates, linker/runtime support and small PS1 examples | SDK |
-| `engine/` | 5 crates for scenes, rendering, BSP, gameplay and data contracts; guest examples | Engine; examples have separate roots |
-| `crates/` | Shared hardware definitions, disc formats and trace formats | Host |
-| `editor/crates/` | 8 authoring, format and asset-cooking crates | Host |
-| `emu/crates/` | 5 emulator, frontend, rendering, settings and validation crates | Host |
-| `tools/` | 3 Rust build/development tools plus scripts | Host |
-| `editor/projects/` | Authored games and project studies, including Cortex 0.4b | Data |
-| `editor/archive/fixtures/` | Cook/replay fixtures and the New Project courtyard | Data |
+| `editor/crates/` | Editor authoring and cookers | Host |
+| `engine/` | Editor runtime and gameplay | Engine, with separate guest examples |
+| `editor/projects/` | Editor, including Cortex 0.4b | Data |
+| `editor/archive/fixtures/` | Editor integration fixtures | Data |
+| `emu/crates/frontend/` | Editor's integrated application and Play viewport | Host |
+| `emu/crates/{emulator-core,psoxide-settings,psoxide-validation,psx-gpu-render}` | Imported from PSoXide-emulator | Host |
+| `sdk/` | Imported from PSoXide SDK | SDK |
+| `crates/` | Imported SDK hardware, disc, trace and format contracts | Host |
+| `tools/mkisopsx`, `tools/psoxide-link` | Imported SDK build tools | Host |
 
-The root [Cargo.toml](../Cargo.toml) lists host members. Device workspaces stay
-separate because their target, linker and `build-std` configuration differ.
+Run `make bootstrap` before Cargo. The component lock pins full revisions;
+imported source is ignored by Git and verified using content hashes. It is
+materialized into one consistent source layout so the cookers, guest builds
+and emulator all use the same SDK and format crate. Edit source in its owning
+repository and bump the lock; do not patch the imported copy.
 
-```mermaid
-flowchart TD
-  games[Games and guest examples] --> engine[Engine and gameplay runtime]
-  games --> sdk[SDK]
-  engine --> sdk
-  editor[Editor and cookers] --> engine
-  editor --> sdk
-  frontend[Desktop frontend] --> editor
-  frontend --> emu[Emulator core]
-  emu --> shared[Shared hardware and GTE contracts]
-  sdk --> shared
-  sdk --> formats[Cooked formats currently under editor]
-  editor --> formats
-```
+The shared `psxed-format` crate now lives at `crates/psxed-format` in the SDK.
+Its crate name and binary formats are unchanged. The standalone emulator has
+no editor or engine dependency. The editor still links the emulator's core
+and renderer, while owning its preview and authoring shell.
 
-This is a conceptual dependency view, not a complete Cargo graph. In
-particular, the frontend also directly depends on engine and SDK crates.
-
-## Boundaries worth knowing
-
-- `psx-asset` in the SDK reads layouts from
-  [`psxed-format`](../editor/crates/psxed-format), a dependency-free `no_std`
-  crate stored under `editor/`. This is a shared format contract, not editor UI.
-- `psx-hw` lives under `crates/` and inherits root workspace metadata; SDK
-  crates use it. The emulator also uses `psx-gte-core` from the SDK so hardware
-  semantics are shared rather than copied.
-- `frontend` defaults to its `editor` feature. `--no-default-features` removes
-  the editor UI/project dependencies, but not all engine or format crates.
-- [`psoxide-link`](../tools/psoxide-link/src/lib.rs) locates the source root
-  through a fixed directory layout and checks `sdk/psoxide.ld`. Its hydration
-  copies most source/content directories, not a standalone SDK package.
-- Editor Play cooks a project and builds
-  [`editor-playtest`](../engine/examples/editor-playtest). Extraction needs a
-  versioned compiler/runtime contract as well as Rust dependency changes.
-
-## Working in the repository
-
-Use the [contributor guide](../CONTRIBUTING.md) for checks,
-[downstream projects](downstream-projects.md) for SDK consumption, and the
-[SDK separation proposal](sdk-separation.md) for a possible future layout.
-The latter is a proposal; the current build still uses this repository.
+The demo-disc repository owns release integration, including every game,
+hardware tests, complete-disc packing and relocated audio checks. See the
+[dependency matrix](demo-disc-dependencies.md) and [migration acceptance](sdk-separation.md).

@@ -1,7 +1,11 @@
-# Proposal: separate SDK distribution from the development tools
+# SDK, emulator and editor separation
 
-Status: proposal, based on main `97a604f6` on 5 September 2026. No repositories
-or package paths have been moved by this review.
+Status: repository extraction in progress on 5 September 2026. The existing
+`EBonura/PSoXide` URL becomes the SDK. `EBonura/PSoXide-editor` owns the editor,
+engine and Cortex; `EBonura/PSoXide-emulator` owns standalone emulation.
+`components.lock.json` is the executable dependency lock for this checkout.
+The acceptance list below includes downstream release work that must remain
+explicit until a complete demo-disc build has been verified.
 
 ## Recommendation
 
@@ -10,16 +14,16 @@ exercises authoring, cooking, runtime and playtesting, so changes to those
 systems should still land in one commit. Establish the build boundaries
 before moving Git history, starting with the SDK.
 
-| Proposed repository | Contents |
+| Repository | Contents |
 | --- | --- |
-| SDK | Bare-metal crates, linker/runtime, shared hardware and cooked-format contracts, small examples, standalone bootstrap and disc tools |
-| Emulator | Emulator core, standalone frontend, renderer, debugging and profiling; consumes shared SDK contracts |
-| Editor + engine + Cortex | Authoring UI, cookers, engine/gameplay runtime, Cortex and its assets, New Project template and integration fixtures; pins SDK and emulator |
+| `EBonura/PSoXide` | Bare-metal crates, linker/runtime, shared hardware and cooked-format contracts, small examples, standalone bootstrap and disc tools |
+| `EBonura/PSoXide-emulator` | Emulator core, standalone frontend, renderer, debugging and profiling; consumes shared SDK contracts |
+| `EBonura/PSoXide-editor` | Authoring UI, cookers, engine/gameplay runtime, Cortex and its assets, New Project template and integration fixtures; pins SDK and emulator |
 | Demo disc | Existing integration/release repository: launcher, loader, packer, component/game locks and complete-disc validation |
 | Existing game repositories | Remain separate; consume the SDK plus engine/cookers/emulator components they actually use |
 
-These names describe ownership, not repository creation instructions. A
-separate repository for every crate would create unnecessary versioning work.
+Cortex stays in the editor repository. Existing Git revisions at the SDK URL
+remain reachable so older game pins continue to resolve.
 
 The [disc-wide dependency audit](demo-disc-dependencies.md) covers every
 game, the hardware suite and the demo build itself. The engine and host
