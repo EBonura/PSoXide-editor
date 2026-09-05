@@ -50,7 +50,8 @@ component and game combination for a release.
 
 See [the dependency matrix](docs/demo-disc-dependencies.md) for the complete
 demo-disc closure, and [the repository split](docs/sdk-separation.md) for
-migration context. Historical documents may use pre-split repository paths.
+the implemented component workflow. Dated historical documents may use
+pre-split repository paths.
 
 ## License and validation
 
