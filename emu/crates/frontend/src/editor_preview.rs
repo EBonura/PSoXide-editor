@@ -1346,8 +1346,6 @@ fn walk_brushes_with_culling(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-
 fn preview_projected_from_engine(
     projected: psx_engine::ProjectedVertex,
 ) -> psx_gte::scene::Projected {
@@ -1674,7 +1672,6 @@ fn resolve_and_draw_model_instances(
 ///    auto-pick it.
 /// 3. Otherwise skip the preview (the cook step's validation
 ///    will surface the missing character).
-
 fn apply_character_motion_preview(
     entity: NodeId,
     origin: &mut psx_engine::WorldVertex,

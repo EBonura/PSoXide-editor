@@ -5008,11 +5008,10 @@ fn draw_weapon_appearance_editor(
         .checkbox(&mut trail_enabled, "Emit a PS1 Gouraud ribbon")
         .changed()
     {
-        track.trail = trail_enabled.then(|| {
-            let mut trail = psxed_project::WeaponTrailConfig::default();
-            trail.start_frame = current_frame;
-            trail.end_frame = current_frame.saturating_add(8).min(max_frame);
-            trail
+        track.trail = trail_enabled.then(|| psxed_project::WeaponTrailConfig {
+            start_frame: current_frame,
+            end_frame: current_frame.saturating_add(8).min(max_frame),
+            ..Default::default()
         });
         changed = true;
     }

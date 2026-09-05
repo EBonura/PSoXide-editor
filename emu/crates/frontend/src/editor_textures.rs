@@ -448,9 +448,7 @@ impl EditorTextures {
             return None;
         }
         for expected in 1..page_count {
-            let Some(page) = self.room_allocator.reserve_empty_page() else {
-                return None;
-            };
+            let page = self.room_allocator.reserve_empty_page()?;
             if page != expected {
                 return None;
             }

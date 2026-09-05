@@ -512,6 +512,8 @@ enum TreeAction {
     },
 }
 
+// A single transient action is consumed per UI frame; avoid allocating its payload.
+#[allow(clippy::large_enum_variant)]
 enum UiTreeAction {
     Select(UiNodeId),
     Copy(UiNodeId),
