@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Phase swapping now recharges in five seconds for both the player and enemies.
 - Phase changes raise a rotating glyph from the player's feet to above their head, following movement and the destination colour with a soft fade in and out.
 - Sprint starts immediately, and evades cover less ground with a committed direction.
 - Sword sounds, trails and damage follow each swing, including both cyan heavy strikes.
