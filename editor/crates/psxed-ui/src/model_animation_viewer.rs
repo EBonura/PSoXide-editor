@@ -152,7 +152,7 @@ pub(crate) struct ModelAnimationViewerState {
     show_animation_root: bool,
     show_bones: bool,
     show_combat_capsules: bool,
-    combat_capsules_visible: bool,
+    combat_category_visible: [bool; 3],
     show_pose_corrections: bool,
     show_attachment_sockets: bool,
     show_moveset: bool,
@@ -200,7 +200,7 @@ impl Default for ModelAnimationViewerState {
             show_animation_root: false,
             show_bones: false,
             show_combat_capsules: false,
-            combat_capsules_visible: true,
+            combat_category_visible: [true; 3],
             show_pose_corrections: false,
             show_attachment_sockets: false,
             show_moveset: false,
@@ -307,7 +307,11 @@ impl ModelAnimationViewerState {
                 self.reset_clip_clock();
             }
             ResourceData::AnimationClip(clip) => {
-                self.selected_character = None;
+                let owner = character_action_for_clip(project, self.selected_character, id);
+                self.selected_character = owner.map(|(character, _)| character);
+                if let Some((_, action)) = owner {
+                    self.selected_action = action;
+                }
                 self.set_studio_mode(AnimationStudioMode::Pose);
                 self.selected_model = clip
                     .target_model
@@ -1083,20 +1087,18 @@ pub(crate) fn draw_model_animation_viewer_toolbar(
 /// only drawn while that action is being previewed. Showing every capsule on
 /// every clip made the overlay unreadable and made it look as though a capsule
 /// authored for one attack was live during another. A hurtbox carries no
-/// action, it is the body's own collider, so it is always drawn.
+/// action, so it is drawn for every clip when its category is visible.
 fn preview_combat_capsules(
     capsules: &[psxed_project::CharacterCombatCapsule],
     selected: usize,
-    visible: bool,
+    visible: [bool; 3],
     previewed_action: CharacterAnimationAction,
     gizmo_mode: model_import_preview::PreviewGizmoMode,
 ) -> Vec<model_import_preview::PreviewCombatCapsule> {
-    if !visible {
-        return Vec::new();
-    }
     capsules
         .iter()
         .enumerate()
+        .filter(|(_, capsule)| visible[CombatVolumeCategory::of(&capsule.role) as usize])
         .filter(|(index, capsule)| match capsule.role {
             psxed_project::CombatCapsuleRole::Hurtbox => true,
             psxed_project::CombatCapsuleRole::Hitbox { action, .. }
@@ -1135,15 +1137,7 @@ fn preview_combat_capsules(
                 radius: capsule.capsule.radius,
                 projectile_preview_rotation_q12: capsule.projectile_preview_rotation_q12,
                 gizmo_mode,
-                color: match capsule.role {
-                    psxed_project::CombatCapsuleRole::Hurtbox => Color32::from_rgb(76, 196, 224),
-                    psxed_project::CombatCapsuleRole::Hitbox { .. } => {
-                        Color32::from_rgb(238, 102, 82)
-                    }
-                    psxed_project::CombatCapsuleRole::ProjectileEmitter { .. } => {
-                        Color32::from_rgb(214, 118, 255)
-                    }
-                },
+                color: CombatVolumeCategory::of(&capsule.role).color(),
                 selected: index == selected,
                 projectile,
             }
@@ -1261,11 +1255,18 @@ pub(crate) fn draw_model_animation_viewer(
                 motion: *motion,
             },
         );
-    let combat_overlays_visible = combat_studio_open && state.combat_capsules_visible;
+    let combat_visibility = if combat_studio_open {
+        state.combat_category_visible
+    } else {
+        [false; 3]
+    };
+    let selected_combat_visible = capsules
+        .get(state.selected_combat_capsule)
+        .is_some_and(|capsule| combat_visibility[CombatVolumeCategory::of(&capsule.role) as usize]);
     let preview_capsules = preview_combat_capsules(
         &capsules,
         state.selected_combat_capsule,
-        combat_overlays_visible,
+        combat_visibility,
         state.selected_action,
         if state.capsule_edit_tool == CapsuleEditTool::Rotate {
             model_import_preview::PreviewGizmoMode::Rotate
@@ -1540,7 +1541,7 @@ pub(crate) fn draw_model_animation_viewer(
     } else if socket_model_id.is_some() {
         sockets.get(preview_socket_index).map(|socket| socket.joint)
     } else {
-        combat_overlays_visible
+        selected_combat_visible
             .then(|| {
                 capsules
                     .get(state.selected_combat_capsule)
@@ -1549,7 +1550,7 @@ pub(crate) fn draw_model_animation_viewer(
             .flatten()
     };
     let joint_picking =
-        combat_overlays_visible || pose_clip_id.is_some() || socket_model_id.is_some();
+        selected_combat_visible || pose_clip_id.is_some() || socket_model_id.is_some();
     let moveset_open = state.show_moveset && character_id.is_some();
     let authoring_panel_open = combat_studio_open || joint_picking || moveset_open;
     let assigned_action_clip = character_id.and_then(|character_id| {
@@ -1856,6 +1857,7 @@ struct TimelineHitbox {
     start: u16,
     end: u16,
     kind: TimelineCombatKind,
+    windows: Vec<psxed_project::CombatHitWindow>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2105,6 +2107,13 @@ fn draw_animation_timeline(
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.label(RichText::new("Timeline").strong());
+                        if character_id.is_none() {
+                            ui.label(
+                                RichText::new("Select a character above to see combat tracks")
+                                    .small()
+                                    .color(STUDIO_TEXT_WEAK),
+                            );
+                        }
                         ui.label(
                             RichText::new("sampled frames")
                                 .small()
@@ -2249,7 +2258,11 @@ fn draw_animation_timeline(
             egui::ScrollArea::vertical()
                 .id_salt("animation-timeline-lanes-scroll")
                 .auto_shrink([false, false])
+                .max_height(ui.available_height().max(1.0))
                 .show(ui, |ui| {
+                    // Lane heights already include their padding. Extra layout
+                    // spacing pushes the last tracks outside the scroll extent.
+                    ui.spacing_mut().item_spacing.y = 0.0;
                     ui.horizontal_top(|ui| {
                         ui.spacing_mut().item_spacing.x = 0.0;
                         ui.allocate_ui_with_layout(
@@ -2360,7 +2373,15 @@ fn draw_animation_timeline(
                                 for hitbox in &hitboxes {
                                     let (detail, color) = match hitbox.kind {
                                         TimelineCombatKind::Hitbox => (
-                                            "damage window".to_string(),
+                                            format!(
+                                                "{} damage {}",
+                                                hitbox.windows.len(),
+                                                if hitbox.windows.len() == 1 {
+                                                    "section"
+                                                } else {
+                                                    "sections"
+                                                }
+                                            ),
                                             Color32::from_rgb(238, 102, 82),
                                         ),
                                         TimelineCombatKind::Projectile => (
@@ -2582,7 +2603,7 @@ fn draw_animation_timeline(
                                                     Color32::from_rgb(62, 214, 198)
                                                 }
                                             };
-                                            let response = draw_timeline_range_lane(
+                                            let response = draw_timeline_sections_lane(
                                                 ui,
                                                 &format!(
                                                     "animation-timeline-hitbox-{}",
@@ -2592,11 +2613,7 @@ fn draw_animation_timeline(
                                                 action_max_frame,
                                                 state.timeline_pixels_per_frame,
                                                 state.frame,
-                                                hitbox.start.min(action_max_frame),
-                                                hitbox
-                                                    .end
-                                                    .min(action_max_frame)
-                                                    .max(hitbox.start.min(action_max_frame)),
+                                                &hitbox.windows,
                                                 color,
                                                 true,
                                             );
@@ -2606,7 +2623,12 @@ fn draw_animation_timeline(
                                                 state.selected_combat_capsule = hitbox.index;
                                             }
                                             if let Some((start, end)) = response.range {
-                                                hitbox_updates.push((hitbox.index, start, end));
+                                                hitbox_updates.push((
+                                                    hitbox.index,
+                                                    response.section,
+                                                    start,
+                                                    end,
+                                                ));
                                                 state.selected_combat_capsule = hitbox.index;
                                             }
                                         }
@@ -2666,12 +2688,13 @@ fn draw_animation_timeline(
                     },
                 );
             }
-            for (index, start, end) in hitbox_updates {
+            for (index, section, start, end) in hitbox_updates {
                 changed |= store_timeline_hitbox_range(
                     project,
                     character_id,
                     index,
                     state.selected_action,
+                    section,
                     start,
                     end,
                 );
@@ -2934,6 +2957,7 @@ fn draw_timeline_sparse_keys_lane(
 struct TimelineLaneResponse {
     seek_frame: Option<u16>,
     range: Option<(u16, u16)>,
+    section: usize,
 }
 
 fn draw_timeline_range_lane(
@@ -2945,6 +2969,30 @@ fn draw_timeline_range_lane(
     playhead: f32,
     start: u16,
     end: u16,
+    color: Color32,
+    editable: bool,
+) -> TimelineLaneResponse {
+    draw_timeline_sections_lane(
+        ui,
+        id_salt,
+        width,
+        max_frame,
+        pixels_per_frame,
+        playhead,
+        &[psxed_project::CombatHitWindow { start, end }],
+        color,
+        editable,
+    )
+}
+
+fn draw_timeline_sections_lane(
+    ui: &mut egui::Ui,
+    id_salt: &str,
+    width: f32,
+    max_frame: u16,
+    pixels_per_frame: f32,
+    playhead: f32,
+    windows: &[psxed_project::CombatHitWindow],
     color: Color32,
     editable: bool,
 ) -> TimelineLaneResponse {
@@ -2966,22 +3014,33 @@ fn draw_timeline_range_lane(
         ),
     );
     ui.painter().rect_filled(rail, 3.0, STUDIO_INPUT);
-    let start_x = timeline_x(rect, start.min(max_frame), pixels_per_frame);
-    let end_x = timeline_x(rect, end.min(max_frame), pixels_per_frame);
-    let active = Rect::from_min_max(
-        egui::pos2(start_x.min(end_x), rail.top()),
-        egui::pos2((start_x.max(end_x) + 1.0).min(rail.right()), rail.bottom()),
-    );
-    ui.painter().rect_filled(active, 3.0, color);
-    if editable {
-        for x in [start_x, end_x] {
-            ui.painter().line_segment(
-                [
-                    egui::pos2(x, rail.top() - 3.0),
-                    egui::pos2(x, rail.bottom() + 3.0),
-                ],
-                Stroke::new(2.0, STUDIO_TEXT),
+    for (section, window) in windows.iter().enumerate() {
+        let start_x = timeline_x(rect, window.start.min(max_frame), pixels_per_frame);
+        let end_x = timeline_x(rect, window.end.min(max_frame), pixels_per_frame);
+        let active = Rect::from_min_max(
+            egui::pos2(start_x.min(end_x), rail.top()),
+            egui::pos2((start_x.max(end_x) + 1.0).min(rail.right()), rail.bottom()),
+        );
+        ui.painter().rect_filled(active, 3.0, color);
+        if active.width() > 20.0 && windows.len() > 1 {
+            ui.painter().text(
+                active.center(),
+                egui::Align2::CENTER_CENTER,
+                section + 1,
+                egui::FontId::proportional(10.0),
+                STUDIO_PANEL_DARK,
             );
+        }
+        if editable {
+            for x in [start_x, end_x] {
+                ui.painter().line_segment(
+                    [
+                        egui::pos2(x, rail.top() - 3.0),
+                        egui::pos2(x, rail.bottom() + 3.0),
+                    ],
+                    Stroke::new(2.0, STUDIO_TEXT),
+                );
+            }
         }
     }
     let playhead_x = timeline_x(rect, playhead.round().max(0.0) as u16, pixels_per_frame);
@@ -3005,29 +3064,51 @@ fn draw_timeline_range_lane(
     if editable && response.drag_started() {
         if let Some(pointer) = response.interact_pointer_pos() {
             let frame = timeline_frame_at(rect, pointer.x, max_frame, pixels_per_frame);
-            let use_start = frame.abs_diff(start) <= frame.abs_diff(end);
-            ui.memory_mut(|memory| memory.data.insert_temp(id, use_start));
+            if let Some(handle) = nearest_section_handle(windows, frame) {
+                ui.memory_mut(|memory| memory.data.insert_temp(id, handle));
+            }
         }
     }
     if editable && response.dragged() {
         if let Some(pointer) = response.interact_pointer_pos() {
             let frame = timeline_frame_at(rect, pointer.x, max_frame, pixels_per_frame);
-            let use_start = ui
-                .memory_mut(|memory| memory.data.get_temp::<bool>(id))
-                .unwrap_or(true);
-            let range = if use_start {
-                (frame.min(end), end)
-            } else {
-                (start, frame.max(start))
-            };
-            result.range = Some(range);
-            result.seek_frame = Some(frame);
+            if let Some((section, use_start)) =
+                ui.memory_mut(|memory| memory.data.get_temp::<(usize, bool)>(id))
+            {
+                if let Some(window) = windows.get(section) {
+                    let range = if use_start {
+                        (frame.min(window.end), window.end)
+                    } else {
+                        (window.start, frame.max(window.start))
+                    };
+                    result.range = Some(range);
+                    result.section = section;
+                    result.seek_frame = Some(frame);
+                }
+            }
         }
     }
     if response.drag_stopped() {
-        ui.memory_mut(|memory| memory.data.remove::<bool>(id));
+        ui.memory_mut(|memory| memory.data.remove::<(usize, bool)>(id));
     }
     result
+}
+
+fn nearest_section_handle(
+    windows: &[psxed_project::CombatHitWindow],
+    frame: u16,
+) -> Option<(usize, bool)> {
+    windows
+        .iter()
+        .enumerate()
+        .flat_map(|(index, window)| {
+            [
+                (index, true, frame.abs_diff(window.start)),
+                (index, false, frame.abs_diff(window.end)),
+            ]
+        })
+        .min_by_key(|(_, _, distance)| *distance)
+        .map(|(index, start, _)| (index, start))
 }
 
 fn timeline_action_context(
@@ -3070,6 +3151,23 @@ fn timeline_action_for_clip(
             timeline_action_context(project, character_id, *action)
                 .is_some_and(|context| context.clip == clip)
         })
+}
+
+fn character_action_for_clip(
+    project: &ProjectDocument,
+    preferred: Option<ResourceId>,
+    clip: ResourceId,
+) -> Option<(ResourceId, CharacterAnimationAction)> {
+    if let Some(character) = preferred {
+        if let Some(action) = timeline_action_for_clip(project, character, clip) {
+            return Some((character, action));
+        }
+    }
+    let mut owners = project.resources.iter().filter_map(|resource| {
+        timeline_action_for_clip(project, resource.id, clip).map(|action| (resource.id, action))
+    });
+    let owner = owners.next()?;
+    owners.next().is_none().then_some(owner)
 }
 
 fn timeline_hitboxes(
@@ -3121,6 +3219,14 @@ fn timeline_hitboxes(
                             start: active_start_frame,
                             end: active_end_frame.max(active_start_frame),
                             kind,
+                            windows: if kind == TimelineCombatKind::Hitbox {
+                                capsule.hit_windows().collect()
+                            } else {
+                                vec![psxed_project::CombatHitWindow {
+                                    start: active_start_frame,
+                                    end: active_end_frame,
+                                }]
+                            },
                         })
                     })
                     .collect(),
@@ -3203,6 +3309,7 @@ fn store_timeline_hitbox_range(
     character_id: Option<ResourceId>,
     index: usize,
     expected_action: CharacterAnimationAction,
+    section: usize,
     start: u16,
     end: u16,
 ) -> bool {
@@ -3218,6 +3325,22 @@ fn store_timeline_hitbox_range(
     let Some(capsule) = character.combat_capsules.get_mut(index) else {
         return false;
     };
+    if section > 0 {
+        if !matches!(capsule.role, psxed_project::CombatCapsuleRole::Hitbox { action, .. } if action == expected_action)
+        {
+            return false;
+        }
+        let Some(window) = capsule.additional_hit_windows.get_mut(section - 1) else {
+            return false;
+        };
+        let updated = psxed_project::CombatHitWindow {
+            start,
+            end: end.max(start),
+        };
+        let changed = *window != updated;
+        *window = updated;
+        return changed;
+    }
     match &mut capsule.role {
         psxed_project::CombatCapsuleRole::Hitbox {
             action,
@@ -3927,6 +4050,143 @@ fn degrees_to_q12_delta(value: f32) -> i16 {
         .clamp(i16::MIN as f32, i16::MAX as f32) as i16
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CombatVolumeCategory {
+    Hurtbox,
+    Hitbox,
+    Projectile,
+}
+
+impl CombatVolumeCategory {
+    const ALL: [Self; 3] = [Self::Hurtbox, Self::Hitbox, Self::Projectile];
+
+    fn of(role: &psxed_project::CombatCapsuleRole) -> Self {
+        match role {
+            psxed_project::CombatCapsuleRole::Hurtbox => Self::Hurtbox,
+            psxed_project::CombatCapsuleRole::Hitbox { .. } => Self::Hitbox,
+            psxed_project::CombatCapsuleRole::ProjectileEmitter { .. } => Self::Projectile,
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Hurtbox => "Hurtboxes",
+            Self::Hitbox => "Hitboxes",
+            Self::Projectile => "Projectiles",
+        }
+    }
+
+    fn icon(self) -> char {
+        match self {
+            Self::Hurtbox => icons::BOX,
+            Self::Hitbox => icons::SCAN,
+            Self::Projectile => icons::WAYPOINT,
+        }
+    }
+
+    fn color(self) -> Color32 {
+        match self {
+            Self::Hurtbox => Color32::from_rgb(76, 196, 224),
+            Self::Hitbox => Color32::from_rgb(238, 102, 82),
+            Self::Projectile => Color32::from_rgb(214, 118, 255),
+        }
+    }
+
+    fn new_volume(self, action: CharacterAnimationAction) -> psxed_project::CharacterCombatCapsule {
+        use psxed_project::{CharacterCombatCapsule, CombatCapsuleRole, JointCapsule};
+        match self {
+            Self::Hurtbox => CharacterCombatCapsule::default(),
+            Self::Hitbox => CharacterCombatCapsule {
+                name: "Attack Hitbox".into(),
+                role: CombatCapsuleRole::Hitbox {
+                    action,
+                    active_start_frame: 8,
+                    active_end_frame: 14,
+                    damage: 25,
+                    poise_damage: 25,
+                },
+                ..Default::default()
+            },
+            Self::Projectile => CharacterCombatCapsule {
+                name: "Projectile Muzzle".into(),
+                capsule: JointCapsule {
+                    start: [0; 3],
+                    end: [0; 3],
+                    radius: 48,
+                },
+                role: CombatCapsuleRole::ProjectileEmitter {
+                    action,
+                    charge_start_frame: 4,
+                    active_start_frame: 8,
+                    active_end_frame: 8,
+                    projectile: None,
+                    speed: 160,
+                    lifetime_ticks: 180,
+                    min_range: 512,
+                    max_range: 4096,
+                    damage: 20,
+                    poise_damage: 10,
+                    tint_rgb: [120, 210, 255],
+                },
+                ..Default::default()
+            },
+        }
+    }
+}
+
+fn draw_combat_categories(
+    ui: &mut egui::Ui,
+    capsules: &mut Vec<psxed_project::CharacterCombatCapsule>,
+    state: &mut ModelAnimationViewerState,
+) -> bool {
+    let mut changed = false;
+    egui::Grid::new("combat-volume-categories")
+        .num_columns(5)
+        .spacing(Vec2::new(8.0, 6.0))
+        .show(ui, |ui| {
+            for category in CombatVolumeCategory::ALL {
+                let index = category as usize;
+                let count = capsules
+                    .iter()
+                    .filter(|v| CombatVolumeCategory::of(&v.role) == category)
+                    .count();
+                ui.label(icons::text(category.icon(), 16.0).color(category.color()));
+                ui.label(category.label());
+                ui.weak(count.to_string());
+                let visible = &mut state.combat_category_visible[index];
+                let eye = if *visible { icons::EYE } else { icons::EYE_OFF };
+                if ui
+                    .button(icons::text(eye, 16.0))
+                    .on_hover_text(format!(
+                        "{} {} in preview (gameplay is unchanged)",
+                        if *visible { "Hide" } else { "Show" },
+                        category.label().to_lowercase()
+                    ))
+                    .clicked()
+                {
+                    *visible = !*visible;
+                }
+                if ui
+                    .button(icons::text(icons::PLUS, 16.0))
+                    .on_hover_text(match category {
+                        CombatVolumeCategory::Hurtbox => "Add hurtbox",
+                        CombatVolumeCategory::Hitbox => "Add hitbox",
+                        CombatVolumeCategory::Projectile => "Add projectile emitter",
+                    })
+                    .clicked()
+                {
+                    capsules.push(category.new_volume(state.selected_action));
+                    state.selected_combat_capsule = capsules.len() - 1;
+                    // A newly added volume must be visible so it can be positioned.
+                    *visible = true;
+                    changed = true;
+                }
+                ui.end_row();
+            }
+        });
+    changed
+}
+
 fn draw_combat_capsule_editor(
     ui: &mut egui::Ui,
     project: &mut ProjectDocument,
@@ -3953,21 +4213,7 @@ fn draw_combat_capsule_editor(
             Some((resource.id, resource.name.clone(), projectile.clone()))
         })
         .collect();
-    ui.horizontal(|ui| {
-        ui.heading("Combat Volumes");
-        let (icon, label) = if state.combat_capsules_visible {
-            (icons::EYE_OFF, "Hide capsules")
-        } else {
-            (icons::EYE, "Show capsules")
-        };
-        if ui
-            .button(icons::label(icon, label))
-            .on_hover_text("Show or hide combat capsules in the animation preview")
-            .clicked()
-        {
-            state.combat_capsules_visible = !state.combat_capsules_visible;
-        }
-    });
+    ui.heading("Combat Volumes");
     ui.label(
         RichText::new(
             "Select a capsule, then click a highlighted body joint to attach and fit it.",
@@ -3984,6 +4230,9 @@ fn draw_combat_capsule_editor(
     let ResourceData::Character(character) = &mut resource.data else {
         return false;
     };
+
+    changed |= draw_combat_categories(ui, &mut character.combat_capsules, state);
+    ui.separator();
 
     let capsule_options = character
         .combat_capsules
@@ -4035,77 +4284,31 @@ fn draw_combat_capsule_editor(
             changed = true;
         }
     });
-    ui.horizontal_wrapped(|ui| {
-        if ui.button(icons::label(icons::PLUS, "Hurtbox")).clicked() {
-            character
-                .combat_capsules
-                .push(psxed_project::CharacterCombatCapsule::default());
-            state.selected_combat_capsule = character.combat_capsules.len() - 1;
-            changed = true;
-        }
-        if ui.button(icons::label(icons::PLUS, "Hitbox")).clicked() {
-            character
-                .combat_capsules
-                .push(psxed_project::CharacterCombatCapsule {
-                    name: "Attack Hitbox".to_string(),
-                    role: psxed_project::CombatCapsuleRole::Hitbox {
-                        // Bind to the clip being previewed. Hardcoding an
-                        // action here sent every new hitbox to LightAttack, and
-                        // because the viewer follows the selected capsule's
-                        // action, adding one from any other clip jumped the
-                        // preview back to the light attack.
-                        action: state.selected_action,
-                        active_start_frame: 8,
-                        active_end_frame: 14,
-                        damage: 25,
-                        poise_damage: 25,
-                    },
-                    ..psxed_project::CharacterCombatCapsule::default()
-                });
-            state.selected_combat_capsule = character.combat_capsules.len() - 1;
-            changed = true;
-        }
-        if ui.button(icons::label(icons::PLUS, "Projectile")).clicked() {
-            character
-                .combat_capsules
-                .push(psxed_project::CharacterCombatCapsule {
-                    name: "Projectile Muzzle".to_string(),
-                    capsule: psxed_project::JointCapsule {
-                        start: [0; 3],
-                        end: [0; 3],
-                        radius: 48,
-                    },
-                    role: psxed_project::CombatCapsuleRole::ProjectileEmitter {
-                        action: state.selected_action,
-                        charge_start_frame: 4,
-                        active_start_frame: 8,
-                        active_end_frame: 8,
-                        projectile: None,
-                        speed: 160,
-                        lifetime_ticks: 180,
-                        min_range: 512,
-                        max_range: 4096,
-                        damage: 20,
-                        poise_damage: 10,
-                        tint_rgb: [120, 210, 255],
-                    },
-                    ..psxed_project::CharacterCombatCapsule::default()
-                });
-            state.selected_combat_capsule = character.combat_capsules.len() - 1;
-            changed = true;
-        }
-    });
 
     let Some(capsule) = character
         .combat_capsules
         .get_mut(state.selected_combat_capsule)
     else {
         ui.add_space(10.0);
-        ui.weak("Add a receiving hurtbox or a damage-dealing hitbox to begin.");
+        ui.weak("Use + beside a category to add your first volume.");
         return changed;
     };
     ui.separator();
-    changed |= ui.text_edit_singleline(&mut capsule.name).changed();
+    ui.horizontal(|ui| {
+        ui.label("Name");
+        changed |= ui
+            .add(
+                egui::TextEdit::singleline(&mut capsule.name)
+                    .id(egui::Id::new((
+                        "combat-volume-name",
+                        character_id.raw(),
+                        state.selected_combat_capsule,
+                    )))
+                    .desired_width(ui.available_width())
+                    .hint_text("Combat volume name"),
+            )
+            .changed();
+    });
 
     ui.horizontal(|ui| {
         ui.label("Viewport");
@@ -4169,7 +4372,7 @@ fn draw_combat_capsule_editor(
         }
         (1, role) if !matches!(role, psxed_project::CombatCapsuleRole::Hitbox { .. }) => {
             capsule.role = psxed_project::CombatCapsuleRole::Hitbox {
-                action: psxed_project::CharacterAnimationAction::LightAttack,
+                action: state.selected_action,
                 active_start_frame: 8,
                 active_end_frame: 14,
                 damage: 25,
@@ -4185,7 +4388,7 @@ fn draw_combat_capsule_editor(
         {
             capsule.capsule.end = capsule.capsule.start;
             capsule.role = psxed_project::CombatCapsuleRole::ProjectileEmitter {
-                action: psxed_project::CharacterAnimationAction::LightAttack,
+                action: state.selected_action,
                 charge_start_frame: 4,
                 active_start_frame: 8,
                 active_end_frame: 8,
@@ -4335,12 +4538,71 @@ fn draw_combat_capsule_editor(
                 );
             }
         });
+        ui.label(RichText::new("Damage sections").strong());
+        ui.horizontal(|ui| {
+            ui.label("Section 1");
+            if !capsule.additional_hit_windows.is_empty()
+                && ui
+                    .small_button(icons::TRASH.to_string())
+                    .on_hover_text("Remove this damage section")
+                    .clicked()
+            {
+                let next = capsule.additional_hit_windows.remove(0);
+                *active_start_frame = next.start;
+                *active_end_frame = next.end;
+                changed = true;
+            }
+        });
         changed |= combat_u16_editor(ui, "Active start", active_start_frame, 0, u16::MAX);
         changed |= combat_u16_editor(ui, "Active end", active_end_frame, 0, u16::MAX);
         if *active_end_frame < *active_start_frame {
             *active_end_frame = *active_start_frame;
             changed = true;
         }
+        let mut remove = None;
+        for (index, window) in capsule.additional_hit_windows.iter_mut().enumerate() {
+            ui.push_id(("combat-section", index), |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(format!("Section {}", index + 2));
+                    if ui
+                        .small_button(icons::TRASH.to_string())
+                        .on_hover_text("Remove this damage section")
+                        .clicked()
+                    {
+                        remove = Some(index);
+                    }
+                });
+                changed |= combat_u16_editor(ui, "Active start", &mut window.start, 0, u16::MAX);
+                changed |=
+                    combat_u16_editor(ui, "Active end", &mut window.end, window.start, u16::MAX);
+                if window.end < window.start {
+                    window.end = window.start;
+                    changed = true;
+                }
+            });
+        }
+        if let Some(index) = remove {
+            capsule.additional_hit_windows.remove(index);
+            changed = true;
+        }
+        if ui.button("+ Add damage section").clicked() {
+            let end = capsule
+                .additional_hit_windows
+                .iter()
+                .map(|window| window.end)
+                .max()
+                .unwrap_or(*active_end_frame)
+                .max(*active_end_frame);
+            let start = end.saturating_add(2);
+            capsule
+                .additional_hit_windows
+                .push(psxed_project::CombatHitWindow {
+                    start,
+                    end: start.saturating_add(3),
+                });
+            changed = true;
+        }
+        ui.label(RichText::new("All sections share this volume's shape and damage. Drag their edges in the timeline.").small().color(STUDIO_TEXT_WEAK));
         changed |= combat_u16_editor(ui, "Damage", damage, 1, 9999);
         changed |= combat_u16_editor(ui, "Poise damage", poise_damage, 0, 9999);
     }
@@ -8271,6 +8533,154 @@ mod focus_tests {
     }
 
     #[test]
+    fn clip_trimming_preserves_and_rebases_every_damage_section() {
+        let (mut project, character, set_id, clip) = timeline_fixture();
+        let ResourceData::AnimationSet(set) = &mut project.resource_mut(set_id).unwrap().data
+        else {
+            unreachable!()
+        };
+        set.idle_clip = None;
+        set.action_clips = vec![psxed_project::AnimationActionBinding {
+            action: CharacterAnimationAction::HeavyAttack,
+            clip,
+            options: Some(CharacterActionOptions {
+                frame_start: 10,
+                frame_end: 30,
+                push_frame_start: 10,
+                push_frame_end: 30,
+                ..CharacterActionOptions::for_action(CharacterAnimationAction::HeavyAttack)
+            }),
+        }];
+        let ResourceData::Character(profile) = &mut project.resource_mut(character).unwrap().data
+        else {
+            unreachable!()
+        };
+        profile.combat_capsules[1].role = psxed_project::CombatCapsuleRole::Hitbox {
+            action: CharacterAnimationAction::HeavyAttack,
+            active_start_frame: 12,
+            active_end_frame: 16,
+            damage: 20,
+            poise_damage: 20,
+        };
+        profile.combat_capsules[1].additional_hit_windows = vec![
+            psxed_project::CombatHitWindow { start: 8, end: 9 },
+            psxed_project::CombatHitWindow { start: 35, end: 38 },
+        ];
+        let trim = psxed_project::clip_window::ClipTrim::for_project(&project);
+        assert_eq!(trim.offset(clip), 8);
+        assert_eq!(trim.window(clip).unwrap().end, Some(38));
+        let rebased = trim.rebase_project(&project);
+        let ResourceData::Character(profile) = &rebased.resource(character).unwrap().data else {
+            unreachable!()
+        };
+        assert_eq!(
+            profile.combat_capsules[1]
+                .hit_windows()
+                .map(|w| (w.start, w.end))
+                .collect::<Vec<_>>(),
+            [(4, 8), (0, 1), (27, 30)]
+        );
+    }
+
+    #[test]
+    fn opening_an_assigned_clip_keeps_its_character_and_combat_timeline() {
+        let (mut project, character, set_id, clip) = timeline_fixture();
+        let ResourceData::AnimationSet(set) = &mut project.resource_mut(set_id).unwrap().data
+        else {
+            unreachable!()
+        };
+        set.idle_clip = None;
+        set.action_clips
+            .push(psxed_project::AnimationActionBinding {
+                action: CharacterAnimationAction::LightAttack,
+                clip,
+                options: None,
+            });
+        let mut viewer = ModelAnimationViewerState::default();
+        viewer.focus_resource(&project, clip);
+        assert_eq!(viewer.selected_character, Some(character));
+        assert_eq!(
+            viewer.selected_action,
+            CharacterAnimationAction::LightAttack
+        );
+        assert_eq!(
+            timeline_hitboxes(&project, character, viewer.selected_action).len(),
+            1
+        );
+        let ResourceData::Character(profile) = project.resource(character).unwrap().data.clone()
+        else {
+            unreachable!()
+        };
+        let other = project.add_resource("Other fighter", ResourceData::Character(profile));
+        assert_eq!(
+            character_action_for_clip(&project, None, clip),
+            None,
+            "shared clips need a character selection"
+        );
+        assert_eq!(
+            character_action_for_clip(&project, Some(other), clip),
+            Some((other, CharacterAnimationAction::LightAttack))
+        );
+    }
+
+    #[test]
+    fn timeline_three_sections_share_one_lane_and_edit_without_changing_geometry() {
+        let (mut project, character, _, _) = timeline_fixture();
+        let ResourceData::Character(profile) = &mut project.resource_mut(character).unwrap().data
+        else {
+            unreachable!()
+        };
+        profile.combat_capsules[1].additional_hit_windows = vec![
+            psxed_project::CombatHitWindow { start: 19, end: 22 },
+            psxed_project::CombatHitWindow { start: 31, end: 34 },
+        ];
+        let before = profile.combat_capsules[1].clone();
+        let lanes = timeline_hitboxes(&project, character, CharacterAnimationAction::LightAttack);
+        assert_eq!(lanes.len(), 1);
+        assert_eq!(lanes[0].windows.len(), 3);
+        assert_eq!(
+            nearest_section_handle(&lanes[0].windows, 20),
+            Some((1, true))
+        );
+        assert_eq!(
+            nearest_section_handle(&lanes[0].windows, 34),
+            Some((2, false))
+        );
+        assert!(store_timeline_hitbox_range(
+            &mut project,
+            Some(character),
+            1,
+            CharacterAnimationAction::LightAttack,
+            1,
+            18,
+            24
+        ));
+        assert!(!store_timeline_hitbox_range(
+            &mut project,
+            Some(character),
+            1,
+            CharacterAnimationAction::HeavyAttack,
+            2,
+            30,
+            36
+        ));
+        let ResourceData::Character(profile) = &project.resource(character).unwrap().data else {
+            unreachable!()
+        };
+        let after = &profile.combat_capsules[1];
+        assert_eq!(after.capsule, before.capsule);
+        assert_eq!(after.joint, before.joint);
+        assert_eq!(after.role, before.role);
+        assert_eq!(
+            after.additional_hit_windows,
+            [
+                psxed_project::CombatHitWindow { start: 18, end: 24 },
+                before.additional_hit_windows[1]
+            ]
+        );
+    }
+
+    #[test]
     fn timeline_hitbox_lane_updates_only_its_matching_action_volume() {
         let (mut project, character, _, _) = timeline_fixture();
         let hitboxes =
@@ -8284,6 +8694,7 @@ mod focus_tests {
             Some(character),
             1,
             CharacterAnimationAction::LightAttack,
+            0,
             5,
             9,
         ));
@@ -8292,6 +8703,7 @@ mod focus_tests {
             Some(character),
             1,
             CharacterAnimationAction::HeavyAttack,
+            0,
             1,
             2,
         ));
@@ -8348,6 +8760,7 @@ mod focus_tests {
             Some(character),
             index,
             CharacterAnimationAction::LightAttack,
+            0,
             6,
             12,
         ));
@@ -8755,7 +9168,7 @@ mod focus_tests {
         let light = preview_combat_capsules(
             &capsules,
             2,
-            true,
+            [true; 3],
             CharacterAnimationAction::LightAttack,
             model_import_preview::PreviewGizmoMode::Translate,
         );
@@ -8765,7 +9178,7 @@ mod focus_tests {
         let heavy = preview_combat_capsules(
             &capsules,
             1,
-            true,
+            [true; 3],
             CharacterAnimationAction::HeavyAttack,
             model_import_preview::PreviewGizmoMode::Translate,
         );
@@ -8776,7 +9189,7 @@ mod focus_tests {
         let idle = preview_combat_capsules(
             &capsules,
             0,
-            true,
+            [true; 3],
             CharacterAnimationAction::Idle,
             model_import_preview::PreviewGizmoMode::Translate,
         );
@@ -8787,7 +9200,7 @@ mod focus_tests {
         let editing_heavy_from_idle = preview_combat_capsules(
             &capsules,
             1,
-            true,
+            [true; 3],
             CharacterAnimationAction::Idle,
             model_import_preview::PreviewGizmoMode::Translate,
         );
@@ -8850,6 +9263,7 @@ mod focus_tests {
             "Fighter Profile",
             ResourceData::Character(psxed_project::CharacterResource {
                 combat_capsules: vec![psxed_project::CharacterCombatCapsule {
+                    additional_hit_windows: Vec::new(),
                     name: "Arm".to_string(),
                     joint: 3,
                     capsule: psxed_project::JointCapsule {
@@ -8902,6 +9316,7 @@ mod focus_tests {
             "Ranged Fighter",
             ResourceData::Character(psxed_project::CharacterResource {
                 combat_capsules: vec![psxed_project::CharacterCombatCapsule {
+                    additional_hit_windows: Vec::new(),
                     name: "Muzzle".to_string(),
                     joint: 8,
                     capsule: psxed_project::JointCapsule {
@@ -9607,7 +10022,7 @@ mod focus_tests {
         let visible = preview_combat_capsules(
             &capsules,
             1,
-            true,
+            [true; 3],
             CharacterAnimationAction::LightAttack,
             model_import_preview::PreviewGizmoMode::Translate,
         );
@@ -9617,12 +10032,41 @@ mod focus_tests {
         assert!(preview_combat_capsules(
             &capsules,
             1,
-            false,
+            [false; 3],
             CharacterAnimationAction::LightAttack,
             model_import_preview::PreviewGizmoMode::Translate,
         )
         .is_empty());
         assert_eq!(capsules.len(), 2, "preview visibility must not delete data");
+    }
+
+    #[test]
+    fn hidden_category_suppresses_even_selected_volume_and_projectile_cue() {
+        let action = CharacterAnimationAction::RangedAttack;
+        let capsules: Vec<_> = CombatVolumeCategory::ALL
+            .iter()
+            .map(|category| category.new_volume(action))
+            .collect();
+        for hidden in 0..3 {
+            let mut visible = [true; 3];
+            visible[hidden] = false;
+            let overlay = preview_combat_capsules(
+                &capsules,
+                hidden,
+                visible,
+                action,
+                model_import_preview::PreviewGizmoMode::Translate,
+            );
+            assert_eq!(overlay.len(), 2);
+            assert!(
+                overlay.iter().all(|volume| !volume.selected),
+                "hidden volume must not leave an editing gizmo"
+            );
+            assert_eq!(
+                overlay.iter().filter(|v| v.projectile.is_some()).count(),
+                usize::from(hidden != 2)
+            );
+        }
     }
 
     #[test]

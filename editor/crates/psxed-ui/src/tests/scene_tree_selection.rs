@@ -153,6 +153,7 @@ fn duplicating_point_of_interest_component_copies_its_complete_host() {
         persistence_id,
         reward,
         enabled,
+        ..
     } = &copied_component.kind
     else {
         panic!("copied child must remain a POI component");
