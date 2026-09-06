@@ -126,6 +126,36 @@ fn click_label(
     real_egui_workspace_frame(ctx, workspace, viewport, *time, Vec::new())
 }
 
+fn category_icon_center(frame: &egui::FullOutput, category: &str, icon: char) -> Pos2 {
+    let row = locate_unique_label(frame, category);
+    let points = text_shape_centers(&frame.shapes, &icon.to_string());
+    let matching: Vec<_> = points
+        .into_iter()
+        .filter(|p| p.x > row.x && (p.y - row.y).abs() < 8.0)
+        .collect();
+    assert_eq!(matching.len(), 1, "missing category control for {category}");
+    matching[0]
+}
+
+fn click_category_icon(
+    ctx: &egui::Context,
+    workspace: &mut EditorWorkspace,
+    viewport: &crate::EditorViewport3dPresentation,
+    time: &mut f64,
+    category: &str,
+    icon: char,
+) -> egui::FullOutput {
+    let frame = real_egui_workspace_frame(ctx, workspace, viewport, *time, Vec::new());
+    let point = category_icon_center(&frame, category, icon);
+    let (press, release) = press_release(point);
+    for events in [press, release] {
+        *time += 1.0 / 60.0;
+        let _ = real_egui_workspace_frame(ctx, workspace, viewport, *time, events);
+    }
+    *time += 1.0 / 60.0;
+    real_egui_workspace_frame(ctx, workspace, viewport, *time, Vec::new())
+}
+
 fn scroll_authoring_label_into_view(
     ctx: &egui::Context,
     workspace: &mut EditorWorkspace,
@@ -377,28 +407,89 @@ fn combat_capsules_can_be_hidden_and_shown_without_editing_gameplay_data() {
         &mut time,
         &icons::label(icons::SCAN, "Combat"),
     );
-    locate_unique_label(&combat, &icons::label(icons::EYE_OFF, "Hide capsules"));
-
-    let hidden = click_label(
-        &ctx,
-        &mut workspace,
-        &viewport,
-        &mut time,
-        &icons::label(icons::EYE_OFF, "Hide capsules"),
-    );
-    locate_unique_label(&hidden, &icons::label(icons::EYE, "Show capsules"));
-
-    let visible = click_label(
-        &ctx,
-        &mut workspace,
-        &viewport,
-        &mut time,
-        &icons::label(icons::EYE, "Show capsules"),
-    );
-    locate_unique_label(&visible, &icons::label(icons::EYE_OFF, "Hide capsules"));
+    for label in ["Hurtboxes", "Hitboxes", "Projectiles"] {
+        locate_unique_label(&combat, label);
+        let hidden = click_category_icon(
+            &ctx,
+            &mut workspace,
+            &viewport,
+            &mut time,
+            label,
+            icons::EYE,
+        );
+        category_icon_center(&hidden, label, icons::EYE_OFF);
+        let visible = click_category_icon(
+            &ctx,
+            &mut workspace,
+            &viewport,
+            &mut time,
+            label,
+            icons::EYE_OFF,
+        );
+        category_icon_center(&visible, label, icons::EYE);
+    }
 
     assert_eq!(workspace.project().resources, resources_before);
     assert_eq!(workspace.is_dirty(), dirty_before);
+}
+
+#[test]
+fn category_add_reveals_the_new_volume_without_rewriting_existing_ones() {
+    let mut workspace = default_workspace();
+    let (character_id, _, _, _) = character_context(&workspace);
+    assert!(workspace.open_animation_viewer_for_resource(character_id));
+    let (ctx, viewport) = real_egui_workspace_ctx("animation-studio-category-add");
+    let mut time = 0.0;
+    let _ = click_label(
+        &ctx,
+        &mut workspace,
+        &viewport,
+        &mut time,
+        &icons::label(icons::SCAN, "Combat"),
+    );
+    for (index, label) in ["Hurtboxes", "Hitboxes", "Projectiles"].iter().enumerate() {
+        let ResourceData::Character(character) =
+            &workspace.project().resource(character_id).unwrap().data
+        else {
+            unreachable!()
+        };
+        let before = character.combat_capsules.clone();
+        let _ = click_category_icon(
+            &ctx,
+            &mut workspace,
+            &viewport,
+            &mut time,
+            label,
+            icons::EYE,
+        );
+        let added = click_category_icon(
+            &ctx,
+            &mut workspace,
+            &viewport,
+            &mut time,
+            label,
+            icons::PLUS,
+        );
+        category_icon_center(&added, label, icons::EYE);
+        let ResourceData::Character(character) =
+            &workspace.project().resource(character_id).unwrap().data
+        else {
+            unreachable!()
+        };
+        assert_eq!(
+            &character.combat_capsules[..before.len()],
+            before.as_slice()
+        );
+        assert_eq!(character.combat_capsules.len(), before.len() + 1);
+        let role = &character.combat_capsules.last().unwrap().role;
+        assert!(matches!(
+            (index, role),
+            (0, CombatCapsuleRole::Hurtbox)
+                | (1, CombatCapsuleRole::Hitbox { .. })
+                | (2, CombatCapsuleRole::ProjectileEmitter { .. })
+        ));
+    }
+    assert!(workspace.is_dirty());
 }
 
 #[test]
@@ -990,12 +1081,13 @@ fn pose_and_combat_buttons_write_to_their_own_resources() {
             },
             ..Default::default()
         });
-    let _ = click_label(
+    let _ = click_category_icon(
         &ctx,
         &mut workspace,
         &viewport,
         &mut time,
-        &icons::label(icons::PLUS, "Hitbox"),
+        "Hitboxes",
+        icons::PLUS,
     );
 
     let ResourceData::Character(character) = &workspace
@@ -1032,5 +1124,119 @@ fn pose_and_combat_buttons_write_to_their_own_resources() {
         weapon_before,
         "pose/combat authoring must not alter weapon grip data"
     );
+    assert!(workspace.is_dirty());
+}
+
+#[test]
+fn cortex_combo_sections_are_visible_and_can_be_added_without_replacing_the_shape() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../projects/cortex-ignition-tech-demo-0.4b");
+    let project = ProjectDocument::load_from_path(root.join("project.ron")).unwrap();
+    let mut workspace = EditorWorkspace::with_project(root, project);
+    let character = resource_id(&workspace, "Light Enemy", |data| {
+        matches!(data, ResourceData::Character(_))
+    });
+    let ResourceData::Character(profile) = &workspace.project().resource(character).unwrap().data
+    else {
+        unreachable!()
+    };
+    let before = profile.clone();
+    let set_id = profile.animation_set.unwrap();
+    let ResourceData::AnimationSet(set) = &workspace.project().resource(set_id).unwrap().data
+    else {
+        unreachable!()
+    };
+    let clip = set
+        .action_clip(CharacterAnimationAction::HeavyAttack)
+        .unwrap();
+    assert!(workspace.open_animation_viewer_for_resource(character));
+    assert!(workspace.open_animation_viewer_for_resource(clip));
+    let (ctx, viewport) = real_egui_workspace_ctx("cortex-combo-sections");
+    let mut time = 0.0;
+    let frame = real_egui_workspace_frame(&ctx, &mut workspace, &viewport, time, Vec::new());
+    locate_unique_label(&frame, "3 damage sections");
+    let _ = click_label(
+        &ctx,
+        &mut workspace,
+        &viewport,
+        &mut time,
+        "Claw / Three-Swing Combo",
+    );
+    scroll_authoring_label_into_view(
+        &ctx,
+        &mut workspace,
+        &viewport,
+        &mut time,
+        "+ Add damage section",
+    );
+    let _ = click_label(
+        &ctx,
+        &mut workspace,
+        &viewport,
+        &mut time,
+        "+ Add damage section",
+    );
+    scroll_authoring_label_into_view(&ctx, &mut workspace, &viewport, &mut time, "Combat Volumes");
+    for _ in 0..20 {
+        time += 0.1;
+        let _ = real_egui_workspace_frame(&ctx, &mut workspace, &viewport, time, Vec::new());
+    }
+    let frame = real_egui_workspace_frame(&ctx, &mut workspace, &viewport, time, Vec::new());
+    assert!(!text_shape_centers(&frame.shapes, "Name").is_empty());
+    let name_field = ctx
+        .read_response(egui::Id::new((
+            "combat-volume-name",
+            character.raw(),
+            2usize,
+        )))
+        .expect("the selected combat volume has an editable name")
+        .interact_rect
+        .center();
+    let (press, release) = press_release(name_field);
+    time += 1.0 / 60.0;
+    let _ = real_egui_workspace_frame(&ctx, &mut workspace, &viewport, time, press);
+    time += 1.0 / 60.0;
+    let _ = real_egui_workspace_frame(&ctx, &mut workspace, &viewport, time, release);
+    assert_eq!(
+        ctx.memory(|memory| memory.focused()),
+        Some(egui::Id::new((
+            "combat-volume-name",
+            character.raw(),
+            2usize
+        )))
+    );
+    time += 1.0 / 60.0;
+    let _ = real_egui_workspace_frame(
+        &ctx,
+        &mut workspace,
+        &viewport,
+        time,
+        vec![
+            egui::Event::Key {
+                key: egui::Key::A,
+                physical_key: Some(egui::Key::A),
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers {
+                    command: true,
+                    mac_cmd: true,
+                    ..Default::default()
+                },
+            },
+            egui::Event::Text("Mantis claw".into()),
+        ],
+    );
+    let ResourceData::Character(after) = &workspace.project().resource(character).unwrap().data
+    else {
+        unreachable!()
+    };
+    assert_eq!(after.combat_capsules.len(), before.combat_capsules.len());
+    for (old, new) in before.combat_capsules.iter().zip(&after.combat_capsules) {
+        assert_eq!(old.capsule, new.capsule);
+        assert_eq!(old.joint, new.joint);
+        assert_eq!(old.role, new.role);
+    }
+    assert_eq!(after.combat_capsules[2].name, "Mantis claw");
+    assert_eq!(after.combat_capsules[2].hit_windows().count(), 4);
     assert!(workspace.is_dirty());
 }

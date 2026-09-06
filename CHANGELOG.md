@@ -2,6 +2,12 @@
 
 ## Demo disc v0.35
 
+- Enemies change stance to match the distance: melee up close and ranged attacks when you pull away, while respecting the swap cooldown.
+- Combat music starts at a different point for each encounter and keeps looping.
+- Inactive stance health recovers more slowly.
+- The heavy enemy has three new attack animations, longer melee contact windows and a chest-fired projectile.
+- The animation editor now supports separate hit windows, named combat volumes, and visibility controls for hurtboxes, hitboxes and projectiles.
+
 - Dashes scatter Aletha's polygons behind her, leaving a wireframe that gradually rebuilds as she moves.
 - Releasing the stick now starts the transition to idle without an extra stride.
 - Phase swapping now recharges in five seconds for both the player and enemies.
