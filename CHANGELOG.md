@@ -3,7 +3,7 @@
 ## Unreleased
 
 - Phase swapping now recharges in five seconds for both the player and enemies.
-- Stance changes burst the original mesh outward, then rebuild the body from translucent polygons over a wireframe, assembling from feet to head and holding the new colour until complete.
+- Stance changes burst the original mesh outward, then rebuild the body from translucent polygons over a wireframe, assembling from feet to head and holding the new colour until complete. The stance colour then fades smoothly back to Aletha's normal shading.
 - Sprint starts immediately, and evades cover less ground with a committed direction.
 - Sword sounds, trails and damage follow each swing, including both cyan heavy strikes.
 - Reworked the heavy enemy's two melee combos, attack tells and weapon contact.
