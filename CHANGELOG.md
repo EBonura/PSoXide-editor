@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Phase changes raise a glowing glyph from the player's feet to above their head, following movement and the destination colour.
+- Phase changes raise a rotating glyph from the player's feet to above their head, following movement and the destination colour with a soft fade in and out.
 - Sprint starts immediately, and evades cover less ground with a committed direction.
 - Sword sounds, trails and damage follow each swing, including both cyan heavy strikes.
 - Reworked the heavy enemy's two melee combos, attack tells and weapon contact.
