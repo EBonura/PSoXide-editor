@@ -1,6 +1,6 @@
 # PSoXide Editor
 
-Start with the [PSoXide Demo Disc](https://bonnie-studios.itch.io/psoxide-demo-disc): it includes Cortex Ignition 0.4b
+Start with the [PSoXide Demo Disc](https://bonnie-studios.itch.io/psoxide-demo-disc): it includes the Cortex Ignition Tech Demo
 and the other Bonnie Studios PlayStation demos. Standalone downloads are available
 for testing just this project.
 
