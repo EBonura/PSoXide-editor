@@ -1,7 +1,9 @@
 # Changelog
 
-## Unreleased
+## Demo disc v0.35
 
+- Dashes scatter Aletha's polygons behind her, leaving a wireframe that gradually rebuilds as she moves.
+- Releasing the stick now starts the transition to idle without an extra stride.
 - Phase swapping now recharges in five seconds for both the player and enemies.
 - Stance changes burst the original mesh outward, then rebuild the body from translucent polygons over a wireframe, assembling from feet to head and holding the new colour until complete. The stance colour then fades smoothly back to Aletha's normal shading.
 - Sprint starts immediately, and evades cover less ground with a committed direction.
