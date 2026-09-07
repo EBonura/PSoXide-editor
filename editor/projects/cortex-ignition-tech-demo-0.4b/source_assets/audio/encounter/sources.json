@@ -1,0 +1,32 @@
+[
+  {
+    "source": "Female Robot - System Anomaly Detected.wav",
+    "sha256": "8bd21a884ea1ce77c7afdeb901396e031f65ac3ba5e5e075285c65a3755c92c5",
+    "trim_seconds": [
+      0,
+      2.38
+    ],
+    "master": "combat_start_anomaly.wav",
+    "runtime": "combat_start_anomaly.wav"
+  },
+  {
+    "source": "Outside.wav",
+    "sha256": "463b1e13aa089c15fee92e8c664993bba554b38cd33ae83f5445c7a27c9fc4ff",
+    "trim_seconds": [
+      2.9,
+      4.18
+    ],
+    "master": "combat_start_outside.wav",
+    "runtime": "combat_start_outside.wav"
+  },
+  {
+    "source": "Plasma weapon.wav",
+    "sha256": "6ef91b8e747ec45f5bb37e6384c3de42dad7d5a2bc5b1ec5565786fe6188a304",
+    "trim_seconds": [
+      2.53,
+      4.42
+    ],
+    "master": "projectile_launch.wav",
+    "runtime": "projectile_launch.wav"
+  }
+]

@@ -1,0 +1,13 @@
+[
+  {
+    "source": "phase change.wav",
+    "sha256": "9887b46269cb2cc6235e512a5b589496dd96efb14faa5b4267abcdb4ef3cbde0",
+    "trim_seconds": [
+      1.515,
+      3.28
+    ],
+    "master": "phase_change.wav",
+    "runtime": "assets/audio/gameplay/phase_change.wav",
+    "runtime_sample_rate": 10000
+  }
+]

@@ -1,8 +1,8 @@
 # Gameplay SFX sources
 
-All shipped files are mono 16-bit PCM WAVs. The longer combat cues are mastered
-at 8 kHz to keep their resident PS1 SPU ADPCM footprint small; the original
-utility cues are 11.025 kHz.
+All runtime files are mono 16-bit PCM WAVs. Legacy combat cues use 8 kHz,
+utility cues use 11.025 kHz, and the new recorded voices and swings use 16 kHz. Plasma uses 11.025 kHz
+to leave enough main RAM for the world-loading heap.
 
 ## Original utility cues
 
@@ -14,7 +14,7 @@ untouched.
 
 ## CC0-derived combat cues
 
-- `weapon_swing.wav` layers and trims `swish-3.wav` and `swish-7.wav` from
+- The unused legacy `weapon_swing.wav` layers and trims `swish-3.wav` and `swish-7.wav` from
   artisticdude's **Swishes Sound Pack**:
   https://opengameart.org/content/swishes-sound-pack
 - `heavy_hit.wav` layers `bfh1_hit_07.ogg` and `bfh1_metal_hit_04.ogg` from
@@ -22,7 +22,7 @@ untouched.
   Spring's **Mechanical Explosion**:
   https://opengameart.org/content/75-cc0-breaking-falling-hit-sfx
   https://opengameart.org/content/mechanical-explosion
-- `projectile_charge.wav` and `projectile_launch.wav` use sections of TAD's
+- `projectile_charge.wav` uses sections of TAD's
   **Doomsday Laser Cannon Sound Effect**, reinforced with `forceField_001.ogg`,
   `laserLarge_001.ogg`, and `explosionCrunch_001.ogg` from Kenney's
   **Sci-fi Sounds** pack:
@@ -45,3 +45,37 @@ The selected audition's constant gain is retained, converted to mono 11.025 kHz
 volume. A single resident sample is reused at the start of all three intro shots.
 The supplied MP3 SHA-256 is
 `20c611a565b4aa4fe371ae9de6d27d9ea37196f130d88bc4658c2ba2369e3515`.
+
+## Current recorded voices and weapons
+
+The supplied recordings replace the launch and swing placeholders:
+
+| Runtime cue | Supplied recording |
+| --- | --- |
+| `combat_start_anomaly.wav` | Female Robot - System Anomaly Detected.wav |
+| `combat_start_outside.wav` | Outside.wav |
+| `projectile_launch.wav` | Plasma weapon.wav |
+| `weapon_swing_light.wav` | Laser whoosh light.wav |
+| `weapon_swing_heavy.wav` | Laser whoosh heavy.wav |
+
+Trim bounds, input hashes and full-quality masters are retained under
+`source_assets/audio/encounter` and `source_assets/audio/menu-and-swings`.
+These recordings are separate from the CC0 sources above. Light and heavy
+attacks use their respective sound at normal pitch on every active swing,
+for both the player and enemies. No leading browser-recording silence remains.
+
+## Dash cue
+
+`warp.wav` is the user-supplied browser recording, trimmed to 1.31–2.61 seconds.
+Its stereo 48 kHz master and source hash are under `source_assets/audio/dash`.
+The runtime copy is mono 11.025 kHz, played once at accepted evade start with
+unity pitch and 90% gain. It is separate from the CC0 sources above.
+
+## Stance change cue
+
+`phase_change.wav` comes from the supplied `phase change.wav`, trimmed to
+1.515–3.28 seconds. The full-quality stereo master and input hash are under
+`source_assets/audio/stance-change`. The resident copy is mono 10 kHz and
+plays at normal pitch, 90% gain, on a successful player stance switch.
+It is separate from the CC0 sources above. The two encounter voice runtime
+copies now use 11.025 kHz to keep loading within the executable RAM budget.
