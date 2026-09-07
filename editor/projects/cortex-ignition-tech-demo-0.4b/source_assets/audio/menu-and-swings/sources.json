@@ -1,0 +1,29 @@
+[
+  {
+    "source": "interfacemove.wav",
+    "sha256": "f7c284489f1ab953c24ef95b8aa62a522a048cf073709a2605fc616322e87248",
+    "trim_seconds": [
+      0.75,
+      1.17
+    ],
+    "runtime": "assets/audio/ui/ui_navigate.wav"
+  },
+  {
+    "source": "Laser whoosh light.wav",
+    "sha256": "1b186bba0f1ee0177b677c68584ff22fbaceec185e78210be5988539e19a7a19",
+    "trim_seconds": [
+      1.4,
+      1.65
+    ],
+    "runtime": "assets/audio/gameplay/weapon_swing_light.wav"
+  },
+  {
+    "source": "Laser whoosh heavy.wav",
+    "sha256": "4a316e6985b8cc8e526a91866114ce2d4f6115232ae53167dc505900afbc6084",
+    "trim_seconds": [
+      1.24,
+      1.55
+    ],
+    "runtime": "assets/audio/gameplay/weapon_swing_heavy.wav"
+  }
+]

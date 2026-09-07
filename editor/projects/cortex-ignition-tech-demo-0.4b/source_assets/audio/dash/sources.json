@@ -1,0 +1,13 @@
+[
+  {
+    "source": "warp.wav",
+    "sha256": "4afcbf0b7b11bf9552af002176a5acbec55b1bcbf2ad0951c31bee975ac5f0f3",
+    "trim_seconds": [
+      1.31,
+      2.61
+    ],
+    "master": "warp.wav",
+    "runtime": "assets/audio/gameplay/warp.wav",
+    "runtime_sample_rate": 11025
+  }
+]

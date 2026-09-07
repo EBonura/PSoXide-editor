@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Dead enemies now dissolve over roughly five seconds from the uppermost
+  polygons down, with fragments rising and fading before the body is removed.
+
 - The initial welcome panels now hold player controls until dismissed and include a guide to both analog sticks. Other messages remain interactive.
 
 - New Game opens with a cinematic introduction: two views of the level, then Aletha rising from the ground. Hold X for half a second to skip.
