@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The initial welcome panels now hold player controls until dismissed and include a guide to both analog sticks. Other messages remain interactive.
+
 - New Game opens with a cinematic introduction: two views of the level, then Aletha rising from the ground. Hold X for half a second to skip.
 - The opening includes smooth fades, a sound cue for each shot, and a burst of polygons as Aletha strikes the ground.
 

@@ -94,3 +94,9 @@ Each of the three shot starts queues the same resident `IntroShot` sound once,
 including the first reveal and the two camera cuts at full black. The selected
 2.2-second cyborg excerpt continues through fade-in at normal pitch. A skip does
 not queue another shot sound, and the final gameplay handoff does not replay it.
+
+After the cinematic, the three welcome panels hold player and camera controls until
+the final panel finishes closing. X still completes the text and advances pages;
+Start cannot open inventory during this introduction. The third panel explains
+left-stick movement and right-stick look. Pickup and closing demo messages keep
+their existing input behavior.
