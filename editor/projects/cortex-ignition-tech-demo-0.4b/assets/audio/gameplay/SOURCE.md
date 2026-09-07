@@ -33,3 +33,15 @@ Every source above is published under Creative Commons CC0. The final cues were
 trimmed, filtered, layered, dynamically controlled, faded, and resampled for
 Cortex Ignition. Attribution is not required by CC0, but the authors and exact
 source pages are retained here for provenance.
+
+## Intro shot cue
+
+`intro_shot.wav` is the user's selected 4.16–6.36 second excerpt from
+`Y2Mate.is - Cyborg Sound Effects 60 Sci-Fi SFX _ Royalty Free No Copyright.mp3`,
+whose embedded artist is DARK FANTASY STUDIO - NOISE ALCHEMY. It is separate
+from the CC0 sources above; no license is inferred from its filename.
+The selected audition's constant gain is retained, converted to mono 11.025 kHz
+16-bit PCM with 3 ms / 10 ms edge fades. Playback uses unity pitch at 68% voice
+volume. A single resident sample is reused at the start of all three intro shots.
+The supplied MP3 SHA-256 is
+`20c611a565b4aa4fe371ae9de6d27d9ea37196f130d88bc4658c2ba2369e3515`.

@@ -65,5 +65,7 @@ emulator checks alone do not establish hardware correctness.
 
 ## Recent changes
 
+The current source adds a skippable opening to Cortex Ignition, with orbiting camera shots and Aletha's wake-up animation. See [opening sequence notes](docs/cortex/opening.md) for timing and camera controls.
+
 Source snapshot **2026.09.05**: The editor, engine and Cortex Ignition now live in one repository with pinned SDK and emulator dependencies.
 See the [changelog](CHANGELOG.md) for the remaining changes and published download versions.

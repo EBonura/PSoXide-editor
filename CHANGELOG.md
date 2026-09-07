@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- New Game opens with a cinematic introduction: two views of the level, then Aletha rising from the ground. Hold X for half a second to skip.
+- The opening includes smooth fades, a sound cue for each shot, and a burst of polygons as Aletha strikes the ground.
+
 ## Demo disc v0.35
 
 - Enemies change stance to match the distance: melee up close and ranged attacks when you pull away, while respecting the swap cooldown.
