@@ -128,10 +128,6 @@ pub fn apply_menu_action(state: &mut AppState, action: menu::MenuAction) -> Menu
             state.pick_input_replay();
             MenuOutcome::None
         }
-        ToggleFastBoot => {
-            state.toggle_fast_boot_disc();
-            MenuOutcome::None
-        }
         SaveState => {
             state.save_state();
             MenuOutcome::None
@@ -169,9 +165,6 @@ pub fn apply_menu_action(state: &mut AppState, action: menu::MenuAction) -> Menu
                 }
                 Err(e) => {
                     eprintln!("[frontend] launch failed: {e}");
-                    if e.contains("BIOS path is not configured") {
-                        state.select_settings_category();
-                    }
                     state.status_message_set(format!("Launch failed: {e}"));
                 }
             }
@@ -207,10 +200,6 @@ pub fn apply_menu_action(state: &mut AppState, action: menu::MenuAction) -> Menu
         ToggleEditorWorkspace => {
             state.toggle_editor_workspace();
             state.menu.open = false;
-            MenuOutcome::None
-        }
-        ChooseBiosPath => {
-            state.choose_bios_path();
             MenuOutcome::None
         }
         ChooseGamesPath => {
