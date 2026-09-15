@@ -60,9 +60,6 @@ pub enum MenuAction {
     /// fresh boot of the current game. Native opens a file dialog; the web
     /// build opens the browser upload picker.
     LoadInputReplay,
-    /// Toggle warm SYSTEM.CNF disc fast boot. When disabled, discs
-    /// boot through the full BIOS logo path.
-    ToggleFastBoot,
     /// Save the running game. Native builds create a new history slot (see
     /// [`SaveStateRow`]/[`MenuState::sync_save_states`]); the browser replaces
     /// its one persistent per-game quick-save. Either becomes the F7 target.
@@ -103,15 +100,13 @@ pub enum MenuAction {
     /// Enter or leave the host-side editor workspace.
     #[cfg(feature = "editor")]
     ToggleEditorWorkspace,
-    /// Pick and persist the BIOS image path.
-    ChooseBiosPath,
     /// Pick and persist the games library root.
     ChooseGamesPath,
     /// Cycle the menu backdrop opacity through a few presets.
     CycleMenuOpacity,
     /// Cycle the DPI-aware host UI scale through compact and enlarged presets.
     CycleUiScale,
-    /// Web: reconnect a previously-saved BIOS + games folder.
+    /// Web: reconnect a previously-saved games folder.
     #[cfg(target_arch = "wasm32")]
     Reconnect,
     /// Open the About card (from the Settings menu).
@@ -523,20 +518,6 @@ impl MenuState {
         }
     }
 
-    /// Update the System category's disc fast-boot value after the
-    /// persisted setting changes.
-    pub fn sync_fast_boot_label(&mut self, enabled: bool) {
-        if let Some(system) = self.categories.iter_mut().find(|c| c.name == "System") {
-            if let Some(item) = system
-                .items
-                .iter_mut()
-                .find(|item| item.action == MenuAction::ToggleFastBoot)
-            {
-                item.value = Some(if enabled { "On" } else { "Off" }.into());
-            }
-        }
-    }
-
     /// Keep the System row in sync with the F8 recording latch.
     pub fn sync_input_recording_label(&mut self, recording: bool) {
         if let Some(system) = self.categories.iter_mut().find(|c| c.name == "System") {
@@ -674,13 +655,11 @@ impl MenuState {
     }
 
     /// Update the Settings category path summaries.
-    pub fn sync_settings_paths(&mut self, bios: impl Into<String>, games: impl Into<String>) {
-        let bios = bios.into();
+    pub fn sync_settings_paths(&mut self, games: impl Into<String>) {
         let games = games.into();
         if let Some(settings) = self.categories.iter_mut().find(|c| c.name == "Settings") {
             for item in &mut settings.items {
                 match item.action {
-                    MenuAction::ChooseBiosPath => item.value = Some(bios.clone()),
                     MenuAction::ChooseGamesPath => item.value = Some(games.clone()),
                     _ => {}
                 }
@@ -689,6 +668,7 @@ impl MenuState {
     }
 
     /// Move selection to the category named `name`, if it exists.
+    #[cfg_attr(not(any(test, target_arch = "wasm32")), allow(dead_code))]
     pub fn select_category(&mut self, name: &str) {
         if let Some(idx) = self.categories.iter().position(|c| c.name == name) {
             self.category_index = idx;
@@ -1258,7 +1238,7 @@ impl MenuState {
         painter.text(
             Pos2::new(sw / 2.0, sh - 46.0),
             Align2::CENTER_TOP,
-            "PSoXide is an independent, open-source PS1 developer environment. Use only a BIOS and games you legally own.",
+            "PSoXide is an independent, open-source PS1 developer environment. Load your homebrew games directly. No firmware image is required.",
             FontId::proportional(11.0),
             fade(theme::MENU_TEXT_DIM),
         );
@@ -2331,9 +2311,11 @@ fn about_panel(ctx: &egui::Context, open: &mut bool) {
                         );
                         ui.add_space(8.0);
                         ui.label(
-                            egui::RichText::new("Use only a BIOS and games you legally own.")
-                                .color(theme::MENU_TEXT_DIM)
-                                .size(12.0),
+                            egui::RichText::new(
+                                "Load your homebrew games directly. No firmware image is required.",
+                            )
+                            .color(theme::MENU_TEXT_DIM)
+                            .size(12.0),
                         );
                         ui.add_space(6.0);
                         ui.label(
@@ -2345,16 +2327,6 @@ fn about_panel(ctx: &egui::Context, open: &mut bool) {
                             .size(11.0),
                         );
                         ui.add_space(4.0);
-                        link(
-                            ui,
-                            "How to dump your own BIOS and discs",
-                            // The old Sony_PlayStation page is gone. This one is
-                            // the wiki's dumping guide, and it opens by saying
-                            // to dump what you own -- which is the point of the
-                            // line above it. Emulator_files, the other live
-                            // candidate, is a BIOS download index instead.
-                            "https://emulation.gametechwiki.com/index.php/Ripping_games",
-                        );
                         ui.add_space(16.0);
                         link(
                             ui,
@@ -2416,18 +2388,6 @@ fn build_settings_category() -> Category {
         icon: icons::HARD_DRIVE,
         items: vec![
             MenuItem {
-                // Native picks a file path; the web build uploads the bytes.
-                label: if cfg!(target_arch = "wasm32") {
-                    "Load BIOS file"
-                } else {
-                    "Choose BIOS path"
-                }
-                .into(),
-                action: MenuAction::ChooseBiosPath,
-                burn_action: None,
-                value: Some("Missing".into()),
-            },
-            MenuItem {
                 label: if cfg!(target_arch = "wasm32") {
                     "Load games folder"
                 } else {
@@ -2450,7 +2410,7 @@ fn build_settings_category() -> Category {
                 burn_action: None,
                 value: Some("100%".into()),
             },
-            // Web only: reload the BIOS + games folder remembered from a
+            // Web only: reload the games folder remembered from a
             // previous visit (Chrome/Edge; no-op where unsupported).
             #[cfg(target_arch = "wasm32")]
             MenuItem {
@@ -2699,12 +2659,6 @@ fn build_system_category(running: bool, save_count: usize) -> Category {
             value: None,
         },
         MenuItem {
-            label: "Fast boot discs".into(),
-            action: MenuAction::ToggleFastBoot,
-            burn_action: None,
-            value: Some("On".into()),
-        },
-        MenuItem {
             label: save_states_label,
             action: MenuAction::OpenSaveStates,
             burn_action: None,
@@ -2862,33 +2816,6 @@ mod tests {
     }
 
     #[test]
-    fn sync_fast_boot_label_flips_system_value() {
-        let mut s = MenuState::new();
-        let fast_boot = s.categories[5]
-            .items
-            .iter()
-            .find(|item| item.action == MenuAction::ToggleFastBoot)
-            .unwrap();
-        assert_eq!(fast_boot.value.as_deref(), Some("On"));
-
-        s.sync_fast_boot_label(false);
-        let fast_boot = s.categories[5]
-            .items
-            .iter()
-            .find(|item| item.action == MenuAction::ToggleFastBoot)
-            .unwrap();
-        assert_eq!(fast_boot.value.as_deref(), Some("Off"));
-
-        s.sync_fast_boot_label(true);
-        let fast_boot = s.categories[5]
-            .items
-            .iter()
-            .find(|item| item.action == MenuAction::ToggleFastBoot)
-            .unwrap();
-        assert_eq!(fast_boot.value.as_deref(), Some("On"));
-    }
-
-    #[test]
     fn left_right_wraps_around_categories() {
         let mut s = MenuState::new();
         s.set_library(&[dummy_item("a", "A", "")], &[], &[]);
@@ -2954,7 +2881,7 @@ mod tests {
         let mut s = MenuState::new();
         s.select_category("Settings");
         assert_eq!(s.current_category(), Some("Settings"));
-        assert_eq!(s.selected_action(), Some(&MenuAction::ChooseBiosPath));
+        assert_eq!(s.selected_action(), Some(&MenuAction::ChooseGamesPath));
     }
 
     #[test]
@@ -2967,7 +2894,7 @@ mod tests {
 
         assert_eq!(
             s.take_pending_pointer_action(),
-            Some(MenuAction::ChooseBiosPath)
+            Some(MenuAction::ChooseGamesPath)
         );
     }
 
@@ -2992,13 +2919,22 @@ mod tests {
     #[test]
     fn sync_settings_paths_updates_menu_values() {
         let mut s = MenuState::new();
-        s.sync_settings_paths("SCPH1001.BIN", "discs");
-        assert_eq!(s.categories[2].items[0].value.as_deref(), Some("Refresh"));
-        assert_eq!(
-            s.categories[4].items[0].value.as_deref(),
-            Some("SCPH1001.BIN")
-        );
-        assert_eq!(s.categories[4].items[1].value.as_deref(), Some("discs"));
+        s.sync_settings_paths("discs");
+        let settings = s
+            .categories
+            .iter()
+            .find(|category| category.name == "Settings")
+            .unwrap();
+        let games = settings
+            .items
+            .iter()
+            .find(|item| item.action == MenuAction::ChooseGamesPath)
+            .unwrap();
+        assert_eq!(games.value.as_deref(), Some("discs"));
+        assert!(!settings
+            .items
+            .iter()
+            .any(|item| item.label.to_lowercase().contains("bios")));
     }
 
     #[test]

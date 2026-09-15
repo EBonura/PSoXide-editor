@@ -69,3 +69,9 @@ The current source adds a skippable opening to Cortex Ignition, with orbiting ca
 
 Source snapshot **2026.09.05**: The editor, engine and Cortex Ignition now live in one repository with pinned SDK and emulator dependencies.
 See the [changelog](CHANGELOG.md) for the remaining changes and published download versions.
+
+## Firmware policy
+
+PSoXide does not bundle or load external console firmware. Homebrew runs
+through the built-in emulator runtime. See the [cleanup audit](docs/firmware-cleanup.md)
+for the source, binary-header and history checks.
