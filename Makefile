@@ -131,13 +131,12 @@ help:
 	@echo "                      - build cortex_ignition_v1 with TV-visible boot color checkpoints"
 	@echo "    make cortex-ignition-v1-preburn-local"
 	@echo "                      - run local structural/headless/audio/CD probes before burning"
-	@echo "    make"
+	@echo "    make cortex-ignition-v1-preburn-streaming-guard"
 	@echo "                      - fail if CD-DA plus room-streaming telemetry is absent or red"
-	@echo "    make"
 	@echo "    make cortex-ignition-v1-emulator-inventory"
 	@echo "                      - list locally available external PS1 emulators"
-	@echo "    make"
-	@echo "                      - run DuckStation/Redux plus optional Mednafen/RetroArch/ares local gates"
+	@echo "    make cortex-ignition-v1-external-emulators"
+	@echo "                      - run DuckStation plus optional Mednafen/RetroArch/ares local gates"
 	@echo "    make cortex-ignition-v1-bringup-report"
 	@echo "                      - summarize latest cortex_ignition_v1 bringup logs"
 	@echo "    make cortex-ignition-v1-burn-candidate"
@@ -351,8 +350,6 @@ CORTEX_IGNITION_V1_PREBURN_OUT ?= build/preburn/$(CORTEX_IGNITION_V1_NAME)
 CORTEX_IGNITION_V1_PREBURN_VISUAL_FRAMES ?= 900
 CORTEX_IGNITION_V1_PREBURN_GUEST_FRAMES ?= 2400
 CORTEX_IGNITION_V1_PREBURN_STEPS ?= 1200000000
-# CD-DA Play (~cyc 577M, ~step 250M). Budget must clear that, unlike the faster
-# HLE internal launch above.
 CORTEX_IGNITION_V1_PREBURN_AUDIO_SECONDS ?= 6
 CORTEX_IGNITION_V1_PREBURN_AUDIO_MIN_PEAK ?= 256
 CORTEX_IGNITION_V1_PREBURN_FEATURES ?= cd-stream-bench emulator-telemetry
@@ -517,7 +514,6 @@ cdda-read-contention-disc: cdda-read-contention
 		--volume PSOXIDE \
 		--cdda-track ../../$(CDDA_DEMO_TRACK)
 
-# Run the contention guest in PSoXide (always) and PCSX-Redux (when
 showcase-text:
 	cd engine/examples/showcase-text && $(ENGINE_EXAMPLE_CARGO_ENV) cargo build --release $(PSX_BUILD_FLAGS)
 
@@ -1163,7 +1159,7 @@ cortex-ignition-v1-bringup-report:
 		--duckstation-log $(CURDIR)/$(DUCKSTATION_CORTEX_IGNITION_V1_LOG) \
 		--external-dir $(CURDIR)/build/external-emulator-smoke
 
-cortex-ignition-v1-burn-candidate: cortex-ignition-v1-preburn-local
+cortex-ignition-v1-burn-candidate: cortex-ignition-v1-preburn-local cortex-ignition-v1-external-emulators
 	$(PSOXIDE_DEV) cortex-bringup-report \
 		--out $(CURDIR)/$(CORTEX_IGNITION_V1_BRINGUP_REPORT) \
 		--preburn-dir $(CURDIR)/$(CORTEX_IGNITION_V1_PREBURN_OUT) \
@@ -1184,6 +1180,52 @@ duckstation-cortex-ignition-v1: cortex-ignition-v1-project-disc-boot-trace
 		--expect "psx-engine: cdda setmode ok" \
 		--expect "psx-engine: cdda demute ok" \
 		--expect "psx-engine: cdda play ok"
+
+# These launch independently configured external applications. PSoXide
+# does not select, copy or configure their firmware.
+.PHONY: cortex-ignition-v1-external-emulators mednafen-cortex-ignition-v1 retroarch-cortex-ignition-v1 ares-cortex-ignition-v1
+cortex-ignition-v1-external-emulators: duckstation-cortex-ignition-v1 mednafen-cortex-ignition-v1 retroarch-cortex-ignition-v1 ares-cortex-ignition-v1
+	@echo "cortex_ignition_v1 external emulator matrix complete"
+
+mednafen-cortex-ignition-v1: cortex-ignition-v1-project-disc
+	@if $(PSOXIDE_DEV) emulator-inventory --require mednafen >/dev/null 2>&1; then \
+		$(PSOXIDE_DEV) external-emulator-smoke \
+			--emulator mednafen \
+			--cue $(CURDIR)/$(CORTEX_IGNITION_V1_CUE) \
+			--timeout $(EXTERNAL_EMULATOR_SMOKE_TIMEOUT) \
+			--log $(CURDIR)/$(MEDNAFEN_CORTEX_IGNITION_V1_LOG); \
+	else \
+		echo "skip Mednafen cortex_ignition_v1 smoke: emulator unavailable"; \
+		$(PSOXIDE_DEV) emulator-inventory; \
+	fi
+
+retroarch-cortex-ignition-v1: cortex-ignition-v1-project-disc
+	@if $(PSOXIDE_DEV) emulator-inventory --require retroarch >/dev/null 2>&1; then \
+		$(PSOXIDE_DEV) external-emulator-smoke \
+			--emulator retroarch \
+			--cue $(CURDIR)/$(CORTEX_IGNITION_V1_CUE) \
+			--timeout $(EXTERNAL_EMULATOR_SMOKE_TIMEOUT) \
+			--log $(CURDIR)/$(RETROARCH_CORTEX_IGNITION_V1_LOG) \
+			--screenshot $(CURDIR)/$(RETROARCH_CORTEX_IGNITION_V1_SCREENSHOT) \
+			--screenshot-frames $(RETROARCH_CORTEX_IGNITION_V1_SCREENSHOT_FRAMES) \
+			--fail-on "Firmware is missing" \
+			--fail-on "Failed to load content"; \
+	else \
+		echo "skip RetroArch cortex_ignition_v1 smoke: emulator/core unavailable"; \
+		$(PSOXIDE_DEV) emulator-inventory; \
+	fi
+
+ares-cortex-ignition-v1: cortex-ignition-v1-project-disc
+	@if $(PSOXIDE_DEV) emulator-inventory --require ares >/dev/null 2>&1; then \
+		$(PSOXIDE_DEV) external-emulator-smoke \
+			--emulator ares \
+			--cue $(CURDIR)/$(CORTEX_IGNITION_V1_CUE) \
+			--timeout $(EXTERNAL_EMULATOR_SMOKE_TIMEOUT) \
+			--log $(CURDIR)/$(ARES_CORTEX_IGNITION_V1_LOG); \
+	else \
+		echo "skip ares cortex_ignition_v1 smoke: emulator unavailable"; \
+		$(PSOXIDE_DEV) emulator-inventory; \
+	fi
 
 run-game-breakout: game-breakout-disc
 	cd emu && PSOXIDE_DISC=$(CURDIR)/$(EXAMPLE_OUT)/game-breakout.cue cargo run -p frontend --release
