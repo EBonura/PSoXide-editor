@@ -238,23 +238,12 @@ stamp, and it currently refuses because the stamp does not exist at all.
 
 Two blockers are ENVIRONMENTAL, not defects, and both need the owner:
 
-1. **macOS denies read access to `~/Downloads`.** Listing works, reading
-   file content returns EPERM, and this is not the agent sandbox: it fails
-   with sandboxing disabled too, and normal file permissions are
-   `rw-rw-r--` with no flags. It blocks the configured emulator BIOS
-   (`~/Downloads/ps1 bios/SCPH1001.BIN`) and the per-game disc copy step,
-   whose destination is `~/Downloads/ps1 games`. Workarounds used for this
-   session only: the games-library destination is overridable
-   (`GAMES_DIR` / `PSOXIDE_LIB`), and the BIOS path was temporarily
-   repointed at an identical readable SCPH1001 and then RESTORED
-   byte-identical (verified by diff). The owner fixes this properly by
-   granting Full Disk Access, or by moving the BIOS out of `~/Downloads`.
-   Note the owner's remark that PSoXide homebrew does not need a BIOS: the
-   settings do carry `hle_bios_for_side_load: true`, but the disc-boot
-   `launch` path loads the configured BIOS regardless, so an UNREADABLE
-   configured path fails the gate even though a real BIOS is not required.
-   Making that path tolerate a missing BIOS when HLE side-load is enabled
-   would remove this whole class of failure.
+1. **macOS denied read access to `~/Downloads`.** This blocked the
+   per-game disc copy destination, `~/Downloads/ps1 games`. The destination
+   remains overridable with `GAMES_DIR` / `PSOXIDE_LIB`.
+   The former firmware-path blocker is resolved by the 2026-09-15 cleanup:
+   PSoXide now boots supported EXEs and discs through its built-in runtime,
+   and no longer loads external firmware or persists its path.
 2. **A sibling game's CD-DA audio is absent.** `make disc` stops at
    `games/gh-psx/data/audio/goncharov.cdda`, and `data/audio/` is
    gitignored and provenance-managed, so the asset is simply not in this
