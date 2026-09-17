@@ -591,6 +591,8 @@ hwtest-capture: hardware-tests-disc
 		--path ../$(EXAMPLE_OUT)/hardware-tests.exe \
 		--disc ../$(EXAMPLE_OUT)/hardware-tests.cue \
 		--steps $(HWTEST_STEPS) --pad-pulses '0x4000@25+3' > ../$(HWTEST_CAPTURE)
+	@python3 tools/hwtest-report.py $(HWTEST_CAPTURE) > /dev/null || { \
+		echo "hwtest-capture: incomplete capture (raise HWTEST_STEPS?)"; exit 2; }
 	@echo "captured $$(grep -c 'px8' $(HWTEST_CAPTURE)) PX8 page(s) -> $(HWTEST_CAPTURE)"
 
 HWTEST_CODE_BASELINE := docs/hardware-refs/hwtest-machine-code-v$(HWTEST_SUITE).txt
@@ -680,6 +682,8 @@ hwtest-capture-full: hardware-tests-disc
 		--path ../$(EXAMPLE_OUT)/hardware-tests.exe \
 		--disc ../$(EXAMPLE_OUT)/hardware-tests.cue \
 		--steps $(HWTEST_FULL_STEPS) --pad-pulses '$(HWTEST_FULL_PULSES)' > ../$(HWTEST_FULL_CAPTURE)
+	@python3 tools/hwtest-report.py $(HWTEST_FULL_CAPTURE) > /dev/null || { \
+		echo "hwtest-capture-full: incomplete capture (raise HWTEST_FULL_STEPS?)"; exit 2; }
 	@echo "captured $$(grep -c 'px8' $(HWTEST_FULL_CAPTURE)) PX8 page(s) -> $(HWTEST_FULL_CAPTURE)"
 
 # Gate for the blocks hwtest-diff cannot see. Timing minima legitimately move
