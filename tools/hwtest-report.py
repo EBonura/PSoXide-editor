@@ -228,10 +228,10 @@ LABELS = {
     0x35: "nops_dma_idle",
     0x36: "nops_during_linked_dma_512",
     0x37: "warm_ram_byte_store",
-    0x38: "gpu_tiny_tri_gouraud_tex4_2px_x64",
+    0x38: "v122_only_unpaced_gpu_tiny_tri_gouraud_tex4_2px_x64",
     0x39: "warm_uncached_ram_store",
     0x3A: "rtpt_then_next_inputs_mtc2",
-    0x3B: "gpu_tiny_tri_tex4_2px_x64",
+    0x3B: "v122_only_unpaced_gpu_tiny_tri_tex4_2px_x64",
     0x3C: "ab_ramsize_cold_load_sweep_control",
     0x3D: "ab_ramsize_cold_load_sweep_bit7_flipped",
     0x3E: "ab_spudelay_status_reads_control",
@@ -239,16 +239,16 @@ LABELS = {
     0x8E: "multu_small_back_to_back",
     0x8F: "multu_large_back_to_back",
     0x9F: "ram_loads_dma_idle",
-    0xBA: "gpu_fill_tri_tex4_raw_16x32",
-    0xBB: "gpu_fill_tri_tex4_translucent_16x32",
-    0xBC: "gpu_fill_tri_gouraud_tex4_16x32",
-    0xBD: "gpu_clipped_tri_flat_16x32",
-    0xBE: "gpu_vram_fill_16x32",
-    0xBF: "gpu_vram_copy_16x32",
+    0xBA: "v122_only_unpaced_gpu_fill_tri_tex4_raw_16x32",
+    0xBB: "v122_only_unpaced_gpu_fill_tri_tex4_translucent_16x32",
+    0xBC: "v122_only_unpaced_gpu_fill_tri_gouraud_tex4_16x32",
+    0xBD: "v122_only_unpaced_gpu_clipped_tri_flat_16x32",
+    0xBE: "v122_only_unpaced_gpu_vram_fill_16x32",
+    0xBF: "v122_only_unpaced_gpu_vram_copy_16x32",
     0xC8: "warm_ram_loads_back_to_back",
     0xC9: "warm_scratchpad_loads_back_to_back",
     0xCA: "warm_ram_byte_load",
-    0xCB: "gpu_rect_tex8_clut_alternating_16x32",
+    0xCB: "v122_only_unpaced_gpu_rect_tex8_clut_alternating_16x32",
     0xCC: "warm_ram_unaligned_lwl_lwr",
     0xCD: "warm_ram_unaligned_swl_swr",
     0xCE: "warm_ram_load_then_4_instructions",
@@ -262,7 +262,7 @@ LABELS = {
     0xF3: "warm_gte_mtc2",
     0xF4: "warm_gte_ctc2",
     0xF5: "warm_gte_mfc2",
-    0xF6: "gpu_fill_tri_tex4_letterboxed_16x32",
+    0xF6: "v122_only_unpaced_gpu_fill_tri_tex4_letterboxed_16x32",
     0xF7: "lerp3_cpu_mult",
     0xF8: "lerp3_gte_gpf",
     0xF9: "warm_gpustat_read",
@@ -271,6 +271,52 @@ LABELS = {
     0xFC: "warm_spustat_half_read",
     0xFD: "warm_spu_half_write",
     0xFE: "ram_loads_during_linked_dma_512",
+    # v1.23, extended ids (the PX8 TIMING_EXT block). GPU batches submitted as a
+    # DMA list that ends in a GP0(1Fh) interrupt request, and the CPU shapes
+    # the v1.22 console captures left open.
+    0x100: "gpu_list_tri_flat_16x32",
+    0x101: "gpu_list_tri_gouraud_16x32",
+    0x102: "gpu_list_tri_gouraud_dithered_16x32",
+    0x103: "gpu_list_tri_tex4_16x32",
+    0x104: "gpu_list_tri_tex4_raw_16x32",
+    0x105: "gpu_list_tri_tex4_translucent_16x32",
+    0x106: "gpu_list_tri_gouraud_tex4_16x32",
+    0x107: "gpu_list_tri_flat_translucent_16x32",
+    0x108: "gpu_list_rect_flat_16x32",
+    0x109: "gpu_list_rect_tex4_16x32",
+    0x10A: "gpu_list_rect_tex8_16x32",
+    0x10B: "gpu_list_rect_tex8_clut_alternating_16x32",
+    0x10C: "gpu_list_tri_tex4_page_alternating_16x32",
+    0x10D: "gpu_list_tri_tex4_uvspan63_16x32",
+    0x10E: "gpu_list_tri_flat_clipped_16x32",
+    0x10F: "gpu_list_tri_tex4_letterboxed_16x32",
+    0x110: "gpu_list_vram_fill_16x32",
+    0x111: "gpu_list_vram_copy_16x32",
+    0x112: "gpu_list_tiny_tri_flat_2px_x64",
+    0x113: "gpu_list_tiny_tri_tex4_2px_x64",
+    0x114: "gpu_list_tiny_tri_gouraud_tex4_2px_x64",
+    0x120: "multu_small_gap1",
+    0x121: "multu_small_gap2",
+    0x122: "multu_small_gap3",
+    0x123: "multu_small_gap4",
+    0x124: "divu_gap35",
+    0x125: "warm_ram_load_then_2_instructions",
+    0x126: "warm_ram_load_then_3_instructions",
+    0x127: "warm_ram_load_then_6_instructions",
+    0x128: "warm_ram_load_then_8_instructions",
+    0x129: "warm_ram_store_then_1_instruction",
+    0x12A: "warm_ram_store_then_2_instructions",
+    0x12B: "warm_ram_store_bursts_of_2",
+    0x12C: "warm_ram_store_bursts_of_4",
+    0x12D: "warm_ram_store_bursts_of_8",
+    0x12E: "warm_gp0_nop_write_then_3_instructions",
+    0x130: "rtps_then_read_sxy2",
+    0x131: "rtps_then_read_mac0",
+    0x132: "rtps_then_read_mac1",
+    0x133: "rtps_then_read_ir1",
+    0x134: "rtps_then_read_otz_after_16_nops",
+    0x135: "icache_alias_4k_call_pairs_cached_caller",
+    0x136: "icache_neighbour_call_pairs_cached_caller",
     # v1.21 register A/B group. Present only in a PERF A/B capture.
     0xDC: "ab_ramsize_uncached_loads_control",
     0xDD: "ab_ramsize_uncached_loads_bit7_flipped",
@@ -301,6 +347,7 @@ LAYOUT_IMMUNE_RECORDS = (
     | frozenset({0xC8, 0xC9, 0xCA, 0xCC, 0xCD, 0xCF})
     | frozenset(range(0xED, 0xF6))
     | frozenset(range(0xF7, 0xFE))
+    | frozenset(range(0x120, 0x137))
 )
 
 # Records timed on Timer 1's HBlank clock rather than Timer 2's system clock.
@@ -434,6 +481,49 @@ WORK_BY_ID = {
     0xFC: 64,
     0xFD: 64,
     0xFE: 64,
+    0x100: 16,
+    0x101: 16,
+    0x102: 16,
+    0x103: 16,
+    0x104: 16,
+    0x105: 16,
+    0x106: 16,
+    0x107: 16,
+    0x108: 16,
+    0x109: 16,
+    0x10A: 16,
+    0x10B: 16,
+    0x10C: 16,
+    0x10D: 16,
+    0x10E: 16,
+    0x10F: 16,
+    0x110: 16,
+    0x111: 16,
+    0x112: 64,
+    0x113: 64,
+    0x114: 64,
+    0x120: 16,
+    0x121: 16,
+    0x122: 16,
+    0x123: 16,
+    0x124: 8,
+    0x125: 64,
+    0x126: 64,
+    0x127: 64,
+    0x128: 64,
+    0x129: 64,
+    0x12A: 64,
+    0x12B: 64,
+    0x12C: 64,
+    0x12D: 64,
+    0x12E: 64,
+    0x130: 16,
+    0x131: 16,
+    0x132: 16,
+    0x133: 16,
+    0x134: 16,
+    0x135: 32,
+    0x136: 32,
     0x72: 128,
     0x73: 128,
     0x74: 64,
@@ -564,6 +654,7 @@ PX8_BLOCK_OBSERVED = 1 << 2
 PX8_BLOCK_TIMING = 1 << 3
 PX8_BLOCK_MEMCTL = 1 << 4
 PX8_BLOCK_PRECISION = 1 << 5
+PX8_BLOCK_TIMING_EXT = 1 << 6
 SCHEMAS = ("PX7", "PX8")
 # In capture order. The first nine are 0x1F801000..0x1F801020; later suites
 # append registers that are not on that linear run. A value past the end of
@@ -761,6 +852,16 @@ def parse_capture(payloads: list[str]) -> Capture:
     else:
         precision = struct.unpack_from(f"<{PX7_PRECISION_COUNT}I", binary, offset)
         offset += PX7_PRECISION_COUNT * 4
+    if schema == "PX8" and flags & PX8_BLOCK_TIMING_EXT:
+        # Records whose id does not fit a byte. Same fields, wider id.
+        (extended_count,) = struct.unpack_from("<H", binary, offset)
+        offset += 2
+        for _ in range(extended_count):
+            record_id, minimum, median, maximum = struct.unpack_from("<HHHH", binary, offset)
+            offset += 8
+            records.append(
+                Record(record_id, WORK_BY_ID.get(record_id, 0), minimum, maximum, median)
+            )
     if offset != len(binary) - 4:
         raise ValueError(f"{schema} binary parser did not consume the complete payload")
 

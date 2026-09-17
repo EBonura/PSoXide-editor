@@ -387,7 +387,7 @@ The v1.17 discriminators `0xAD`-`0xB0` were added for exactly this and
 their console values are now in hand, including the read-interlock
 result below.
 
-### The CPU does not stall on COP2 reads
+### The CPU does not stall on COP2 reads (SCPH-9902; see the 2026-09-17 note)
 
 `0xB0` brackets `nclip` plus an immediate `mfc2` against a two-nop
 baseline on Timer 2 and reads `lo=8, hi=9`: reading MAC0 the instruction
@@ -419,3 +419,93 @@ PX8 pages plus SB4, from one recording, decoded by `hwtest-video-qr.py` in a
 single pass). The older findings above predate it and came from a single
 recovered QR page; the SPU ADSR gap came from the *shape* of a failed capture
 rather than its contents.
+
+## 2026-09-17: hwtest v1.22 performance captures, launch PAL console
+
+Three captures from one session, archived as
+`docs/hardware-refs/px8-silicon-2026-09-17-v1.22-{full,perf-sweep,perf-ab}.txt`.
+The console identifies itself as BIOS 2.2 of 1995-12-04, so it is not the
+SCPH-9902 the earlier captures came from. `PERF A/B` completed: no register
+flip hung the machine. The sweep and the A/B run agree with each other to a
+few cycles on every CPU record.
+
+**The warm harness works on silicon.** Records `0x72`-`0x8D` and the sweep read
+with zero or near-zero jitter, where the older CPU records swing by 100 cycles
+or more in the same capture (`nop_block` 170-294, `taken_branch_delay`
+325-415). The layout-dependent refill tax described in
+`hardware-test-disc.md` is a property of the hardware run too, not only of the
+emulator. Calibrate against warm records only.
+
+**Confirmed to the cycle** (emulator already right): every warm GTE command
+latency and both GTE gap knees; `mtc2`/`ctc2`/`mfc2` at one cycle; six `mtc2`
+behind a running RTPT for free; a multiply issued behind a running one for
+free; the divide knee at 36; the multiply bands, including `rs`-only selection
+and the signed small-negative case; scratchpad, RAM and I/O load costs; the
+SPU read delay and its shortening through `SPU_DELAY` (3527 to 2247).
+
+**Folded into the emulator** (PSoXide-emulator branch
+`silicon-timing-on-d366cd0`, each with a unit test pinned to the number):
+
+| Finding | Silicon | Emulator before |
+|---|---|---|
+| Multiply read one cycle before it retires does not stall (`7A`/`7E`/`82`) | 110 / 158 / 222 | 126 / 174 / 238 |
+| `swl; swr` pair on RAM is two ordinary stores (`CD`) | 266 for 64 | 902 |
+| `lwl; lwr` pair on RAM is two plain loads (`CC`) | 901 for 64 | 1166 |
+| Instruction fetched through KSEG1 (`1E`) | 6.1 cycles | 7.1 |
+| I-cache fill streams at two cycles a word; NOSTR makes it blocking (`E9`) | 13 a line | 9 |
+| Two-word refills: the half-valid line waits for its leading words (`EA`) | 14 a line | 12 |
+| A RAM load during a fill waits for the bus (`3C`) | 24 a line | 21 |
+| `RAM_SIZE` bit 7: one cycle when a RAM load shares the bus with a RAM fetch (`DC`/`DD`, `3C`/`3D`) | 1193/1120, 6242/5958 | not a register |
+| Jumping out of a streamed line waits for the fill plus two cycles (`8C`, and `42`-`45` on both consoles) | 8 / 7 / 5 over a warm entry | 5 / 4 / 3 |
+| SPU store pays the bus write delay (`FD`) | 14.2 cycles | 1 |
+| Linked-list DMA arbitration per node (`33`/`34`, and `6B`) | 10.27 a node | 16 |
+
+Summed absolute error against the A/B capture, GPU records excluded, went from
+13,454 cycles to 845.
+
+**Measured, not yet modelled**, because one point does not give the shape.
+hwtest v1.23 adds the missing points:
+
+* The write queue: a store followed by three independent instructions costs
+  nothing (`1F`: 254 for 64, four cycles a turn); the emulator charges the
+  store its two. v1.23 `129`-`12E`.
+* The load shadow: a load followed by four independent instructions costs 8.9
+  cycles against 8.0 with one (`CE`: 571); the emulator adds them (710).
+  v1.23 `125`-`128`.
+* The multiply interlock between k = 0 and k = m - 1 is assumed flat. v1.23
+  `120`-`124`.
+* A GTE read may wait for the command after all. The lerp through GPF reads
+  MAC1-3 straight after the command and costs 12.75 cycles a turn, five more
+  than its eight instructions, which is GPF's latency (`F8`: 150 against the
+  emulator's 110). The SCPH-9902 finding above was MAC0 after NCLIP. Either
+  the registers differ or the consoles do. v1.23 `130`-`134` separates them.
+* RAM loads during a linked-list DMA are half again as slow (`FE`: 770 against
+  510 idle), while register-only code barely notices (`36`: 133 against 126).
+  The CPU gets the bus between nodes rather than losing it for the walk.
+* A store to GP0 costs two cycles, like a RAM store (`FA`: 124 for 64).
+* Whether a jump out of a streamed line costs the same when it lands in cached
+  code. v1.23 `135`/`136`.
+
+**Register A/B results.** `RAM_SIZE` bit 7 is real and worth about one cycle
+per contended RAM load; psx-spx says clearing it hangs CD loading on PU-8
+boards, so it is not a free switch. Cache-control NOSTR set disables streaming
+(a cold sweep goes from 2356 to 3376). RDPRI, NOPAD, LDSCH and BGNT flipped
+change nothing these workloads can see. The two-word refill size is slower.
+The BIOS values are already the fast ones.
+
+**The GPU fill battery is not measuring what it says.** `A0`-`AF` and the
+v1.22 sweep's GPU records write primitives to GP0 unpaced (64 to 144 words into
+a 16-word FIFO while the GPU draws) and treat GPUSTAT bit 26 as completion,
+which pulses between primitives. On this console textured triangles read
+faster than flat ones (2284 against 2837) and a VRAM fill slower than a
+rectangle. Their textures were also mostly transparent texels. v1.23 replaces
+the sweep's GPU records with DMA-list batches ending in a GP0(1Fh) interrupt
+request, with opaque textures (`100`-`114`). The standing `A0`-`AF` records are
+left as they are and should not be used.
+
+**Open: the disc did not boot after a reset.** After the full run, two presses
+of the reset button each reached the licensed PlayStation screen and then
+stayed black. It booted again later in the session (both PERF captures were
+taken afterwards); how is not recorded. The full run does not touch
+`RAM_SIZE`, cache control or the display range. Not reproduced or explained.
+

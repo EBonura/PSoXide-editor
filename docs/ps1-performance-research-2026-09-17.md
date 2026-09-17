@@ -10,6 +10,22 @@ memory-bound. About 35% of every vblank is RAM load stall, 10% is stack load
 stall, 10% is I-cache refill. Anything that removes a RAM access is worth more
 here than anything that removes an instruction.
 
+## What the console said (added after the v1.22 captures)
+
+Confirmed on a launch PAL console: the four-entry write queue (a store then
+three instructions is free), the load shadow (about two cycles of a load hide
+behind four independent instructions), `mtc2` not stalling behind a running
+RTPT (the next triple loads for free), a multiply behind a multiply costing
+nothing, `RAM_SIZE` bit 7 (about a cycle per contended RAM load), I-cache
+streaming (NOSTR set costs a cold sweep 43%), and the SPU read-delay nibble
+(3527 to 2247 for 64 status reads). An empty ordering-table slot costs 10.3
+cycles of DMA, so the 2048-slot table's ~1,700 empty slots are about 17,500
+cycles a frame. RAM loads run half again as slow while a list is being walked.
+A lerp through GPF costs 12.75 cycles a turn against 29.75 with `mult`.
+Refuted or unhelpful: cache-control RDPRI, NOPAD, LDSCH and BGNT flips change
+nothing measurable. Details in
+[emulator-accuracy-from-silicon.md](emulator-accuracy-from-silicon.md).
+
 ## Corrections to earlier assumptions
 
 - **RAM_SIZE bit 7 is not a free win.** psx-spx (memorycontrol) says clearing
@@ -96,7 +112,7 @@ consoledev mirror lacks (https://problemkaputt.de/psx-spx.htm).
   quad pays it twice. Setup of the next triangle overlaps the current one's
   fill, so it only bites on runs of small polygons. Cortex's mean extent is 29
   pixels. Flat-textured where the vertex colours are equal saves setup and two
-  packet words per triangle. Records `3B` against `38`.
+  packet words per triangle. Records `113` against `114` (v1.23).
 - Fill: about 0.5 clk per pixel flat or rect, 1.0 textured or Gouraud, more
   when semi-transparent; rects have no setup at all. `prim::Sprite` and
   `RectFlat` exist with no callers while particles go out as quads.
@@ -104,12 +120,12 @@ consoledev mirror lacks (https://problemkaputt.de/psx-spx.htm).
   4bpp/non-4bpp switch and any VRAM upload or copy. A CLUT change reloads 16
   entries at 4bpp and all 256 at 8bpp (256 clks). The engine sorts by depth
   only: within an OT bucket, sort by texpage then CLUT, and never interleave
-  uploads with drawing. Record `CB` against `AF`.
+  uploads with drawing. Record `10B` against `10A` (v1.23).
 - The GPU renders at full speed only while it is not fetching the picture;
   nocash says a one-line vertical display range removes nearly all of that.
-  A letterboxed picture buys GPU time. Record `F6` against `A2`.
+  A letterboxed picture buys GPU time. Record `10F` against `103` (v1.23).
 - Fill (`GP0 02`) is about six times faster than a flat rect for clears.
-  Record `BE` against `AE`.
+  Record `110` against `108` (v1.23).
 - Spyro shipped two worlds per level, the far one untextured; Andy Gavin
   measured untextured at twice the speed of textured and built Crash's
   characters from it. There is no LOD of any kind in the engine today.
