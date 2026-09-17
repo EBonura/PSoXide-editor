@@ -33,7 +33,7 @@
 	showcase-fog showcase-fog-disc run-showcase-fog \
 	showcase-particles showcase-particles-disc run-showcase-particles \
 	hardware-tests hardware-tests-disc run-hardware-tests \
-	hwtest-capture hwtest-diff hwtest-baseline hwtest-silicon hwtest-verify-code hwtest-audio hwtest-audio-chain \
+	hwtest-capture hwtest-diff hwtest-baseline hwtest-capture-full hwtest-diff-full hwtest-baseline-full hwtest-silicon hwtest-verify-code hwtest-audio hwtest-audio-chain \
 	hwtest-sb4-capture hwtest-sb4 hwtest-sb4-baseline \
 	hello-engine hello-engine-disc run-hello-engine \
 	cook-playtest build-editor-playtest editor-blank-playtest-check editor-bsp-liquid-check editor-souls-bsp-check profile-demo3 profile-demo3-forward \
@@ -281,6 +281,7 @@ lint:
 	cargo clippy --workspace --all-targets --all-features -- -D warnings
 	cd engine && cargo clippy --workspace --all-targets --all-features -- -D warnings
 	cd sdk && cargo clippy --workspace --all-targets --all-features -- -D warnings
+	cd engine/examples/hardware-tests && CARGO_TARGET_DIR=$(CURDIR)/build/examples-clippy cargo clippy --release $(PSX_BUILD_FLAGS) -- -D warnings
 
 lint-policy-guard:
 	$(PSOXIDE_DEV) lint-policy-guard
@@ -565,7 +566,7 @@ hardware-tests:
 # --- hardware-test capture pipeline -------------------------------------
 # The disc now boots side-effect free into its main menu. Headless capture
 # selects "RUN ALL TESTS + CAPTURE" with a short Cross pulse, after which the
-# suite mirrors every PX7 page to the debug TTY without QR scanning.
+# suite mirrors every PX8 page to the debug TTY without QR scanning.
 HWTEST_CAPTURE  := build/hwtest-capture.log
 # Baselines are named by SUITE version, not by date: the suite version is what
 # determines whether two captures are comparable, and re-baselining the same
@@ -663,6 +664,52 @@ hwtest-baseline: hwtest-capture
 		grep 'px8' $(HWTEST_CAPTURE) | sed 's/^hardware-tests: px8 //'; \
 	} > $(HWTEST_BASELINE)
 	@echo "re-baselined $(HWTEST_BASELINE)"
+
+# Full characterisation capture: one DOWN then CROSS selects ROOT_MENU row 1,
+# so the payload also carries the timing, memory-control and precision blocks
+# that the routine conformance capture leaves out. Row positions are baked
+# into the pulse frames the same way hwtest-capture bakes row 0.
+HWTEST_FULL_CAPTURE  := build/hwtest-capture-full.log
+HWTEST_FULL_BASELINE := docs/hardware-refs/px8-emulator-full-v$(HWTEST_SUITE).txt
+HWTEST_FULL_PULSES   := 0x40@25+2,0x4000@35+3
+HWTEST_FULL_STEPS    := 700000000
+
+hwtest-capture-full: hardware-tests-disc
+	@mkdir -p $(dir $(HWTEST_FULL_CAPTURE))
+	cd emu && cargo run -q -p frontend --release -- launch \
+		--path ../$(EXAMPLE_OUT)/hardware-tests.exe \
+		--disc ../$(EXAMPLE_OUT)/hardware-tests.cue \
+		--steps $(HWTEST_FULL_STEPS) --pad-pulses '$(HWTEST_FULL_PULSES)' > ../$(HWTEST_FULL_CAPTURE)
+	@echo "captured $$(grep -c 'px8' $(HWTEST_FULL_CAPTURE)) PX8 page(s) -> $(HWTEST_FULL_CAPTURE)"
+
+# Gate for the blocks hwtest-diff cannot see. Timing minima legitimately move
+# when unrelated guest code shifts I-cache alignment: drift here with drift=0
+# from hwtest-verify-code means re-baseline, not regression.
+hwtest-diff-full: hwtest-verify-code hwtest-capture-full
+	@test -f $(HWTEST_FULL_BASELINE) || { \
+		echo "hwtest-diff-full: $(HWTEST_FULL_BASELINE) does not exist."; \
+		echo "  Review the capture, then pin it with: make hwtest-baseline-full"; \
+		exit 2; }
+	python3 tools/hwtest-report.py --baseline $(HWTEST_FULL_BASELINE) \
+		--fail-on-change $(HWTEST_FULL_CAPTURE)
+
+hwtest-baseline-full: hwtest-capture-full
+	@{ \
+		echo "# PSoXide hardware-test FULL characterisation baseline"; \
+		echo "#"; \
+		echo "# SOURCE: PSoXide EMULATOR, headless. This is NOT a silicon capture."; \
+		echo "#   It detects emulator-side drift only. It is not hardware truth and"; \
+		echo "#   must never be cited as a console measurement."; \
+		echo "#"; \
+		echo "# captured:  $$(date -u +%Y-%m-%d)"; \
+		echo "# git:       $$(git describe --always --dirty)"; \
+		echo "# guest exe: sha256:$$(shasum -a 256 $(EXAMPLE_OUT)/hardware-tests.exe | cut -c1-16)"; \
+		echo "# emulator:  frontend launch --steps $(HWTEST_FULL_STEPS) (menu Down, Cross pulses)"; \
+		echo "# schema:    PX8 full characterisation, $$(grep -c 'px8' $(HWTEST_FULL_CAPTURE)) page(s)"; \
+		echo "#"; \
+		grep 'px8' $(HWTEST_FULL_CAPTURE) | sed 's/^hardware-tests: px8 //'; \
+	} > $(HWTEST_FULL_BASELINE)
+	@echo "re-baselined $(HWTEST_FULL_BASELINE)"
 
 # Ingest a real console capture. Pass the OBS-decoded payload text:
 #   make hwtest-silicon SILICON=captures/scph9902-2026-07-25.txt
