@@ -607,7 +607,8 @@ hwtest-verify-code: hardware-tests
 		echo "hwtest-verify-code: $(HWTEST_CODE_BASELINE) does not exist."; \
 		echo "  The suite version bumped without a machine-code baseline."; \
 		echo "  Review the spans, then pin them with:"; \
-		echo "    python3 tools/verify-hwtest-machine-code.py $(EXAMPLE_OUT)/hardware-tests.exe > $(HWTEST_CODE_BASELINE)"; \
+		echo "    python3 tools/verify-hwtest-machine-code.py $(EXAMPLE_OUT)/hardware-tests.exe --baseline <previous version's file> | grep -v '^# drift' | cut -d, -f1-4 > $(HWTEST_CODE_BASELINE)"; \
+		echo "  (--baseline carries the probe names over by id; name any probe_NN rows by hand.)"; \
 		exit 2; }
 	python3 tools/verify-hwtest-machine-code.py $(EXAMPLE_OUT)/hardware-tests.exe \
 		--baseline $(HWTEST_CODE_BASELINE) --fail-on-change

@@ -33,6 +33,7 @@ def load_tool(filename: str):
 
 
 report = load_tool("hwtest-report.py")
+verifier = load_tool("verify-hwtest-machine-code.py")
 
 # file -> (schema, suite minor, timing records, whole-binary CRC)
 ARCHIVED = {
@@ -124,6 +125,36 @@ class TableSyncTests(unittest.TestCase):
             re.search(r"const MEMORY_CONTROL_REGISTER_COUNT: usize = (\d+);", guest_source()).group(1)
         )
         self.assertLessEqual(count, len(report.MEMORY_CONTROL_NAMES))
+
+
+class MachineCodeVerifierTests(unittest.TestCase):
+    START, END = 0x3400_0000 | (7 << 1), 0x3400_0001 | (7 << 1)
+
+    def test_a_span_is_found_and_digested_without_its_markers(self) -> None:
+        body = [0x0109_0019, 0x0000_5012]
+        spans, layout = verifier.discover([0, self.START, *body, self.END, 0x3400_8003])
+        self.assertEqual(spans, {7: (1, 4)})
+        self.assertEqual(layout, {3: 5})
+        self.assertNotEqual(verifier.digest(body), verifier.digest(body[::-1]))
+
+    def test_broken_marker_pairs_are_errors(self) -> None:
+        for words in (
+            [self.START],  # never closed
+            [self.END],  # never opened
+            [self.START, self.START, self.END],  # reopened
+            [self.START, self.END, self.START, self.END],  # id reused
+        ):
+            with self.subTest(words=words), self.assertRaises(verifier.AuditError):
+                verifier.discover(words)
+
+    def test_the_pinned_baseline_parses(self) -> None:
+        newest = max(
+            REFS.glob("hwtest-machine-code-v*.txt"),
+            key=lambda path: tuple(int(part) for part in re.findall(r"\d+", path.stem)),
+        )
+        rows = verifier.parse_baseline(newest)
+        self.assertIn("07", rows)
+        self.assertEqual(rows["07"][0], "timed_multu_mflo")
 
 
 if __name__ == "__main__":

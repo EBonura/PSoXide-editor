@@ -1,87 +1,54 @@
 #!/usr/bin/env python3
 """Audit the hardware-test disc's measured instruction blocks in the LINKED EXE.
 
-Every timing probe brackets its measured interval with harmless marker words
-(`sll`/`addu` forms that write no live register). Those markers exist so the
-final PS-X machine code can be audited rather than trusted: a timing number
-only means what the docs claim if the instructions between the markers are
-still the ones the source asked for.
+Every timing probe brackets its measured interval with a pair of marker words,
+`ori $zero, $zero, imm`: start = 0x34000000 | (id << 1), end = start | 1. They
+write no register and no compiler emits them, so every such word in the image
+is a marker. The markers exist so the final PS-X machine code can be audited
+rather than trusted: a timing number only means what the docs claim if the
+instructions between the markers are still the ones the source asked for.
 
-This walks the linked EXE, extracts the word span between each probe's start
-and end marker, and digests it. Pin the output with --baseline and any change
-to a measured block -- an LLVM version bump reordering a wrapper, an edit that
-accidentally lands inside the timed window -- shows up as a moved digest
-instead of as a silently different cycle count.
+This walks the linked EXE, pairs the markers, and digests the words between
+each pair. Pin the output with --baseline and any change to a measured block
+(an LLVM bump reordering a wrapper, an edit that lands inside the timed
+window) shows up as a moved digest instead of a silently different cycle
+count. Probes are discovered from the image, never from source text, so a
+macro-generated probe or one in another module cannot fall out of the audit;
+with --fail-on-change a probe that appears or disappears fails too.
+
+Names live in the baseline, keyed by id. A new id prints as probe_NN until
+someone names it there.
+
+Layout tags (0x34008000 | n) are single non-executed words that pad the
+I-cache entry targets. Their position within a 16-byte cache line is what the
+entry probes depend on, so it is pinned the same way.
 
     python3 tools/verify-hwtest-machine-code.py <exe> [--baseline f] [--fail-on-change]
-
-Marker words are NOT unique in the binary (they are legal instruction
-encodings LLVM also emits), so spans are matched as ordered start/end pairs
-rather than by scanning for single words.
 """
 
 from __future__ import annotations
 
 import argparse
 import pathlib
-import re
 import struct
 import sys
 
 PSX_EXE_HEADER_BYTES = 0x800
-# A measured block is tens of instructions; 512 words is slack, not a real bound.
-MAX_SPAN_WORDS = 512
-SOURCE = "engine/examples/hardware-tests/src/main.rs"
-
-# One asm! block per probe. Capture the function name, then the first word
-# commented as a start marker and the first commented as an end marker.
-BLOCK_RE = re.compile(
-    r"fn (?P<name>\w+)\([^)]*\)[^{]*\{(?P<body>.*?)\n\}", re.DOTALL
-)
-START_RE = re.compile(r'"\.word (0x[0-9A-Fa-f]+)",\s*//[^\n]*start marker')
-END_RE = re.compile(r'"\.word (0x[0-9A-Fa-f]+)",\s*//[^\n]*end marker')
+MARKER_MASK = 0xFFFF_0000
+MARKER_BASE = 0x3400_0000
+LAYOUT_BIT = 0x8000
+# A measured block is tens to hundreds of instructions; 1024 words is slack.
+MAX_SPAN_WORDS = 1024
 
 
-class ProbeError(Exception):
+class AuditError(Exception):
     pass
-
-
-def probes_from_source(path: pathlib.Path) -> list[tuple[str, int, int]]:
-    text = path.read_text(encoding="utf-8")
-    found: list[tuple[str, int, int]] = []
-    for block in BLOCK_RE.finditer(text):
-        body = block.group("body")
-        start = START_RE.search(body)
-        end = END_RE.search(body)
-        if not start:
-            continue
-        if not end:
-            raise ProbeError(
-                f"{block.group('name')}: start marker {start.group(1)} has no end marker"
-            )
-        found.append((block.group("name"), int(start.group(1), 16), int(end.group(1), 16)))
-    return found
 
 
 def exe_words(path: pathlib.Path) -> list[int]:
     body = path.read_bytes()[PSX_EXE_HEADER_BYTES:]
     usable = len(body) - (len(body) % 4)
     return list(struct.unpack_from(f"<{usable // 4}I", body, 0))
-
-
-def find_span(words: list[int], start: int, end: int) -> list[tuple[int, int]]:
-    """Every start->end pair with no intervening restart of the same block."""
-    spans: list[tuple[int, int]] = []
-    for i, value in enumerate(words):
-        if value != start:
-            continue
-        for j in range(i + 1, min(i + MAX_SPAN_WORDS, len(words))):
-            if words[j] == end:
-                spans.append((i, j))
-                break
-            if words[j] == start:
-                break
-    return spans
 
 
 def digest(values: list[int]) -> int:
@@ -92,85 +59,105 @@ def digest(values: list[int]) -> int:
     return acc
 
 
-def parse_baseline(path: pathlib.Path) -> dict[str, str]:
-    rows: dict[str, str] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line or line.startswith("#") or line.startswith("probe,"):
+def discover(words: list[int]) -> tuple[dict[int, tuple[int, int]], dict[int, int]]:
+    """Return ({probe id: (start index, end index)}, {layout tag: word index})."""
+    spans: dict[int, tuple[int, int]] = {}
+    layout: dict[int, int] = {}
+    open_id: int | None = None
+    open_at = 0
+    for index, word in enumerate(words):
+        if word & MARKER_MASK != MARKER_BASE:
             continue
-        name, rest = line.split(",", 1)
-        rows[name] = rest
+        low = word & 0xFFFF
+        if low & LAYOUT_BIT:
+            tag = low & ~LAYOUT_BIT
+            if tag in layout:
+                raise AuditError(f"layout tag {tag} appears twice")
+            layout[tag] = index
+            continue
+        probe_id, is_end = low >> 1, low & 1
+        if not is_end:
+            if open_id is not None:
+                raise AuditError(f"probe {open_id:02d} has no end marker before probe {probe_id:02d} starts")
+            if probe_id in spans:
+                raise AuditError(f"probe id {probe_id:02d} is used twice")
+            open_id, open_at = probe_id, index
+            continue
+        if open_id != probe_id:
+            raise AuditError(f"end marker for probe {probe_id:02d} without its start")
+        if index - open_at > MAX_SPAN_WORDS:
+            raise AuditError(f"probe {probe_id:02d} spans {index - open_at} words")
+        spans[probe_id] = (open_at, index)
+        open_id = None
+    if open_id is not None:
+        raise AuditError(f"probe {open_id:02d} has no end marker")
+    return spans, layout
+
+
+def parse_baseline(path: pathlib.Path) -> dict[str, tuple[str, str]]:
+    """{key: (name, pinned value)}; key is 'NN' for a probe, 'Ln' for a layout tag."""
+    rows: dict[str, tuple[str, str]] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line or line.startswith("#") or line.startswith("id,"):
+            continue
+        key, name, pinned = line.split(",", 2)
+        rows[key] = (name, pinned)
     return rows
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("exe", help="linked hardware-tests.exe")
-    parser.add_argument("--source", default=SOURCE, help="probe source to read markers from")
     parser.add_argument("--baseline", help="previous output to compare against")
     parser.add_argument(
         "--fail-on-change",
         action="store_true",
-        help="exit non-zero if any measured block moved (CI gate)",
+        help="exit non-zero if any measured block moved, appeared or vanished (CI gate)",
     )
     args = parser.parse_args()
 
+    words = exe_words(pathlib.Path(args.exe))
     try:
-        probes = probes_from_source(pathlib.Path(args.source))
-    except ProbeError as exc:
+        spans, layout = discover(words)
+    except AuditError as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 2
-    if not probes:
-        print(f"FAIL: no marker-bracketed probes found in {args.source}", file=sys.stderr)
+    if not spans:
+        print(f"FAIL: no marker-bracketed probes found in {args.exe}", file=sys.stderr)
         return 2
+    baseline = parse_baseline(pathlib.Path(args.baseline)) if args.baseline else {}
 
-    words = exe_words(pathlib.Path(args.exe))
-    baseline = parse_baseline(pathlib.Path(args.baseline)) if args.baseline else None
-
-    print(f"# exe={args.exe} words={len(words)} probes={len(probes)}")
-    print("probe,start,end,words,digest" + (",baseline,changed" if baseline else ""))
-
-    ambiguous = 0
-    drift: list[str] = []
-    for name, start, end in probes:
-        spans = find_span(words, start, end)
-        if len(spans) > 1 and baseline is not None:
-            # Marker words are legal instruction encodings, so unrelated code
-            # can coincidentally form a second start/end pair. When that
-            # happens, the span whose LENGTH matches the pinned one is the real
-            # block: a genuine edit to the measured block changes its digest,
-            # which is still caught, so this disambiguates without excusing
-            # drift.
-            prior = baseline.get(name)
-            if prior:
-                want = prior.split(",")[2]
-                sized = [s for s in spans if str(s[1] - s[0] - 1) == want]
-                if len(sized) == 1:
-                    spans = sized
-        if len(spans) != 1:
-            # An ambiguous or absent span means the audit cannot speak for this
-            # block, which is a failure in its own right -- not something to
-            # paper over with the first candidate.
-            print(f"{name},{start:#010x},{end:#010x},AMBIGUOUS({len(spans)}),-")
-            ambiguous += 1
-            continue
-        first, last = spans[0]
+    current: dict[str, tuple[str, str]] = {}
+    for probe_id, (first, last) in sorted(spans.items()):
         measured = words[first + 1 : last]
-        row = f"{name},{start:#010x},{end:#010x},{len(measured)},{digest(measured):#010x}"
-        if baseline is not None:
-            prior = baseline.get(name)
-            current = row.split(",", 1)[1]
-            changed = int(prior is not None and prior != current)
-            row += f",{'-' if prior is None else 'pinned'},{changed}"
-            if changed:
-                drift.append(f"{name}: {prior} -> {current}")
-        print(row)
+        key = f"{probe_id:02d}"
+        name = baseline.get(key, (f"probe_{key}", ""))[0]
+        current[key] = (name, f"{len(measured)},{digest(measured):#010x}")
+    for tag, index in sorted(layout.items()):
+        key = f"L{tag}"
+        name = baseline.get(key, (f"layout_{tag}", ""))[0]
+        current[key] = (name, f"line_word,{index % 4}")
 
-    print(f"# ambiguous={ambiguous} drift={len(drift)}")
+    print(f"# exe={args.exe} words={len(words)} probes={len(spans)} layout_tags={len(layout)}")
+    print("id,name,words,digest" + (",changed" if args.baseline else ""))
+    drift: list[str] = []
+    for key, (name, value) in current.items():
+        row = f"{key},{name},{value}"
+        if args.baseline:
+            prior = baseline.get(key)
+            if prior is None:
+                drift.append(f"{key} ({name}): not in the baseline")
+            elif prior[1] != value:
+                drift.append(f"{key} ({name}): {prior[1]} -> {value}")
+            row += f",{int(prior is None or prior[1] != value)}"
+        print(row)
+    for key, (name, _) in baseline.items():
+        if key not in current:
+            drift.append(f"{key} ({name}): pinned but no longer in the image")
+
+    print(f"# drift={len(drift)}")
     for entry in drift:
         print(f"# drift: {entry}")
-    if ambiguous:
-        print(f"FAIL: {ambiguous} probe span(s) could not be located uniquely", file=sys.stderr)
-        return 1
     if drift and args.fail_on_change:
         print(f"FAIL: {len(drift)} measured block(s) changed", file=sys.stderr)
         return 1
