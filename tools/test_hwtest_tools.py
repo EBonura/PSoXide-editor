@@ -114,9 +114,23 @@ class TableSyncTests(unittest.TestCase):
                 self.assertIn(record_id, report.LABELS)
                 self.assertEqual(report.WORK_BY_ID[record_id], work)
 
-    def test_record_slots_hold_every_labelled_record(self) -> None:
-        slots = int(re.search(r"const TIMING_RECORD_COUNT: usize = (\d+);", guest_source()).group(1))
-        self.assertLessEqual(len(report.LABELS), slots)
+    def test_record_slots_hold_the_largest_scope(self) -> None:
+        source = guest_source()
+        slots = int(re.search(r"const TIMING_RECORD_COUNT: usize = (\d+);", source).group(1))
+        table = {
+            name: int(re.search(rf"const {name}: \[\w+; (\d+)\]", source).group(1))
+            for name in ("SAFE", "EXTENDED", "RISKY")
+        }
+        # The standing battery's own records: everything labelled that no
+        # performance table, DMA pair or GPU technique row accounts for.
+        dma_and_gpu = 4 + 6
+        standing = len(report.LABELS) - sum(table.values()) - dma_and_gpu
+        self.assertLessEqual(standing + table["SAFE"], slots)
+        # The sweep re-takes three GPU reference records under their own ids.
+        self.assertLessEqual(sum(table.values()) + dma_and_gpu + 3, slots)
+
+    def test_the_record_id_space_is_not_oversubscribed(self) -> None:
+        self.assertLessEqual(len(report.LABELS), 0xFF)
 
     def test_block_flags_match_photo_rs(self) -> None:
         photo = (GUEST_SRC / "photo.rs").read_text(encoding="utf-8")
