@@ -9,7 +9,10 @@ flags, memory-control names) must agree with the guest source they mirror.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import importlib.util
+import struct
 import re
 import sys
 import unittest
@@ -34,6 +37,7 @@ def load_tool(filename: str):
 
 report = load_tool("hwtest-report.py")
 verifier = load_tool("verify-hwtest-machine-code.py")
+audio_report = load_tool("hwtest-audio-report.py")
 
 # file -> (schema, suite minor, timing records, whole-binary CRC)
 ARCHIVED = {
@@ -154,6 +158,27 @@ class MachineCodeVerifierTests(unittest.TestCase):
         rows = verifier.parse_baseline(newest)
         self.assertIn("07", rows)
         self.assertEqual(rows["07"][0], "timed_multu_mflo")
+
+
+class ProbePayloadTests(unittest.TestCase):
+    @staticmethod
+    def payload(body: bytes, suffix: int | None = None) -> str:
+        crc = binascii.crc32(body) & 0xFFFF_FFFF
+        binary = body + struct.pack("<I", crc)
+        shown = crc if suffix is None else suffix
+        return f"PA1/{base64.b64encode(binary).decode()}/C:{shown:08X}"
+
+    def test_a_consistent_payload_decodes(self) -> None:
+        binary, crc = audio_report.probe_binary(self.payload(b"PA1B" + bytes(12)), "PA1", 20)
+        self.assertEqual(binary[:4], b"PA1B")
+        self.assertEqual(crc, binascii.crc32(binary[:-4]) & 0xFFFF_FFFF)
+
+    def test_length_and_crc_disagreements_are_rejected(self) -> None:
+        good = b"PA1B" + bytes(12)
+        with self.assertRaises(ValueError):
+            audio_report.probe_binary(self.payload(good), "PA1", 24)
+        with self.assertRaises(ValueError):
+            audio_report.probe_binary(self.payload(good, suffix=0), "PA1", 20)
 
 
 if __name__ == "__main__":
