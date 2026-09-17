@@ -20,3 +20,4 @@ jobs:
       - run: cargo test --locked --workspace
       - run: cargo check --locked --manifest-path engine/Cargo.toml --workspace --all-features
       - run: cargo test --locked --manifest-path engine/Cargo.toml -p psx-game-runtime -p psx-render-contract
+      - run: make lint
