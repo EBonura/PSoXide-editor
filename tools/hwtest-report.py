@@ -110,6 +110,36 @@ LABELS = {
     0x6F: "gpu_line_gouraud_256x8",
     0x70: "dram_refresh_period_cycles",
     0x71: "dram_refresh_stall_cycles",
+    # v1.21 warm-harness performance probes (perf_probes.rs). Layout immune:
+    # the timed block is the second pass of an in-assembly double run.
+    0x72: "warm_nop_block",
+    0x73: "warm_dependent_alu",
+    0x74: "warm_cached_ram_load",
+    0x75: "warm_scratchpad_load",
+    0x76: "warm_ram_store",
+    0x77: "warm_scratchpad_store",
+    0x78: "warm_taken_branch",
+    0x79: "multu_small_gap0",
+    0x7A: "multu_small_gap5",
+    0x7B: "multu_small_gap6",
+    0x7C: "multu_small_gap7",
+    0x7D: "multu_medium_gap0",
+    0x7E: "multu_medium_gap8",
+    0x7F: "multu_medium_gap9",
+    0x80: "multu_medium_gap10",
+    0x81: "multu_large_gap0",
+    0x82: "multu_large_gap12",
+    0x83: "multu_large_gap13",
+    0x84: "multu_large_gap14",
+    0x85: "divu_gap0",
+    0x86: "divu_gap34",
+    0x87: "divu_gap36",
+    0x88: "divu_gap38",
+    0x89: "divu_gap40",
+    0x8A: "multu_rs_small_rt_large",
+    0x8B: "mult_rs_negative_small",
+    0x8C: "icache_alias_4k_call_pairs",
+    0x8D: "icache_neighbour_call_pairs",
     # CD battery. Unlike every record above, these are Timer 1 HBLANK ticks
     # (~63.9 us each), not Timer 2 system-clock cycles: a seek is orders of
     # magnitude too slow for a 16-bit counter at the system clock.
@@ -180,7 +210,30 @@ LABELS = {
     0xD9: "sio_setup_896",
     0xDA: "sio_setup_1024",
     0xDB: "sio_setup_1536",
+    # v1.21 register A/B group. Present only in a PERF A/B capture.
+    0xDC: "ab_ramsize_uncached_loads_control",
+    0xDD: "ab_ramsize_uncached_loads_bit7_flipped",
+    0xDE: "ab_ramsize_cached_loads_control",
+    0xDF: "ab_ramsize_cached_loads_bit7_flipped",
+    0xE0: "ab_cachectl_loads_control",
+    0xE1: "ab_cachectl_cold_sweep_control",
+    0xE2: "ab_cachectl_loads_rdpri_flipped",
+    0xE3: "ab_cachectl_cold_sweep_rdpri_flipped",
+    0xE4: "ab_cachectl_loads_nopad_flipped",
+    0xE5: "ab_cachectl_cold_sweep_nopad_flipped",
+    0xE6: "ab_cachectl_loads_ldsch_flipped",
+    0xE7: "ab_cachectl_cold_sweep_ldsch_flipped",
+    0xE8: "ab_cachectl_loads_nostr_flipped",
+    0xE9: "ab_cachectl_cold_sweep_nostr_flipped",
+    0xEA: "ab_cachectl_cold_sweep_iblksz_2_words",
+    0xEB: "ab_cachectl_loads_bgnt_flipped",
+    0xEC: "ab_cachectl_cold_sweep_bgnt_flipped",
 }
+
+# Warm-harness records: the timed block is the second pass of an in-assembly
+# double run, so the minimum does not move when unrelated guest code shifts
+# I-cache alignment. Every other CPU record does.
+LAYOUT_IMMUNE_RECORDS = frozenset(range(0x72, 0x8C))
 
 # Records timed on Timer 1's HBlank clock rather than Timer 2's system clock.
 HBLANK_RECORDS = frozenset(range(0x90, 0x9F)) | frozenset(range(0xC0, 0xC8))
@@ -254,6 +307,51 @@ WORK_BY_ID = {
     **{record_id: 1 for record_id in range(0xB6, 0xBA)},
     0xC0: 2, 0xC1: 4, 0xC2: 8, 0xC3: 32, 0xC4: 64, 0xC5: 256, 0xC6: 64, 0xC7: 256,
     **{record_id: 0 for record_id in range(0xD0, 0xDC)},
+    0x72: 128,
+    0x73: 128,
+    0x74: 64,
+    0x75: 64,
+    0x76: 64,
+    0x77: 64,
+    0x78: 64,
+    0x79: 16,
+    0x7A: 16,
+    0x7B: 16,
+    0x7C: 16,
+    0x7D: 16,
+    0x7E: 16,
+    0x7F: 16,
+    0x80: 16,
+    0x81: 16,
+    0x82: 16,
+    0x83: 16,
+    0x84: 16,
+    0x85: 8,
+    0x86: 8,
+    0x87: 8,
+    0x88: 8,
+    0x89: 8,
+    0x8A: 16,
+    0x8B: 16,
+    0x8C: 32,
+    0x8D: 32,
+    0xDC: 64,
+    0xDD: 64,
+    0xDE: 64,
+    0xDF: 64,
+    0xE0: 64,
+    0xE1: 1024,
+    0xE2: 64,
+    0xE3: 1024,
+    0xE4: 64,
+    0xE5: 1024,
+    0xE6: 64,
+    0xE7: 1024,
+    0xE8: 64,
+    0xE9: 1024,
+    0xEA: 1024,
+    0xEB: 64,
+    0xEC: 1024,
 }
 
 
@@ -585,11 +683,15 @@ def payloads_from_paths(paths: list[str]) -> list[str]:
 
 
 def print_report(
-    capture: Capture, baseline: Capture | None, fail_on_change: bool = False
+    capture: Capture,
+    baseline: Capture | None,
+    fail_on_change: bool = False,
+    layout_immune_only: bool = False,
 ) -> int:
     # Every baseline difference lands here so the summary can name what moved
     # instead of only reporting that something did.
     drift: list[str] = []
+    layout_drift = 0
     page_count = capture.page_count
     print(
         f"# schema={capture.schema} suite=v{capture.suite_major}.{capture.suite_minor} "
@@ -667,7 +769,10 @@ def print_report(
                 row += ",absent,n/a"
             else:
                 row += f",{prior.minimum},{record.minimum - prior.minimum:+d}"
-                if prior.minimum != record.minimum:
+                tolerated = layout_immune_only and record.record_id not in LAYOUT_IMMUNE_RECORDS
+                if prior.minimum != record.minimum and tolerated:
+                    layout_drift += 1
+                elif prior.minimum != record.minimum:
                     drift.append(
                         f"timing {record.record_id:02X} ({LABELS.get(record.record_id, 'unlabelled')}): "
                         f"min {prior.minimum} -> {record.minimum}"
@@ -728,6 +833,8 @@ def print_report(
             )
         )
     if baseline is not None:
+        if layout_immune_only:
+            print(f"# layout_drift_tolerated={layout_drift}")
         print(f"# drift={len(drift)}")
         for entry in drift:
             print(f"# drift: {entry}")
@@ -846,6 +953,12 @@ def main() -> int:
         action="store_true",
         help="exit non-zero if any value moved against --baseline (CI gate)",
     )
+    parser.add_argument(
+        "--layout-immune-timing-only",
+        action="store_true",
+        help="count timing drift only for warm-harness records; the older CPU "
+        "records move whenever guest code shifts I-cache alignment",
+    )
     parser.add_argument("payload_or_file", nargs="*")
     args = parser.parse_args()
     try:
@@ -877,7 +990,9 @@ def main() -> int:
                     "across a MINOR bump",
                     file=sys.stderr,
                 )
-        return print_report(capture, baseline, args.fail_on_change)
+        return print_report(
+            capture, baseline, args.fail_on_change, args.layout_immune_timing_only
+        )
     except (OSError, UnicodeError, ValueError) as exc:
         print(f"hwtest-report: {exc}", file=sys.stderr)
         return 2
