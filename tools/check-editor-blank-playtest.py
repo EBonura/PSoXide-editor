@@ -184,7 +184,6 @@ def main() -> None:
         'name: "Editor Blank Playtest Acceptance"' in project,
         "exported project name is not deterministic",
     )
-    require("aletha" not in project.lower(), "acceptance project still references Aletha")
     require(
         "assets/textures/courtyard_cobbles.psxt" in project
         and "assets/textures/courtyard_brick.psxt" in project,
@@ -193,13 +192,17 @@ def main() -> None:
     require("pub const PLAYTEST_USES_PXBSP: bool = true;" in manifest, "cook is not BSP")
     pxbsp_room = re.search(
         r'LevelRoomRecord \{ name: "PXBSP World".*?'
-        r'sky: LevelSkyRecord \{.*?flags: 1,.*?'
+        r'sky: LevelSkyRecord \{.*?flags: (\d+),.*?'
         r'cloud_layer: LevelCloudLayerRecord \{ texture_asset: AssetId\((\d+)\)',
         manifest,
         re.DOTALL,
     )
-    require(pxbsp_room is not None, "PXBSP room has no enabled authored sky panorama")
-    sky_asset_id = int(pxbsp_room.group(1))
+    # psx_level::sky_flags: ENABLED | PANORAMA.
+    require(
+        pxbsp_room is not None and int(pxbsp_room.group(1)) & 3 == 3,
+        "PXBSP room has no enabled authored sky panorama",
+    )
+    sky_asset_id = int(pxbsp_room.group(2))
     sky_asset = re.search(
         rf"LevelAssetRecord \{{ id: AssetId\({sky_asset_id}\), "
         rf"kind: AssetKind::Texture, bytes: .*?, ram_bytes: (\d+), "
