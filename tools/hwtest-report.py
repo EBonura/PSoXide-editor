@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Validate and assemble PSoXide hardware-test photo payloads.
 
-PX5 is the original dense two-page capture. PX6 adds a third page containing
-128 fixed-order raw precision values while retaining every PX5 field. PX7 adds
-a fourth page, a per-record median, and explicit record ids so a probe can be
-added without shifting the meaning of every later record.
+PX7 carries a per-record median and explicit record ids, so a probe can be
+added without shifting the meaning of every later record. PX8 adds per-block
+flags and a variable page count. PX5 and PX6 captures are no longer parsed:
+their timing records were positional and no such capture is archived.
 """
 
 from __future__ import annotations
@@ -188,7 +188,7 @@ HBLANK_RECORDS = frozenset(range(0x90, 0x9F)) | frozenset(range(0xC0, 0xC8))
 GTE_SETTLE_FIRST_CASE = 116
 GTE_SETTLE_CASE_COUNT = 22
 
-# Work is fixed by record ID, so PX5 stores only each timing minimum/maximum.
+# Work is fixed by record ID, so the wire carries only id/min/median/max.
 WORK_BY_ID = {
     0x00: 0,
     0x01: 128,
@@ -255,7 +255,6 @@ WORK_BY_ID = {
     0xC0: 2, 0xC1: 4, 0xC2: 8, 0xC3: 32, 0xC4: 64, 0xC5: 256, 0xC6: 64, 0xC7: 256,
     **{record_id: 0 for record_id in range(0xD0, 0xDC)},
 }
-RECORD_IDS = tuple(WORK_BY_ID)
 
 
 @dataclass(frozen=True)
@@ -264,7 +263,7 @@ class Record:
     work: int
     minimum: int
     maximum: int
-    # PX7 only. PX5/PX6 kept no median, so -1 means "schema carried none".
+    # -1 means "not carried"; every supported schema carries a median.
     median: int = -1
 
 
@@ -304,8 +303,7 @@ class Capture:
     failures: tuple[Failure, ...]
     # How many pages this capture actually took. Fixed per schema before PX8.
     page_count: int
-    # Suite version: what the record ids MEAN. (0, 0) for PX5/PX6, which
-    # carried no such field.
+    # Suite version: what the record ids MEAN.
     suite_major: int
     suite_minor: int
     conformance_run: int
@@ -323,19 +321,12 @@ class Capture:
     binary_crc: int
 
 
-PX5_TEST_COUNT = 173
-PX5_SCAN_COUNT = 3
-PX5_STATUS_BITS = 3
-PX5_BINARY_LEN = 1_221
-PX5_PAGE_COUNT = 2
-PX6_PRECISION_COUNT = 128
-PX6_BINARY_LEN = 1_733
-PX6_PAGE_COUNT = 3
-# PX7: explicit per-record ids, a median column, and 128 record slots.
+# PX7: explicit per-record ids and a median column. The slot count comes from
+# the header: early v1.5 captures carried 144 slots, later ones 176.
 PX7_PRECISION_COUNT = 192
-PX7_BINARY_LEN = 2_863
-PX7_PAGE_COUNT = 5
-PX7_RECORD_SLOTS = 176
+PX7_STATUS_BITS = 3
+PX7_SCAN_COUNT = 3
+PX7_MEMORY_CONTROL_COUNT = 9
 PX7_RECORD_UNUSED = 0xFF
 # PX8: per-block flags. A routine capture carries verdicts and one record per
 # FAILING case; a characterisation capture carries every block PX7 did, in the
@@ -348,22 +339,36 @@ PX8_BLOCK_OBSERVED = 1 << 2
 PX8_BLOCK_TIMING = 1 << 3
 PX8_BLOCK_MEMCTL = 1 << 4
 PX8_BLOCK_PRECISION = 1 << 5
-SCHEMAS = ("PX5", "PX6", "PX7", "PX8")
+SCHEMAS = ("PX7", "PX8")
+# In capture order. The first nine are 0x1F801000..0x1F801020; later suites
+# append registers that are not on that linear run. A value past the end of
+# this table still prints, under a positional name, rather than vanishing.
+MEMORY_CONTROL_NAMES = (
+    "exp1_base",
+    "exp2_base",
+    "exp1_delay",
+    "exp3_delay",
+    "bios_delay",
+    "spu_delay",
+    "cdrom_delay",
+    "exp2_delay",
+    "common_delay",
+    "ram_size",
+    "cache_control",
+)
 STATUS_LABELS = {0: "PENDING", 1: "PASS", 2: "FAIL", 3: "WARN", 4: "INFO"}
 
 
-def page_count_for(schema: str) -> int:
-    return {"PX5": PX5_PAGE_COUNT, "PX6": PX6_PAGE_COUNT, "PX7": PX7_PAGE_COUNT}[schema]
-
-
-def binary_len_for(schema: str) -> int:
-    return {"PX5": PX5_BINARY_LEN, "PX6": PX6_BINARY_LEN, "PX7": PX7_BINARY_LEN}[schema]
+def memory_control_name(index: int) -> str:
+    if index < len(MEMORY_CONTROL_NAMES):
+        return MEMORY_CONTROL_NAMES[index]
+    return f"register_{index:02d}"
 
 
 def parse_capture_page(payload: str) -> CapturePage:
     payload = payload.strip()
     if not payload.startswith(tuple(f"{name}/" for name in SCHEMAS)):
-        raise ValueError("not a PX5/PX6/PX7/PX8 hardware payload")
+        raise ValueError("not a PX7/PX8 hardware payload")
     try:
         body, claimed_crc = payload.rsplit("/C:", 1)
         marker, page_field, chunk = body.split("/", 2)
@@ -389,24 +394,17 @@ def parse_capture_page(payload: str) -> CapturePage:
 def parse_capture(payloads: list[str]) -> Capture:
     pages = [parse_capture_page(payload) for payload in payloads]
     if not pages:
-        raise ValueError("no PX5/PX6/PX7/PX8 payloads found")
+        raise ValueError("no PX7/PX8 payloads found")
     schemas = {page.schema for page in pages}
     if len(schemas) != 1:
         raise ValueError("capture mixes schema versions")
     schema = schemas.pop()
     totals = {page.total for page in pages}
-    if schema == "PX8":
-        # A PX8 capture costs as many pages as it has data, so the page count is
-        # whatever the pages agree it is rather than a constant per schema.
-        if len(totals) != 1:
-            raise ValueError("PX8 pages disagree about how many pages there are")
-        page_count = totals.pop()
-        binary_len = None
-    else:
-        page_count = page_count_for(schema)
-        binary_len = binary_len_for(schema)
-        if totals != {page_count}:
-            raise ValueError(f"{schema} must declare exactly {page_count} pages")
+    # The page count is whatever the pages agree it is: a capture costs as
+    # many pages as it has data.
+    if len(totals) != 1:
+        raise ValueError(f"{schema} pages disagree about how many pages there are")
+    page_count = totals.pop()
     # The log can contain an early boot page followed by a freshly encoded
     # page after the pad state settles. Keep the last occurrence, matching the
     # state that is ultimately photographed.
@@ -420,8 +418,6 @@ def parse_capture(payloads: list[str]) -> Capture:
         binary = base64.b64decode(encoded, validate=True)
     except binascii.Error as exc:
         raise ValueError(f"invalid {schema} Base64: {exc}") from exc
-    if binary_len is not None and len(binary) != binary_len:
-        raise ValueError(f"{schema} binary length is {len(binary)}, expected {binary_len}")
     claimed_binary_crc = struct.unpack_from("<I", binary, len(binary) - 4)[0]
     actual_binary_crc = binascii.crc32(binary[:-4]) & 0xFFFF_FFFF
     if claimed_binary_crc != actual_binary_crc:
@@ -433,7 +429,7 @@ def parse_capture(payloads: list[str]) -> Capture:
     if binary[:4] != f"{schema}B".encode("ascii"):
         raise ValueError(f"{schema} binary magic mismatch")
     version = binary[4]
-    expected_version = {"PX5": 1, "PX6": 2, "PX7": 3, "PX8": 4}[schema]
+    expected_version = {"PX7": 3, "PX8": 4}[schema]
     if version != expected_version:
         raise ValueError(f"unsupported {schema} binary version {version}")
     # PX7 inserted the suite version after the schema version, so every later
@@ -455,32 +451,19 @@ def parse_capture(payloads: list[str]) -> Capture:
         scan_count = binary[19]
         digest_offset = 20
     else:
-        if schema == "PX7":
-            suite_major = binary[5]
-            suite_minor = binary[6]
-            head = 7
-        else:
-            suite_major = 0
-            suite_minor = 0
-            head = 5
-        conformance_run = binary[head]
-        timing_run = binary[head + 1]
-        test_count = binary[head + 2]
-        timing_count = binary[head + 3]
-        memory_count = binary[head + 4]
-        status_bits = binary[head + 5]
-        scan_count = binary[head + 6]
-        expected_records = PX7_RECORD_SLOTS if schema == "PX7" else len(RECORD_IDS)
-        expected_shape = (
-            PX5_TEST_COUNT,
-            expected_records,
-            9,
-            PX5_STATUS_BITS,
-            PX5_SCAN_COUNT,
-        )
-        if (test_count, timing_count, memory_count, status_bits, scan_count) != expected_shape:
-            raise ValueError(f"{schema} binary shape does not match schema version {version}")
-        digest_offset = head + 7
+        suite_major = binary[5]
+        suite_minor = binary[6]
+        conformance_run = binary[7]
+        timing_run = binary[8]
+        test_count = binary[9]
+        timing_count = binary[10]
+        memory_count = binary[11]
+        status_bits = binary[12]
+        scan_count = binary[13]
+        expected_shape = (PX7_MEMORY_CONTROL_COUNT, PX7_STATUS_BITS, PX7_SCAN_COUNT)
+        if (memory_count, status_bits, scan_count) != expected_shape:
+            raise ValueError(f"PX7 binary shape does not match schema version {version}")
+        digest_offset = 14
     conformance_digest, gte_digest, timing_digest, timing_aux = struct.unpack_from(
         "<IIII", binary, digest_offset
     )
@@ -530,22 +513,10 @@ def parse_capture(payloads: list[str]) -> Capture:
         statuses.append(status)
 
     records: list[Record] = []
-    if schema == "PX8":
-        if flags & PX8_BLOCK_TIMING:
-            for _ in range(timing_count):
-                record_id, minimum, median, maximum = struct.unpack_from(
-                    "<BHHH", binary, offset
-                )
-                offset += 7
-                if record_id == PX7_RECORD_UNUSED:
-                    continue
-                records.append(
-                    Record(record_id, WORK_BY_ID.get(record_id, 0), minimum, maximum, median)
-                )
-    elif schema == "PX7":
+    if flags & PX8_BLOCK_TIMING:
         # Ids are explicit, so an unfilled slot is skipped rather than
         # shifting every later record's meaning.
-        for _ in range(PX7_RECORD_SLOTS):
+        for _ in range(timing_count):
             record_id, minimum, median, maximum = struct.unpack_from("<BHHH", binary, offset)
             offset += 7
             if record_id == PX7_RECORD_UNUSED:
@@ -553,11 +524,6 @@ def parse_capture(payloads: list[str]) -> Capture:
             records.append(
                 Record(record_id, WORK_BY_ID.get(record_id, 0), minimum, maximum, median)
             )
-    else:
-        for record_id in RECORD_IDS:
-            minimum, maximum = struct.unpack_from("<HH", binary, offset)
-            offset += 4
-            records.append(Record(record_id, WORK_BY_ID[record_id], minimum, maximum))
     memory_control: tuple[int, ...] = ()
     if schema != "PX8" or flags & PX8_BLOCK_MEMCTL:
         memory_control = struct.unpack_from(f"<{memory_count}I", binary, offset)
@@ -567,12 +533,9 @@ def parse_capture(payloads: list[str]) -> Capture:
         if flags & PX8_BLOCK_PRECISION:
             precision = struct.unpack_from(f"<{precision_count}I", binary, offset)
             offset += precision_count * 4
-    elif schema == "PX7":
+    else:
         precision = struct.unpack_from(f"<{PX7_PRECISION_COUNT}I", binary, offset)
         offset += PX7_PRECISION_COUNT * 4
-    elif schema == "PX6":
-        precision = struct.unpack_from(f"<{PX6_PRECISION_COUNT}I", binary, offset)
-        offset += PX6_PRECISION_COUNT * 4
     if offset != len(binary) - 4:
         raise ValueError(f"{schema} binary parser did not consume the complete payload")
 
@@ -720,22 +683,11 @@ def print_report(
             for name, scan in zip(scan_names, capture.scans)
         )
     )
-    names = (
-        "exp1_base",
-        "exp2_base",
-        "exp1_delay",
-        "exp3_delay",
-        "bios_delay",
-        "spu_delay",
-        "cdrom_delay",
-        "exp2_delay",
-        "common_delay",
-    )
     print(
         "# memory_control="
         + ",".join(
-            f"{name}:0x{value:08X}"
-            for name, value in zip(names, capture.memory_control)
+            f"{memory_control_name(index)}:0x{value:08X}"
+            for index, value in enumerate(capture.memory_control)
         )
     )
     if capture.precision:
@@ -882,7 +834,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--baseline",
-        help="optional PX5/PX6 payload file to compare against",
+        help="optional PX7/PX8 payload file to compare against",
     )
     parser.add_argument(
         "--allow-suite-mismatch",
