@@ -659,9 +659,8 @@ impl MenuState {
         let games = games.into();
         if let Some(settings) = self.categories.iter_mut().find(|c| c.name == "Settings") {
             for item in &mut settings.items {
-                match item.action {
-                    MenuAction::ChooseGamesPath => item.value = Some(games.clone()),
-                    _ => {}
+                if matches!(item.action, MenuAction::ChooseGamesPath) {
+                    item.value = Some(games.clone());
                 }
             }
         }
