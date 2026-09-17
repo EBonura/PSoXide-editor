@@ -22,7 +22,17 @@ streaming (NOSTR set costs a cold sweep 43%), and the SPU read-delay nibble
 cycles of DMA, so the 2048-slot table's ~1,700 empty slots are about 17,500
 cycles a frame. RAM loads run half again as slow while a list is being walked.
 A lerp through GPF costs 12.75 cycles a turn against 29.75 with `mult`.
-Refuted or unhelpful: cache-control RDPRI, NOPAD, LDSCH and BGNT flips change
+The v1.23 run added: a store with any instruction behind it costs one cycle
+(four-entry write buffer); the third to sixth instruction behind a RAM load
+are free if they touch neither the bus nor the loaded register; a coprocessor
+read waits for the running command, so reading SXY straight after RTPT costs
+the command's whole latency and work placed between the two is free; a texture
+page change costs the GPU about 430 cycles and an 8bpp CLUT change about 260;
+small-triangle setup is about 44 / 134 / 269 cycles flat / textured /
+Gouraud-textured; clipped-away triangles cost about 50 cycles each; VRAM fill
+is 2.6 times faster than a flat rect.
+Refuted or unhelpful: letterboxing the display range, the raw-texture bit and
+dithering make no measurable difference, and cache-control RDPRI, NOPAD, LDSCH and BGNT flips change
 nothing measurable. Details in
 [emulator-accuracy-from-silicon.md](emulator-accuracy-from-silicon.md).
 
