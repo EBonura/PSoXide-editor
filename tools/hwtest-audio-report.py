@@ -96,14 +96,36 @@ def decode_payload(payload: str) -> dict[str, object]:
     return decode_pa1(payload)
 
 
-def decode_pa1(payload: str) -> dict[str, object]:
+def probe_binary(payload: str, name: str, expected_len: int) -> tuple[bytes, int]:
+    """Decode `NAME/<base64>/C:<crc>` and return (binary, crc).
+
+    The CRC is carried three times: as the text suffix, as the binary's last
+    word, and implicitly by the bytes themselves. All three must agree.
+    """
     encoded, suffix_crc = payload[4:].rsplit("/C:", 1)
     try:
         binary = base64.b64decode(encoded, validate=True)
     except binascii.Error as exc:
-        raise ValueError(f"invalid PA1 Base64: {exc}") from exc
-    if len(binary) != PA1_BINARY_LEN:
-        raise ValueError(f"PA1 binary length {len(binary)} != {PA1_BINARY_LEN}")
+        raise ValueError(f"invalid {name} Base64: {exc}") from exc
+    if len(binary) != expected_len:
+        raise ValueError(f"{name} binary length {len(binary)} != {expected_len}")
+    embedded_crc = struct.unpack_from("<I", binary, len(binary) - 4)[0]
+    calculated_crc = binascii.crc32(binary[:-4]) & 0xFFFF_FFFF
+    try:
+        displayed_crc = int(suffix_crc, 16)
+    except ValueError as exc:
+        raise ValueError(f"invalid {name} CRC suffix: {suffix_crc!r}") from exc
+    if embedded_crc != calculated_crc or displayed_crc != calculated_crc:
+        raise ValueError(
+            f"{name} CRC mismatch: "
+            f"suffix={displayed_crc:08X} embedded={embedded_crc:08X} "
+            f"calculated={calculated_crc:08X}"
+        )
+    return binary, calculated_crc
+
+
+def decode_pa1(payload: str) -> dict[str, object]:
+    binary, calculated_crc = probe_binary(payload, "PA1", PA1_BINARY_LEN)
 
     magic, version, stage_count, field_count, run, lba, stage_frames = struct.unpack_from(
         "<4sBBBBII", binary
@@ -113,19 +135,6 @@ def decode_pa1(payload: str) -> dict[str, object]:
     if stage_count != len(PA1_STAGE_LABELS) or field_count != FIELD_COUNT:
         raise ValueError(
             f"unexpected PA1 dimensions: stages={stage_count} fields={field_count}"
-        )
-
-    embedded_crc = struct.unpack_from("<I", binary, len(binary) - 4)[0]
-    calculated_crc = binascii.crc32(binary[:-4]) & 0xFFFF_FFFF
-    try:
-        displayed_crc = int(suffix_crc, 16)
-    except ValueError as exc:
-        raise ValueError(f"invalid PA1 CRC suffix: {suffix_crc!r}") from exc
-    if embedded_crc != calculated_crc or displayed_crc != calculated_crc:
-        raise ValueError(
-            "PA1 CRC mismatch: "
-            f"suffix={displayed_crc:08X} embedded={embedded_crc:08X} "
-            f"calculated={calculated_crc:08X}"
         )
 
     stages: list[dict[str, object]] = []
@@ -182,13 +191,7 @@ def decode_pa1(payload: str) -> dict[str, object]:
 
 
 def decode_pa2(payload: str) -> dict[str, object]:
-    encoded, suffix_crc = payload[4:].rsplit("/C:", 1)
-    try:
-        binary = base64.b64decode(encoded, validate=True)
-    except binascii.Error as exc:
-        raise ValueError(f"invalid PA2 Base64: {exc}") from exc
-    if len(binary) != PA2_BINARY_LEN:
-        raise ValueError(f"PA2 binary length {len(binary)} != {PA2_BINARY_LEN}")
+    binary, calculated_crc = probe_binary(payload, "PA2", PA2_BINARY_LEN)
 
     magic, version, stage_count, field_count, run, layout_crc, target_meta, target_hash = (
         struct.unpack_from("<4sBBBBIII", binary)
@@ -198,19 +201,6 @@ def decode_pa2(payload: str) -> dict[str, object]:
     if stage_count != len(PA2_STAGE_LABELS) or field_count != FIELD_COUNT:
         raise ValueError(
             f"unexpected PA2 dimensions: stages={stage_count} fields={field_count}"
-        )
-
-    embedded_crc = struct.unpack_from("<I", binary, len(binary) - 4)[0]
-    calculated_crc = binascii.crc32(binary[:-4]) & 0xFFFF_FFFF
-    try:
-        displayed_crc = int(suffix_crc, 16)
-    except ValueError as exc:
-        raise ValueError(f"invalid PA2 CRC suffix: {suffix_crc!r}") from exc
-    if embedded_crc != calculated_crc or displayed_crc != calculated_crc:
-        raise ValueError(
-            "PA2 CRC mismatch: "
-            f"suffix={displayed_crc:08X} embedded={embedded_crc:08X} "
-            f"calculated={calculated_crc:08X}"
         )
 
     stages: list[dict[str, object]] = []
@@ -270,13 +260,7 @@ def decode_pa2(payload: str) -> dict[str, object]:
 
 
 def decode_pa3(payload: str) -> dict[str, object]:
-    encoded, suffix_crc = payload[4:].rsplit("/C:", 1)
-    try:
-        binary = base64.b64decode(encoded, validate=True)
-    except binascii.Error as exc:
-        raise ValueError(f"invalid PA3 Base64: {exc}") from exc
-    if len(binary) != PA3_BINARY_LEN:
-        raise ValueError(f"PA3 binary length {len(binary)} != {PA3_BINARY_LEN}")
+    binary, calculated_crc = probe_binary(payload, "PA3", PA3_BINARY_LEN)
 
     (
         magic,
@@ -295,19 +279,6 @@ def decode_pa3(payload: str) -> dict[str, object]:
     if stage_count != len(PA3_STAGE_LABELS) or field_count != FIELD_COUNT:
         raise ValueError(
             f"unexpected PA3 dimensions: stages={stage_count} fields={field_count}"
-        )
-
-    embedded_crc = struct.unpack_from("<I", binary, len(binary) - 4)[0]
-    calculated_crc = binascii.crc32(binary[:-4]) & 0xFFFF_FFFF
-    try:
-        displayed_crc = int(suffix_crc, 16)
-    except ValueError as exc:
-        raise ValueError(f"invalid PA3 CRC suffix: {suffix_crc!r}") from exc
-    if embedded_crc != calculated_crc or displayed_crc != calculated_crc:
-        raise ValueError(
-            "PA3 CRC mismatch: "
-            f"suffix={displayed_crc:08X} embedded={embedded_crc:08X} "
-            f"calculated={calculated_crc:08X}"
         )
 
     stages: list[dict[str, object]] = []
@@ -366,13 +337,7 @@ def decode_pa3(payload: str) -> dict[str, object]:
 
 
 def decode_pa4(payload: str) -> dict[str, object]:
-    encoded, suffix_crc = payload[4:].rsplit("/C:", 1)
-    try:
-        binary = base64.b64decode(encoded, validate=True)
-    except binascii.Error as exc:
-        raise ValueError(f"invalid PA4 Base64: {exc}") from exc
-    if len(binary) != PA4_BINARY_LEN:
-        raise ValueError(f"PA4 binary length {len(binary)} != {PA4_BINARY_LEN}")
+    binary, calculated_crc = probe_binary(payload, "PA4", PA4_BINARY_LEN)
 
     (
         magic,
@@ -396,19 +361,6 @@ def decode_pa4(payload: str) -> dict[str, object]:
         )
     if variant >= len(PA4_VARIANTS):
         raise ValueError(f"unknown PA4 variant {variant}")
-
-    embedded_crc = struct.unpack_from("<I", binary, len(binary) - 4)[0]
-    calculated_crc = binascii.crc32(binary[:-4]) & 0xFFFF_FFFF
-    try:
-        displayed_crc = int(suffix_crc, 16)
-    except ValueError as exc:
-        raise ValueError(f"invalid PA4 CRC suffix: {suffix_crc!r}") from exc
-    if embedded_crc != calculated_crc or displayed_crc != calculated_crc:
-        raise ValueError(
-            "PA4 CRC mismatch: "
-            f"suffix={displayed_crc:08X} embedded={embedded_crc:08X} "
-            f"calculated={calculated_crc:08X}"
-        )
 
     stages: list[dict[str, object]] = []
     offset = 36
@@ -472,13 +424,7 @@ def decode_pa4(payload: str) -> dict[str, object]:
 
 
 def decode_pa5(payload: str) -> dict[str, object]:
-    encoded, suffix_crc = payload[4:].rsplit("/C:", 1)
-    try:
-        binary = base64.b64decode(encoded, validate=True)
-    except binascii.Error as exc:
-        raise ValueError(f"invalid PA5 Base64: {exc}") from exc
-    if len(binary) != PA5_BINARY_LEN:
-        raise ValueError(f"PA5 binary length {len(binary)} != {PA5_BINARY_LEN}")
+    binary, calculated_crc = probe_binary(payload, "PA5", PA5_BINARY_LEN)
 
     (
         magic,
@@ -502,19 +448,6 @@ def decode_pa5(payload: str) -> dict[str, object]:
         )
     if variant >= len(PA5_VARIANTS):
         raise ValueError(f"unknown PA5 variant {variant}")
-
-    embedded_crc = struct.unpack_from("<I", binary, len(binary) - 4)[0]
-    calculated_crc = binascii.crc32(binary[:-4]) & 0xFFFF_FFFF
-    try:
-        displayed_crc = int(suffix_crc, 16)
-    except ValueError as exc:
-        raise ValueError(f"invalid PA5 CRC suffix: {suffix_crc!r}") from exc
-    if embedded_crc != calculated_crc or displayed_crc != calculated_crc:
-        raise ValueError(
-            "PA5 CRC mismatch: "
-            f"suffix={displayed_crc:08X} embedded={embedded_crc:08X} "
-            f"calculated={calculated_crc:08X}"
-        )
 
     stages: list[dict[str, object]] = []
     offset = 36

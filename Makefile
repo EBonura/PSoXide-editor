@@ -33,7 +33,7 @@
 	showcase-fog showcase-fog-disc run-showcase-fog \
 	showcase-particles showcase-particles-disc run-showcase-particles \
 	hardware-tests hardware-tests-disc run-hardware-tests \
-	hwtest-capture hwtest-diff hwtest-baseline hwtest-capture-full hwtest-diff-full hwtest-baseline-full hwtest-capture-perf hwtest-silicon hwtest-verify-code hwtest-audio hwtest-audio-chain \
+	hwtest-capture hwtest-diff hwtest-baseline hwtest-capture-full hwtest-diff-full hwtest-baseline-full hwtest-capture-perf hwtest-probe-capture hwtest-silicon hwtest-verify-code hwtest-audio hwtest-audio-chain \
 	hwtest-sb4-capture hwtest-sb4 hwtest-sb4-baseline \
 	hello-engine hello-engine-disc run-hello-engine \
 	cook-playtest build-editor-playtest editor-blank-playtest-check editor-bsp-liquid-check editor-souls-bsp-check profile-demo3 profile-demo3-forward \
@@ -735,6 +735,25 @@ hwtest-capture-perf: hardware-tests-disc
 	@python3 tools/hwtest-report.py $(HWTEST_PERF_CAPTURE) | grep -q ',ab_cachectl_cold_sweep_bgnt_flipped,' || { \
 		echo "hwtest-capture-perf: the A/B group did not complete"; exit 2; }
 	@echo "captured $$(grep -c 'px8' $(HWTEST_PERF_CAPTURE)) PX8 page(s) -> $(HWTEST_PERF_CAPTURE)"
+
+# Headless run of one TARGETED PROBES row, for comparing a probe's payload
+# before and after a refactor: make hwtest-probe-capture ROW=3
+# Rows follow PROBES_MENU. SB2 (row 0) needs HWTEST_PROBE_STEPS=1500000000.
+# Expect a few fields to move when guest code shifts: buffer addresses (CL1),
+# poll counts (PA2), SPUSTAT's delayed mode bits (SB4), and SB2's REKEY late
+# sample, which is read in the same frame as a key-on.
+HWTEST_PROBE_STEPS ?= 600000000
+hwtest-probe-capture: hardware-tests-disc
+	@test -n "$(ROW)" || { echo "usage: make hwtest-probe-capture ROW=<0-9>"; exit 2; }
+	@mkdir -p build
+	@pulses="0x40@30+2,0x40@38+2,0x40@46+2,0x40@54+2,0x40@62+2,0x40@70+2,0x40@78+2,0x4000@90+2"; \
+	t=100; i=0; while [ $$i -lt $(ROW) ]; do pulses="$$pulses,0x40@$$t+2"; t=$$((t+8)); i=$$((i+1)); done; \
+	pulses="$$pulses,0x4000@$$((t+10))+2"; \
+	cd emu && cargo run -q -p frontend --release -- launch \
+		--path ../$(EXAMPLE_OUT)/hardware-tests.exe \
+		--disc ../$(EXAMPLE_OUT)/hardware-tests.cue \
+		--steps $(HWTEST_PROBE_STEPS) --pad-pulses "$$pulses" > ../build/hwtest-probe-$(ROW).log
+	@grep -oE ' (PA[1-5]|SB[1-4]|CL1)/[^ ]+' build/hwtest-probe-$(ROW).log | tail -1
 
 # Ingest a real console capture. Pass the OBS-decoded payload text:
 #   make hwtest-silicon SILICON=captures/scph9902-2026-07-25.txt
