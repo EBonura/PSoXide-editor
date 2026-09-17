@@ -58,6 +58,8 @@ ARCHIVED = {
     "px8-emulator-v1.20.txt": ("PX8", 20, 0, 0x752E799B),
     "px8-silicon-2026-08-07-v1.17-full.txt": ("PX8", 17, 151, 0x5C8F0460),
     "px8-silicon-2026-09-17-v1.22-full.txt": ("PX8", 22, 179, 0xE0F65995),
+    "px8-silicon-2026-09-17-v1.22-perf-sweep.txt": ("PX8", 22, 87, 0x7F53654B),
+    "px8-silicon-2026-09-17-v1.22-perf-ab.txt": ("PX8", 22, 108, 0x0A7B83CE),
 }
 
 
