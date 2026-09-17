@@ -123,11 +123,11 @@ class TableSyncTests(unittest.TestCase):
         }
         # The standing battery's own records: everything labelled that no
         # performance table, DMA pair or GPU technique row accounts for.
-        dma_and_gpu = 4 + 6
+        dma_and_gpu = 6 + 10
         standing = len(report.LABELS) - sum(table.values()) - dma_and_gpu
         self.assertLessEqual(standing + table["SAFE"], slots)
-        # The sweep re-takes three GPU reference records under their own ids.
-        self.assertLessEqual(sum(table.values()) + dma_and_gpu + 3, slots)
+        # The sweep re-takes four GPU reference records under their own ids.
+        self.assertLessEqual(sum(table.values()) + dma_and_gpu + 4, slots)
 
     def test_the_record_id_space_is_not_oversubscribed(self) -> None:
         self.assertLessEqual(len(report.LABELS), 0xFF)

@@ -213,7 +213,7 @@ LABELS = {
     # v1.22 performance sweep (TARGETED PROBES > PERF SWEEP). Warm harness
     # except the DMA and GPU records, which time the device, not the CPU.
     0x1E: "warm_nop_block_uncached",
-    0x1F: "warm_untaken_branch",
+    0x1F: "warm_ram_store_then_3_instructions",
     0x27: "warm_gte_rtps",
     0x28: "warm_gte_rtpt",
     0x29: "warm_gte_nclip",
@@ -228,17 +228,17 @@ LABELS = {
     0x35: "nops_dma_idle",
     0x36: "nops_during_linked_dma_512",
     0x37: "warm_ram_byte_store",
-    0x38: "warm_ram_half_store",
+    0x38: "gpu_tiny_tri_gouraud_tex4_2px_x64",
     0x39: "warm_uncached_ram_store",
-    0x3A: "warm_gte_avsz4",
-    0x3B: "warm_gte_nccs",
+    0x3A: "rtpt_then_next_inputs_mtc2",
+    0x3B: "gpu_tiny_tri_tex4_2px_x64",
     0x3C: "ab_ramsize_cold_load_sweep_control",
     0x3D: "ab_ramsize_cold_load_sweep_bit7_flipped",
     0x3E: "ab_spudelay_status_reads_control",
     0x3F: "ab_spudelay_status_reads_faster",
     0x8E: "multu_small_back_to_back",
     0x8F: "multu_large_back_to_back",
-    0x9F: "div_signed_gap0",
+    0x9F: "ram_loads_dma_idle",
     0xBA: "gpu_fill_tri_tex4_raw_16x32",
     0xBB: "gpu_fill_tri_tex4_translucent_16x32",
     0xBC: "gpu_fill_tri_gouraud_tex4_16x32",
@@ -248,10 +248,10 @@ LABELS = {
     0xC8: "warm_ram_loads_back_to_back",
     0xC9: "warm_scratchpad_loads_back_to_back",
     0xCA: "warm_ram_byte_load",
-    0xCB: "warm_ram_half_load",
+    0xCB: "gpu_rect_tex8_clut_alternating_16x32",
     0xCC: "warm_ram_unaligned_lwl_lwr",
     0xCD: "warm_ram_unaligned_swl_swr",
-    0xCE: "warm_uncached_ram_load",
+    0xCE: "warm_ram_load_then_4_instructions",
     0xCF: "warm_ram_sequential_loads",
     0xED: "rtpt_gap21",
     0xEE: "rtpt_gap23",
@@ -262,7 +262,7 @@ LABELS = {
     0xF3: "warm_gte_mtc2",
     0xF4: "warm_gte_ctc2",
     0xF5: "warm_gte_mfc2",
-    0xF6: "warm_gte_cfc2",
+    0xF6: "gpu_fill_tri_tex4_letterboxed_16x32",
     0xF7: "lerp3_cpu_mult",
     0xF8: "lerp3_gte_gpf",
     0xF9: "warm_gpustat_read",
@@ -270,7 +270,7 @@ LABELS = {
     0xFB: "warm_irqstat_read",
     0xFC: "warm_spustat_half_read",
     0xFD: "warm_spu_half_write",
-    0xFE: "divu_small_operands_gap0",
+    0xFE: "ram_loads_during_linked_dma_512",
     # v1.21 register A/B group. Present only in a PERF A/B capture.
     0xDC: "ab_ramsize_uncached_loads_control",
     0xDD: "ab_ramsize_uncached_loads_bit7_flipped",
@@ -296,11 +296,11 @@ LABELS = {
 # I-cache alignment. Every other CPU record does.
 LAYOUT_IMMUNE_RECORDS = (
     frozenset(range(0x72, 0x8C))
-    | frozenset({0x1F, 0x8E, 0x8F, 0x9F, 0xFE})
+    | frozenset({0x1F, 0x37, 0x39, 0x3A, 0x8E, 0x8F, 0xCE})
     | frozenset(range(0x27, 0x30))
-    | frozenset(range(0x37, 0x3C))
-    | frozenset(range(0xC8, 0xD0))
-    | frozenset(range(0xED, 0xFE))
+    | frozenset({0xC8, 0xC9, 0xCA, 0xCC, 0xCD, 0xCF})
+    | frozenset(range(0xED, 0xF6))
+    | frozenset(range(0xF7, 0xFE))
 )
 
 # Records timed on Timer 1's HBlank clock rather than Timer 2's system clock.
@@ -393,15 +393,15 @@ WORK_BY_ID = {
     0x37: 64,
     0x38: 64,
     0x39: 64,
-    0x3A: 16,
-    0x3B: 8,
+    0x3A: 8,
+    0x3B: 64,
     0x3C: 511,
     0x3D: 511,
     0x3E: 64,
     0x3F: 64,
     0x8E: 16,
     0x8F: 16,
-    0x9F: 8,
+    0x9F: 64,
     0xBA: 16,
     0xBB: 16,
     0xBC: 16,
@@ -411,7 +411,7 @@ WORK_BY_ID = {
     0xC8: 64,
     0xC9: 64,
     0xCA: 64,
-    0xCB: 64,
+    0xCB: 16,
     0xCC: 64,
     0xCD: 64,
     0xCE: 64,
@@ -433,7 +433,7 @@ WORK_BY_ID = {
     0xFB: 64,
     0xFC: 64,
     0xFD: 64,
-    0xFE: 8,
+    0xFE: 64,
     0x72: 128,
     0x73: 128,
     0x74: 64,
