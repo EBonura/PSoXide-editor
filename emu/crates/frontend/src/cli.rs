@@ -2742,6 +2742,7 @@ fn resolve_validation_artifact(
         ValidationArtifact::Disc {
             path,
             embedded_playtest,
+            ..
         } => (
             resolve_manifest_path(repo_root, manifest_dir, path),
             *embedded_playtest,
