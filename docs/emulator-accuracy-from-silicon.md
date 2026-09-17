@@ -509,3 +509,66 @@ stayed black. It booted again later in the session (both PERF captures were
 taken afterwards); how is not recorded. The full run does not touch
 `RAM_SIZE`, cache control or the display range. Not reproduced or explained.
 
+## 2026-09-17, later: hwtest v1.23 captures, same console
+
+`px8-silicon-2026-09-17-v1.23-{perf-sweep,perf-ab}.txt`. A/B completed again.
+A press of the reset button after the sweep booted back to the menu, so the
+failed warm boot earlier in the day is specific to what the FULL run leaves
+behind, not to warm boots in general. Still unexplained.
+
+**Predictions the emulator got right.** The multiply interlock is flat from
+k = 1 to 4 (126), the divide follows the same read-one-early rule (294 at
+k = 35), and the alias pair costs the same from a cached caller (763 against
+766), which settles the assumption about jumping out of a streamed fill.
+
+**Folded in** (PSoXide-emulator `silicon-timing-on-d366cd0`, unit-tested):
+
+| Finding | Silicon | Emulator before |
+|---|---|---|
+| A coprocessor read waits for the running command, whichever register (`130`-`133`) | 638: 37 clocks a turn | 398: 22 |
+| The write buffer: four entries, first write lands after 5 clocks, then one every 2 (`129`-`12D`, `1F`, `76`, `FA`) | store + 1 instruction 129, + 2 190, bursts of 2/4/8 190/192/223 | 192, 255, 254/254/254 |
+| The load shadow: the third to sixth instruction behind a RAM load are free (`125`-`128`, `CE`) | 573, 573, 574, 579, 699 for 2, 3, 4, 6, 8 behind | 582, 646, 710, 838, 966 |
+
+This corrects the SCPH-9902 note above: reads do wait. What a read of MAC0 or
+LZCR *returns* can still be stale, which is what that capture actually showed
+and what the conformance cases pin; the emulator decides that by instruction
+count and is unchanged there.
+
+Summed error against this A/B capture, GPU records aside: 2,688 cycles before,
+620 after, of which 257 is the one known gap below. The standing spin-loop
+records, which no change here targeted, fell into line with it:
+`spin_4096_system` 41,621 to 37,461 against 37,458 on silicon. They are loops
+around a volatile store, and the emulator had been overcharging every store
+that had work behind it, which is most stores in real code.
+
+**Still not modelled.** RAM loads during a linked-list DMA are half again as
+slow (`FE` 770 against 510), where register-only code barely notices. And the
+older cold store records (`0B`, `50`, `51`) read about 110 cycles higher on
+silicon than the emulator now gives: an I-cache refill and a draining write
+buffer interact on the bus in a way nothing here measures directly.
+
+**GPU, first trustworthy numbers** (`100`-`114`, DMA list to GP0(1Fh)
+interrupt, opaque textures; sixteen 32x32 primitives unless noted). The
+emulator has no draw-time model and reads about 20 for all of them.
+
+| Batch | Cycles | Reads as |
+|---|---|---|
+| flat triangles | 5,613 | the floor |
+| Gouraud / textured / Gouraud-textured triangles | 9,870 / 9,952 / 10,067 | anything but flat costs about the same |
+| raw texture, dithered Gouraud | 9,841, 9,961 | no measurable difference |
+| translucent textured / flat | 10,454 / 9,461 | blending is cheap on textured, costly on flat |
+| flat / 4bpp / 8bpp rects (1,024 px each) | 9,552 / 10,047 / 10,022 | rects are not faster per pixel than triangles here |
+| 8bpp rects, a CLUT change on each | 14,214 | +42%: about 260 cycles a reload, as nocash has it |
+| textured triangles, a texture page change on each | 16,836 | +69%: about 430 cycles a change |
+| UV span 63 instead of 32 | 9,841 | no texture-cache penalty at this size |
+| triangles clipped away entirely | 804 | 50 cycles each: leaving culling to the GPU is nearly free |
+| letterboxed display range | 9,939 | no gain |
+| VRAM fill, 32x32 | 3,720 | 2.6 times faster than a flat rect |
+| VRAM copy, 32x32 | 31,814 | 3.3 times slower than a textured rect |
+| 64 two-pixel triangles: flat / textured / Gouraud-textured | 2,817 / 8,589 / 17,231 | setup of about 44 / 134 / 269 cycles a triangle (nocash: 10 / 100 / 250) |
+
+For the engine: sorting by texture page and CLUT inside a depth bucket is worth
+real GPU time, flat-textured in place of Gouraud-textured halves the setup of
+a small triangle, and GPU-side clipping is cheap enough that CPU culling only
+pays for the packet and the transform it saves.
+
