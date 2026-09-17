@@ -21,6 +21,7 @@ members = [
     "editor/crates/psxed-ui",
     "tools/mkisopsx",
     "tools/psoxide-link",
+    "tools/psoxide-pgo",
     "tools/psoxide-dev",
 ]
 # The device-side workspaces live inside this directory tree; cargo

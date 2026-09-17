@@ -87,6 +87,7 @@ __pycache__/
 /crates
 /tools/mkisopsx
 /tools/psoxide-link
+/tools/psoxide-pgo
 /tools/hazard_scan.py
 /tools/hazard_patch.py
 /tools/guest_symbol_gate.sh
