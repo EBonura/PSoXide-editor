@@ -33,7 +33,7 @@
 	showcase-fog showcase-fog-disc run-showcase-fog \
 	showcase-particles showcase-particles-disc run-showcase-particles \
 	hardware-tests hardware-tests-disc run-hardware-tests \
-	hwtest-capture hwtest-diff hwtest-baseline hwtest-capture-full hwtest-diff-full hwtest-baseline-full hwtest-capture-perf hwtest-probe-capture hwtest-silicon hwtest-verify-code hwtest-audio hwtest-audio-chain \
+	hwtest-capture hwtest-diff hwtest-baseline hwtest-capture-full hwtest-diff-full hwtest-baseline-full hwtest-capture-perf hwtest-diff-perf hwtest-baseline-perf hwtest-probe-capture hwtest-silicon hwtest-verify-code hwtest-audio hwtest-audio-chain \
 	hwtest-sb4-capture hwtest-sb4 hwtest-sb4-baseline \
 	hello-engine hello-engine-disc run-hello-engine \
 	cook-playtest build-editor-playtest editor-blank-playtest-check editor-bsp-liquid-check editor-souls-bsp-check profile-demo3 profile-demo3-forward \
@@ -717,7 +717,7 @@ hwtest-baseline-full: hwtest-capture-full
 	@echo "re-baselined $(HWTEST_FULL_BASELINE)"
 
 # PERF A/B capture: TARGETED PROBES, then wrap UP from row 0 past BACK to the
-# row above it. The run takes only the performance probes, including the
+# row above it. The run takes the whole performance sweep and then the
 # register A/B group the default scan never touches. The emulator does not
 # model those bits, so headless every flipped record equals its control; what
 # this gate proves is that the flip/restore path runs and leaves the machine
@@ -735,6 +735,36 @@ hwtest-capture-perf: hardware-tests-disc
 	@python3 tools/hwtest-report.py $(HWTEST_PERF_CAPTURE) | grep -q ',ab_cachectl_cold_sweep_bgnt_flipped,' || { \
 		echo "hwtest-capture-perf: the A/B group did not complete"; exit 2; }
 	@echo "captured $$(grep -c 'px8' $(HWTEST_PERF_CAPTURE)) PX8 page(s) -> $(HWTEST_PERF_CAPTURE)"
+
+# The sweep is warm-harness throughout, so unlike the full baseline this one
+# should survive unrelated guest edits; drift here deserves a look.
+HWTEST_PERF_BASELINE := docs/hardware-refs/px8-emulator-perf-v$(HWTEST_SUITE).txt
+
+hwtest-diff-perf: hwtest-verify-code hwtest-capture-perf
+	@test -f $(HWTEST_PERF_BASELINE) || { \
+		echo "hwtest-diff-perf: $(HWTEST_PERF_BASELINE) does not exist."; \
+		echo "  Review the capture, then pin it with: make hwtest-baseline-perf"; \
+		exit 2; }
+	python3 tools/hwtest-report.py --baseline $(HWTEST_PERF_BASELINE) \
+		--layout-immune-timing-only --fail-on-change $(HWTEST_PERF_CAPTURE)
+
+hwtest-baseline-perf: hwtest-capture-perf
+	@{ \
+		echo "# PSoXide hardware-test PERF A/B baseline"; \
+		echo "#"; \
+		echo "# SOURCE: PSoXide EMULATOR, headless. This is NOT a silicon capture."; \
+		echo "#   It detects emulator-side drift only. It is not hardware truth and"; \
+		echo "#   must never be cited as a console measurement."; \
+		echo "#"; \
+		echo "# captured:  $$(date -u +%Y-%m-%d)"; \
+		echo "# git:       $$(git describe --always --dirty)"; \
+		echo "# guest exe: sha256:$$(shasum -a 256 $(EXAMPLE_OUT)/hardware-tests.exe | cut -c1-16)"; \
+		echo "# emulator:  frontend launch --steps $(HWTEST_PERF_STEPS) (TARGETED PROBES > PERF A/B)"; \
+		echo "# schema:    PX8 full, performance scope, $$(grep -c 'px8' $(HWTEST_PERF_CAPTURE)) page(s)"; \
+		echo "#"; \
+		grep 'px8' $(HWTEST_PERF_CAPTURE) | sed 's/^hardware-tests: px8 //'; \
+	} > $(HWTEST_PERF_BASELINE)
+	@echo "re-baselined $(HWTEST_PERF_BASELINE)"
 
 # Headless run of one TARGETED PROBES row, for comparing a probe's payload
 # before and after a refactor: make hwtest-probe-capture ROW=3
