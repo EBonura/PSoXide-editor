@@ -98,7 +98,7 @@ class TableSyncTests(unittest.TestCase):
 
     def test_literal_guest_records_match_the_host_tables(self) -> None:
         source = guest_source()
-        literal = re.findall(r"sample_timing\(\s*(0x[0-9A-Fa-f]{2}),\s*(\d+|0x[0-9A-Fa-f]+),", source)
+        literal = re.findall(r"sample_timing\(\s*(0x[0-9A-Fa-f]{2,3}),\s*(\d+|0x[0-9A-Fa-f]+),", source)
         self.assertGreater(len(literal), 100, "guest timing call sites not found")
         for id_text, work_text in literal:
             record_id, work = int(id_text, 16), int(work_text, 0)
@@ -109,7 +109,7 @@ class TableSyncTests(unittest.TestCase):
     def test_perf_probe_table_matches_the_host_tables(self) -> None:
         # perf_probes.rs drives its records from one table of
         # `probe(0xID, work, ...)` rows instead of literal call sites.
-        rows = re.findall(r"\b(?:ab_)?probe\(\s*(0x[0-9A-Fa-f]{2}),\s*(\d+),", guest_source())
+        rows = re.findall(r"\b(?:ab_probe|probe|case)\(\s*(0x[0-9A-Fa-f]{2,3}),\s*(\d+),", guest_source())
         self.assertGreater(len(rows), 40, "perf probe table not found")
         for id_text, work_text in rows:
             record_id, work = int(id_text, 16), int(work_text)
@@ -122,18 +122,19 @@ class TableSyncTests(unittest.TestCase):
         slots = int(re.search(r"const TIMING_RECORD_COUNT: usize = (\d+);", source).group(1))
         table = {
             name: int(re.search(rf"const {name}: \[\w+; (\d+)\]", source).group(1))
-            for name in ("SAFE", "EXTENDED", "RISKY")
+            for name in ("SAFE", "EXTENDED", "SHAPES", "RISKY", "CASES")
         }
-        # The standing battery's own records: everything labelled that no
-        # performance table, DMA pair or GPU technique row accounts for.
-        dma_and_gpu = 6 + 10
-        standing = len(report.LABELS) - sum(table.values()) - dma_and_gpu
+        dma_pairs = 6
+        retired = sum(1 for label in report.LABELS.values() if label.startswith("v122_only_"))
+        # What is left is the standing battery, which has not changed size.
+        standing = len(report.LABELS) - sum(table.values()) - dma_pairs - retired
+        self.assertEqual(standing, 151)
         self.assertLessEqual(standing + table["SAFE"], slots)
-        # The sweep re-takes four GPU reference records under their own ids.
-        self.assertLessEqual(sum(table.values()) + dma_and_gpu + 4, slots)
+        self.assertLessEqual(sum(table.values()) + dma_pairs, slots)
 
-    def test_the_record_id_space_is_not_oversubscribed(self) -> None:
-        self.assertLessEqual(len(report.LABELS), 0xFF)
+    def test_no_label_claims_an_unused_slot_marker(self) -> None:
+        self.assertNotIn(0xFF, report.LABELS)
+        self.assertNotIn(0xFFFF, report.LABELS)
 
     def test_block_flags_match_photo_rs(self) -> None:
         photo = (GUEST_SRC / "photo.rs").read_text(encoding="utf-8")
