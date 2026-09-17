@@ -33,7 +33,7 @@
 	showcase-fog showcase-fog-disc run-showcase-fog \
 	showcase-particles showcase-particles-disc run-showcase-particles \
 	hardware-tests hardware-tests-disc run-hardware-tests \
-	hwtest-capture hwtest-diff hwtest-baseline hwtest-capture-full hwtest-diff-full hwtest-baseline-full hwtest-silicon hwtest-verify-code hwtest-audio hwtest-audio-chain \
+	hwtest-capture hwtest-diff hwtest-baseline hwtest-capture-full hwtest-diff-full hwtest-baseline-full hwtest-capture-perf hwtest-silicon hwtest-verify-code hwtest-audio hwtest-audio-chain \
 	hwtest-sb4-capture hwtest-sb4 hwtest-sb4-baseline \
 	hello-engine hello-engine-disc run-hello-engine \
 	cook-playtest build-editor-playtest editor-blank-playtest-check editor-bsp-liquid-check editor-souls-bsp-check profile-demo3 profile-demo3-forward \
@@ -715,6 +715,26 @@ hwtest-baseline-full: hwtest-capture-full
 		grep 'px8' $(HWTEST_FULL_CAPTURE) | sed 's/^hardware-tests: px8 //'; \
 	} > $(HWTEST_FULL_BASELINE)
 	@echo "re-baselined $(HWTEST_FULL_BASELINE)"
+
+# PERF A/B capture: TARGETED PROBES, then wrap UP from row 0 past BACK to the
+# row above it. The run takes only the performance probes, including the
+# register A/B group the default scan never touches. The emulator does not
+# model those bits, so headless every flipped record equals its control; what
+# this gate proves is that the flip/restore path runs and leaves the machine
+# alive. The numbers that matter come from a console.
+HWTEST_PERF_CAPTURE := build/hwtest-capture-perf.log
+HWTEST_PERF_PULSES  := 0x40@30+2,0x40@38+2,0x40@46+2,0x40@54+2,0x40@62+2,0x40@70+2,0x40@78+2,0x4000@90+2,0x10@100+2,0x10@108+2,0x4000@118+2
+HWTEST_PERF_STEPS   := 300000000
+
+hwtest-capture-perf: hardware-tests-disc
+	@mkdir -p $(dir $(HWTEST_PERF_CAPTURE))
+	cd emu && cargo run -q -p frontend --release -- launch \
+		--path ../$(EXAMPLE_OUT)/hardware-tests.exe \
+		--disc ../$(EXAMPLE_OUT)/hardware-tests.cue \
+		--steps $(HWTEST_PERF_STEPS) --pad-pulses '$(HWTEST_PERF_PULSES)' > ../$(HWTEST_PERF_CAPTURE)
+	@python3 tools/hwtest-report.py $(HWTEST_PERF_CAPTURE) | grep -q ',ab_cachectl_cold_sweep_bgnt_flipped,' || { \
+		echo "hwtest-capture-perf: the A/B group did not complete"; exit 2; }
+	@echo "captured $$(grep -c 'px8' $(HWTEST_PERF_CAPTURE)) PX8 page(s) -> $(HWTEST_PERF_CAPTURE)"
 
 # Ingest a real console capture. Pass the OBS-decoded payload text:
 #   make hwtest-silicon SILICON=captures/scph9902-2026-07-25.txt

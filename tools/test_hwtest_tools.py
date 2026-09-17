@@ -102,7 +102,8 @@ class TableSyncTests(unittest.TestCase):
     def test_perf_probe_table_matches_the_host_tables(self) -> None:
         # perf_probes.rs drives its records from one table of
         # `probe(0xID, work, ...)` rows instead of literal call sites.
-        rows = re.findall(r"\bprobe\(\s*(0x[0-9A-Fa-f]{2}),\s*(\d+),", guest_source())
+        rows = re.findall(r"\b(?:ab_)?probe\(\s*(0x[0-9A-Fa-f]{2}),\s*(\d+),", guest_source())
+        self.assertGreater(len(rows), 40, "perf probe table not found")
         for id_text, work_text in rows:
             record_id, work = int(id_text, 16), int(work_text)
             with self.subTest(record=f"{record_id:02X}"):
@@ -121,9 +122,7 @@ class TableSyncTests(unittest.TestCase):
                 self.assertEqual(getattr(report, f"PX8_BLOCK_{name}"), 1 << shift)
 
     def test_every_memory_control_value_has_a_name(self) -> None:
-        count = int(
-            re.search(r"const MEMORY_CONTROL_REGISTER_COUNT: usize = (\d+);", guest_source()).group(1)
-        )
+        count = int(re.search(r"const MEMORY_CONTROL_REGISTERS: \[u32; (\d+)\]", guest_source()).group(1))
         self.assertLessEqual(count, len(report.MEMORY_CONTROL_NAMES))
 
 
