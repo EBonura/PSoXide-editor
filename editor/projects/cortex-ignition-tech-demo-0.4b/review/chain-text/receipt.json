@@ -1,0 +1,6 @@
+{
+  "change": "Remove attack chaining tutorial panel in English and Italian",
+  "exe_sha256": "535a44c87a527aab17fbfdb0c725718ca67b1685f625f5503a432dd47586a552",
+  "bin_sha256": "b2bfe0a0fbbf5ee0b0697a8a5f007d2e6515ae4781bc794c93c5481d3601b92e",
+  "verified": "Attack tutorial has three remaining pages; chaining instructions absent from built executable; hazard and symbol gates pass"
+}

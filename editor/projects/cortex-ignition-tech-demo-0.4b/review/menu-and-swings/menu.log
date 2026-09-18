@@ -1,0 +1,9 @@
+[frontend] embedded Play disc fast-booted /Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/cortex-ignition-tech-demo-0.4b/baked/cortex_ignition_tech_demo_0_4b.cue via PSX.EXE;1 entry=0x80010000 payload=1200128B
+[cli] mounted cue-backed disc /Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/cortex-ignition-tech-demo-0.4b/baked/cortex_ignition_tech_demo_0_4b.cue
+tick=120330252  cycles=459801727  pc=0x8002bdb0  stopped-at=120330252
+route-ticks=803  port1-polls=801
+[cli] audio → /tmp/cortex-menu-swings-menu.wav (598700 stereo samples, 13.58s @ 44.1kHz)
+[cli] HW renderer → /tmp/cortex-menu-swings-menu.ppm (screen-offset display fallback)
+[cli] display (0,240) 320x240 bpp=15 | cmd_log draws=48325 fills=376 uploads=1930
+[cli] GP1 08h modes seen: 8000001
+[cli] GP1 05h display-start trail (last 24 of 376): ["(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)"]

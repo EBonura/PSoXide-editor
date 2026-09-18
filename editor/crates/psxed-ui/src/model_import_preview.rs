@@ -2834,27 +2834,27 @@ mod tests {
     fn authored_blade_trail_is_visible_while_scrubbing_an_attack() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
         let model = std::fs::read(root.join(
-            "editor/projects/default/assets/models/aletha_delivered/aletha_delivered.psxmdl",
+            "editor/projects/cortex-ignition-tech-demo-0.4b/assets/models/aletha_delivered/aletha_delivered.psxmdl",
         ))
         .expect("tracked Aletha model");
         let clip = std::fs::read(
-            root.join("editor/projects/default/assets/animations/gen/light_attack.psxanim"),
+            root.join("editor/projects/cortex-ignition-tech-demo-0.4b/assets/animations/gen/light_attack.psxanim"),
         )
         .expect("tracked light attack");
         let character_atlas = crate::model_animation_viewer::decode_psxt_palette_banks(
             &std::fs::read(root.join(
-                "editor/projects/default/assets/models/aletha_delivered/aletha_delivered.psxt",
+                "editor/projects/cortex-ignition-tech-demo-0.4b/assets/models/aletha_delivered/aletha_delivered.psxt",
             ))
             .expect("tracked Aletha atlas"),
         )
         .expect("decode Aletha atlas banks");
         let weapon_model = std::fs::read(
-            root.join("editor/projects/default/assets/models/sword1_light/sword1_light.psxmdl"),
+            root.join("editor/projects/cortex-ignition-tech-demo-0.4b/assets/models/sword1_light/sword1_light.psxmdl"),
         )
         .expect("tracked light sword model");
         let weapon_atlas = crate::model_animation_viewer::decode_psxt_palette_banks(
             &std::fs::read(
-                root.join("editor/projects/default/assets/models/sword1_light/sword1_light.psxt"),
+                root.join("editor/projects/cortex-ignition-tech-demo-0.4b/assets/models/sword1_light/sword1_light.psxt"),
             )
             .expect("tracked light sword atlas"),
         )

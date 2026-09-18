@@ -498,7 +498,7 @@ pub struct LaunchArgs {
 #[derive(Debug, Args)]
 pub struct BuildProjectDiscArgs {
     /// Project directory containing `project.ron`, or a direct path to a project file.
-    #[arg(long, default_value = "editor/projects/default")]
+    #[arg(long, default_value = "editor/projects/cortex-ignition-tech-demo-0.4b")]
     pub project: PathBuf,
 }
 
@@ -530,7 +530,7 @@ pub struct PreburnCheckArgs {
 #[derive(Debug, Args)]
 pub struct DumpEditorPreviewArgs {
     /// Project directory containing `project.ron`, or a direct path to a project file.
-    #[arg(long, default_value = "editor/projects/default")]
+    #[arg(long, default_value = "editor/projects/cortex-ignition-tech-demo-0.4b")]
     pub project: PathBuf,
     /// Output PPM path.
     #[arg(long)]
@@ -563,7 +563,7 @@ pub struct DumpEditorPreviewArgs {
 #[derive(Debug, Args)]
 pub struct DumpEditorUiArgs {
     /// Project directory containing `project.ron`.
-    #[arg(long, default_value = "editor/projects/default")]
+    #[arg(long, default_value = "editor/projects/cortex-ignition-tech-demo-0.4b")]
     pub project: PathBuf,
     /// Top-level editor workspace to render.
     #[arg(long, value_enum, default_value = "3d")]

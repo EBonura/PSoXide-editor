@@ -441,7 +441,10 @@ fn action_bar_height_for_status(_status: &str) -> f32 {
 }
 const STARTER_CHARACTER_MODEL_NAMES: &[&str] = &[
     "Aletha Delivered",
-    "Light Enemy Model",
+    // v0.4b renamed the rigged light-enemy model; the old "Light Enemy Model"
+    // does not exist there and resolving it yielded a zero-joint model, which
+    // the cook rejects as soon as a combat volume references a joint.
+    "Light Enemy / Artigli",
     "Heavy Enemy Model",
     "Sword1 Light",
     "Sword1 Heavy",

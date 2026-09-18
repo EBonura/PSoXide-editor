@@ -1,0 +1,28 @@
+{
+  "disc": "/Users/ebonura/Downloads/PS1 Games/Cortex Ignition v0.4b.cue",
+  "exe_sha256": "7a506aadc471e34d0aa4acc765a446a2a574b1f0eeb3dd1ffa8cdfd97045a846",
+  "bin_sha256": "3dfea0343d317308e6328e1496c25f13cc98964c4bc7054f68fe502d312219c8",
+  "trim_seconds": [
+    1.515,
+    3.28
+  ],
+  "runtime_sample_rate": 10000,
+  "game_app_tests_passed": 54,
+  "event_mask_tests_passed": 1,
+  "encounter_and_swing_tests_passed": 2,
+  "guest_faults": 0,
+  "headless_port1_polls": 3702,
+  "heap_remaining_bytes": 3816,
+  "spu_sample_count": 20,
+  "spu_adpcm_bytes": 87952,
+  "arithmetic_symbol_gate": "PASS",
+  "load_delay_hazards": 0,
+  "stance_capture_seconds": [
+    46.417,
+    53.839
+  ],
+  "stance_capture_correlation": 0.965,
+  "successful_switches": 2,
+  "rejected_cooldown_presses": 2,
+  "physical_console_tested": false
+}

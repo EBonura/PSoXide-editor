@@ -1,0 +1,6 @@
+{
+  "change": "Remove second evade tutorial page in English and Italian",
+  "exe_sha256": "5f332e2546c66cb5cdd1a96256c87db8a57d43c35cb4419ebb599bf0ac4b552e",
+  "bin_sha256": "d0e084ab22bf9e8e27cb1f8b550f3addc82f740b587fb7c3c90578b716c8ce8d",
+  "verified": "Cooked page_count=1; obsolete text absent from built executable; hazard and symbol gates pass"
+}

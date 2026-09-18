@@ -15,6 +15,10 @@ use super::brush_tools::{
     press_release, real_egui_workspace_ctx, real_egui_workspace_frame, text_shape_centers,
 };
 
+// These studio tests drive UI interactions against a project's *authored*
+// weapon-appearance tracks, which differ between starters. They stay pinned to
+// the `default` project so they keep exercising a known authored state; the New
+// Project template itself is v0.4b (see psxed_project::default_project_dir).
 fn default_project_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../projects/default")
 }

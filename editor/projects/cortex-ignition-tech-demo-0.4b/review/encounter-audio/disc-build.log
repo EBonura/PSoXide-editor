@@ -1,0 +1,132 @@
+python3 tools/bootstrap-components.py
+Components match the lock and content receipt
+cd editor && cargo run --release -p psxed-project --bin cook-playtest -- /Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/cortex-ignition-tech-demo-0.4b/project.ron
+   Compiling psx-math v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/sdk/crates/psx-math)
+   Compiling psxed-format v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/crates/psxed-format)
+   Compiling psx-hw v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/crates/psx-hw)
+   Compiling psx-telemetry v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/sdk/crates/psx-telemetry)
+   Compiling psx-iso v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/crates/psx-iso)
+   Compiling psx-gte-core v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/sdk/crates/psx-gte-core)
+   Compiling psx-level v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/engine/crates/psx-level)
+   Compiling psxed-obj v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/editor/crates/psxed-obj)
+   Compiling psxed-audio v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/editor/crates/psxed-audio)
+   Compiling psx-io v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/sdk/crates/psx-io)
+   Compiling psx-gte v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/sdk/crates/psx-gte)
+   Compiling psx-vram v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/sdk/crates/psx-vram)
+   Compiling psx-spu v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/sdk/crates/psx-spu)
+   Compiling psx-gpu v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/sdk/crates/psx-gpu)
+   Compiling psx-pad v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/sdk/crates/psx-pad)
+   Compiling psx-asset v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/sdk/crates/psx-asset)
+   Compiling psx-settings v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/sdk/crates/psx-settings)
+   Compiling psx-font v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/sdk/crates/psx-font)
+   Compiling psx-sfx v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/sdk/crates/psx-sfx)
+   Compiling psxed-tex v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/editor/crates/psxed-tex)
+   Compiling psx-engine v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/engine/crates/psx-engine)
+   Compiling psxed-gltf v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/editor/crates/psxed-gltf)
+   Compiling psx-bsp v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/engine/crates/psx-bsp)
+   Compiling psxed-project v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/editor/crates/psxed-project)
+    Finished `release` profile [optimized] target(s) in 1m 01s
+     Running `/Users/ebonura/Desktop/repos/PSoXide-editor/target/release/cook-playtest /Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/cortex-ignition-tech-demo-0.4b/project.ron`
+[brush-qbsp] filled 206 unreachable exterior leaves
+[brush-vis] Quake portal flow: 347 visible leaves, 1888 directed portals, 8 workers
+[brush-vis] portal flow 1024/1888 (0.3s)
+[brush-vis] portal flow 1888/1888 (1.5s)
+[brush-vis] portal flow complete in 1.5s
+[cook] resampled Light Enemy / Artigli / Light Enemy / Hit React: 12 -> 11 Hz, 15 -> 14 frames, 3832 -> 6180 B, 1166 -> 1181 ms (+1.3%)
+[cook] resampled Heavy Enemy Model / Heavy Enemy / Idle: 12 -> 5 Hz, 49 -> 21 frames, 11884 -> 11360 B, 4000 -> 4000 ms (+0.0%)
+[cook] resampled Heavy Enemy Model / Heavy Enemy / Strafe Left: 12 -> 10 Hz, 25 -> 21 frames, 6172 -> 11360 B, 2000 -> 2000 ms (+0.0%)
+[cook] resampled Heavy Enemy Model / Heavy Enemy / Strafe Right: 12 -> 10 Hz, 25 -> 21 frames, 6172 -> 11360 B, 2000 -> 2000 ms (+0.0%)
+[cook] resampled Aletha Delivered / gen_walk_fwd_winddown_mirror: 15 -> 1 Hz, 8 -> 2 frames, 804 -> 492 B, 466 -> 1000 ms (+114.6%)
+[cook] resampled Aletha Delivered / gen_run_fwd_winddown_mirror: 15 -> 1 Hz, 8 -> 2 frames, 788 -> 476 B, 466 -> 1000 ms (+114.6%)
+[cook] resampled Aletha Delivered / aletha_idle: 12 -> 6 Hz, 86 -> 44 frames, 30716 -> 22900 B, 7083 -> 7166 ms (+1.2%)
+[cook-playtest] warning: Character 'Aletha' has no turn clip
+[brush-qbsp] filled 206 unreachable exterior leaves
+[brush-vis] Quake portal flow: 347 visible leaves, 1888 directed portals, 8 workers
+[brush-vis] portal flow 1024/1888 (0.3s)
+[brush-vis] portal flow 1888/1888 (1.6s)
+[brush-vis] portal flow complete in 1.6s
+[cook] resampled Light Enemy / Artigli / Light Enemy / Hit React: 12 -> 11 Hz, 15 -> 14 frames, 3832 -> 6180 B, 1166 -> 1181 ms (+1.3%)
+[cook] resampled Heavy Enemy Model / Heavy Enemy / Idle: 12 -> 5 Hz, 49 -> 21 frames, 11884 -> 11360 B, 4000 -> 4000 ms (+0.0%)
+[cook] resampled Heavy Enemy Model / Heavy Enemy / Strafe Left: 12 -> 10 Hz, 25 -> 21 frames, 6172 -> 11360 B, 2000 -> 2000 ms (+0.0%)
+[cook] resampled Heavy Enemy Model / Heavy Enemy / Strafe Right: 12 -> 10 Hz, 25 -> 21 frames, 6172 -> 11360 B, 2000 -> 2000 ms (+0.0%)
+[cook] resampled Aletha Delivered / gen_walk_fwd_winddown_mirror: 15 -> 1 Hz, 8 -> 2 frames, 804 -> 492 B, 466 -> 1000 ms (+114.6%)
+[cook] resampled Aletha Delivered / gen_run_fwd_winddown_mirror: 15 -> 1 Hz, 8 -> 2 frames, 788 -> 476 B, 466 -> 1000 ms (+114.6%)
+[cook] resampled Aletha Delivered / aletha_idle: 12 -> 6 Hz, 86 -> 44 frames, 30716 -> 22900 B, 7083 -> 7166 ms (+1.2%)
+[cook-playtest] Budget: Release: BSP 217244B, PVS 12682B (row 44/1024B), light 29592B, textures 390016B, RAM 846242/2097152B (56 slots), VRAM 389344/1048576B (24 slots), packets 4173/1536, resident 592216/985088B
+[cook-playtest] PXBSP: 217244 bytes  Movers: 0
+[cook-playtest] PXBSP draw cost: 2390 faces  4464 base triangles  347 non-solid leaves  0 unreadable PVS rows
+[cook-playtest]   hot leaf 186: 282 PVS leaves  2012 unique faces (128 sky)  3768 base triangles  3933 base packet slots  authored anchor (18304, 3008, -15360)
+[cook-playtest]   hot leaf 334: 269 PVS leaves  1966 unique faces (129 sky)  3674 base triangles  3839 base packet slots  authored anchor (6464, 4672, -11200)
+[cook-playtest]   hot leaf 83: 275 PVS leaves  1938 unique faces (133 sky)  3610 base triangles  3775 base packet slots  authored anchor (30592, 6528, -15360)
+[cook-playtest]   hot leaf 227: 250 PVS leaves  1878 unique faces (109 sky)  3538 base triangles  3703 base packet slots  authored anchor (17024, 3008, -15360)
+[cook-playtest]   hot leaf 341: 251 PVS leaves  1841 unique faces (114 sky)  3454 base triangles  3619 base packet slots  authored anchor (-2176, 5760, -4608)
+[cook-playtest]   hot leaf 192: 255 PVS leaves  1810 unique faces (124 sky)  3372 base triangles  3537 base packet slots  authored anchor (10240, 5280, -10752)
+[cook-playtest]   hot leaf 228: 232 PVS leaves  1771 unique faces (105 sky)  3332 base triangles  3497 base packet slots  authored anchor (13952, 5504, -15360)
+[cook-playtest]   hot leaf 191: 238 PVS leaves  1752 unique faces (105 sky)  3294 base triangles  3459 base packet slots  authored anchor (10240, 4736, -10752)
+[cook-playtest] Rooms: 1  Portal markers: 0  Assets: 79  Textures: 24  Models: 5  Model instances: 4  Materials: 0  RAM residency refs: 29  VRAM residency refs: 10  Entities: 0
+[cook-playtest] Stream memory: payload=0B sectors=0 stream=0B collision=0B (0.0%) render-cache=0B (0.0%) [cells=0B cell-verts=0B vertices=0B surfaces=0B] align-pad=0B sector-pad=0B
+[cook-playtest] Resident assets: 592216B of 985088B (60%) across 50 payloads [Aletha Delivered 284400B] [Light Enemy 156352B] [Heavy Enemy Model 151428B] [Sword1 Light Energy 36B]
+[cook-playtest] 30 FPS envelope: visible-rooms<=1 single-room-PVS-surfaces<=2390 room-surfaces<=2390 authored-tris<=4780 TR+prop-packets-before-HW-split<=11950 resident-rooms<=1 payload<=0B stream<=0B packet-capacity=1536
+[cook-playtest] warning: conservative TR+prop packet envelope 11950 exceeds even the derived runtime capacity 1536; recorded-view validation is required
+[cook-playtest] wrote → /Users/ebonura/Desktop/repos/PSoXide-editor/editor/crates/psxed-project/../../../engine/examples/editor-playtest/generated
+[cook-playtest] Build: make build-editor-playtest
+python3 tools/bootstrap-components.py
+Components match the lock and content receipt
+sh tools/build_guest_staged.sh --target mipsel-sony-psx -Zjson-target-spec -Zbuild-std=core,alloc -Zbuild-std-features=compiler-builtins-mem --features "cd-stream-bench"
+   Compiling compiler_builtins v0.1.160 (/Users/ebonura/.rustup/toolchains/nightly-2026-03-25-aarch64-apple-darwin/lib/rustlib/src/rust/library/compiler-builtins/compiler-builtins)
+   Compiling core v0.0.0 (/Users/ebonura/.rustup/toolchains/nightly-2026-03-25-aarch64-apple-darwin/lib/rustlib/src/rust/library/core)
+warning: MIPS-I support is experimental
+   Compiling editor-playtest v0.1.0 (/private/tmp/psoxide-psx-guest-v1/stage/engine/examples/editor-playtest)
+warning: MIPS-I support is experimental
+   Compiling alloc v0.0.0 (/Users/ebonura/.rustup/toolchains/nightly-2026-03-25-aarch64-apple-darwin/lib/rustlib/src/rust/library/alloc)
+warning: MIPS-I support is experimental
+   Compiling bitflags v2.11.1
+   Compiling psx-math v0.1.0 (/private/tmp/psoxide-psx-guest-v1/stage/sdk/crates/psx-math)
+   Compiling psxed-format v0.1.0 (/private/tmp/psoxide-psx-guest-v1/stage/crates/psxed-format)
+   Compiling psx-telemetry v0.1.0 (/private/tmp/psoxide-psx-guest-v1/stage/sdk/crates/psx-telemetry)
+warning: MIPS-I support is experimental
+warning: MIPS-I support is experimental
+warning: MIPS-I support is experimental
+warning: MIPS-I support is experimental
+   Compiling psx-gte-core v0.1.0 (/private/tmp/psoxide-psx-guest-v1/stage/sdk/crates/psx-gte-core)
+   Compiling psx-level v0.1.0 (/private/tmp/psoxide-psx-guest-v1/stage/engine/crates/psx-level)
+   Compiling psx-hw v0.1.0 (/private/tmp/psoxide-psx-guest-v1/stage/crates/psx-hw)
+warning: MIPS-I support is experimental
+warning: MIPS-I support is experimental
+warning: MIPS-I support is experimental
+   Compiling psx-gte v0.1.0 (/private/tmp/psoxide-psx-guest-v1/stage/sdk/crates/psx-gte)
+warning: MIPS-I support is experimental
+   Compiling psx-io v0.1.0 (/private/tmp/psoxide-psx-guest-v1/stage/sdk/crates/psx-io)
+warning: MIPS-I support is experimental
+   Compiling psx-asset v0.1.0 (/private/tmp/psoxide-psx-guest-v1/stage/sdk/crates/psx-asset)
+warning: MIPS-I support is experimental
+   Compiling psx-spu v0.1.0 (/private/tmp/psoxide-psx-guest-v1/stage/sdk/crates/psx-spu)
+   Compiling psx-gpu v0.1.0 (/private/tmp/psoxide-psx-guest-v1/stage/sdk/crates/psx-gpu)
+   Compiling psx-vram v0.1.0 (/private/tmp/psoxide-psx-guest-v1/stage/sdk/crates/psx-vram)
+   Compiling psx-pad v0.1.0 (/private/tmp/psoxide-psx-guest-v1/stage/sdk/crates/psx-pad)
+   Compiling psx-rt v0.1.0 (/private/tmp/psoxide-psx-guest-v1/stage/sdk/crates/psx-rt)
+   Compiling psx-mc v0.1.0 (/private/tmp/psoxide-psx-guest-v1/stage/sdk/crates/psx-mc)
+warning: MIPS-I support is experimental
+warning: MIPS-I support is experimental
+warning: MIPS-I support is experimental
+warning: MIPS-I support is experimental
+warning: MIPS-I support is experimental
+warning: MIPS-I support is experimental
+   Compiling psx-settings v0.1.0 (/private/tmp/psoxide-psx-guest-v1/stage/sdk/crates/psx-settings)
+   Compiling psx-font v0.1.0 (/private/tmp/psoxide-psx-guest-v1/stage/sdk/crates/psx-font)
+warning: MIPS-I support is experimental
+warning: MIPS-I support is experimental
+   Compiling psx-sfx v0.1.0 (/private/tmp/psoxide-psx-guest-v1/stage/sdk/crates/psx-sfx)
+warning: MIPS-I support is experimental
+   Compiling psx-engine v0.1.0 (/private/tmp/psoxide-psx-guest-v1/stage/engine/crates/psx-engine)
+warning: MIPS-I support is experimental
+   Compiling psx-bsp v0.1.0 (/private/tmp/psoxide-psx-guest-v1/stage/engine/crates/psx-bsp)
+   Compiling psx-game-runtime v0.1.0 (/private/tmp/psoxide-psx-guest-v1/stage/engine/crates/psx-game-runtime)
+warning: MIPS-I support is experimental
+warning: MIPS-I support is experimental
+warning: MIPS-I support is experimental
+    Finished `release` profile [optimized] target(s) in 15.89s
+[guest-build] canonical stage /tmp/psoxide-psx-guest-v1/stage
+[guest-build] c1f73e9fc8a274dbec5ac8d210a1dc930e9a9225c428a5593e85e047646dc849  build/examples/mipsel-sony-psx/release/editor-playtest.exe
+[cli] project disc -> /Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/cortex-ignition-tech-demo-0.4b/baked/cortex_ignition_tech_demo_0_4b.cue (26960 KiB)
+/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/cortex-ignition-tech-demo-0.4b/baked/cortex_ignition_tech_demo_0_4b.cue
