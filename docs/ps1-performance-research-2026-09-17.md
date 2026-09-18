@@ -10,6 +10,9 @@ memory-bound. About 35% of every vblank is RAM load stall, 10% is stack load
 stall, 10% is I-cache refill. Anything that removes a RAM access is worth more
 here than anything that removes an instruction.
 
+How each of these gets measured without fooling yourself is a separate
+document: [measuring-guest-performance-2026-09-17.md](measuring-guest-performance-2026-09-17.md).
+
 ## What the console said (added after the v1.22 captures)
 
 Confirmed on a launch PAL console: the four-entry write queue (a store then
