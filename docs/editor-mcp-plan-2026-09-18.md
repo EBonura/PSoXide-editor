@@ -228,6 +228,62 @@ One incidental finding worth knowing before Phase 2 writes anything:
 document. A test that pushed two brushes onto it was silently working against
 244 brushes plus a skybox.
 
+## Phase 2: shipped
+
+**The generators moved down into `psxed-project::brush_primitives`.** They
+were private methods on the editor's drag tool, which would have forced the
+MCP to either depend on the whole egui crate or reimplement them and drift.
+They are pure geometry, so they belong beside `convex_prism`. `psxed-ui`
+re-exports the three recipe types under their old names and its
+`brush_drag_brushes` now delegates, so the drag tool is unchanged; its 525
+tests pass untouched.
+
+What is new is `generate`, which turns each silent failure into an error or a
+warning carrying the arithmetic. Write tools in `psxed-mcp::edit`:
+`add_shape`, `make_room` (authored by INTERIOR dimensions), `array` (linear
+and radial), `set_material` (optionally filtered by face normal), `delete`,
+plus `save`, `revert` and `materials`.
+
+Edits stage in memory. `save` refuses when `project.ron` changed on disk since
+the edits were staged, which is what happens when the editor saves over it.
+That is the whole concurrency story and it is enough; no locking.
+
+### The chord rule was wrong
+
+The plan above derived `r > step / (2*sin(pi/n))` for pillar survival. A test
+disproved it. That condition only keeps neighbouring vertices *distinct*;
+snapping also drags them into a straight line, and `convex_prism` discards
+collinear points and rejects non-convex turns. A radius-128 octagon on a 64
+grid clears the chord test comfortably and still collapses to a diamond.
+
+`minimum_pillar_footprint` searches by building instead. Measured minimum
+square footprints:
+
+| sides | step 16 | step 32 | step 64 | step 128 |
+| --- | --- | --- | --- | --- |
+| 4 | 32 | 64 | 128 | 256 |
+| 6 | 48 | 96 | 192 | 384 |
+| 8 | 96 | 192 | 384 | 768 |
+| 12 | 128 | 256 | 512 | 1024 |
+| 16 | 224 | 448 | 896 | 1792 |
+
+So on the map's 64 grid an octagonal pillar needs a **384**-unit footprint,
+not the 168 the formula predicted, and a 1024-wide box tops out at 12 sides.
+`add_shape` reports the side count it actually built, which is the number to
+trust.
+
+### End-to-end validation
+
+Built an arena against a copy of the default project: a 12288 x 5120 x 12288
+room (5.0 player heights tall), two colonnades of seven 8-sided pillars, a
+balcony, an eight-step stair run and a five-voussoir entrance arch. 36 brushes
+and 242 faces across seven tool calls, verified by plan and section.
+
+The plan view immediately showed a defect the tool call reported as success:
+the stair block overlaps a pillar. Geometry tools cannot catch that, which is
+the argument for Phase 3's `audit` (`brush_overlap` plus the leak diagnostic
+plus `analyze_pxbsp_draw_cost`).
+
 ## Risks
 
 **Concurrent edits.** Manny will be in the editor while the agent drives it.

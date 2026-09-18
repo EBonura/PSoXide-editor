@@ -10,6 +10,8 @@
 //! agent cannot judge a space from it. [`plan_view`] answers the spatial
 //! question directly instead, by sectioning the authored brush solids.
 
+pub mod edit;
+
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
@@ -178,14 +180,27 @@ pub fn metrics(project: Option<&ProjectDocument>) -> String {
 
     out.push_str("\n## Curve snapping (arches and pillars)\n\n");
     out.push_str(
-        "Generated curves snap every vertex to the grid, so an n-sided pillar\n\
-         collapses when adjacent vertices land on the same grid point. The\n\
-         chord is 2*r*sin(pi/n), so a polygon survives only when\n\n    \
-         r > step / (2 * sin(pi/n))\n\n\
-         On a 64 grid that means radius >= 84 for an octagon (a 168-unit\n\
-         footprint), >= 64 for a hexagon. Cost: an n-sided pillar is n+2\n\
-         faces, so a 12-pillar octagonal colonnade in one sightline is 120\n\
-         faces in a single leaf.\n",
+        "Generated curves snap every vertex to the working grid, and\n\
+         `convex_prism` then drops collinear points and rejects non-convex\n\
+         turns. A pillar can therefore come back with FEWER sides than asked\n\
+         for. The obvious chord rule (2*r*sin(pi/n) > step) is necessary and\n\
+         not sufficient: a radius-128 octagon on a 64 grid clears it and still\n\
+         collapses to a diamond, because snapping puts its vertices in\n\
+         collinear pairs. These are the measured minimum square footprints:\n\n\
+         | sides | step 16 | step 32 | step 64 | step 128 |\n\
+         | --- | --- | --- | --- | --- |\n\
+         | 4 | 32 | 64 | 128 | 256 |\n\
+         | 6 | 48 | 96 | 192 | 384 |\n\
+         | 8 | 96 | 192 | 384 | 768 |\n\
+         | 12 | 128 | 256 | 512 | 1024 |\n\
+         | 16 | 224 | 448 | 896 | 1792 |\n\n\
+         On the map's 64 grid an octagonal pillar needs a 384-unit footprint,\n\
+         and a 1024-wide box tops out at 12 sides. `add_shape` builds the\n\
+         solid and reports the side count it actually got, so trust that over\n\
+         any formula.\n\n\
+         Cost: an n-sided pillar is n+2 faces and a DoorwayArch is\n\
+         segments+2 brushes. A 12-pillar octagonal colonnade is 120 faces, and\n\
+         if one sightline sees them all that is a single visibility leaf.\n",
     );
 
     if let Some(project) = project {
