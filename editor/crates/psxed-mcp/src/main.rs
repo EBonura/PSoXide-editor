@@ -8,6 +8,7 @@
 //!
 //! ```bash
 //! psxed-mcp --project editor/projects/default
+//! psxed-mcp --new editor/projects/scratch   # empty project, then exit
 //! ```
 
 use std::path::PathBuf;
@@ -129,6 +130,23 @@ struct ArrayReq {
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct CarveReq {
+    /// Scene index. Omit for the first scene that has brushes.
+    scene: Option<usize>,
+    /// First brush index to cut.
+    first: usize,
+    /// How many brushes from `first`.
+    count: usize,
+    /// Lower corner of the box-shaped void to remove.
+    min: [i32; 3],
+    /// Upper corner of the void.
+    max: [i32; 3],
+    /// Material for the newly revealed surfaces. Defaults to whatever the
+    /// brush being cut already uses.
+    material: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 struct SetMaterialReq {
     /// Scene index. Omit for the first scene that has brushes.
     scene: Option<usize>,
@@ -140,6 +158,29 @@ struct SetMaterialReq {
     material: String,
     /// Only faces pointing this way, e.g. `[0,1,0]` floors, `[0,-1,0]` ceilings.
     normal: Option<[i32; 3]>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct LightReq {
+    /// Scene index. Omit for the first scene that has brushes.
+    scene: Option<usize>,
+    /// World position `[x, y, z]`.
+    position: [i32; 3],
+    /// Reach in WORLD UNITS (the tool converts to the sectors the format
+    /// stores). A 1024 radius lights roughly one player-height sphere.
+    radius: i32,
+    /// RGB, default warm white.
+    color: Option<[u8; 3]>,
+    /// Brightness multiplier, 0..=8, default 1.
+    intensity: Option<f32>,
+    /// Node name in the scene tree.
+    name: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct CookModeReq {
+    /// true for Release (bakes lights), false for Draft (fullbright).
+    release: bool,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -412,6 +453,28 @@ impl EditorServer {
     }
 
     #[rmcp::tool(
+        description = "Cut a box-shaped void out of a run of brushes, replacing each with the convex remainder. This is how a doorway or window goes through a wall, and how a make_room shell stops being sealed. Brush indices shift, so re-read scene_info afterwards."
+    )]
+    async fn carve(
+        &self,
+        Parameters(CarveReq {
+            scene,
+            first,
+            count,
+            min,
+            max,
+            material,
+        }): Parameters<CarveReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let text = self.with(|workspace| {
+            let report =
+                workspace.carve(scene, first, count, min, max, material.as_deref())?;
+            Ok(report + &Self::staged_note(workspace))
+        })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    #[rmcp::tool(
         description = "Assign a material to a run of brushes. Pass `normal` to hit only faces pointing that way, e.g. [0,1,0] for floors or [0,-1,0] for ceilings."
     )]
     async fn set_material(
@@ -444,6 +507,69 @@ impl EditorServer {
     ) -> Result<CallToolResult, ErrorData> {
         let text = self.with(|workspace| {
             let report = workspace.delete(scene, first, count)?;
+            Ok(report + &Self::staged_note(workspace))
+        })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    #[rmcp::tool(
+        description = "Place a static point light. Radius is given in world units here and converted to the sectors the format stores. IMPORTANT: point lights do nothing while bsp_cook_mode is Draft, which is the default, because Draft packs every surface fullbright and skips the bake entirely; the tool says so when that is the case."
+    )]
+    async fn add_light(
+        &self,
+        Parameters(LightReq {
+            scene,
+            position,
+            radius,
+            color,
+            intensity,
+            name,
+        }): Parameters<LightReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let text = self.with(|workspace| {
+            let report = workspace.add_light(
+                scene,
+                position,
+                radius,
+                color.unwrap_or([255, 236, 208]),
+                intensity.unwrap_or(1.0),
+                name.as_deref(),
+            )?;
+            Ok(report + &Self::staged_note(workspace))
+        })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    #[rmcp::tool(
+        description = "List the scene's point lights with their world positions and radii in world units."
+    )]
+    async fn lights(&self) -> Result<CallToolResult, ErrorData> {
+        let text = self.with(|workspace| {
+            let lights = workspace.lights()?;
+            if lights.is_empty() {
+                return Ok("no point lights in the scene".to_string());
+            }
+            let mut out = format!("{} point light(s):\n", lights.len());
+            for (name, position, radius) in &lights {
+                out.push_str(&format!(
+                    "- {name:?} at [{:.0}, {:.0}, {:.0}], radius {radius:.0} units\n",
+                    position[0], position[1], position[2]
+                ));
+            }
+            Ok(out)
+        })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    #[rmcp::tool(
+        description = "Switch the BSP cook between Draft (fullbright, ignores lights) and Release (bakes point lights over a dark ambient). Lighting work is invisible until this is Release."
+    )]
+    async fn set_cook_mode(
+        &self,
+        Parameters(CookModeReq { release }): Parameters<CookModeReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let text = self.with(|workspace| {
+            let report = workspace.set_cook_mode(release)?;
             Ok(report + &Self::staged_note(workspace))
         })?;
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
@@ -516,9 +642,58 @@ impl EditorServer {
 )]
 impl ServerHandler for EditorServer {}
 
+/// Write an empty project: the starter's resources and settings, no brushes.
+///
+/// Authoring experiments belong in a project with nothing in it. Building
+/// into a copy of the shipped level means its 141 existing coplanar overlaps
+/// and its 2390 cooked faces swamp any measurement of the new work.
+fn new_project(dir: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    let file = dir.join("project.ron");
+    if file.exists() {
+        return Err(format!("{} already exists; refusing to overwrite", file.display()).into());
+    }
+    let mut doc = psxed_project::ProjectDocument::default();
+    let mut cleared = 0usize;
+    let mut moved = 0usize;
+    for scene in doc.scenes.iter_mut() {
+        cleared += scene.brushes.len();
+        scene.brushes.clear();
+        // Clearing the brushes leaves every entity at the shipped level's
+        // coordinates, thousands of units from wherever the new geometry will
+        // go. That matters more than it sounds: the leak diagnostic floods
+        // from the player, so a spawn outside the new map reports the map as
+        // leaking no matter how well sealed it is.
+        let ids: Vec<_> = scene
+            .nodes()
+            .iter()
+            .filter(|node| node.parent.is_some())
+            .map(|node| node.id)
+            .collect();
+        for id in ids {
+            if let Some(node) = scene.node_mut(id) {
+                if node.transform.translation != [0.0; 3] {
+                    node.transform.translation = [0.0; 3];
+                    moved += 1;
+                }
+            }
+        }
+    }
+    std::fs::create_dir_all(dir)?;
+    std::fs::write(&file, doc.to_ron_string()?)?;
+    println!(
+        "wrote {} with {cleared} starter brushes removed, {moved} node(s) moved to the origin, \
+         {} resources kept",
+        file.display(),
+        doc.resources.len()
+    );
+    println!("link its assets, e.g.: ln -s ../default/assets {}/assets", dir.display());
+    Ok(())
+}
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut project = PathBuf::from("editor/projects/default");
+    let mut new_at: Option<PathBuf> = None;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -528,8 +703,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .map(PathBuf::from)
                     .ok_or("--project needs a path")?;
             }
+            "--new" => {
+                new_at = Some(args.next().map(PathBuf::from).ok_or("--new needs a path")?);
+            }
             other => return Err(format!("unknown argument {other:?}").into()),
         }
+    }
+    if let Some(dir) = new_at {
+        return new_project(&dir);
     }
     // Fail loudly at startup rather than on every tool call.
     let workspace = Workspace::open(&project)?;

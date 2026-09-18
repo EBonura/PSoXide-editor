@@ -12,7 +12,8 @@ use std::path::{Path, PathBuf};
 
 use psxed_project::brush::Brush;
 use psxed_project::brush_primitives::{self, BrushDrawSettings};
-use psxed_project::{ProjectDocument, ResourceData, ResourceId};
+use psxed_project::brush_world::BrushWorldCookMode;
+use psxed_project::{NodeId, NodeKind, ProjectDocument, ResourceData, ResourceId, Transform3};
 
 use crate::resolve_scene;
 
@@ -322,6 +323,212 @@ impl Workspace {
         ))
     }
 
+
+
+    /// Place a static point light.
+    ///
+    /// Radius is authored in SECTORS, not world units, unlike every other
+    /// length these tools take. That asymmetry is in the format, not here, so
+    /// the tool takes world units and converts, and reports both.
+    pub fn add_light(
+        &mut self,
+        scene: Option<usize>,
+        position: [i32; 3],
+        radius_units: i32,
+        color: [u8; 3],
+        intensity: f32,
+        name: Option<&str>,
+    ) -> Result<String, String> {
+        self.document()?;
+        let scene_index = resolve_scene(&self.doc, scene)?;
+        if radius_units <= 0 {
+            return Err("radius must be positive".to_string());
+        }
+        if !(0.0..=8.0).contains(&intensity) {
+            return Err(format!("intensity {intensity} is outside the sane range 0..=8"));
+        }
+        let draft = self.doc.bsp_cook_mode == BrushWorldCookMode::Draft;
+        let scene_doc = &mut self.doc.scenes[scene_index];
+        let sector = scene_doc
+            .world_sector_size_for_node(NodeId::ROOT)
+            .unwrap_or(crate::SECTOR)
+            .max(1);
+        let radius_sectors = radius_units as f32 / sector as f32;
+        let id = scene_doc.add_node(
+            NodeId::ROOT,
+            name.unwrap_or("Point Light").to_string(),
+            NodeKind::PointLight {
+                color,
+                intensity,
+                radius: radius_sectors,
+            },
+        );
+        if let Some(node) = scene_doc.node_mut(id) {
+            node.transform = Transform3 {
+                translation: [position[0] as f32, position[1] as f32, position[2] as f32],
+                ..node.transform
+            };
+        }
+        self.record(format!("add_light at {position:?} r={radius_units}"));
+
+        let mut out = format!(
+            "placed {:?} at {position:?}: radius {radius_units} units ({radius_sectors:.2} sectors), \
+             colour {color:?}, intensity {intensity}",
+            name.unwrap_or("Point Light")
+        );
+        if draft {
+            out.push_str(
+                "\n\nWARNING: bsp_cook_mode is Draft, and Draft packs every surface fullbright \
+                 and never runs the light bake. This light will do NOTHING until the project \
+                 cooks in Release. Nothing you place will be visible in the editor preview or a \
+                 Draft playtest, so light the room by intent and verify in Release.",
+            );
+        }
+        Ok(out)
+    }
+
+    /// Switch the BSP cook between Draft (fullbright, fast) and Release
+    /// (bakes point lights over a dark ambient).
+    pub fn set_cook_mode(&mut self, release: bool) -> Result<String, String> {
+        self.document()?;
+        let wanted = if release {
+            BrushWorldCookMode::Release
+        } else {
+            BrushWorldCookMode::Draft
+        };
+        if self.doc.bsp_cook_mode == wanted {
+            return Ok(format!("already {wanted:?}"));
+        }
+        self.doc.bsp_cook_mode = wanted;
+        self.record(format!("bsp_cook_mode -> {wanted:?}"));
+        Ok(if release {
+            "bsp_cook_mode is now Release: point lights bake over a dark ambient. Unlit \
+             surfaces go roughly 8x darker than Draft, so a room with no lights in it will \
+             read as nearly black."
+                .to_string()
+        } else {
+            "bsp_cook_mode is now Draft: every surface is fullbright and lights are ignored."
+                .to_string()
+        })
+    }
+
+    /// Every point light in the scene, as (name, world position, radius units).
+    pub fn lights(&mut self) -> Result<Vec<(String, [f32; 3], f32)>, String> {
+        let project = self.document()?;
+        let scene = project
+            .scenes
+            .first()
+            .ok_or_else(|| "the project has no scenes".to_string())?;
+        let sector = scene
+            .world_sector_size_for_node(NodeId::ROOT)
+            .unwrap_or(crate::SECTOR)
+            .max(1) as f32;
+        Ok(scene
+            .nodes()
+            .iter()
+            .filter_map(|node| match node.kind {
+                NodeKind::PointLight { radius, .. } => Some((
+                    node.name.clone(),
+                    node.transform.translation,
+                    radius * sector,
+                )),
+                _ => None,
+            })
+            .collect())
+    }
+
+    /// Cut a box-shaped void out of a run of brushes.
+    ///
+    /// A doorway through a wall is the commonest authoring move there is, and
+    /// without it `make_room` produces a sealed shell nothing can enter. The
+    /// kernel's `subtracted_by` returns the remainder as convex pieces, which
+    /// is what the BSP wants anyway.
+    pub fn carve(
+        &mut self,
+        scene: Option<usize>,
+        first: usize,
+        count: usize,
+        min: [i32; 3],
+        max: [i32; 3],
+        material: Option<&str>,
+    ) -> Result<String, String> {
+        self.document()?;
+        let scene_index = resolve_scene(&self.doc, scene)?;
+        if (0..3).any(|axis| min[axis] >= max[axis]) {
+            return Err(format!(
+                "the cutter has no volume: min {min:?} is not strictly below max {max:?}"
+            ));
+        }
+        self.brush_slice(scene_index, first, count)?;
+        let material = match material {
+            Some(needle) => Some(find_material(&self.doc, needle)?),
+            None => None,
+        };
+        let cutter = Brush::cuboid(min, max);
+
+        // Back to front, so an earlier index stays valid while a later brush
+        // is being replaced by a different number of pieces.
+        let mut cut = 0usize;
+        let mut produced = 0usize;
+        let mut collapsed = Vec::new();
+        for position in (first..first + count).rev() {
+            let source = self.doc.scenes[scene_index].brushes[position].clone();
+            // The cut faces inherit a material, or they cook untextured: the
+            // inside of a doorway reveal is a surface the player looks at.
+            let mut cutter = cutter.clone();
+            let fill = material.or_else(|| source.faces.first().and_then(|face| face.material));
+            for face in cutter.faces.iter_mut() {
+                face.material = fill;
+            }
+            let Some(pieces) = source.subtracted_by(&cutter) else {
+                continue;
+            };
+            cut += 1;
+            let pieces: Vec<Brush> = pieces
+                .into_iter()
+                .filter(|piece| piece.solve().is_valid())
+                .map(|mut piece| {
+                    piece.contents = source.contents;
+                    piece.mover = source.mover;
+                    piece.group = source.group;
+                    piece
+                })
+                .collect();
+            if pieces.is_empty() {
+                collapsed.push(position);
+            }
+            produced += pieces.len();
+            self.doc.scenes[scene_index]
+                .brushes
+                .splice(position..=position, pieces);
+        }
+
+        if cut == 0 {
+            return Err(format!(
+                "the cutter {min:?}..{max:?} does not intersect any of brushes {first}..{}",
+                first + count
+            ));
+        }
+        let total = self.doc.scenes[scene_index].brushes.len();
+        self.record(format!(
+            "carve {min:?}..{max:?} out of brushes {first}..{}",
+            first + count
+        ));
+        let mut out = format!(
+            "carved {cut} of {count} brush(es) into {produced} pieces; scene now has {total} \
+             brushes and every index above {first} has moved. Re-read scene_info before \
+             using an older index."
+        );
+        if !collapsed.is_empty() {
+            let _ = write!(
+                out,
+                "\n{} brush(es) were removed entirely, the cutter swallowed them",
+                collapsed.len()
+            );
+        }
+        Ok(out)
+    }
+
     /// Assign a material to a run of brushes, optionally only the faces whose
     /// normal points along one axis (floors, ceilings, one wall direction).
     pub fn set_material(
@@ -567,6 +774,58 @@ mod tests {
         std::fs::write(&workspace.path, "// touched by the editor\n").unwrap();
         let refused = workspace.save().expect_err("a changed file must block the save");
         assert!(refused.contains("changed on disk"), "{refused}");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Carving is what stops `make_room` producing a sealed box, so it has to
+    /// actually open a hole, keep the remainder solid, and say that indices
+    /// moved.
+    #[test]
+    fn carve_opens_a_doorway_and_reports_the_index_shift() {
+        let dir = std::env::temp_dir().join(format!("psxed-mcp-carve-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut workspace = empty_workspace(&dir);
+
+        workspace
+            .make_room(None, [0, 0, 0], [4096, 2048, 4096], 256, None)
+            .expect("the room builds");
+        let before = workspace.doc.scenes[0].brushes.len();
+        assert_eq!(before, 6, "a hollow box is six slabs");
+
+        // A doorway through the -X wall, which spans x -256..0.
+        let report = workspace
+            .carve(None, 0, before, [-256, 0, 1536], [0, 1280, 2560], None)
+            .expect("the cutter meets the wall");
+        assert!(report.contains("carved 1 of 6"), "{report}");
+        assert!(report.contains("has moved"), "{report}");
+        let after = workspace.doc.scenes[0].brushes.len();
+        assert!(after > before, "one wall became several pieces: {after}");
+
+        // Every piece still encloses volume; a carve that leaves slivers
+        // would poison the cook.
+        assert!(workspace.doc.scenes[0]
+            .brushes
+            .iter()
+            .all(|brush| brush.solve().is_valid()));
+
+        // The opening is really empty: a point mid-doorway is inside nothing.
+        let inside_doorway = [-128.0, 640.0, 2048.0];
+        assert!(!workspace.doc.scenes[0]
+            .brushes
+            .iter()
+            .any(|brush| crate::contains(brush, inside_doorway)));
+        // ... while the wall beside it is still solid.
+        let beside = [-128.0, 640.0, 512.0];
+        assert!(workspace.doc.scenes[0]
+            .brushes
+            .iter()
+            .any(|brush| crate::contains(brush, beside)));
+
+        // A cutter that touches nothing is an error, not a silent no-op.
+        assert!(workspace
+            .carve(None, 0, 1, [90_000, 0, 0], [91_000, 100, 100], None)
+            .is_err());
 
         std::fs::remove_dir_all(&dir).ok();
     }

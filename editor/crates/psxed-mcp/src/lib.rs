@@ -123,7 +123,7 @@ fn solid_brushes(scene: &Scene) -> Vec<(&Brush, [f64; 3], [f64; 3])> {
 
 /// Whether a world point lies inside a convex brush, using the kernel's own
 /// outward-normal convention (`side` is >0 outside, <0 inside).
-fn contains(brush: &Brush, point: [f64; 3]) -> bool {
+pub(crate) fn contains(brush: &Brush, point: [f64; 3]) -> bool {
     brush.faces.iter().all(|face| {
         Plane::from_points(face.points).is_none_or(|plane| {
             let n = plane.normal.map(|v| v as f64);
