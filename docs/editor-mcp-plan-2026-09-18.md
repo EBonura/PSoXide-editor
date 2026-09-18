@@ -325,6 +325,53 @@ That is 84% of the entire map visible from one standing position, which is
 the concrete shape of the open-sightline problem behind the measured 16.4 fps
 floor. `audit` makes it a number an edit can be checked against.
 
+## Phase 4: carving, lighting, and an empty test bed
+
+Everything here came from building a real section with the tools rather than
+reasoning about them.
+
+**`carve`.** `make_room` produced a sealed shell with no way in. A doorway
+through a wall is the commonest authoring move there is, and the kernel
+already had `subtracted_by`, which returns the remainder as convex pieces.
+Cut faces inherit the source brush's material, or the inside of a doorway
+reveal cooks untextured.
+
+**`add_light`, `lights`, `set_cook_mode`.** Radius is authored in SECTORS in
+the format while every other length these tools take is world units, so the
+tool takes world units and converts. `add_light` warns when `bsp_cook_mode`
+is Draft, because Draft packs fullbright and skips the bake, making every
+light placed a no-op.
+
+**`--new`.** Experiments were being built into a copy of the shipped level,
+where its 141 pre-existing coplanar overlaps and 2390 cooked faces swamped
+any measurement of the new work. `--new` writes a project with the starter's
+128 resources and zero brushes.
+
+### Two traps found only by doing
+
+**Geometry can vanish from the cook.** The hall built into a v0.4 copy at
+X 61440 changed the cooked face count by exactly zero, while the same room
+cooked fine at other coordinates in the same project and contributed 1784
+world faces in an empty one. Placement relative to the existing world decides
+whether authored geometry survives the cook, and nothing reported it. The
+audit should compare authored against cooked faces; not yet done.
+
+**The leak check floods from the player.** `--new` cleared brushes but left
+all 51 entities at the shipped level's coordinates, so the player sat
+thousands of units outside the new map and every audit reported a leak no
+matter how well sealed the geometry was. `--new` now moves nodes to the
+origin, and the audit names the occupant point and says to check it first.
+Verified: a sealed box with the player inside reports sealed.
+
+### Correction
+
+An earlier note in this document said the preview is dark because Draft cook
+mode is fullbright. That is wrong for this project. `bsp_cook_mode` is
+already Release, and the darkness was the Release ambient with **no lights in
+the scene at all**. Adding 17 lights took mean frame luminance from 8.4 to
+15.9 and made the colonnade legible. The Draft caveat is real but it was not
+the cause here.
+
 ## Risks
 
 **Concurrent edits.** Manny will be in the editor while the agent drives it.

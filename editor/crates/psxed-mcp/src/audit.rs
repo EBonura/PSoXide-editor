@@ -192,7 +192,16 @@ pub fn audit(
                 diagnostic.path.len()
             );
             if let Some(first) = diagnostic.path.first() {
-                let _ = writeln!(out, "  path starts near {first:?} (engine units)");
+                let authored = first.map(|value| value * crate::WORLD_UNIT_DIVISOR);
+                let _ = writeln!(
+                    out,
+                    "  path starts at {first:?} engine = {authored:?} authored, which is the \
+                     OCCUPANT the flood starts from, normally the player."
+                );
+                out.push_str(
+                    "  Check that point is inside your geometry first. A player left at another \
+                     level's coordinates reports every map as leaking, however well sealed it is.\n",
+                );
             }
             if let Some(opening) = diagnostic.likely_opening.first() {
                 let _ = writeln!(out, "  likely opening near {opening:?} (engine units)");
