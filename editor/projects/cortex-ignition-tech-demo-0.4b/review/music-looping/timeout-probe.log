@@ -1,0 +1,7 @@
+[cli] side-loaded /tmp/cortex-loop-short-budget.exe - entry=0x80010000 payload=1193984B
+[cli] mounted auxiliary disc /Users/ebonura/Downloads/PS1 Games/Cortex Ignition v0.4b.cue
+[cdda] play track bcd=0x03 (decimal 3)
+[cdda] play resume (no track parameter)
+tick=2507947647  cycles=5896254676  pc=0x8001d024  stopped-at=2507947647
+route-ticks=10320  port1-polls=10002
+[cli] audio → /tmp/cortex-loop-short-budget.wav (7677414 stereo samples, 174.09s @ 44.1kHz)

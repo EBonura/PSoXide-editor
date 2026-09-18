@@ -2288,13 +2288,25 @@ fn create_and_open_project_sets_document_name_and_derived_directory() {
             .all(|node| !matches!(node.kind, NodeKind::Section { .. })),
         "new projects do not inherit legacy grid sections"
     );
+    // The v0.4b starter carries three deliberately two-sided DP City overlays:
+    // thin transparent geometry that has to draw from both sides. Everything
+    // else must stay front-only, because two-sided defeats backface culling and
+    // was measured at -40% render. Allow those three by name so accidental
+    // two-sided materials still fail here.
+    const TWO_SIDED_STARTER_OVERLAYS: &[&str] = &[
+        "DP City / Cable Run (Average)",
+        "DP City / Hanging Lattice (Average)",
+        "DP City / Guardrail (Cutout)",
+    ];
     assert!(ws
         .project()
         .resources
         .iter()
         .all(|resource| match &resource.data {
             ResourceData::Material(material) => {
-                material.face_sidedness == MaterialFaceSidedness::Front && !material.double_sided
+                TWO_SIDED_STARTER_OVERLAYS.contains(&resource.name.as_str())
+                    || (material.face_sidedness == MaterialFaceSidedness::Front
+                        && !material.double_sided)
             }
             _ => true,
         }));
@@ -2960,10 +2972,13 @@ fn new_project_release_choice_copies_the_roofless_open_courtyard() {
         ]),
         "the courtyard's authored material ordering must remain stable"
     );
+    // The starter library is v0.4b's, so the canonical probes are its DP City
+    // kit rather than the old brick_1a_v2 / tech_5f_v2 pair.
     assert!(
         material_paths.len() >= 20
-            && material_paths.contains(&"assets/textures/brick_1a_v2.psxt")
-            && material_paths.contains(&"assets/textures/tech_5f_v2.psxt"),
+            && material_paths.contains(&"assets/textures/dp_city_kit/dp_city_deck_plate.psxt")
+            && material_paths
+                .contains(&"assets/textures/dp_city_kit/dp_city_wall_megastructure.psxt"),
         "New Project must append the canonical saved material library"
     );
     let template = psxed_project::new_project_template_dir();
@@ -3752,37 +3767,74 @@ fn new_project_starts_with_verified_character_and_material_content() {
     let ResourceData::Character(aletha) = &aletha.data else {
         unreachable!();
     };
-    assert_eq!(aletha.combat_capsules.len(), 4);
+    // v0.4b's Aletha is the artist moveset: two hurtboxes and five swing
+    // hitboxes, including the split zenith-heavy pair, where the old starter
+    // had one hurtbox and three hitboxes all hung off joint 13.
+    assert_eq!(aletha.combat_capsules.len(), 7);
     let capsule = |index: usize| &aletha.combat_capsules[index];
     assert_eq!(capsule(0).name, "Torso Hurtbox");
-    assert_eq!(capsule(0).joint, 8);
+    assert_eq!(capsule(0).joint, 7);
     assert_eq!(capsule(0).capsule.radius, 180);
     assert_eq!(capsule(0).role, psxed_project::CombatCapsuleRole::Hurtbox);
-    for (index, action, window, damage, poise) in [
+    assert_eq!(capsule(1).name, "Head Hurtbox");
+    assert_eq!(capsule(1).joint, 9);
+    assert_eq!(capsule(1).capsule.radius, 110);
+    assert_eq!(capsule(1).role, psxed_project::CombatCapsuleRole::Hurtbox);
+    for (index, name, joint, radius, action, window, damage, poise) in [
         (
-            1,
+            2,
+            "Light Sword Active",
+            13,
+            100,
             psxed_project::CharacterAnimationAction::LightAttack,
-            (23, 35),
+            (48, 68),
             25,
             25,
         ),
         (
-            2,
+            3,
+            "Heavy Sword Active",
+            16,
+            113,
             psxed_project::CharacterAnimationAction::HeavyAttack,
-            (35, 51),
+            (55, 76),
             38,
             50,
         ),
         (
-            3,
-            psxed_project::CharacterAnimationAction::ComboAttack,
-            (2, 6),
-            30,
-            30,
+            4,
+            "Vert Light Sword Active",
+            13,
+            100,
+            psxed_project::CharacterAnimationAction::VertLightAttack,
+            (28, 47),
+            25,
+            25,
+        ),
+        (
+            5,
+            "Zenith Heavy / Right Swing",
+            16,
+            113,
+            psxed_project::CharacterAnimationAction::VertHeavyAttack,
+            (54, 61),
+            19,
+            50,
+        ),
+        (
+            6,
+            "Zenith Heavy / Left Swing",
+            21,
+            100,
+            psxed_project::CharacterAnimationAction::VertHeavyAttack,
+            (64, 76),
+            19,
+            50,
         ),
     ] {
-        assert_eq!(capsule(index).joint, 13);
-        assert_eq!(capsule(index).capsule.radius, 72);
+        assert_eq!(capsule(index).name, name);
+        assert_eq!(capsule(index).joint, joint);
+        assert_eq!(capsule(index).capsule.radius, radius);
         assert_eq!(
             capsule(index).role,
             psxed_project::CombatCapsuleRole::Hitbox {
@@ -3821,57 +3873,94 @@ fn new_project_starts_with_verified_character_and_material_content() {
     let ResourceData::Character(mantis) = &mantis.data else {
         unreachable!();
     };
-    assert_eq!(mantis.combat_capsules.len(), 2);
+    // v0.4b gave the Mantis its claw ladder: hurtbox, ranged muzzle, and the
+    // two authored claw hitboxes behind the three-swing and single-strike
+    // clips. Its emitter is authored without a bound projectile profile.
+    assert_eq!(mantis.combat_capsules.len(), 4);
     assert_eq!(mantis.combat_capsules[0].name, "Torso Hurtbox");
-    assert_eq!(mantis.combat_capsules[0].joint, 3);
-    assert_eq!(mantis.combat_capsules[0].capsule.radius, 184);
+    assert_eq!(mantis.combat_capsules[0].joint, 1);
+    assert_eq!(mantis.combat_capsules[0].capsule.radius, 218);
     assert_eq!(
         mantis.combat_capsules[0].role,
         psxed_project::CombatCapsuleRole::Hurtbox
     );
-    assert_eq!(mantis.combat_capsules[1].name, "Choir Needle Muzzle");
+    assert_eq!(mantis.combat_capsules[1].name, "Projectile Muzzle");
     assert_eq!(mantis.combat_capsules[1].joint, 13);
-    assert_eq!(mantis.combat_capsules[1].capsule.start, [0; 3]);
-    assert_eq!(mantis.combat_capsules[1].capsule.end, [0; 3]);
-    assert_eq!(mantis.combat_capsules[1].capsule.radius, 48);
-    let mantis_projectile = match mantis.combat_capsules[1].role {
+    assert_eq!(
+        mantis.combat_capsules[1].capsule.start,
+        mantis.combat_capsules[1].capsule.end,
+        "the muzzle is a point emitter"
+    );
+    assert_eq!(mantis.combat_capsules[1].capsule.radius, 27);
+    assert_eq!(
+        mantis.combat_capsules[1].role,
         psxed_project::CombatCapsuleRole::ProjectileEmitter {
-            action: psxed_project::CharacterAnimationAction::LightAttack,
-            charge_start_frame: 10,
-            active_start_frame: 18,
-            active_end_frame: 18,
-            projectile: Some(projectile),
-            speed: 112,
+            action: psxed_project::CharacterAnimationAction::VertLightAttack,
+            charge_start_frame: 8,
+            active_start_frame: 27,
+            active_end_frame: 27,
+            projectile: None,
+            speed: 160,
             lifetime_ticks: 180,
             min_range: 512,
             max_range: 4096,
-            damage: 18,
-            poise_damage: 8,
-            tint_rgb: [62, 214, 198],
-        } => projectile,
-        ref role => panic!("unexpected Mantis projectile emitter: {role:?}"),
-    };
-    let mantis_projectile = project
-        .resource(mantis_projectile)
-        .expect("Mantis projectile profile is synced and remapped");
-    assert_eq!(mantis_projectile.name, "Choir Needle");
-    assert!(matches!(
-        mantis_projectile.data,
-        ResourceData::Projectile(_)
-    ));
+            damage: 20,
+            poise_damage: 25,
+            tint_rgb: [120, 210, 255],
+        }
+    );
+    for (index, name, action, window, damage, poise) in [
+        (
+            2,
+            "Claw / Three-Swing Combo",
+            psxed_project::CharacterAnimationAction::HeavyAttack,
+            (8, 11),
+            25,
+            25,
+        ),
+        (
+            3,
+            "Claw / Single Strike",
+            psxed_project::CharacterAnimationAction::LightAttack,
+            (101, 112),
+            32,
+            50,
+        ),
+    ] {
+        assert_eq!(mantis.combat_capsules[index].name, name);
+        assert_eq!(mantis.combat_capsules[index].joint, 9);
+        assert_eq!(mantis.combat_capsules[index].capsule.radius, 86);
+        assert_eq!(
+            mantis.combat_capsules[index].role,
+            psxed_project::CombatCapsuleRole::Hitbox {
+                action,
+                active_start_frame: window.0,
+                active_end_frame: window.1,
+                damage,
+                poise_damage: poise,
+            }
+        );
+    }
+    // The projectile profile is still part of the starter catalogue even though
+    // v0.4b's emitter does not bind it.
+    let choir_needle = resource_by_name("Choir Needle", |data| {
+        matches!(data, ResourceData::Projectile(_))
+    });
+    assert!(matches!(choir_needle.data, ResourceData::Projectile(_)));
     assert_eq!(mantis.spawn_role, psxed_project::CharacterSpawnRole::Enemy);
     let behavior = mantis.enemy_behavior.expect("mantis enemy behavior");
-    assert_eq!(behavior.poise, 100);
-    assert_eq!(behavior.max_health, 100);
+    assert_eq!(behavior.poise, 25);
+    assert_eq!(behavior.max_health, 50);
     assert_eq!(behavior.touch_damage, 10);
+    assert_eq!(behavior.soul_value, 50);
     let mantis_model = project.resource(mantis.model.unwrap()).unwrap();
     let ResourceData::Model(mantis_model_data) = &mantis_model.data else {
         panic!("Mantis model reference is not a Model");
     };
-    assert!(mantis_model_data
-        .attachments
-        .iter()
-        .any(|socket| socket.name == "right_hand_grip" && socket.joint == 13));
+    // v0.4b's Mantis fights with claw hitboxes rather than held equipment, so
+    // its model carries no attachment socket. The socket contract is asserted
+    // on Aletha above, which is the character that actually equips a weapon.
+    assert!(mantis_model_data.attachments.is_empty());
 
     // The heavy enemy has one canonical native animated model. Its missing
     // Run binding is deliberate capability data, not a dangling resource.
@@ -3882,11 +3971,14 @@ fn new_project_starts_with_verified_character_and_material_content() {
         unreachable!();
     };
     assert_eq!(tank.spawn_role, psxed_project::CharacterSpawnRole::Enemy);
-    assert_eq!(tank.combat_capsules.len(), 1);
+    // v0.4b gave the heavy enemy a full body: a chest bolt emitter on the
+    // dedicated RangedAttack action, three hurtboxes and three melee hitboxes.
+    assert_eq!(tank.combat_capsules.len(), 7);
+    assert_eq!(tank.combat_capsules[0].name, "Chest / Heavy Bolt");
     assert!(matches!(
         tank.combat_capsules[0].role,
         psxed_project::CombatCapsuleRole::ProjectileEmitter {
-            action: psxed_project::CharacterAnimationAction::LightAttack,
+            action: psxed_project::CharacterAnimationAction::RangedAttack,
             speed: 80,
             damage: 28,
             ..
@@ -3962,14 +4054,17 @@ fn new_project_starts_with_verified_character_and_material_content() {
     // and only surfaced once an earlier assertion stopped failing first.
     for (name, grip_translation, hitboxes) in [
         ("Sword1 Light", [0, -25370, 0], 1),
-        ("Sword1 Heavy", [0, -26320, 0], 0),
+        ("Sword1 Heavy", [0, -26320, 0], 1),
     ] {
         assert!(STARTER_WEAPON_NAMES.contains(&name));
         let weapon = resource_by_name(name, |data| matches!(data, ResourceData::Weapon(_)));
         let ResourceData::Weapon(weapon) = &weapon.data else {
             unreachable!();
         };
-        assert_eq!(weapon.default_character_socket, "right_hand_grip");
+        // v0.4b's Aletha wields left-handed: her model carries both
+        // right_hand_grip (j13) and left_hand_grip (j21), and the left joint is
+        // the one the Zenith Heavy / Left Swing hitbox hangs off.
+        assert_eq!(weapon.default_character_socket, "left_hand_grip");
         assert_eq!(weapon.grip.name, "grip");
         assert_eq!(weapon.grip.translation, grip_translation);
         assert_eq!(weapon.grip.rotation_q12, [0, 0, 0]);

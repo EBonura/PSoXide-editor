@@ -1,0 +1,14 @@
+   Compiling psx-level v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/engine/crates/psx-level)
+   Compiling editor-playtest v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/engine/examples/editor-playtest)
+   Compiling psx-engine v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/engine/crates/psx-engine)
+   Compiling psx-game-runtime v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/engine/crates/psx-game-runtime)
+   Compiling psx-bsp v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/engine/crates/psx-bsp)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.94s
+     Running unittests src/main.rs (engine/examples/editor-playtest/target/debug/deps/editor_playtest-e9c0c8a69d7d033f)
+
+running 2 tests
+test game_logic_runtime::encounter_audio_tests::swing_cues_follow_attack_weight_for_both_stances_and_enemies ... ok
+test game_logic_runtime::encounter_audio_tests::encounter_start_is_once_per_fight_despite_brief_losses_of_aggro ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 75 filtered out; finished in 0.00s
+

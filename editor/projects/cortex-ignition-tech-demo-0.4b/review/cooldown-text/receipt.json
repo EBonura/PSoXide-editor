@@ -1,0 +1,7 @@
+{
+  "change": "Correct stance recharge tutorial to five seconds in English and Italian",
+  "cooldown_ticks": 300,
+  "exe_sha256": "8908e50ed9fb223f6c84c61a7edc524b3e32f43a0bfca243720c9a08c1898b46",
+  "bin_sha256": "b2bb880b7868b10b76db43b01414bd2236a50bec97259109912ec77e47b7caaf",
+  "verified": "Updated strings present in executable; obsolete strings absent; hazard and symbol gates pass"
+}

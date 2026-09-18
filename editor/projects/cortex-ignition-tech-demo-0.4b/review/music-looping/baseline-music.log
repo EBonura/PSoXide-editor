@@ -1,0 +1,14 @@
+[cli] side-loaded /tmp/cortex-combat-loop-baseline.exe - entry=0x80010000 payload=1193984B
+[cli] mounted auxiliary disc /Users/ebonura/Downloads/PS1 Games/Cortex Ignition v0.4b.cue
+[cdda] play track bcd=0x03 (decimal 3)
+[cdda] play resume (no track parameter)
+[cdda] play track bcd=0x02 (decimal 2)
+[cdda] play track bcd=0x02 (decimal 2)
+tick=3005406832  cycles=7037584198  pc=0x8001d024  stopped-at=3005406832
+route-ticks=12318  port1-polls=12000
+[cli] audio → /tmp/cortex-combat-loop-baseline.wav (9163521 stereo samples, 207.79s @ 44.1kHz)
+[cli] HW renderer → /tmp/cortex-combat-loop-baseline.ppm (7288117 cmd_log entries replayed)
+[cli] display (0,0) 320x240 bpp=15 | cmd_log draws=3438551 fills=4291 uploads=2241
+[cli] GP1 08h modes seen: 8000001
+[cli] GP1 05h display-start trail (last 24 of 256): ["(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)"]
+[cli] main RAM → /tmp/cortex-combat-loop-baseline.ram (2097152 bytes)

@@ -1,0 +1,22 @@
+{
+  "date": "2026-09-07",
+  "disc": "/Users/ebonura/Downloads/PS1 Games/Cortex Ignition v0.4b.cue",
+  "exe_sha256": "c1f73e9fc8a274dbec5ac8d210a1dc930e9a9225c428a5593e85e047646dc849",
+  "bin_sha256": "03d319001a33624cf735465a3e0b963c4c7b84e53b88310de84f05b1ba2d76ef",
+  "sfx_samples": 19,
+  "spu_adpcm_bytes": 90528,
+  "static_ram_headroom_bytes": 10644,
+  "reserved_stack_bytes": 32768,
+  "game_app_tests_passed": 54,
+  "encounter_gate_tests_passed": 1,
+  "mips_hazards": 0,
+  "arithmetic_symbol_gate": "PASS",
+  "headless_gameplay_polls": 3501,
+  "physical_console_tested": false,
+  "voices": [
+    "System anomaly detected",
+    "Outside"
+  ],
+  "selection": "alternate once per encounter",
+  "projectile_cue": "on successful enemy projectile spawn"
+}

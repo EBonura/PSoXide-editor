@@ -1,0 +1,10 @@
+[cli] side-loaded /tmp/cortex-combat-loop-candidate.exe - entry=0x80010000 payload=1196032B
+[cli] mounted auxiliary disc /Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/cortex-ignition-tech-demo-0.4b/baked/cortex_ignition_tech_demo_0_4b.cue
+[cdda] play track bcd=0x03 (decimal 3)
+[cdda] play resume (no track parameter)
+[cdda] play track bcd=0x02 (decimal 2)
+[cdda] play track bcd=0x02 (decimal 2)
+tick=2999610601  cycles=7038726662  pc=0x8001d024  stopped-at=2999610601
+route-ticks=12320  port1-polls=12002
+[cli] audio → /tmp/cortex-combat-loop-candidate.wav (9165008 stereo samples, 207.82s @ 44.1kHz)
+[cli] main RAM → /tmp/cortex-combat-loop-candidate.ram (2097152 bytes)

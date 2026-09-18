@@ -1,0 +1,17 @@
+{
+  "health_per_pool": {
+    "tutorial": 60,
+    "later_light": 75,
+    "boss": 200,
+    "player": 100
+  },
+  "project_changes": "Only four placed enemy health pairs",
+  "exe_sha256": "4477ccdc08e6cbd10d033511952a95e35fffe4c0049a0ccab971892e3071ada5",
+  "bin_sha256": "1dd95bef573bd7641c0167fb9aa2ed85bc78f8896a4d25dbee90b3a3fec68a53",
+  "guest_faults": 0,
+  "smoke_test_polls": 3202,
+  "load_delay_hazards": 0,
+  "arithmetic_symbol_gate": "PASS",
+  "physical_console_tested": false,
+  "disc": "/Users/ebonura/Downloads/PS1 Games/Cortex Ignition v0.4b.cue"
+}

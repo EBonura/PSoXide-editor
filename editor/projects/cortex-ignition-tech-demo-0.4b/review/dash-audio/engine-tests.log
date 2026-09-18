@@ -1,0 +1,72 @@
+   Compiling psx-level v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/engine/crates/psx-level)
+   Compiling psx-engine v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/engine/crates/psx-engine)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.58s
+     Running unittests src/lib.rs (target/debug/deps/psx_engine-5a0043fc42093d8a)
+
+running 54 tests
+test game_app::tests::cdda_data_read_handoff_cancels_a_pending_fade_stop ... ok
+test game_app::tests::a_new_fight_randomizes_but_a_running_song_does_not_reseek ... ok
+test game_app::tests::authored_loading_progress_is_monotonic_and_visibly_catches_up ... ok
+test game_app::tests::a_random_start_loops_at_the_track_boundary_without_randomizing_again ... ok
+test game_app::tests::cdda_fades_are_linear_and_can_reverse_before_finishing ... ok
+test game_app::tests::cinematic_stops_menu_music ... ok
+test game_app::tests::cdda_fades_keep_their_duration_at_every_music_volume ... ok
+test game_app::tests::an_unknown_scene_state_request_is_ignored ... ok
+test game_app::tests::default_resource_key_churns_on_state_change ... ok
+test game_app::tests::circle_does_not_use_the_front_end_back_stack_inside_gameplay_overlay ... ok
+test game_app::tests::authored_start_target_opens_and_resumes_a_paused_world_overlay ... ok
+test game_app::tests::circle_moves_focus_to_the_authored_back_control_and_plays_its_echo ... ok
+test game_app::tests::authored_loading_scene_waits_for_fresh_confirm_after_ready ... ok
+test game_app::tests::back_button_via_cross_pops_to_return_state ... ok
+test game_app::tests::cross_on_start_button_enters_gameplay ... ok
+test game_app::tests::cross_held_from_boot_does_not_auto_enter_gameplay ... ok
+test game_app::tests::dpad_moves_focus_between_buttons ... ok
+test game_app::tests::front_end_option_edits_apply_options_for_preview ... ok
+test game_app::tests::encounter_voice_variants_alternate_without_replaying_other_cues ... ok
+test game_app::tests::gameplay_entry_loads_before_initialising ... ok
+test game_app::tests::gameplay_only_enters_resource_set_once_before_init ... ok
+test game_app::tests::gameplay_only_flow_has_nothing_to_navigate ... ok
+test game_app::tests::gameplay_only_inits_once_then_forwards ... ok
+test game_app::tests::gameplay_scene_can_request_a_scene_state_itself ... ok
+test game_app::tests::gameplay_sfx_routes_only_the_requested_confirmed_event ... ok
+test game_app::tests::gameplay_ui_bindings_delegate_to_the_scene_value_resolver ... ok
+test game_app::tests::goto_scene_then_circle_returns ... ok
+test game_app::tests::live_inventory_keeps_the_world_combat_track_until_combat_ends ... ok
+test game_app::tests::loading_exit_reuses_the_project_wide_menu_fade ... ok
+test game_app::tests::menu_cdda_playback_mode_enables_cdda_and_auto_pause ... ok
+test game_app::tests::menu_seeds_focus_to_first_control ... ok
+test game_app::tests::music_track_positions_decode_absolute_bcd_and_reject_bad_responses ... ok
+test game_app::tests::opaque_game_ui_actions_dispatch_to_the_gameplay_scene ... ok
+test game_app::tests::option_bound_music_volume_updates_on_slider_scrub ... ok
+test game_app::tests::option_store_seeds_from_default ... ok
+test game_app::tests::project_fade_waits_for_echo_then_switches_at_full_cover ... ok
+test game_app::tests::project_fade_wraps_circle_back_navigation ... ok
+test game_app::tests::project_fade_wraps_l1_r1_tab_state_changes ... ok
+test game_app::tests::project_fade_wraps_start_open_and_resume_for_pause_menus ... ok
+test game_app::tests::random_music_start_stays_inside_the_selected_track ... ok
+test game_app::tests::runtime_hidden_inventory_rows_are_skipped_by_focus_navigation ... ok
+test game_app::tests::scene_state_can_run_gameplay_with_ui_overlay_input ... ok
+test game_app::tests::set_option_button_adjusts_and_clamps ... ok
+test game_app::tests::shared_resource_key_acquires_once_across_ui_to_gameplay ... ok
+test game_app::tests::shoulder_buttons_move_focus_across_menu_tabs ... ok
+test game_app::tests::slider_left_right_scrubs_bound_option_clamped ... ok
+test game_app::tests::start_gameplay_republishes_current_front_end_options ... ok
+test game_app::tests::tagged_shoulder_tabs_activate_immediately_and_wrap ... ok
+test game_app::tests::title_new_game_reloads_each_session_and_keeps_options ... ok
+test game_app::tests::ui_entry_defers_gameplay_init_until_start ... ok
+test game_app::tests::ui_font_table_requests_every_cooked_slot ... ok
+test game_app::tests::ui_sfx_event_uses_matching_node_cue_range ... ok
+test game_app::tests::unbound_and_unknown_option_adjust_is_noop ... ok
+test game_app::tests::unknown_scene_id_yields_empty_node_range ... ok
+
+test result: ok. 54 passed; 0 failed; 0 ignored; 0 measured; 383 filtered out; finished in 0.01s
+
+   Compiling psx-level v0.1.0 (/Users/ebonura/Desktop/repos/PSoXide-editor/engine/crates/psx-level)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.34s
+     Running unittests src/lib.rs (target/debug/deps/psx_level-23550e88f7b7b88f)
+
+running 1 test
+test gameplay_sfx_event_tests::event_bits_cover_projectile_events_beyond_one_byte ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 42 filtered out; finished in 0.00s
+

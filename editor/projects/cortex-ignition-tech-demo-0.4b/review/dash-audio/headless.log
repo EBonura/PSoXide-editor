@@ -1,0 +1,10 @@
+[frontend] embedded Play disc fast-booted /Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/cortex-ignition-tech-demo-0.4b/baked/cortex_ignition_tech_demo_0_4b.cue via PSX.EXE;1 entry=0x80010000 payload=1196032B
+[cli] mounted cue-backed disc /Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/cortex-ignition-tech-demo-0.4b/baked/cortex_ignition_tech_demo_0_4b.cue
+tick=935712078  cycles=2296896679  pc=0x8001d024  stopped-at=935712078
+route-ticks=4018  port1-polls=3701
+[cli] audio → /tmp/cortex-warp-final.wav (2990750 stereo samples, 67.82s @ 44.1kHz)
+[cli] HW renderer → /tmp/cortex-warp-final.ppm (1979121 cmd_log entries replayed)
+[cli] display (0,0) 320x240 bpp=15 | cmd_log draws=967417 fills=1521 uploads=2241
+[cli] GP1 08h modes seen: 8000001
+[cli] GP1 05h display-start trail (last 24 of 256): ["(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)", "(0,240)", "(0,0)"]
+[cli] main RAM → /tmp/cortex-warp-final.ram (2097152 bytes)

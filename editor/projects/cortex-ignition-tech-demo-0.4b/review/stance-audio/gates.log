@@ -1,0 +1,2 @@
+0 hazards in build/examples/mipsel-sony-psx/release/editor-playtest.exe
+guest-symbol-gate: PASS (/tmp/cortex-phase.map)

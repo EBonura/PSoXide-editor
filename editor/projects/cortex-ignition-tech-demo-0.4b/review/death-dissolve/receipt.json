@@ -1,0 +1,26 @@
+{
+  "duration_seconds": 5,
+  "starts_after": "death clip final frame",
+  "direction": "final posed height, top to bottom",
+  "runtime_tests_passed": 232,
+  "guest_faults": 0,
+  "heap_remaining_bytes": 2944,
+  "previous_heap_remaining_bytes": 1768,
+  "headless_cpu_comparison": {
+    "normal_frame_bus_cycles_median": 571237,
+    "dissolve_frame_extra_cycles_average": 54,
+    "dissolve_frame_extra_cycles_peak": 15074,
+    "peak_frame_overhead_percent": 2.64,
+    "deaths_in_capture": 2,
+    "hardware_framerate_verified": false
+  },
+  "load_delay_hazards": 0,
+  "arithmetic_symbol_gate": "PASS",
+  "exe_sha256": "eb981ebb122fbcd24face79c8236d6cda938293f13adb742038928016cb2c65a",
+  "bin_sha256": "889ae3cf027bbecc7aacd7a8ad04b34e19c3f985e04f5ead705e5761eb0f9c5f",
+  "capture": "Separate executable with automatic kills and fixed cameras; same dissolve renderer",
+  "capture_guest_faults": 0,
+  "diagnostic_patches_shipped": false,
+  "physical_console_tested": false,
+  "disc": "/Users/ebonura/Downloads/PS1 Games/Cortex Ignition v0.4b.cue"
+}

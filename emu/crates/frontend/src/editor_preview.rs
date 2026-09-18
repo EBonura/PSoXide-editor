@@ -2455,11 +2455,11 @@ mod tests {
     #[test]
     fn light_enemy_preview_grounds_from_idle_pose_instead_of_bind_pose() {
         let model = psx_asset::Model::from_bytes(include_bytes!(
-            "../../../../editor/projects/default/assets/models/rust_mantis/rust_mantis.psxmdl"
+            "../../../../editor/projects/cortex-ignition-tech-demo-0.4b/assets/models/rust_mantis/rust_mantis.psxmdl"
         ))
         .expect("tracked Light Enemy model");
         let animation = psx_asset::Animation::from_bytes(include_bytes!(
-            "../../../../editor/projects/default/assets/animations/rust_mantis_starter/idle.psxanim"
+            "../../../../editor/projects/cortex-ignition-tech-demo-0.4b/assets/animations/rust_mantis_starter/idle.psxanim"
         ))
         .expect("tracked Light Enemy idle clip");
 
