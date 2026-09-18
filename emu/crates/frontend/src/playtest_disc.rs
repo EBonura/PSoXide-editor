@@ -634,8 +634,8 @@ mod tests {
         );
         assert_eq!(safe_project_build_stem("..."), "project");
         assert_eq!(
-            project_baked_disc_path(Path::new("editor/projects/cortex-ignition-tech-demo-0.4b"), "Demo Project"),
-            Path::new("editor/projects/cortex-ignition-tech-demo-0.4b")
+            project_baked_disc_path(Path::new("editor/projects/default"), "Demo Project"),
+            Path::new("editor/projects/default")
                 .join("baked")
                 .join("demo_project.cue")
         );

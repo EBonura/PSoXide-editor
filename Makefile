@@ -161,7 +161,7 @@ run:
 run-fast:
 	cd emu && cargo run -p frontend --profile run-fast
 
-EDITOR_UI_PROJECT ?= editor/projects/cortex-ignition-tech-demo-0.4b
+EDITOR_UI_PROJECT ?= editor/projects/default
 EDITOR_UI_VIEW ?= animation
 EDITOR_UI_RESOURCE ?= Stand To Roll
 EDITOR_UI_OUT ?= /tmp/psoxide-editor-ui.png
@@ -339,7 +339,7 @@ REDUX_CORTEX_IGNITION_V1_STEPS ?= 240000000
 # but cook the current BSP-authored Cortex Ignition project.
 CORTEX_IGNITION_V1_NAME ?= cortex_v1
 CORTEX_IGNITION_V1_VOLUME ?= CORTEX_V1
-CORTEX_IGNITION_V1_PROJECT ?= editor/projects/cortex-ignition-tech-demo-0.4b
+CORTEX_IGNITION_V1_PROJECT ?= editor/projects/default
 CORTEX_IGNITION_V1_CUE ?= $(CORTEX_IGNITION_V1_PROJECT)/baked/$(CORTEX_IGNITION_V1_NAME).cue
 CORTEX_IGNITION_V1_BIN ?= $(CORTEX_IGNITION_V1_PROJECT)/baked/$(CORTEX_IGNITION_V1_NAME).bin
 CORTEX_IGNITION_V1_PREBURN_OUT ?= build/preburn/$(CORTEX_IGNITION_V1_NAME)
@@ -384,11 +384,11 @@ PROFILE_DEMO3_DISC_STREAM_FORWARD_VISUAL_FRAMES ?= 80
 PROFILE_DEMO3_DISC_STREAM_FORWARD_GUEST_FRAMES ?= 1200
 PROFILE_DEMO3_DISC_STREAM_FORWARD_STEPS ?= 600000000
 PROFILE_DEMO3_DISC_STREAM_FORWARD_HW ?= /tmp/psoxide-demo3-disc-stream-forward-hw.ppm
-PROFILE_DEMO3_PROJECT ?= projects/cortex-ignition-tech-demo-0.4b/project.ron
+PROFILE_DEMO3_PROJECT ?= projects/default/project.ron
 # Warp probe: read-only measurement of predicted affine texture error against
 # what the depth-band subdivision rule actually decided, on real content.
 # See docs/texture-warping-2026-07-27.md.
-WARP_PROBE_PROJECT ?= projects/cortex-ignition-tech-demo-0.4b/project.ron
+WARP_PROBE_PROJECT ?= projects/default/project.ron
 # Drop room-surface-profile for a clean A/B of stage timings: its per-stage
 # cycle counters are themselves ~30% of room_surface_draw.
 WARP_PROBE_FEATURES ?= cd-stream-bench room-surface-profile emulator-telemetry
@@ -1385,7 +1385,7 @@ run-hello-engine: hello-engine-disc
 # `cortex-anim-shots` drives the disc headlessly through the menu and fires the
 # whole moveset, writing one PNG-able PPM per CORTEX_ANIM_SHOT_INTERVAL ticks.
 # Gameplay starts at route tick ~480; the press script is keyed to that.
-CORTEX_ANIM_PROJECT ?= projects/cortex-ignition-tech-demo-0.4b/project.ron
+CORTEX_ANIM_PROJECT ?= projects/default/project.ron
 CORTEX_ANIM_SHOT_DIR ?= /tmp/cortex-anim-shots
 CORTEX_ANIM_SHOT_INTERVAL ?= 3
 CORTEX_ANIM_STEPS ?= 450000000

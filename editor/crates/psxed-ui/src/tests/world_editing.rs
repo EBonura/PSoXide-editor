@@ -797,7 +797,7 @@ fn node_gizmo_rotates_image_prop_around_y() {
 #[test]
 fn cortex_group_rotates_around_every_gizmo_axis() {
     let project_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../projects/cortex-ignition-tech-demo-0.4b");
+        .join("../../projects/default");
     let viewport = Rect::from_min_size(Pos2::ZERO, Vec2::new(1280.0, 720.0));
 
     for axis in [

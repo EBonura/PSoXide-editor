@@ -1,21 +1,19 @@
 *
 !.gitignore
 
-# Everything here is ignored by default. Only three projects are tracked, and a
+# Everything here is ignored by default. Only two projects are tracked, and a
 # new project stays local unless it is added below on purpose.
 #
-#   cortex-ignition-tech-demo-0.4b  the shipped convention build
-#   default                         the New Project template; its project.ron is
-#                                   include_str!'d into psxed-project and its
-#                                   starter assets are copied into every new
-#                                   project, so the build needs it on disk
-#   quake-e1m1-geometry             brush/workspace test fixture
+#   default             the shipped Cortex Ignition build (formerly
+#                       cortex-ignition-tech-demo-0.4b) and the New Project
+#                       template. Its project.ron is include_str!'d into
+#                       psxed-project and its starter assets seed every new
+#                       project, so the build needs it on disk.
+#   quake-e1m1-geometry brush/workspace test fixture
 #
 # Superseded level projects (0.2, 0.3, 0.4, null-choir-texture-kit, mantis,
-# tech-demo) are local-only archives, same arrangement as
-# editor/archive/legacy-grid/.
-!cortex-ignition-tech-demo-0.4b/
-!cortex-ignition-tech-demo-0.4b/**
+# tech-demo) and in-progress ones (cortex-ignition-0.5) are local-only, same
+# arrangement as editor/archive/legacy-grid/.
 !default/
 !default/**
 !quake-e1m1-geometry/
