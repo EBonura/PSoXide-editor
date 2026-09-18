@@ -15,6 +15,7 @@ use psxed_project::brush_primitives::{self, BrushDrawSettings};
 use psxed_project::brush_world::BrushWorldCookMode;
 use psxed_project::{NodeId, NodeKind, ProjectDocument, ResourceData, ResourceId, Transform3};
 
+use crate::nodes::{find_node, node_kind_from_ron};
 use crate::resolve_scene;
 
 /// A project file plus whatever edits have not been saved yet.
@@ -325,6 +326,139 @@ impl Workspace {
 
 
 
+
+    /// Clone an existing node, with its whole subtree, to a new position.
+    ///
+    /// The subtree is the point: an enemy is a host Entity plus Model
+    /// Renderer, Animator, Character Controller and Camera children, so
+    /// copying the host alone yields something inert. Cloning a working
+    /// example is also how an agent places a kind it has no constructor for.
+    pub fn place_node(
+        &mut self,
+        scene: Option<usize>,
+        source: &str,
+        position: [i32; 3],
+        name: Option<&str>,
+    ) -> Result<String, String> {
+        self.document()?;
+        let scene_index = resolve_scene(&self.doc, scene)?;
+        let scene_doc = &mut self.doc.scenes[scene_index];
+        let source_id = find_node(scene_doc, source)?;
+        let source_node = scene_doc
+            .node(source_id)
+            .ok_or_else(|| format!("node {source:?} vanished"))?;
+        let parent = source_node.parent.unwrap_or(NodeId::ROOT);
+        let label = source_node.kind.label();
+        let new_name = name
+            .map(str::to_string)
+            .unwrap_or_else(|| format!("{} copy", source_node.name));
+
+        let new_id = clone_subtree(scene_doc, source_id, parent, &new_name)?;
+        let copied = count_subtree(scene_doc, new_id);
+        if let Some(node) = scene_doc.node_mut(new_id) {
+            node.transform.translation =
+                [position[0] as f32, position[1] as f32, position[2] as f32];
+        }
+        self.record(format!("place_node {source:?} -> {new_name:?} at {position:?}"));
+        let mut out = format!(
+            "cloned {source:?} ({label}) as {new_name:?} (id {}) at {position:?}: {copied} node(s) \
+             including its component children",
+            new_id.raw()
+        );
+        // A clone copies identity-bearing fields too, and the cook rejects a
+        // reused persistence id outright. Cheaper to say so here than to have
+        // the whole build fail later with no obvious cause.
+        let duplicates = duplicate_persistence_ids(&self.doc.scenes[scene_index]);
+        if !duplicates.is_empty() {
+            let _ = write!(
+                out,
+                "\n\nWARNING: persistence id(s) {} are now used by more than one node. The cook \
+                 REJECTS that. Use get_node on the clone's children (ids are listed) and \
+                 set_node to give it its own id.",
+                duplicates.join(", ")
+            );
+        }
+        Ok(out)
+    }
+
+    /// Replace a node's kind payload from RON text.
+    ///
+    /// The generic escape hatch. There are 28 NodeKind variants and typed
+    /// setters for each would be a lot of code that goes stale; the format
+    /// round-trips, so text is the honest interface. Read with get_node first.
+    pub fn set_node(
+        &mut self,
+        scene: Option<usize>,
+        needle: &str,
+        kind_ron: &str,
+    ) -> Result<String, String> {
+        self.document()?;
+        let scene_index = resolve_scene(&self.doc, scene)?;
+        let scene_doc = &mut self.doc.scenes[scene_index];
+        let id = find_node(scene_doc, needle)?;
+        let parsed = node_kind_from_ron(kind_ron)?;
+        let node = scene_doc
+            .node_mut(id)
+            .ok_or_else(|| format!("node {needle:?} vanished"))?;
+        let was = node.kind.label();
+        let now = parsed.label();
+        if was != now {
+            return Err(format!(
+                "that RON is a {now}, but {needle:?} is a {was}. Changing a node's kind in \
+                 place would orphan its component children; delete it and place a new one."
+            ));
+        }
+        node.kind = parsed;
+        let name = node.name.clone();
+        self.record(format!("set_node {name:?}"));
+        Ok(format!("updated {name:?} ({now})"))
+    }
+
+    /// Move a node to a world position.
+    pub fn move_node(
+        &mut self,
+        scene: Option<usize>,
+        needle: &str,
+        position: [i32; 3],
+    ) -> Result<String, String> {
+        self.document()?;
+        let scene_index = resolve_scene(&self.doc, scene)?;
+        let scene_doc = &mut self.doc.scenes[scene_index];
+        let id = find_node(scene_doc, needle)?;
+        let node = scene_doc
+            .node_mut(id)
+            .ok_or_else(|| format!("node {needle:?} vanished"))?;
+        let from = node.transform.translation;
+        node.transform.translation = [position[0] as f32, position[1] as f32, position[2] as f32];
+        let name = node.name.clone();
+        self.record(format!("move_node {name:?} -> {position:?}"));
+        Ok(format!(
+            "moved {name:?} from [{:.0}, {:.0}, {:.0}] to {position:?}",
+            from[0], from[1], from[2]
+        ))
+    }
+
+    /// Remove a node and its subtree.
+    pub fn delete_node(&mut self, scene: Option<usize>, needle: &str) -> Result<String, String> {
+        self.document()?;
+        let scene_index = resolve_scene(&self.doc, scene)?;
+        let scene_doc = &mut self.doc.scenes[scene_index];
+        let id = find_node(scene_doc, needle)?;
+        if id == NodeId::ROOT {
+            return Err("the scene root cannot be deleted".to_string());
+        }
+        let node = scene_doc
+            .node(id)
+            .ok_or_else(|| format!("node {needle:?} vanished"))?;
+        let name = node.name.clone();
+        let removed = count_subtree(scene_doc, id);
+        if !scene_doc.remove_node(id) {
+            return Err(format!("the scene refused to remove {name:?}"));
+        }
+        self.record(format!("delete_node {name:?}"));
+        Ok(format!("removed {name:?} and its subtree, {removed} node(s)"))
+    }
+
     /// Place a static point light.
     ///
     /// Radius is authored in SECTORS, not world units, unlike every other
@@ -632,6 +766,67 @@ impl Workspace {
         let scene = &mut self.doc.scenes[scene_index];
         Ok(&mut scene.brushes[first..first + count])
     }
+}
+
+
+/// Copy `source` and every descendant under `parent`, returning the new root.
+fn clone_subtree(
+    scene: &mut psxed_project::Scene,
+    source: NodeId,
+    parent: NodeId,
+    name: &str,
+) -> Result<NodeId, String> {
+    let node = scene
+        .node(source)
+        .ok_or_else(|| "the node vanished mid-clone".to_string())?;
+    let kind = node.kind.clone();
+    let transform = node.transform;
+    let floor = node.floor;
+    let children = node.children.clone();
+    let new_id = scene.add_node(parent, name, kind);
+    if let Some(copy) = scene.node_mut(new_id) {
+        copy.transform = transform;
+        copy.floor = floor;
+    }
+    for child in children {
+        // Component children keep their own names: a Model Renderer named
+        // anything else stops reading as one in the scene tree.
+        let child_name = scene
+            .node(child)
+            .map_or_else(String::new, |node| node.name.clone());
+        clone_subtree(scene, child, new_id, &child_name)?;
+    }
+    Ok(new_id)
+}
+
+/// Persistence ids claimed by more than one node, which the cook rejects.
+fn duplicate_persistence_ids(scene: &psxed_project::Scene) -> Vec<String> {
+    let mut seen: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    for node in scene.nodes() {
+        if let NodeKind::PointOfInterest {
+            persistence_id, ..
+        } = &node.kind
+        {
+            if !persistence_id.is_empty() {
+                *seen.entry(persistence_id.clone()).or_default() += 1;
+            }
+        }
+    }
+    seen.into_iter()
+        .filter(|(_, count)| *count > 1)
+        .map(|(id, _)| format!("{id:?}"))
+        .collect()
+}
+
+/// Number of nodes in a subtree, counting its root.
+fn count_subtree(scene: &psxed_project::Scene, id: NodeId) -> usize {
+    scene.node(id).map_or(0, |node| {
+        1 + node
+            .children
+            .iter()
+            .map(|child| count_subtree(scene, *child))
+            .sum::<usize>()
+    })
 }
 
 /// Centre and sweep of a radial [`Workspace::array`].
