@@ -6,7 +6,7 @@
 //!
 //! Usage:
 //!   cargo run -p psxed-ui --example character_animation_reel -- \
-//!     editor/projects/cortex-ignition-tech-demo-0.4b/project.ron /tmp/psoxide-character-reel \
+//!     editor/projects/default/project.ron /tmp/psoxide-character-reel \
 //!     [character-name [clip-name ...]]
 
 use std::fmt::Write as _;

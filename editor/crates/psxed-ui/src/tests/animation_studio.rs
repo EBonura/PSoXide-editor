@@ -2,8 +2,7 @@ use std::path::PathBuf;
 
 use egui::{Pos2, Rect, Vec2};
 use psxed_project::{
-    AnimationPoseCorrectionKey, CharacterAnimationAction, CombatCapsuleRole, ProjectDocument,
-    ResourceData, ResourceId,
+    CharacterAnimationAction, CombatCapsuleRole, ProjectDocument, ResourceData, ResourceId,
 };
 
 use crate::model_animation_viewer::{
@@ -362,7 +361,7 @@ fn space_toggles_animation_playback_without_editing_the_project() {
 #[test]
 fn preview_mode_loads_authored_action_weapons_without_authoring_overlays() {
     let mut workspace = default_workspace();
-    let light_weapon = resource_id(&workspace, "Sword1 Light", |data| {
+    let light_weapon = resource_id(&workspace, "Sword1 Light Energy", |data| {
         matches!(data, ResourceData::Weapon(_))
     });
     assert!(workspace.open_animation_viewer_for_resource(light_weapon));
@@ -701,7 +700,7 @@ fn moveset_matrix_separates_enabled_actions_from_visual_fallbacks() {
 fn weapon_timing_controls_edit_only_the_selected_visibility_beat() {
     let mut workspace = default_workspace();
     let (character_id, model_id, animation_set_id, _) = character_context(&workspace);
-    let weapon_id = resource_id(&workspace, "Sword1 Light", |data| {
+    let weapon_id = resource_id(&workspace, "Sword1 Light Energy", |data| {
         matches!(data, ResourceData::Weapon(_))
     });
     assert!(workspace.open_animation_viewer_for_resource(weapon_id));
@@ -894,7 +893,7 @@ fn weapon_timing_controls_edit_only_the_selected_visibility_beat() {
 fn assign_sword_to_left_hand_uses_the_explicit_hand_control() {
     let mut workspace = default_workspace();
     let (_, _, animation_set_id, _) = character_context(&workspace);
-    let light_weapon = resource_id(&workspace, "Sword1 Light", |data| {
+    let light_weapon = resource_id(&workspace, "Sword1 Light Energy", |data| {
         matches!(data, ResourceData::Weapon(_))
     });
     assert!(workspace.open_animation_viewer_for_resource(light_weapon));
@@ -988,7 +987,7 @@ fn assign_sword_to_left_hand_uses_the_explicit_hand_control() {
 fn pose_and_combat_buttons_write_to_their_own_resources() {
     let mut workspace = default_workspace();
     let (character_id, model_id, animation_set_id, idle_clip_id) = character_context(&workspace);
-    let weapon_id = resource_id(&workspace, "Sword1 Light", |data| {
+    let weapon_id = resource_id(&workspace, "Sword1 Light Energy", |data| {
         matches!(data, ResourceData::Weapon(_))
     });
     let animation_set_before = workspace
@@ -1020,19 +1019,10 @@ fn pose_and_combat_buttons_write_to_their_own_resources() {
     else {
         unreachable!()
     };
-    let mut expected_pose_keys = idle.pose_corrections.clone();
-    assert!(
-        !expected_pose_keys
-            .iter()
-            .any(|key| key.frame == 0 && key.joint == 0),
-        "fixture needs an empty pose cell at frame 0 / joint 0"
-    );
-    expected_pose_keys.push(AnimationPoseCorrectionKey {
-        frame: 0,
-        joint: 0,
-        ..Default::default()
-    });
-    expected_pose_keys.sort_by_key(|key| (key.joint, key.frame));
+    // This test is about which resource each button writes to, not where the
+    // playhead sits: "Add key" lands on the studio's current frame, which
+    // follows the clip's authored start rather than always being zero.
+    let pose_keys_before = idle.pose_corrections.clone();
 
     let (ctx, viewport) = real_egui_workspace_ctx("animation-studio-pose-combat");
     let mut time = 0.0;
@@ -1053,7 +1043,25 @@ fn pose_and_combat_buttons_write_to_their_own_resources() {
     else {
         unreachable!()
     };
-    assert_eq!(idle.pose_corrections, expected_pose_keys);
+    assert_eq!(
+        idle.pose_corrections.len(),
+        pose_keys_before.len() + 1,
+        "Add key must append exactly one pose key to the clip"
+    );
+    let added_key = idle
+        .pose_corrections
+        .iter()
+        .find(|key| !pose_keys_before.contains(key))
+        .expect("the appended pose key");
+    assert_eq!(added_key.joint, 0);
+    assert_eq!(added_key.rotation_q12, [0, 0, 0]);
+    assert_eq!(added_key.translation, [0, 0, 0]);
+    for key in &pose_keys_before {
+        assert!(
+            idle.pose_corrections.contains(key),
+            "adding a pose key must not rewrite the existing ones"
+        );
+    }
     assert_eq!(
         workspace.project().resource(character_id).unwrap().data,
         character_before,
@@ -1134,7 +1142,7 @@ fn pose_and_combat_buttons_write_to_their_own_resources() {
 #[test]
 fn cortex_combo_sections_are_visible_and_can_be_added_without_replacing_the_shape() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../projects/cortex-ignition-tech-demo-0.4b");
+        .join("../../projects/default");
     let project = ProjectDocument::load_from_path(root.join("project.ron")).unwrap();
     let mut workspace = EditorWorkspace::with_project(root, project);
     let character = resource_id(&workspace, "Light Enemy", |data| {
