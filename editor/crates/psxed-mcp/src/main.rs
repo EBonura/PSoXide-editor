@@ -22,6 +22,7 @@ use rmcp::{ErrorData, ServerHandler, ServiceExt};
 use psxed_mcp::audit::{audit, AuditDepth};
 use psxed_mcp::edit::{find_material, RadialArray, Workspace};
 use psxed_mcp::nodes::{entity_types, get_node};
+use psxed_mcp::shot;
 use psxed_mcp::{metrics, plan_view, scene_info, Focus, PlanAxis};
 use psxed_project::brush_primitives::{
     BrushCardinalDirection, BrushDrawSettings, BrushDrawShape,
@@ -31,6 +32,10 @@ use psxed_project::brush_primitives::{
 struct EditorServer {
     /// Edits stage here and reach disk only on `save`.
     workspace: Arc<Mutex<Workspace>>,
+    /// Renderer binary, or None to search the usual target directories.
+    frontend: Option<Arc<PathBuf>>,
+    /// Directory for the renderer's intermediate PPM.
+    scratch: Arc<PathBuf>,
     /// Built by `#[rmcp::tool_router]`; read by the generated handler, not
     /// by this file, so the dead-code pass cannot see the use.
     #[allow(dead_code)]
@@ -162,6 +167,30 @@ struct SetMaterialReq {
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct ScreenshotReq {
+    /// Scene index. Omit for the first scene that has brushes.
+    scene: Option<usize>,
+    /// World point to look at. Omit and give `first`/`count` instead to frame
+    /// a run of brushes, or a `node` to frame an entity.
+    target: Option<[i32; 3]>,
+    /// First brush index to frame, with `count`.
+    first: Option<usize>,
+    /// How many brushes from `first`.
+    count: Option<usize>,
+    /// Node name or id to frame.
+    node: Option<String>,
+    /// How far back to stand, world units. Pulled in automatically when a
+    /// wall is closer than this. Default 3000, or derived from the brushes.
+    distance: Option<i32>,
+    /// Orbit yaw, 4096 per turn. Omit to let the framing pick the heading
+    /// with the most open space, which is what stops the shot landing in a
+    /// wall.
+    yaw: Option<u16>,
+    /// Orbit pitch, 4096 per turn. Small values look slightly upward.
+    pitch: Option<u16>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 struct NodeLookupReq {
     /// Scene index. Omit for the first scene that has brushes.
     scene: Option<usize>,
@@ -253,9 +282,11 @@ struct DeleteReq {
 
 #[rmcp::tool_router]
 impl EditorServer {
-    fn new(workspace: Workspace) -> Self {
+    fn new(workspace: Workspace, frontend: Option<PathBuf>) -> Self {
         Self {
             workspace: Arc::new(Mutex::new(workspace)),
+            frontend: frontend.map(Arc::new),
+            scratch: Arc::new(std::env::temp_dir().join("psxed-mcp")),
             tool_router: Self::tool_router(),
         }
     }
@@ -555,6 +586,84 @@ impl EditorServer {
     }
 
     #[rmcp::tool(
+        description = "Render the editor's 3D preview, framed automatically so the camera never ends up inside a wall. Give a target point, a brush range (first/count), or a node name. Use this to check materials, lighting and mood; use plan_view to judge sizes and layout."
+    )]
+    async fn screenshot(
+        &self,
+        Parameters(ScreenshotReq {
+            scene,
+            target,
+            first,
+            count,
+            node,
+            distance,
+            yaw,
+            pitch,
+        }): Parameters<ScreenshotReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let frontend = shot::find_frontend(self.frontend.as_deref().map(PathBuf::as_path))
+            .map_err(|error| ErrorData::internal_error(error, None))?;
+        let (solved, project_dir) = self.with(|workspace| {
+            if workspace.is_dirty() {
+                return Err(
+                    "there are unsaved staged edits; the renderer reads project.ron from disk,                      so call save first or the shot will show the old geometry"
+                        .to_string(),
+                );
+            }
+            let dir = workspace.root().to_path_buf();
+            let project = workspace.document()?;
+            let (target, derived) = match (target, first, node.as_deref()) {
+                (Some(point), _, _) => (point, distance.unwrap_or(3000)),
+                (None, Some(first), _) => {
+                    let (center, span) =
+                        shot::brush_range_target(project, scene, first, count.unwrap_or(1))?;
+                    (center, distance.unwrap_or(span))
+                }
+                (None, None, Some(needle)) => {
+                    let index = psxed_mcp::resolve_scene(project, scene)?;
+                    let scene_doc = &project.scenes[index];
+                    let id = psxed_mcp::nodes::find_node(scene_doc, needle)?;
+                    let position = scene_doc
+                        .node(id)
+                        .ok_or_else(|| format!("node {needle:?} vanished"))?
+                        .transform
+                        .translation;
+                    (
+                        position.map(|value| value.round() as i32),
+                        distance.unwrap_or(2400),
+                    )
+                }
+                (None, None, None) => {
+                    return Err(
+                        "give a target point, a brush range (first/count), or a node".to_string()
+                    )
+                }
+            };
+            Ok((
+                shot::frame(project, scene, target, derived, yaw, pitch)?,
+                dir,
+            ))
+        })?;
+        let png = shot::render(&frontend, &project_dir, solved, self.scratch.as_path())
+            .map_err(|error| ErrorData::internal_error(error, None))?;
+        let clearance = if solved.clearance.is_finite() {
+            format!("{:.0} units", solved.clearance)
+        } else {
+            "open".to_string()
+        };
+        Ok(CallToolResult::success(vec![
+            ContentBlock::text(format!(
+                "target {:?}, yaw {} pitch {} radius {} (nearest surface behind the eye: {clearance})",
+                solved.target, solved.yaw_q12, solved.pitch_q12, solved.radius
+            )),
+            ContentBlock::image(
+                base64::engine::general_purpose::STANDARD.encode(&png),
+                "image/png".to_string(),
+            ),
+        ]))
+    }
+
+    #[rmcp::tool(
         description = "List the node kinds present in the scene with counts and example names. Start here for entities: enemies, spawn points, cameras, triggers, points of interest and lights are all scene nodes."
     )]
     async fn entity_types(
@@ -827,6 +936,7 @@ fn new_project(dir: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut project = PathBuf::from("editor/projects/default");
     let mut new_at: Option<PathBuf> = None;
+    let mut frontend: Option<PathBuf> = None;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -839,6 +949,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "--new" => {
                 new_at = Some(args.next().map(PathBuf::from).ok_or("--new needs a path")?);
             }
+            "--frontend" => {
+                frontend = Some(
+                    args.next()
+                        .map(PathBuf::from)
+                        .ok_or("--frontend needs a path")?,
+                );
+            }
             other => return Err(format!("unknown argument {other:?}").into()),
         }
     }
@@ -847,7 +964,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     // Fail loudly at startup rather than on every tool call.
     let workspace = Workspace::open(&project)?;
-    let service = EditorServer::new(workspace)
+    let service = EditorServer::new(workspace, frontend)
         .serve((tokio::io::stdin(), tokio::io::stdout()))
         .await?;
     service.waiting().await?;

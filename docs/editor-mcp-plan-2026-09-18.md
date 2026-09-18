@@ -417,11 +417,38 @@ End state of the test project: a colonnaded hall with galleries, a carved
 doorway, an arched opening, stairs, 17 lights and 5 entities. Sealed, no
 geometry defects, cooks clean at 1886 world faces over 231 leaves.
 
-### Still open
+## Phase 6: auto-framed screenshots
 
-Aiming the 3D preview camera is still trial and error, three phases after it
-was first noted. Two shots this session landed inside walls. An auto-framing
-`screenshot` tool that derives the camera from a target's bounds is the fix.
+The camera-aiming problem, open since Phase 1 and the cause of two black
+frames in the Phase 5 run, is fixed. `screenshot` takes a target point, a
+brush range (`first`/`count`) or a node name and solves the camera itself.
+
+**The insight is that the orbit eye is a ray.** It sits at
+`target + radius * [cos_p*sin_y, -sin_p, cos_p*cos_y]`, so `Brush::raycast`
+answers the question that matters directly: how far can the eye pull back
+along this heading before it is inside something. With no yaw or pitch given
+the solver sweeps 8 headings by 6 pitches, measures clearance along each, and
+takes the roomiest.
+
+Rendering stays in the frontend binary, which owns the PSX raster path and a
+headless wgpu device. Pulling that into this crate would make it a 75-second
+build for one function, so the shot is taken by running
+`frontend dump-editor-preview` with the solved camera and re-encoding its PPM.
+
+Two bugs, both caught by tests rather than by looking:
+
+- The first cut scored headings *after* applying the minimum radius, so every
+  cramped heading tied at the floor value and the first one won. A heading
+  with 190 units of room has to lose to one with 2900 even when both clamp to
+  the same radius. Scoring moved before the clamp.
+- The pitch candidates were all below the horizon. A target 64 units above
+  the floor has almost no room underneath it, so framing the Hall Warden put
+  the eye underground. Candidates now straddle the horizon and a test asserts
+  the solved eye stays above a floor plane.
+
+Result on the two shots that failed by hand: the aisle target that returned a
+black frame now returns the best image of the session, and the entity shot
+that went underground now looks down from 2400 units with 3127 of clearance.
 
 ## Risks
 
