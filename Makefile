@@ -322,7 +322,9 @@ ENGINE_EXAMPLE_CARGO_ENV := CARGO_TARGET_DIR=$(EXAMPLE_TARGET_DIR) RUSTFLAGS="-C
 # any checkout path.
 EDITOR_PLAYTEST_GENERATED_FROM_MKISOPSX := ../../engine/examples/editor-playtest/generated
 CDDA_DEMO_TRACK ?= assets/audio/cdda/GONCHAROV.track02.cdda
-GONCHAROV_WAV ?= assets/audio/cdda/GONCHAROV.wav
+# Reconstructed from the CD-DA track on demand rather than tracked: the .cdda
+# already holds the identical PCM, so committing both cost 39 MB for one song.
+GONCHAROV_WAV ?= build/audio/GONCHAROV.wav
 MAGIKAAAAARP_PONG_TRACK ?= assets/audio/cdda/GONCHAROV.track02.cdda
 MAGIKAAAAARP_PONG_SPECTRUM := engine/examples/game-magikaaaaaarp-pong/assets/goncharov_spectrum_16x30hz.bin
 DUCKSTATION_TIMEOUT ?= 45
@@ -524,7 +526,10 @@ game-pong:
 game-magikaaaaaarp-pong:
 	cd engine/examples/game-magikaaaaaarp-pong && $(ENGINE_EXAMPLE_CARGO_ENV) cargo build --release $(PSX_BUILD_FLAGS)
 
-magikaaaaaarp-pong-spectrum:
+$(GONCHAROV_WAV): $(CDDA_DEMO_TRACK) tools/wav_from_cdda.py
+	python3 tools/wav_from_cdda.py $(CDDA_DEMO_TRACK) -o $@
+
+magikaaaaaarp-pong-spectrum: $(GONCHAROV_WAV)
 	$(PSOXIDE_DEV) bake-spectrum $(GONCHAROV_WAV) \
 		-o $(MAGIKAAAAARP_PONG_SPECTRUM) \
 		--fps 30 --bands 16 --seconds 233
