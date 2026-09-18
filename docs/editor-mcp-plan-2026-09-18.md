@@ -284,6 +284,47 @@ the stair block overlaps a pillar. Geometry tools cannot catch that, which is
 the argument for Phase 3's `audit` (`brush_overlap` plus the leak diagnostic
 plus `analyze_pxbsp_draw_cost`).
 
+## Phase 3: shipped
+
+`audit`, in three passes, cheapest first, selected by `depth`:
+
+- `quick` (milliseconds): degenerate brushes, brushes past the extent limit,
+  coplanar face overlaps, off-grid coordinates, untextured faces.
+- `sealing` (adds ~0.1s): the brush-world leak diagnostic. A leak means the
+  engine cannot compute visibility and the whole map falls back to drawing
+  everything, so it is worth its own step.
+- `full` (2.4s on the 244-brush default project): a real cook, its validation
+  errors and warnings, and `analyze_pxbsp_draw_cost` per leaf.
+
+Using it changed its design twice, the same way Phases 1 and 2 went.
+
+**It needed scoping.** The first run on the arena reported 141 coplanar
+overlaps, almost all of them pre-existing in v0.4. An incremental audit
+drowned in the level's own history. `first`/`count` scope the report to the
+work just done, and the overlap search still runs over the whole scene so a
+new wall sharing a plane with an old one is still caught. Scoped to the 36
+arena brushes it reported 13 overlaps, all mine, and the top offenders were
+correct: the entrance arch's outer face is coplanar with the wall it was set
+into.
+
+**It needed to say what it does not check.** `find_brush_face_overlaps` finds
+faces sharing a *plane*, which z-fight. Solids that merely interpenetrate are
+legal here (`BrushContents::precedence` resolves them and the shipped level
+relies on it), so the stair-through-pillar collision from Phase 2 is a
+look-at-it decision rather than an error. The report says so rather than
+letting a clean audit imply more than it means.
+
+### What the shipped level measures at
+
+The full audit on v0.4: 2390 world faces, 4464 base triangles, 347 non-solid
+leaves, sealed, one cook warning (Aletha has no turn clip). The worst
+sightline is leaf 186 at 3933 packet slots near authored
+(18304, 3008, -15360), seeing 2012 faces across 282 leaves.
+
+That is 84% of the entire map visible from one standing position, which is
+the concrete shape of the open-sightline problem behind the measured 16.4 fps
+floor. `audit` makes it a number an edit can be checked against.
+
 ## Risks
 
 **Concurrent edits.** Manny will be in the editor while the agent drives it.

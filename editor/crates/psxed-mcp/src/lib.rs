@@ -10,6 +10,7 @@
 //! agent cannot judge a space from it. [`plan_view`] answers the spatial
 //! question directly instead, by sectioning the authored brush solids.
 
+pub mod audit;
 pub mod edit;
 
 use std::collections::BTreeMap;
