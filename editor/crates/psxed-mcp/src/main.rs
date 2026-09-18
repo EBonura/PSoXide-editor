@@ -21,6 +21,7 @@ use rmcp::{ErrorData, ServerHandler, ServiceExt};
 
 use psxed_mcp::audit::{audit, AuditDepth};
 use psxed_mcp::edit::{find_material, RadialArray, Workspace};
+use psxed_mcp::nodes::{entity_types, get_node};
 use psxed_mcp::{metrics, plan_view, scene_info, Focus, PlanAxis};
 use psxed_project::brush_primitives::{
     BrushCardinalDirection, BrushDrawSettings, BrushDrawShape,
@@ -158,6 +159,47 @@ struct SetMaterialReq {
     material: String,
     /// Only faces pointing this way, e.g. `[0,1,0]` floors, `[0,-1,0]` ceilings.
     normal: Option<[i32; 3]>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct NodeLookupReq {
+    /// Scene index. Omit for the first scene that has brushes.
+    scene: Option<usize>,
+    /// Node name (exact, or a unique substring), or its numeric id.
+    node: String,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct PlaceNodeReq {
+    /// Scene index. Omit for the first scene that has brushes.
+    scene: Option<usize>,
+    /// Node to clone, by name or id. Its whole subtree comes with it.
+    source: String,
+    /// World position `[x, y, z]` for the clone.
+    position: [i32; 3],
+    /// Name for the clone. Defaults to "<source> copy".
+    name: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct SetNodeReq {
+    /// Scene index. Omit for the first scene that has brushes.
+    scene: Option<usize>,
+    /// Node to edit, by name or id.
+    node: String,
+    /// The replacement kind payload as RON, in the form get_node prints. It
+    /// must be the same variant the node already is.
+    kind: String,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct MoveNodeReq {
+    /// Scene index. Omit for the first scene that has brushes.
+    scene: Option<usize>,
+    /// Node to move, by name or id.
+    node: String,
+    /// New world position `[x, y, z]`.
+    position: [i32; 3],
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -507,6 +549,97 @@ impl EditorServer {
     ) -> Result<CallToolResult, ErrorData> {
         let text = self.with(|workspace| {
             let report = workspace.delete(scene, first, count)?;
+            Ok(report + &Self::staged_note(workspace))
+        })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    #[rmcp::tool(
+        description = "List the node kinds present in the scene with counts and example names. Start here for entities: enemies, spawn points, cameras, triggers, points of interest and lights are all scene nodes."
+    )]
+    async fn entity_types(
+        &self,
+        Parameters(SceneReq { scene }): Parameters<SceneReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let text = self.with(|workspace| {
+            let note = Self::staged_note(workspace);
+            let project = workspace.document()?;
+            Ok(entity_types(project, scene)? + &note)
+        })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    #[rmcp::tool(
+        description = "Full detail for one node: kind, world position, rotation, parent, children, and its kind payload as RON. The RON is what set_node takes back."
+    )]
+    async fn get_node(
+        &self,
+        Parameters(NodeLookupReq { scene, node }): Parameters<NodeLookupReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let text = self.with(|workspace| {
+            let note = Self::staged_note(workspace);
+            let project = workspace.document()?;
+            Ok(get_node(project, scene, &node)? + &note)
+        })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    #[rmcp::tool(
+        description = "Clone an existing node, with its whole subtree, to a world position. This is how you place an enemy or any other kind: an enemy is a host Entity plus Model Renderer, Animator and Character Controller children, so copying a working one beats building it from parts."
+    )]
+    async fn place_node(
+        &self,
+        Parameters(PlaceNodeReq {
+            scene,
+            source,
+            position,
+            name,
+        }): Parameters<PlaceNodeReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let text = self.with(|workspace| {
+            let report = workspace.place_node(scene, &source, position, name.as_deref())?;
+            Ok(report + &Self::staged_note(workspace))
+        })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    #[rmcp::tool(
+        description = "Replace a node's kind payload from RON, in the form get_node prints. Covers every field of every node kind; it must stay the same variant."
+    )]
+    async fn set_node(
+        &self,
+        Parameters(SetNodeReq { scene, node, kind }): Parameters<SetNodeReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let text = self.with(|workspace| {
+            let report = workspace.set_node(scene, &node, &kind)?;
+            Ok(report + &Self::staged_note(workspace))
+        })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    #[rmcp::tool(description = "Move a node to a world position.")]
+    async fn move_node(
+        &self,
+        Parameters(MoveNodeReq {
+            scene,
+            node,
+            position,
+        }): Parameters<MoveNodeReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let text = self.with(|workspace| {
+            let report = workspace.move_node(scene, &node, position)?;
+            Ok(report + &Self::staged_note(workspace))
+        })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    #[rmcp::tool(description = "Remove a node and its subtree.")]
+    async fn delete_node(
+        &self,
+        Parameters(NodeLookupReq { scene, node }): Parameters<NodeLookupReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let text = self.with(|workspace| {
+            let report = workspace.delete_node(scene, &node)?;
             Ok(report + &Self::staged_note(workspace))
         })?;
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))

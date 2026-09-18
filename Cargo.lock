@@ -3527,6 +3527,7 @@ dependencies = [
  "image",
  "psxed-project",
  "rmcp",
+ "ron",
  "schemars",
  "serde",
  "serde_json",

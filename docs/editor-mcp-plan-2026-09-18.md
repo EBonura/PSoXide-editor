@@ -379,6 +379,50 @@ the scene at all**. Adding 17 lights took mean frame luminance from 8.4 to
 15.9 and made the colonnade legible. The Draft caveat is real but it was not
 the cause here.
 
+## Phase 5: entities
+
+`entity_types`, `get_node`, `place_node`, `set_node`, `move_node`,
+`delete_node`. This is the TrenchBroom MCP's `fgd_class`/`fgd_classes` idea
+adapted to a project that has no FGD.
+
+**No per-variant schema.** There are 28 `NodeKind` variants and hand-writing
+a typed setter for each is a lot of code that goes stale the first time a
+field is added. `NodeKind` round-trips through serde, so `get_node` prints the
+RON and `set_node` takes it back. One escape hatch covers every variant and
+cannot drift from the format. A test asserts the round trip over every node in
+the starter scene, because if it ever stops holding, every entity tool is
+unsound.
+
+**Creation is cloning.** `place_node` copies a node and its whole subtree. The
+subtree is the point: an enemy is a host Entity plus Model Renderer, Animator
+and Character Controller children, so copying the host alone yields something
+inert. It also means the agent can place a kind it has no constructor for.
+`entity_types` deliberately lists what the project *contains* rather than
+every variant the format allows, because an example you can clone beats a name
+you would have to build from scratch.
+
+### What the dogfood run found
+
+Cloning a Point of Interest produced a cook error: `reuses persistence id`.
+Fixed through `set_node`, and the cook immediately caught the *next* one,
+`reuses unique module name`, because the clone carried a reward item too.
+Cloning duplicates identity-bearing fields, and only the cook knows which
+fields are identities. `place_node` now warns when a persistence id is shared.
+
+Cloned children keep their names, so a scene ends up with nine nodes called
+"Point of Interest" and only an id addresses them. `get_node` now prints child
+ids alongside names, and `place_node` returns the new node's id.
+
+End state of the test project: a colonnaded hall with galleries, a carved
+doorway, an arched opening, stairs, 17 lights and 5 entities. Sealed, no
+geometry defects, cooks clean at 1886 world faces over 231 leaves.
+
+### Still open
+
+Aiming the 3D preview camera is still trial and error, three phases after it
+was first noted. Two shots this session landed inside walls. An auto-framing
+`screenshot` tool that derives the camera from a target's bounds is the fix.
+
 ## Risks
 
 **Concurrent edits.** Manny will be in the editor while the agent drives it.
