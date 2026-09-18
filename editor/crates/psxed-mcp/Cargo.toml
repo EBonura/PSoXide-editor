@@ -1,0 +1,25 @@
+[package]
+name    = "psxed-mcp"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+description = "MCP server exposing PSoXide level authoring to an agent. Read-only tools (Phase 1); bodies are pure functions of a ProjectDocument so they move into the live editor later."
+
+[[bin]]
+name = "psxed-mcp"
+path = "src/main.rs"
+
+[dependencies]
+psxed-project = { workspace = true }
+image         = { workspace = true }
+serde         = { workspace = true }
+serde_json    = { workspace = true }
+rmcp     = { version = "2.1", default-features = false, features = ["server", "macros", "schemars", "transport-io"] }
+schemars = "1"
+base64   = "0.22"
+tokio    = { version = "1", features = ["rt", "macros", "io-std", "sync"] }
+
+[lints]
+workspace = true
