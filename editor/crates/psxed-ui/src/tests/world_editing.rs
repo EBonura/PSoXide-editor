@@ -795,9 +795,9 @@ fn node_gizmo_rotates_image_prop_around_y() {
 }
 
 #[test]
-fn cortex_bridge_group_rotates_around_every_gizmo_axis() {
+fn cortex_group_rotates_around_every_gizmo_axis() {
     let project_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../projects/cortex-ignition-tech-demo-0.2");
+        .join("../../projects/cortex-ignition-tech-demo-0.4b");
     let viewport = Rect::from_min_size(Pos2::ZERO, Vec2::new(1280.0, 720.0));
 
     for axis in [
@@ -807,15 +807,15 @@ fn cortex_bridge_group_rotates_around_every_gizmo_axis() {
     ] {
         let mut workspace = EditorWorkspace::open_directory(&project_dir).unwrap();
         workspace.snap_units = 64;
-        let bridge = workspace
+        let group = workspace
             .project
             .active_scene()
             .nodes()
             .iter()
-            .find(|node| node.name == "bridge")
-            .expect("v0.2 bridge group")
+            .find(|node| node.name == "GroupS")
+            .expect("v0.4b group node")
             .id;
-        workspace.replace_node_selection(bridge);
+        workspace.replace_node_selection(group);
         workspace.transform_gizmo_mode = TransformGizmoMode::Rotate;
         workspace.frame_viewport();
         let before: Vec<_> = workspace
@@ -823,7 +823,7 @@ fn cortex_bridge_group_rotates_around_every_gizmo_axis() {
             .active_scene()
             .brushes
             .iter()
-            .filter(|brush| brush.group == Some(bridge))
+            .filter(|brush| brush.group == Some(group))
             .cloned()
             .collect();
         let ring = workspace
@@ -836,7 +836,7 @@ fn cortex_bridge_group_rotates_around_every_gizmo_axis() {
         workspace
             .interaction
             .node_gizmo_drag_mut()
-            .expect("active bridge drag")
+            .expect("active group drag")
             .current_steps = 90;
         workspace.apply_node_gizmo_drag();
         workspace.end_node_gizmo_drag();
@@ -845,15 +845,15 @@ fn cortex_bridge_group_rotates_around_every_gizmo_axis() {
             .active_scene()
             .brushes
             .iter()
-            .filter(|brush| brush.group == Some(bridge))
+            .filter(|brush| brush.group == Some(group))
             .cloned()
             .collect();
-        assert_ne!(after, before, "{axis:?} rotation changes bridge brushes");
+        assert_ne!(after, before, "{axis:?} rotation changes group brushes");
         assert!(
             after
                 .iter()
                 .all(|brush| brush.solved_vertices_on_grid(64, 0.01)),
-            "{axis:?} rotation keeps every bridge corner on Grid 64"
+            "{axis:?} rotation keeps every group corner on Grid 64"
         );
     }
 }
