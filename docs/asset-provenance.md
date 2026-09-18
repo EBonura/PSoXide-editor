@@ -91,7 +91,7 @@ via the editor's texture cooker (`make assets`).
 | `assets/models/*/*.psxt` (model textures) | See "3D Models" above | (Meshy) | User-owned per Meshy premium plan terms; distributed here under GPL-2.0-or-later |
 | `engine/examples/game-magikaaaaaarp-pong/vendor/magikaaaaaarp_album.jpg` | magikAAAAArp album artwork, provided by the band | magikAAAAArp | Used with magikAAAAArp's permission; keep the authorization on record |
 | `engine/examples/game-magikaaaaaarp-pong/assets/magikaaaaaarp_album.psxt` | Cooked from `magikaaaaaarp_album.jpg` | (derived) | Same as source |
-| `engine/examples/game-magikaaaaaarp-pong/assets/goncharov_spectrum_16x30hz.bin` | Baked 16-band, 30 Hz visualizer table from `assets/audio/cdda/GONCHAROV.wav` via `psoxide-dev bake-spectrum` | (derived) | Same as source |
+| `engine/examples/game-magikaaaaaarp-pong/assets/goncharov_spectrum_16x30hz.bin` | Baked 16-band, 30 Hz visualizer table via `psoxide-dev bake-spectrum`, from the WAV `make magikaaaaaarp-pong-spectrum` reconstructs out of `assets/audio/cdda/GONCHAROV.track02.cdda` | (derived) | Same as source |
 
 The Pexels License (https://www.pexels.com/license/) permits free
 commercial and non-commercial use, modification, and redistribution;
@@ -139,8 +139,8 @@ See [`sdk/crates/psx-spu/vendor/PROVENANCE.md`](../sdk/crates/psx-spu/vendor/PRO
 
 | File | Source | Author | License |
 | --- | --- | --- | --- |
-| `assets/audio/cdda/GONCHAROV.wav` | Cooked from `local-assets/audio/goncharov-source.mp3` (magikAAAAArp track) | magikAAAAArp | Used with magikAAAAArp's permission; keep the authorization on record |
-| `assets/audio/cdda/GONCHAROV.track02.cdda` | Cooked from `GONCHAROV.wav` as 44.1 kHz stereo signed 16-bit PCM, sector-padded for CD-DA track 2 | (derived) | Same as source |
+| `assets/audio/cdda/GONCHAROV.wav` | Cooked from `local-assets/audio/goncharov-source.mp3` (magikAAAAArp track). No longer tracked: the `.track02.cdda` below holds the identical PCM, and `tools/wav_from_cdda.py` rebuilds this on demand | magikAAAAArp | Used with magikAAAAArp's permission; keep the authorization on record |
+| `assets/audio/cdda/GONCHAROV.track02.cdda` | Cooked from `GONCHAROV.wav` as 44.1 kHz stereo signed 16-bit PCM, sector-padded for CD-DA track 2. The tracked form of the magikAAAAArp track, so the permission above covers it | magikAAAAArp | Used with magikAAAAArp's permission; keep the authorization on record |
 
 ## OBJ Reference Models
 

@@ -8,7 +8,8 @@ visuals, stop at poll 5250 on the next display flip) unless stated. Bus
 cycles are the primary metric because they include every RAM, cache and
 multiply stall the emulator models.
 
-Evidence folder: `docs/overnight-perf-2026-09-02/` (tape-end pairs at
+Evidence folder: `docs/overnight-perf-2026-09-02/`, kept local-only and not
+tracked (15.1 MB of captures). Tape-end pairs at
 4x, the grounding side-view pair, the start and end bench summaries).
 
 ## Where the cycles went (baseline, main at 53a6337c)

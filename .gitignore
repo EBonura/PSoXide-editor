@@ -97,3 +97,7 @@ __pycache__/
 /emu/crates/psoxide-validation
 /emu/crates/psx-gpu-render
 /tools/sdk-examples.mk
+
+# Perf evidence folders: large PNG/CSV captures kept locally beside their
+# write-up, never pushed. The write-ups themselves stay tracked.
+/docs/overnight-perf-2026-09-02/
