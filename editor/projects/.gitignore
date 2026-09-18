@@ -1,21 +1,25 @@
 *
 !.gitignore
-!default/
-!default/**
-!tech-demo/
-!tech-demo/**
-!mantis/
-!mantis/**
-!cortex-ignition-tech-demo-0.2/
-!cortex-ignition-tech-demo-0.2/**
-!cortex-ignition-tech-demo-0.3/
-!cortex-ignition-tech-demo-0.3/**
-!cortex-ignition-tech-demo-0.4/
-!cortex-ignition-tech-demo-0.4/**
+
+# Everything here is ignored by default. Only three projects are tracked, and a
+# new project stays local unless it is added below on purpose.
+#
+#   cortex-ignition-tech-demo-0.4b  the shipped convention build
+#   default                         the New Project template; its project.ron is
+#                                   include_str!'d into psxed-project and its
+#                                   starter assets are copied into every new
+#                                   project, so the build needs it on disk
+#   quake-e1m1-geometry             brush/workspace test fixture
+#
+# Superseded level projects (0.2, 0.3, 0.4, null-choir-texture-kit, mantis,
+# tech-demo) are local-only archives, same arrangement as
+# editor/archive/legacy-grid/.
 !cortex-ignition-tech-demo-0.4b/
 !cortex-ignition-tech-demo-0.4b/**
-!null-choir-texture-kit/
-!null-choir-texture-kit/**
+!default/
+!default/**
+!quake-e1m1-geometry/
+!quake-e1m1-geometry/**
 
 # Animation-generation auditions and review renders are local working inputs.
 # Cooked runtime clips under assets/animations remain tracked.

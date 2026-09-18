@@ -3050,7 +3050,7 @@ mod tests {
     #[test]
     fn tracked_light_enemy_equipment_and_capsule_render_together() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
-        let project_root = root.join("editor/projects/cortex-ignition-tech-demo-0.3");
+        let project_root = root.join("editor/projects/cortex-ignition-tech-demo-0.4b");
         let model = std::fs::read(
             project_root.join("assets/models/rust_mantis_clawless/rust_mantis_clawless.psxmdl"),
         )
@@ -3150,7 +3150,7 @@ mod tests {
     #[test]
     fn tracked_light_enemy_claw_capsule_renders_at_runtime_scale() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
-        let project_root = root.join("editor/projects/cortex-ignition-tech-demo-0.3");
+        let project_root = root.join("editor/projects/cortex-ignition-tech-demo-0.4b");
         let model =
             std::fs::read(project_root.join("assets/models/rust_mantis/rust_mantis.psxmdl"))
                 .expect("tracked claw Light Enemy model");
