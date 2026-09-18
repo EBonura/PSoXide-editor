@@ -40,9 +40,10 @@ Result: the render path works, but **neither existing view is usable for
 spatial reasoning as-is**.
 
 - The 3D preview is legible as *mood* and nearly useless as *measurement*.
-  Cortex is a night-time city level; in Draft cook mode everything is
-  fullbright, so what you see is the raw texture albedo, which is very dark.
-  Volumes read as black masses.
+  Cortex is a night-time city level and volumes read as black masses.
+  (The cause attributed here at first, Draft fullbright, was wrong: the
+  project cooks in Release and the darkness is the Release ambient with too
+  few lights. See the Correction under Phase 4. The conclusion stands.)
 - Aiming it is trial and error. Yaw/pitch/radius/target are six numbers with
   no framing helper, so getting a useful shot takes several attempts.
 - `dump-editor-ui --view top` exposes no camera arguments at all. It opens at
@@ -127,6 +128,12 @@ r > step / (2 * sin(pi / n))
 On the map's 64 grid an octagon needs radius >= 84, meaning a footprint of at
 least 168 units. The tool checks this up front and says "6 sides at this
 radius, or widen to 168" instead of returning a mangled solid.
+
+> **This reasoning is wrong.** A test disproved it; see "The chord rule was
+> wrong" under Phase 2. The chord condition is necessary and not sufficient,
+> the real minimum on a 64 grid is a 384 footprint, and the tool searches by
+> building rather than by formula. Kept here because the wrong derivation is
+> the instinctive one and worth recognising.
 
 Arch geometry facts an agent cannot guess and the tool must surface:
 `radius = width/2` and `vertical_radius = min(radius, height)`, so an arch in
