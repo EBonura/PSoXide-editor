@@ -18,6 +18,7 @@ use base64::Engine as _;
 use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{ErrorData, ServerHandler, ServiceExt};
 
+use psxed_mcp::audit::{audit, AuditDepth};
 use psxed_mcp::edit::{find_material, RadialArray, Workspace};
 use psxed_mcp::{metrics, plan_view, scene_info, Focus, PlanAxis};
 use psxed_project::brush_primitives::{
@@ -139,6 +140,22 @@ struct SetMaterialReq {
     material: String,
     /// Only faces pointing this way, e.g. `[0,1,0]` floors, `[0,-1,0]` ceilings.
     normal: Option<[i32; 3]>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct AuditReq {
+    /// Scene index. Omit for the first scene that has brushes.
+    scene: Option<usize>,
+    /// `quick` (geometry, milliseconds), `sealing` (adds the leak check), or
+    /// `full` (adds a cook and per-leaf draw cost, seconds). Default quick.
+    depth: Option<String>,
+    /// Grid to check alignment against, default 64.
+    grid: Option<i32>,
+    /// First brush index to audit. With `count`, scopes the report to the
+    /// work just done instead of the whole level's history.
+    first: Option<usize>,
+    /// How many brushes from `first`.
+    count: Option<usize>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -433,6 +450,35 @@ impl EditorServer {
     }
 
     #[rmcp::tool(
+        description = "Check the scene for the defects a geometry tool reports as success: coplanar faces that will z-fight, degenerate brushes, coordinates off the working grid, untextured faces, a leak to the void, and the per-leaf PS1 draw cost. Run `quick` after every structural change and `full` before calling a section done."
+    )]
+    async fn audit(
+        &self,
+        Parameters(AuditReq {
+            scene,
+            depth,
+            grid,
+            first,
+            count,
+        }): Parameters<AuditReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let depth = AuditDepth::parse(depth.as_deref().unwrap_or("quick"))
+            .map_err(|error| ErrorData::invalid_params(error, None))?;
+        let text = self.with(|workspace| {
+            let note = Self::staged_note(workspace);
+            let root = workspace.root().to_path_buf();
+            let project = workspace.document()?;
+            let range = match (first, count) {
+                (Some(first), Some(count)) => Some((first, count)),
+                (Some(first), None) => Some((first, usize::MAX)),
+                _ => None,
+            };
+            Ok(audit(project, &root, scene, depth, grid.unwrap_or(GRID_STEP), range)? + &note)
+        })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    #[rmcp::tool(
         description = "List the project's materials, so a name can be passed to add_shape or set_material."
     )]
     async fn materials(&self) -> Result<CallToolResult, ErrorData> {
@@ -466,7 +512,7 @@ impl EditorServer {
 #[rmcp::tool_handler(
     name = "psoxide-editor",
     version = "0.1.0",
-    instructions = "PSoXide level authoring, in authored editor units. Work in a loop: READ, ACT, VERIFY. \n\nREAD first. `metrics` carries the unit scale, the player's size, the 64-unit working grid, the ceiling heights that actually shipped, and the footprint each pillar side-count needs; call it before inventing any dimension. `scene_info` gives the scene's extents and its candidate floor levels. `materials` lists what you can texture with.\n\nACT with `add_shape`, `make_room`, `array`, `set_material` and `delete`. Every shape reports the brushes and faces it really produced, and warns when grid snapping cost it sides or segments, so read the result instead of assuming. Rooms are authored by their INTERIOR. Give every face a material: untextured faces cook, they just look wrong.\n\nVERIFY with `plan_view`, not a 3D render: the level is dark night-time art rendered at fullbright, so volumes read as black masses in perspective. Section a floor plan at a candidate floor level plus 512, pass `center` and `extent` to frame one space at human scale, and check a `front` or `side` section before trusting a height.\n\nEdits stage in memory. Nothing reaches project.ron until `save`, which refuses if the editor saved over the file meanwhile. Watch draw cost as you go: an n-sided pillar is n+2 faces and an arch is segments+2 brushes, so a long arcade in one sightline is what makes a level unshippable on PS1."
+    instructions = "PSoXide level authoring, in authored editor units. Work in a loop: READ, ACT, VERIFY.\n\nREAD first. `metrics` carries the unit scale, the player's size, the 64-unit working grid, the ceiling heights that actually shipped, and the footprint each pillar side-count needs; call it before inventing any dimension. `scene_info` gives the scene's extents and its candidate floor levels. `materials` lists what you can texture with.\n\nACT with `add_shape`, `make_room`, `array`, `set_material` and `delete`. Every shape reports the brushes and faces it really produced, and warns when grid snapping cost it sides or segments, so read the result instead of assuming. Rooms are authored by their INTERIOR. Give every face a material: untextured faces still cook, they just look wrong. Note the first/count each call returns; the later tools take them.\n\nVERIFY two ways, and do both. `audit` scoped to the brushes you just added (pass first and count) catches coplanar faces that will z-fight, off-grid coordinates and untextured faces in milliseconds; run it after every structural change. `plan_view` is how you judge the SPACE: section a floor plan at a candidate floor level plus 512, pass center and extent to frame one room at human scale, and check a front or side section before trusting a height. Do not reach for a 3D render, the level is dark night-time art at fullbright and volumes read as black masses in perspective.\n\nBefore calling a section done, run `audit` at depth full. It cooks the map and reports the per-leaf PS1 draw cost. Watch the worst leaf's packet slots: if that number climbed after your edit, the edit opened a sightline, and the fix is to break the sightline with geometry rather than to delete detail. An n-sided pillar is n+2 faces and an arch is segments+2 brushes, so a long arcade down an open hall is exactly what makes a level unshippable.\n\nEdits stage in memory. Nothing reaches project.ron until `save`, which refuses if the editor saved over the file meanwhile."
 )]
 impl ServerHandler for EditorServer {}
 

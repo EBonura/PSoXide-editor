@@ -68,6 +68,11 @@ impl Workspace {
         Ok(&self.doc)
     }
 
+    /// Directory the project file sits in, which asset paths resolve against.
+    pub fn root(&self) -> &Path {
+        self.path.parent().unwrap_or(Path::new("."))
+    }
+
     /// Whether anything is staged.
     pub const fn is_dirty(&self) -> bool {
         self.dirty
