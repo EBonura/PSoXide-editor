@@ -12,6 +12,7 @@
 
 pub mod audit;
 pub mod edit;
+pub mod inspect;
 pub mod nodes;
 pub mod play;
 pub mod shot;
@@ -146,8 +147,10 @@ pub fn metrics(project: Option<&ProjectDocument>) -> String {
         out,
         "All level authoring is in EDITOR units. The cook divides every length\n\
          by {WORLD_UNIT_DIVISOR} to reach Quake/runtime units, so 1 Quake unit =\n\
-         {UNITS_PER_TEXEL} editor units = 1 texel. A 64x64 texture tiles every\n\
-         {} editor units.\n",
+         {UNITS_PER_TEXEL} editor units = 1 texel. A 64x64 texture therefore\n\
+         tiles every {} editor units -- but materials are NOT all 64x64 (this\n\
+         project also ships 1536x256 sky atlases and 16x16 UI tiles), so call\n\
+         `materials` for the real per-material tile size instead of assuming.\n",
         64 * UNITS_PER_TEXEL
     );
     out.push_str("\n## Reference bodies\n\n");

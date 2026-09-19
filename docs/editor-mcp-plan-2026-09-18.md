@@ -509,6 +509,46 @@ the Phase 4 project where a hall silently contributed nothing, it flags all 40
 brushes and prints the cooked world stopping at X 49920 while the hall sat at
 61440. No false positive on a project that cooks correctly.
 
+## Phase 8: the imports from Blender and TrenchBroom
+
+A second read of both servers produced five gaps worth closing. Most of their
+surface was already covered, sometimes better: `set_node` generalises
+`set_entity_properties`, `add_shape` generalises `add_brush_box`, and
+`entity_types` plus `get_node` beat `fgd_classes` because real instances are
+better documentation than a field list.
+
+| Added | Modelled on | Why |
+| --- | --- | --- |
+| `get_brush` | Blender `get_object_info` | The clearest hole. Nothing described a single brush, so every index-addressed call was a guess |
+| `set_face_uv` | neither exposes it | `FaceUv` is in the format and was unreachable. This is what makes a texture fit a wall rather than land arbitrarily |
+| `materials` with tile sizes | Blender `describe_node_type` | The project stores `psxt_path` and no dimensions; the real size is in the cooked `.psxt` header |
+| `undo_last_edit`, `list_backups` | TB `undo_last_edit` | Staging covered a bad edit before it landed, nothing covered one after |
+| `status` | Blender `get_addon_status` | Blender's instructions say call it before writing code; stale-binary confusion had already cost time twice |
+
+Deliberately skipped: `execute_blender_code` (no scripting runtime, and
+`set_node` covers entities), the Poly Haven / Sketchfab / Hyper3D asset and
+generation tools (PS1 needs aggressive decimation and prop sourcing is not the
+bottleneck), `export_scene`, and `compile_shogo_map`.
+
+### What the material table immediately disproved
+
+`metrics` claimed a 64x64 texture tiling every 1024 units as though it were
+the rule. The real distribution in this project: eleven 64x64 materials (the
+level kit, where the claim holds), sixteen 16x16 UI tiles, three 320x240
+menu images, two 1536x256 sky atlases, and assorted one-offs. UV reasoning had
+been resting on an assumption that is only true for the materials one happens
+to build walls with. `metrics` now says so and points at `materials`.
+
+### A hang that was a panic
+
+`get_brush` hung the client whenever a face carried a scale above about 128%.
+`scale_q8` is an `i16` and 200% is 512, so formatting it as `512 * 100 / 256`
+overflowed and panicked the tool handler. A panicked handler never sends a
+reply, so the client waits forever rather than seeing an error: the symptom
+looks like a hang and the cause is an arithmetic bug three layers down. Fixed
+by widening before the multiply, with a regression test at 200% and 1600%, and
+`set_face_uv` now clamps the percentage before scaling it.
+
 ## Risks
 
 **Concurrent edits.** Manny will be in the editor while the agent drives it.
