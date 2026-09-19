@@ -33,6 +33,12 @@ pub const PLAYER_RADIUS: i32 = 188;
 pub const PLAYER_HEIGHT: i32 = 1024;
 /// World sector size in the shipped default project; the natural major grid.
 pub const SECTOR: i32 = 1024;
+/// Tallest ledge the character motor will climb, in authored units.
+///
+/// `STEP_UP_HEIGHT` is 40 engine units in `psx-engine/src/character_motor.rs`;
+/// authored is that times [`WORLD_UNIT_DIVISOR`]. There is no jump, so this is
+/// the hard ceiling on every riser and lip in a level.
+pub const STEP_UP_AUTHORED: i32 = 40 * WORLD_UNIT_DIVISOR;
 
 /// Which pair of world axes a [`plan_view`] plots, and which it cuts along.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -162,6 +168,19 @@ pub fn metrics(project: Option<&ProjectDocument>) -> String {
     out.push_str("- heavy enemy: radius 320, height 1741\n");
     out.push_str("- gameplay camera: distance 3500, height 1800, target height 1160\n");
     out.push_str("- gravity 96 units/tick^2; world sector 1024; draw distance 25000\n");
+
+    out.push_str("\n## Traversal\n\n");
+    let _ = writeln!(
+        out,
+        "- max step-up: {STEP_UP_AUTHORED} authored units. A ledge taller than this \n\
+         \x20 stops the player dead, because there is no jump. Stair risers must stay\n\
+         \x20 under it, and so must any lip between a floor and a walkway.\n\
+         - that is {:.2} player heights, so the tallest climbable ledge is roughly\n\
+         \x20 knee height on the character.\n\
+         - size every ledge, gap and doorway in these units before building the\n\
+         \x20 geometry, then prove it with walk_test rather than assuming.",
+        f64::from(STEP_UP_AUTHORED) / f64::from(PLAYER_HEIGHT)
+    );
 
     out.push_str("\n## Working grid\n\n");
     out.push_str(

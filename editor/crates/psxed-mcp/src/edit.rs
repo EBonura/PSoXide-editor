@@ -488,6 +488,136 @@ impl Workspace {
         ))
     }
 
+
+    /// Put a run of brushes in a named group, creating it if needed.
+    ///
+    /// Blockout practice calls these labelled spaces, and they solve a
+    /// mechanical problem too: every carve and delete shifts brush indices, so
+    /// a range noted a few edits ago is already wrong. A group name survives
+    /// edits and can be resolved back to current indices.
+    pub fn group_brushes(
+        &mut self,
+        scene: Option<usize>,
+        first: usize,
+        count: usize,
+        name: &str,
+    ) -> Result<String, String> {
+        self.document()?;
+        let scene_index = resolve_scene(&self.doc, scene)?;
+        if name.trim().is_empty() {
+            return Err("give the group a name".to_string());
+        }
+        self.brush_slice(scene_index, first, count)?;
+        let scene_doc = &mut self.doc.scenes[scene_index];
+        let existing = scene_doc
+            .nodes()
+            .iter()
+            .find(|node| node.name == name && matches!(node.kind, NodeKind::Group))
+            .map(|node| node.id);
+        let id = match existing {
+            Some(id) => id,
+            None => scene_doc.add_node(NodeId::ROOT, name.to_string(), NodeKind::Group),
+        };
+        for brush in scene_doc.brushes[first..first + count].iter_mut() {
+            brush.group = Some(id);
+        }
+        self.record(format!("group_brushes {first}..{} as {name:?}", first + count));
+        Ok(format!(
+            "put {count} brush(es) in group {name:?}. Pass that name as `group` to \
+             array, set_material, set_face_uv, audit, screenshot or delete instead of \
+             an index range that goes stale as soon as you carve or delete."
+        ))
+    }
+
+    /// Current indices of the brushes in a named group.
+    pub fn group_range(&mut self, scene: Option<usize>, name: &str) -> Result<Vec<usize>, String> {
+        self.document()?;
+        let scene_index = resolve_scene(&self.doc, scene)?;
+        let scene_doc = &self.doc.scenes[scene_index];
+        let id = scene_doc
+            .nodes()
+            .iter()
+            .find(|node| node.name == name && matches!(node.kind, NodeKind::Group))
+            .map(|node| node.id)
+            .ok_or_else(|| {
+                let names: Vec<_> = scene_doc
+                    .nodes()
+                    .iter()
+                    .filter(|node| matches!(node.kind, NodeKind::Group))
+                    .map(|node| format!("{:?}", node.name))
+                    .collect();
+                if names.is_empty() {
+                    format!("no group named {name:?}; the scene has none yet")
+                } else {
+                    format!("no group named {name:?}; the scene has {}", names.join(", "))
+                }
+            })?;
+        let members: Vec<usize> = scene_doc
+            .brushes
+            .iter()
+            .enumerate()
+            .filter(|(_, brush)| brush.group == Some(id))
+            .map(|(index, _)| index)
+            .collect();
+        if members.is_empty() {
+            return Err(format!("group {name:?} has no brushes left in it"));
+        }
+        Ok(members)
+    }
+
+    /// Every named group with its current brush count and bounds.
+    pub fn groups(&mut self, scene: Option<usize>) -> Result<String, String> {
+        use psxed_project::brush::Brush as _Brush;
+        let scene_index = resolve_scene(self.document()?, scene)?;
+        let scene_doc = &self.doc.scenes[scene_index];
+        let mut out = String::new();
+        let mut any = false;
+        for node in scene_doc.nodes() {
+            if !matches!(node.kind, NodeKind::Group) {
+                continue;
+            }
+            let members: Vec<_> = scene_doc
+                .brushes
+                .iter()
+                .enumerate()
+                .filter(|(_, brush)| brush.group == Some(node.id))
+                .collect();
+            if members.is_empty() {
+                continue;
+            }
+            any = true;
+            let (min, max) = members.iter().map(|(_, brush)| _Brush::solve(brush)).fold(
+                ([f64::MAX; 3], [f64::MIN; 3]),
+                |(lo, hi), solved| {
+                    (
+                        std::array::from_fn(|a| lo[a].min(solved.min[a])),
+                        std::array::from_fn(|a| hi[a].max(solved.max[a])),
+                    )
+                },
+            );
+            let centre: Vec<i32> = (0..3)
+                .map(|a| ((min[a] + max[a]) * 0.5).round() as i32)
+                .collect();
+            let _ = writeln!(
+                out,
+                "- {:?}: {} brushes, centre [{}, {}, {}], size {:.0} x {:.0} x {:.0}",
+                node.name,
+                members.len(),
+                centre[0],
+                centre[1],
+                centre[2],
+                max[0] - min[0],
+                max[1] - min[1],
+                max[2] - min[2]
+            );
+        }
+        Ok(if any {
+            format!("Named spaces:\n{out}")
+        } else {
+            "no named groups yet; group_brushes creates them".to_string()
+        })
+    }
+
     /// Clone an existing node, with its whole subtree, to a new position.
     ///
     /// The subtree is the point: an enemy is a host Entity plus Model

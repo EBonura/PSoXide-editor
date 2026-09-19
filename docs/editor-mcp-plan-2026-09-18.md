@@ -549,6 +549,58 @@ looks like a hang and the cause is an arithmetic bug three layers down. Fixed
 by widening before the multiply, with a regression test at 200% and 1600%, and
 `set_face_uv` now clamps the percentage before scaling it.
 
+## Phase 9: greyboxing discipline
+
+What these tools do is greyboxing, with one difference that matters: the
+blockout IS the shipped geometry. Brushes are the final surfaces and
+`set_material` textures them in place.
+
+That removes the trap every source warns about. The expensive lesson teams
+report is building the level twice, once as a greybox that plays well and
+again in the art kit, breaking metrics and sightlines and then spending weeks
+re-fixing gameplay that already worked. There is no second build here, so the
+blockout can be more committal than the industry default.
+
+The `gamedev-skills/level-design` agent skill encodes the discipline
+(metrics-first, critical path, tension/rest pacing, teach-then-test). It is
+design judgement and these tools are measurement, so reference it rather than
+duplicating it. Checked against it, three gaps were real.
+
+**Traversal metrics were missing.** `metrics` carried body dimensions and
+nothing about movement. `STEP_UP_HEIGHT` is 40 engine units in
+`psx-engine/src/character_motor.rs`, so **640 authored units** is the tallest
+ledge the player can climb, and there is no jump. A nine-step staircase was
+built earlier in this document without ever checking its risers against a
+number that was not exposed.
+
+**Reachability could not be checked.** The practice calls it essential and the
+only way to answer it was a three-minute `playtest`. `walk_test` runs the
+engine's own collision instead: `commit_body_step_with_trace_provider` against
+a resident PXBSP, the same call the runtime makes to move a character. A gap
+it refuses is a gap the game refuses.
+
+Proven against a purpose-built room:
+
+| case | result |
+| --- | --- |
+| solid wall across the route | BLOCKED at the wall |
+| 1024-wide doorway (player is 376 wide) | REACHED |
+| 256-wide doorway | BLOCKED |
+| ledge at exactly 640 | REACHED |
+| ledge at 896 | BLOCKED |
+
+The last two confirm the step-up constant independently of the source it was
+read from.
+
+**Spaces had no names.** "Labelled spaces" is in the practice, and it fixes a
+mechanical problem too: every `carve` and `delete` shifts brush indices, so a
+range noted a few edits ago is already wrong. `group_brushes` and `groups`
+give a space a name that survives editing, with its current centre and size.
+
+One caveat worth keeping, from the Level Design Book: on *Firewatch* the team
+found blockout did not tell them whether the experience worked, and only an
+art-passed vertical slice did. Blockout validates space and flow, not feel.
+
 ## Risks
 
 **Concurrent edits.** Manny will be in the editor while the agent drives it.
