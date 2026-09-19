@@ -450,6 +450,38 @@ Result on the two shots that failed by hand: the aisle target that returned a
 black frame now returns the best image of the session, and the entity shot
 that went underground now looks down from 2400 units with 3127 of clearance.
 
+## Phase 7: playtest
+
+`playtest` cooks the project to a real CUE/BIN disc, boots it in the emulator
+and returns the final frame. Cooking proves a level is valid; it says nothing
+about whether it runs, and this is the one thing the TrenchBroom MCP has
+(`compile_map`, `launch_map`) that `audit` could not cover.
+
+The whole chain already existed: `build-project-disc` and `launch
+--embedded-playtest`. What was missing was knowing how to drive it, and two
+facts decide the tool's shape:
+
+**Every project boots to a menu.** A run with no input sits on the title
+screen forever and reads as a hang. There is also a second splash mid-load
+that waits on CROSS, which is the "loading stall" that has been misdiagnosed
+before. The default schedule taps CROSS every 240 ticks so a caller who just
+wants to see their level does not have to know the flow.
+
+**`port1-polls` is the health signal.** A poll is one simulation tick, so a
+run reporting a few hundred polls never reached gameplay whatever else it
+printed. It is reported first, and a run far short of its request says plainly
+that it probably stalled on a screen rather than crashed. Measured on the test
+hall: 900 polls is the title screen, 2600 is the mid-load splash, 5200 is the
+first world message, 7000 is gameplay.
+
+Timing is honest rather than hidden: about a minute to build the 27 MB disc
+and two to run 7000 polls. `skip_build` reuses the last disc.
+
+Run on the MCP-authored hall: 7000 of 7000 polls, `combat music:on`, and a
+final frame showing an Intake Custodian mid-attack with the player's HRZ bar
+partly drained. The level built in this document is playable on an emulated
+PlayStation.
+
 ## Risks
 
 **Concurrent edits.** Manny will be in the editor while the agent drives it.

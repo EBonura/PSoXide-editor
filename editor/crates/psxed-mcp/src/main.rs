@@ -22,6 +22,7 @@ use rmcp::{ErrorData, ServerHandler, ServiceExt};
 use psxed_mcp::audit::{audit, AuditDepth};
 use psxed_mcp::edit::{find_material, RadialArray, Workspace};
 use psxed_mcp::nodes::{entity_types, get_node};
+use psxed_mcp::play;
 use psxed_mcp::shot;
 use psxed_mcp::{metrics, plan_view, scene_info, Focus, PlanAxis};
 use psxed_project::brush_primitives::{
@@ -164,6 +165,24 @@ struct SetMaterialReq {
     material: String,
     /// Only faces pointing this way, e.g. `[0,1,0]` floors, `[0,-1,0]` ceilings.
     normal: Option<[i32; 3]>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct PlaytestReq {
+    /// Controller polls to run for. One poll is one simulation tick. Under
+    /// about 3000 the run is still in the menu and loading flow; 7000 reaches
+    /// gameplay. Default 7000.
+    polls: Option<u32>,
+    /// Skip the disc build and run the last one. Default false; the build
+    /// takes about a minute and the run a further two.
+    skip_build: Option<bool>,
+    /// Button schedule, `tick:button[:hold]` comma separated. Defaults to
+    /// tapping cross through the title, the world message and the mid-load
+    /// splash, all of which wait on it.
+    press: Option<String>,
+    /// Hold the left stick forward, to walk into the level rather than
+    /// standing on the spawn. Default true.
+    walk: Option<bool>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -583,6 +602,67 @@ impl EditorServer {
             Ok(report + &Self::staged_note(workspace))
         })?;
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    #[rmcp::tool(
+        description = "Cook the project to a real PS1 disc, boot it in the emulator, and return the final frame. This is the only check that the level actually RUNS rather than merely cooking. Slow: about a minute to build and two to run. Read port1-polls in the result first; a run far short of the request stalled on a screen waiting for input."
+    )]
+    async fn playtest(
+        &self,
+        Parameters(PlaytestReq {
+            polls,
+            skip_build,
+            press,
+            walk,
+        }): Parameters<PlaytestReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let frontend = shot::find_frontend(self.frontend.as_deref().map(PathBuf::as_path))
+            .map_err(|error| ErrorData::internal_error(error, None))?;
+        let project_dir = self.with(|workspace| {
+            if workspace.is_dirty() {
+                return Err(
+                    "there are unsaved staged edits; the disc is built from project.ron on                      disk, so call save first or you will playtest the old level"
+                        .to_string(),
+                );
+            }
+            Ok(workspace.root().to_path_buf())
+        })?;
+        let polls = polls.unwrap_or(7000).clamp(300, 60_000);
+        let schedule = press.unwrap_or_else(|| play::menu_press_schedule(polls.min(5200)));
+
+        let cue = if skip_build.unwrap_or(false) {
+            play::last_cue(&project_dir).map_err(|error| ErrorData::internal_error(error, None))?
+        } else {
+            play::build_disc(&frontend, &project_dir)
+                .map_err(|error| ErrorData::internal_error(error, None))?
+        };
+        let dump = self.scratch.join("playtest.ppm");
+        let report = play::run_disc(
+            &frontend,
+            &cue,
+            &dump,
+            polls,
+            &schedule,
+            walk.unwrap_or(true),
+        )
+        .map_err(|error| ErrorData::internal_error(error, None))?;
+        let png = std::fs::read(&dump)
+            .map_err(|error| ErrorData::internal_error(format!("read the dumped frame: {error}"), None))
+            .and_then(|raw| {
+                shot::png_from_ppm(&raw).map_err(|error| ErrorData::internal_error(error, None))
+            })?;
+        let _ = std::fs::remove_file(&dump);
+        Ok(CallToolResult::success(vec![
+            ContentBlock::text(format!(
+                "{}\ndisc: {}",
+                report.summary(polls),
+                cue.display()
+            )),
+            ContentBlock::image(
+                base64::engine::general_purpose::STANDARD.encode(&png),
+                "image/png".to_string(),
+            ),
+        ]))
     }
 
     #[rmcp::tool(

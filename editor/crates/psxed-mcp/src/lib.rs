@@ -13,6 +13,7 @@
 pub mod audit;
 pub mod edit;
 pub mod nodes;
+pub mod play;
 pub mod shot;
 
 use std::collections::BTreeMap;
