@@ -567,7 +567,7 @@ impl EditorServer {
     }
 
     #[rmcp::tool(
-        description = "Assign a material to a run of brushes. Pass `normal` to hit only faces pointing that way, e.g. [0,1,0] for floors or [0,-1,0] for ceilings."
+        description = "Assign a material to a run of brushes. `normal` restricts it to faces pointing exactly that way, e.g. [0,1,0]. Note this means EVERY upward-facing face in the range, including the outside of a ceiling slab, not just the floor you walk on; narrow the brush range if that matters."
     )]
     async fn set_material(
         &self,
@@ -976,38 +976,55 @@ fn new_project(dir: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     }
     let mut doc = psxed_project::ProjectDocument::default();
     let mut cleared = 0usize;
+    let mut lights = 0usize;
     let mut moved = 0usize;
     for scene in doc.scenes.iter_mut() {
         cleared += scene.brushes.len();
         scene.brushes.clear();
-        // Clearing the brushes leaves every entity at the shipped level's
-        // coordinates, thousands of units from wherever the new geometry will
-        // go. That matters more than it sounds: the leak diagnostic floods
-        // from the player, so a spawn outside the new map reports the map as
-        // leaking no matter how well sealed it is.
-        let ids: Vec<_> = scene
+
+        // Drop the starter's point lights. Keeping them was actively harmful:
+        // an earlier version of this moved every node to the origin so the
+        // leak check would not flood from a player standing outside the new
+        // map, which piled 38 lights on the origin, exactly where a fresh
+        // project gets built. They are trivially re-placed with add_light.
+        let doomed: Vec<_> = scene
             .nodes()
             .iter()
-            .filter(|node| node.parent.is_some())
+            .filter(|node| matches!(node.kind, psxed_project::NodeKind::PointLight { .. }))
             .map(|node| node.id)
             .collect();
-        for id in ids {
+        lights += doomed.len();
+        for id in doomed {
+            scene.remove_node(id);
+        }
+
+        // Move ONLY the player. The leak diagnostic floods from it, so a
+        // player left at the shipped level's coordinates reports every new
+        // map as leaking however well sealed it is. Everything else stays
+        // put: out of the way, not stacked, and still there to clone.
+        let player = scene.nodes().iter().find_map(|node| {
+            matches!(
+                node.kind,
+                psxed_project::NodeKind::CharacterController { player: true, .. }
+            )
+            .then_some(node.parent.unwrap_or(node.id))
+        });
+        if let Some(id) = player {
             if let Some(node) = scene.node_mut(id) {
-                if node.transform.translation != [0.0; 3] {
-                    node.transform.translation = [0.0; 3];
-                    moved += 1;
-                }
+                node.transform.translation = [0.0; 3];
+                moved += 1;
             }
         }
     }
     std::fs::create_dir_all(dir)?;
     std::fs::write(&file, doc.to_ron_string()?)?;
     println!(
-        "wrote {} with {cleared} starter brushes removed, {moved} node(s) moved to the origin, \
-         {} resources kept",
+        "wrote {} with {cleared} starter brushes and {lights} point lights removed, \
+         {moved} player moved to the origin, {} resources kept",
         file.display(),
         doc.resources.len()
     );
+    println!("entities stayed at their authored positions; clone them with place_node");
     println!("link its assets, e.g.: ln -s ../default/assets {}/assets", dir.display());
     Ok(())
 }

@@ -482,6 +482,33 @@ final frame showing an Intake Custodian mid-attack with the player's HRZ bar
 partly drained. The level built in this document is playable on an emulated
 PlayStation.
 
+## Second-pass review
+
+All 21 tools exercised on a fresh project, including 15 deliberate error
+paths. Everything returned, every error path errored, staging and the
+save-conflict guard behaved. Three things came out of it.
+
+**A regression I had introduced.** `--new` produced a project with 38 point
+lights stacked on the origin. The Phase 4 fix moved every node to the origin
+so the leak check would not flood from a player standing outside the new map,
+and that piled the starter's whole lighting rig on the exact spot a fresh
+project gets built. `--new` now deletes the point lights outright and moves
+only the player, leaving other entities at their authored positions, out of
+the way and still there to clone. A clean project went from 83 nodes to 40,
+and sealing still passes.
+
+**A misleading tool description.** `set_material` with `normal: [0,1,0]` was
+documented as "floors". On a six-brush hollow box it sets six faces: every
+upward-facing one, including the outside of the ceiling slab. The description
+now says so and points at narrowing the brush range.
+
+**The missing check is in.** `audit --depth full` now compares the audited
+brushes against the cooked world's real extent, derived from the union of
+per-leaf authored bounds, and names the ones that were discarded. Run against
+the Phase 4 project where a hall silently contributed nothing, it flags all 40
+brushes and prints the cooked world stopping at X 49920 while the hall sat at
+61440. No false positive on a project that cooks correctly.
+
 ## Risks
 
 **Concurrent edits.** Manny will be in the editor while the agent drives it.
