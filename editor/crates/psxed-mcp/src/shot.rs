@@ -225,8 +225,8 @@ pub fn render(
     png_from_ppm(&raw)
 }
 
-/// Re-encode a binary PPM (P6) as PNG.
-fn png_from_ppm(raw: &[u8]) -> Result<Vec<u8>, String> {
+/// Re-encode a binary PPM (P6) as PNG. Shared with the playtest frame dump.
+pub fn png_from_ppm(raw: &[u8]) -> Result<Vec<u8>, String> {
     let mut fields = Vec::new();
     let mut index = 0usize;
     while fields.len() < 4 {
