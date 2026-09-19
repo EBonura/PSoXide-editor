@@ -20,7 +20,8 @@ use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{ErrorData, ServerHandler, ServiceExt};
 
 use psxed_mcp::audit::{audit, AuditDepth};
-use psxed_mcp::edit::{find_material, RadialArray, Workspace};
+use psxed_mcp::edit::{RadialArray, Workspace};
+use psxed_mcp::inspect::{brush_info, materials as material_table};
 use psxed_mcp::nodes::{entity_types, get_node};
 use psxed_mcp::play;
 use psxed_mcp::shot;
@@ -165,6 +166,37 @@ struct SetMaterialReq {
     material: String,
     /// Only faces pointing this way, e.g. `[0,1,0]` floors, `[0,-1,0]` ceilings.
     normal: Option<[i32; 3]>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct BrushReq {
+    /// Scene index. Omit for the first scene that has brushes.
+    scene: Option<usize>,
+    /// Brush index, as add_shape, make_room and array report them.
+    brush: usize,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct FaceUvReq {
+    /// Scene index. Omit for the first scene that has brushes.
+    scene: Option<usize>,
+    /// First brush index.
+    first: usize,
+    /// How many brushes from `first`.
+    count: usize,
+    /// Single face index within each brush, as get_brush lists them. Omit to
+    /// take every face, or filter with `normal` instead.
+    face: Option<usize>,
+    /// Only faces pointing exactly this way, e.g. `[0,1,0]`.
+    normal: Option<[i32; 3]>,
+    /// Texel offset `[u, v]` added after scale and rotation: slides the
+    /// texture across the face.
+    offset: Option<[i16; 2]>,
+    /// Rotation in degrees.
+    rotation: Option<i16>,
+    /// Scale per axis as a percentage, 100 being 1:1. Larger makes the
+    /// texture bigger and repeat less often. Omitted fields are left alone.
+    scale_percent: Option<[i32; 2]>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -927,17 +959,133 @@ impl EditorServer {
     }
 
     #[rmcp::tool(
-        description = "List the project's materials, so a name can be passed to add_shape or set_material."
+        description = "List the project's materials with their texel dimensions, how many world units one tile covers, colour depth, blend mode and tint. The tile size is what decides how often a texture repeats on a surface, and it is not stored in the project file."
     )]
     async fn materials(&self) -> Result<CallToolResult, ErrorData> {
         let text = self.with(|workspace| {
+            let root = workspace.root().to_path_buf();
             let project = workspace.document()?;
-            // find_material's error path already lists every candidate, which
-            // is exactly this listing.
-            Ok(match find_material(project, "\u{0}") {
-                Ok(_) => "no materials".to_string(),
-                Err(listing) => listing.replace("no material matches \"\\0\". ", ""),
+            Ok(material_table(project, &root))
+        })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    #[rmcp::tool(
+        description = "Inspect one brush: contents, bounds, size in player units, group, and a per-face table of normal direction, material and texture placement. Call this before any index-addressed edit; without it array, set_material, carve and delete are guesses."
+    )]
+    async fn get_brush(
+        &self,
+        Parameters(BrushReq { scene, brush }): Parameters<BrushReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let text = self.with(|workspace| {
+            let note = Self::staged_note(workspace);
+            let project = workspace.document()?;
+            Ok(brush_info(project, scene, brush)? + &note)
+        })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    #[rmcp::tool(
+        description = "Set texture placement (offset, rotation, scale) on selected faces. Target a single face index, or every face whose normal points a given way. Scale is a percentage where 100 is 1:1; larger makes the texture bigger and repeat less often. Omitted fields are left as they are."
+    )]
+    async fn set_face_uv(
+        &self,
+        Parameters(FaceUvReq {
+            scene,
+            first,
+            count,
+            face,
+            normal,
+            offset,
+            rotation,
+            scale_percent,
+        }): Parameters<FaceUvReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let text = self.with(|workspace| {
+            let report = workspace.set_face_uv(
+                scene,
+                first,
+                count,
+                face,
+                normal,
+                offset,
+                rotation,
+                scale_percent,
+            )?;
+            Ok(report + &Self::staged_note(workspace))
+        })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    #[rmcp::tool(
+        description = "Roll project.ron back to the snapshot taken before the last save. The version it replaces is snapshotted first, so the undo is itself undoable. For edits that have not been saved yet, use revert instead."
+    )]
+    async fn undo_last_edit(&self) -> Result<CallToolResult, ErrorData> {
+        let text = self.with(Workspace::undo_last_edit)?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    #[rmcp::tool(description = "List the pre-save snapshots, newest first.")]
+    async fn list_backups(&self) -> Result<CallToolResult, ErrorData> {
+        let text = self.with(|workspace| {
+            let backups = workspace.backups();
+            Ok(if backups.is_empty() {
+                "no snapshots yet; one is written each time save replaces the file".to_string()
+            } else {
+                format!("{} snapshot(s), newest first:\n{}", backups.len(), backups.join("\n"))
             })
+        })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    #[rmcp::tool(
+        description = "Health check: which project is open, whether edits are staged, the BSP cook mode, the scene's brush and node counts, and whether a renderer binary was found. Call this first in a session, and whenever something behaves unexpectedly."
+    )]
+    async fn status(&self) -> Result<CallToolResult, ErrorData> {
+        let renderer = match shot::find_frontend(self.frontend.as_deref().map(PathBuf::as_path)) {
+            Ok(path) => format!("{} (screenshot and playtest available)", path.display()),
+            Err(error) => format!("NONE: {error}"),
+        };
+        let text = self.with(|workspace| {
+            let staged = workspace.log().len();
+            let dirty = workspace.is_dirty();
+            let backups = workspace.backups().len();
+            let path = workspace.root().to_path_buf();
+            let project = workspace.document()?;
+            let index = psxed_mcp::resolve_scene(project, None)?;
+            let scene = &project.scenes[index];
+            Ok(format!(
+                concat!(
+                    "project: {}\n",
+                    "scene {}: {} brushes, {} faces, {} nodes\n",
+                    "bsp_cook_mode: {:?}{}\n",
+                    "staged edits: {}{}\n",
+                    "snapshots: {}\n",
+                    "renderer: {}"
+                ),
+                path.display(),
+                format!("{index} {:?}", scene.name),
+                scene.brushes.len(),
+                scene.brushes.iter().map(|b| b.faces.len()).sum::<usize>(),
+                scene.nodes().len(),
+                project.bsp_cook_mode,
+                if matches!(
+                    project.bsp_cook_mode,
+                    psxed_project::brush_world::BrushWorldCookMode::Draft
+                ) {
+                    " (fullbright; point lights do nothing)"
+                } else {
+                    " (lights bake over a dark ambient)"
+                },
+                staged,
+                if dirty {
+                    " -- unsaved, so screenshot and playtest will refuse"
+                } else {
+                    ""
+                },
+                backups,
+                renderer
+            ))
         })?;
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }

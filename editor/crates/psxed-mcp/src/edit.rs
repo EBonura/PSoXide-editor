@@ -110,6 +110,9 @@ impl Workspace {
             .doc
             .to_ron_string()
             .map_err(|error| format!("serialize project: {error}"))?;
+        // Snapshot what is being replaced. Staging plus revert covers a bad
+        // edit before it lands; nothing covered a bad edit after it landed.
+        let backup = self.snapshot(&on_disk)?;
         std::fs::write(&self.path, &text)
             .map_err(|error| format!("write {}: {error}", self.path.display()))?;
         self.base = hash_bytes(&text);
@@ -117,8 +120,12 @@ impl Workspace {
         let count = self.log.len();
         self.log.clear();
         Ok(format!(
-            "saved {count} edit(s) to {}. Reload the project in the editor to see them.",
-            self.path.display()
+            "saved {count} edit(s) to {}. Reload the project in the editor to see them.\n\
+             The previous file is backed up as {}; undo_last_edit restores it.",
+            self.path.display(),
+            backup
+                .file_name()
+                .map_or_else(|| "?".into(), |name| name.to_string_lossy().into_owned())
         ))
     }
 
@@ -326,6 +333,160 @@ impl Workspace {
 
 
 
+
+
+    /// Directory holding pre-save snapshots.
+    fn backup_dir(&self) -> PathBuf {
+        self.root().join(".mcp-backups")
+    }
+
+    /// Copy the current file aside before it is overwritten, keeping the most
+    /// recent [`BACKUP_LIMIT`] and deleting older ones.
+    fn snapshot(&self, contents: &str) -> Result<PathBuf, String> {
+        let dir = self.backup_dir();
+        std::fs::create_dir_all(&dir)
+            .map_err(|error| format!("create {}: {error}", dir.display()))?;
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |elapsed| elapsed.as_secs());
+        let path = dir.join(format!("project-{stamp}.ron"));
+        std::fs::write(&path, contents)
+            .map_err(|error| format!("write {}: {error}", path.display()))?;
+        let mut existing = list_backups(&dir);
+        while existing.len() > BACKUP_LIMIT {
+            if let Some(oldest) = existing.pop() {
+                let _ = std::fs::remove_file(oldest);
+            }
+        }
+        Ok(path)
+    }
+
+    /// Restore the most recent snapshot, backing up the current file first so
+    /// the undo is itself undoable.
+    pub fn undo_last_edit(&mut self) -> Result<String, String> {
+        if self.dirty {
+            return Err(
+                "there are staged edits; call revert to drop those, or save them first. \
+                 undo_last_edit rolls back the file on disk, not the staging buffer."
+                    .to_string(),
+            );
+        }
+        let dir = self.backup_dir();
+        let mut backups = list_backups(&dir);
+        if backups.is_empty() {
+            return Err(format!(
+                "no snapshots in {}; one is written each time save replaces the file",
+                dir.display()
+            ));
+        }
+        let newest = backups.remove(0);
+        let restored = std::fs::read_to_string(&newest)
+            .map_err(|error| format!("read {}: {error}", newest.display()))?;
+        let current = std::fs::read_to_string(&self.path)
+            .map_err(|error| format!("read {}: {error}", self.path.display()))?;
+        self.snapshot(&current)?;
+        std::fs::write(&self.path, &restored)
+            .map_err(|error| format!("write {}: {error}", self.path.display()))?;
+        let reloaded = Self::open(&self.path)?;
+        self.doc = reloaded.doc;
+        self.base = reloaded.base;
+        self.dirty = false;
+        self.log.clear();
+        let _ = std::fs::remove_file(&newest);
+        Ok(format!(
+            "restored {} over {}. The version it replaced was snapshotted first, so this is \
+             itself undoable.",
+            newest
+                .file_name()
+                .map_or_else(|| "?".into(), |name| name.to_string_lossy().into_owned()),
+            self.path.display()
+        ))
+    }
+
+    /// Snapshots, newest first.
+    pub fn backups(&self) -> Vec<String> {
+        list_backups(&self.backup_dir())
+            .into_iter()
+            .filter_map(|path| {
+                let name = path.file_name()?.to_string_lossy().into_owned();
+                let size = path.metadata().ok()?.len();
+                Some(format!("{name} ({size} bytes)"))
+            })
+            .collect()
+    }
+
+    /// Set the texture placement on selected faces of a run of brushes.
+    ///
+    /// The format stores scale as Q8 where 256 is 1:1, which is a poor thing
+    /// to ask a caller for, so this takes a percentage. Omitted fields are
+    /// left alone rather than reset, so one call can nudge only the rotation.
+    pub fn set_face_uv(
+        &mut self,
+        scene: Option<usize>,
+        first: usize,
+        count: usize,
+        face: Option<usize>,
+        normal: Option<[i32; 3]>,
+        offset: Option<[i16; 2]>,
+        rotation: Option<i16>,
+        scale_percent: Option<[i32; 2]>,
+    ) -> Result<String, String> {
+        self.document()?;
+        let scene_index = resolve_scene(&self.doc, scene)?;
+        if let Some(percent) = scale_percent {
+            if percent.contains(&0) {
+                return Err("a zero scale would divide by zero; use 100 for 1:1".to_string());
+            }
+        }
+        let brushes = self.brush_slice_mut(scene_index, first, count)?;
+        let mut touched = 0usize;
+        for brush in brushes.iter_mut() {
+            for (position, brush_face) in brush.faces.iter_mut().enumerate() {
+                if face.is_some_and(|wanted| wanted != position) {
+                    continue;
+                }
+                if let Some(wanted) = normal {
+                    let Some(plane) = psxed_project::brush::Plane::from_points(brush_face.points)
+                    else {
+                        continue;
+                    };
+                    let aligned = (0..3).all(|axis| {
+                        (wanted[axis] == 0) == (plane.normal[axis] == 0)
+                            && (wanted[axis] == 0 || (plane.normal[axis] > 0) == (wanted[axis] > 0))
+                    });
+                    if !aligned {
+                        continue;
+                    }
+                }
+                if let Some(value) = offset {
+                    brush_face.uv.offset_texels = value;
+                }
+                if let Some(value) = rotation {
+                    brush_face.uv.rotation_deg = value;
+                }
+                if let Some(percent) = scale_percent {
+                    // Clamp the percentage before scaling it: the multiply
+                    // itself overflows i32 on an absurd input.
+                    brush_face.uv.scale_q8 = std::array::from_fn(|axis| {
+                        (percent[axis].clamp(-12_000, 12_000) * 256 / 100) as i16
+                    });
+                }
+                touched += 1;
+            }
+        }
+        if touched == 0 {
+            return Err(
+                "no faces matched; check the brush range, and that the face index or normal \
+                 exists on them (get_brush lists both)"
+                    .to_string(),
+            );
+        }
+        self.record(format!("set_face_uv on {touched} faces"));
+        Ok(format!(
+            "set texture placement on {touched} face(s). A larger scale percent makes the \
+             texture bigger and repeat less often."
+        ))
+    }
 
     /// Clone an existing node, with its whole subtree, to a new position.
     ///
@@ -797,6 +958,30 @@ fn clone_subtree(
         clone_subtree(scene, child, new_id, &child_name)?;
     }
     Ok(new_id)
+}
+
+/// How many pre-save snapshots to keep, matching the TrenchBroom MCP's cap.
+const BACKUP_LIMIT: usize = 20;
+
+/// Snapshot files in `dir`, newest first.
+fn list_backups(dir: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut paths: Vec<_> = entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.extension().is_some_and(|extension| extension == "ron")
+                && path
+                    .file_name()
+                    .is_some_and(|name| name.to_string_lossy().starts_with("project-"))
+        })
+        .collect();
+    // Names carry a unix timestamp, so lexical order is chronological.
+    paths.sort();
+    paths.reverse();
+    paths
 }
 
 /// Persistence ids claimed by more than one node, which the cook rejects.
