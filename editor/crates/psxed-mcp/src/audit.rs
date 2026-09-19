@@ -279,6 +279,59 @@ pub fn audit(
                     leaf.visible_leaf_count
                 );
             }
+            // Did the audited brushes actually reach the cook? Leaf bounds
+            // give the cooked world's real extent, and geometry outside it
+            // was discarded. This is the trap that cost a whole section
+            // earlier: a hall authored past the existing world changed the
+            // cooked face count by exactly zero and nothing said so.
+            let cooked = report.leaves.iter().fold(
+                (None, None),
+                |(lo, hi): (Option<[i32; 3]>, Option<[i32; 3]>), leaf| {
+                    let (Some(min), Some(max)) = (
+                        leaf.authored_surface_bounds_min,
+                        leaf.authored_surface_bounds_max,
+                    ) else {
+                        return (lo, hi);
+                    };
+                    (
+                        Some(lo.map_or(min, |lo| std::array::from_fn(|a| lo[a].min(min[a])))),
+                        Some(hi.map_or(max, |hi| std::array::from_fn(|a| hi[a].max(max[a])))),
+                    )
+                },
+            );
+            if let (Some(cooked_min), Some(cooked_max)) = cooked {
+                let _ = writeln!(
+                    out,
+                    "\ncooked world spans authored {cooked_min:?}..{cooked_max:?}"
+                );
+                let mut outside = Vec::new();
+                for (position, brush) in audited.iter().enumerate().map(|(i, b)| (i + from, b)) {
+                    let solved = brush.solve();
+                    if !solved.is_valid() {
+                        continue;
+                    }
+                    let escapes = (0..3).any(|axis| {
+                        solved.max[axis] < f64::from(cooked_min[axis])
+                            || solved.min[axis] > f64::from(cooked_max[axis])
+                    });
+                    if escapes {
+                        outside.push(position);
+                    }
+                }
+                if !outside.is_empty() {
+                    report_indices(
+                        &mut out,
+                        "BRUSHES THAT DID NOT REACH THE COOK (entirely outside the cooked world)",
+                        &outside,
+                    );
+                    out.push_str(
+                        "Those brushes were authored but discarded, so nothing you do to them \
+                         will appear in game. Move them inside the existing world, or check \
+                         whether the level they belong to encloses them.\n",
+                    );
+                }
+            }
+
             if let Some(worst) = report.worst_leaf() {
                 let _ = writeln!(
                     out,
