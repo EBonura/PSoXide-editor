@@ -11,6 +11,7 @@
 //! psxed-mcp --new editor/projects/scratch   # empty project, then exit
 //! ```
 
+use std::fmt::Write as _;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -166,6 +167,32 @@ struct SetMaterialReq {
     material: String,
     /// Only faces pointing this way, e.g. `[0,1,0]` floors, `[0,-1,0]` ceilings.
     normal: Option<[i32; 3]>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct GroupReq {
+    /// Scene index. Omit for the first scene that has brushes.
+    scene: Option<usize>,
+    /// First brush index.
+    first: usize,
+    /// How many brushes from `first`.
+    count: usize,
+    /// Name for the space, e.g. "Main Hall" or "North Gallery".
+    name: String,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct WalkReq {
+    /// Waypoints in authored world units, at least a start and an end. The
+    /// hull walks between them in order; Y is the feet position.
+    path: Vec<[i32; 3]>,
+    /// Body radius, default the player's 188.
+    radius: Option<i32>,
+    /// Body height, default the player's 1024.
+    height: Option<i32>,
+    /// How far to move per simulated step, default 256 authored units. Smaller
+    /// is more faithful to per-tick movement and slower.
+    leg: Option<i32>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -966,6 +993,98 @@ impl EditorServer {
             let root = workspace.root().to_path_buf();
             let project = workspace.document()?;
             Ok(material_table(project, &root))
+        })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    #[rmcp::tool(
+        description = "Name a run of brushes as a space, e.g. \"Main Hall\". Groups survive edits, unlike index ranges, which every carve and delete shifts. Blockout practice calls these labelled spaces."
+    )]
+    async fn group_brushes(
+        &self,
+        Parameters(GroupReq {
+            scene,
+            first,
+            count,
+            name,
+        }): Parameters<GroupReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let text = self.with(|workspace| {
+            let report = workspace.group_brushes(scene, first, count, &name)?;
+            Ok(report + &Self::staged_note(workspace))
+        })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    #[rmcp::tool(
+        description = "List the named spaces with their current brush counts, centres and sizes. Use a group's centre as a screenshot or walk_test target."
+    )]
+    async fn groups(
+        &self,
+        Parameters(SceneReq { scene }): Parameters<SceneReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let text = self.with(|workspace| {
+            let report = workspace.groups(scene)?;
+            Ok(report + &Self::staged_note(workspace))
+        })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    #[rmcp::tool(
+        description = "Walk the player's collision hull along a path through the cooked world and report where it stops. This is the engine's own collision trace, the same call the runtime makes to move a character, so a gap it refuses is a gap the game refuses. Use it to prove a doorway is wide enough, a ledge is climbable or a route exists, in seconds rather than a three-minute playtest. Remember there is no jump: max step-up is 640 authored units."
+    )]
+    async fn walk_test(
+        &self,
+        Parameters(WalkReq {
+            path,
+            radius,
+            height,
+            leg,
+        }): Parameters<WalkReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let text = self.with(|workspace| {
+            let root = workspace.root().to_path_buf();
+            let project = workspace.document()?;
+            let (package, validation) = psxed_project::playtest::build_package(project, &root);
+            let package = package.ok_or_else(|| {
+                format!(
+                    "the project did not cook, so there is no world to walk on: {}",
+                    validation
+                        .errors
+                        .first()
+                        .map_or_else(|| "no detail".to_string(), |error| error.message.clone())
+                )
+            })?;
+            let result = psxed_project::brush_walk::walk_player_hull(
+                &package,
+                &path,
+                radius.unwrap_or(psxed_mcp::PLAYER_RADIUS),
+                height.unwrap_or(psxed_mcp::PLAYER_HEIGHT),
+                leg.unwrap_or(256),
+            )?;
+            let mut out = if result.reached_end {
+                format!(
+                    "REACHED the end of the path at {:?} after {} leg(s).\n",
+                    result.final_position, result.legs_completed
+                )
+            } else {
+                format!(
+                    "BLOCKED at {:?} after {} of {} leg(s). The hull stopped making progress \
+                     there, so the player cannot get past it.\n",
+                    result.final_position,
+                    result.legs_completed,
+                    path.len() - 1
+                )
+            };
+            for (index, step) in result.steps.iter().enumerate() {
+                let _ = writeln!(
+                    out,
+                    "  leg {index}: {} at {:?}",
+                    if step.reached { "reached" } else { "stopped" },
+                    step.position
+                );
+            }
+            Ok(out)
         })?;
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
