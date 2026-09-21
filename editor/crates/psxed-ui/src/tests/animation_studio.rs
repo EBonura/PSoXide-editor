@@ -1141,8 +1141,7 @@ fn pose_and_combat_buttons_write_to_their_own_resources() {
 
 #[test]
 fn cortex_combo_sections_are_visible_and_can_be_added_without_replacing_the_shape() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../projects/default");
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../projects/default");
     let project = ProjectDocument::load_from_path(root.join("project.ron")).unwrap();
     let mut workspace = EditorWorkspace::with_project(root, project);
     let character = resource_id(&workspace, "Light Enemy", |data| {
