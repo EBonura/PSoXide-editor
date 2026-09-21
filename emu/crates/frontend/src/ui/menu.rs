@@ -102,6 +102,9 @@ pub enum MenuAction {
     ToggleEditorWorkspace,
     /// Pick and persist the games library root.
     ChooseGamesPath,
+    /// Pick the firmware image used by desktop disc launches.
+    #[cfg(not(target_arch = "wasm32"))]
+    ChooseBiosPath,
     /// Cycle the menu backdrop opacity through a few presets.
     CycleMenuOpacity,
     /// Cycle the DPI-aware host UI scale through compact and enlarged presets.
@@ -655,6 +658,17 @@ impl MenuState {
     }
 
     /// Update the Settings category path summaries.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn sync_bios_path(&mut self, value: String) {
+        for category in &mut self.categories {
+            for item in &mut category.items {
+                if matches!(item.action, MenuAction::ChooseBiosPath) {
+                    item.value = Some(value.clone());
+                }
+            }
+        }
+    }
+
     pub fn sync_settings_paths(&mut self, games: impl Into<String>) {
         let games = games.into();
         if let Some(settings) = self.categories.iter_mut().find(|c| c.name == "Settings") {
@@ -1237,7 +1251,11 @@ impl MenuState {
         painter.text(
             Pos2::new(sw / 2.0, sh - 46.0),
             Align2::CENTER_TOP,
-            "PSoXide is an independent, open-source PS1 developer environment. Load your homebrew games directly. No firmware image is required.",
+            if cfg!(target_arch = "wasm32") {
+                "PSoXide is an independent, open-source PS1 developer environment. Load your homebrew games directly. No firmware image is required."
+            } else {
+                "PSoXide is an independent, open-source PS1 developer environment. Disc library launches use your own BIOS image, selected in Settings."
+            },
             FontId::proportional(11.0),
             fade(theme::MENU_TEXT_DIM),
         );
@@ -2397,6 +2415,13 @@ fn build_settings_category() -> Category {
                 burn_action: None,
                 value: Some("Missing".into()),
             },
+            #[cfg(not(target_arch = "wasm32"))]
+            MenuItem {
+                label: "Choose BIOS image".into(),
+                action: MenuAction::ChooseBiosPath,
+                burn_action: None,
+                value: Some("Missing".into()),
+            },
             MenuItem {
                 label: "Menu opacity".into(),
                 action: MenuAction::CycleMenuOpacity,
@@ -2930,10 +2955,21 @@ mod tests {
             .find(|item| item.action == MenuAction::ChooseGamesPath)
             .unwrap();
         assert_eq!(games.value.as_deref(), Some("discs"));
-        assert!(!settings
-            .items
-            .iter()
-            .any(|item| item.label.to_lowercase().contains("bios")));
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            s.sync_bios_path("firmware.bin".into());
+            let settings = s
+                .categories
+                .iter()
+                .find(|category| category.name == "Settings")
+                .unwrap();
+            let bios = settings
+                .items
+                .iter()
+                .find(|item| item.action == MenuAction::ChooseBiosPath)
+                .unwrap();
+            assert_eq!(bios.value.as_deref(), Some("firmware.bin"));
+        }
     }
 
     #[test]

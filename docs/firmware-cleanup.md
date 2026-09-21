@@ -1,5 +1,8 @@
 # Firmware cleanup, 2026-09-15
 
+Historical audit: the desktop loading policy below was superseded by the
+2026-09-21 restoration recorded at the end of this document.
+
 ## Repository ownership
 
 - `EBonura/PSoXide`: SDK, shared formats and disc mastering.
@@ -56,3 +59,13 @@ rewrite history or invalidate downstream pinned commits. Release attachments,
 external websites, local backup bundles and other repositories are outside this
 source-tree audit. The old checkout's local archive is recovery material, not a
 release input.
+
+## Desktop firmware loading restored (2026-09-21)
+
+The native integrated frontend again accepts user-supplied BIOS images for disc
+library launches, matching the standalone emulator. Choose a BIOS image in
+Settings or set `PSOXIDE_BIOS`; the headless CLI also accepts `--bios PATH`.
+Without configured firmware, normal disc launches return an actionable error.
+Side-loaded homebrew executables, embedded editor playtests and bundled web
+discs retain their firmware-free HLE paths. No firmware is bundled, and the
+artifact/header audit remains enabled.

@@ -202,6 +202,11 @@ pub fn apply_menu_action(state: &mut AppState, action: menu::MenuAction) -> Menu
             state.menu.open = false;
             MenuOutcome::None
         }
+        #[cfg(not(target_arch = "wasm32"))]
+        ChooseBiosPath => {
+            state.choose_bios_path();
+            MenuOutcome::None
+        }
         ChooseGamesPath => {
             state.choose_games_path();
             MenuOutcome::None
