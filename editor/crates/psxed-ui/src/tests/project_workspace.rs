@@ -3887,8 +3887,7 @@ fn new_project_starts_with_verified_character_and_material_content() {
     assert_eq!(mantis.combat_capsules[1].name, "Projectile Muzzle");
     assert_eq!(mantis.combat_capsules[1].joint, 13);
     assert_eq!(
-        mantis.combat_capsules[1].capsule.start,
-        mantis.combat_capsules[1].capsule.end,
+        mantis.combat_capsules[1].capsule.start, mantis.combat_capsules[1].capsule.end,
         "the muzzle is a point emitter"
     );
     assert_eq!(mantis.combat_capsules[1].capsule.radius, 27);
