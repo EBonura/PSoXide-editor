@@ -72,6 +72,10 @@ See the [changelog](CHANGELOG.md) for the remaining changes and published downlo
 
 ## Firmware policy
 
-PSoXide does not bundle or load external console firmware. Homebrew runs
-through the built-in emulator runtime. See the [cleanup audit](docs/firmware-cleanup.md)
-for the source, binary-header and history checks.
+PSoXide does not bundle console firmware. Desktop disc library launches use
+a user-supplied BIOS image: choose it in Settings, pass `--bios PATH` to the
+headless CLI, or set `PSOXIDE_BIOS`. The CLI override takes precedence over the
+saved setting, which takes precedence over the environment. Embedded homebrew
+playtests, side-loaded executables and bundled web discs use the built-in HLE
+runtime. See the [cleanup audit](docs/firmware-cleanup.md) for the source,
+binary-header and history checks.

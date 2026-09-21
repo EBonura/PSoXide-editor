@@ -426,5 +426,6 @@ source code from them is included or derived in this repository:
 
 PlayStation firmware images and commercial game assets are not included or
 redistributed. PSoXide boots homebrew through its independently implemented
-runtime and does not load external firmware. Hardware interface descriptions
-and third-party attribution above identify provenance and compatibility.
+runtime; desktop disc launches can use separately supplied firmware. Hardware
+interface descriptions and third-party attribution above identify provenance
+and compatibility.

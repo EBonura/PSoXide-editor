@@ -29,8 +29,7 @@ use std::path::{Path, PathBuf};
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use emulator_core::{
-    button, fast_boot_disc, telemetry, Bus, ButtonState, Cpu, EmulatorState,
-    InstructionCacheMissKind,
+    button, telemetry, Bus, ButtonState, Cpu, EmulatorState, InstructionCacheMissKind,
 };
 use psx_hw::memory;
 // `Gpu` is only constructed for the editor 3D preview dump.
@@ -216,6 +215,15 @@ pub struct LaunchArgs {
     /// profiler without navigating there again in the GUI.
     #[arg(long, value_name = "PATH")]
     pub savestate: Option<PathBuf>,
+    /// Override the configured user-supplied BIOS for this launch.
+    #[arg(long)]
+    pub bios: Option<PathBuf>,
+    /// Use the normal firmware boot sequence instead of warm fast boot.
+    #[arg(long)]
+    pub bios_boot: bool,
+    /// Number of firmware instructions before warm fast boot.
+    #[arg(long)]
+    pub bios_warmup_steps: Option<u64>,
     /// Mount a disc alongside a side-loaded executable without booting from
     /// that disc. This is useful for hardware probes and homebrew that use
     /// the HLE BIOS entry path but still exercise the CD-ROM controller.
@@ -799,6 +807,10 @@ fn run_headless_launch(
     args: LaunchArgs,
     emit_summary: bool,
 ) -> Result<HeadlessLaunchResult, String> {
+    let mut settings = Settings::load(&paths.settings_file()).unwrap_or_default();
+    if let Some(bios) = args.bios.as_ref() {
+        settings.paths.bios = bios.to_string_lossy().into_owned();
+    }
     let pad_pulses = args
         .pad_pulses
         .as_deref()
@@ -911,7 +923,11 @@ fn run_headless_launch(
             bus
         }
         "bin" | "iso" => {
-            let mut bus = Bus::new_without_bios();
+            let mut bus = if args.embedded_playtest {
+                Bus::new_without_bios()
+            } else {
+                crate::firmware::configured_bus(&settings)?
+            };
             if capture_gpu_commands {
                 bus.gpu.enable_cmd_log();
             }
@@ -920,7 +936,15 @@ fn run_headless_launch(
             if args.embedded_playtest {
                 fast_boot_embedded_playtest_disc(&mut bus, &mut cpu, &disc, &game_path)?;
             } else {
-                maybe_fast_boot_disc(&mut bus, &mut cpu, &disc, &game_path)?;
+                crate::firmware::boot_disc(
+                    &mut bus,
+                    &mut cpu,
+                    &disc,
+                    &game_path,
+                    settings.emulator.fast_boot_disc && !args.bios_boot,
+                    args.bios_warmup_steps
+                        .unwrap_or(emulator_core::DISC_FAST_BOOT_WARMUP_STEPS),
+                );
             }
             bus.cdrom.insert_disc(Some(disc));
             attach_headless_playtest_pad(&mut bus, args.digital_pad);
@@ -930,7 +954,11 @@ fn run_headless_launch(
             bus
         }
         "cue" => {
-            let mut bus = Bus::new_without_bios();
+            let mut bus = if args.embedded_playtest {
+                Bus::new_without_bios()
+            } else {
+                crate::firmware::configured_bus(&settings)?
+            };
             if capture_gpu_commands {
                 bus.gpu.enable_cmd_log();
             }
@@ -938,7 +966,15 @@ fn run_headless_launch(
             if args.embedded_playtest {
                 fast_boot_embedded_playtest_disc(&mut bus, &mut cpu, &disc, &game_path)?;
             } else {
-                maybe_fast_boot_disc(&mut bus, &mut cpu, &disc, &game_path)?;
+                crate::firmware::boot_disc(
+                    &mut bus,
+                    &mut cpu,
+                    &disc,
+                    &game_path,
+                    settings.emulator.fast_boot_disc && !args.bios_boot,
+                    args.bios_warmup_steps
+                        .unwrap_or(emulator_core::DISC_FAST_BOOT_WARMUP_STEPS),
+                );
             }
             bus.cdrom.insert_disc(Some(disc));
             attach_headless_playtest_pad(&mut bus, args.digital_pad);
@@ -951,12 +987,20 @@ fn run_headless_launch(
             if args.embedded_playtest {
                 return Err("--embedded-playtest does not support .ccd".to_string());
             }
-            let mut bus = Bus::new_without_bios();
+            let mut bus = crate::firmware::configured_bus(&settings)?;
             if capture_gpu_commands {
                 bus.gpu.enable_cmd_log();
             }
             let disc = psoxide_settings::library::load_disc_from_ccd(&game_path)?;
-            maybe_fast_boot_disc(&mut bus, &mut cpu, &disc, &game_path)?;
+            crate::firmware::boot_disc(
+                &mut bus,
+                &mut cpu,
+                &disc,
+                &game_path,
+                settings.emulator.fast_boot_disc && !args.bios_boot,
+                args.bios_warmup_steps
+                    .unwrap_or(emulator_core::DISC_FAST_BOOT_WARMUP_STEPS),
+            );
             bus.cdrom.insert_disc(Some(disc));
             attach_headless_playtest_pad(&mut bus, args.digital_pad);
             if emit_summary {
@@ -2717,6 +2761,7 @@ fn sanitize_artifact_segment(value: &str) -> String {
 struct ResolvedValidationArtifact {
     path: PathBuf,
     embedded_playtest: bool,
+    bios_boot: bool,
 }
 
 fn resolve_validation_artifact(
@@ -2724,14 +2769,14 @@ fn resolve_validation_artifact(
     manifest_dir: &Path,
     artifact: &ValidationArtifact,
 ) -> Result<ResolvedValidationArtifact, String> {
-    let (path, embedded_playtest) = match artifact {
+    let (path, embedded_playtest, bios_boot) = match artifact {
         ValidationArtifact::Project { project } => {
             // Project artifacts are cooked + built through the editor's
             // disc-build pipeline, which is absent in emulator-only builds.
             #[cfg(feature = "editor")]
             {
                 let project = resolve_manifest_path(repo_root, manifest_dir, project);
-                (build_project_disc_path(&project)?, true)
+                (build_project_disc_path(&project)?, true, false)
             }
             #[cfg(not(feature = "editor"))]
             {
@@ -2742,18 +2787,22 @@ fn resolve_validation_artifact(
         ValidationArtifact::Disc {
             path,
             embedded_playtest,
-            ..
+            bios_boot,
         } => (
             resolve_manifest_path(repo_root, manifest_dir, path),
             *embedded_playtest,
+            *bios_boot,
         ),
-        ValidationArtifact::Example { path } | ValidationArtifact::Commercial { path } => {
-            (resolve_manifest_path(repo_root, manifest_dir, path), false)
-        }
+        ValidationArtifact::Example { path } | ValidationArtifact::Commercial { path } => (
+            resolve_manifest_path(repo_root, manifest_dir, path),
+            false,
+            false,
+        ),
     };
     Ok(ResolvedValidationArtifact {
         path,
         embedded_playtest,
+        bios_boot,
     })
 }
 
@@ -2771,6 +2820,9 @@ fn validation_launch_args(
         path: Some(artifact.path.clone()),
         game_id: None,
         savestate: None,
+        bios: None,
+        bios_boot: artifact.bios_boot,
+        bios_warmup_steps: None,
         disc: None,
         memcard: None,
         memcard2: None,
@@ -3528,17 +3580,6 @@ fn counter_total(summary: &telemetry::GuestTelemetrySummary, id: u16) -> u64 {
         .get(id as usize)
         .copied()
         .unwrap_or_default()
-}
-
-fn maybe_fast_boot_disc(
-    bus: &mut Bus,
-    cpu: &mut Cpu,
-    disc: &Disc,
-    path: &std::path::Path,
-) -> Result<(), String> {
-    fast_boot_disc(bus, cpu, disc)
-        .map_err(|error| format!("boot {}: {error:?}", path.display()))?;
-    Ok(())
 }
 
 fn fmt_empty(s: &str) -> String {
@@ -4400,7 +4441,7 @@ mod press_script_tests {
         assert!(csv.contains("0x800b560c,0x800b622c,0x800b622c,0x8007e5ec,1,25.000000"));
     }
     #[test]
-    fn external_firmware_options_are_rejected() {
+    fn external_firmware_options_are_accepted() {
         for args in [
             vec![
                 "frontend",
@@ -4420,7 +4461,7 @@ mod press_script_tests {
                 "100",
             ],
         ] {
-            assert!(Cli::try_parse_from(args).is_err());
+            assert!(Cli::try_parse_from(args).is_ok());
         }
     }
 
@@ -4429,6 +4470,9 @@ mod press_script_tests {
         let mut bus = Bus::new_without_bios();
         let mut cpu = Cpu::new();
         let disc = Disc::from_bin(vec![0; 2352]);
-        assert!(maybe_fast_boot_disc(&mut bus, &mut cpu, &disc, Path::new("bad.bin")).is_err());
+        assert!(
+            fast_boot_embedded_playtest_disc(&mut bus, &mut cpu, &disc, Path::new("bad.bin"))
+                .is_err()
+        );
     }
 }

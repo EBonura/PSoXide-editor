@@ -35,6 +35,8 @@ mod editor_preview;
 mod editor_textures;
 #[cfg(feature = "editor")]
 mod embedded_playtest;
+#[cfg(not(target_arch = "wasm32"))]
+mod firmware;
 mod gfx;
 mod icons;
 mod input;

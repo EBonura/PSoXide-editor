@@ -831,6 +831,9 @@ impl AppState {
                 bus
             }
             GameKind::DiscBin | GameKind::DiscIso => {
+                #[cfg(not(target_arch = "wasm32"))]
+                let mut bus = crate::firmware::configured_bus(&self.settings)?;
+                #[cfg(target_arch = "wasm32")]
                 let mut bus = Bus::new_without_bios();
                 let bytes = std::fs::read(&entry.path)
                     .map_err(|e| format!("{}: {e}", entry.path.display()))?;
@@ -842,9 +845,23 @@ impl AppState {
                 }
                 game_hash = Some(emulator_core::game_image_hash(&bytes));
                 let disc = Disc::from_bin(bytes);
-                fast_boot_disc(&mut bus, &mut cpu, &disc)
-                    .map_err(|e| format!("boot disc: {e:?}"))?;
-                boot_mode = "HLE";
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    boot_mode = crate::firmware::boot_disc(
+                        &mut bus,
+                        &mut cpu,
+                        &disc,
+                        &entry.path,
+                        self.settings.emulator.fast_boot_disc,
+                        emulator_core::DISC_FAST_BOOT_WARMUP_STEPS,
+                    );
+                }
+                #[cfg(target_arch = "wasm32")]
+                {
+                    fast_boot_disc(&mut bus, &mut cpu, &disc)
+                        .map_err(|error| format!("boot disc: {error:?}"))?;
+                    boot_mode = "HLE";
+                }
                 bus.cdrom.insert_disc(Some(disc));
                 bus.attach_digital_pad_port1();
                 // Load + attach the per-game memory card on port 1.
@@ -859,6 +876,9 @@ impl AppState {
                 bus
             }
             GameKind::DiscCue | GameKind::DiscCcd => {
+                #[cfg(not(target_arch = "wasm32"))]
+                let mut bus = crate::firmware::configured_bus(&self.settings)?;
+                #[cfg(target_arch = "wasm32")]
                 let mut bus = Bus::new_without_bios();
                 let disc = match entry.kind {
                     GameKind::DiscCue => psoxide_settings::library::load_disc_from_cue(&entry.path),
@@ -866,9 +886,23 @@ impl AppState {
                     _ => unreachable!(),
                 }?;
                 game_hash = Some(disc_image_hash(&disc));
-                fast_boot_disc(&mut bus, &mut cpu, &disc)
-                    .map_err(|e| format!("boot disc: {e:?}"))?;
-                boot_mode = "HLE";
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    boot_mode = crate::firmware::boot_disc(
+                        &mut bus,
+                        &mut cpu,
+                        &disc,
+                        &entry.path,
+                        self.settings.emulator.fast_boot_disc,
+                        emulator_core::DISC_FAST_BOOT_WARMUP_STEPS,
+                    );
+                }
+                #[cfg(target_arch = "wasm32")]
+                {
+                    fast_boot_disc(&mut bus, &mut cpu, &disc)
+                        .map_err(|error| format!("boot disc: {error:?}"))?;
+                    boot_mode = "HLE";
+                }
                 bus.cdrom.insert_disc(Some(disc));
                 bus.attach_digital_pad_port1();
                 self.paths
@@ -2215,6 +2249,28 @@ impl AppState {
         self.menu.sync_run_label(true);
     }
 
+    /// Choose the user-supplied firmware used for desktop disc launches.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn choose_bios_path(&mut self) {
+        let mut dialog = rfd::FileDialog::new()
+            .set_title("Choose BIOS image")
+            .add_filter("BIOS image", &["bin", "rom"]);
+        if let Some(dir) = path_parent_or_self(self.settings.paths.bios.trim()) {
+            dialog = dialog.set_directory(dir);
+        }
+        let Some(path) = dialog.pick_file() else {
+            return;
+        };
+        self.settings.paths.bios = path.to_string_lossy().into_owned();
+        match self.save_settings() {
+            Ok(()) => {
+                self.sync_menu_settings_paths();
+                self.status_message_set("BIOS path saved");
+            }
+            Err(error) => self.status_message_set(error),
+        }
+    }
+
     /// Choose and persist the games folder from the Menu Settings column.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn choose_games_path(&mut self) {
@@ -2255,6 +2311,13 @@ impl AppState {
     /// Refresh the Settings menu's games folder.
     pub fn sync_menu_settings_paths(&mut self) {
         self.menu.sync_settings_paths(self.games_path_label());
+        #[cfg(not(target_arch = "wasm32"))]
+        self.menu.sync_bios_path(
+            crate::firmware::resolve_bios_path(&self.settings)
+                .ok()
+                .map(|path| path.display().to_string())
+                .unwrap_or_else(|| "Missing".into()),
+        );
     }
 
     /// Current display label for every rebindable port-1 target, for
@@ -4005,7 +4068,7 @@ fn binding_for_target_mut(
     }
 }
 
-fn load_initial_bus(_settings: &Settings, cpu: &mut Cpu) -> Option<Bus> {
+fn load_initial_bus(settings: &Settings, cpu: &mut Cpu) -> Option<Bus> {
     if let Some((exe, exe_path)) = load_exe() {
         let mut bus = Bus::new_without_bios();
         bus.load_exe_payload(exe.load_addr, &exe.payload);
@@ -4030,11 +4093,37 @@ fn load_initial_bus(_settings: &Settings, cpu: &mut Cpu) -> Option<Bus> {
         return Some(bus);
     }
     let disc = load_disc()?;
-    let mut bus = Bus::new_without_bios();
-    if let Err(error) = fast_boot_disc(&mut bus, cpu, &disc) {
-        eprintln!("[frontend] cannot boot disc: {error:?}");
-        return None;
-    }
+    #[cfg(not(target_arch = "wasm32"))]
+    let mut bus = match crate::firmware::configured_bus(settings) {
+        Ok(bus) => bus,
+        Err(error) => {
+            eprintln!("[frontend] cannot boot disc: {error}");
+            return None;
+        }
+    };
+    #[cfg(not(target_arch = "wasm32"))]
+    let path = std::env::var_os("PSOXIDE_DISC")
+        .map(PathBuf::from)
+        .unwrap_or_default();
+    #[cfg(not(target_arch = "wasm32"))]
+    crate::firmware::boot_disc(
+        &mut bus,
+        cpu,
+        &disc,
+        &path,
+        settings.emulator.fast_boot_disc,
+        emulator_core::DISC_FAST_BOOT_WARMUP_STEPS,
+    );
+    #[cfg(target_arch = "wasm32")]
+    let mut bus = {
+        let _ = settings;
+        let mut bus = Bus::new_without_bios();
+        if let Err(error) = fast_boot_disc(&mut bus, cpu, &disc) {
+            eprintln!("[frontend] cannot boot disc: {error:?}");
+            return None;
+        }
+        bus
+    };
     bus.cdrom.insert_disc(Some(disc));
     bus.attach_digital_pad_port1();
     Some(bus)
@@ -4510,6 +4599,32 @@ mod tests {
                 ..Default::default()
             });
         }
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn disc_library_launch_requires_configured_firmware_before_emulation() {
+        let root = frontend_test_temp_dir("missing-disc-firmware");
+        let mut state = AppState::with_config_dir(Some(root.clone()));
+        state.settings.paths.bios = root.join("missing-firmware.bin").display().to_string();
+        let entry = LibraryEntry {
+            path: root.join("game.cue"),
+            id: "test-disc".into(),
+            kind: GameKind::DiscCue,
+            title: "Test disc".into(),
+            region: Region::Unknown,
+            size: 0,
+            mtime: 0,
+            diagnostic: None,
+        };
+        let error = state.launch_entry(&entry).unwrap_err();
+        assert!(error.contains("BIOS"));
+        assert!(error.contains("missing-firmware.bin"));
+        assert!(
+            !error.contains("game.cue"),
+            "firmware must be checked before reading the disc"
+        );
+        let _ = std::fs::remove_dir_all(root);
     }
 
     fn frontend_test_temp_dir(name: &str) -> PathBuf {
