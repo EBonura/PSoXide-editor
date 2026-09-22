@@ -579,7 +579,9 @@ HWTEST_CAPTURE  := build/hwtest-capture.log
 # in the file header.
 HWTEST_SUITE := $(shell sed -n 's/^const SUITE_VERSION: &str = "HWTEST v\(.*\)";/\1/p' engine/examples/hardware-tests/src/main.rs)
 HWTEST_BASELINE := docs/hardware-refs/px8-emulator-v$(HWTEST_SUITE).txt
-HWTEST_STEPS    := 400000000
+# v1.24's lever probes pushed the capture past 400M: it completes between
+# 420M and 430M instructions headless. The rest is margin.
+HWTEST_STEPS    := 480000000
 
 # Always run a source-built emulator. `cargo run` guarantees that; invoking a
 # path under target/ by hand does not, and a stale binary silently produces a

@@ -124,14 +124,15 @@ class TableSyncTests(unittest.TestCase):
         slots = int(re.search(r"const TIMING_RECORD_COUNT: usize = (\d+);", source).group(1))
         table = {
             name: int(re.search(rf"const {name}: \[\w+; (\d+)\]", source).group(1))
-            for name in ("SAFE", "EXTENDED", "SHAPES", "RISKY", "CASES")
+            for name in ("SAFE", "LEVERS", "EXTENDED", "SHAPES", "RISKY", "CASES")
         }
         dma_pairs = 6
         retired = sum(1 for label in report.LABELS.values() if label.startswith("v122_only_"))
         # What is left is the standing battery, which has not changed size.
         standing = len(report.LABELS) - sum(table.values()) - dma_pairs - retired
         self.assertEqual(standing, 151)
-        self.assertLessEqual(standing + table["SAFE"], slots)
+        # The standard scope takes the standing battery, SAFE and LEVERS.
+        self.assertLessEqual(standing + table["SAFE"] + table["LEVERS"], slots)
         self.assertLessEqual(sum(table.values()) + dma_pairs, slots)
 
     def test_no_label_claims_an_unused_slot_marker(self) -> None:
