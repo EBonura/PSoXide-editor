@@ -317,6 +317,11 @@ LABELS = {
     0x134: "rtps_then_read_otz_after_16_nops",
     0x135: "icache_alias_4k_call_pairs_cached_caller",
     0x136: "icache_neighbour_call_pairs_cached_caller",
+    # v1.24: one level2 call of hello-spstack's workload (lever_probes.rs).
+    0x137: "spstack_level2_on_ram_stack",
+    0x138: "spstack_level2_on_scratchpad_stack",
+    0x139: "spstack_level2_on_ram_stack_during_list_dma",
+    0x13A: "spstack_level2_on_scratchpad_stack_during_list_dma",
     # v1.21 register A/B group. Present only in a PERF A/B capture.
     0xDC: "ab_ramsize_uncached_loads_control",
     0xDD: "ab_ramsize_uncached_loads_bit7_flipped",
@@ -524,6 +529,10 @@ WORK_BY_ID = {
     0x134: 16,
     0x135: 32,
     0x136: 32,
+    0x137: 16,
+    0x138: 16,
+    0x139: 16,
+    0x13A: 16,
     0x72: 128,
     0x73: 128,
     0x74: 64,
@@ -964,6 +973,12 @@ def print_report(
     ):
         row = f"{index},{STATUS_LABELS[status]},0x{observed:08X}"
         if baseline is not None:
+            if index >= len(baseline.observations):
+                # A MINOR bump appends cases; the baseline has nothing to say
+                # about them.
+                row += ",absent,n/a"
+                print(row)
+                continue
             prior = baseline.observations[index]
             row += f",0x{prior:08X},{int(prior != observed)}"
             if prior != observed:
