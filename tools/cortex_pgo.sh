@@ -20,6 +20,11 @@
 # lockstep-visuals, spliced whole-level tape, gameplay polls 1412..5340, loads
 # excluded), against the same source built without a profile:
 #
+# - Every figure below had the UI SFX bank read from UI.PAK at boot instead of
+#   kept in RAM. That change is not in this tree yet (it waits on a console
+#   check), and without it the optimised build does not fit: with the default
+#   flags below it overflows RAM by 47,572 bytes (measured 2026-09-22).
+#
 # - CORTEX_PGO_FLAGS below, trained on polls 1412..3900: +1.2% fps, -0.7% work
 #   instructions, -14% I-cache refill stalls, and +1.1% fps on polls
 #   3900..5340, which the profile never saw. Two other training windows gave
