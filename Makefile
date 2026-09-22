@@ -1422,9 +1422,10 @@ cortex-anim-shots: cortex-anim-disc
 		--route-screenshot-interval $(CORTEX_ANIM_SHOT_INTERVAL)
 	@echo "[cortex-anim-shots] wrote $$(ls $(CORTEX_ANIM_SHOT_DIR) | wc -l | tr -d ' ') frames to $(CORTEX_ANIM_SHOT_DIR)"
 
-# Cortex Ignition before/after benchmark: cooks + builds the 0.4 project disc
-# with a linker map in a private stage root, runs the 64-bit symbol gate,
-# replays the tracked whole-level tape twice and prints one benchmark row.
+# Cortex Ignition before/after benchmark: cooks + builds a copy of the 0.4b
+# project (editor/projects/default) with a linker map in a private stage root,
+# runs the 64-bit symbol gate, replays the tracked whole-level tape (opening
+# skip spliced in) twice and prints one benchmark row.
 # CORTEX_BENCH_BASELINE=<previous out dir> prints before/after.
 cortex-bench:
 	sh tools/cortex_bench.sh
