@@ -1429,6 +1429,13 @@ cortex-anim-shots: cortex-anim-disc
 cortex-bench:
 	sh tools/cortex_bench.sh
 
+# Profile-guided Cortex disc: replays CORTEX_PGO_TAPE on a build with
+# profiling debug info, converts the emulator's PC histogram with psoxide-pgo
+# and rebuilds the project disc with that profile. The default build is
+# unchanged. See the header of tools/cortex_pgo.sh for the knobs.
+cortex-pgo:
+	sh tools/cortex_pgo.sh
+
 # No 64-bit integer helpers in a guest link map (project rule 2026-09-01).
 guest-symbol-gate:
 	sh tools/guest_symbol_gate.sh $(GUEST_LINK_MAP)
