@@ -19,7 +19,7 @@
     },
     "emulator": {
       "repository": "EBonura/PSoXide-emulator",
-      "revision": "c6d2b091ab761909b806b27f361ad47a66eb08e2",
+      "revision": "7dd0c0773e9de94e455216e669286c7513056a90",
       "paths": [
         "emu/crates/emulator-core",
         "emu/crates/psoxide-settings",
