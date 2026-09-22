@@ -877,7 +877,7 @@ $(foreach example,$(DATA_DISC_EXAMPLES),$(eval $(call build_data_disc,$(example)
 # Don't run it after the editor's Play action unless you want
 # the editor's output replaced.
 cook-playtest:
-	cd editor && cargo run --release -p psxed-project --bin cook-playtest -- $(PROJECT)
+	cd editor && cargo run --release -p psxed-project --bin cook-playtest -- "$(PROJECT)"
 
 # Build the editor-playtest example against whatever is in
 # `generated/level_manifest.cooked.rs` if present, otherwise
