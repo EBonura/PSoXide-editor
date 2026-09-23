@@ -90,6 +90,7 @@ __pycache__/
 /tools/psoxide-pgo
 /tools/hazard_scan.py
 /tools/hazard_patch.py
+/tools/stack_guard.py
 /tools/guest_symbol_gate.sh
 /tools/check_mfc0.py
 /emu/crates/emulator-core
