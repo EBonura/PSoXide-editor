@@ -214,3 +214,7 @@ Two cautions from that investigation:
 - `docs/frontend.md`: FrameProfiler fields; `make profile-demo7-camera-sweep` benchmark.
 - `docs/floors-plan.md`: example of `--input-tape` plus `--counter-log` headless tape diagnosis.
 - `docs/demo10-low-level-hot-paths-2026-06-02.md`: demo10 render/update cost baseline.
+
+## Verified cross-game replay reuse
+
+For content-verified local replay caching, bounded parallel runs, and explicit timing versus quality lanes, see [the shared performance suite](../benchmarks/performance-suite/README.md). This reuses recorded fixtures without rebuilding them and keeps missing quality evidence visible.
