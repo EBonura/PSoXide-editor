@@ -270,11 +270,20 @@ fn shrink_textures(c: &mut Cooked, vis: &Vis, mdl_path: &str) {
     }
 }
 
+/// Worst key-pose affine warp and how many triangles exceed `thr` pixels.
+fn warp_summary(c: &Cooked, thr: f64) -> (f64, usize) {
+    let w = subdiv::tri_warp(c);
+    (
+        w.iter().cloned().fold(0.0, f64::max),
+        w.iter().filter(|&&x| x > thr).count(),
+    )
+}
+
 fn main() {
     let a: Vec<String> = std::env::args().collect();
     let usage = "usage: psoxide-vmcook prune <in.hmd8> <in.hltx> <out.hmd8> <out.hltx> \
                  [--views HxWxH,...] [--check] [--fit-textures <src.mdl> | --shrink-textures <src.mdl>] \
-                 [--subdivide <max_tris> [--warp <px>]]";
+                 [--subdivide <max_tris>] [--subdivide-extra <tris>] [--warp <px>]";
     if a.get(1).map(String::as_str) != Some("prune") || a.len() < 6 {
         eprintln!("{usage}");
         std::process::exit(2);
@@ -328,9 +337,15 @@ fn main() {
         }
     }
     let mut vis = vis;
-    if let Some(cap) = flag("--subdivide") {
-        let cap: usize = cap.parse().expect("--subdivide <max_tris>");
+    let cap_abs = flag("--subdivide").map(|c| c.parse::<usize>().expect("--subdivide <max_tris>"));
+    let cap_extra =
+        flag("--subdivide-extra").map(|c| c.parse::<usize>().expect("--subdivide-extra <tris>"));
+    if cap_abs.is_some() || cap_extra.is_some() {
+        let cap = cap_abs
+            .unwrap_or(usize::MAX)
+            .min(cap_extra.map_or(usize::MAX, |e| out.tris.len() + e));
         let warp: f64 = flag("--warp").map_or(1.0, |w| w.parse().expect("--warp <px>"));
+        let before = warp_summary(&out, warp);
         let (sub, _, levels) = subdiv::subdiv_levels(&out, None, warp, 2, cap);
         if levels > 0 {
             let v2 = visibility(&sub, &views);
@@ -338,6 +353,11 @@ fn main() {
             out = sub.prune(&keep);
             vis = visibility(&out, &views);
         }
+        let after = warp_summary(&out, warp);
+        println!(
+            "vmcook: affine warp max {:.1} -> {:.1} px, triangles over {warp} px {} -> {} (cap {cap})",
+            before.0, after.0, before.1, after.1
+        );
     }
     if let Some(mdl_path) = shrink_from {
         shrink_textures(&mut out, &vis, &mdl_path);
