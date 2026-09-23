@@ -1,0 +1,523 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "argv": [
+        "launch",
+        "--embedded-playtest",
+        "--config-dir",
+        "{out}/config",
+        "--path",
+        "{input.image}",
+        "--input-tape",
+        "{input.tape}",
+        "--steps",
+        "2000000000",
+        "--stop-at-poll",
+        "900",
+        "--route-log",
+        "{out}/route.csv",
+        "--dump-display",
+        "{out}/final.ppm",
+        "--dump-ram",
+        "{out}/ram.bin",
+        "--dump-spu-ram",
+        "{out}/spu-ram.bin",
+        "--dump-hash",
+        "--cpu-cycle-profile-log",
+        "{out}/cycles.csv",
+        "--gpu-frame-stats-log",
+        "{out}/gpu.csv",
+        "--route-screenshot-dir",
+        "{out}/frames",
+        "--route-screenshot-interval",
+        "120",
+        "--dump-audio",
+        "{out}/spu.wav"
+      ],
+      "build_provenance": {
+        "binary": "frontend-public-main",
+        "command": [
+          "cargo",
+          "build",
+          "--release",
+          "--locked",
+          "-p",
+          "frontend"
+        ],
+        "editor": "0f8c3a1b87ec2ae6b3292250fe694733685cc54f",
+        "emulator": "0d6e8bf8b263c5304026e164d220b8f2801f7e59",
+        "features": "default, editor",
+        "sdk": "ece99be69f77182e46988c007a1f5bbe652934bd",
+        "sha256": "42e69a23451380a09b20049b2432db25f24663d90eb6e71b2d8b7cdc6069211e",
+        "source_clean": true,
+        "guest": "accepted pixel build 779789d, EXE 19ca5754; historical recorded route, not an entire-game deadline proof"
+      },
+      "completion": {
+        "max_poll": 901,
+        "poll": 900
+      },
+      "id": "celeste.recorded.poll900",
+      "inputs": {
+        "emulator": "$frontend_42e69",
+        "image": "$celeste_image",
+        "tape": "$celeste_tape"
+      },
+      "lane": "acceptance",
+      "quality": {
+        "audio": {
+          "patterns": [
+            "spu.wav"
+          ],
+          "scope": "whole replay mixed output"
+        },
+        "visual": {
+          "patterns": [
+            "frames/*.ppm",
+            "final.ppm"
+          ],
+          "scope": "Sparse software frames and endpoint; exact comparisons require matching presentation alignment"
+        }
+      },
+      "required_outputs": [
+        "route.csv",
+        "cycles.csv",
+        "gpu.csv",
+        "final.ppm",
+        "ram.bin",
+        "spu-ram.bin",
+        "spu.wav"
+      ],
+      "candidate_inputs": [
+        "image"
+      ]
+    },
+    {
+      "argv": [
+        "launch",
+        "--embedded-playtest",
+        "--config-dir",
+        "{out}/config",
+        "--path",
+        "{input.image}",
+        "--input-tape",
+        "{input.tape}",
+        "--steps",
+        "2000000000",
+        "--stop-at-poll",
+        "3600",
+        "--route-log",
+        "{out}/route.csv",
+        "--dump-display",
+        "{out}/final.ppm",
+        "--dump-ram",
+        "{out}/ram.bin",
+        "--dump-spu-ram",
+        "{out}/spu-ram.bin",
+        "--dump-hash",
+        "--cpu-cycle-profile-log",
+        "{out}/cycles.csv",
+        "--gpu-frame-stats-log",
+        "{out}/gpu.csv",
+        "--route-screenshot-dir",
+        "{out}/frames",
+        "--route-screenshot-interval",
+        "120",
+        "--dump-audio",
+        "{out}/spu.wav"
+      ],
+      "build_provenance": {
+        "binary": "frontend-public-main",
+        "command": [
+          "cargo",
+          "build",
+          "--release",
+          "--locked",
+          "-p",
+          "frontend"
+        ],
+        "editor": "0f8c3a1b87ec2ae6b3292250fe694733685cc54f",
+        "emulator": "0d6e8bf8b263c5304026e164d220b8f2801f7e59",
+        "features": "default, editor",
+        "sdk": "ece99be69f77182e46988c007a1f5bbe652934bd",
+        "sha256": "42e69a23451380a09b20049b2432db25f24663d90eb6e71b2d8b7cdc6069211e",
+        "source_clean": true,
+        "guest": "accepted pixel build 779789d, EXE 19ca5754; historical recorded route, not an entire-game deadline proof"
+      },
+      "completion": {
+        "poll": 3600,
+        "max_poll": 3602
+      },
+      "id": "celeste.recorded.poll3600",
+      "inputs": {
+        "emulator": "$frontend_42e69",
+        "image": "$celeste_image",
+        "tape": "$celeste_tape"
+      },
+      "lane": "acceptance",
+      "quality": {
+        "audio": {
+          "patterns": [
+            "spu.wav"
+          ],
+          "scope": "whole replay mixed output"
+        },
+        "visual": {
+          "patterns": [
+            "frames/*.ppm",
+            "final.ppm"
+          ],
+          "scope": "Sparse software frames and endpoint; exact comparisons require matching presentation alignment"
+        }
+      },
+      "required_outputs": [
+        "route.csv",
+        "cycles.csv",
+        "gpu.csv",
+        "final.ppm",
+        "ram.bin",
+        "spu-ram.bin",
+        "spu.wav"
+      ],
+      "candidate_inputs": [
+        "image"
+      ]
+    },
+    {
+      "argv": [
+        "launch",
+        "--embedded-playtest",
+        "--config-dir",
+        "{out}/config",
+        "--path",
+        "{input.image}",
+        "--input-tape",
+        "{input.tape}",
+        "--steps",
+        "2000000000",
+        "--stop-at-poll",
+        "5300",
+        "--route-log",
+        "{out}/route.csv",
+        "--dump-display",
+        "{out}/final.ppm",
+        "--dump-ram",
+        "{out}/ram.bin",
+        "--dump-spu-ram",
+        "{out}/spu-ram.bin",
+        "--dump-hash",
+        "--cpu-cycle-profile-log",
+        "{out}/cycles.csv",
+        "--gpu-frame-stats-log",
+        "{out}/gpu.csv",
+        "--route-screenshot-dir",
+        "{out}/frames",
+        "--route-screenshot-interval",
+        "120",
+        "--dump-audio",
+        "{out}/spu.wav"
+      ],
+      "build_provenance": {
+        "binary": "frontend-public-main",
+        "command": [
+          "cargo",
+          "build",
+          "--release",
+          "--locked",
+          "-p",
+          "frontend"
+        ],
+        "editor": "0f8c3a1b87ec2ae6b3292250fe694733685cc54f",
+        "emulator": "0d6e8bf8b263c5304026e164d220b8f2801f7e59",
+        "features": "default, editor",
+        "sdk": "ece99be69f77182e46988c007a1f5bbe652934bd",
+        "sha256": "42e69a23451380a09b20049b2432db25f24663d90eb6e71b2d8b7cdc6069211e",
+        "source_clean": true,
+        "guest": "accepted pixel build 779789d, EXE 19ca5754; historical recorded route, not an entire-game deadline proof"
+      },
+      "completion": {
+        "poll": 5300,
+        "max_poll": 5302
+      },
+      "id": "celeste.recorded.poll5300",
+      "inputs": {
+        "emulator": "$frontend_42e69",
+        "image": "$celeste_image",
+        "tape": "$celeste_tape"
+      },
+      "lane": "acceptance",
+      "quality": {
+        "audio": {
+          "patterns": [
+            "spu.wav"
+          ],
+          "scope": "whole replay mixed output"
+        },
+        "visual": {
+          "patterns": [
+            "frames/*.ppm",
+            "final.ppm"
+          ],
+          "scope": "Sparse software frames and endpoint; exact comparisons require matching presentation alignment"
+        }
+      },
+      "required_outputs": [
+        "route.csv",
+        "cycles.csv",
+        "gpu.csv",
+        "final.ppm",
+        "ram.bin",
+        "spu-ram.bin",
+        "spu.wav"
+      ],
+      "candidate_inputs": [
+        "image"
+      ]
+    },
+    {
+      "argv": [
+        "launch",
+        "--embedded-playtest",
+        "--config-dir",
+        "{out}/config",
+        "--path",
+        "{input.image}",
+        "--input-tape",
+        "{input.tape}",
+        "--steps",
+        "2000000000",
+        "--stop-at-poll",
+        "1500",
+        "--route-log",
+        "{out}/route.csv",
+        "--dump-display",
+        "{out}/final.ppm",
+        "--dump-ram",
+        "{out}/ram.bin",
+        "--dump-spu-ram",
+        "{out}/spu-ram.bin",
+        "--dump-hash",
+        "--cpu-cycle-profile-log",
+        "{out}/cycles.csv",
+        "--gpu-frame-stats-log",
+        "{out}/gpu.csv",
+        "--route-screenshot-dir",
+        "{out}/frames",
+        "--route-screenshot-interval",
+        "120",
+        "--dump-audio",
+        "{out}/spu.wav"
+      ],
+      "build_provenance": {
+        "guest": "Existing Cortex 0.4b cooked fixture; no new build or claimed current-main provenance",
+        "runtime": {
+          "binary": "frontend-public-main",
+          "command": [
+            "cargo",
+            "build",
+            "--release",
+            "--locked",
+            "-p",
+            "frontend"
+          ],
+          "editor": "0f8c3a1b87ec2ae6b3292250fe694733685cc54f",
+          "emulator": "0d6e8bf8b263c5304026e164d220b8f2801f7e59",
+          "features": "default, editor",
+          "sdk": "ece99be69f77182e46988c007a1f5bbe652934bd",
+          "sha256": "42e69a23451380a09b20049b2432db25f24663d90eb6e71b2d8b7cdc6069211e",
+          "source_clean": true,
+          "guest": "accepted pixel build 779789d, EXE 19ca5754; historical recorded route, not an entire-game deadline proof"
+        }
+      },
+      "completion": {
+        "poll": 1500,
+        "max_poll": 1502
+      },
+      "id": "cortex.gameplay.poll1500",
+      "inputs": {
+        "emulator": "$frontend_42e69",
+        "image": "$cortex_image",
+        "tape": "$cortex_tape"
+      },
+      "lane": "acceptance",
+      "quality": {
+        "audio": {
+          "patterns": [
+            "spu.wav"
+          ],
+          "scope": "whole replay mixed output"
+        },
+        "visual": {
+          "patterns": [
+            "frames/*.ppm",
+            "final.ppm"
+          ],
+          "scope": "Sparse software frames and endpoint; exact comparisons require matching presentation alignment"
+        }
+      },
+      "required_outputs": [
+        "route.csv",
+        "cycles.csv",
+        "gpu.csv",
+        "final.ppm",
+        "ram.bin",
+        "spu-ram.bin",
+        "spu.wav"
+      ],
+      "candidate_inputs": [
+        "image"
+      ]
+    },
+    {
+      "id": "hl.chapter2.poll1500",
+      "lane": "quick",
+      "inputs": {
+        "guest": "$hl.chapter2.poll1500_guest",
+        "image": "$hl.chapter2.poll1500_image",
+        "map": "$hl.chapter2.poll1500_map",
+        "image_bin_0": "$hl.chapter2.poll1500_image_bin_0",
+        "tape": "$hl.chapter2.poll1500_tape",
+        "emulator": "$frontend_42e69"
+      },
+      "argv": [
+        "launch",
+        "--embedded-playtest",
+        "--config-dir",
+        "{out}/config",
+        "--path",
+        "{input.guest}",
+        "--disc",
+        "{input.image}",
+        "--steps",
+        "12000000000",
+        "--route-log",
+        "{out}/route.csv",
+        "--cpu-cycle-profile-log",
+        "{out}/cycles.csv",
+        "--gpu-frame-stats-log",
+        "{out}/gpu.csv",
+        "--cd-command-log",
+        "{out}/cd.csv",
+        "--route-screenshot-dir",
+        "{out}/frames",
+        "--route-screenshot-interval",
+        "500",
+        "--dump-display",
+        "{out}/final.ppm",
+        "--dump-ram",
+        "{out}/ram.bin",
+        "--dump-hash",
+        "--input-tape",
+        "{input.tape}",
+        "--stop-at-poll",
+        "1500",
+        "--dump-vram",
+        "{out}/vram.ppm"
+      ],
+      "quality": {
+        "visual": {
+          "patterns": [
+            "frames/*.ppm",
+            "final.ppm"
+          ],
+          "scope": "Software route checkpoints; no inferred game-state/audio equivalence"
+        }
+      },
+      "build_provenance": "historical accepted binary fixture, not current-main rebuild",
+      "completion": {
+        "poll": 1500,
+        "max_poll": 1502
+      },
+      "required_outputs": [
+        "route.csv",
+        "cycles.csv",
+        "gpu.csv",
+        "cd.csv",
+        "ram.bin",
+        "final.ppm",
+        "vram.ppm"
+      ],
+      "candidate_inputs": [
+        "guest",
+        "image",
+        "image_bin_0",
+        "map"
+      ]
+    },
+    {
+      "id": "quake.e1m1-chain3800",
+      "lane": "acceptance",
+      "inputs": {
+        "guest": "$quake.e1m1-chain3800_guest",
+        "image": "$quake.e1m1-chain3800_image",
+        "image_bin_0": "$quake.e1m1-chain3800_image_bin_0",
+        "quake_adapter": "$quake_chain_adapter",
+        "python": "$python",
+        "emulator": "$frontend_42e69"
+      },
+      "argv": [
+        "launch",
+        "--embedded-playtest",
+        "--config-dir",
+        "{out}/config",
+        "--path",
+        "{input.guest}",
+        "--disc",
+        "{input.image}",
+        "--steps",
+        "12000000000",
+        "--digital-pad",
+        "--guest-frames",
+        "3800",
+        "--guest-debug-log",
+        "--route-log",
+        "{out}/route.csv",
+        "--cpu-cycle-profile-log",
+        "{out}/cycles.csv",
+        "--gpu-frame-stats-log",
+        "{out}/gpu.csv",
+        "--cd-command-log",
+        "{out}/cd.csv",
+        "--route-screenshot-dir",
+        "{out}/frames",
+        "--route-screenshot-interval",
+        "600",
+        "--dump-display",
+        "{out}/final.ppm",
+        "--dump-ram",
+        "{out}/ram.bin",
+        "--dump-hash",
+        "--dump-vram",
+        "{out}/vram.ppm"
+      ],
+      "quality": {
+        "visual": {
+          "patterns": [
+            "frames/*.ppm",
+            "final.ppm"
+          ],
+          "scope": "Software route checkpoints; no inferred game-state/audio equivalence"
+        }
+      },
+      "build_provenance": "historical accepted binary fixture, not current-main rebuild",
+      "completion": {
+        "adapter": "quake_adapter",
+        "interpreter": "python"
+      },
+      "required_outputs": [
+        "route.csv",
+        "cycles.csv",
+        "gpu.csv",
+        "cd.csv",
+        "ram.bin",
+        "final.ppm",
+        "vram.ppm"
+      ],
+      "candidate_inputs": [
+        "guest",
+        "image",
+        "image_bin_0"
+      ]
+    }
+  ]
+}

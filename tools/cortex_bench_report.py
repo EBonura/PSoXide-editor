@@ -63,12 +63,12 @@ def idle_split(out: pathlib.Path, run: int) -> tuple[int, int]:
     return idle, work
 
 
-def run_summary(out: pathlib.Path, run: int) -> dict:
-    text = (out / f"run-{run}.txt").read_text()
+def parse_launch_summary(text: str) -> dict:
+    """Read actual guest counters/hashes without inferring a frame rate."""
     grab = lambda key: re.search(rf"^{key}=(\S+)", text, re.M)
     tick = re.search(r"^tick=(\d+)\s+cycles=(\d+)", text, re.M)
     if tick is None:
-        sys.exit(f"run-{run}.txt has no tick/cycles line; the replay did not finish")
+        raise ValueError("launch stdout has no tick/cycles completion line")
     summary = {
         "instructions": int(tick.group(1)),
         "bus_cycles": int(tick.group(2)),
@@ -76,6 +76,17 @@ def run_summary(out: pathlib.Path, run: int) -> dict:
         "vram_hash": grab("vram_fnv1a_64").group(1),
         "display_hash": grab("display_fnv1a_64").group(1),
     }
+    stopped = re.search(r"^tick=.*?stopped-at=(\d+)", text, re.M)
+    if stopped:
+        summary["stopped_at"] = int(stopped[1])
+    polls = re.search(r"^route-ticks=(\d+)\s+port1-polls=(\d+)", text, re.M)
+    if polls is not None:
+        summary["port1_polls"] = int(polls.group(2))
+    return summary
+
+
+def run_summary(out: pathlib.Path, run: int) -> dict:
+    summary = parse_launch_summary((out / f"run-{run}.txt").read_text())
     route = list(csv.DictReader(open(out / f"route-{run}.csv")))
     flips = sum(int(r["display_start_changed"]) for r in route)
     vblanks = max(len(route) - 1, 1)
