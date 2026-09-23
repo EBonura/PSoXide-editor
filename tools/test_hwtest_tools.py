@@ -139,6 +139,17 @@ class TableSyncTests(unittest.TestCase):
         self.assertNotIn(0xFF, report.LABELS)
         self.assertNotIn(0xFFFF, report.LABELS)
 
+    def test_list_busy_labels_match_the_battery(self) -> None:
+        # Cases are named by index on the host, so the labels must start where
+        # the guest's list_busy_probes entries start and cover all of them.
+        source = (GUEST_SRC / "main.rs").read_text(encoding="utf-8")
+        battery = source[source.index("const TESTS: [TestSpec; TEST_COUNT]") :]
+        runs = re.findall(r"run: ([\w:]+),", battery)
+        busy = [index for index, run in enumerate(runs) if run.startswith("list_busy_probes::")]
+        self.assertEqual(busy[0], report.LIST_BUSY_FIRST_CASE)
+        self.assertEqual(len(busy), len(report.LIST_BUSY_LABELS))
+        self.assertEqual(busy, list(range(busy[0], busy[0] + len(busy))))
+
     def test_block_flags_match_photo_rs(self) -> None:
         photo = (GUEST_SRC / "photo.rs").read_text(encoding="utf-8")
         for name in ("STATUS", "FAILURES", "OBSERVED", "TIMING", "MEMCTL", "PRECISION"):
