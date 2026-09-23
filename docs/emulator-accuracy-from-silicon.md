@@ -798,8 +798,8 @@ old 2.8 clocks a pixel.
 
 ### Pinned in the editor (2026-09-23)
 
-The editor pins emulator 88c2de4 (the code of 561bd2c plus its changelog)
-and SDK 8adf4b14f. Save states move to format 7 with that pin: the FIFO
+The editor pins emulator d7686e6 (561bd2c plus its changelog and the GP0
+port IRQ1 fix below) and SDK 8adf4b14f. Save states move to format 7 with that pin: the FIFO
 model's in-flight linked-list walk is now serialized, and states saved by
 earlier builds no longer load.
 
@@ -823,5 +823,9 @@ such words while loading, and since nothing acknowledged the flag the old
 runner's flips kept landing in the emulator even though it never sent
 GP0(1Fh). With the latch limited to words that start a command, that build
 drops to 5.45 fps (every flip times out) while the fixed build is
-unchanged. Until the emulator is corrected, a game that forgets GP0(1Fh)
-can look fine headless and still hang or tear on a console.
+unchanged. Emulator d7686e6 fixes this: a word written to the GP0 port
+posts IRQ1 only when it starts a command (parameter, polyline and upload
+words never do), so a game that forgets GP0(1Fh) now stalls headless the
+way it would on a console. On d7686e6 the fixed Cortex build is unchanged
+(23.152 fps, same route and display) and the unfixed one drops to 5.446 fps,
+and the v1.24 hwtest capture is byte-identical to 561bd2c's.
