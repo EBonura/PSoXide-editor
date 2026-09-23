@@ -88,6 +88,18 @@ emulated timing:
   conflict: it cannot say which incoming line actually displaced which victim.
   Add `--pc-line-start-route-tick <N>` to exclude deterministic boot/loading
   work and rank only the gameplay tail of a route.
+- `--mmio-stall-line-log`, `--ram-load-stall-line-log` and
+  `--icache-stall-line-log` attribute those stall cycles to the instruction
+  that paid them, in the same CSV shape (each has a `--*-start-route-tick`).
+- `--pc-log-words` keys all of the above by 4-byte instruction word (column
+  `pc`) instead of by line (column `line_pc`). Use it whenever you compare
+  functions across builds: a 16-byte line often holds the tail of one function
+  and the head of the next, and a line log bills the whole line to the first,
+  so a hot callee (memcpy after a small closure) shows up as a fake delta in
+  its neighbour when code moves. Word logs cost about the same as line logs.
+  `python3 tools/pc_line_attribution.py <pc.csv> <link.map> --compare
+  <base-pc.csv> <base-link.map>` prints exact per-function totals and deltas,
+  and warns how much of a line log straddles symbols.
 - `--icache-event-log <csv>` records every real refill with its direct-mapped
   set, incoming line/tag, previous victim line/tag/valid mask, miss kind, fill
   width and charged stall cycles. Add `--icache-event-start-route-tick <N>` to
