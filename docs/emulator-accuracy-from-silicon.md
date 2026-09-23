@@ -795,3 +795,33 @@ cycles polling: it waits for the channel-2 walk, which under the FIFO model
 lasts as long as the drawing. Its GPU busy share falls from 49.8% to 21.3%
 with the new draw costs, because its textured triangles are cheaper than the
 old 2.8 clocks a pixel.
+
+### Pinned in the editor (2026-09-23)
+
+The editor pins emulator 88c2de4 (the code of 561bd2c plus its changelog)
+and SDK 8adf4b14f. Save states move to format 7 with that pin: the FIFO
+model's in-flight linked-list walk is now serialized, and states saved by
+earlier builds no longer load.
+
+The same pin moves the engine to psx-rt's new present protocol: the queued
+flip waits for GPUSTAT bit 24, set by the frame's closing GP0(1Fh), and the
+runner now acknowledges the flag and sends that GP0(1Fh) after the overlay.
+Immediate scenes present through the same queue, so a late frame waits for a
+blank edge instead of flipping mid-scanout. Cortex 0.4b built at the pin
+with the renderer levers (scratchpad stacks, joint fission) and both
+changes, same tape and window as the table above, on 561bd2c: 23.152 fps,
+1,965 frames, flips 2 to 5 VBlanks apart, and the same display hash as the
+build without the protocol change at seven
+of eight checkpoint polls (1500 to 5340). At poll 2600 the frame on screen
+is a neighbouring animation tick, since the new gate moves when flips land,
+and both images are complete.
+
+One emulator gap showed up doing this. 88c2de4 latches IRQ1 for any word
+written to the GP0 port whose top byte is `1Fh`, including VRAM upload
+pixel data; silicon raises it only for a GP0(1Fh) command. Cortex uploads
+such words while loading, and since nothing acknowledged the flag the old
+runner's flips kept landing in the emulator even though it never sent
+GP0(1Fh). With the latch limited to words that start a command, that build
+drops to 5.45 fps (every flip times out) while the fixed build is
+unchanged. Until the emulator is corrected, a game that forgets GP0(1Fh)
+can look fine headless and still hang or tear on a console.
