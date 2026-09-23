@@ -23,6 +23,7 @@ members = [
     "tools/psoxide-link",
     "tools/psoxide-pgo",
     "tools/psoxide-dev",
+    "tools/psoxide-vmcook",
 ]
 # The device-side workspaces live inside this directory tree; cargo
 # requires nested workspace roots to be excluded explicitly.

@@ -3300,6 +3300,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "psoxide-vmcook"
+version = "0.1.0"
+dependencies = [
+ "emulator-core",
+ "psx-asset",
+ "psx-gte",
+]
+
+[[package]]
 name = "psx-asset"
 version = "0.1.0"
 dependencies = [
