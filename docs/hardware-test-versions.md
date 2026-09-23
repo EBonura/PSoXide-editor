@@ -33,6 +33,55 @@ shipped without either, which is why no machine-code baseline exists for them.
 
 ## History
 
+### v1.24 (2026-09-23, schema PX8)
+
+Console gates for three performance levers that measured well in the emulator
+and each rest on something only silicon can answer (`src/lever_probes.rs`,
+described in [hardware-test-disc.md](hardware-test-disc.md)). Eleven
+conformance cases, `0xC8`-`0xD2`, appended to the battery (indices 200-210, so
+RESUME FROM TEST at 200 runs these, the list-busy cases below and the timing
+scan), and four timing records, `137`-`13A`, in a new `LEVERS` table that runs
+with every timing scan. Then, before any burn, 23 more cases, `0xD3`-`0xE9`
+(indices 211-233, `src/list_busy_probes.rs`), for the lever those three do not
+settle:
+
+* `0xC8`-`0xCB`, GTE vs IRQ: whether an interrupt taken on a GTE command runs
+  it twice when the handler returns to EPC (psx-rt's behaviour), and whether
+  psx-spx's fix (step EPC over a GTE command) removes that without losing one.
+* `0xCC`-`0xCF`, the present queue: quake-psx a29ca4d's VBlank-driven flip and
+  DMA kick for 120 frames of uneven GPU load, checking at every flip that
+  GPUSTAT bit 28 did not report idle before the previous chain's GP0(1Fh).
+* `0xD0`-`0xD2` and `137`-`13A`, the scratchpad stack: hello-spstack's workload
+  on a scratchpad stack (the SDK trampoline vendored, since the pinned SDK
+  predates it) against the RAM stack, under Timer 2 and VBlank interrupts, GPU
+  and SPU DMA, a CD read stream and pad polling; and one `level2` call timed on
+  each stack, idle and during a linked-list DMA.
+* `0xD3`-`0xE9`, list busy: how long GPU DMA channel 2 stays busy (CHCR bit
+  24) on a linked list whose nodes draw. Four lists ending in GP0(1Fh) (16
+  empty nodes; 16 tiny Gouraud triangles; the same 16 packets as half-screen
+  triangles; those four to a 24-word node), each stamped from the kick at
+  CHCR clear, GP0(1Fh), and GPUSTAT bits 28 and 26 settling; whether the
+  packed list draws the same pixels (the only PASS/FAIL case); and a fixed
+  loop of ALU ops, RAM loads or scratchpad loads counted through the walk
+  against the same loop idle. The emulator's default model clears CHCR on a
+  word-count formula and its FIFO model when the drawing nearly drains, and
+  an hl-psx optimisation is worth +21% under one and nothing under the other.
+
+No existing record changed meaning, hence MINOR. The conformance capture diffs
+clean against the v1.23 emulator baseline (`drift=0`, the only failure still
+`0x8B`). Two harness changes came with it: `CAPTURE_PAGE_MAX` goes from 9 to
+10, because the worst-case payload with every case failing no longer fits nine
+pages (the emulator's full characterisation capture grows from five pages to
+six), and `HWTEST_STEPS` from 400M to 480M, because the headless conformance
+capture now completes between 420M and 430M instructions. `hwtest-report.py`
+names the new records and no longer indexes past the end of a baseline with
+fewer cases. The list-busy cases take the worst-case payload to 9.54 pages of
+the 10, leave the emulator's full characterisation capture at six pages and the
+headless conformance capture still complete by 430M instructions; the
+conformance baseline was re-pinned after they were added (`drift=0` against the
+pin without them), and `hwtest-report.py` prints them as a labelled
+`list_busy` table.
+
 ### v1.23 (2026-09-17, schema PX8 with the TIMING_EXT block)
 
 Follows the first v1.22 console captures. Record ids widen to sixteen bits;

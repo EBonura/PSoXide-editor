@@ -124,19 +124,31 @@ class TableSyncTests(unittest.TestCase):
         slots = int(re.search(r"const TIMING_RECORD_COUNT: usize = (\d+);", source).group(1))
         table = {
             name: int(re.search(rf"const {name}: \[\w+; (\d+)\]", source).group(1))
-            for name in ("SAFE", "EXTENDED", "SHAPES", "RISKY", "CASES")
+            for name in ("SAFE", "LEVERS", "EXTENDED", "SHAPES", "RISKY", "CASES")
         }
         dma_pairs = 6
         retired = sum(1 for label in report.LABELS.values() if label.startswith("v122_only_"))
         # What is left is the standing battery, which has not changed size.
         standing = len(report.LABELS) - sum(table.values()) - dma_pairs - retired
         self.assertEqual(standing, 151)
-        self.assertLessEqual(standing + table["SAFE"], slots)
+        # The standard scope takes the standing battery, SAFE and LEVERS.
+        self.assertLessEqual(standing + table["SAFE"] + table["LEVERS"], slots)
         self.assertLessEqual(sum(table.values()) + dma_pairs, slots)
 
     def test_no_label_claims_an_unused_slot_marker(self) -> None:
         self.assertNotIn(0xFF, report.LABELS)
         self.assertNotIn(0xFFFF, report.LABELS)
+
+    def test_list_busy_labels_match_the_battery(self) -> None:
+        # Cases are named by index on the host, so the labels must start where
+        # the guest's list_busy_probes entries start and cover all of them.
+        source = (GUEST_SRC / "main.rs").read_text(encoding="utf-8")
+        battery = source[source.index("const TESTS: [TestSpec; TEST_COUNT]") :]
+        runs = re.findall(r"run: ([\w:]+),", battery)
+        busy = [index for index, run in enumerate(runs) if run.startswith("list_busy_probes::")]
+        self.assertEqual(busy[0], report.LIST_BUSY_FIRST_CASE)
+        self.assertEqual(len(busy), len(report.LIST_BUSY_LABELS))
+        self.assertEqual(busy, list(range(busy[0], busy[0] + len(busy))))
 
     def test_block_flags_match_photo_rs(self) -> None:
         photo = (GUEST_SRC / "photo.rs").read_text(encoding="utf-8")

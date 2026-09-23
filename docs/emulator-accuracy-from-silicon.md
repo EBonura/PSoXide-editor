@@ -572,3 +572,226 @@ real GPU time, flat-textured in place of Gouraud-textured halves the setup of
 a small triangle, and GPU-side clipping is cheap enough that CPU culling only
 pays for the packet and the transform it saves.
 
+
+## 2026-09-23: hwtest v1.24 full characterisation, launch PAL console
+
+`docs/hardware-refs/px8-silicon-2026-09-23-v1.24-full.txt`, all six PX8 pages
+recovered from `~/Movies/2026-09-23 08-31-55.mov` with `hwtest-video-qr.py`;
+image PSoXide-editor `hwtest/perf-probes` 691680b1, same console as the v1.22
+and v1.23 captures (BIOS 2.2, 1995-12-04), NTSC video. Compare with
+`python3 tools/hwtest-report.py --baseline <emulator pages> <that file>`.
+Every number below is from that capture unless it is labelled as the emulator.
+
+### Interrupts land on GTE commands, and returning to EPC runs them twice
+
+Cases `0xC8`-`0xCB` loop over RTPS under Timer 2 and VBlank interrupts, with
+psx-rt's handler returning to EPC and then with psx-spx's fix (return to EPC
++ 4 when the word at EPC is a GTE command). Silicon: 38 interrupts had EPC on
+an RTPS and all 38 ran it twice (`0xC9` FAIL, 38 doubled, none lost); with
+the fix 61 were stepped over, none doubled or lost (`0xCB` PASS). So the
+command has already executed when the interrupt is taken with EPC on it.
+Not measured: a GTE command in a branch delay slot, which the fix cannot
+cover.
+
+The emulator deferred every such interrupt past the command (0 hits in about
+2,900 interrupts). PSoXide-emulator `c7e3ea8` now takes it DuckStation's
+way: an interrupt raised during the instruction before a GTE command is taken
+after the command, with EPC on it. Emulator after: `0xC8` 72 hits, `0xC9`
+FAIL with 72 doubled, `0xCA` 62 skips, `0xCB` PASS. The kernel handler and
+the HLE interrupt path step over the command, as the retail BIOS does.
+
+### GPU DMA channel 2 stays busy while the list draws
+
+Cases 211-226 kick four linked lists ending in GP0(1Fh) and stamp CHCR
+clearing, GPUSTAT bit 24 (the 1Fh), and the start of the final high run of
+bits 28 and 26 (clocks from the kick):
+
+| List | CHCR | 1Fh | bit 28 | bit 26 |
+|---|---:|---:|---:|---:|
+| empty (16 empty nodes) | 199 | 199 | 18 | 18 |
+| cheap (16 two-pixel Gouraud triangles) | 2,996 | 2,996 | 2,996 | 2,996 |
+| expensive (16 half-screen Gouraud triangles) | 586,354 | 625,348 | 586,354 | 625,348 |
+| packed (the expensive triangles, 24-word nodes) | 275,124 | 314,075 | 275,124 | 314,075 |
+
+CHCR stays busy until the last packet is in the GPU, so the FIFO DMA model
+is the right one and the word-count model (CHCR clear at 283 clocks for
+cheap and expensive alike, 1Fh 6 clocks after the kick) is not. Every
+overlap gain measured only under the word-count model (hl-psx's one-list
+overlay chain, +21%) does not exist on silicon. Bit 28 comes back with CHCR,
+one large primitive (38,994 clocks) before the drawing ends, while bits 24
+and 26 follow the drawing: bit 28 is not a drawing-complete test. The CPU
+keeps its speed during a drawing-bound walk (cases 228-233: ALU loop 29.01
+clocks an iteration walking against 28.97 idle, RAM loop 76.83 against
+76.77).
+
+Emulator: the FIFO model is the default since `d684f43`
+(`PSOXIDE_EXPERIMENTAL_DMA_FIFO=0` for the old model), and `561bd2c` lets the
+final 1Fh leave the FIFO while the last primitive draws, which brings bit 28
+back with CHCR. Before (0d3f4c9, word-count default) and after (561bd2c):
+
+| Case | Silicon | Before | After |
+|---|---:|---:|---:|
+| 211 empty CHCR | 199 | 225 | 226 |
+| 216 cheap 1Fh | 2,996 | 6 | 2,968 |
+| 217 cheap bit 28 | 2,996 | 4,906 | 2,814 |
+| 219 expensive CHCR | 586,354 | 283 | 585,656 |
+| 220 expensive 1Fh | 625,348 | 6 | 624,731 |
+| 221 expensive bit 28 | 586,354 | 314,366 | 585,656 |
+| 222 expensive bit 26 | 625,348 | 314,366 | 624,731 |
+| 224 packed 1Fh | 314,075 | 19 | 624,773 |
+| 227 packed pixels | PASS | PASS | PASS |
+
+### Large fills cost twice what the emulator charged, tiny primitives less
+
+The expensive list draws about 39,084 clocks a half-screen Gouraud triangle
+(38,120 px, about 1.02 clocks a pixel) where the FIFO model gave 19,574; the
+cheap list's sixteen tiny triangles take 2,996 where it gave 4,937. Together
+with the v1.23 batches (records `100`-`114` above) this fits one shape per
+primitive: the longer of its setup and its fill, the fill being a per-pixel
+rate plus a per-scanline term. Setup overlaps the fill, which is why a 32x32
+Gouraud-textured triangle costs no more than a textured one although its
+setup is twice as long.
+
+| Term | Clocks |
+|---|---|
+| setup: flat / textured / Gouraud / Gouraud-textured | 44 / 134 / 195 / 269 |
+| flat pixel (triangles and all rectangles) | 0.53 |
+| interpolated pixel (Gouraud or textured triangle) | 1.07 |
+| per covered scanline | 2.23 |
+| untextured semi-transparent pixel floor, and its scanline term | 0.78, 5.96 |
+| GP0(02h) fill start / VRAM copy start | 149 / 608 |
+
+Emulator 561bd2c against silicon (the fit landed in `eca4677`); "before" is
+0d3f4c9 with the word-count default, whose 1Fh fires 6 clocks after the
+kick:
+
+| Record | Silicon | Before | After | Residual |
+|---|---:|---:|---:|---:|
+| 100 flat triangles | 5,613 | 14 | 5,539 | -1.3% |
+| 101 Gouraud | 9,870 | 14 | 9,959 | +0.9% |
+| 102 Gouraud dithered | 9,959 | 14 | 9,959 | 0.0% |
+| 103 textured | 9,936 | 14 | 9,959 | +0.2% |
+| 104 raw texture | 9,841 | 14 | 9,959 | +1.2% |
+| 105 textured translucent | 10,424 | 14 | 9,959 | -4.5% |
+| 106 Gouraud-textured | 10,067 | 14 | 9,959 | -1.1% |
+| 107 flat translucent | 9,467 | 14 | 9,465 | 0.0% |
+| 108 flat rects | 9,552 | 14 | 9,894 | +3.6% |
+| 109 / 10A 4bpp / 8bpp rects | 10,047 / 10,036 | 14 | 9,894 | -1.5% / -1.4% |
+| 10B 8bpp rects, CLUT alternating | 14,214 | 14 | 9,894 | -30.4% |
+| 10C textured, page alternating | 16,836 | 14 | 9,959 | -40.8% |
+| 10D UV span 63 | 9,841 | 14 | 9,959 | +1.2% |
+| 10E clipped away | 804 | 14 | 742 | -7.7% |
+| 10F letterboxed | 9,939 | 14 | 9,959 | +0.2% |
+| 110 VRAM fill | 3,720 | 14 | 3,732 | +0.3% |
+| 111 VRAM copy | 31,814 | 14 | 31,656 | -0.5% |
+| 112 / 113 / 114 two-pixel flat / textured / Gouraud-textured | 2,817 / 8,589 / 17,231 | 14 | 2,848 / 8,620 / 17,252 | +1.1% / +0.4% / +0.1% |
+| 216 cheap list 1Fh | 2,996 | 6 | 2,968 | -0.9% |
+| 220 expensive list 1Fh | 625,348 | 6 | 624,731 | -0.1% |
+
+Not modelled: CLUT reloads (10B, about 260 clocks each) and texture-page
+changes (10C, about 430). Both look like cache refills, and so does the
+largest remaining gap: ps1-tests `gpu/bandwidth` (third-party silicon,
+full-screen primitives, converted at 2,172 clocks an HBlank) measures a
+textured quad sampling a 256-texel-wide 15bpp texture at 2.82 clocks a pixel
+and a sprite spanning 320 texels (draw-mode default depth, taken as 4bpp) at
+1.07, where this model charges 1.08 and 0.54. Estimated per 8-byte cache
+line refilled, the two and 10C all come out at roughly 7 to 9 clocks. A
+texture-cache miss term is the next step; until then large textured spans
+that miss the cache are too cheap in the emulator. The same third-party numbers for flat fills (rectangle,
+quad, clipped quads, semi-transparent rectangle and quad) agree with this
+model within 2%.
+
+### Nodes larger than the FIFO very likely lose words, but not the 1Fh
+
+The packed list sends the expensive triangles four to a node (24 words, over
+the 16-word FIFO). Silicon finished it at 314,075 clocks, about 8 of the 16
+triangles' worth, with the same one-triangle drain after CHCR as the
+expensive list (38,951), so roughly half of the drawing never happened. Its
+1Fh still arrived, and case 227 passed only because each half's sampled
+pixels come from the last triangle drawn there. Which words are lost is not
+established (next burn: give each packed triangle its own region and hash
+them all). The emulator's FIFO model dropped words, lost packet sync and
+swallowed the 1Fh (224 "never", 227 FAIL); since `b9bcc79` the channel waits
+for room instead and loses nothing (224 at 624,773, 227 PASS), and
+`PSOXIDE_GPU_DMA_OVERFLOW=drop` keeps the old rule, which reproduces the
+Celeste 0.2.3 corruption.
+
+### RAM loads slow down during an empty-list walk; the scratchpad does not
+
+Records `137`-`13A` time one compiled call (515 stack loads, 899 stores) on
+a RAM stack and a scratchpad stack, idle and while channel 2 walks a
+2,048-node empty list: 13,618 / 10,806 idle, 21,249 / 11,084 during the walk
+(emulator 561bd2c: 13,958 / 10,762 and 13,939 / 10,722). The RAM stack slows 56%,
+the scratchpad 2.6%. The scratchpad premise holds on silicon: 5.46 clocks
+saved a stack load idle (emulator 6.2 to 6.3), 48% of the call during the
+walk.
+A drawing-bound walk slows nothing (above), so the cost is the DMA actually
+moving words. Not modelled: with `FE` (770 against 510 idle for 64 loads, +4
+clocks a load) and 139 (+14.8 clocks a stack load, with stores interleaved)
+the per-load penalty is not one number yet.
+
+### The CPU loop around I/O reads is slower than modelled
+
+Cases 228/232 idle: 28.97 clocks an iteration on silicon against 24.97 in
+the emulator; the RAM loop (230) 76.77 against 73.98. Beyond the loop body
+these loops read DMA CHCR (1F8010A8h) and the Timer 2 counter (1F801120h)
+back to back, and no record calibrates those two reads yet. Not modelled;
+v1.25 wants warm probes for both.
+
+### Timer 1's VBlank reset sits 26 lines after the interrupt
+
+Case 206 reads Timer 1 (HBlank clock, sync mode 1) in the VBlank handler at
+each of 119 present-queue flips: 237 every time, no spread. On a 263-line
+field that puts the reset 26 lines after the VBlank interrupt (the SCPH-9902
+profile measured 29). The emulator read 240 or 0: a counter read's hold
+window that covered the VBlank edge made the lazy catch-up skip that field's
+reset. PSoXide-emulator `8eae633` keeps the reset through the hold and uses
+26 lines as the default phase. Case 206 before 0x000000F0 (latest 240,
+earliest 0), after 0x00D200ED (latest 237, earliest 210, the earliest being
+a flip whose count started at the probe's own mode write). The 0x1E2 (482)
+in the capture's own emulator run did not reproduce with the standard
+recipe on 0d3f4c9.
+
+### Present queue
+
+Case 204 on video: 120 of 120 frames presented, no tear, no missing
+triangle, all flips at one beam line, display cadence exactly as the chain
+costs predict (207: 30 two-vblank frames). Case 205 passed only because no
+chain ended inside the window where bit 28 is already high and the drawing is
+not done; a game's varying frame cost will land there. Flip on GP0(1Fh) and
+GPUSTAT bit 24, not bit 28.
+
+### SPU conformance: the v1.22 outcome, unchanged in v1.24
+
+The v1.22 full capture (`px8-silicon-2026-09-17-v1.22-full.txt`) answered
+the four questions posed under "SPU RAM uploads do not land" above, and
+v1.24 repeats it on the same console: `0xA6` (DMA round trip) PASS,
+`0xBC` (read is repeatable) PASS, `0xA7` (manual-FIFO round trip) FAIL
+0x09FA4EF2 both times, `0xBD` (DMA and FIFO writes agree) FAIL 0xA0A10634
+both times, `0xBE` (address written after the mode) FAIL and `0xBF` (four
+small blocks) FAIL with hashes that change between runs (v1.22
+0xDB9A456D / 0x53C8E737, v1.24 0x38FD746D / 0xB0526890). So on this console
+the read path is stable and the DMA upload round-trips (the "0xA6 still
+FAILs" of the v1.17 section above no longer holds), the manual-FIFO write is
+what is wrong, and neither reordering the address write nor splitting the
+block fixes it. The emulator passes all six, so it is the permissive one.
+`0x8B` still fails only in the emulator (the NCLIP gap above).
+
+### Consequence for measured game numbers
+
+Emulator timing changes move every game's numbers, so the perf tracker needs
+a re-baseline on the new emulator. Same images, same inputs, PSoXide-emulator
+frontend 0d3f4c9 (which reproduces the tracker's frozen frontend exactly on
+Cortex) against 561bd2c:
+
+| Game | Before | After | After, `PSOXIDE_EXPERIMENTAL_DMA_FIFO=0` |
+|---|---:|---:|---:|
+| Cortex 0.4b tracker disc, polls 1410-5340 | 25.564 fps | 22.147 fps | 25.689 fps |
+| Quake E1M1 chain bench disc (exe 25ab8b66) | 26.793 fps | 27.180 fps | 27.180 fps |
+
+Cortex does the same work (RAM, I-cache and multiply stalls unchanged over
+the window) and spends 275M more issue cycles and 121M more MMIO stall
+cycles polling: it waits for the channel-2 walk, which under the FIFO model
+lasts as long as the drawing. Its GPU busy share falls from 49.8% to 21.3%
+with the new draw costs, because its textured triangles are cheaper than the
+old 2.8 clocks a pixel.
