@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- The emulator now walks GPU linked lists through the GPU's command FIFO and
+  charges drawing at costs fitted to console captures (hardware tests v1.23
+  and v1.24), so headless frame rates sit closer to a console. Save states
+  move to format 7: save states from earlier builds no longer load.
+
 - Dead enemies now dissolve over roughly five seconds from the uppermost
   polygons down, with fragments rising and fading before the body is removed.
 
