@@ -361,6 +361,50 @@ HBLANK_RECORDS = frozenset(range(0x90, 0x9F)) | frozenset(range(0xC0, 0xC8))
 GTE_SETTLE_FIRST_CASE = 116
 GTE_SETTLE_CASE_COUNT = 22
 
+# v1.24 list-busy probe (list_busy_probes.rs, case ids 0xD3-0xE9). Conformance
+# cases travel by index, so these name indices 211-233. Stamps are Timer 2
+# clocks from the DMA kick, 0xFFFFFFFF for an event never seen. A packed loop
+# case carries walk iterations in bits 0-15 and idle clocks for 256 iterations
+# in bits 16-31.
+LIST_BUSY_FIRST_CASE = 211
+LIST_BUSY_LABELS = tuple(
+    f"{kind}_list_{event}"
+    for kind in ("empty", "cheap", "expensive", "packed")
+    for event in ("chcr_clear", "gp0_1f_irq", "gpustat28_settled", "gpustat26_settled")
+) + (
+    "packed_list_pixels_match",
+    "alu_loop_iterations",
+    "alu_loop_walk_clocks",
+    "ram_load_loop_iterations",
+    "ram_load_loop_walk_clocks",
+    "scratchpad_load_loop_iterations",
+    "scratchpad_load_loop_walk_clocks",
+)
+LIST_BUSY_NOT_SEEN = 0xFFFFFFFF
+
+
+def list_busy_rows(capture: Capture) -> list[str]:
+    """The list-busy cases, labelled and unpacked. Empty unless the capture
+    carries every observation (a FULL CHARACTERISATION capture)."""
+    end = LIST_BUSY_FIRST_CASE + len(LIST_BUSY_LABELS)
+    if len(capture.observations) < end:
+        return []
+    rows = ["list_busy,label,value"]
+    for offset, label in enumerate(LIST_BUSY_LABELS):
+        index = LIST_BUSY_FIRST_CASE + offset
+        value = capture.observations[index]
+        if label == "packed_list_pixels_match":
+            rows.append(f"{index},{label},{STATUS_LABELS[capture.statuses[index]]}")
+        elif label.endswith("_iterations"):
+            loop = label.removesuffix("_iterations")
+            rows.append(f"{index},{loop}_walk_iterations,{value & 0xFFFF}")
+            rows.append(f"{index},{loop}_idle_clocks_per_256,{value >> 16}")
+        elif value == LIST_BUSY_NOT_SEEN:
+            rows.append(f"{index},{label},never")
+        else:
+            rows.append(f"{index},{label},{value}")
+    return rows
+
 # Work is fixed by record ID, so the wire carries only id/min/median/max.
 WORK_BY_ID = {
     0x00: 0,
@@ -1050,6 +1094,8 @@ def print_report(
                 if prior != value:
                     drift.append(f"precision {index:03d} ({label}): 0x{prior:08X} -> 0x{value:08X}")
             print(row)
+    for row in list_busy_rows(capture):
+        print(row)
     settle = capture.observations[
         GTE_SETTLE_FIRST_CASE : GTE_SETTLE_FIRST_CASE + GTE_SETTLE_CASE_COUNT
     ]
