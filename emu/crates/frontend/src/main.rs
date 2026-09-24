@@ -93,10 +93,14 @@ const FALLBACK_FRAME_DT: f32 = 1.0 / 60.0;
 /// Used only by the editor's Play metrics overlay (cycles -> milliseconds).
 #[cfg(feature = "editor")]
 const PSX_CYCLES_PER_MS: f32 = 33_868_800.0 / 1000.0;
-/// Don't try to catch up an arbitrarily long stall in one redraw;
-/// cap the burst so a debugger stop or window drag doesn't spend
-/// seconds chewing through delayed emu frames.
-const MAX_CATCHUP_FRAMES: u32 = 4;
+/// Guest frames one redraw may run. One, so a host stall costs the game that
+/// much time instead of a burst: emulating a frame takes most of a 60 Hz
+/// redraw, so running several at once made the next redraw late as well
+/// (NitroXide on a loaded host: 70 ms redraws, one in ten presented late).
+/// A display slower than the guest (a 50 Hz panel) gets two, or the game
+/// would run slow on it.
+const MAX_FRAMES_PER_REDRAW: u32 = 1;
+const MAX_FRAMES_PER_REDRAW_SLOW_DISPLAY: u32 = 2;
 
 fn guest_frame_dt(vblank_period: Option<u64>) -> f32 {
     vblank_period
@@ -1479,7 +1483,20 @@ impl ApplicationHandler for Shell {
                     guest_frame_dt(self.state.bus.as_ref().map(|bus| bus.vblank_period()));
                 let frames_to_run = if self.state.running {
                     self.emu_frame_accum = (self.emu_frame_accum + dt).min(0.25);
-                    ((self.emu_frame_accum / active_frame_dt) as u32).min(MAX_CATCHUP_FRAMES)
+                    let owed = (self.emu_frame_accum / active_frame_dt) as u32;
+                    // Only a backlog asks what the display runs at, so the
+                    // steady state never queries the monitor.
+                    let slow_display = owed > 1
+                        && gfx
+                            .window
+                            .current_monitor()
+                            .and_then(|monitor| monitor.refresh_rate_millihertz())
+                            .is_some_and(|mhz| mhz as f32 / 1000.0 * active_frame_dt < 0.95);
+                    owed.min(if slow_display {
+                        MAX_FRAMES_PER_REDRAW_SLOW_DISPLAY
+                    } else {
+                        MAX_FRAMES_PER_REDRAW
+                    })
                 } else {
                     0
                 };
@@ -1632,6 +1649,13 @@ impl ApplicationHandler for Shell {
                         profile.audio_ms += elapsed_ms(audio_start);
                     }
                     self.emu_frame_accum -= (frames_to_run as f32) * active_frame_dt;
+                    // Drop whole frames of backlog the cap left unpaid: the
+                    // game loses that time rather than bursting through it on
+                    // the next redraws. The fraction stays, so the wake-up
+                    // phase (`schedule_next_redraw`) is unchanged.
+                    if self.emu_frame_accum >= active_frame_dt {
+                        self.emu_frame_accum %= active_frame_dt;
+                    }
                 } else {
                     self.emu_frame_accum = 0.0;
                 }
