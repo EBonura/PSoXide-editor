@@ -901,9 +901,12 @@ build-editor-playtest:
 # proves the visible starter, 3D brush selection, and Move/Resize controls. The
 # command regression then exports the exact persisted project it authored; the
 # remaining stages use the same cooker, MIPS target, and disc packer contract
-# as the editor's Play action. Two image-free replays must agree byte-for-byte
-# on their GPU census and on pinned movement, wall contact, and display
-# evidence. No native window, BIOS, screenshot, or original hardware is used.
+# as the editor's Play action. The template boots into a wake-up intro, so
+# each replay holds forward, holds Cross over polls 200-440 to skip it, and
+# stops on the pad clock at poll 1200. Two image-free replays must agree
+# byte-for-byte on their GPU census and on pinned movement, roof-edge stop,
+# and display evidence. No native window, BIOS, screenshot, or original
+# hardware is used.
 editor-blank-playtest-check:
 	@set -eu; \
 	check_tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/psoxide-editor-blank-check.XXXXXX"); \
@@ -941,9 +944,9 @@ editor-blank-playtest-check:
 			--path "$$cue" \
 			--embedded-playtest \
 			--hold-forward \
-			--guest-frames 180 \
-			--guest-visual-frames 60 \
-			--steps 1000000000 \
+			--press 200:cross:240 \
+			--stop-at-poll 1200 \
+			--steps 20000000000 \
 			--gpu-frame-stats-log "$$replay_gpu" \
 			--dump-hash \
 			--dump-guest-profile > "$$replay_log" 2>&1; then \
