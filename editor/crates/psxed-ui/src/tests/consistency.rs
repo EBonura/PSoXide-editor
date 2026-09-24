@@ -776,3 +776,65 @@ fn snap_to_grid_snaps_every_selected_brush_like_its_neighbour_buttons() {
         "one undo step restores the whole selection"
     );
 }
+
+#[test]
+fn new_projects_keep_the_player_weapon_appearance_tracks_pointing_at_weapons() {
+    // Aletha's animation set materialises her blades through weapon
+    // appearance tracks. A New Project hydrates that set from the default
+    // project; its track weapon ids must land on the copied weapons, not on
+    // whatever resource happens to hold the template's raw id.
+    let mut workspace =
+        EditorWorkspace::open_directory(psxed_project::default_project_dir()).unwrap();
+    let name = format!(
+        "Weapon Tracks {} {}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    );
+    let target = psxed_project::projects_dir().join(psxed_project::project_file_stem(&name));
+    let _scratch = ScratchProjectDir::new(target.clone());
+    workspace.create_and_open_project(&name).unwrap();
+
+    let project = workspace.project();
+    let mut tracks = 0;
+    for resource in &project.resources {
+        let ResourceData::AnimationSet(set) = &resource.data else {
+            continue;
+        };
+        for track in &set.weapon_appearance_tracks {
+            tracks += 1;
+            let weapon = project.resource(track.weapon).unwrap_or_else(|| {
+                panic!(
+                    "{}: track weapon {:?} is missing",
+                    resource.name, track.weapon
+                )
+            });
+            let ResourceData::Weapon(weapon_data) = &weapon.data else {
+                panic!(
+                    "{}: track weapon {:?} is '{}', not a Weapon",
+                    resource.name, track.weapon, weapon.name
+                );
+            };
+            let model = weapon_data
+                .model
+                .and_then(|id| project.resource(id))
+                .unwrap_or_else(|| panic!("weapon '{}' has no model", weapon.name));
+            let ResourceData::Model(model_data) = &model.data else {
+                panic!("weapon '{}' model is not a Model", weapon.name);
+            };
+            for path in std::iter::once(&model_data.model_path).chain(&model_data.texture_path) {
+                assert!(
+                    target.join(path).is_file(),
+                    "weapon '{}' asset {path} was not copied",
+                    weapon.name
+                );
+            }
+        }
+    }
+    assert!(
+        tracks > 0,
+        "the starter player has weapon appearance tracks"
+    );
+}

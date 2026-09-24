@@ -4978,15 +4978,22 @@ fn souls_slice_project_is_authored_through_production_commands() {
         2,
         "the fightable Mantis plus the sealed crypt sentinel"
     );
-    assert_eq!(package.equipment.len(), 2, "both equipment records cook");
+    // The two authored Equipment nodes, plus the three weapon/socket pairs the
+    // player's animation set materialises through its appearance tracks,
+    // which the cook equips on the player.
+    assert_eq!(
+        package.equipment.len(),
+        5,
+        "authored plus appearance equipment cooks"
+    );
     assert_eq!(
         package
             .equipment
             .iter()
             .filter(|record| record.flags & psx_level::equipment_flags::PLAYER != 0)
             .count(),
-        1,
-        "exactly one PLAYER-flagged equipment record"
+        4,
+        "the authored sword plus three appearance-track pairs are PLAYER-flagged"
     );
     assert_eq!(
         package.interactables.len(),
