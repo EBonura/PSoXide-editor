@@ -743,3 +743,36 @@ fn texture_import_is_its_own_undo_step() {
         "Cmd+Z after an import must not also roll back the edit before it"
     );
 }
+
+#[test]
+fn snap_to_grid_snaps_every_selected_brush_like_its_neighbour_buttons() {
+    // Duplicate and Delete beside it act on the whole brush selection.
+    let mut workspace = single_brush_workspace("snap-selection");
+    workspace.project.active_scene_mut().brushes = vec![
+        psxed_project::brush::Brush::cuboid([3, 0, 5], [509, 256, 250]),
+        psxed_project::brush::Brush::cuboid([1027, 0, 7], [1533, 256, 249]),
+    ];
+    workspace.snap_units = 16;
+    workspace.replace_brush_selection(0, None);
+    workspace.selected_brushes = vec![0, 1];
+    let before = workspace.project.active_scene().brushes.clone();
+    workspace.snap_selected_brush();
+    let after = workspace.project.active_scene().brushes.clone();
+    for (index, brush) in after.iter().enumerate() {
+        assert_ne!(*brush, before[index], "brush {index} was left off the grid");
+        for face in &brush.faces {
+            for point in face.points {
+                assert!(
+                    point.iter().all(|value| value % 16 == 0),
+                    "brush {index} point {point:?} is off Grid 16"
+                );
+            }
+        }
+    }
+    workspace.do_undo();
+    assert_eq!(
+        workspace.project.active_scene().brushes,
+        before,
+        "one undo step restores the whole selection"
+    );
+}
