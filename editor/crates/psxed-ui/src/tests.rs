@@ -3,6 +3,7 @@ use super::*;
 mod animation_studio;
 mod ashen_sanctum;
 mod brush_tools;
+mod consistency;
 mod entity_resources;
 mod geometry_resources;
 mod interaction_rig;

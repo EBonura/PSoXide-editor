@@ -2998,8 +2998,8 @@ impl EditorWorkspace {
         let mut off_u = i32::from(edited.offset_texels[0]);
         let mut off_v = i32::from(edited.offset_texels[1]);
         let mut rot = i32::from(edited.rotation_deg);
-        let mut scale_u = i32::from(edited.scale_q8[0]) * 100 / 256;
-        let mut scale_v = i32::from(edited.scale_q8[1]) * 100 / 256;
+        let shown_scale = edited.scale_q8.map(|q8| i32::from(q8) * 100 / 256);
+        let [mut scale_u, mut scale_v] = shown_scale;
         // Two rows, not one: five DragValues plus a button overflow the
         // Inspector's width, and an overflowing widget is painted outside the
         // panel clip rect where the pointer can never reach it.
@@ -3029,6 +3029,7 @@ impl EditorWorkspace {
                     egui::DragValue::new(&mut scale_u)
                         .speed(1)
                         .range(-1600..=1600)
+                        .clamp_existing_to_range(false)
                         .suffix("% U"),
                 ),
             );
@@ -3037,6 +3038,7 @@ impl EditorWorkspace {
                     egui::DragValue::new(&mut scale_v)
                         .speed(1)
                         .range(-1600..=1600)
+                        .clamp_existing_to_range(false)
                         .suffix("% V"),
                 ),
             );
@@ -3056,7 +3058,15 @@ impl EditorWorkspace {
                     q8
                 }
             };
-            edited.scale_q8 = [percent_to_q8(scale_u), percent_to_q8(scale_v)];
+            // The percent fields truncate, so converting an untouched field
+            // back would walk a non-whole-percent scale (from the UV canvas
+            // or Fit) toward 100% one frame at a time. Only an axis the user
+            // actually changed takes the percent value.
+            for (axis, percent) in [scale_u, scale_v].into_iter().enumerate() {
+                if percent != shown_scale[axis] {
+                    edited.scale_q8[axis] = percent_to_q8(percent);
+                }
+            }
             // Uniquely labelled: the Inspector shows several bare "Reset"
             // buttons, and this one only ever restores the face UV mapping.
             // Folded in after the DragValues so a Reset wins over them.
