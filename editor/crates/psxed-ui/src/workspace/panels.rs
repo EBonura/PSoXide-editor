@@ -1902,6 +1902,8 @@ impl EditorWorkspace {
                                 let mut snap_to_floor_requested = false;
                                 let inherited_sector_size =
                                     node_translation_sector_size(&self.project, selected);
+                                let world_sector_size =
+                                    self.project.world_sector_size_for_node(selected);
                                 let selected_kind_before = self
                                     .project
                                     .active_scene()
@@ -2003,6 +2005,7 @@ impl EditorWorkspace {
                                                 animator_clip_context: animator_clip_context
                                                     .as_ref(),
                                                 inherited_sector_size,
+                                                world_sector_size,
                                                 room_grid_resize: &mut room_grid_resize,
                                                 nav_target: &mut nav_target,
                                                 character_preview_action:

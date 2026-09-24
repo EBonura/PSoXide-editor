@@ -651,3 +651,42 @@ fn primitives_that_lose_pieces_to_the_grid_say_so() {
     assert_eq!(clean.project.active_scene().brushes.len(), 8);
     assert_eq!(clean.status, "Created Doorway Arch");
 }
+
+#[test]
+fn light_radius_inspector_speaks_the_units_the_cook_uses() {
+    // PointLight radius is stored in sectors and the cook, the brush bake
+    // and the viewport preview all multiply it by the World sector size.
+    let mut workspace = single_brush_workspace("light-radius-units");
+    let root = workspace.project.active_scene().root;
+    let sector = workspace.project.world_sector_size_for_node(root);
+    assert_eq!(sector, 1024, "fixture assumes the default World sector");
+    let light = workspace.project.active_scene_mut().add_node(
+        root,
+        "Half Sector Light",
+        NodeKind::PointLight {
+            color: [255, 255, 255],
+            intensity: 1.0,
+            radius: 0.5,
+        },
+    );
+    workspace.replace_node_selection(light);
+    workspace.dirty = false;
+    let mut frames = EditorFrames::new();
+    let mut output = frames.idle(&mut workspace);
+    for _ in 0..3 {
+        output = frames.idle(&mut workspace);
+    }
+    let radius = match &workspace.project.active_scene().node(light).unwrap().kind {
+        NodeKind::PointLight { radius, .. } => *radius,
+        _ => unreachable!(),
+    };
+    assert_eq!(radius, 0.5, "selecting the light rewrote its radius");
+    assert!(
+        !workspace.is_dirty(),
+        "selecting the light marked the project dirty"
+    );
+    assert!(
+        !super::brush_tools::text_shape_centers(&output.shapes, "Radius 512 units").is_empty(),
+        "the Inspector must show the 512 world units the cook bakes"
+    );
+}
