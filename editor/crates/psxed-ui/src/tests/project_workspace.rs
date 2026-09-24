@@ -4105,11 +4105,13 @@ fn new_project_starts_with_verified_character_and_material_content() {
 }
 
 /// Souls vertical-slice tape: authored as literals so regeneration is
-/// deterministic and drift-diffable. The canonical route: touch the
-/// checkpoint trigger, dismiss the sync overlay, open the lift door, kill
-/// the Mantis with the verified combo/heavy cadence while taking hits,
-/// walk into the lava pool, die, respawn at the checkpoint, dismiss the
-/// re-fired sync overlay, and walk a short confirmation leg.
+/// deterministic and drift-diffable. The canonical route: hold Cross to skip
+/// the template's wake-up intro, swing the camera behind the player, touch
+/// the checkpoint trigger, dismiss the sync overlay, open the lift door, walk
+/// east past the divider to the Mantis, kill it with two heavy swings,
+/// strafe south into the lava pool, die, respawn at the checkpoint, dismiss
+/// the re-fired sync overlay, and walk a confirmation leg east into the door
+/// that reset closed.
 ///
 /// The tapes are indexed on the PAD-POLL clock, not the video-frame clock.
 /// A video-frame tape is applied on the emulator's route-tick clock while
@@ -4117,24 +4119,32 @@ fn new_project_starts_with_verified_character_and_material_content() {
 /// clocks are not phase-locked: their relative phase drifts with guest
 /// execution cost, which changes with guest code layout. Measured on this
 /// exact route (2026-08-11), the same authored 70-frame doorway retreat
-/// reached one guest as 71 held simulation ticks and another as 70, and
-/// that one extra tick of backward movement is the difference between the
-/// fourth heavy swing reaching the Mantis and missing it. `pad_poll` binds
-/// sample N to poll N, so the guest sees the authored press windows exactly,
-/// whatever the frame rate.
+/// reached one guest as 71 held simulation ticks and another as 70.
+/// `pad_poll` binds sample N to poll N, so the guest sees the authored press
+/// windows exactly, whatever the frame rate.
+///
+/// Re-authored 2026-09-24 against the regenerated fixture. Three things
+/// moved under the old route: the template now boots into a wake-up intro
+/// that ignores the pad until Cross is held for 30 ticks; the player
+/// spawns facing -X (yaw 270 in the runtime's convention), so the camera
+/// is swung 180 degrees before the first leg; and the light enemy no longer
+/// walks into the doorway, so the fight happens beside it in the far room.
+/// Each leg's end position was measured and the whole route replays
+/// identically twice (see `tools/editor_souls_bsp_check.sh`).
 fn write_souls_slice_canonical_tape(dir: &Path) {
     const UP: u16 = 1 << 4;
+    const RIGHT: u16 = 1 << 5;
     const DOWN: u16 = 1 << 6;
-    const CROSS: u16 = 1 << 14;
     const R2: u16 = 1 << 9;
-    const L2: u16 = 1 << 8;
-    const R3: u16 = 1 << 2;
+    const CROSS: u16 = 1 << 14;
     const FRAME_COUNT: usize = 3000;
-    // Combo (L2) opener pair, then a heavy (R2) tail; spacing mirrors the
-    // verified combat fixture (37-tick tail, co-prime with the enemy's
-    // 45-tick attack cadence).
-    const COMBO_PRESSES: [usize; 2] = [1250, 1390];
-    const HEAVY_PRESSES: [usize; 7] = [1320, 1450, 1487, 1524, 1561, 1598, 1635];
+    // Cross taps: sync overlay after the checkpoint, the lift door, and the
+    // re-fired overlay after the respawn (one tap finishes its text, the
+    // next dismisses it).
+    const CROSS_TAPS: [usize; 4] = [730, 1140, 2480, 2520];
+    // Two heavy swings kill the Mantis; the attack cycle swallows any
+    // press made while a swing is still running.
+    const HEAVY_PRESSES: [usize; 2] = [1480, 1610];
 
     let mut tape = String::with_capacity(FRAME_COUNT * 32);
     use std::fmt::Write as _;
@@ -4142,48 +4152,35 @@ fn write_souls_slice_canonical_tape(dir: &Path) {
     writeln!(tape, "frame,buttons,right_x,right_y,left_x,left_y").unwrap();
     for frame in 0..FRAME_COUNT {
         let mut buttons = 0u16;
+        let mut right_x = 128u8;
+        // Skip the wake-up intro: it starts after loading (about poll 234)
+        // and needs Cross released once, then held for 30 ticks.
+        if (260..300).contains(&frame) {
+            buttons |= CROSS;
+        }
+        // Swing the camera from the spawn's -X facing to +X, the route's
+        // heading (54 ticks at full deflection, measured).
+        if (460..514).contains(&frame) {
+            right_x = 255;
+        }
         // Leg 1: spawn to the checkpoint trigger.
-        if (240..430).contains(&frame) {
+        if (520..710).contains(&frame) {
             buttons |= UP;
         }
-        // Dismiss the SYNC RELAY overlay the trigger opened.
-        if (450..454).contains(&frame) {
-            buttons |= CROSS;
-        }
-        // Leg 2: trigger to the closed lift door.
-        if (470..840).contains(&frame) {
+        // Leg 2: trigger to the closed lift door (stops at engine x 241).
+        if (750..1120).contains(&frame) {
             buttons |= UP;
         }
-        // Open the door, wait out its travel, walk through to the fight.
-        if (860..864).contains(&frame) {
-            buttons |= CROSS;
-        }
-        // Step into the far room to trip the Mantis aggro, then retreat
-        // into the doorway pinch so the fight happens in the frame, the
-        // verified fixture pattern. The retreat is 71 ticks, not the 70
-        // this leg was authored with: on the video-frame clock the guest
-        // that produced the authored outcome had been handed 71 held
-        // ticks by clock drift, and 70 leaves the fourth heavy swing
-        // short of the Mantis. Moving the tape to the pad-poll clock
-        // makes the count exact, so the authored number is the one the
-        // route actually needs. Anywhere in 1091..=1112 kills the Mantis;
-        // the lava leg that follows is an open-loop stick walk and only
-        // reaches the pool from this standoff pose.
-        if (940..1010).contains(&frame) {
+        // Through the opened door and east past the divider's open end to
+        // the Mantis's patrol, which aggroes it.
+        if (1220..1390).contains(&frame) || (1410..1450).contains(&frame) {
             buttons |= UP;
         }
-        if (1020..1091).contains(&frame) {
-            buttons |= DOWN;
-        }
-        // Lock on to the arriving Mantis so every authored swing faces it.
-        if (1100..1104).contains(&frame) {
-            buttons |= R3;
-        }
-        if COMBO_PRESSES
+        if CROSS_TAPS
             .iter()
             .any(|press| (*press..press + 4).contains(&frame))
         {
-            buttons |= L2;
+            buttons |= CROSS;
         }
         if HEAVY_PRESSES
             .iter()
@@ -4191,37 +4188,31 @@ fn write_souls_slice_canonical_tape(dir: &Path) {
         {
             buttons |= R2;
         }
-        // Leg 3: forward-east through the reopened doorway (the fight
-        // drifted the pinch back into room one), then strafe-right south
-        // into the lava pool; stop inside and die to the 15-tick cadence.
-        let mut left_x = 128u8;
-        let mut left_y = 128u8;
-        if (1750..1880).contains(&frame) {
-            left_x = 224;
-            left_y = 32;
+        // Leg 3: strafe south into the lava pool and stay there until the
+        // 15-tick cadence kills the player.
+        if (1760..1880).contains(&frame) {
+            buttons |= RIGHT;
         }
-        if (1880..1960).contains(&frame) {
-            left_x = 224;
-        }
-        // Leg 4: post-respawn overlay dismissal and confirmation walk.
-        if (2400..2404).contains(&frame) {
-            buttons |= CROSS;
-        }
-        if (2450..2560).contains(&frame) {
+        // Leg 4: the respawn faces the camera, so back toward it walks east
+        // into the door that reset closed.
+        if (2560..2880).contains(&frame) {
             buttons |= DOWN;
         }
-        writeln!(tape, "{frame},{buttons},128,128,{left_x},{left_y}").unwrap();
+        writeln!(tape, "{frame},{buttons},{right_x},128,128,128").unwrap();
     }
     std::fs::write(dir.join("souls-canonical.pxitape.csv"), tape)
         .expect("write souls canonical tape");
 }
 
-/// Negative tape: the pad stays neutral for the whole run. The player never
-/// touches the trigger, never opens the door, never swings; the gate pins
-/// every combat and progression counter to zero while PVS suppressions
-/// still accumulate from the enemy sealed in the far room.
+/// Negative tape: apart from the Cross hold that skips the wake-up intro
+/// (without it gameplay never starts and nothing is proved), the pad stays
+/// neutral for the whole run. The player never touches the trigger, never
+/// opens the door, never swings; the gate pins every combat and progression
+/// counter to zero while PVS suppressions still accumulate from the enemy
+/// sealed in the far room.
 fn write_souls_slice_negative_tape(dir: &Path) {
-    const FRAME_COUNT: usize = 900;
+    const CROSS: u16 = 1 << 14;
+    const FRAME_COUNT: usize = 1200;
     let mut tape = String::with_capacity(FRAME_COUNT * 24);
     use std::fmt::Write as _;
     // Pad-poll clock for the same reason as the canonical tape: the guest's
@@ -4229,7 +4220,12 @@ fn write_souls_slice_negative_tape(dir: &Path) {
     writeln!(tape, "psoxide-tape,v2,clock=pad_poll,start_poll=0").unwrap();
     writeln!(tape, "frame,buttons,right_x,right_y,left_x,left_y").unwrap();
     for frame in 0..FRAME_COUNT {
-        writeln!(tape, "{frame},0,128,128,128,128").unwrap();
+        let buttons = if (260..300).contains(&frame) {
+            CROSS
+        } else {
+            0
+        };
+        writeln!(tape, "{frame},{buttons},128,128,128,128").unwrap();
     }
     std::fs::write(dir.join("souls-negative.pxitape.csv"), tape)
         .expect("write souls negative tape");
@@ -4525,7 +4521,9 @@ fn souls_slice_project_is_authored_through_production_commands() {
     let mantis_profile = resource_id(&workspace, "Light Enemy", |data| {
         matches!(data, ResourceData::Character(_))
     });
-    let sword_light = resource_id(&workspace, "Sword1 Light", |data| {
+    // The player carries the materialising energy blade its animation set's
+    // weapon appearance tracks name; a plain sword never becomes visible.
+    let sword_light = resource_id(&workspace, "Sword1 Light Energy", |data| {
         matches!(data, ResourceData::Weapon(_))
     });
     let sword_heavy = resource_id(&workspace, "Sword1 Heavy", |data| {
@@ -4978,12 +4976,12 @@ fn souls_slice_project_is_authored_through_production_commands() {
         2,
         "the fightable Mantis plus the sealed crypt sentinel"
     );
-    // The two authored Equipment nodes, plus the three weapon/socket pairs the
-    // player's animation set materialises through its appearance tracks,
-    // which the cook equips on the player.
+    // The two authored Equipment nodes, plus the two further weapon/socket
+    // pairs the player's animation set materialises through its appearance
+    // tracks (the authored energy blade is already one of its three).
     assert_eq!(
         package.equipment.len(),
-        5,
+        4,
         "authored plus appearance equipment cooks"
     );
     assert_eq!(
@@ -4992,8 +4990,8 @@ fn souls_slice_project_is_authored_through_production_commands() {
             .iter()
             .filter(|record| record.flags & psx_level::equipment_flags::PLAYER != 0)
             .count(),
-        4,
-        "the authored sword plus three appearance-track pairs are PLAYER-flagged"
+        3,
+        "the player's three appearance-track pairs are PLAYER-flagged"
     );
     assert_eq!(
         package.interactables.len(),
