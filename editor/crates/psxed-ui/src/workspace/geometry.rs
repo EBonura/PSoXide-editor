@@ -2471,7 +2471,17 @@ impl EditorWorkspace {
     }
 
     /// Pop the most recent snapshot back into `project`.
+    /// Undo and redo replace the whole document. A drag still in flight
+    /// holds brush indices and base copies from the OLD document, and its
+    /// next preview or commit would write them over the restored one (or
+    /// index past its end), so every live gesture ends here first.
+    fn abandon_gestures_for_document_swap(&mut self) {
+        self.cancel_brush_gestures();
+        self.interaction = Interaction::Idle;
+    }
+
     pub(crate) fn do_undo(&mut self) {
+        self.abandon_gestures_for_document_swap();
         self.inspector_undo_transaction = None;
         self.clear_uv_edit_transaction();
         if let Some(prev) = self.history.undo(self.project.clone()) {
@@ -2488,6 +2498,7 @@ impl EditorWorkspace {
     }
 
     pub(crate) fn do_redo(&mut self) {
+        self.abandon_gestures_for_document_swap();
         self.inspector_undo_transaction = None;
         self.clear_uv_edit_transaction();
         if let Some(next) = self.history.redo(self.project.clone()) {

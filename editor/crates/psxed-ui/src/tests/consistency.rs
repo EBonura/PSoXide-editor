@@ -149,3 +149,98 @@ fn showing_a_face_uv_scale_does_not_rewrite_it() {
     );
     assert!(!workspace.is_dirty());
 }
+
+/// Press a gizmo arrow and drag part way, leaving the button held.
+fn begin_held_gizmo_drag(rig: &mut super::interaction_rig::MouseRig) -> (Pos2, Pos2) {
+    let (grab, to) = rig.gizmo_drag_vector(0);
+    rig.move_to(grab);
+    rig.press(grab);
+    rig.move_to(grab + (to - grab) * 0.3);
+    rig.move_to(grab + (to - grab) * 0.6);
+    (grab, to)
+}
+
+#[test]
+fn deleting_the_dragged_brush_mid_gesture_leaves_other_brushes_alone() {
+    // Delete/Backspace fire while the pointer is still held on a gizmo arrow
+    // or a free face/edge/vertex handle. The gesture holds brush index 0;
+    // the delete shifts the bystander into that slot.
+    let cases = [
+        (BrushEditMode::Move, None),
+        (BrushEditMode::Face, Some([256.0, 256.0, 128.0])),
+        (BrushEditMode::Edge, Some([256.0, 256.0, 0.0])),
+        (BrushEditMode::Vertex, Some([0.0, 256.0, 0.0])),
+    ];
+    for (mode, handle) in cases {
+        let mut rig = super::interaction_rig::MouseRig::single_cube("delete-mid-drag");
+        let bystander = psxed_project::brush::Brush::cuboid([4096, 0, 4096], [4608, 256, 4352]);
+        rig.workspace
+            .project
+            .active_scene_mut()
+            .brushes
+            .push(bystander.clone());
+        rig.workspace.set_brush_edit_mode(mode);
+        let body = rig.world_to_screen([256.0, 256.0, 128.0]);
+        rig.click(body);
+        assert_eq!(rig.workspace.selected_brush, Some(0), "{mode:?}");
+
+        let to = match handle {
+            None => begin_held_gizmo_drag(&mut rig).1,
+            Some(anchor) => {
+                let grab = rig.world_to_screen(anchor);
+                let to = grab + Vec2::new(48.0, -48.0);
+                rig.move_to(grab);
+                rig.press(grab);
+                rig.move_to(grab + (to - grab) * 0.5);
+                rig.move_to(to);
+                to
+            }
+        };
+        rig.key(to, egui::Key::Delete);
+        rig.move_to(to + Vec2::new(8.0, 0.0));
+        rig.release(to + Vec2::new(8.0, 0.0));
+
+        let brushes = &rig.workspace.project.active_scene().brushes;
+        assert_eq!(
+            brushes.len(),
+            1,
+            "{mode:?}: Delete removed the dragged brush"
+        );
+        assert_eq!(
+            brushes[0], bystander,
+            "{mode:?}: the drag wrote the deleted brush over the one that took its index"
+        );
+    }
+}
+
+#[test]
+fn undo_mid_gesture_cancels_the_drag_instead_of_resurrecting_it() {
+    let mut rig = super::interaction_rig::MouseRig::single_cube("undo-mid-drag");
+    rig.workspace.set_brush_edit_mode(BrushEditMode::Move);
+    let body = rig.world_to_screen([256.0, 256.0, 128.0]);
+    rig.click(body);
+    // One recorded edit to undo: add a second brush.
+    rig.workspace.push_undo();
+    rig.workspace
+        .project
+        .active_scene_mut()
+        .brushes
+        .push(psxed_project::brush::Brush::cuboid(
+            [4096, 0, 4096],
+            [4608, 256, 4352],
+        ));
+    let before_add = {
+        let mut scene = rig.workspace.project.active_scene().brushes.clone();
+        scene.pop();
+        scene
+    };
+    let (_, to) = begin_held_gizmo_drag(&mut rig);
+    rig.workspace.do_undo();
+    rig.move_to(to);
+    rig.release(to);
+    assert_eq!(
+        rig.workspace.project.active_scene().brushes,
+        before_add,
+        "Cmd+Z mid-drag must land on the undone document, not the drag's result"
+    );
+}
