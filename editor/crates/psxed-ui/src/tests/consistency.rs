@@ -690,3 +690,56 @@ fn light_radius_inspector_speaks_the_units_the_cook_uses() {
         "the Inspector must show the 512 world units the cook bakes"
     );
 }
+
+#[test]
+fn texture_import_is_its_own_undo_step() {
+    let dir = test_temp_dir("texture-import-undo");
+    let _guard = ScratchProjectDir::new(dir.clone());
+    std::fs::create_dir_all(&dir).unwrap();
+    let source = dir.join("checker.png");
+    image::RgbaImage::from_fn(16, 16, |x, y| {
+        if (x + y) % 2 == 0 {
+            image::Rgba([255, 255, 255, 255])
+        } else {
+            image::Rgba([0, 0, 0, 255])
+        }
+    })
+    .save(&source)
+    .unwrap();
+
+    let mut workspace = EditorWorkspace::with_project(dir, ProjectDocument::new("import-undo"));
+    // The edit before the import.
+    workspace.push_undo();
+    workspace
+        .project
+        .active_scene_mut()
+        .brushes
+        .push(psxed_project::brush::Brush::cuboid(
+            [0, 0, 0],
+            [256, 256, 256],
+        ));
+    let brushes_after_edit = workspace.project.active_scene().brushes.clone();
+    let resources_before = workspace.project.resources.len();
+
+    workspace.texture_import_dialog.source_path = source.display().to_string();
+    workspace.texture_import_dialog.output_name = "checker".to_string();
+    workspace.commit_texture_import();
+    assert_eq!(
+        workspace.project.resources.len(),
+        resources_before + 1,
+        "import added the material: {}",
+        workspace.status
+    );
+
+    workspace.do_undo();
+    assert_eq!(
+        workspace.project.resources.len(),
+        resources_before,
+        "Cmd+Z removes the imported material"
+    );
+    assert_eq!(
+        workspace.project.active_scene().brushes,
+        brushes_after_edit,
+        "Cmd+Z after an import must not also roll back the edit before it"
+    );
+}
