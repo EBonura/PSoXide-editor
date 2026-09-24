@@ -2029,28 +2029,57 @@ impl EditorWorkspace {
 
     /// Snap the selected brush's visible solved corners to the editor grid,
     /// as one undo step.
+    /// Snap every selected brush to the grid, like the Duplicate and Delete
+    /// buttons beside it act on the whole selection. Atomic for the same
+    /// reason as [`Self::snap_all_brushes_to_grid`]: if any selected brush
+    /// cannot survive the grid, none is changed.
     pub(crate) fn snap_selected_brush(&mut self) {
-        let Some(index) = self.selected_brush else {
+        let targets = self.selected_brush_set();
+        if targets.is_empty() {
             return;
-        };
+        }
         let step = (self.snap_units.max(1)) as i32;
-        let Some(current) = self.project.active_scene().brushes.get(index).cloned() else {
-            return;
-        };
-        let Some(snapped) = current.snapped_solved_to_grid(step) else {
-            self.status = format!(
-                "Snap brush rejected: the {step}-unit grid cannot represent it as a valid solid"
-            );
-            return;
-        };
-        if snapped == current {
-            self.status = format!("Snap brush: visible corners are already on Grid {step}");
+        let brushes = &self.project.active_scene().brushes;
+        let mut replacements = Vec::new();
+        for index in targets.iter().copied() {
+            let current = &brushes[index];
+            let Some(snapped) = current.snapped_solved_to_grid(step) else {
+                self.status = if targets.len() > 1 {
+                    format!(
+                        "Snap brushes rejected: brush {} cannot be represented on the \
+                         {step}-unit grid as a valid solid; nothing changed",
+                        index + 1
+                    )
+                } else {
+                    format!(
+                        "Snap brush rejected: the {step}-unit grid cannot represent it as a valid solid"
+                    )
+                };
+                return;
+            };
+            if snapped != *current {
+                replacements.push((index, snapped));
+            }
+        }
+        if replacements.is_empty() {
+            self.status = if targets.len() > 1 {
+                format!("Snap brushes: visible corners are already on Grid {step}")
+            } else {
+                format!("Snap brush: visible corners are already on Grid {step}")
+            };
             return;
         }
         self.push_undo();
-        self.project.active_scene_mut().brushes[index] = snapped;
+        let snapped_count = replacements.len();
+        for (index, snapped) in replacements {
+            self.project.active_scene_mut().brushes[index] = snapped;
+        }
         self.mark_dirty();
-        self.status = format!("Snapped brush to Grid {step}; one undo step");
+        self.status = if targets.len() > 1 {
+            format!("Snapped {snapped_count} brushes to Grid {step}; one undo step")
+        } else {
+            format!("Snapped brush to Grid {step}; one undo step")
+        };
     }
 
     /// Snap every visible BSP brush corner in the active level to the current

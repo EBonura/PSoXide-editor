@@ -4326,7 +4326,9 @@ fn brush_edits_mark_the_project_dirty_for_save_and_cook() {
         ("snap", |ws| {
             ws.project.active_scene_mut().brushes[0] =
                 psxed_project::brush::Brush::cuboid([1, 0, -1], [65, 63, 62]);
-            ws.selected_brush = Some(0);
+            // Through the selection API: Snap acts on the whole brush
+            // selection, which Duplicate just left on the copy.
+            ws.replace_brush_selection(0, None);
             ws.snap_selected_brush();
         }),
         ("hollow", |ws| {
