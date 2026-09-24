@@ -388,3 +388,35 @@ fn arrow_keys_in_ui_navigation_preview_do_not_nudge_the_layout() {
     );
     assert!(!workspace.is_dirty());
 }
+
+#[test]
+fn editor_shortcuts_stand_down_while_a_modal_dialog_is_open() {
+    let mut workspace = single_brush_workspace("modal-shortcuts");
+    let root = workspace.project.active_scene().root;
+    let entity =
+        workspace
+            .project
+            .active_scene_mut()
+            .add_node(root, "Behind The Dialog", NodeKind::Entity);
+    // One recorded edit that Cmd+Z could roll back.
+    workspace.push_undo();
+    workspace.project.active_scene_mut().brushes.clear();
+    workspace.replace_node_selection(entity);
+    workspace.modal = Modal::DeleteProject { error: None };
+    let before = workspace.project.clone();
+    let mut frames = EditorFrames::new();
+    frames.idle(&mut workspace);
+    for (key, modifiers) in [
+        (egui::Key::Delete, egui::Modifiers::NONE),
+        (egui::Key::R, egui::Modifiers::NONE),
+        (egui::Key::D, egui::Modifiers::COMMAND),
+        (egui::Key::Z, egui::Modifiers::COMMAND),
+    ] {
+        frames.key(&mut workspace, key, modifiers);
+        assert_eq!(
+            workspace.project, before,
+            "{key:?} edited the project behind the Delete Project dialog"
+        );
+    }
+    assert!(matches!(workspace.modal, Modal::DeleteProject { .. }));
+}

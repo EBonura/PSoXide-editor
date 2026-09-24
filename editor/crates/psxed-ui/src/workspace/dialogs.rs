@@ -32,7 +32,11 @@ impl EditorWorkspace {
                 input_captured: true
             }
         );
-        if !playtest_captured {
+        // A New/Delete Project dialog is waiting on the user: editor
+        // shortcuts would otherwise edit (or undo) the project behind it,
+        // and Delete Project has no text field to hold keyboard focus.
+        let dialog_open = !matches!(self.modal, Modal::None);
+        if !playtest_captured && !dialog_open {
             self.handle_global_shortcuts(ctx, playtest_status);
         }
         let play_metrics = viewport_3d.play_metrics;
