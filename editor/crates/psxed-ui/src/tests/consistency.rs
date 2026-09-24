@@ -298,3 +298,42 @@ fn reload_starts_a_fresh_undo_timeline_and_drops_stale_brush_selection() {
         "a no-op undo after Reload marked the project dirty"
     );
 }
+
+#[test]
+fn room_editing_keys_do_nothing_in_the_animation_and_material_workspaces() {
+    for view in [WorkspaceView::Animation, WorkspaceView::Material] {
+        for (key, modifiers) in [
+            (egui::Key::R, egui::Modifiers::NONE),
+            (egui::Key::F2, egui::Modifiers::NONE),
+            (egui::Key::D, egui::Modifiers::COMMAND),
+            (egui::Key::Delete, egui::Modifiers::NONE),
+            (egui::Key::Backspace, egui::Modifiers::NONE),
+        ] {
+            let mut workspace = single_brush_workspace("room-keys-elsewhere");
+            let root = workspace.project.active_scene().root;
+            let entity = workspace.project.active_scene_mut().add_node(
+                root,
+                "Hidden Entity",
+                NodeKind::Entity,
+            );
+            workspace.replace_node_selection(entity);
+            workspace.active_workspace = view;
+            workspace.dirty = false;
+            let before = workspace.project.clone();
+            let mut frames = EditorFrames::new();
+            frames.idle(&mut workspace);
+            frames.key(&mut workspace, key, modifiers);
+            frames.idle(&mut workspace);
+            assert_eq!(
+                workspace.project.active_scene(),
+                before.active_scene(),
+                "{view:?}: {key:?} edited the Room scene the user cannot see"
+            );
+            assert!(
+                workspace.renaming.is_none(),
+                "{view:?}: {key:?} began a rename in the hidden scene tree"
+            );
+            assert!(!workspace.is_dirty(), "{view:?}: {key:?}");
+        }
+    }
+}
