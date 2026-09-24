@@ -3924,6 +3924,16 @@ impl EditorWorkspace {
         }
         match load_project_with_starter_catalogue(&self.project_dir) {
             Ok((project, sync_status, dirty)) => {
+                // Reload is a reopen: in-flight gestures and the undo
+                // timeline both describe the document being thrown away
+                // (see `UndoStack`), and brush indices name whatever sits
+                // at that position in the reloaded file.
+                self.cancel_brush_gestures();
+                self.interaction = Interaction::Idle;
+                self.inspector_undo_transaction = None;
+                self.history.clear();
+                self.clear_brush_selection();
+                self.renaming = None;
                 self.saved_project_name = project.name.clone();
                 self.project = project;
                 self.selection.selected_node = NodeId::ROOT;
@@ -3955,6 +3965,7 @@ impl EditorWorkspace {
                 self.bsp_leak_refresh_due = refresh_bsp_leak.then(Instant::now);
                 self.show_bsp_leak_path = true;
                 self.bsp_leak_cursor = 0;
+                self.reconcile_selection_after_document_change();
                 self.status = sync_status
                     .unwrap_or_else(|| format!("Reloaded {}", short_path(&self.project_dir)));
                 self.apply_project_editor_camera();

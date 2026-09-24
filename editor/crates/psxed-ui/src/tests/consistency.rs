@@ -244,3 +244,57 @@ fn undo_mid_gesture_cancels_the_drag_instead_of_resurrecting_it() {
         "Cmd+Z mid-drag must land on the undone document, not the drag's result"
     );
 }
+
+#[test]
+fn reload_starts_a_fresh_undo_timeline_and_drops_stale_brush_selection() {
+    let dir = test_temp_dir("reload-history");
+    let _guard = ScratchProjectDir::new(dir.clone());
+    let mut project = ProjectDocument::new("reload-history");
+    project
+        .active_scene_mut()
+        .brushes
+        .push(psxed_project::brush::Brush::cuboid(
+            [0, 0, 0],
+            [512, 256, 512],
+        ));
+    let mut workspace = EditorWorkspace::with_project(dir, project);
+    workspace.save().expect("save the on-disk baseline");
+    let on_disk = workspace.project.clone();
+
+    // Two in-memory edits the Reload is about to discard.
+    for offset in [1024, 2048] {
+        workspace.push_undo();
+        workspace
+            .project
+            .active_scene_mut()
+            .brushes
+            .push(psxed_project::brush::Brush::cuboid(
+                [offset, 0, 0],
+                [offset + 512, 256, 512],
+            ));
+        workspace.mark_dirty();
+    }
+    workspace.replace_brush_selection(2, Some(0));
+
+    workspace.reload();
+    assert_eq!(
+        workspace.project.active_scene().brushes,
+        on_disk.active_scene().brushes
+    );
+    assert_eq!(
+        workspace.selected_brush, None,
+        "brush 3 no longer exists after Reload"
+    );
+    assert_eq!(workspace.selected_brush_face, None);
+
+    workspace.do_undo();
+    assert_eq!(
+        workspace.project.active_scene().brushes,
+        on_disk.active_scene().brushes,
+        "Cmd+Z after Reload resurrected edits Reload discarded"
+    );
+    assert!(
+        !workspace.is_dirty(),
+        "a no-op undo after Reload marked the project dirty"
+    );
+}
