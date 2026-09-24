@@ -565,3 +565,89 @@ fn slow_top_view_node_drags_move_and_undo_as_one_step() {
         "the undo must not also roll back the node's creation"
     );
 }
+
+fn committed_primitive(
+    shape: BrushDrawShape,
+    grid_step: i32,
+    max: [i32; 3],
+    tweak: impl FnOnce(&mut BrushDrawSettings),
+) -> EditorWorkspace {
+    let mut workspace = EditorWorkspace::with_project(
+        test_temp_dir("primitive-shortfall"),
+        ProjectDocument::new("primitive-shortfall"),
+    );
+    workspace.project.active_scene_mut().brushes.clear();
+    let mut settings = BrushDrawSettings {
+        shape,
+        ..BrushDrawSettings::default()
+    };
+    tweak(&mut settings);
+    workspace.brush_drag = Some(BrushDrag {
+        anchor: [0, 0, 0],
+        current: [max[0], 0, max[2]],
+        view: OrthographicView::Top,
+        grid_step,
+        height_end: max[1],
+        stage: BrushCreateStage::Height,
+        height_press_y: 0,
+        height_press_end: max[1],
+        height_dragging: true,
+        settings,
+    });
+    workspace.commit_brush_drag();
+    workspace
+}
+
+#[test]
+fn primitives_that_lose_pieces_to_the_grid_say_so() {
+    // 24 voussoirs of a 512-wide arch on the 64 grid: the snapped corners
+    // of several coincide and `convex_prism` rejects the degenerate slivers.
+    let arch = committed_primitive(BrushDrawShape::DoorwayArch, 64, [512, 512, 64], |s| {
+        s.arch_segments = 24;
+        s.arch_thickness = 64;
+    });
+    let built = arch.project.active_scene().brushes.len();
+    assert!(built > 0, "the arch still commits what it could build");
+    assert!(
+        built < 24 + 2,
+        "fixture must actually lose pieces (built {built})"
+    );
+    assert!(
+        arch.status.contains(&format!("{built} of 26")),
+        "status must report the missing arch pieces, got {:?}",
+        arch.status
+    );
+
+    // A 16-sided cylinder 512 across on the 64 grid snaps to far fewer sides.
+    let cylinder = committed_primitive(BrushDrawShape::Cylinder, 64, [512, 256, 512], |s| {
+        s.cylinder_sides = 16;
+    });
+    let brushes = &cylinder.project.active_scene().brushes;
+    assert_eq!(brushes.len(), 1);
+    let sides = brushes[0].faces.len() - 2;
+    assert!(sides < 16, "fixture must actually lose sides (got {sides})");
+    assert!(
+        cylinder.status.contains(&format!("{sides} of 16 sides")),
+        "status must report the collapsed cylinder sides, got {:?}",
+        cylinder.status
+    );
+
+    // 256 across, nothing survives at all: the refusal names the grid.
+    let nothing = committed_primitive(BrushDrawShape::Cylinder, 64, [256, 256, 256], |s| {
+        s.cylinder_sides = 16;
+    });
+    assert!(nothing.project.active_scene().brushes.is_empty());
+    assert!(
+        nothing.status.contains("Grid 64"),
+        "an empty result must name the grid that collapsed it, got {:?}",
+        nothing.status
+    );
+
+    // A clean primitive keeps the plain message.
+    let clean = committed_primitive(BrushDrawShape::DoorwayArch, 16, [2048, 2048, 64], |s| {
+        s.arch_segments = 6;
+        s.arch_thickness = 128;
+    });
+    assert_eq!(clean.project.active_scene().brushes.len(), 8);
+    assert_eq!(clean.status, "Created Doorway Arch");
+}

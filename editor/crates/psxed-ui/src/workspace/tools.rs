@@ -3953,6 +3953,51 @@ impl EditorWorkspace {
         }
     }
 
+    /// What the grid snap cost a primitive: generators drop a voussoir,
+    /// step or wall segment whose snapped corners collapse, and a cylinder
+    /// loses the sides whose vertices snap together or into a line. `None`
+    /// when the committed shape is the one the settings asked for.
+    fn brush_drag_shortfall(
+        drag: BrushDrag,
+        brushes: &[psxed_project::brush::Brush],
+    ) -> Option<String> {
+        let settings = drag.settings;
+        let step = drag.grid_step.max(1);
+        let (built, expected, unit) = match settings.shape {
+            BrushDrawShape::Box | BrushDrawShape::Ramp => return None,
+            BrushDrawShape::Cylinder => {
+                let sides = brushes.first()?.faces.len().saturating_sub(2);
+                (
+                    sides,
+                    usize::from(settings.cylinder_sides.clamp(3, 32)),
+                    "sides",
+                )
+            }
+            BrushDrawShape::DoorwayArch => (
+                brushes.len(),
+                usize::from(settings.arch_segments.clamp(2, 24)) + 2,
+                "pieces",
+            ),
+            BrushDrawShape::CurvedWall => (
+                brushes.len(),
+                usize::from(settings.arch_segments.clamp(2, 32)),
+                "pieces",
+            ),
+            BrushDrawShape::Stairs => {
+                let (min, max) = Self::brush_drag_bounds(drag)?;
+                let run_axis = match settings.direction {
+                    BrushCardinalDirection::North | BrushCardinalDirection::South => 2,
+                    BrushCardinalDirection::East | BrushCardinalDirection::West => 0,
+                };
+                let available = ((max[run_axis] - min[run_axis]) / step).max(1) as usize;
+                let steps = usize::from(settings.stair_steps.clamp(1, 32)).min(available);
+                (brushes.len(), steps, "steps")
+            }
+        };
+        (built < expected)
+            .then(|| format!("only {built} of {expected} {unit} survived the Grid {step} snap"))
+    }
+
     /// Snap a point from the active orthographic plane to the brush grid.
     /// Its hidden-axis coordinate comes from the world-space shared focus.
     pub(crate) fn brush_snap_2d(&self, world: [f32; 2]) -> [i32; 3] {
@@ -4082,10 +4127,13 @@ impl EditorWorkspace {
             return;
         };
         let mut brushes = Self::brush_drag_brushes(drag);
+        let shortfall = Self::brush_drag_shortfall(drag, &brushes);
         if brushes.is_empty() {
             self.status = format!(
-                "Draw {}: drag a larger footprint or reduce segments/thickness",
-                drag.settings.shape.label()
+                "Draw {}: nothing survived the Grid {} snap; drag a larger footprint, \
+                 use a finer grid, or reduce segments/thickness",
+                drag.settings.shape.label(),
+                drag.grid_step.max(1)
             );
             return;
         }
@@ -4123,7 +4171,15 @@ impl EditorWorkspace {
             self.replace_brush_selection(first, None);
         }
         self.mark_dirty();
-        self.status = format!("Created {}", drag.settings.shape.label());
+        self.status = match shortfall {
+            // Committed anyway (one undo step away), but never reported as
+            // the shape that was asked for.
+            Some(detail) => format!(
+                "Created {}, but {detail}; use a finer grid or a larger footprint",
+                drag.settings.shape.label()
+            ),
+            None => format!("Created {}", drag.settings.shape.label()),
+        };
     }
 
     /// One clip click at a snapped ground point: the first click stores
