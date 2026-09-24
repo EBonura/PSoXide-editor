@@ -511,3 +511,57 @@ fn material_lab_names_accept_spaces_while_typing() {
     };
     assert_eq!(version_after, format!("{version_before} two"));
 }
+
+#[test]
+fn slow_top_view_node_drags_move_and_undo_as_one_step() {
+    let mut workspace = single_brush_workspace("top-view-node-drag");
+    let root = workspace.project.active_scene().root;
+    // Placing the node is the previous undoable edit.
+    workspace.push_undo();
+    let entity = workspace
+        .project
+        .active_scene_mut()
+        .add_node(root, "Crate", NodeKind::Entity);
+    workspace.replace_node_selection(entity);
+    workspace.snap_units = 16;
+    workspace.viewport_zoom = 1.0;
+    let start = workspace
+        .project
+        .active_scene()
+        .node(entity)
+        .unwrap()
+        .transform
+        .translation;
+    // 48 frames of 2 px each: 96 world units in total, but never more than
+    // an eighth of a grid step in any one frame (a slow, careful drag).
+    for _ in 0..48 {
+        workspace.drag_selected_node(Vec2::new(2.0, 0.0));
+    }
+    workspace.end_node_drag_2d();
+    let moved = workspace
+        .project
+        .active_scene()
+        .node(entity)
+        .unwrap()
+        .transform
+        .translation;
+    assert_eq!(
+        moved[0],
+        start[0] + 96.0,
+        "a slow Top-view drag must still move the node"
+    );
+
+    workspace.do_undo();
+    let undone = workspace
+        .project
+        .active_scene()
+        .node(entity)
+        .unwrap()
+        .transform
+        .translation;
+    assert_eq!(undone, start, "one Cmd+Z undoes the whole Top-view drag");
+    assert!(
+        workspace.project.active_scene().node(entity).is_some(),
+        "the undo must not also roll back the node's creation"
+    );
+}

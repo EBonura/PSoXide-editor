@@ -781,6 +781,8 @@ pub struct EditorWorkspace {
     brush_extrude_new: Option<BrushFaceExtrudeNew>,
     /// In-flight brush-create drag (Brush tool primary held).
     brush_drag: Option<BrushDrag>,
+    /// Live Top-view node drag (see `drag_selected_node`).
+    node_drag_2d: Option<NodeDrag2d>,
     /// Primitive and generator parameters used by the Draw tool. These are
     /// editor-session choices; committed output is always ordinary convex
     /// brushes (multi-brush primitives receive an editor Group).
@@ -1981,6 +1983,14 @@ interaction_accessors! {
     BoxSelect3d => box_select_3d, box_select_3d_mut, take_box_select_3d : Viewport3dBoxSelect;
     BoxSelect2d => box_select_2d, box_select_2d_mut, take_box_select_2d : ViewportBoxSelect;
     UiCanvas => ui_canvas_drag, ui_canvas_drag_mut, take_ui_canvas_drag : UiCanvasDrag;
+}
+
+/// Base translations and the accumulated pointer travel of one Top-view
+/// node drag gesture.
+pub(crate) struct NodeDrag2d {
+    base: Vec<(NodeId, [f32; 3])>,
+    accumulated: [f32; 2],
+    undo_recorded: bool,
 }
 
 /// The active centered modal dialog overlaying the editor.
@@ -3376,6 +3386,7 @@ impl EditorWorkspace {
             brush_element_transform: None,
             brush_extrude_new: None,
             brush_drag: None,
+            node_drag_2d: None,
             brush_draw_settings: BrushDrawSettings::default(),
             brush_extrude: None,
             brush_clip_points: Vec::new(),
@@ -3930,6 +3941,7 @@ impl EditorWorkspace {
                 // at that position in the reloaded file.
                 self.cancel_brush_gestures();
                 self.interaction = Interaction::Idle;
+                self.node_drag_2d = None;
                 self.inspector_undo_transaction = None;
                 self.history.clear();
                 self.clear_brush_selection();

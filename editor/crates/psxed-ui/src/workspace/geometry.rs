@@ -2478,6 +2478,7 @@ impl EditorWorkspace {
     fn abandon_gestures_for_document_swap(&mut self) {
         self.cancel_brush_gestures();
         self.interaction = Interaction::Idle;
+        self.node_drag_2d = None;
     }
 
     pub(crate) fn do_undo(&mut self) {
@@ -2835,6 +2836,16 @@ impl EditorWorkspace {
         Some(([center[0] + local[0], center[1] + local[1]], [0.5, 0.5]))
     }
 
+    /// End a Top-view node drag: the next drag starts a new gesture (and a
+    /// new undo step).
+    pub(crate) fn end_node_drag_2d(&mut self) {
+        self.node_drag_2d = None;
+    }
+
+    /// Top-view node drag. The pointer delta accumulates over the whole
+    /// gesture and every frame snaps `base + accumulated`, so a slow drag
+    /// (under half a grid step per frame) still reaches the next step, and
+    /// the gesture records exactly one undo step on its first real change.
     pub(crate) fn drag_selected_node(&mut self, screen_delta: Vec2) {
         let selected = self.selected_node_ids_in_hierarchy();
         if selected.is_empty() || screen_delta == Vec2::ZERO {
@@ -2845,16 +2856,48 @@ impl EditorWorkspace {
             screen_delta.x / self.viewport_zoom,
             -screen_delta.y / self.viewport_zoom,
         ];
-        let targets = selected
-            .into_iter()
-            .map(|id| (id, node_translation_sector_size(&self.project, id)))
+        let same_gesture = self.node_drag_2d.as_ref().is_some_and(|drag| {
+            drag.base
+                .iter()
+                .map(|(id, _)| *id)
+                .eq(selected.iter().copied())
+        });
+        if !same_gesture {
+            let scene = self.project.active_scene();
+            let base = selected
+                .iter()
+                .filter_map(|id| {
+                    scene
+                        .node(*id)
+                        .map(|node| (*id, node.transform.translation))
+                })
+                .collect();
+            self.node_drag_2d = Some(NodeDrag2d {
+                base,
+                accumulated: [0.0, 0.0],
+                undo_recorded: false,
+            });
+        }
+        let Some(drag) = self.node_drag_2d.as_mut() else {
+            return;
+        };
+        drag.accumulated[0] += world_delta[0];
+        drag.accumulated[1] += world_delta[1];
+        let accumulated = drag.accumulated;
+        let undo_recorded = drag.undo_recorded;
+        let targets = drag
+            .base
+            .iter()
+            .map(|(id, base)| (*id, *base, node_translation_sector_size(&self.project, *id)))
             .collect::<Vec<_>>();
+        let before = (!undo_recorded).then(|| self.project.clone());
         let snap_step = i32::from(self.snap_units.max(1));
         let mut moved = Vec::new();
-        for (id, sector_size) in targets {
+        for (id, base, sector_size) in targets {
             if let Some(node) = self.project.active_scene_mut().node_mut(id) {
-                node.transform.translation[0] += world_delta[0];
-                node.transform.translation[2] += world_delta[1];
+                let previous = node.transform.translation;
+                node.transform.translation[0] = base[0] + accumulated[0];
+                node.transform.translation[2] = base[2] + accumulated[1];
                 if matches!(
                     node.kind,
                     NodeKind::Entity
@@ -2880,7 +2923,18 @@ impl EditorWorkspace {
                         );
                     }
                 }
-                moved.push(node.name.clone());
+                if node.transform.translation != previous {
+                    moved.push(node.name.clone());
+                }
+            }
+        }
+        if moved.is_empty() {
+            return;
+        }
+        if let Some(before) = before {
+            self.history.record(before);
+            if let Some(drag) = self.node_drag_2d.as_mut() {
+                drag.undo_recorded = true;
             }
         }
 
