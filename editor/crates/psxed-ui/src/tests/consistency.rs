@@ -337,3 +337,54 @@ fn room_editing_keys_do_nothing_in_the_animation_and_material_workspaces() {
         }
     }
 }
+
+#[test]
+fn arrow_keys_in_ui_navigation_preview_do_not_nudge_the_layout() {
+    let mut project = ProjectDocument::new("ui-nav-preview");
+    let scene_id = project.add_ui_scene("Nav Preview");
+    let root = project.ui_scene(scene_id).unwrap().root;
+    let panel = project.ui_scene_mut(scene_id).unwrap().add_node(
+        root,
+        "Panel",
+        UiNodeKind::Group {
+            rect: UiRect::new(20, 30, 100, 50),
+        },
+    );
+    let mut workspace = EditorWorkspace::with_project(test_temp_dir("ui-nav-preview"), project);
+    workspace.active_workspace = WorkspaceView::Ui;
+    assert!(workspace.focus_ui_scene("Nav Preview"));
+    workspace.selection.selected_ui_node = panel;
+    let rect = |workspace: &EditorWorkspace| {
+        workspace
+            .current_ui_scene()
+            .and_then(|scene| scene.node(panel))
+            .and_then(|node| node.kind.rect())
+    };
+    let before = rect(&workspace);
+    let mut frames = EditorFrames::new();
+    frames.idle(&mut workspace);
+
+    // Editing (preview off): arrows nudge the selected node.
+    frames.key(&mut workspace, egui::Key::ArrowRight, egui::Modifiers::NONE);
+    assert_ne!(
+        rect(&workspace),
+        before,
+        "arrow nudge is the editing baseline"
+    );
+    workspace.do_undo();
+    assert_eq!(rect(&workspace), before);
+
+    // Previewing navigation: the same keys drive the preview focus only.
+    workspace.ui_nav_preview = true;
+    workspace.dirty = false;
+    frames.idle(&mut workspace);
+    for key in [egui::Key::ArrowRight, egui::Key::ArrowDown] {
+        frames.key(&mut workspace, key, egui::Modifiers::NONE);
+    }
+    assert_eq!(
+        rect(&workspace),
+        before,
+        "navigation preview arrows moved the selected UI node"
+    );
+    assert!(!workspace.is_dirty());
+}
