@@ -373,6 +373,9 @@ impl EditorWorkspace {
                         {
                             self.drag_selected_node(ui.input(|input| input.pointer.delta()));
                         }
+                        if !response.dragged_by(egui::PointerButton::Primary) {
+                            self.end_node_drag_2d();
+                        }
 
                         if !dnd_active && response.clicked_by(egui::PointerButton::Primary) {
                             if self
