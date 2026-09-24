@@ -14,6 +14,13 @@ pub(crate) struct MaterialLabState {
     base_preview_image: Option<ColorImage>,
     overlay_preview_image: Option<ColorImage>,
     rendered_preview_tick: Option<u32>,
+    /// Text being typed into the Name field. Committed when the field
+    /// loses focus: validating (trim, non-empty) on every keystroke threw
+    /// away a trailing space before the next word could follow it.
+    name_draft: Option<(ResourceId, String)>,
+    /// Same for Version name, whose uniqueness check also rejected every
+    /// intermediate prefix that collided with another version.
+    version_name_draft: Option<(ResourceId, psxed_project::MaterialVersionId, String)>,
 }
 
 impl EditorWorkspace {
@@ -321,27 +328,44 @@ impl EditorWorkspace {
         let original = original.clone();
         let mut edited = original.clone();
         let resource_name = resource.name.clone();
-        let mut edited_name = resource_name.clone();
         let active_version_id = original.active_version_id;
         let version_name = original.active_version_name.clone();
-        let mut edited_version_name = version_name.clone();
+        let mut edited_name = match &self.material_lab.name_draft {
+            Some((id, draft)) if *id == material_id => draft.clone(),
+            _ => resource_name.clone(),
+        };
+        let mut edited_version_name = match &self.material_lab.version_name_draft {
+            Some((id, version, draft)) if *id == material_id && *version == active_version_id => {
+                draft.clone()
+            }
+            _ => version_name.clone(),
+        };
 
-        ui.horizontal(|ui| {
-            ui.label("Name");
-            ui.add(
-                egui::TextEdit::singleline(&mut edited_name)
-                    .desired_width(320.0)
-                    .hint_text("Material name"),
-            );
-        });
-        ui.horizontal(|ui| {
-            ui.label("Version name");
-            ui.add(
-                egui::TextEdit::singleline(&mut edited_version_name)
-                    .desired_width(240.0)
-                    .hint_text("Version name"),
-            );
-        });
+        let name_typing = ui
+            .horizontal(|ui| {
+                ui.label("Name");
+                ui.add(
+                    egui::TextEdit::singleline(&mut edited_name)
+                        .desired_width(320.0)
+                        .hint_text("Material name"),
+                )
+                .has_focus()
+            })
+            .inner;
+        let version_typing = ui
+            .horizontal(|ui| {
+                ui.label("Version name");
+                ui.add(
+                    egui::TextEdit::singleline(&mut edited_version_name)
+                        .desired_width(240.0)
+                        .hint_text("Version name"),
+                )
+                .has_focus()
+            })
+            .inner;
+        self.material_lab.name_draft = name_typing.then(|| (material_id, edited_name.clone()));
+        self.material_lab.version_name_draft =
+            version_typing.then(|| (material_id, active_version_id, edited_version_name.clone()));
         ui.add_space(8.0);
 
         let available = ui.available_size();
@@ -378,7 +402,7 @@ impl EditorWorkspace {
                 self.material_lab.preview_signature.clear();
             }
         }
-        if edited_name != resource_name && !edited_name.trim().is_empty() {
+        if !name_typing && edited_name.trim() != resource_name && !edited_name.trim().is_empty() {
             let edited_name = edited_name.trim().to_string();
             if let Some(resource) = self.project.resource_mut(material_id) {
                 resource.name = edited_name.clone();
@@ -386,7 +410,7 @@ impl EditorWorkspace {
                 self.status = format!("Renamed material: {edited_name}");
             }
         }
-        if edited_version_name != version_name {
+        if !version_typing && edited_version_name != version_name {
             let renamed = self
                 .project
                 .resource_mut(material_id)

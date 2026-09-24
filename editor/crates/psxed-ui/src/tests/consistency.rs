@@ -420,3 +420,94 @@ fn editor_shortcuts_stand_down_while_a_modal_dialog_is_open() {
     }
     assert!(matches!(workspace.modal, Modal::DeleteProject { .. }));
 }
+
+impl EditorFrames {
+    fn click(&mut self, workspace: &mut EditorWorkspace, pos: Pos2) {
+        self.run(
+            workspace,
+            vec![egui::Event::PointerMoved(pos)],
+            egui::Modifiers::NONE,
+        );
+        for pressed in [true, false] {
+            self.run(
+                workspace,
+                vec![egui::Event::PointerButton {
+                    pos,
+                    button: egui::PointerButton::Primary,
+                    pressed,
+                    modifiers: egui::Modifiers::NONE,
+                }],
+                egui::Modifiers::NONE,
+            );
+        }
+    }
+
+    fn type_text(&mut self, workspace: &mut EditorWorkspace, text: &str) {
+        for ch in text.chars() {
+            self.run(
+                workspace,
+                vec![egui::Event::Text(ch.to_string())],
+                egui::Modifiers::NONE,
+            );
+        }
+    }
+}
+
+/// Screen point inside the Material Lab text field on the row labelled
+/// `label`, far enough right to land past the current text.
+fn material_lab_field(output: &egui::FullOutput, label: &str) -> Pos2 {
+    let rows = super::brush_tools::text_shape_centers(&output.shapes, label);
+    let version = super::brush_tools::text_shape_centers(&output.shapes, "Version name");
+    let anchor = *version
+        .first()
+        .expect("Material Lab shows its Version name row");
+    let row = rows
+        .into_iter()
+        .filter(|point| point.y <= anchor.y + 1.0 && anchor.y - point.y < 40.0)
+        .max_by(|a, b| a.y.total_cmp(&b.y))
+        .expect("Material Lab row label");
+    row + Vec2::new(200.0, 0.0)
+}
+
+#[test]
+fn material_lab_names_accept_spaces_while_typing() {
+    let mut project = ProjectDocument::new("material-lab-names");
+    let material = project.add_resource(
+        "Zircon",
+        ResourceData::Material(MaterialResource::opaque(None)),
+    );
+    let mut workspace = EditorWorkspace::with_project(test_temp_dir("material-lab-names"), project);
+    workspace.active_workspace = WorkspaceView::Material;
+    assert!(workspace.focus_material_resource(material));
+    let mut frames = EditorFrames::new();
+    let output = frames.idle(&mut workspace);
+    let name_field = material_lab_field(&output, "Name");
+    frames.click(&mut workspace, name_field);
+    frames.type_text(&mut workspace, " Slab");
+    frames.key(&mut workspace, egui::Key::Enter, egui::Modifiers::NONE);
+    frames.idle(&mut workspace);
+    assert_eq!(
+        workspace.project.resource(material).unwrap().name,
+        "Zircon Slab",
+        "the Material Lab name field swallowed the space"
+    );
+
+    let version_before = match &workspace.project.resource(material).unwrap().data {
+        ResourceData::Material(material) => material.active_version_name.clone(),
+        _ => unreachable!(),
+    };
+    // Step past egui's double-click window so the next click only places
+    // the cursor instead of selecting a word.
+    frames.time += 1.0;
+    let output = frames.idle(&mut workspace);
+    let version_field = material_lab_field(&output, "Version name");
+    frames.click(&mut workspace, version_field);
+    frames.type_text(&mut workspace, " two");
+    frames.key(&mut workspace, egui::Key::Enter, egui::Modifiers::NONE);
+    frames.idle(&mut workspace);
+    let version_after = match &workspace.project.resource(material).unwrap().data {
+        ResourceData::Material(material) => material.active_version_name.clone(),
+        _ => unreachable!(),
+    };
+    assert_eq!(version_after, format!("{version_before} two"));
+}
