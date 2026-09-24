@@ -2100,6 +2100,10 @@ pub(crate) struct NodeKindEditorContext<'a> {
     pub(crate) boost_module_options: &'a [(ResourceId, String)],
     pub(crate) animator_clip_context: Option<&'a AnimatorClipContext>,
     pub(crate) inherited_sector_size: i32,
+    /// The World node's sector size. Point-light radius is stored in these
+    /// sectors, and the cook, the brush-light bake and the viewport preview
+    /// all scale it by this value, so the Inspector has to as well.
+    pub(crate) world_sector_size: i32,
     pub(crate) room_grid_resize: &'a mut Option<(u16, u16)>,
     pub(crate) nav_target: &'a mut Option<ResourceId>,
     pub(crate) character_preview_action: &'a mut Option<psxed_project::CharacterAnimationAction>,
@@ -2198,6 +2202,7 @@ pub(crate) fn draw_node_kind_editor(
         boost_module_options,
         animator_clip_context,
         inherited_sector_size,
+        world_sector_size,
         room_grid_resize,
         nav_target,
         character_preview_action,
@@ -4264,7 +4269,7 @@ pub(crate) fn draw_node_kind_editor(
                         .text(icons::label(icons::SUN, "Intensity (× 1.0)")),
                 )
                 .changed();
-            let radius_scale = inherited_sector_size.max(1) as f32;
+            let radius_scale = world_sector_size.max(1) as f32;
             let raw_radius_units = *radius * radius_scale;
             let mut radius_units = if raw_radius_units.is_finite() {
                 raw_radius_units.clamp(1.0, psxed_project::POINT_LIGHT_RADIUS_MAX_WORLD_UNITS)
