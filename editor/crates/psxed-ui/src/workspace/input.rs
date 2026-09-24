@@ -589,7 +589,13 @@ impl EditorWorkspace {
         modifiers: egui::Modifiers,
     ) -> bool {
         let step = if modifiers.shift { 8 } else { 1 };
+        // With "Preview UI navigation" on, the arrows drive the preview's
+        // focus (`ui_scene.rs`) and must not also nudge the layout.
+        let nudge_keys = !self.ui_nav_preview;
         let delta = ctx.input_mut(|input| {
+            if !nudge_keys {
+                return [0, 0];
+            }
             let mut dx = 0;
             let mut dy = 0;
             if input.key_pressed(egui::Key::ArrowLeft) {
