@@ -2213,6 +2213,8 @@ impl EditorWorkspace {
 
     /// Delete every selected brush as one undo step.
     pub(crate) fn delete_selected_brushes(&mut self) {
+        // A live drag holds brush indices that the removal below shifts.
+        self.cancel_brush_gestures();
         let targets = self.selected_brush_set();
         self.clear_brush_selection();
         if targets.is_empty() {
