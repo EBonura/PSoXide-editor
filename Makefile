@@ -970,8 +970,11 @@ editor-blank-playtest-check:
 
 # End-to-end proof that authored PXBSP liquid contents survive the editor cook,
 # enter the shared runtime point hull, apply deterministic hazard damage, and
-# respawn the player. The gate intentionally emits no screenshots or frame
-# dumps: guest telemetry is the behavioral oracle.
+# respawn the player. The fixture spawns on dry land; forward input for 90
+# ticks walks the player into the lava pool, 40 hits kill it, and the respawn
+# at f646 lands back on the dry spawn (engine z 104) with no further hits.
+# The gate intentionally emits no screenshots or frame dumps: guest
+# telemetry is the behavioral oracle.
 editor-bsp-liquid-check:
 	@set -eu; \
 	check_tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/psoxide-editor-bsp-liquid.XXXXXX"); \
@@ -987,7 +990,8 @@ editor-bsp-liquid-check:
 	if ! cargo run -p frontend --release -- launch \
 		--path "$$cue" \
 		--embedded-playtest \
-		--guest-frames 220 \
+		--press 30:up:90 \
+		--guest-frames 700 \
 		--steps 1000000000 \
 		--guest-debug-log \
 		--dump-guest-profile > "$$log" 2>&1; then \
@@ -997,9 +1001,10 @@ editor-bsp-liquid-check:
 	cat "$$log"; \
 	lava_hits=$$(grep -Fc 'player bsp:lava' "$$log"); \
 	respawns=$$(grep -Fc 'player hazard:respawn' "$$log"); \
-	[ "$$lava_hits" -eq 12 ]; \
+	[ "$$lava_hits" -eq 40 ]; \
 	[ "$$respawns" -eq 1 ]; \
-	grep -Eq '^\[guest f181 c[0-9]+\] player hazard:respawn$$' "$$log"
+	grep -Eq '^\[guest f646 c[0-9]+\] player hazard:respawn$$' "$$log"; \
+	grep -Eq '^ +player local z +total=[0-9]+ +per_frame=[0-9]+ +latest=1000104$$' "$$log"
 
 profile-demo3:
 	$(MAKE) profile-demo3-disc-stream PROFILE_DEMO3_DISC_STREAM_HW=$(PROFILE_DEMO3_HW)
