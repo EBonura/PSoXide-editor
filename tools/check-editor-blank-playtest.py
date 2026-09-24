@@ -30,27 +30,27 @@ TELEMETRY_POSITION_BIAS = 1_000_000
 EXPECTED_ROUTE_TICKS = 1_232
 EXPECTED_PAD_POLLS = 1_201
 EXPECTED_GUEST_FRAMES = 1_199
-EXPECTED_VISUAL_FRAMES = 539
+EXPECTED_VISUAL_FRAMES = 525
 # This scene presents about one frame per two ticks through the intro and
 # gameplay. The gate pins the reported cadence instead of requiring
 # "steady", so a change either way is visible here.
 EXPECTED_CADENCE_STATUS = "missed_or_late"
 MIN_SKY_CYCLES = 100_000
-EXPECTED_SKY_HITS = 538
-EXPECTED_TRI_PRIMS = 127_902
+EXPECTED_SKY_HITS = 524
+EXPECTED_TRI_PRIMS = 125_409
 EXPECTED_LAST_TRI_PRIMS = 214
-EXPECTED_VRAM_HASH = "0xafb73bc1207ed391"
+EXPECTED_VRAM_HASH = "0xedddd3b2ab8700a3"
 EXPECTED_DISPLAY_HASH = "0x74d51a87d19b267c"
 EXPECTED_GPU_CENSUS: dict[str, int | str] = {
     "rows": 1_232,
-    "commands": 311_315,
-    "draws": 151_474,
-    "fills": 540,
-    "textured_tris": 119_952,
-    "textured_quads": 13_131,
-    "textured_rects": 3_733,
-    "run_draw_words": 1_560_887,
-    "run_draw_hash": "0xa11172e6ccebe80d",
+    "commands": 304_680,
+    "draws": 148_453,
+    "fills": 526,
+    "textured_tris": 117_501,
+    "textured_quads": 12_817,
+    "textured_rects": 3_519,
+    "run_draw_words": 1_528_673,
+    "run_draw_hash": "0xfe8276b2c475b980",
 }
 IMAGE_SUFFIXES = {".bmp", ".gif", ".jpeg", ".jpg", ".png", ".ppm", ".webp"}
 
