@@ -572,6 +572,10 @@ impl EditorWorkspace {
         }
         let output_name = self.texture_import_output_name(&source);
         let config = self.texture_import_config();
+        // The import only ADDS files, so undoing it is safe: the resource
+        // goes, the written file stays unreferenced. Without its own step,
+        // Cmd+Z rolled the import back together with the edit before it.
+        let before = self.project.clone();
         match psxed_project::texture_import::import_texture(
             &mut self.project,
             &source,
@@ -580,6 +584,7 @@ impl EditorWorkspace {
             &config,
         ) {
             Ok(id) => {
+                self.history.record(before);
                 self.replace_resource_selection(id);
                 self.clear_node_selection_state();
                 self.clear_primitive_selection_state();
@@ -1193,6 +1198,8 @@ impl EditorWorkspace {
         let output_name = self.model_import_output_name(&source);
         let config = self.model_import_config();
         let animation_sources = self.model_import_animation_source_paths();
+        // One undo step per import; see `commit_texture_import`.
+        let before = self.project.clone();
         match psxed_project::model_import::import_model_with_animation_sources(
             &mut self.project,
             &source,
@@ -1202,6 +1209,7 @@ impl EditorWorkspace {
             config,
         ) {
             Ok(id) => {
+                self.history.record(before);
                 let collision_radius = self
                     .model_import_dialog
                     .collision_radius
