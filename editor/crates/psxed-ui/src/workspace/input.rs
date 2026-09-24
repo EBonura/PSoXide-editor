@@ -410,7 +410,12 @@ impl EditorWorkspace {
         let consume_geometry_paste = !focus_taken
             && (self.active_workspace == WorkspaceView::Room || paste_portable_brushes)
             && consume_paste_shortcut(ctx);
-        let consume_duplicate = if focus_taken || self.active_workspace == WorkspaceView::Ui {
+        // Duplicate, rotate, rename and node/cell delete edit the Room scene.
+        // Animation and Material do not show it, so there they would change
+        // things the user cannot see (the scene selection outlives a
+        // workspace switch).
+        let room_workspace = self.active_workspace == WorkspaceView::Room;
+        let consume_duplicate = if focus_taken || !room_workspace {
             false
         } else {
             consume_command_shortcut(ctx, egui::Key::D)
@@ -490,7 +495,10 @@ impl EditorWorkspace {
                 return;
             }
             let rot = ctx.input_mut(|i| i.key_pressed(egui::Key::R));
-            if rot && self.renaming.is_none() {
+            if rot
+                && self.renaming.is_none()
+                && (room_workspace || self.floating_geometry.is_some())
+            {
                 self.rotate_current_selection_90();
             }
             let flip = ctx.input_mut(|i| i.key_pressed(egui::Key::F));
@@ -555,18 +563,20 @@ impl EditorWorkspace {
                 self.snap_selected_entities_to_floor();
             }
             let f2 = ctx.input_mut(|i| i.key_pressed(egui::Key::F2));
-            if f2 && self.selection.selected_node != NodeId::ROOT {
+            if f2 && room_workspace && self.selection.selected_node != NodeId::ROOT {
                 self.apply_tree_action(TreeAction::BeginRename(self.selection.selected_node), &[]);
             }
             let del = ctx.input_mut(|i| {
                 i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace)
             });
             if del && self.renaming.is_none() {
-                if !self.selected_primitive_targets().is_empty() {
+                if room_workspace && !self.selected_primitive_targets().is_empty() {
                     self.delete_selected_primitives();
                 } else if self.selection.selected_resource.is_some() {
+                    // Asks first, and the resource is what these
+                    // workspaces show, so it stays available everywhere.
                     self.begin_resource_delete_confirmation();
-                } else if self.selection.selected_node != NodeId::ROOT {
+                } else if room_workspace && self.selection.selected_node != NodeId::ROOT {
                     self.apply_tree_action(TreeAction::Delete(self.selection.selected_node), &[]);
                 }
             }
