@@ -1617,7 +1617,9 @@ fn ashen_sanctum_project_is_authored_through_production_commands() {
     };
     assert_eq!(world.movers.len(), 3);
     assert_eq!(package.game_entities.len(), 3);
-    assert_eq!(package.equipment.len(), 4);
+    // Four authored Equipment records plus the three weapon/socket pairs the
+    // player's appearance tracks equip.
+    assert_eq!(package.equipment.len(), 7);
     assert_eq!(package.interactables.len(), 2);
     prove_cooked_player_hull_route(world);
 
