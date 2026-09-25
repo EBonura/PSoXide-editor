@@ -3539,6 +3539,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "psxed-mcp"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "image",
+ "psxed-format",
+ "psxed-project",
+ "rmcp",
+ "ron",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "psxed-obj"
 version = "0.1.0"
 dependencies = [
