@@ -2541,6 +2541,9 @@ pub(crate) fn preview_ui_sfx_cue(project_root: &Path, cue: &UiSfxCue) -> Result<
     if !path.is_file() {
         return Err(format!("SFX preview source not found: {}", path.display()));
     }
+    // Play what ships, not the source: cook the WAV exactly as the playtest
+    // build does and render the ADPCM as the console's voice plays it.
+    let path = cooked_sfx_preview(&path)?;
     let volume = cue.volume.min(100).to_string();
     let pitch = (cue.pitch_q12.max(1) as f32 / 4096.0).clamp(0.25, 2.0);
     let path_arg = path.to_string_lossy().into_owned();
@@ -2570,6 +2573,24 @@ pub(crate) fn preview_ui_sfx_cue(project_root: &Path, cue: &UiSfxCue) -> Result<
     ];
     spawn_audio_preview("afplay", &afplay_args)
         .map_err(|error| format!("Could not launch audio preview: {error}"))
+}
+
+/// Cook `source` as a UI/gameplay SFX (psxed_audio::cook_sfx_from_wav, the
+/// playtest cook) and write its console playback to a temporary WAV.
+fn cooked_sfx_preview(source: &Path) -> Result<std::path::PathBuf, String> {
+    let bytes = std::fs::read(source)
+        .map_err(|error| format!("SFX preview source {}: {error}", source.display()))?;
+    let psau = psxed_audio::cook_sfx_from_wav(&bytes)
+        .map_err(|error| format!("SFX preview could not be cooked: {error}"))?;
+    let wav = psxed_audio::spu_playback_wav(&psau)
+        .map_err(|error| format!("SFX preview could not be decoded: {error}"))?;
+    // One file per preview: a player still reading the last one keeps it.
+    static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let out =
+        std::env::temp_dir().join(format!("psxed-sfx-preview-{}-{n}.wav", std::process::id()));
+    std::fs::write(&out, wav).map_err(|error| format!("SFX preview {}: {error}", out.display()))?;
+    Ok(out)
 }
 
 pub(crate) fn spawn_audio_preview(program: &str, args: &[String]) -> std::io::Result<()> {

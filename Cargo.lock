@@ -3317,6 +3317,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "psx-audio-cook"
+version = "0.1.0"
+dependencies = [
+ "psxed-format",
+]
+
+[[package]]
 name = "psx-bsp"
 version = "0.1.0"
 dependencies = [
@@ -3515,6 +3522,7 @@ dependencies = [
 name = "psxed-audio"
 version = "0.1.0"
 dependencies = [
+ "psx-audio-cook",
  "psxed-format",
  "serde",
  "serde_json",
@@ -3603,6 +3611,7 @@ dependencies = [
  "psx-font",
  "psx-gte",
  "psx-level",
+ "psxed-audio",
  "psxed-project",
  "rfd",
  "zip",
