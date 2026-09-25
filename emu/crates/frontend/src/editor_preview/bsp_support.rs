@@ -21,6 +21,26 @@ impl FaceShade {
             Self::Flat { sidedness, .. } | Self::Textured { sidedness, .. } => sidedness,
         }
     }
+
+    pub(super) const fn with_sidedness(
+        self,
+        sidedness: psxed_project::MaterialFaceSidedness,
+    ) -> Self {
+        match self {
+            Self::Flat { rgb, .. } => Self::Flat { rgb, sidedness },
+            Self::Textured {
+                slot,
+                tint,
+                blend_mode,
+                ..
+            } => Self::Textured {
+                slot,
+                tint,
+                blend_mode,
+                sidedness,
+            },
+        }
+    }
 }
 
 pub(super) fn preview_vertices_in_front(

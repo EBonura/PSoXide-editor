@@ -44,6 +44,7 @@ mod overlays;
 mod particles;
 mod poi;
 mod primitives;
+mod props;
 
 use backdrop::*;
 use bsp_support::*;
@@ -52,6 +53,7 @@ use overlays::*;
 use particles::*;
 use poi::*;
 use primitives::*;
+use props::*;
 
 /// Maximum sectors we'll attempt to render in one preview pass.
 /// 64×64 grid would already be enormous for PSX (~16 MiB cooked); a
@@ -420,6 +422,14 @@ pub fn build_phase1_frame_reusing(
     // World-space brushes render once, against the camera GTE state
     // installed above (rooms and their local offsets do not apply).
     walk_brushes(
+        project,
+        textures,
+        world_camera,
+        hidden_scene_nodes,
+        &mut scratch,
+    );
+    // Box, Cylinder and Image props, from the geometry the cook emits.
+    walk_props(
         project,
         textures,
         world_camera,
@@ -1118,6 +1128,30 @@ fn emit_brush_patch(
         );
     }
 
+    emit_uv_polygon(
+        scratch,
+        camera,
+        shade,
+        verts,
+        &patch_uvs[..verts.len()],
+        colors,
+    );
+}
+
+/// One convex polygon with explicit texel UVs through near-plane clipping,
+/// projection and submission, as a fan of triangles in one ordering-table
+/// slot. `colors` is per vertex, or `None` for the shade's uniform colour.
+fn emit_uv_polygon(
+    scratch: &mut PreviewScratch,
+    camera: psx_engine::WorldCamera,
+    shade: FaceShade,
+    verts: &[[f64; 3]],
+    uvs: &[[f64; 2]],
+    colors: Option<&[(u8, u8, u8)]>,
+) {
+    if verts.len() > PREVIEW_FACE_VERTEX_CAP || uvs.len() < verts.len() {
+        return;
+    }
     let default_color = match shade {
         FaceShade::Flat { rgb, .. } => rgb,
         FaceShade::Textured { tint, .. } => tint,
@@ -1131,7 +1165,7 @@ fn emit_brush_patch(
         );
         clip_vertices[index] = PreviewClipVertex::new(
             camera.view_vertex(world),
-            patch_uvs[index],
+            uvs[index],
             colors.map_or(default_color, |colors| colors[index]),
         );
     }
@@ -2560,6 +2594,85 @@ mod tests {
             "a Both brush material previewed back faces the runtime never draws"
         );
         assert_ne!(commands(MaterialFaceSidedness::Back), front);
+    }
+
+    #[test]
+    fn box_image_and_cylinder_props_draw_in_the_preview() {
+        use psxed_project::{MaterialResource, ResourceData};
+        let mut project = ProjectDocument::new("props-in-preview");
+        project.active_scene_mut().brushes.clear();
+        let material = project.add_resource(
+            "Crate",
+            ResourceData::Material(MaterialResource::opaque(None)),
+        );
+        let empty = preview_commands(&project, &HashSet::new()).len();
+        let root = project.active_scene().root;
+        let mut materials = [Some(material); psxed_project::BOX_PROP_FACE_COUNT];
+        // A face without a material is skipped, as the cook skips it.
+        materials[4] = None;
+        let crate_id = project.active_scene_mut().add_node(
+            root,
+            "Crate",
+            NodeKind::BoxProp {
+                materials,
+                uvs: [psxed_project::GridUvTransform::default();
+                    psxed_project::BOX_PROP_FACE_COUNT],
+                vertices: psxed_project::box_prop_vertices_for_size(512),
+                collision_enabled: true,
+                break_flags: 0,
+                erosion: psxed_project::BoxPropErosion::default(),
+            },
+        );
+        project
+            .active_scene_mut()
+            .node_mut(crate_id)
+            .unwrap()
+            .transform
+            .translation = [512.0, 0.0, 512.0];
+        let with_box = preview_commands(&project, &HashSet::new()).len();
+        assert!(with_box > empty, "the Box Prop draws in the preview");
+        assert_eq!(
+            preview_commands(&project, &HashSet::from([crate_id])).len(),
+            empty,
+            "a hidden prop is not drawn"
+        );
+
+        let card = project.active_scene_mut().add_node(
+            root,
+            "Banner",
+            NodeKind::ImageProp {
+                material: Some(material),
+                width: 256,
+                height: 512,
+                cylindrical_billboard: false,
+                collision_enabled: false,
+                collision_size: [256, 512, 64],
+                destructible: None,
+            },
+        );
+        project
+            .active_scene_mut()
+            .node_mut(card)
+            .unwrap()
+            .transform
+            .translation = [256.0, 0.0, 256.0];
+        let with_card = preview_commands(&project, &HashSet::new()).len();
+        assert!(with_card > with_box, "the Image Prop draws in the preview");
+
+        project.active_scene_mut().add_node(
+            root,
+            "Pillar",
+            NodeKind::CylinderProp {
+                materials: [Some(material); psxed_project::CYLINDER_PROP_MATERIAL_COUNT],
+                uvs: Default::default(),
+                geometry: psxed_project::CylinderPropGeometry::default(),
+                collision_enabled: true,
+            },
+        );
+        assert!(
+            preview_commands(&project, &HashSet::new()).len() > with_card,
+            "the Cylinder Prop draws in the preview"
+        );
     }
 
     #[test]
