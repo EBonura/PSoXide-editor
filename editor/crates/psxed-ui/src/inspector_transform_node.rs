@@ -4,6 +4,7 @@ pub(crate) fn draw_transform_policy_editor(
     ui: &mut egui::Ui,
     node: &mut psxed_project::SceneNode,
     inherited_sector_size: i32,
+    world_sector_size: i32,
     texture_options: &[(ResourceId, String)],
     nav_target: &mut Option<ResourceId>,
     snap_to_floor_requested: &mut bool,
@@ -30,7 +31,7 @@ pub(crate) fn draw_transform_policy_editor(
             nav_target,
         ),
         NodeKind::ArchProp { geometry, .. } => {
-            arch_prop_transform_editor(ui, &mut node.transform, inherited_sector_size, *geometry)
+            arch_prop_transform_editor(ui, &mut node.transform, world_sector_size, *geometry)
         }
         _ => match node_transform_inspector(&node.kind) {
             NodeTransformInspector::Hidden => false,
@@ -1180,27 +1181,27 @@ pub(crate) fn entity_transform_editor(
     changed
 }
 
+/// ArchProp placement. The node translation is in world units and the arch
+/// spans whole tiles of `tile_size` world units, the World sector size the
+/// cook expands it with.
 pub(crate) fn arch_prop_transform_editor(
     ui: &mut egui::Ui,
     transform: &mut psxed_project::Transform3,
-    sector_size: i32,
+    tile_size: i32,
     geometry: psxed_project::ArchPropGeometry,
 ) -> bool {
     let mut changed = false;
-    let sector_size = sector_size.max(1);
+    let tile_size = tile_size.max(1);
     inspector_property_row(ui, icons::label(icons::MOVE, "Grid anchor"), |ui| {
         ui.horizontal_wrapped(|ui| {
-            let mut x =
-                node_transform_component_to_world_units(transform.translation[0], sector_size);
-            let mut y =
-                node_transform_component_to_world_units(transform.translation[1], sector_size);
-            let mut z =
-                node_transform_component_to_world_units(transform.translation[2], sector_size);
+            let mut x = transform.translation[0].round() as i32;
+            let mut y = transform.translation[1].round() as i32;
+            let mut z = transform.translation[2].round() as i32;
             let position_changed = ui
                 .add(
                     egui::DragValue::new(&mut x)
                         .prefix("X ")
-                        .speed(sector_size as f64 * 0.5),
+                        .speed(tile_size as f64 * 0.5),
                 )
                 .changed()
                 | ui.add(
@@ -1212,15 +1213,11 @@ pub(crate) fn arch_prop_transform_editor(
                 | ui.add(
                     egui::DragValue::new(&mut z)
                         .prefix("Z ")
-                        .speed(sector_size as f64 * 0.5),
+                        .speed(tile_size as f64 * 0.5),
                 )
                 .changed();
             if position_changed {
-                transform.translation = [
-                    node_transform_component_from_world_units(x, sector_size),
-                    node_transform_component_from_world_units(snap_height(y), sector_size),
-                    node_transform_component_from_world_units(z, sector_size),
-                ];
+                transform.translation = [x as f32, snap_height(y) as f32, z as f32];
                 changed = true;
             }
         });
@@ -1241,19 +1238,20 @@ pub(crate) fn arch_prop_transform_editor(
         });
     });
 
-    changed |= snap_arch_prop_transform(transform, geometry, sector_size);
+    changed |= snap_arch_prop_transform(transform, geometry, tile_size);
     changed
 }
 
 /// Enforce the ArchProp grid contract after placement, inspector edits, load,
 /// or gizmo movement. Odd tile counts centre on a cell; even counts centre on
-/// a grid line, so every outer footprint edge lands exactly on room geometry.
+/// a grid line, so every outer footprint edge lands exactly on a tile line.
+/// The translation is in world units; `tile_size` is the World sector size.
 pub(crate) fn snap_arch_prop_transform(
     transform: &mut psxed_project::Transform3,
     geometry: psxed_project::ArchPropGeometry,
-    sector_size: i32,
+    tile_size: i32,
 ) -> bool {
-    let sector_size = sector_size.max(1);
+    let tile = tile_size.max(1) as f32;
     let yaw = cardinal_yaw(transform.rotation_degrees[1]);
     let swapped = yaw == 90 || yaw == 270;
     let (tiles_x, tiles_z) = if swapped {
@@ -1263,17 +1261,11 @@ pub(crate) fn snap_arch_prop_transform(
     };
     let snap_axis = |value: f32, tiles: u8| {
         let offset = if tiles.max(1) & 1 == 0 { 0.0 } else { 0.5 };
-        (value - offset).round() + offset
+        ((value / tile - offset).round() + offset) * tile
     };
     let next = [
         snap_axis(transform.translation[0], tiles_x),
-        node_transform_component_from_world_units(
-            snap_height(node_transform_component_to_world_units(
-                transform.translation[1],
-                sector_size,
-            )),
-            sector_size,
-        ),
+        snap_height(transform.translation[1].round() as i32) as f32,
         snap_axis(transform.translation[2], tiles_z),
     ];
     let next_rotation = [0.0, yaw as f32, 0.0];
@@ -2705,14 +2697,14 @@ pub(crate) fn draw_node_kind_editor(
                                 .add_enabled(texture_size.is_some(), egui::Button::new("1:1 Texels"))
                                 .on_hover_text(
                                     format!(
-                                        "Use the material's native texel density: one texture tile per {inherited_sector_size} world units, repeated across larger faces."
+                                        "Use the material's native texel density: one texture tile per {world_sector_size} world units (one World sector), repeated across larger faces."
                                     ),
                                 );
                             if one_to_one.clicked() {
                                 uvs[face].span = box_prop_face_native_texel_span(
                                     *vertices,
                                     face,
-                                    inherited_sector_size,
+                                    world_sector_size,
                                     texture_size.unwrap_or([1, 1]),
                                 );
                                 changed = true;
@@ -3140,7 +3132,7 @@ pub(crate) fn draw_node_kind_editor(
                                 .clicked()
                             {
                                 let texture = texture_size.unwrap_or([1, 1]);
-                                let sector = inherited_sector_size.max(1) as f32;
+                                let sector = world_sector_size.max(1) as f32;
                                 let (world_u, world_v) = if slot
                                     == usize::from(psxed_project::CYLINDER_PROP_MATERIAL_SIDE)
                                 {
@@ -3334,7 +3326,7 @@ pub(crate) fn draw_node_kind_editor(
                                 .clicked()
                             {
                                 let texture = texture_size.unwrap_or([1, 1]);
-                                let sector = inherited_sector_size.max(1) as f32;
+                                let sector = world_sector_size.max(1) as f32;
                                 let total_height = f32::from(
                                     geometry
                                         .rise_quanta
@@ -3372,8 +3364,7 @@ pub(crate) fn draw_node_kind_editor(
                         changed |= uv_transform_controls(&mut uvs[slot], ui).changed();
                     });
             }
-            let surfaces =
-                psxed_project::generate_arch_prop_surfaces(*geometry, inherited_sector_size);
+            let surfaces = psxed_project::generate_arch_prop_surfaces(*geometry, world_sector_size);
             ui.weak(format!(
                 "{} generated quads · {} render triangles",
                 surfaces.len(),
