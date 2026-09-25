@@ -858,6 +858,12 @@ pub struct ClassicAffineProfile {
     /// Zero disables the error trigger. This must be no smaller than
     /// [`Self::subdivide_once_error_texels`] when both are enabled.
     pub subdivide_twice_error_texels: u8,
+    /// Screen-space affine error budget in 1/8 pixel. Non-zero selects the
+    /// error-bounded policy: a root takes the smallest lattice level whose
+    /// predicted worst edge displacement (see [`crate::tess`]) fits the
+    /// budget, and the depth bands and texel triggers are ignored. Zero keeps
+    /// the historical schedule.
+    pub subdivide_error_px_q3: u8,
     /// OT slot bias applied to crack-sealing underdraw triangles.
     pub underdraw_slot_bias: u16,
     /// Key each emitted packet at its farthest vertex instead of the vertex
@@ -880,6 +886,7 @@ impl ClassicAffineProfile {
         subdivide_twice_at: 60,
         subdivide_once_error_texels: 0,
         subdivide_twice_error_texels: 0,
+        subdivide_error_px_q3: 0,
         underdraw_slot_bias: 8,
         farthest_depth_key: false,
     };
@@ -905,6 +912,7 @@ impl ClassicAffineProfile {
         subdivide_twice_at: 60,
         subdivide_once_error_texels: 4,
         subdivide_twice_error_texels: 8,
+        subdivide_error_px_q3: 0,
         underdraw_slot_bias: 8,
         farthest_depth_key: false,
     };
@@ -2487,6 +2495,7 @@ fn average3_depths(a: u16, b: u16, c: u16) -> u16 {
 trait ClassicAffineSample {
     fn affine_uv(&self) -> [u8; 2];
     fn affine_depth(&self) -> i32;
+    fn affine_screen(&self) -> [i16; 2];
 }
 
 impl ClassicAffineSample for ClassicAffineVertex {
@@ -2499,6 +2508,11 @@ impl ClassicAffineSample for ClassicAffineVertex {
     fn affine_depth(&self) -> i32 {
         self.depth
     }
+
+    #[inline(always)]
+    fn affine_screen(&self) -> [i16; 2] {
+        self.screen
+    }
 }
 
 impl ClassicAffineSample for ClassicAffineProjectedVertex {
@@ -2510,6 +2524,11 @@ impl ClassicAffineSample for ClassicAffineProjectedVertex {
     #[inline(always)]
     fn affine_depth(&self) -> i32 {
         self.depth
+    }
+
+    #[inline(always)]
+    fn affine_screen(&self) -> [i16; 2] {
+        self.screen
     }
 }
 
@@ -2527,6 +2546,31 @@ fn classic_affine_subdivision_level<T: ClassicAffineSample>(
     otz: u16,
     profile: ClassicAffineProfile,
 ) -> u8 {
+    if profile.subdivide_error_px_q3 != 0 {
+        // Exact cheap bound first: an edge's displacement is below half its
+        // screen length (|zb-za| < za+zb), so a triangle whose longest
+        // Chebyshev span L has 4L <= budget_q3 cannot need a split. Most
+        // roots on screen are that small; they skip every multiply.
+        let [a, b, c] = vertices.map(|v| v.affine_screen());
+        let span = |p: [i16; 2], q: [i16; 2]| {
+            (p[0].abs_diff(q[0])).max(p[1].abs_diff(q[1])) as u32
+        };
+        let longest = span(a, b).max(span(b, c)).max(span(c, a));
+        // Chebyshev underestimates the length by up to 1/sqrt(2); 3L covers it.
+        if longest * 6 <= u32::from(profile.subdivide_error_px_q3) {
+            return 0;
+        }
+        let s = |v: &T| {
+            let [x, y] = v.affine_screen();
+            crate::tess::ScreenDepth {
+                x: x as i32,
+                y: y as i32,
+                z: v.affine_depth(),
+            }
+        };
+        let [a, b, c] = vertices.map(s);
+        return crate::tess::triangle_level(a, b, c, profile.subdivide_error_px_q3 as u32, 2);
+    }
     let mut level = if otz < profile.subdivide_twice_at {
         2
     } else if otz < profile.subdivide_once_at {
@@ -2542,6 +2586,17 @@ fn classic_affine_subdivision_level<T: ClassicAffineSample>(
         profile.subdivide_twice_error_texels == 0
             || profile.subdivide_twice_error_texels >= profile.subdivide_once_error_texels
     );
+    // Exact cheap bound: 6*du*|dz| > 5*t*(za+zb) needs 6*du > 5*t because
+    // |dz| < za+zb, so a root whose UV spans are all that small keeps its
+    // band level without a multiply per edge.
+    {
+        let [p, q, r] = vertices.map(|v| v.affine_uv());
+        let span = |a: [u8; 2], b: [u8; 2]| u32::from(a[0].abs_diff(b[0]).max(a[1].abs_diff(b[1])));
+        let du = span(p, q).max(span(q, r)).max(span(r, p));
+        if 6 * du <= 5 * u32::from(profile.subdivide_once_error_texels) {
+            return level;
+        }
+    }
     for (a, b) in [(0usize, 1usize), (1, 2), (2, 0)] {
         let za = vertices[a].affine_depth();
         let zb = vertices[b].affine_depth();
@@ -3026,6 +3081,9 @@ unsafe fn submit_classic_affine_projected_fan_into_writer<W: AffinePacketWriter>
     let end = unsafe { vertices.add(vertex_count) };
     let mut previous = unsafe { vertices.add(1) };
     let mut current = unsafe { vertices.add(2) };
+    // Level of the root triangle ending at `current`, when the quad-pairing
+    // probe of the previous iteration already computed it.
+    let mut known_level: Option<u8> = None;
 
     while current != end {
         let previous_ref = unsafe { &*previous };
@@ -3046,8 +3104,10 @@ unsafe fn submit_classic_affine_projected_fan_into_writer<W: AffinePacketWriter>
             otz
         };
         if otz > 0 && otz < profile.ot_depth {
-            let subdivision_level =
-                classic_affine_subdivision_level([root, previous_ref, current_ref], otz, profile);
+            let subdivision_level = match known_level.take() {
+                Some(level) => level,
+                None => classic_affine_subdivision_level([root, previous_ref, current_ref], otz, profile),
+            };
             let next = unsafe { current.add(1) };
             if subdivision_level == 0 && next != end {
                 let next_ref = unsafe { &*next };
@@ -3058,6 +3118,9 @@ unsafe fn submit_classic_affine_projected_fan_into_writer<W: AffinePacketWriter>
                     next_otz,
                     profile,
                 );
+                if next_otz > 0 && next_otz < profile.ot_depth {
+                    known_level = Some(next_level);
+                }
                 let compatible_depth = next_otz == otz;
                 if next_otz > 0
                     && next_otz < profile.ot_depth
@@ -3085,6 +3148,7 @@ unsafe fn submit_classic_affine_projected_fan_into_writer<W: AffinePacketWriter>
                     };
                     unsafe { writer.emit_quad(quad_refs, quad_refs, quad_otz) };
 
+                    known_level = None;
                     previous = next;
                     current = unsafe { next.add(1) };
                     continue;
