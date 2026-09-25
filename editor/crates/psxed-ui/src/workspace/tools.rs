@@ -4027,6 +4027,25 @@ impl EditorWorkspace {
             .then(|| format!("only {built} of {expected} {unit} survived the Grid {step} snap"))
     }
 
+    /// The coarsest grid finer than the drag's that builds the whole
+    /// primitive (every piece or side) from the same snapped corners. The
+    /// corners sit on the drag's grid, so only divisors of its step are
+    /// tried. `None` when even Grid 1 loses something.
+    fn brush_drag_whole_grid(drag: BrushDrag) -> Option<i32> {
+        let step = drag.grid_step.max(1);
+        (1..step)
+            .rev()
+            .filter(|candidate| step % candidate == 0)
+            .find(|&candidate| {
+                let finer = BrushDrag {
+                    grid_step: candidate,
+                    ..drag
+                };
+                let brushes = Self::brush_drag_brushes(finer);
+                !brushes.is_empty() && Self::brush_drag_shortfall(finer, &brushes).is_none()
+            })
+    }
+
     /// Snap a point from the active orthographic plane to the brush grid.
     /// Its hidden-axis coordinate comes from the world-space shared focus.
     pub(crate) fn brush_snap_2d(&self, world: [f32; 2]) -> [i32; 3] {
@@ -4157,12 +4176,19 @@ impl EditorWorkspace {
         };
         let mut brushes = Self::brush_drag_brushes(drag);
         let shortfall = Self::brush_drag_shortfall(drag, &brushes);
-        if brushes.is_empty() {
+        if brushes.is_empty() || shortfall.is_some() {
+            // Refuse rather than commit a primitive with gaps or missing
+            // sides, and name a grid that would keep all of it.
+            let lost = shortfall.unwrap_or_else(|| {
+                format!("nothing survived the Grid {} snap", drag.grid_step.max(1))
+            });
+            let remedy = match Self::brush_drag_whole_grid(drag) {
+                Some(step) => format!("Grid {step} keeps every piece"),
+                None => "drag a larger footprint or reduce segments/thickness".to_string(),
+            };
             self.status = format!(
-                "Draw {}: nothing survived the Grid {} snap; drag a larger footprint, \
-                 use a finer grid, or reduce segments/thickness",
+                "Draw {}: {lost}, so nothing was created; {remedy}",
                 drag.settings.shape.label(),
-                drag.grid_step.max(1)
             );
             return;
         }
@@ -4200,15 +4226,7 @@ impl EditorWorkspace {
             self.replace_brush_selection(first, None);
         }
         self.mark_dirty();
-        self.status = match shortfall {
-            // Committed anyway (one undo step away), but never reported as
-            // the shape that was asked for.
-            Some(detail) => format!(
-                "Created {}, but {detail}; use a finer grid or a larger footprint",
-                drag.settings.shape.label()
-            ),
-            None => format!("Created {}", drag.settings.shape.label()),
-        };
+        self.status = format!("Created {}", drag.settings.shape.label());
     }
 
     /// One clip click at a snapped ground point: the first click stores

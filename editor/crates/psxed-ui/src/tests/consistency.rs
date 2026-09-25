@@ -599,38 +599,54 @@ fn committed_primitive(
 }
 
 #[test]
-fn primitives_that_lose_pieces_to_the_grid_say_so() {
+fn primitives_that_would_lose_pieces_to_the_grid_are_refused_with_a_finer_grid() {
     // 24 voussoirs of a 512-wide arch on the 64 grid: the snapped corners
     // of several coincide and `convex_prism` rejects the degenerate slivers.
     let arch = committed_primitive(BrushDrawShape::DoorwayArch, 64, [512, 512, 64], |s| {
         s.arch_segments = 24;
         s.arch_thickness = 64;
     });
-    let built = arch.project.active_scene().brushes.len();
-    assert!(built > 0, "the arch still commits what it could build");
     assert!(
-        built < 24 + 2,
-        "fixture must actually lose pieces (built {built})"
+        arch.project.active_scene().brushes.is_empty(),
+        "a gapped arch must not be committed"
     );
     assert!(
-        arch.status.contains(&format!("{built} of 26")),
-        "status must report the missing arch pieces, got {:?}",
+        arch.status.contains("of 26 pieces") && arch.status.contains("nothing was created"),
+        "status must report the missing arch pieces and the refusal, got {:?}",
         arch.status
     );
+    let suggested = suggested_grid(&arch.status);
+    assert!(suggested < 64, "the suggestion must be finer than Grid 64");
+    // The suggestion is true: the same drag on that grid builds all 26.
+    let whole = committed_primitive(
+        BrushDrawShape::DoorwayArch,
+        suggested,
+        [512, 512, 64],
+        |s| {
+            s.arch_segments = 24;
+            s.arch_thickness = 64;
+        },
+    );
+    assert_eq!(whole.project.active_scene().brushes.len(), 26);
+    assert_eq!(whole.status, "Created Doorway Arch");
 
     // A 16-sided cylinder 512 across on the 64 grid snaps to far fewer sides.
     let cylinder = committed_primitive(BrushDrawShape::Cylinder, 64, [512, 256, 512], |s| {
         s.cylinder_sides = 16;
     });
-    let brushes = &cylinder.project.active_scene().brushes;
-    assert_eq!(brushes.len(), 1);
-    let sides = brushes[0].faces.len() - 2;
-    assert!(sides < 16, "fixture must actually lose sides (got {sides})");
+    assert!(cylinder.project.active_scene().brushes.is_empty());
     assert!(
-        cylinder.status.contains(&format!("{sides} of 16 sides")),
+        cylinder.status.contains("of 16 sides"),
         "status must report the collapsed cylinder sides, got {:?}",
         cylinder.status
     );
+    let suggested = suggested_grid(&cylinder.status);
+    let whole = committed_primitive(BrushDrawShape::Cylinder, suggested, [512, 256, 512], |s| {
+        s.cylinder_sides = 16;
+    });
+    let brushes = &whole.project.active_scene().brushes;
+    assert_eq!(brushes.len(), 1);
+    assert_eq!(brushes[0].faces.len() - 2, 16);
 
     // 256 across, nothing survives at all: the refusal names the grid.
     let nothing = committed_primitive(BrushDrawShape::Cylinder, 64, [256, 256, 256], |s| {
@@ -650,6 +666,18 @@ fn primitives_that_lose_pieces_to_the_grid_say_so() {
     });
     assert_eq!(clean.project.active_scene().brushes.len(), 8);
     assert_eq!(clean.status, "Created Doorway Arch");
+}
+
+/// The grid a refused primitive's status suggests ("Grid N keeps every piece").
+fn suggested_grid(status: &str) -> i32 {
+    let tail = status
+        .rsplit("; Grid ")
+        .next()
+        .filter(|tail| tail.ends_with(" keeps every piece"))
+        .unwrap_or_else(|| panic!("no grid suggestion in {status:?}"));
+    tail.trim_end_matches(" keeps every piece")
+        .parse()
+        .unwrap_or_else(|_| panic!("bad grid suggestion in {status:?}"))
 }
 
 #[test]
