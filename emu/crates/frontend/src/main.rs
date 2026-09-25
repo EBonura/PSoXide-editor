@@ -993,29 +993,7 @@ impl ApplicationHandler for Shell {
 
         match event {
             WindowEvent::CloseRequested => {
-                self.state.stop_input_recording_if_active();
-                #[cfg(feature = "editor")]
-                self.state.stop_embedded_playtest();
-                self.state.flush_pending_input_profile_capture();
-                self.state.stop_examples_build();
-                // Flush any dirty memory card so save progress
-                // survives a window-close. A hard crash still
-                // loses whatever hasn't been flushed -- the run
-                // loop could call this periodically; for now
-                // graceful exit is enough.
-                if let Err(e) = self.state.flush_memcard_port1() {
-                    eprintln!("[frontend] memcard flush on exit: {e}");
-                }
-                #[cfg(feature = "editor")]
-                if let Err(e) = self.state.save_editor_project() {
-                    eprintln!("[frontend] editor save on exit: {e}");
-                }
-                // Persist current settings (library
-                // root, etc.) so the next launch picks up any
-                // user tweaks without needing a manual save step.
-                if let Err(e) = self.state.save_settings() {
-                    eprintln!("[frontend] settings save on exit: {e}");
-                }
+                self.state.shut_down_for_exit();
                 event_loop.exit();
             }
             WindowEvent::Resized(size) => {
@@ -1108,7 +1086,16 @@ impl ApplicationHandler for Shell {
                 // row per repeat tick, matching GUI-standard behaviour.
                 // Only press events (including repeats) trigger menu
                 // navigation; releases don't.
-                if state == ElementState::Pressed {
+                #[cfg(feature = "editor")]
+                let escape_to_editor = matches!(logical_key, Key::Named(NamedKey::Escape))
+                    && editor_owns_escape(
+                        self.state.workspace.is_editor(),
+                        self.state.embedded_playtest_input_captured(),
+                        self.state.menu.open,
+                    );
+                #[cfg(not(feature = "editor"))]
+                let escape_to_editor = false;
+                if state == ElementState::Pressed && !escape_to_editor {
                     self.pending_input = merge_key(self.pending_input, &logical_key);
                 }
                 // F12 -- toggle the display source between the CPU
@@ -1419,21 +1406,7 @@ impl ApplicationHandler for Shell {
                             self.host_input.clear();
                         }
                         MenuOutcome::Quit => {
-                            self.state.stop_input_recording_if_active();
-                            #[cfg(feature = "editor")]
-                            self.state.stop_embedded_playtest();
-                            self.state.flush_pending_input_profile_capture();
-                            self.state.stop_examples_build();
-                            if let Err(e) = self.state.flush_memcard_port1() {
-                                eprintln!("[frontend] memcard flush on quit: {e}");
-                            }
-                            #[cfg(feature = "editor")]
-                            if let Err(e) = self.state.save_editor_project() {
-                                eprintln!("[frontend] editor save on quit: {e}");
-                            }
-                            if let Err(e) = self.state.save_settings() {
-                                eprintln!("[frontend] settings save on quit: {e}");
-                            }
+                            self.state.shut_down_for_exit();
                             event_loop.exit();
                             return;
                         }
@@ -1947,25 +1920,18 @@ impl ApplicationHandler for Shell {
                 match pointer_menu_outcome {
                     Some(MenuOutcome::ClearHostKeyboardInput) => self.host_input.clear(),
                     Some(MenuOutcome::Quit) => {
-                        state.stop_input_recording_if_active();
-                        #[cfg(feature = "editor")]
-                        state.stop_embedded_playtest();
-                        state.flush_pending_input_profile_capture();
-                        state.stop_examples_build();
-                        if let Err(error) = state.flush_memcard_port1() {
-                            eprintln!("[frontend] memcard flush on quit: {error}");
-                        }
-                        #[cfg(feature = "editor")]
-                        if let Err(error) = state.save_editor_project() {
-                            eprintln!("[frontend] editor save on quit: {error}");
-                        }
-                        if let Err(error) = state.save_settings() {
-                            eprintln!("[frontend] settings save on quit: {error}");
-                        }
+                        state.shut_down_for_exit();
                         event_loop.exit();
                         return;
                     }
                     Some(MenuOutcome::None) | None => {}
+                }
+                // File > Quit in the editor asks egui to close the window.
+                // Take the same path as the window's close button.
+                if gfx.take_close_requested() {
+                    state.shut_down_for_exit();
+                    event_loop.exit();
+                    return;
                 }
                 #[cfg(not(target_arch = "wasm32"))]
                 for path in state.take_pending_savestate_thumbnails() {
@@ -2123,6 +2089,16 @@ fn web_window_logical_size() -> Option<winit::dpi::LogicalSize<f64>> {
     let w = win.inner_width().ok()?.as_f64()?;
     let h = win.inner_height().ok()?.as_f64()?;
     Some(winit::dpi::LogicalSize::new(w.max(1.0), h.max(1.0)))
+}
+
+/// Esc belongs to the editor while its workspace is showing: it cancels a
+/// paste, a clip, a rename or a popup there, and must not also open the
+/// emulator overlay. Embedded play that has captured the keyboard keeps the
+/// "PS button" meaning, and an overlay that is already open still closes on
+/// Esc. The editor reaches the overlay through its own menu entry instead.
+#[cfg(feature = "editor")]
+fn editor_owns_escape(editor_workspace: bool, play_captured: bool, menu_open: bool) -> bool {
+    editor_workspace && !play_captured && !menu_open
 }
 
 /// OR a keypress into the next-frame Menu input. `Escape` both toggles
@@ -2634,6 +2610,19 @@ fn profile_counter_i32_biased(value: u32, bias: i32) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "editor")]
+    #[test]
+    fn escape_stays_with_the_editor_unless_play_or_the_overlay_has_it() {
+        // Editor showing, nothing captured, overlay closed: Esc is the editor's.
+        assert!(editor_owns_escape(true, false, false));
+        // Embedded play holding the keyboard keeps the "PS button" meaning.
+        assert!(!editor_owns_escape(true, true, false));
+        // An open overlay still closes on Esc.
+        assert!(!editor_owns_escape(true, false, true));
+        // The emulator workspace always toggles the overlay.
+        assert!(!editor_owns_escape(false, false, false));
+    }
 
     #[test]
     fn guest_frame_cadence_tracks_emulated_vblank_period() {
