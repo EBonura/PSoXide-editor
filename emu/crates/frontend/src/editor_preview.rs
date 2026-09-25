@@ -1257,7 +1257,7 @@ fn walk_brushes_with_culling(
     // segments against solid brushes, tint-modulated) and its ambient
     // contract (PXBSP_AMBIENT_RGB = [32; 3]). With zero lights the
     // historic unlit shading is kept, so lightless maps don't go dark.
-    let lights = collect_bsp_preview_bake_lights(project, hidden_scene_nodes);
+    let lights = collect_bsp_preview_bake_lights(project);
     let scene = project.active_scene();
     if lights.is_empty() {
         with_cached_csg_surfaces(project, hidden_scene_nodes, |surfaces| {
@@ -1429,7 +1429,7 @@ fn walk_bsp_model_instances(
     scratch: &mut PreviewScratch,
 ) {
     let scene = project.active_scene();
-    let lights = collect_bsp_preview_lights(project, hidden_scene_nodes);
+    let lights = collect_bsp_preview_lights(project);
     let fog = PreviewFog;
     let mut instances_meta: Vec<InstanceMeta> = Vec::new();
     for node in scene.nodes() {
@@ -2451,6 +2451,74 @@ fn preview_model_material_override(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A preview frame's scene commands, as comparable text.
+    fn preview_commands(project: &ProjectDocument, hidden: &HashSet<NodeId>) -> Vec<String> {
+        let camera = ViewportCameraState {
+            mode: psxed_ui::ViewportCameraMode::Orbit,
+            yaw_q12: 320,
+            pitch_q12: 300,
+            radius: 4096,
+            target: [512, 256, 512],
+            position: [0; 3],
+        };
+        let frame = build_phase1_frame(
+            project,
+            camera,
+            false,
+            false,
+            hidden,
+            NodeId::ROOT,
+            None,
+            None,
+            &[],
+            None,
+            &EditorTextures::new(),
+            &crate::editor_assets::EditorAssets::new(),
+        );
+        frame
+            .cmd_log
+            .iter()
+            .map(|entry| format!("{entry:?}"))
+            .collect()
+    }
+
+    #[test]
+    fn hiding_a_light_hides_its_gizmo_but_keeps_its_lighting() {
+        // Hide is editor-only: the light still ships, so the preview keeps
+        // lighting the room with it.
+        let mut project = ProjectDocument::new("hidden-light-preview");
+        project
+            .active_scene_mut()
+            .brushes
+            .push(psxed_project::brush::Brush::cuboid(
+                [0, 0, 0],
+                [1024, 64, 1024],
+            ));
+        let root = project.active_scene().root;
+        let light = project.active_scene_mut().add_node(
+            root,
+            "Warm",
+            NodeKind::PointLight {
+                color: [255, 160, 64],
+                intensity: 2.0,
+                radius: 2.0,
+            },
+        );
+        project
+            .active_scene_mut()
+            .node_mut(light)
+            .unwrap()
+            .transform
+            .translation = [512.0, 256.0, 512.0];
+        let shown = preview_commands(&project, &HashSet::new());
+        let hidden = preview_commands(&project, &HashSet::from([light]));
+        assert!(!shown.is_empty());
+        assert_eq!(
+            shown, hidden,
+            "hiding the light changed the preview lighting"
+        );
+    }
 
     #[test]
     fn light_enemy_preview_grounds_from_idle_pose_instead_of_bind_pose() {

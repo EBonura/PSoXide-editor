@@ -110,9 +110,11 @@ impl PreviewFog {
     }
 }
 
+/// Lights the preview bakes into brush vertices. Hiding a node is
+/// editor-only (the node still ships), so a hidden light keeps lighting the
+/// preview exactly as it lights the game; only its gizmo disappears.
 pub(super) fn collect_bsp_preview_bake_lights(
     project: &ProjectDocument,
-    hidden_scene_nodes: &HashSet<NodeId>,
 ) -> Vec<psxed_project::brush_light::BrushPointLight> {
     let scene = project.active_scene();
     let radius_units = scene
@@ -120,7 +122,7 @@ pub(super) fn collect_bsp_preview_bake_lights(
         .unwrap_or(1024)
         .max(1) as f64;
     let mut out = Vec::new();
-    for light in preview_lights(scene, hidden_scene_nodes) {
+    for light in preview_lights(scene, &HashSet::new()) {
         let Some(radius) = preview_light_radius_world_units(light.radius, radius_units as f32)
         else {
             continue;
@@ -138,9 +140,10 @@ pub(super) fn collect_bsp_preview_bake_lights(
     out
 }
 
+/// Lights applied to preview models. Hidden lights still count, see
+/// [`collect_bsp_preview_bake_lights`].
 pub(super) fn collect_bsp_preview_lights(
     project: &ProjectDocument,
-    hidden_scene_nodes: &HashSet<NodeId>,
 ) -> Vec<psx_engine::PointLightSample> {
     let scene = project.active_scene();
     let radius_units = scene
@@ -148,7 +151,7 @@ pub(super) fn collect_bsp_preview_lights(
         .unwrap_or(1024)
         .max(1) as f32;
     let mut out = Vec::new();
-    for light in preview_lights(scene, hidden_scene_nodes) {
+    for light in preview_lights(scene, &HashSet::new()) {
         let Some(radius) = preview_light_radius_world_units(light.radius, radius_units) else {
             continue;
         };
@@ -191,6 +194,8 @@ pub(super) struct PreviewLightMeta {
     pub(super) radius: f32,
 }
 
+/// Point lights not hidden in the editor, for their gizmos. Lighting uses
+/// every light, see [`collect_bsp_preview_bake_lights`].
 pub(super) fn preview_lights(
     scene: &Scene,
     hidden_scene_nodes: &HashSet<NodeId>,
