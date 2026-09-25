@@ -1230,9 +1230,10 @@ fn editor_viewport_saves_with_project_and_restores_on_open() {
 
     // Out-of-range persisted zoom clamps into the interactive range.
     let mut wild = EditorWorkspace::open_directory(&project_dir).unwrap();
-    wild.project.editor_viewport.viewport_zoom = 100_000.0;
-    wild.project.editor_viewport.snap_units = 0;
-    wild.apply_project_editor_viewport();
+    let mut view = wild.editor_view_state();
+    view.viewport.viewport_zoom = 100_000.0;
+    view.viewport.snap_units = 0;
+    wild.apply_editor_view_state(view);
     assert_eq!(wild.viewport_zoom, MAX_VIEWPORT_ZOOM);
     assert_eq!(wild.snap_units, 1);
     assert_eq!(wild.grid_snap_units(), 1);
@@ -2946,17 +2947,22 @@ fn new_project_release_choice_copies_the_roofless_open_courtyard() {
         saved.bsp_cook_mode,
         psxed_project::brush_world::BrushWorldCookMode::Release
     );
-    assert!(saved.editor_viewport.view_2d);
+    // The framed Top view is the user's view: it lives in the view file,
+    // while project.ron keeps the template's starting view.
+    let view = psxed_project::EditorViewState::load(&target).expect("new project view file");
+    assert!(view.viewport.view_2d);
     assert_eq!(
-        saved.editor_viewport.orthographic_view,
+        view.viewport.orthographic_view,
         psxed_project::EditorOrthographicView::Top
     );
-    assert_eq!(saved.editor_viewport.viewport_zoom, workspace.viewport_zoom);
+    assert_eq!(view.viewport.viewport_zoom, workspace.viewport_zoom);
     assert_eq!(saved.active_scene().brushes.len(), 5);
-    assert_eq!(saved.editor_camera.orbit_target, [8256, 160, 8256]);
-    assert_eq!(saved.editor_camera.orbit_radius, 18_000);
-    assert_eq!(saved.editor_camera.orbit_yaw_q12, 3584);
-    assert_eq!(saved.editor_camera.orbit_pitch_q12, 3712);
+    for camera in [saved.editor_camera, view.camera] {
+        assert_eq!(camera.orbit_target, [8256, 160, 8256]);
+        assert_eq!(camera.orbit_radius, 18_000);
+        assert_eq!(camera.orbit_yaw_q12, 3584);
+        assert_eq!(camera.orbit_pitch_q12, 3712);
+    }
     let material_paths = saved
         .resources
         .iter()

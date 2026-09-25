@@ -3221,7 +3221,8 @@ fn headless_editor_viewport_image(
     project_root: &Path,
 ) -> Result<(egui::ColorImage, Vec<psxed_ui::EditorViewportOverlayLine>), String> {
     let project = editor.project();
-    let visibility = project.editor_visibility;
+    let view = editor.editor_view_state();
+    let visibility = view.visibility;
     let mut textures = crate::editor_textures::EditorTextures::new();
     textures.refresh(project, project_root);
     textures.refresh_models(project, project_root);
@@ -3247,7 +3248,7 @@ fn headless_editor_viewport_image(
         crate::editor_preview::prepend_bsp_surface_grid_overlay(
             project,
             editor.viewport_3d_camera(),
-            project.editor_viewport.snap_units,
+            view.viewport.snap_units,
             &hidden,
             &mut frame.overlay_lines,
         );

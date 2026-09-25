@@ -1046,3 +1046,122 @@ fn every_move_path_lands_nodes_on_the_same_grid_step() {
         .expect("placed emitter is selected");
     assert_eq!(node.transform.translation, [512.0, 37.0, 528.0]);
 }
+
+/// A copy of the New Project template to open, save and close for real.
+fn template_copy(label: &str) -> PathBuf {
+    let dir = test_temp_dir(label);
+    let _ = std::fs::remove_dir_all(&dir);
+    crate::starter_catalogue::copy_dir_recursive(&psxed_project::new_project_template_dir(), &dir)
+        .unwrap();
+    let _ = std::fs::remove_file(dir.join(psxed_project::EDITOR_VIEW_STATE_FILE));
+    dir
+}
+
+#[test]
+fn looking_around_never_edits_the_project_and_the_view_comes_back_on_open() {
+    let dir = template_copy("view-state-sidecar");
+    let before = std::fs::read(dir.join("project.ron")).unwrap();
+    let mut workspace = EditorWorkspace::open_directory(&dir).unwrap();
+    workspace.active_workspace = WorkspaceView::Room;
+    workspace.rotate_viewport_3d_camera(Vec2::new(40.0, -12.0));
+    workspace.scroll_viewport_3d_camera(120.0);
+    workspace.show_grid = !workspace.show_grid;
+    workspace.snap_units = 32;
+    assert!(
+        !workspace.is_dirty(),
+        "orbiting the camera marked the project unsaved"
+    );
+    let view = workspace.editor_view_state();
+
+    // Closing with nothing unsaved is allowed at once and writes only the
+    // view file.
+    assert!(workspace.request_close());
+    assert_eq!(std::fs::read(dir.join("project.ron")).unwrap(), before);
+    assert!(dir.join(psxed_project::EDITOR_VIEW_STATE_FILE).is_file());
+
+    let reopened = EditorWorkspace::open_directory(&dir).unwrap();
+    assert_eq!(reopened.editor_view_state(), view);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn closing_with_unsaved_edits_asks_save_discard_or_cancel() {
+    let dir = template_copy("unsaved-close-prompt");
+    let before = std::fs::read(dir.join("project.ron")).unwrap();
+    let mut workspace = EditorWorkspace::open_directory(&dir).unwrap();
+    workspace.active_workspace = WorkspaceView::Room;
+    workspace.push_undo();
+    workspace.project.active_scene_mut().brushes.pop();
+    workspace.mark_dirty();
+
+    // Cancel keeps the edit and the window.
+    assert!(!workspace.request_close());
+    assert!(matches!(workspace.modal, Modal::UnsavedChanges { .. }));
+    super::brush_tools::run_real_egui_workspace_click_on_label(&mut workspace, "Cancel");
+    assert!(matches!(workspace.modal, Modal::None));
+    assert!(workspace.is_dirty());
+
+    // Discard closes without writing project.ron.
+    assert!(!workspace.request_close());
+    super::brush_tools::run_real_egui_workspace_click_on_label(&mut workspace, "Discard and Close");
+    assert!(
+        workspace.request_close(),
+        "the answered prompt lets the close through"
+    );
+    assert_eq!(std::fs::read(dir.join("project.ron")).unwrap(), before);
+
+    // Save writes the edit, then closes.
+    let mut workspace = EditorWorkspace::open_directory(&dir).unwrap();
+    let brushes = workspace.project.active_scene().brushes.len();
+    workspace.push_undo();
+    workspace.project.active_scene_mut().brushes.pop();
+    workspace.mark_dirty();
+    assert!(!workspace.request_close());
+    super::brush_tools::run_real_egui_workspace_click_on_label(&mut workspace, "Save and Close");
+    assert!(!workspace.is_dirty());
+    assert!(workspace.request_close());
+    let saved = ProjectDocument::load_from_path(dir.join("project.ron")).unwrap();
+    assert_eq!(saved.active_scene().brushes.len(), brushes - 1);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn reload_with_unsaved_edits_asks_first() {
+    let dir = template_copy("unsaved-reload-prompt");
+    let mut workspace = EditorWorkspace::open_directory(&dir).unwrap();
+    workspace.active_workspace = WorkspaceView::Room;
+    let brushes = workspace.project.active_scene().brushes.len();
+    workspace.push_undo();
+    workspace.project.active_scene_mut().brushes.pop();
+    workspace.mark_dirty();
+
+    workspace.request_reload();
+    assert!(matches!(workspace.modal, Modal::UnsavedChanges { .. }));
+    super::brush_tools::run_real_egui_workspace_click_on_label(&mut workspace, "Cancel");
+    assert_eq!(workspace.project.active_scene().brushes.len(), brushes - 1);
+
+    workspace.request_reload();
+    super::brush_tools::run_real_egui_workspace_click_on_label(
+        &mut workspace,
+        "Discard and Reload",
+    );
+    assert_eq!(workspace.project.active_scene().brushes.len(), brushes);
+    assert!(!workspace.is_dirty());
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn after_save_the_open_document_is_what_reopening_the_file_gives() {
+    let dir = template_copy("save-normalises-open-document");
+    let mut workspace = EditorWorkspace::open_directory(&dir).unwrap();
+    workspace.push_undo();
+    workspace.project.active_scene_mut().brushes.pop();
+    workspace.mark_dirty();
+    workspace.save().unwrap();
+    let on_disk = ProjectDocument::load_from_path(dir.join("project.ron")).unwrap();
+    assert!(
+        on_disk == workspace.project,
+        "the editor kept a document that differs from the file it just saved"
+    );
+    let _ = std::fs::remove_dir_all(dir);
+}

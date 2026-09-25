@@ -20,7 +20,6 @@ impl EditorWorkspace {
         let default_camera = EditorCameraState::default();
         if self.active_room_id().is_some()
             || self.project.active_scene().brushes.is_empty()
-            || self.project.editor_camera != default_camera
             || self.current_editor_camera_state() != default_camera
         {
             return false;
@@ -2519,7 +2518,6 @@ impl EditorWorkspace {
         if !self.view_2d {
             if let Some((center, half)) = self.current_frame_bounds_3d() {
                 self.frame_3d_bounds(center, half);
-                self.persist_editor_camera_state();
                 self.status = "Framed selection".to_string();
             } else {
                 self.status = "Nothing to frame".to_string();

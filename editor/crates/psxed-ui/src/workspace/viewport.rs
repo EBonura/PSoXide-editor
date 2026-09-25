@@ -360,17 +360,14 @@ impl EditorWorkspace {
 
     pub(crate) fn rotate_viewport_3d_camera(&mut self, delta: Vec2) {
         self.camera_rig.rotate(delta);
-        self.persist_editor_camera_state();
     }
 
     pub(crate) fn pan_viewport_3d_camera(&mut self, delta: Vec2, panel_size: Vec2) {
         self.camera_rig.pan(delta, panel_size);
-        self.persist_editor_camera_state();
     }
 
     pub(crate) fn scroll_viewport_3d_camera(&mut self, scroll: f32) {
         self.camera_rig.scroll(scroll);
-        self.persist_editor_camera_state();
     }
 
     pub(crate) fn update_free_camera_keyboard(&mut self, ui: &egui::Ui) {
@@ -405,7 +402,6 @@ impl EditorWorkspace {
 
         self.camera_rig
             .move_free_local(forward * speed, right * speed, 0.0);
-        self.persist_editor_camera_state();
         ui.ctx().request_repaint();
     }
 
@@ -438,7 +434,6 @@ impl EditorWorkspace {
         self.camera_rig.free_pitch = pitch;
         self.camera_rig.free_initialized = true;
         self.bsp_leak_cursor = (index + 1) % self.last_bsp_leak_path.len();
-        self.persist_editor_camera_state();
         self.status = format!(
             "Leak point {}/{}; Camera: Free (WASD, Shift faster, RMB/MMB look)",
             index + 1,
@@ -486,7 +481,6 @@ impl EditorWorkspace {
         self.camera_rig.free_pitch = pitch;
         self.camera_rig.free_initialized = true;
         self.bsp_leak_cursor = (index + 1) % self.last_bsp_leak_path.len();
-        self.persist_editor_camera_state();
         self.status = "Connected BSP leak region framed in red; inspect nearby brush seams (green is full route)"
             .to_string();
         true
@@ -494,7 +488,6 @@ impl EditorWorkspace {
 
     pub(crate) fn set_viewport_3d_camera_mode(&mut self, mode: ViewportCameraMode) {
         if self.camera_rig.set_mode(mode) {
-            self.persist_editor_camera_state();
             self.mark_shortcut_group_changed(ShortcutGroup::Camera);
         }
     }
@@ -1085,21 +1078,17 @@ impl EditorWorkspace {
                 egui::Button::new(icons::text(icon, 14.0)).min_size(rect.size()),
                 |ui| {
                     ui.set_min_width(190.0);
-                    let mut changed = false;
                     egui::Grid::new("play-overlay-visibility-menu-grid")
                         .num_columns(2)
                         .spacing(Vec2::new(14.0, 5.0))
                         .show(ui, |ui| {
-                            changed |= visibility_menu_row(
+                            visibility_menu_row(
                                 ui,
                                 "play-overlay-profiler",
                                 "Profiler",
                                 &mut self.show_play_debug_overlays,
                             );
                         });
-                    if changed {
-                        self.persist_editor_visibility_state();
-                    }
                 },
             )
             .response;

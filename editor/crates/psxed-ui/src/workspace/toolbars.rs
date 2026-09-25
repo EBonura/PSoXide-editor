@@ -988,7 +988,6 @@ impl EditorWorkspace {
                     "Project grid over brush faces",
                 );
                 if visibility_before != (self.show_grid, self.show_brush_surface_grid) {
-                    self.persist_editor_visibility_state();
                     self.mark_shortcut_group_changed(ShortcutGroup::Visibility);
                 }
 
@@ -1011,7 +1010,6 @@ impl EditorWorkspace {
                     }
                 });
                 if self.snap_units != snap_before {
-                    self.persist_editor_viewport_state();
                     self.status = format!("Grid: {} units", self.snap_units);
                 }
                 ui.weak("Brush geometry always snaps to this interval.");
@@ -1038,7 +1036,6 @@ impl EditorWorkspace {
         let visible = !(self.show_grid || self.show_brush_surface_grid);
         self.show_grid = visible;
         self.show_brush_surface_grid = visible;
-        self.persist_editor_visibility_state();
         self.status = if visible {
             "Grid overlays shown".to_string()
         } else {
@@ -1294,7 +1291,6 @@ impl EditorWorkspace {
                 }
             });
         if changed {
-            self.persist_editor_visibility_state();
             self.mark_shortcut_group_changed(ShortcutGroup::Visibility);
         }
     }
@@ -1359,7 +1355,6 @@ impl EditorWorkspace {
             .changed()
         {
             self.camera_rig.set_zoom_speed(zoom_speed);
-            self.persist_editor_camera_state();
         }
     }
 
