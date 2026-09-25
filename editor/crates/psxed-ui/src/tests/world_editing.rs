@@ -626,30 +626,59 @@ fn node_gizmo_moves_bsp_entity_in_world_units() {
     workspace.replace_node_selection(entity);
 
     let viewport = Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0));
-    let x_axis = projected_node_gizmo_axis(&workspace, viewport, PrimitiveGizmoAxis::X);
-    let unit = (x_axis.end - x_axis.start).normalized();
-    assert!(workspace.begin_node_gizmo_drag(PrimitiveGizmoAxis::X, viewport, x_axis.start));
-    workspace.update_node_gizmo_drag(viewport, x_axis.start + unit * 4.0, false);
+    // The axis handle follows the pointer ray, like the plane handle: the
+    // node moves to the axis point under the pointer, on the grid.
+    let (pivot, _) = workspace.node_gizmo_bounds_3d(&[entity]).unwrap();
+    let screen_at = |workspace: &EditorWorkspace, dx: f64| {
+        workspace
+            .project_brush_point_3d(
+                viewport,
+                [
+                    f64::from(pivot[0]) + dx,
+                    f64::from(pivot[1]),
+                    f64::from(pivot[2]),
+                ],
+            )
+            .unwrap()
+    };
+    let start = screen_at(&workspace, 0.0);
+    let target = screen_at(&workspace, 100.0);
+    assert!(workspace.begin_node_gizmo_drag(PrimitiveGizmoAxis::X, viewport, start));
+    workspace.update_node_gizmo_drag(viewport, target, false);
     workspace.end_node_gizmo_drag();
     let node = workspace.project.active_scene().node(entity).unwrap();
     let step = f32::from(workspace.snap_units.max(1));
+    assert_eq!(step, 16.0);
+    assert_eq!(
+        node.transform.translation[0], 96.0,
+        "100 units along the axis lands on the nearest Grid 16 line"
+    );
+    workspace.do_undo();
+
+    // Shift: single-unit precision, still under the pointer.
+    assert!(workspace.begin_node_gizmo_drag(PrimitiveGizmoAxis::X, viewport, start));
+    workspace.update_node_gizmo_drag(viewport, target, true);
+    workspace.end_node_gizmo_drag();
+    let node = workspace.project.active_scene().node(entity).unwrap();
     assert!(
-        (node.transform.translation[0] - step).abs() < 0.001,
-        "one gizmo step = one grid step in world units, got {}",
+        (node.transform.translation[0] - 100.0).abs() <= 1.0,
+        "free drag follows the pointer to 100 units, got {}",
         node.transform.translation[0]
     );
     workspace.do_undo();
 
-    // Shift: single-unit steps.
-    let x_axis = projected_node_gizmo_axis(&workspace, viewport, PrimitiveGizmoAxis::X);
-    let unit = (x_axis.end - x_axis.start).normalized();
-    assert!(workspace.begin_node_gizmo_drag(PrimitiveGizmoAxis::X, viewport, x_axis.start));
-    workspace.update_node_gizmo_drag(viewport, x_axis.start + unit * 4.0, true);
+    // Zoomed out, the same world point is fewer pixels away; the node still
+    // lands under the pointer (the old handle moved one step per 4 px).
+    workspace.camera_rig.free_position = [512 * 3, 768 * 3, -2048 * 3];
+    let start = screen_at(&workspace, 0.0);
+    let target = screen_at(&workspace, 100.0);
+    assert!(workspace.begin_node_gizmo_drag(PrimitiveGizmoAxis::X, viewport, start));
+    workspace.update_node_gizmo_drag(viewport, target, true);
     workspace.end_node_gizmo_drag();
     let node = workspace.project.active_scene().node(entity).unwrap();
     assert!(
-        (node.transform.translation[0] - 1.0).abs() < 0.001,
-        "free drag steps single world units, got {}",
+        (node.transform.translation[0] - 100.0).abs() <= 1.0,
+        "zoomed-out drag still follows the pointer, got {}",
         node.transform.translation[0]
     );
 }

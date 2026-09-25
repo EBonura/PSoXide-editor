@@ -1611,6 +1611,10 @@ struct NodeGizmoDrag {
     /// World-space direction (gizmo-basis column) a Move axis handle
     /// translates along; identity-basis columns in Global space.
     move_axis_world: [f32; 3],
+    /// Move axis handles follow the pointer ray: the gizmo pivot the axis
+    /// runs through, and the axis distance under the pointer at the press.
+    /// `None` falls back to screen-pixel steps (ray along the axis).
+    move_axis_ray_start: Option<([f32; 3], f32)>,
     /// Angular tracking state, present only for Rotate drags.
     rotate: Option<NodeGizmoRotateDrag>,
     targets: Vec<NodeGizmoTarget>,

@@ -669,6 +669,7 @@ mod tests {
             start_plane_hit: None,
             current_plane_delta_world: [0.0; 3],
             move_axis_world: [1.0, 0.0, 0.0],
+            move_axis_ray_start: None,
             rotate: None,
             targets: vec![NodeGizmoTarget {
                 node: entity,
@@ -738,6 +739,7 @@ mod tests {
             start_plane_hit: None,
             current_plane_delta_world: [0.0; 3],
             move_axis_world: [0.0; 3],
+            move_axis_ray_start: None,
             rotate: None,
             targets: Vec::new(),
             group_brushes: vec![GroupBrushGizmoTarget { index: 1, start }],
@@ -771,6 +773,7 @@ mod tests {
             start_plane_hit: None,
             current_plane_delta_world: [0.0; 3],
             move_axis_world: [0.0; 3],
+            move_axis_ray_start: None,
             rotate: None,
             targets: Vec::new(),
             group_brushes: vec![GroupBrushGizmoTarget {
@@ -817,6 +820,7 @@ mod tests {
             start_plane_hit: None,
             current_plane_delta_world: [0.0; 3],
             move_axis_world: [0.0; 3],
+            move_axis_ray_start: None,
             rotate: None,
             targets: Vec::new(),
             group_brushes: vec![GroupBrushGizmoTarget { index: 1, start }],

@@ -1432,6 +1432,16 @@ impl EditorWorkspace {
             }
             _ => [0.0; 3],
         };
+        let move_axis_ray_start = match (mode, handle) {
+            (TransformGizmoMode::Move, NodeGizmoHandle::Axis(_)) => self
+                .node_gizmo_bounds_3d(&ids)
+                .zip(self.camera_ray_for_pointer(rect, pointer))
+                .and_then(|((pivot, _), (origin, dir))| {
+                    gizmo_axis_param_under_ray(pivot, move_axis_world, origin, dir)
+                        .map(|t| (pivot, t))
+                }),
+            _ => None,
+        };
 
         let scene = self.project.active_scene();
         let group_roots: Vec<NodeId> = ids
@@ -1525,6 +1535,7 @@ impl EditorWorkspace {
             start_plane_hit,
             current_plane_delta_world: [0.0, 0.0, 0.0],
             move_axis_world,
+            move_axis_ray_start,
             rotate: rotate_state,
             targets,
             group_brushes,
@@ -1597,6 +1608,34 @@ impl EditorWorkspace {
                 raw_degrees.round() as i32
             };
             if steps == current_steps {
+                return;
+            }
+            if let Some(drag) = self.interaction.node_gizmo_drag_mut() {
+                drag.current_steps = steps;
+            }
+            self.apply_node_gizmo_drag();
+            return;
+        }
+
+        if let (TransformGizmoMode::Move, Some((pivot, start_t))) =
+            (drag.mode, drag.move_axis_ray_start)
+        {
+            // Follow the pointer ray along the axis, in grid steps (single
+            // units when free), like the plane handle follows its plane.
+            let Some((origin, dir)) = self.camera_ray_for_pointer(rect, pointer) else {
+                return;
+            };
+            let Some(t) = gizmo_axis_param_under_ray(pivot, drag.move_axis_world, origin, dir)
+            else {
+                return;
+            };
+            let quantum = if free {
+                1.0
+            } else {
+                f32::from(self.snap_units.max(1))
+            };
+            let steps = ((t - start_t) / quantum).round() as i32;
+            if steps == drag.current_steps {
                 return;
             }
             if let Some(drag) = self.interaction.node_gizmo_drag_mut() {

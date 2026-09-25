@@ -1305,10 +1305,39 @@ pub(crate) fn light_transform_editor(
     changed
 }
 
-/// Translate a node by `steps` gizmo increments along `direction`, a
-/// unit world-space vector (a gizmo basis column). Global space passes
-/// a world axis here, which keeps the old single-component stepping
-/// and snapping; Local space passes the node's rotated axis, where the
+/// The one snap rule for moving a node, shared by every move path (axis and
+/// plane gizmo, 2D drag, placement): the grid step, in world units, the
+/// node's position lands on. `None` for nodes that move by the gesture's
+/// delta without landing on the grid: a Group follows its brushes (which
+/// keep their own offsets), and retired grid-world Portals.
+pub(crate) fn node_snap_step(kind: &NodeKind, grid_step: i32) -> Option<i32> {
+    match kind {
+        NodeKind::Entity
+        | NodeKind::SpawnPoint { .. }
+        | NodeKind::PointLight { .. }
+        | NodeKind::ParticleEmitter { .. }
+        | NodeKind::ImageProp { .. }
+        | NodeKind::BoxProp { .. }
+        | NodeKind::CylinderProp { .. }
+        | NodeKind::ArchProp { .. }
+        | NodeKind::MeshInstance { .. } => Some(grid_step.max(1)),
+        _ => None,
+    }
+}
+
+/// Land one position component on the node's snap step, or keep it as is
+/// when the node does not snap.
+pub(crate) fn snap_node_component(kind: &NodeKind, value: f32, grid_step: i32) -> f32 {
+    match node_snap_step(kind, grid_step) {
+        Some(step) => snap_world_units_component(value, step),
+        None => value,
+    }
+}
+
+/// Translate a node by `steps` gizmo increments of `world_quantum` along
+/// `direction`, a unit world-space vector (a gizmo basis column). Global
+/// space passes a world axis, where the moved component then lands on the
+/// node's snap step; Local space passes the node's rotated axis, where the
 /// quantum applies along the direction instead of per component so a
 /// diagonal slide doesn't zig.
 pub(crate) fn node_gizmo_translation(
@@ -1319,46 +1348,23 @@ pub(crate) fn node_gizmo_translation(
     world_quantum: i32,
 ) -> [f32; 3] {
     let mut translation = start;
-    // Nodes step and snap on the caller's quantum (the brush grid, or 1
-    // when dragging free).
-    let entity_step = world_quantum.max(1) as f32;
-    let step = match &node.kind {
-        NodeKind::Entity
-        | NodeKind::PointLight { .. }
-        | NodeKind::ParticleEmitter { .. }
-        | NodeKind::ImageProp { .. }
-        | NodeKind::BoxProp { .. }
-        | NodeKind::CylinderProp { .. } => entity_step,
-        NodeKind::ArchProp { .. } if direction[1].abs() > 0.5 => entity_step,
-        _ => 1.0,
-    };
+    let distance = steps as f32 * world_quantum.max(1) as f32;
     let axis_aligned = direction.iter().filter(|c| c.abs() > 1e-4).count() <= 1;
     for index in 0..3 {
         if direction[index].abs() <= 1e-4 {
             continue;
         }
-        translation[index] = start[index] + direction[index] * steps as f32 * step;
-        // World-axis drags keep the legacy per-component snap; rotated
-        // directions own their quantum along the drag axis instead.
+        translation[index] = start[index] + direction[index] * distance;
         if axis_aligned && steps != 0 {
-            match &node.kind {
-                NodeKind::Entity
-                | NodeKind::PointLight { .. }
-                | NodeKind::ParticleEmitter { .. }
-                | NodeKind::ImageProp { .. }
-                | NodeKind::BoxProp { .. }
-                | NodeKind::CylinderProp { .. }
-                | NodeKind::ArchProp { .. } => {
-                    translation[index] =
-                        snap_world_units_component(translation[index], world_quantum);
-                }
-                _ => {}
-            }
+            translation[index] = snap_node_component(&node.kind, translation[index], world_quantum);
         }
     }
     translation
 }
 
+/// Translate a node by a plane-handle drag. The delta is quantised to
+/// `world_quantum` like the brushes it may move with, and the moved
+/// components then land on the node's snap step.
 pub(crate) fn node_gizmo_plane_translation(
     node: &psxed_project::SceneNode,
     start: [f32; 3],
@@ -1366,30 +1372,46 @@ pub(crate) fn node_gizmo_plane_translation(
     delta_world: [f32; 3],
     world_quantum: i32,
 ) -> [f32; 3] {
+    let quantum = world_quantum.max(1) as f32;
     let mut translation = start;
     for axis in plane.axes() {
         let index = axis.index();
-        translation[index] = start[index] + delta_world[index];
-    }
-
-    match &node.kind {
-        NodeKind::Entity
-        | NodeKind::PointLight { .. }
-        | NodeKind::ParticleEmitter { .. }
-        | NodeKind::ImageProp { .. }
-        | NodeKind::BoxProp { .. }
-        | NodeKind::ArchProp { .. } => {
-            for axis in plane.axes() {
-                let index = axis.index();
-                if delta_world[index].abs() > f32::EPSILON {
-                    translation[index] =
-                        snap_world_units_component(translation[index], world_quantum);
-                }
-            }
-            translation
+        if delta_world[index].abs() <= f32::EPSILON {
+            continue;
         }
-        _ => translation,
+        let delta = (delta_world[index] / quantum).round() * quantum;
+        translation[index] = snap_node_component(&node.kind, start[index] + delta, world_quantum);
     }
+    translation
+}
+
+/// Signed distance along a gizmo axis (through `axis_origin`, unit
+/// `axis_dir`) of the point closest to the pointer ray. The axis handle
+/// follows this, so the node stays under the pointer at any zoom or angle
+/// the way the plane handle does. `None` when the ray runs along the axis.
+pub(crate) fn gizmo_axis_param_under_ray(
+    axis_origin: [f32; 3],
+    axis_dir: [f32; 3],
+    ray_origin: [f32; 3],
+    ray_dir: [f32; 3],
+) -> Option<f32> {
+    let dot = |a: [f32; 3], b: [f32; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    let w0 = [
+        axis_origin[0] - ray_origin[0],
+        axis_origin[1] - ray_origin[1],
+        axis_origin[2] - ray_origin[2],
+    ];
+    let a = dot(axis_dir, axis_dir);
+    let b = dot(axis_dir, ray_dir);
+    let c = dot(ray_dir, ray_dir);
+    let d = dot(axis_dir, w0);
+    let e = dot(ray_dir, w0);
+    let denom = a * c - b * b;
+    if denom.abs() <= 1e-6 * a * c {
+        return None;
+    }
+    let t = (b * e - c * d) / denom;
+    t.is_finite().then_some(t)
 }
 
 pub(crate) fn node_gizmo_drag_has_motion(drag: &NodeGizmoDrag) -> bool {
