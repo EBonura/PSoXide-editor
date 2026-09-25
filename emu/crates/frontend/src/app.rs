@@ -33,7 +33,6 @@ use crate::playtest_disc::{
 };
 use crate::playtest_input::{PlaytestInputEvent, PlaytestInputTape, Port1PadSample};
 use crate::ui;
-use crate::ui::hud::HudState;
 use crate::ui::memory::MemoryView;
 use crate::ui::menu::{LibraryItem as MenuLibraryItem, MenuState, PadBindTarget, SaveStateRow};
 use crate::{paths_equivalent, repo_root_dir};
@@ -64,8 +63,6 @@ pub struct PanelVisibility {
     pub memory: bool,
     /// VRAM viewer section.
     pub vram: bool,
-    /// Frame-profiler section.
-    pub profiler: bool,
 }
 
 impl PanelVisibility {
@@ -81,7 +78,6 @@ impl PanelVisibility {
             registers: dev_open,
             memory: dev_open,
             vram: dev_open,
-            profiler: dev_open,
         }
     }
 }
@@ -454,9 +450,11 @@ pub struct AppState {
     /// replaying the next command log.
     pub gpu_resync_generation: u64,
     pub menu: MenuState,
-    pub hud: HudState,
     /// Rolling frame-time breakdown, visible from the profiler toolbar button.
     pub profiler: ui::profiler::FrameProfiler,
+    /// Per-vblank PS1 telemetry behind the debug sidebar's guest
+    /// performance section. Records only while the sidebar is open.
+    pub guest_stats: psoxide_debug_ui::GuestStats,
     pub memory_view: MemoryView,
     /// When true, the shell advances emulation on each redraw. Toggled
     /// via the Menu's Run/Pause item.
@@ -670,8 +668,8 @@ impl AppState {
             bus,
             gpu_resync_generation: initial_gpu_resync_generation,
             menu: MenuState::with_running(autorun),
-            hud: HudState::default(),
             profiler: ui::profiler::FrameProfiler::default(),
+            guest_stats: psoxide_debug_ui::GuestStats::new(),
             memory_view: MemoryView::default(),
             running: autorun,
             run_steps_per_frame: 1_000_000,
@@ -3091,44 +3089,30 @@ impl AppState {
         self.editor
             .project_dir()
             .join("logs")
-            .join("play_profiler_history.csv")
+            .join("play_guest_performance.csv")
     }
 
+    /// The Play overlay's save button: the last 30 s of guest telemetry.
     fn dump_embedded_playtest_profiler_history(&mut self) {
-        let sample_count = self.profiler.history_len();
-        if sample_count == 0 {
-            let message = "Profiler history is empty";
+        if self.guest_stats.is_empty() {
+            let message = "Guest performance history is empty";
             self.editor.set_status(message);
             self.status_message_set(message);
             return;
         }
-
         let path = self.embedded_playtest_profiler_history_path();
-        let write_result = (|| -> Result<(), String> {
-            if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|error| format!("{}: {error}", parent.display()))?;
-            }
-            std::fs::write(&path, self.profiler.history_csv())
-                .map_err(|error| format!("{}: {error}", path.display()))?;
-            Ok(())
-        })();
-
-        match write_result {
-            Ok(()) => {
-                let message = format!(
-                    "Profiler history saved: {sample_count} frames -> {}",
-                    path.display()
-                );
-                self.editor.set_status(message.clone());
-                self.status_message_set(message);
-            }
-            Err(error) => {
-                let message = format!("Profiler history save failed: {error}");
-                self.editor.set_status(message.clone());
-                self.status_message_set(message);
-            }
-        }
+        let csv = self.guest_stats.csv(30);
+        let write_result = path
+            .parent()
+            .map_or(Ok(()), std::fs::create_dir_all)
+            .and_then(|()| std::fs::write(&path, csv))
+            .map_err(|error| format!("{}: {error}", path.display()));
+        let message = match write_result {
+            Ok(()) => format!("Guest performance, last 30 s saved -> {}", path.display()),
+            Err(error) => format!("Guest performance save failed: {error}"),
+        };
+        self.editor.set_status(message.clone());
+        self.status_message_set(message);
     }
 
     /// Handle one request emitted by the editor UI.
@@ -3509,6 +3493,61 @@ impl AppState {
     /// Menu without allocating a whole notification subsystem.
     pub fn status_message_set(&mut self, msg: impl Into<String>) {
         self.status_message = Some((msg.into(), STATUS_MESSAGE_TTL_SECS));
+    }
+
+    /// Whether the guest performance panel is on screen: the debug sidebar,
+    /// or the panel docked beside the editor's Play viewport.
+    pub fn guest_panel_visible(&self) -> bool {
+        #[cfg(feature = "editor")]
+        if self.workspace.is_editor() {
+            return self.embedded_playtest.is_running()
+                && self.editor.play_performance_panel_visible();
+        }
+        self.panels.debug_sidebar
+    }
+
+    /// F3: show or hide the guest performance panel where the user is.
+    pub fn toggle_performance_panel(&mut self) {
+        #[cfg(feature = "editor")]
+        if self.workspace.is_editor() {
+            self.editor.toggle_play_performance_panel();
+            return;
+        }
+        self.panels.debug_sidebar = !self.panels.debug_sidebar;
+    }
+
+    /// Save a guest-performance CSV from the debug sidebar: next to the
+    /// game's saves on native, as a browser download on the web.
+    pub fn export_guest_stats_csv(&mut self, csv: &str, seconds: u32) {
+        let game_id = self
+            .current_game
+            .as_ref()
+            .map(|game| game.id.clone())
+            .unwrap_or_else(|| "unknown".to_string());
+        #[cfg(not(target_arch = "wasm32"))]
+        let result = {
+            let stamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            let dir = self.paths.game_dir(&game_id).join("perf");
+            let path = dir.join(format!("guest-perf-{stamp}.csv"));
+            std::fs::create_dir_all(&dir)
+                .and_then(|()| std::fs::write(&path, csv))
+                .map(|()| path.display().to_string())
+                .map_err(|error| format!("{}: {error}", path.display()))
+        };
+        #[cfg(target_arch = "wasm32")]
+        let result = crate::web_files::download_input_csv(&format!("psoxide-perf-{game_id}"), csv)
+            .map(|()| "download".to_string());
+        match result {
+            Ok(target) => self.status_message_set(format!(
+                "Saved the last {seconds} s of guest telemetry: {target}"
+            )),
+            Err(error) => {
+                self.status_message_set(format!("Guest telemetry export failed: {error}"))
+            }
+        }
     }
 
     /// Current output gain after the mute latch is applied.
@@ -3954,6 +3993,7 @@ mod freelook_projection_tests {
 }
 
 pub fn step_one_frame(state: &mut AppState) -> StepFrameReport {
+    let guest_panel_visible = state.guest_panel_visible();
     let max_steps = state.run_steps_per_frame.max(1);
     // Freelook: integrate held keys into the camera pose, then push it to the
     // GTE hook for this frame (a no-op while the toggle is off).
@@ -3977,6 +4017,11 @@ pub fn step_one_frame(state: &mut AppState) -> StepFrameReport {
     // per-instruction breakpoint probe entirely in the common
     // no-breakpoints case.
     let check_breakpoints = !state.breakpoints.is_empty();
+    // CPU cycle attribution (a per-instruction cost) runs only while the
+    // guest performance panel is on screen; the rest records every vblank.
+    state
+        .guest_stats
+        .set_cpu_attribution(&mut state.cpu, guest_panel_visible);
     let cycles_before = bus.cycles();
     let tick_before = state.cpu.tick();
     let vblank_before = bus.irq().raise_counts()[0];
@@ -4017,6 +4062,7 @@ pub fn step_one_frame(state: &mut AppState) -> StepFrameReport {
         }
     }
 
+    state.guest_stats.record(&state.cpu, bus);
     let cycles_after = bus.cycles();
     let vblank_after = bus.irq().raise_counts()[0];
     StepFrameReport {

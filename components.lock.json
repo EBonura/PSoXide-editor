@@ -24,6 +24,7 @@
       "revision": "f08f4f3cce5ea5f2061319752a7103b1d98882de",
       "paths": [
         "emu/crates/emulator-core",
+        "emu/crates/psoxide-debug-ui",
         "emu/crates/psoxide-settings",
         "emu/crates/psoxide-validation",
         "emu/crates/psx-gpu-render"

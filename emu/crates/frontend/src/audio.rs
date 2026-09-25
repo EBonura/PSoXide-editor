@@ -272,13 +272,6 @@ impl AudioOut {
         self.volume
             .store(volume.clamp(0.0, 1.5).to_bits(), Ordering::Relaxed);
     }
-
-    /// Current queue depth in stereo samples. Diagnostic -- very
-    /// high values mean the CPU is overrunning real-time; very low
-    /// means we're starving the callback.
-    pub fn queue_len(&self) -> usize {
-        self.queue.lock().map(|q| q.len()).unwrap_or(0)
-    }
 }
 
 /// Tiny stateful sample-rate converter used by the CPAL callback.

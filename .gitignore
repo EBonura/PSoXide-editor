@@ -99,6 +99,7 @@ __pycache__/
 /tools/guest_symbol_gate.sh
 /tools/check_mfc0.py
 /emu/crates/emulator-core
+/emu/crates/psoxide-debug-ui
 /emu/crates/psoxide-settings
 /emu/crates/psoxide-validation
 /emu/crates/psx-gpu-render
