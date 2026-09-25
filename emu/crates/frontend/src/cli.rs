@@ -611,16 +611,13 @@ pub struct DumpEditorUiArgs {
     pub ui_frame_step: u16,
     /// Embedded-playtest disc (`.cue`) to run headless first. The capture
     /// then shows the editor in Play with that session's output and the
-    /// guest performance panel docked, as the app draws it.
+    /// guest performance panel in the Inspector's column, as the app draws it.
     #[arg(long)]
     pub play_disc: Option<PathBuf>,
     /// Pad polls the headless Play session runs for. It holds forward and
     /// presses Cross over route ticks 200-440, like the blank-playtest gate.
     #[arg(long, default_value_t = 1200)]
     pub play_polls: u64,
-    /// Docked guest performance panel width in pixels.
-    #[arg(long, default_value_t = 560.0)]
-    pub play_panel_width: f32,
     /// Pointer position `X,Y` for the capture (hover cursor and tooltip).
     #[arg(long, value_parser = parse_editor_ui_point)]
     pub pointer: Option<(f32, f32)>,
@@ -3187,15 +3184,16 @@ fn cmd_dump_editor_ui(args: DumpEditorUiArgs) -> Result<(), String> {
         };
         play_textures = Some((display, vram));
     }
-    let panel_width = args.play_panel_width;
     let vram_id = play_textures.as_ref().map(|(_, vram)| vram.id());
-    let mut draw = |ctx: &egui::Context| {
-        if let (Some(session), Some(vram)) = (play.as_mut(), vram_id) {
-            if editor.play_performance_panel_visible() {
-                draw_headless_play_panel(ctx, &mut session.stats, vram, panel_width);
-            }
+    let mut draw = |ctx: &egui::Context| match (play.as_mut(), vram_id) {
+        (Some(session), Some(vram)) => {
+            let stats = &mut session.stats;
+            let mut panel = |ui: &mut egui::Ui| {
+                let _ = crate::ui::play_panel_contents(ui, stats, vram);
+            };
+            editor.draw_with_play_panel(ctx, viewport.clone(), play_status, Some(&mut panel));
         }
-        editor.draw(ctx, viewport.clone(), play_status);
+        _ => editor.draw(ctx, viewport.clone(), play_status),
     };
 
     // Prime one complete frame before injecting input. This mirrors the native
@@ -3339,28 +3337,6 @@ fn headless_play_session(cue: &Path, polls: u64) -> Result<HeadlessPlaySession, 
         display,
         vram,
     })
-}
-
-/// The Play-docked guest performance panel, as `debug_sidebar` draws it
-/// in the app (without the slide animation).
-#[cfg(feature = "editor")]
-fn draw_headless_play_panel(
-    ctx: &egui::Context,
-    stats: &mut psoxide_debug_ui::GuestStats,
-    vram: egui::TextureId,
-    width: f32,
-) {
-    let panel_fill = ctx.style().visuals.panel_fill;
-    egui::SidePanel::right("play-performance-panel")
-        .frame(
-            egui::Frame::NONE
-                .fill(panel_fill)
-                .inner_margin(egui::Margin::same(8)),
-        )
-        .exact_width(width)
-        .show(ctx, |ui| {
-            crate::ui::debug_sidebar::play_panel_contents(ui, stats, vram);
-        });
 }
 
 #[cfg(feature = "editor")]
