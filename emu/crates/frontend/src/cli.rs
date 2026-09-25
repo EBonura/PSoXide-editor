@@ -955,6 +955,7 @@ fn run_headless_launch(
                 maybe_fast_boot_disc(&mut bus, &mut cpu, &disc, &game_path)?;
             }
             bus.cdrom.insert_disc(Some(disc));
+            crate::app::apply_libcrypt_sbi(&mut bus, &game_path);
             attach_headless_playtest_pad(&mut bus, args.digital_pad);
             if emit_summary {
                 eprintln!("[cli] mounted cue-backed disc {}", game_path.display());
@@ -972,6 +973,7 @@ fn run_headless_launch(
             let disc = psoxide_settings::library::load_disc_from_ccd(&game_path)?;
             maybe_fast_boot_disc(&mut bus, &mut cpu, &disc, &game_path)?;
             bus.cdrom.insert_disc(Some(disc));
+            crate::app::apply_libcrypt_sbi(&mut bus, &game_path);
             attach_headless_playtest_pad(&mut bus, args.digital_pad);
             if emit_summary {
                 eprintln!("[cli] mounted ccd-backed disc {}", game_path.display());
