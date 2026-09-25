@@ -16,6 +16,7 @@ members = [
     "crates/psxed-format",
     "editor/crates/psxed-gltf",
     "editor/crates/psxed-obj",
+    "editor/crates/psxed-mcp",
     "editor/crates/psxed-project",
     "editor/crates/psxed-tex",
     "editor/crates/psxed-ui",

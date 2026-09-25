@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "psoxide-editor": {
+      "command": "cargo",
+      "args": [
+        "run",
+        "--quiet",
+        "-p",
+        "psxed-mcp",
+        "--",
+        "--project",
+        "editor/projects/default"
+      ]
+    }
+  }
+}
