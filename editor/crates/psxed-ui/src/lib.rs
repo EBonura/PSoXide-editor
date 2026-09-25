@@ -421,6 +421,8 @@ const STARTER_CHARACTER_ASSET_DIRS: &[&str] = &[
     "assets/animations/tank_boss_ai",
     "assets/models/sword1_light",
     "assets/models/sword1_heavy",
+    // The energy blades' noise texture.
+    "assets/models/weapon_energy",
     // The canonical default project is also the material library for a new
     // BSP map. Copy every saved PSXT so its synced Material resource is usable
     // immediately instead of pointing back into another project.
@@ -448,6 +450,10 @@ const STARTER_CHARACTER_MODEL_NAMES: &[&str] = &[
     "Heavy Enemy Model",
     "Sword1 Light",
     "Sword1 Heavy",
+    // The player's materialising blades: Aletha's weapon appearance tracks
+    // name these, not the plain swords above.
+    "Sword1 Light Energy",
+    "Sword1 Heavy Energy",
 ];
 const STARTER_CHARACTER_SKELETON_NAMES: &[&str] = &[
     "Light Enemy Skeleton",
@@ -457,7 +463,12 @@ const STARTER_CHARACTER_SKELETON_NAMES: &[&str] = &[
 ];
 const STARTER_CHARACTER_MATERIAL_NAMES: &[&str] = &["Aletha Crystal"];
 /// Verified combat loadout weapons synced beside the character profiles.
-const STARTER_WEAPON_NAMES: &[&str] = &["Sword1 Light", "Sword1 Heavy"];
+const STARTER_WEAPON_NAMES: &[&str] = &[
+    "Sword1 Light",
+    "Sword1 Heavy",
+    "Sword1 Light Energy",
+    "Sword1 Heavy Energy",
+];
 /// Projectile profiles referenced by the verified starter enemies.
 const STARTER_PROJECTILE_NAMES: &[&str] = &["Choir Needle"];
 const STARTER_ANIMATION_SET_NAMES: &[&str] = &[
