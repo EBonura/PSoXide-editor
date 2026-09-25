@@ -930,6 +930,7 @@ fn lit_preview_key(
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     bsp_preview_patch_extent(project).hash(&mut hasher);
+    preview_bakes_shadows(project.bsp_cook_mode).hash(&mut hasher);
     for brush in &project.active_scene().brushes {
         brush_group_hidden(project.active_scene(), hidden_scene_nodes, brush).hash(&mut hasher);
         brush.contents.label().hash(&mut hasher);
@@ -967,22 +968,33 @@ fn lit_preview_key(
     hasher.finish()
 }
 
+/// Whether the cook bakes point-light shadows in this mode (see
+/// `brush_world`: Draft passes no occluders, Release every solid brush).
+fn preview_bakes_shadows(mode: psxed_project::brush_world::BrushWorldCookMode) -> bool {
+    match mode {
+        psxed_project::brush_world::BrushWorldCookMode::Draft => false,
+        psxed_project::brush_world::BrushWorldCookMode::Release => true,
+    }
+}
+
 fn rebuild_lit_surfaces(
     project: &ProjectDocument,
     textures: &EditorTextures,
     lights: &[psxed_project::brush_light::BrushPointLight],
     hidden_scene_nodes: &HashSet<NodeId>,
 ) -> Vec<PreviewLitSurface> {
-    // Shadow occluders mirror the cook's set (every solid brush), with
-    // one editor-only guard: mid-edit damaged/unbounded brushes are
+    // Shadow occluders mirror the cook's set: none in Draft (the cook bakes
+    // Draft lighting without shadow tests), every solid brush in Release,
+    // with one editor-only guard: mid-edit damaged/unbounded brushes are
     // skipped, otherwise an infinite wedge occludes every segment and
     // blacks out the room while you drag.
+    let casts_shadows = preview_bakes_shadows(project.bsp_cook_mode);
     with_cached_solved_brushes(project, |solved_brushes| {
         let brushes = &project.active_scene().brushes;
         let occluders: Vec<Vec<psxed_project::brush::Plane>> = brushes
             .iter()
             .zip(solved_brushes)
-            .filter(|(brush, solved)| brush.contents.is_solid() && solved.pickable)
+            .filter(|(brush, solved)| casts_shadows && brush.contents.is_solid() && solved.pickable)
             .map(|(_, solved)| solved.all_planes.clone())
             .collect();
         with_cached_csg_surfaces(project, hidden_scene_nodes, |surfaces| {
@@ -2457,7 +2469,8 @@ mod tests {
         let camera = ViewportCameraState {
             mode: psxed_ui::ViewportCameraMode::Orbit,
             yaw_q12: 320,
-            pitch_q12: 300,
+            // Orbit eye Y is target - r * sin(pitch): this looks down.
+            pitch_q12: 4096 - 400,
             radius: 4096,
             target: [512, 256, 512],
             position: [0; 3],
@@ -2481,6 +2494,46 @@ mod tests {
             .iter()
             .map(|entry| format!("{entry:?}"))
             .collect()
+    }
+
+    #[test]
+    fn draft_preview_lighting_casts_no_shadows_like_the_draft_cook() {
+        use psxed_project::brush_world::BrushWorldCookMode;
+        // A floor, a wall standing across it, and a light behind the wall:
+        // in Release the wall shadows the floor on the camera's side.
+        let mut project = ProjectDocument::new("draft-preview-shadows");
+        let brushes = &mut project.active_scene_mut().brushes;
+        brushes.push(psxed_project::brush::Brush::cuboid(
+            [0, 0, 0],
+            [2048, 64, 2048],
+        ));
+        brushes.push(psxed_project::brush::Brush::cuboid(
+            [0, 64, 1000],
+            [2048, 2048, 1100],
+        ));
+        let root = project.active_scene().root;
+        let light = project.active_scene_mut().add_node(
+            root,
+            "Key",
+            NodeKind::PointLight {
+                color: [255, 255, 255],
+                intensity: 2.0,
+                radius: 3.0,
+            },
+        );
+        project
+            .active_scene_mut()
+            .node_mut(light)
+            .unwrap()
+            .transform
+            .translation = [1024.0, 512.0, 1900.0];
+
+        project.bsp_cook_mode = BrushWorldCookMode::Release;
+        let release = preview_commands(&project, &HashSet::new());
+        project.bsp_cook_mode = BrushWorldCookMode::Draft;
+        let draft = preview_commands(&project, &HashSet::new());
+        // Before the fix both modes previewed the same shadowed bake.
+        assert_ne!(release, draft, "Draft preview still draws Release shadows");
     }
 
     #[test]
