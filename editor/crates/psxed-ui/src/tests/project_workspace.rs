@@ -3790,12 +3790,14 @@ fn new_project_starts_with_verified_character_and_material_content() {
     assert_eq!(capsule(1).joint, 9);
     assert_eq!(capsule(1).capsule.radius, 110);
     assert_eq!(capsule(1).role, psxed_project::CombatCapsuleRole::Hurtbox);
+    // Swing hitbox radii are doubled from the artist values (Comicon reach
+    // feedback: blades lengthened and thickened 2x from the same start).
     for (index, name, joint, radius, action, window, damage, poise) in [
         (
             2,
             "Light Sword Active",
             13,
-            100,
+            200,
             psxed_project::CharacterAnimationAction::LightAttack,
             (48, 68),
             25,
@@ -3805,7 +3807,7 @@ fn new_project_starts_with_verified_character_and_material_content() {
             3,
             "Heavy Sword Active",
             16,
-            113,
+            226,
             psxed_project::CharacterAnimationAction::HeavyAttack,
             (55, 76),
             38,
@@ -3815,7 +3817,7 @@ fn new_project_starts_with_verified_character_and_material_content() {
             4,
             "Vert Light Sword Active",
             13,
-            100,
+            200,
             psxed_project::CharacterAnimationAction::VertLightAttack,
             (28, 47),
             25,
@@ -3825,7 +3827,7 @@ fn new_project_starts_with_verified_character_and_material_content() {
             5,
             "Zenith Heavy / Right Swing",
             16,
-            113,
+            226,
             psxed_project::CharacterAnimationAction::VertHeavyAttack,
             (54, 61),
             19,
@@ -3835,7 +3837,7 @@ fn new_project_starts_with_verified_character_and_material_content() {
             6,
             "Zenith Heavy / Left Swing",
             21,
-            100,
+            200,
             psxed_project::CharacterAnimationAction::VertHeavyAttack,
             (64, 76),
             19,
