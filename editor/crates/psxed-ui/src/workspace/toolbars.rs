@@ -104,8 +104,15 @@ impl EditorWorkspace {
                         {
                             let delta = ui.input(|input| input.pointer.delta());
                             let [horizontal, vertical] = orthographic_view.plane_axes();
-                            self.orthographic_focus[horizontal] -= delta.x / self.viewport_zoom;
-                            self.orthographic_focus[vertical] += delta.y / self.viewport_zoom;
+                            let world = ViewportTransform::from_focus(
+                                rect,
+                                orthographic_view,
+                                [0.0, 0.0],
+                                self.viewport_zoom,
+                            )
+                            .screen_delta_to_world(delta);
+                            self.orthographic_focus[horizontal] -= world[0];
+                            self.orthographic_focus[vertical] -= world[1];
                         }
 
                         if !dnd_active && response.hovered() {
@@ -116,6 +123,7 @@ impl EditorWorkspace {
                                     .unwrap_or_else(|| rect.center());
                                 let before = ViewportTransform::from_focus(
                                     rect,
+                                    orthographic_view,
                                     orthographic_view.project_f32(self.orthographic_focus),
                                     self.viewport_zoom,
                                 )
@@ -125,6 +133,7 @@ impl EditorWorkspace {
                                     .clamp(MIN_VIEWPORT_ZOOM, MAX_VIEWPORT_ZOOM);
                                 let after = ViewportTransform::from_focus(
                                     rect,
+                                    orthographic_view,
                                     orthographic_view.project_f32(self.orthographic_focus),
                                     self.viewport_zoom,
                                 )
@@ -143,6 +152,7 @@ impl EditorWorkspace {
 
                         let transform = ViewportTransform::from_focus(
                             rect,
+                            orthographic_view,
                             orthographic_view.project_f32(self.orthographic_focus),
                             self.viewport_zoom,
                         );

@@ -2852,10 +2852,13 @@ impl EditorWorkspace {
             return;
         }
 
-        let world_delta = [
-            screen_delta.x / self.viewport_zoom,
-            -screen_delta.y / self.viewport_zoom,
-        ];
+        let world_delta = ViewportTransform::from_focus(
+            Rect::NOTHING,
+            OrthographicView::Top,
+            [0.0, 0.0],
+            self.viewport_zoom,
+        )
+        .screen_delta_to_world(screen_delta);
         let same_gesture = self.node_drag_2d.as_ref().is_some_and(|drag| {
             drag.base
                 .iter()

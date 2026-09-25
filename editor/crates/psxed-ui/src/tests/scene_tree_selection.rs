@@ -20,9 +20,11 @@ fn dragging_selected_node_moves_it_in_xz_space() {
         -workspace.viewport_zoom * snap,
     ));
 
+    // Right is +X and up is -Z: the Top view is the 3D view (yaw 0 looks
+    // down -Z) seen from above.
     let node = workspace.project.active_scene().node(spawn).unwrap();
     assert!((node.transform.translation[0] - (start[0] + snap)).abs() < 0.001);
-    assert!((node.transform.translation[2] - (start[2] + snap)).abs() < 0.001);
+    assert!((node.transform.translation[2] - (start[2] - snap)).abs() < 0.001);
     assert!(workspace.is_dirty());
 }
 

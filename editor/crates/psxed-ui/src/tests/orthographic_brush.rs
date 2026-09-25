@@ -66,6 +66,7 @@ fn orthographic_views_share_world_focus_zoom_grid_and_selection() {
         workspace.set_orthographic_view(view);
         let transform = ViewportTransform::from_focus(
             panel,
+            view,
             view.project_f32(workspace.orthographic_focus),
             workspace.viewport_zoom,
         );
