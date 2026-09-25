@@ -1475,6 +1475,14 @@ impl EditorWorkspace {
                 ui.close_menu();
             }
             ui.separator();
+            if ui
+                .button("Emulator Menu")
+                .on_hover_text("Open the emulator overlay (Esc stays with the editor)")
+                .clicked()
+            {
+                self.emulator_menu_requested = true;
+                ui.close_menu();
+            }
             if ui.button("Quit").clicked() {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }

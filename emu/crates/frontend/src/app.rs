@@ -2320,6 +2320,33 @@ impl AppState {
         String::new()
     }
 
+    /// Everything that must happen before the process exits, shared by the
+    /// window close button, File > Quit in the editor (egui's
+    /// `ViewportCommand::Close`) and the overlay menu's Quit, so the three
+    /// cannot drift apart.
+    pub fn shut_down_for_exit(&mut self) {
+        self.stop_input_recording_if_active();
+        #[cfg(feature = "editor")]
+        self.stop_embedded_playtest();
+        self.flush_pending_input_profile_capture();
+        self.stop_examples_build();
+        // Flush any dirty memory card so save progress survives a
+        // window-close. A hard crash still loses whatever hasn't been
+        // flushed.
+        if let Err(e) = self.flush_memcard_port1() {
+            eprintln!("[frontend] memcard flush on exit: {e}");
+        }
+        #[cfg(feature = "editor")]
+        if let Err(e) = self.save_editor_project() {
+            eprintln!("[frontend] editor save on exit: {e}");
+        }
+        // Persist current settings (library root, etc.) so the next launch
+        // picks up any user tweaks without needing a manual save step.
+        if let Err(e) = self.save_settings() {
+            eprintln!("[frontend] settings save on exit: {e}");
+        }
+    }
+
     /// Persist the embedded editor project if it has unsaved edits,
     /// and remember which project directory is active so the next
     /// launch reopens it.

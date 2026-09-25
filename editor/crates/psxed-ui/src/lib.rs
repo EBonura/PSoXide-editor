@@ -938,6 +938,9 @@ pub struct EditorWorkspace {
     /// to handle. The frontend owns emulator state and build child
     /// processes, so the editor never launches playtest directly.
     pending_playtest_request: Option<EditorPlaytestRequest>,
+    /// File > Emulator Menu was chosen this frame. Esc belongs to the editor,
+    /// so this is how the editor reaches the emulator overlay.
+    emulator_menu_requested: bool,
 }
 
 /// One cached `.psxt` thumbnail plus the metadata the inspector
@@ -3512,6 +3515,7 @@ impl EditorWorkspace {
             show_bsp_leak_path: true,
             bsp_leak_cursor: 0,
             pending_playtest_request: None,
+            emulator_menu_requested: false,
         }
     }
 
@@ -4595,6 +4599,12 @@ impl EditorWorkspace {
     /// and performs the actual cook/build/load/stop work.
     pub fn take_playtest_request(&mut self) -> Option<EditorPlaytestRequest> {
         self.pending_playtest_request.take()
+    }
+
+    /// True once after the user chose File > Emulator Menu. The frontend
+    /// opens its overlay menu in response.
+    pub fn take_emulator_menu_request(&mut self) -> bool {
+        std::mem::take(&mut self.emulator_menu_requested)
     }
 
     /// Let the frontend surface embedded play status in the editor's
