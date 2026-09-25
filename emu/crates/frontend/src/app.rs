@@ -496,6 +496,10 @@ pub struct AppState {
     /// = no game loaded yet (initial state on first run, also after
     /// "Reset" with no last-loaded game).
     pub current_game: Option<LibraryEntry>,
+    /// The file port 1's memory card was loaded from at the last launch,
+    /// and the only file [`AppState::flush_memcard_port1`] writes. `None`
+    /// when no card is attached or the card is not backed by a file.
+    memcard_port1_path: Option<PathBuf>,
     /// Short-lived status line -- shows "Launched <title>",
     /// "Scan complete: 54 games", etc. Displayed beneath the
     /// library panel; cleared after a few frames.
@@ -678,6 +682,7 @@ impl AppState {
             library,
             paths,
             current_game: None,
+            memcard_port1_path: None,
             status_message: None,
             audio_volume: 1.0,
             audio_muted: false,
@@ -783,6 +788,7 @@ impl AppState {
         fast_boot_disc(&mut bus, &mut cpu, &disc).map_err(|e| format!("boot disc: {e:?}"))?;
         bus.cdrom.insert_disc(Some(disc));
         bus.attach_digital_pad_port1();
+        self.memcard_port1_path = None;
         bus.attach_memcard_port1(Vec::new());
         self.swap_in_booted(bus, cpu);
         Ok(())
@@ -802,6 +808,7 @@ impl AppState {
         }
         let mut cpu = Cpu::new();
         let mut boot_mode = "EXE";
+        let mut memcard_port1_path = None;
         // Image hash for input-tape change detection, computed where the
         // bytes are already in hand so no path re-reads the file.
         let game_hash;
@@ -850,12 +857,10 @@ impl AppState {
                 // Load + attach the per-game memory card on port 1.
                 // File lives under `<config>/games/<id>/memcard-1.mcd`;
                 // first launch of any game gets a fresh 128 KiB blank.
-                self.paths
-                    .ensure_game_tree(&entry.id)
-                    .map_err(|e| e.to_string())?;
-                let mc_path = self.paths.memcard_file(&entry.id, 1);
+                let mc_path = self.port1_memcard_for_launch(&entry.id)?;
                 let mc_bytes = std::fs::read(&mc_path).unwrap_or_default();
                 bus.attach_memcard_port1(mc_bytes);
+                memcard_port1_path = Some(mc_path);
                 bus
             }
             GameKind::DiscCue | GameKind::DiscCcd => {
@@ -870,13 +875,12 @@ impl AppState {
                     .map_err(|e| format!("boot disc: {e:?}"))?;
                 boot_mode = "HLE";
                 bus.cdrom.insert_disc(Some(disc));
+                apply_libcrypt_sbi(&mut bus, &entry.path);
                 bus.attach_digital_pad_port1();
-                self.paths
-                    .ensure_game_tree(&entry.id)
-                    .map_err(|e| e.to_string())?;
-                let mc_path = self.paths.memcard_file(&entry.id, 1);
+                let mc_path = self.port1_memcard_for_launch(&entry.id)?;
                 let mc_bytes = std::fs::read(&mc_path).unwrap_or_default();
                 bus.attach_memcard_port1(mc_bytes);
+                memcard_port1_path = Some(mc_path);
                 bus
             }
             GameKind::Unknown => {
@@ -901,6 +905,7 @@ impl AppState {
         self.exec_history.clear();
         self.gpr_snapshot = None;
         self.current_game = Some(entry.clone());
+        self.memcard_port1_path = memcard_port1_path;
         self.current_game_hash = game_hash;
         self.refresh_save_state_menu_rows();
         self.menu.sync_run_label(true);
@@ -1148,7 +1153,11 @@ impl AppState {
         if let Some(fresh_bus) = self.bus.as_mut() {
             payload.bus.restore_excluded_from(fresh_bus);
         }
-        let mc_bytes = std::fs::read(self.paths.memcard_file(&game.id, 1)).unwrap_or_default();
+        let mc_bytes = self
+            .memcard_port1_path
+            .as_ref()
+            .and_then(|path| std::fs::read(path).ok())
+            .unwrap_or_default();
         payload.bus.attach_memcard_port1(mc_bytes);
         self.cpu = payload.cpu;
         self.bus = Some(payload.bus);
@@ -3444,23 +3453,35 @@ impl AppState {
         }
     }
 
-    /// Flush any dirty memory-card state on port 1 back to its
-    /// `<config>/games/<id>/memcard-1.mcd` file. A no-op when no
+    /// The card file port 1 uses for a disc launch: the game's
+    /// `memcard-1.mcd`, after [`preserve_pre_hle_memcard`] has kept a copy
+    /// of a card from before the HLE kernel.
+    fn port1_memcard_for_launch(&self, game_id: &str) -> Result<PathBuf, String> {
+        self.paths
+            .ensure_game_tree(game_id)
+            .map_err(|e| e.to_string())?;
+        preserve_pre_hle_memcard(&self.paths, game_id)?;
+        Ok(self.paths.memcard_file(game_id, 1))
+    }
+
+    /// Flush any dirty memory-card state on port 1 back to the file it
+    /// was loaded from (`<config>/games/<id>/memcard-1.mcd`). A no-op when no
     /// card is attached or when no writes have landed since load.
     /// Called from the shell's exit path and periodically during
     /// run so a hard crash doesn't lose save progress.
     pub fn flush_memcard_port1(&mut self) -> Result<(), String> {
-        let Some(game) = self.current_game.as_ref().map(|g| g.id.clone()) else {
-            return Ok(()); // no game loaded → nothing to persist
+        // Only ever the file the card was loaded from at launch.
+        let Some(path) = self.memcard_port1_path.clone() else {
+            return Ok(()); // no card attached → nothing to persist
         };
         let Some(bus) = self.bus.as_mut() else {
             return Ok(());
         };
         if let Some(bytes) = bus.memcard_port1_snapshot() {
-            let path = self.paths.memcard_file(&game, 1);
-            self.paths
-                .ensure_game_tree(&game)
-                .map_err(|e| e.to_string())?;
+            if let Some(dir) = path.parent() {
+                std::fs::create_dir_all(dir)
+                    .map_err(|e| format!("save memcard {}: {e}", dir.display()))?;
+            }
             std::fs::write(&path, &bytes)
                 .map_err(|e| format!("save memcard {}: {e}", path.display()))?;
             eprintln!(
@@ -3786,6 +3807,42 @@ fn path_label(path: impl AsRef<Path>) -> String {
         .filter(|name| !name.is_empty())
         .map(str::to_owned)
         .unwrap_or_else(|| path.display().to_string())
+}
+
+/// Load the LibCrypt `.sbi` next to a disc sheet, if any, into the mounted
+/// disc's controller. A malformed file is reported and ignored.
+pub(crate) fn apply_libcrypt_sbi(bus: &mut Bus, sheet: &Path) {
+    match psoxide_settings::library::load_sbi_for(sheet) {
+        Ok(Some(lbas)) => {
+            eprintln!(
+                "[frontend] LibCrypt: {} subchannel sectors from {}",
+                lbas.len(),
+                psoxide_settings::library::sbi_path_for(sheet).display()
+            );
+            bus.cdrom.set_bad_subq_sectors(lbas);
+        }
+        Ok(None) => {}
+        Err(e) => eprintln!("[frontend] ignoring {e}"),
+    }
+}
+
+/// Keep a one-time copy of a game's port-1 card before the HLE kernel
+/// first writes to it: `memcard-1.pre-hle.mcd`, made once and never
+/// overwritten, so saves from before PSoXide dropped BIOS support survive
+/// a card-driver bug. Cards the HLE created need no copy.
+pub(crate) fn preserve_pre_hle_memcard(paths: &ConfigPaths, game_id: &str) -> Result<(), String> {
+    let card = paths.memcard_file(game_id, 1);
+    let backup = paths.pre_hle_memcard_file(game_id, 1);
+    if card.exists() && !backup.exists() {
+        std::fs::copy(&card, &backup).map_err(|e| {
+            format!(
+                "copy memcard {} -> {}: {e}",
+                card.display(),
+                backup.display()
+            )
+        })?;
+    }
+    Ok(())
 }
 
 /// Record a retired instruction into the ring buffer, evicting the
@@ -4567,6 +4624,91 @@ mod tests {
                 ..Default::default()
             });
         }
+    }
+
+    fn bootable_test_bin() -> Vec<u8> {
+        let mut exe = vec![0u8; psx_iso::EXE_HEADER_BYTES];
+        exe[..8].copy_from_slice(b"PS-X EXE");
+        exe[0x10..0x14].copy_from_slice(&0x8001_0000u32.to_le_bytes());
+        exe[0x18..0x1C].copy_from_slice(&0x8001_0000u32.to_le_bytes());
+        exe[0x1C..0x20].copy_from_slice(&4u32.to_le_bytes());
+        exe.extend_from_slice(&[0; 4]);
+        let mut builder = psx_iso::IsoBuilder::new();
+        builder.add_file("SYSTEM.CNF", b"BOOT = cdrom:\\GAME.EXE;1\r\n".to_vec());
+        builder.add_file("GAME.EXE", exe);
+        builder.build_bin()
+    }
+
+    fn disc_entry(path: &Path) -> LibraryEntry {
+        LibraryEntry {
+            id: "hlecardtest".into(),
+            path: path.to_path_buf(),
+            kind: GameKind::DiscBin,
+            title: "HLE card test".into(),
+            region: Region::Unknown,
+            size: 0,
+            mtime: 0,
+            diagnostic: None,
+        }
+    }
+
+    /// Clock one memory-card frame write through SIO0 port 1, the way a
+    /// game's card driver does, so the attached card turns dirty.
+    fn write_card_frame0(bus: &mut Bus, fill: u8) {
+        bus.write16(0x1F80_104A, 0x0003); // TX enable + /CS on port 1
+        let mut bytes = vec![0x81, 0x57, 0x00, 0x00, 0x00, 0x00];
+        bytes.extend(std::iter::repeat_n(fill, 128));
+        let checksum = (0..128).fold(0u8, |acc, _| acc ^ fill);
+        bytes.extend([checksum, 0x00, 0x00, 0x00]);
+        for byte in bytes {
+            bus.write8(0x1F80_1040, byte);
+            let _ = bus.read8(0x1F80_1040);
+        }
+        bus.write16(0x1F80_104A, 0x0000);
+    }
+
+    /// A disc saves to its own `memcard-1.mcd`. A card that predates the
+    /// HLE kernel is copied once to `memcard-1.pre-hle.mcd` before the first
+    /// launch writes to it, and that copy is never touched again.
+    #[test]
+    fn disc_launch_saves_to_the_card_after_keeping_a_pre_hle_copy() {
+        let root = frontend_test_temp_dir("pre-hle-card");
+        let bin = root.join("game.bin");
+        std::fs::write(&bin, bootable_test_bin()).unwrap();
+        let mut state = AppState::with_config_dir(Some(root.join("config")));
+        let entry = disc_entry(&bin);
+
+        let card = state.paths.memcard_file(&entry.id, 1);
+        std::fs::create_dir_all(card.parent().unwrap()).unwrap();
+        let old_bytes = vec![0x5Au8; emulator_core::pad::MEMCARD_SIZE];
+        std::fs::write(&card, &old_bytes).unwrap();
+
+        state.launch_entry(&entry).unwrap();
+        assert_eq!(state.memcard_port1_path.as_deref(), Some(card.as_path()));
+        let backup = state.paths.pre_hle_memcard_file(&entry.id, 1);
+        assert_eq!(std::fs::read(&backup).unwrap(), old_bytes);
+
+        write_card_frame0(state.bus.as_mut().unwrap(), 0xC3);
+        state.flush_memcard_port1().unwrap();
+        let saved = std::fs::read(&card).unwrap();
+        assert!(saved[..128].iter().all(|&b| b == 0xC3), "the save landed");
+
+        // Later launches keep the first copy, not the card as it is now.
+        state.launch_entry(&entry).unwrap();
+        assert_eq!(std::fs::read(&backup).unwrap(), old_bytes);
+        assert_eq!(std::fs::read(&card).unwrap(), saved);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A game with no card yet gets none copied.
+    #[test]
+    fn a_new_card_needs_no_pre_hle_copy() {
+        let root = frontend_test_temp_dir("new-card");
+        let state = AppState::with_config_dir(Some(root.join("config")));
+        let path = state.port1_memcard_for_launch("g").unwrap();
+        assert_eq!(path, state.paths.memcard_file("g", 1));
+        assert!(!state.paths.pre_hle_memcard_file("g", 1).exists());
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     fn frontend_test_temp_dir(name: &str) -> PathBuf {
