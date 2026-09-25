@@ -45,9 +45,22 @@ pub fn draw_layout(
     #[cfg(feature = "editor")]
     if state.workspace.is_editor() {
         let playtest_status = state.editor_playtest_status();
-        // Docked before the editor lays out, so its panels share the rest.
-        debug_sidebar::draw_play_performance(ctx, state, vram_tex);
-        state.editor.draw(ctx, editor_viewport, playtest_status);
+        // During Play the guest performance panel can take the Inspector's
+        // column (F3 / the bars button toggles between the two).
+        let mut export = None;
+        let stats = &mut state.guest_stats;
+        let mut play_panel = |ui: &mut egui::Ui| {
+            export = play_panel_contents(ui, stats, vram_tex);
+        };
+        state.editor.draw_with_play_panel(
+            ctx,
+            editor_viewport,
+            playtest_status,
+            Some(&mut play_panel),
+        );
+        if let Some(psoxide_debug_ui::PanelAction::ExportCsv { csv, seconds }) = export {
+            state.export_guest_stats_csv(&csv, seconds);
+        }
         if state.editor.take_emulator_menu_request() {
             state.menu.open = true;
         }
@@ -90,6 +103,19 @@ pub fn draw_layout(
     draw_recording_indicator(ctx, state);
     draw_freecam_indicator(ctx, state);
     draw_status_toast(ctx, state);
+}
+
+/// The guest performance panel as it fills the Inspector's column during
+/// editor Play; shared with the headless `dump-editor-ui --play-disc`.
+#[cfg(feature = "editor")]
+pub fn play_panel_contents(
+    ui: &mut egui::Ui,
+    stats: &mut psoxide_debug_ui::GuestStats,
+    vram_tex: egui::TextureId,
+) -> Option<psoxide_debug_ui::PanelAction> {
+    crate::theme::viz_frame(ui, "", |ui| {
+        psoxide_debug_ui::draw(ui, stats, Some(vram_tex))
+    })
 }
 
 pub fn apply_menu_action(state: &mut AppState, action: menu::MenuAction) -> MenuOutcome {
