@@ -973,7 +973,8 @@ pub(crate) fn entity_bound_kind_and_size(
             ))
         }
         NodeKind::ArchProp { geometry, .. } => {
-            let sector = node_translation_sector_size(&workspace.project, node.id).max(1) as f32;
+            // One arch tile is one World sector, as in the cook.
+            let sector = workspace.project.world_sector_size_for_node(node.id).max(1) as f32;
             let span = f32::from(geometry.span_tiles.clamp(
                 psxed_project::ARCH_PROP_MIN_TILES,
                 psxed_project::ARCH_PROP_MAX_TILES,

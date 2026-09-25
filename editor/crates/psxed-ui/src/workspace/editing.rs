@@ -1733,6 +1733,10 @@ impl EditorWorkspace {
             self.push_undo();
         }
         let texture_lock = self.brush_texture_lock;
+        // Arch props span whole World sectors (the cook's tile size).
+        let arch_tile_size = self
+            .project
+            .world_sector_size_for_node(self.project.active_scene().root);
         let scene = self.project.active_scene_mut();
         for target in targets {
             let Some(node) = scene.node_mut(target.node) else {
@@ -1795,7 +1799,7 @@ impl EditorWorkspace {
                 },
             }
             if let NodeKind::ArchProp { geometry, .. } = &node.kind {
-                snap_arch_prop_transform(&mut node.transform, *geometry, target.sector_size);
+                snap_arch_prop_transform(&mut node.transform, *geometry, arch_tile_size);
             }
         }
         if mode == TransformGizmoMode::Move {

@@ -953,6 +953,7 @@ impl EditorWorkspace {
     /// Place the active entity kind at a BSP world-space hit.
     pub(crate) fn place_node_at_world_hit(&mut self, room_id: NodeId, hit_world: [f32; 3]) {
         let sector_size_i = self.room_sector_size(room_id).unwrap_or(1024);
+        let arch_tile_size = self.project.world_sector_size_for_node(room_id);
         let translation = self.placement_translation_for_room_hit(room_id, hit_world);
         let kind = self.place_kind;
         if matches!(kind, PlaceKind::PlayerSpawn) && self.has_player_source() {
@@ -1283,7 +1284,7 @@ impl EditorWorkspace {
                 crate::inspector_transform_node::snap_arch_prop_transform(
                     &mut node.transform,
                     geometry,
-                    sector_size_i,
+                    arch_tile_size,
                 );
             }
             // Record the floor this was placed on (0 = ground). The

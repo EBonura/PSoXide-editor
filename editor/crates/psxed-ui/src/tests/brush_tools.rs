@@ -4770,7 +4770,7 @@ pub(super) fn press_release(point: Pos2) -> (Vec<egui::Event>, Vec<egui::Event>)
 /// Click the widget whose rendered galley text equals `label`, through full
 /// `workspace.draw` frames so the Inspector transaction wrapper owns history
 /// exactly as it does in production.
-fn run_real_egui_workspace_click_on_label(workspace: &mut EditorWorkspace, label: &str) {
+pub(super) fn run_real_egui_workspace_click_on_label(workspace: &mut EditorWorkspace, label: &str) {
     let (ctx, viewport) = real_egui_workspace_ctx("workspace-label-click");
     let point = locate_unique_label(&ctx, workspace, &viewport, label);
     let (press, release) = press_release(point);

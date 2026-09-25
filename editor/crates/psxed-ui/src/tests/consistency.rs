@@ -911,3 +911,82 @@ fn cmd_z_in_a_focused_text_field_undoes_the_text_not_the_project() {
     frames.key(&mut workspace, egui::Key::Z, egui::Modifiers::COMMAND);
     assert!(workspace.project.active_scene().brushes.is_empty());
 }
+
+#[test]
+fn box_prop_one_to_one_texels_repeat_one_tile_per_world_sector() {
+    // "1:1 Texels" means one texture tile per World sector, the unit the
+    // ArchProp cook tiles by. It used to divide by the node-translation
+    // unit (1 in BSP scenes) and always clamp to the maximum 255 span.
+    let mut project = ProjectDocument::new("box-prop-one-to-one");
+    let material = project.add_resource(
+        "Crate",
+        ResourceData::Material(MaterialResource::opaque(None)),
+    );
+    let root = project.active_scene().root;
+    let world_sector = project.world_sector_size_for_node(root);
+    let prop = project.active_scene_mut().add_node(
+        root,
+        "Crate",
+        NodeKind::BoxProp {
+            materials: [Some(material); psxed_project::BOX_PROP_FACE_COUNT],
+            uvs: [psxed_project::GridUvTransform::default(); psxed_project::BOX_PROP_FACE_COUNT],
+            vertices: psxed_project::box_prop_vertices_for_size(world_sector as u16),
+            collision_enabled: true,
+            break_flags: 0,
+            erosion: psxed_project::BoxPropErosion::default(),
+        },
+    );
+    let mut workspace =
+        EditorWorkspace::with_project(test_temp_dir("box-prop-one-to-one"), project);
+    workspace.active_workspace = WorkspaceView::Room;
+    workspace.replace_node_selection(prop);
+    let handle = egui::Context::default().load_texture(
+        "box-prop-one-to-one",
+        egui::ColorImage::new([1, 1], egui::Color32::WHITE),
+        egui::TextureOptions::NEAREST,
+    );
+    workspace.texture_thumbs.insert(
+        material,
+        ThumbnailEntry {
+            signature: workspace.test_material_thumbnail_signature(material),
+            handle,
+            image: egui::ColorImage::new([1, 1], egui::Color32::WHITE),
+            stats: PsxtStats {
+                width: 64,
+                height: 64,
+                depth_bits: 4,
+                clut_entries: 16,
+                index_zero_transparent: false,
+                pixel_bytes: 1,
+                clut_bytes: 32,
+                file_bytes: 45,
+            },
+        },
+    );
+    super::brush_tools::run_real_egui_workspace_click_on_label(&mut workspace, "1:1 Texels");
+    let node = workspace.project.active_scene().node(prop).unwrap();
+    let NodeKind::BoxProp { uvs, .. } = &node.kind else {
+        unreachable!()
+    };
+    // A one-sector face repeats a 64 px texture once: inclusive span 63.
+    assert_eq!(uvs[0].span, [63, 63]);
+}
+
+#[test]
+fn arch_props_snap_to_world_sector_tiles_in_world_units() {
+    // The cook expands an ArchProp in tiles of the World sector size around
+    // its world-unit anchor; the editor snapped the anchor as if it were in
+    // tiles of 1 unit, so it landed on half-units.
+    let geometry = psxed_project::ArchPropGeometry {
+        span_tiles: 3,
+        depth_tiles: 2,
+        ..psxed_project::ArchPropGeometry::default()
+    };
+    let mut transform = psxed_project::Transform3 {
+        translation: [1000.0, 100.0, 1000.0],
+        ..psxed_project::Transform3::default()
+    };
+    crate::inspector_transform_node::snap_arch_prop_transform(&mut transform, geometry, 1024);
+    // Odd span centres on a tile, even depth on a tile line.
+    assert_eq!(transform.translation, [512.0, 128.0, 1024.0]);
+}
