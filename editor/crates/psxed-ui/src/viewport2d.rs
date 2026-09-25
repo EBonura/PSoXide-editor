@@ -85,17 +85,18 @@ pub(crate) fn draw_axes_gizmo(painter: &egui::Painter, rect: Rect, view: Orthogr
     painter.line_segment([x_end, x_end + Vec2::new(-7.0, 4.0)], x_stroke);
     painter.line_segment([y_end, y_end + Vec2::new(-4.0, 7.0)], y_stroke);
     painter.line_segment([y_end, y_end + Vec2::new(4.0, 7.0)], y_stroke);
+    let [right_label, up_label] = view.screen_axis_labels();
     painter.text(
         x_end + Vec2::new(8.0, 0.0),
         Align2::LEFT_CENTER,
-        axis_label(horizontal_axis),
+        right_label,
         FontId::monospace(12.0),
         horizontal_color,
     );
     painter.text(
         y_end + Vec2::new(0.0, -8.0),
         Align2::CENTER_BOTTOM,
-        axis_label(vertical_axis),
+        up_label,
         FontId::monospace(12.0),
         vertical_color,
     );
@@ -122,13 +123,17 @@ fn axis_color(axis: usize) -> Color32 {
 /// One of the three axis-aligned 2D authoring planes. All views use the
 /// same world-space focus, zoom, grid settings, and editor selection; only
 /// the pair of world axes projected into the panel changes.
+///
+/// Each view is what the right-handed, Y-up 3D view shows from that side
+/// with its default orientation (yaw 0 looks down -Z with +X to the right),
+/// so the Top view is the 3D view seen from above, not its mirror.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OrthographicView {
-    /// Look down from +Y: horizontal X, vertical Z.
+    /// Look down from +Y: +X right, +Z down (-Z, the 3D view's forward, up).
     Top,
-    /// Look back from +Z: horizontal X, vertical Y.
+    /// Look back from +Z: +X right, +Y up.
     Front,
-    /// Look left from +X: horizontal Z, vertical Y.
+    /// Look from +X toward -X: -Z right, +Y up.
     Side,
 }
 
@@ -150,6 +155,33 @@ impl OrthographicView {
             Self::Front => [0, 1],
             Self::Side => [2, 1],
         }
+    }
+
+    /// Screen direction of the plane axes: `[1, 1]` when the horizontal
+    /// world axis grows to the right and the vertical one grows up; `-1`
+    /// flips that axis. See the type docs for why Top and Side flip.
+    pub(crate) const fn screen_signs(self) -> [f32; 2] {
+        match self {
+            Self::Top => [1.0, -1.0],
+            Self::Front => [1.0, 1.0],
+            Self::Side => [-1.0, 1.0],
+        }
+    }
+
+    /// Axis label for the screen-right and screen-up arrows of the corner
+    /// axes gizmo, with a minus where the world axis runs the other way.
+    pub(crate) fn screen_axis_labels(self) -> [String; 2] {
+        let [horizontal, vertical] = self.plane_axes();
+        let [sign_h, sign_v] = self.screen_signs();
+        let label = |axis: usize, sign: f32| {
+            let name = axis_label(axis);
+            if sign < 0.0 {
+                format!("-{name}")
+            } else {
+                name.to_string()
+            }
+        };
+        [label(horizontal, sign_h), label(vertical, sign_v)]
     }
 
     /// World axis perpendicular to this view. The virtual camera sits on
@@ -187,29 +219,63 @@ impl OrthographicView {
     }
 }
 
+/// Plane coordinates (true world values of the view's two axes) to panel
+/// pixels. `signs` orients each axis on screen (`OrthographicView::screen_signs`).
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ViewportTransform {
     rect: Rect,
     pan: Vec2,
     zoom: f32,
+    signs: [f32; 2],
 }
 
 impl ViewportTransform {
+    /// Horizontal axis right, vertical axis up.
+    #[cfg(test)]
     pub(crate) fn new(rect: Rect, pan: Vec2, zoom: f32) -> Self {
-        Self { rect, pan, zoom }
+        Self {
+            rect,
+            pan,
+            zoom,
+            signs: [1.0, 1.0],
+        }
     }
 
-    pub(crate) fn from_focus(rect: Rect, focus: [f32; 2], zoom: f32) -> Self {
-        Self::new(rect, Vec2::new(-focus[0] * zoom, focus[1] * zoom), zoom)
+    /// The panel for `view`, centred on `focus` (plane coordinates).
+    pub(crate) fn from_focus(
+        rect: Rect,
+        view: OrthographicView,
+        focus: [f32; 2],
+        zoom: f32,
+    ) -> Self {
+        let signs = view.screen_signs();
+        Self {
+            rect,
+            pan: Vec2::new(-signs[0] * focus[0] * zoom, signs[1] * focus[1] * zoom),
+            zoom,
+            signs,
+        }
     }
 
     pub(crate) fn world_to_screen(self, world: [f32; 2]) -> Pos2 {
-        self.rect.center() + self.pan + Vec2::new(world[0] * self.zoom, -world[1] * self.zoom)
+        self.rect.center()
+            + self.pan
+            + Vec2::new(
+                self.signs[0] * world[0] * self.zoom,
+                -self.signs[1] * world[1] * self.zoom,
+            )
     }
 
     pub(crate) fn screen_to_world(self, screen: Pos2) -> [f32; 2] {
-        let delta = screen - self.rect.center() - self.pan;
-        [delta.x / self.zoom, -delta.y / self.zoom]
+        self.screen_delta_to_world(screen - self.rect.center() - self.pan)
+    }
+
+    /// A pointer movement as a plane-coordinate delta.
+    pub(crate) fn screen_delta_to_world(self, delta: Vec2) -> [f32; 2] {
+        [
+            self.signs[0] * delta.x / self.zoom,
+            -self.signs[1] * delta.y / self.zoom,
+        ]
     }
 
     pub(crate) fn world_rect_to_screen(self, center: [f32; 2], half: [f32; 2]) -> Rect {
@@ -564,11 +630,7 @@ pub(crate) fn draw_scene_viewport(
                     &mut hits,
                 );
             }
-            NodeKind::PointLight {
-                color,
-                intensity,
-                radius,
-            } if show_lights => {
+            NodeKind::PointLight { color, radius, .. } if show_lights => {
                 draw_light_marker(
                     painter,
                     transform,
@@ -576,8 +638,8 @@ pub(crate) fn draw_scene_viewport(
                     selected_nodes.contains(&node.id)
                         || (selected_nodes.is_empty() && selected == node.id),
                     *color,
-                    *intensity,
                     *radius,
+                    project.world_sector_size_for_node(node.id),
                     &mut hits,
                 );
             }
@@ -624,9 +686,13 @@ pub(crate) fn draw_mesh_marker(
         return;
     };
     let center = node_world(node);
+    // Scale is a fraction of a World sector, like the preview's mesh
+    // footprint; keep the marker clickable at any zoom.
+    let sector = project.world_sector_size_for_node(node.id).max(1) as f32;
+    let min_half = MARKER_RADIUS_PX / transform.zoom;
     let half = [
-        node.transform.scale[0].abs().max(0.35) * 0.5,
-        node.transform.scale[2].abs().max(0.18) * 0.5,
+        (node.transform.scale[0].abs() * sector * 0.5).max(min_half),
+        (node.transform.scale[2].abs() * sector * 0.5).max(min_half),
     ];
     let rect = transform.world_rect_to_screen(center, half);
     let color = material_color(project, material, SurfaceRole::Object);
@@ -685,27 +751,31 @@ pub(crate) fn draw_spawn_marker(
     );
 }
 
+/// A point light: its reach (radius in World sectors, as the cook and the 3D
+/// preview use it) as a faint disc, and a fixed-size bulb icon.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn draw_light_marker(
     painter: &egui::Painter,
     transform: ViewportTransform,
     node: &psxed_project::SceneNode,
     selected: bool,
     color: [u8; 3],
-    intensity: f32,
     radius: f32,
+    world_sector_size: i32,
     hits: &mut Vec<ViewportHit>,
 ) {
     let center = node_world(node);
-    let world_radius = (radius / 4096.0).clamp(0.45, 2.5) * intensity.max(0.25);
     let screen_center = transform.world_to_screen(center);
-    painter.circle_filled(
-        screen_center,
-        transform.screen_radius(world_radius),
-        Color32::from_rgba_unmultiplied(color[0], color[1], color[2], 28),
-    );
+    let reach = radius.max(0.0) * world_sector_size.max(1) as f32;
+    if reach.is_finite() {
+        painter.circle_filled(
+            screen_center,
+            transform.screen_radius(reach),
+            Color32::from_rgba_unmultiplied(color[0], color[1], color[2], 28),
+        );
+    }
     let fill = Color32::from_rgb(color[0], color[1], color[2]);
-    let icon_radius = transform.screen_radius(0.18).max(8.0);
-    draw_light_bulb_marker(painter, screen_center, icon_radius, fill, selected);
+    draw_light_bulb_marker(painter, screen_center, MARKER_RADIUS_PX, fill, selected);
     painter.text(
         screen_center + Vec2::new(0.0, 16.0),
         Align2::CENTER_TOP,
@@ -717,7 +787,7 @@ pub(crate) fn draw_light_marker(
         node.id,
         node.name.clone(),
         center,
-        0.18_f32.max(8.0 / transform.zoom),
+        MARKER_RADIUS_PX / transform.zoom,
     ));
 }
 
@@ -811,13 +881,8 @@ pub(crate) fn draw_simple_marker(
 ) {
     let center = node_world(node);
     let screen = transform.world_to_screen(center);
-    let radius = 0.18;
-    painter.circle_filled(screen, transform.screen_radius(radius).max(8.0), fill);
-    painter.circle_stroke(
-        screen,
-        transform.screen_radius(radius).max(8.0),
-        selected_stroke(selected),
-    );
+    painter.circle_filled(screen, MARKER_RADIUS_PX, fill);
+    painter.circle_stroke(screen, MARKER_RADIUS_PX, selected_stroke(selected));
     painter.text(
         screen,
         Align2::CENTER_CENTER,
@@ -836,9 +901,12 @@ pub(crate) fn draw_simple_marker(
         node.id,
         node.name.clone(),
         center,
-        radius.max(8.0 / transform.zoom),
+        MARKER_RADIUS_PX / transform.zoom,
     ));
 }
+
+/// Screen radius of a node marker in the 2D views, independent of zoom.
+const MARKER_RADIUS_PX: f32 = 8.0;
 
 #[cfg(test)]
 mod brush_surface_grid_tests {
@@ -871,5 +939,52 @@ mod brush_surface_grid_tests {
         let polygon_min = 5.0_f64;
         let first_global_line = (polygon_min / 16.0).ceil() * 16.0;
         assert_eq!(first_global_line, 16.0, "grid must not restart at the face");
+    }
+}
+
+#[cfg(test)]
+mod view_orientation_tests {
+    use super::*;
+
+    /// Screen direction of a world axis in each orthographic view.
+    fn screen_dir(view: OrthographicView, world_axis: usize) -> Vec2 {
+        let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(200.0, 200.0));
+        let transform = ViewportTransform::from_focus(rect, view, [0.0, 0.0], 1.0);
+        let mut world = [0.0f32; 3];
+        world[world_axis] = 10.0;
+        transform.world_to_screen(view.project_f32(world)) - rect.center()
+    }
+
+    #[test]
+    fn orthographic_views_show_the_3d_view_from_each_side_unmirrored() {
+        // The 3D view at yaw 0 has +X right and looks down -Z, Y up.
+        // From above that puts -Z up on screen.
+        assert!(screen_dir(OrthographicView::Top, 0).x > 0.0);
+        assert!(screen_dir(OrthographicView::Top, 2).y > 0.0, "+Z runs down");
+        // From +Z looking back: +X right, +Y up.
+        assert!(screen_dir(OrthographicView::Front, 0).x > 0.0);
+        assert!(screen_dir(OrthographicView::Front, 1).y < 0.0);
+        // From +X looking toward -X: +Z runs left, +Y up.
+        assert!(
+            screen_dir(OrthographicView::Side, 2).x < 0.0,
+            "+Z runs left"
+        );
+        assert!(screen_dir(OrthographicView::Side, 1).y < 0.0);
+
+        for view in OrthographicView::ALL {
+            let rect = Rect::from_min_size(Pos2::new(5.0, 7.0), Vec2::new(300.0, 200.0));
+            let transform = ViewportTransform::from_focus(rect, view, [40.0, -24.0], 2.5);
+            let plane = [123.0, -45.0];
+            let back = transform.screen_to_world(transform.world_to_screen(plane));
+            assert!((back[0] - plane[0]).abs() < 1e-3 && (back[1] - plane[1]).abs() < 1e-3);
+        }
+        assert_eq!(
+            OrthographicView::Top.screen_axis_labels(),
+            ["X".to_string(), "-Z".to_string()]
+        );
+        assert_eq!(
+            OrthographicView::Side.screen_axis_labels(),
+            ["-Z".to_string(), "Y".to_string()]
+        );
     }
 }

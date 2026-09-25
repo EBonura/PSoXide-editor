@@ -1527,7 +1527,7 @@ fn ashen_sanctum_project_is_authored_through_production_commands() {
     workspace.project.editor_camera.orbit_pitch_q12 = 3712;
     workspace.project.editor_camera.orbit_target = [11_000, 2_200, 13_000];
     workspace.project.editor_camera.orbit_radius = 22_000;
-    workspace.apply_project_editor_camera();
+    workspace.apply_editor_camera(workspace.project.editor_camera);
     workspace.mark_dirty();
 
     workspace.save_if_dirty().expect("persist Ashen Sanctum");
@@ -1617,7 +1617,9 @@ fn ashen_sanctum_project_is_authored_through_production_commands() {
     };
     assert_eq!(world.movers.len(), 3);
     assert_eq!(package.game_entities.len(), 3);
-    assert_eq!(package.equipment.len(), 4);
+    // Four authored Equipment records plus the three weapon/socket pairs the
+    // player's appearance tracks equip.
+    assert_eq!(package.equipment.len(), 7);
     assert_eq!(package.interactables.len(), 2);
     prove_cooked_player_hull_route(world);
 

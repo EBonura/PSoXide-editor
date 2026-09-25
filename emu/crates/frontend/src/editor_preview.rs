@@ -44,6 +44,7 @@ mod overlays;
 mod particles;
 mod poi;
 mod primitives;
+mod props;
 
 use backdrop::*;
 use bsp_support::*;
@@ -52,6 +53,7 @@ use overlays::*;
 use particles::*;
 use poi::*;
 use primitives::*;
+use props::*;
 
 /// Maximum sectors we'll attempt to render in one preview pass.
 /// 64×64 grid would already be enormous for PSX (~16 MiB cooked); a
@@ -420,6 +422,14 @@ pub fn build_phase1_frame_reusing(
     // World-space brushes render once, against the camera GTE state
     // installed above (rooms and their local offsets do not apply).
     walk_brushes(
+        project,
+        textures,
+        world_camera,
+        hidden_scene_nodes,
+        &mut scratch,
+    );
+    // Box, Cylinder and Image props, from the geometry the cook emits.
+    walk_props(
         project,
         textures,
         world_camera,
@@ -930,6 +940,7 @@ fn lit_preview_key(
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     bsp_preview_patch_extent(project).hash(&mut hasher);
+    preview_bakes_shadows(project.bsp_cook_mode).hash(&mut hasher);
     for brush in &project.active_scene().brushes {
         brush_group_hidden(project.active_scene(), hidden_scene_nodes, brush).hash(&mut hasher);
         brush.contents.label().hash(&mut hasher);
@@ -967,22 +978,33 @@ fn lit_preview_key(
     hasher.finish()
 }
 
+/// Whether the cook bakes point-light shadows in this mode (see
+/// `brush_world`: Draft passes no occluders, Release every solid brush).
+fn preview_bakes_shadows(mode: psxed_project::brush_world::BrushWorldCookMode) -> bool {
+    match mode {
+        psxed_project::brush_world::BrushWorldCookMode::Draft => false,
+        psxed_project::brush_world::BrushWorldCookMode::Release => true,
+    }
+}
+
 fn rebuild_lit_surfaces(
     project: &ProjectDocument,
     textures: &EditorTextures,
     lights: &[psxed_project::brush_light::BrushPointLight],
     hidden_scene_nodes: &HashSet<NodeId>,
 ) -> Vec<PreviewLitSurface> {
-    // Shadow occluders mirror the cook's set (every solid brush), with
-    // one editor-only guard: mid-edit damaged/unbounded brushes are
+    // Shadow occluders mirror the cook's set: none in Draft (the cook bakes
+    // Draft lighting without shadow tests), every solid brush in Release,
+    // with one editor-only guard: mid-edit damaged/unbounded brushes are
     // skipped, otherwise an infinite wedge occludes every segment and
     // blacks out the room while you drag.
+    let casts_shadows = preview_bakes_shadows(project.bsp_cook_mode);
     with_cached_solved_brushes(project, |solved_brushes| {
         let brushes = &project.active_scene().brushes;
         let occluders: Vec<Vec<psxed_project::brush::Plane>> = brushes
             .iter()
             .zip(solved_brushes)
-            .filter(|(brush, solved)| brush.contents.is_solid() && solved.pickable)
+            .filter(|(brush, solved)| casts_shadows && brush.contents.is_solid() && solved.pickable)
             .map(|(_, solved)| solved.all_planes.clone())
             .collect();
         with_cached_csg_surfaces(project, hidden_scene_nodes, |surfaces| {
@@ -1106,6 +1128,30 @@ fn emit_brush_patch(
         );
     }
 
+    emit_uv_polygon(
+        scratch,
+        camera,
+        shade,
+        verts,
+        &patch_uvs[..verts.len()],
+        colors,
+    );
+}
+
+/// One convex polygon with explicit texel UVs through near-plane clipping,
+/// projection and submission, as a fan of triangles in one ordering-table
+/// slot. `colors` is per vertex, or `None` for the shade's uniform colour.
+fn emit_uv_polygon(
+    scratch: &mut PreviewScratch,
+    camera: psx_engine::WorldCamera,
+    shade: FaceShade,
+    verts: &[[f64; 3]],
+    uvs: &[[f64; 2]],
+    colors: Option<&[(u8, u8, u8)]>,
+) {
+    if verts.len() > PREVIEW_FACE_VERTEX_CAP || uvs.len() < verts.len() {
+        return;
+    }
     let default_color = match shade {
         FaceShade::Flat { rgb, .. } => rgb,
         FaceShade::Textured { tint, .. } => tint,
@@ -1119,7 +1165,7 @@ fn emit_brush_patch(
         );
         clip_vertices[index] = PreviewClipVertex::new(
             camera.view_vertex(world),
-            patch_uvs[index],
+            uvs[index],
             colors.map_or(default_color, |colors| colors[index]),
         );
     }
@@ -1257,7 +1303,7 @@ fn walk_brushes_with_culling(
     // segments against solid brushes, tint-modulated) and its ambient
     // contract (PXBSP_AMBIENT_RGB = [32; 3]). With zero lights the
     // historic unlit shading is kept, so lightless maps don't go dark.
-    let lights = collect_bsp_preview_bake_lights(project, hidden_scene_nodes);
+    let lights = collect_bsp_preview_bake_lights(project);
     let scene = project.active_scene();
     if lights.is_empty() {
         with_cached_csg_surfaces(project, hidden_scene_nodes, |surfaces| {
@@ -1429,7 +1475,7 @@ fn walk_bsp_model_instances(
     scratch: &mut PreviewScratch,
 ) {
     let scene = project.active_scene();
-    let lights = collect_bsp_preview_lights(project, hidden_scene_nodes);
+    let lights = collect_bsp_preview_lights(project);
     let fog = PreviewFog;
     let mut instances_meta: Vec<InstanceMeta> = Vec::new();
     for node in scene.nodes() {
@@ -2451,6 +2497,220 @@ fn preview_model_material_override(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A preview frame's scene commands, as comparable text.
+    fn preview_commands(project: &ProjectDocument, hidden: &HashSet<NodeId>) -> Vec<String> {
+        let camera = ViewportCameraState {
+            mode: psxed_ui::ViewportCameraMode::Orbit,
+            yaw_q12: 320,
+            // Orbit eye Y is target - r * sin(pitch): this looks down.
+            pitch_q12: 4096 - 400,
+            radius: 4096,
+            target: [512, 256, 512],
+            position: [0; 3],
+        };
+        let frame = build_phase1_frame(
+            project,
+            camera,
+            false,
+            false,
+            hidden,
+            NodeId::ROOT,
+            None,
+            None,
+            &[],
+            None,
+            &EditorTextures::new(),
+            &crate::editor_assets::EditorAssets::new(),
+        );
+        frame
+            .cmd_log
+            .iter()
+            .map(|entry| format!("{entry:?}"))
+            .collect()
+    }
+
+    #[test]
+    fn draft_preview_lighting_casts_no_shadows_like_the_draft_cook() {
+        use psxed_project::brush_world::BrushWorldCookMode;
+        // A floor, a wall standing across it, and a light behind the wall:
+        // in Release the wall shadows the floor on the camera's side.
+        let mut project = ProjectDocument::new("draft-preview-shadows");
+        let brushes = &mut project.active_scene_mut().brushes;
+        brushes.push(psxed_project::brush::Brush::cuboid(
+            [0, 0, 0],
+            [2048, 64, 2048],
+        ));
+        brushes.push(psxed_project::brush::Brush::cuboid(
+            [0, 64, 1000],
+            [2048, 2048, 1100],
+        ));
+        let root = project.active_scene().root;
+        let light = project.active_scene_mut().add_node(
+            root,
+            "Key",
+            NodeKind::PointLight {
+                color: [255, 255, 255],
+                intensity: 2.0,
+                radius: 3.0,
+            },
+        );
+        project
+            .active_scene_mut()
+            .node_mut(light)
+            .unwrap()
+            .transform
+            .translation = [1024.0, 512.0, 1900.0];
+
+        project.bsp_cook_mode = BrushWorldCookMode::Release;
+        let release = preview_commands(&project, &HashSet::new());
+        project.bsp_cook_mode = BrushWorldCookMode::Draft;
+        let draft = preview_commands(&project, &HashSet::new());
+        // Before the fix both modes previewed the same shadowed bake.
+        assert_ne!(release, draft, "Draft preview still draws Release shadows");
+    }
+
+    #[test]
+    fn two_sided_brush_materials_preview_front_only_like_the_runtime() {
+        use psxed_project::{MaterialFaceSidedness, MaterialResource, ResourceData};
+        let commands = |sidedness: MaterialFaceSidedness| {
+            let mut project = ProjectDocument::new("two-sided-brush-preview");
+            let mut material = MaterialResource::opaque(None);
+            material.face_sidedness = sidedness;
+            material.sync_legacy_sidedness();
+            let material = project.add_resource("Glass", ResourceData::Material(material));
+            let mut brush = psxed_project::brush::Brush::cuboid([0, 0, 0], [1024, 512, 1024]);
+            for face in &mut brush.faces {
+                face.material = Some(material);
+            }
+            project.active_scene_mut().brushes.push(brush);
+            preview_commands(&project, &HashSet::new())
+        };
+        let front = commands(MaterialFaceSidedness::Front);
+        assert!(!front.is_empty());
+        assert_eq!(
+            commands(MaterialFaceSidedness::Both),
+            front,
+            "a Both brush material previewed back faces the runtime never draws"
+        );
+        assert_ne!(commands(MaterialFaceSidedness::Back), front);
+    }
+
+    #[test]
+    fn box_image_and_cylinder_props_draw_in_the_preview() {
+        use psxed_project::{MaterialResource, ResourceData};
+        let mut project = ProjectDocument::new("props-in-preview");
+        project.active_scene_mut().brushes.clear();
+        let material = project.add_resource(
+            "Crate",
+            ResourceData::Material(MaterialResource::opaque(None)),
+        );
+        let empty = preview_commands(&project, &HashSet::new()).len();
+        let root = project.active_scene().root;
+        let mut materials = [Some(material); psxed_project::BOX_PROP_FACE_COUNT];
+        // A face without a material is skipped, as the cook skips it.
+        materials[4] = None;
+        let crate_id = project.active_scene_mut().add_node(
+            root,
+            "Crate",
+            NodeKind::BoxProp {
+                materials,
+                uvs: [psxed_project::GridUvTransform::default();
+                    psxed_project::BOX_PROP_FACE_COUNT],
+                vertices: psxed_project::box_prop_vertices_for_size(512),
+                collision_enabled: true,
+                break_flags: 0,
+                erosion: psxed_project::BoxPropErosion::default(),
+            },
+        );
+        project
+            .active_scene_mut()
+            .node_mut(crate_id)
+            .unwrap()
+            .transform
+            .translation = [512.0, 0.0, 512.0];
+        let with_box = preview_commands(&project, &HashSet::new()).len();
+        assert!(with_box > empty, "the Box Prop draws in the preview");
+        assert_eq!(
+            preview_commands(&project, &HashSet::from([crate_id])).len(),
+            empty,
+            "a hidden prop is not drawn"
+        );
+
+        let card = project.active_scene_mut().add_node(
+            root,
+            "Banner",
+            NodeKind::ImageProp {
+                material: Some(material),
+                width: 256,
+                height: 512,
+                cylindrical_billboard: false,
+                collision_enabled: false,
+                collision_size: [256, 512, 64],
+                destructible: None,
+            },
+        );
+        project
+            .active_scene_mut()
+            .node_mut(card)
+            .unwrap()
+            .transform
+            .translation = [256.0, 0.0, 256.0];
+        let with_card = preview_commands(&project, &HashSet::new()).len();
+        assert!(with_card > with_box, "the Image Prop draws in the preview");
+
+        project.active_scene_mut().add_node(
+            root,
+            "Pillar",
+            NodeKind::CylinderProp {
+                materials: [Some(material); psxed_project::CYLINDER_PROP_MATERIAL_COUNT],
+                uvs: Default::default(),
+                geometry: psxed_project::CylinderPropGeometry::default(),
+                collision_enabled: true,
+            },
+        );
+        assert!(
+            preview_commands(&project, &HashSet::new()).len() > with_card,
+            "the Cylinder Prop draws in the preview"
+        );
+    }
+
+    #[test]
+    fn hiding_a_light_hides_its_gizmo_but_keeps_its_lighting() {
+        // Hide is editor-only: the light still ships, so the preview keeps
+        // lighting the room with it.
+        let mut project = ProjectDocument::new("hidden-light-preview");
+        project
+            .active_scene_mut()
+            .brushes
+            .push(psxed_project::brush::Brush::cuboid(
+                [0, 0, 0],
+                [1024, 64, 1024],
+            ));
+        let root = project.active_scene().root;
+        let light = project.active_scene_mut().add_node(
+            root,
+            "Warm",
+            NodeKind::PointLight {
+                color: [255, 160, 64],
+                intensity: 2.0,
+                radius: 2.0,
+            },
+        );
+        project
+            .active_scene_mut()
+            .node_mut(light)
+            .unwrap()
+            .transform
+            .translation = [512.0, 256.0, 512.0];
+        let shown = preview_commands(&project, &HashSet::new());
+        let hidden = preview_commands(&project, &HashSet::from([light]));
+        assert!(!shown.is_empty());
+        assert_eq!(
+            shown, hidden,
+            "hiding the light changed the preview lighting"
+        );
+    }
 
     #[test]
     fn light_enemy_preview_grounds_from_idle_pose_instead_of_bind_pose() {

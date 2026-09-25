@@ -21,6 +21,26 @@ impl FaceShade {
             Self::Flat { sidedness, .. } | Self::Textured { sidedness, .. } => sidedness,
         }
     }
+
+    pub(super) const fn with_sidedness(
+        self,
+        sidedness: psxed_project::MaterialFaceSidedness,
+    ) -> Self {
+        match self {
+            Self::Flat { rgb, .. } => Self::Flat { rgb, sidedness },
+            Self::Textured {
+                slot,
+                tint,
+                blend_mode,
+                ..
+            } => Self::Textured {
+                slot,
+                tint,
+                blend_mode,
+                sidedness,
+            },
+        }
+    }
 }
 
 pub(super) fn preview_vertices_in_front(
@@ -44,7 +64,9 @@ pub(super) fn face_shade(
     textures: &EditorTextures,
 ) -> FaceShade {
     let tint = material_color(project, material, fallback);
-    let sidedness = material_sidedness(project, material);
+    // Every caller shades a brush face, so preview the side the PXBSP
+    // runtime draws (front only for `Both`).
+    let sidedness = material_sidedness(project, material).brush_face_drawn();
     if let Some(id) = material {
         if let Some(slot) = textures.slot(id) {
             return FaceShade::Textured {
@@ -110,9 +132,11 @@ impl PreviewFog {
     }
 }
 
+/// Lights the preview bakes into brush vertices. Hiding a node is
+/// editor-only (the node still ships), so a hidden light keeps lighting the
+/// preview exactly as it lights the game; only its gizmo disappears.
 pub(super) fn collect_bsp_preview_bake_lights(
     project: &ProjectDocument,
-    hidden_scene_nodes: &HashSet<NodeId>,
 ) -> Vec<psxed_project::brush_light::BrushPointLight> {
     let scene = project.active_scene();
     let radius_units = scene
@@ -120,7 +144,7 @@ pub(super) fn collect_bsp_preview_bake_lights(
         .unwrap_or(1024)
         .max(1) as f64;
     let mut out = Vec::new();
-    for light in preview_lights(scene, hidden_scene_nodes) {
+    for light in preview_lights(scene, &HashSet::new()) {
         let Some(radius) = preview_light_radius_world_units(light.radius, radius_units as f32)
         else {
             continue;
@@ -138,9 +162,10 @@ pub(super) fn collect_bsp_preview_bake_lights(
     out
 }
 
+/// Lights applied to preview models. Hidden lights still count, see
+/// [`collect_bsp_preview_bake_lights`].
 pub(super) fn collect_bsp_preview_lights(
     project: &ProjectDocument,
-    hidden_scene_nodes: &HashSet<NodeId>,
 ) -> Vec<psx_engine::PointLightSample> {
     let scene = project.active_scene();
     let radius_units = scene
@@ -148,7 +173,7 @@ pub(super) fn collect_bsp_preview_lights(
         .unwrap_or(1024)
         .max(1) as f32;
     let mut out = Vec::new();
-    for light in preview_lights(scene, hidden_scene_nodes) {
+    for light in preview_lights(scene, &HashSet::new()) {
         let Some(radius) = preview_light_radius_world_units(light.radius, radius_units) else {
             continue;
         };
@@ -191,6 +216,8 @@ pub(super) struct PreviewLightMeta {
     pub(super) radius: f32,
 }
 
+/// Point lights not hidden in the editor, for their gizmos. Lighting uses
+/// every light, see [`collect_bsp_preview_bake_lights`].
 pub(super) fn preview_lights(
     scene: &Scene,
     hidden_scene_nodes: &HashSet<NodeId>,

@@ -47,6 +47,9 @@ pub fn draw_layout(
     if state.workspace.is_editor() {
         let playtest_status = state.editor_playtest_status();
         state.editor.draw(ctx, editor_viewport, playtest_status);
+        if state.editor.take_emulator_menu_request() {
+            state.menu.open = true;
+        }
         state.sync_embedded_playtest_with_editor_project();
         let menu_warning = state.menu_setup_warning();
         state.menu.draw(ctx, dt, menu_warning);

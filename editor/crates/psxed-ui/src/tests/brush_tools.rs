@@ -408,6 +408,7 @@ fn run_real_egui_orthographic_click(workspace: &mut EditorWorkspace, world: [f32
     );
     let pointer = crate::viewport2d::ViewportTransform::from_focus(
         rect,
+        workspace.orthographic_view,
         workspace
             .orthographic_view
             .project_f32(workspace.orthographic_focus),
@@ -482,6 +483,7 @@ fn run_real_egui_orthographic_drag(
     let rect = workspace.last_orthographic_viewport_rect;
     let transform = crate::viewport2d::ViewportTransform::from_focus(
         rect,
+        workspace.orthographic_view,
         workspace
             .orthographic_view
             .project_f32(workspace.orthographic_focus),
@@ -726,6 +728,7 @@ fn run_real_egui_orthographic_brush_drag(
     let rect = workspace.last_orthographic_viewport_rect;
     let transform = crate::viewport2d::ViewportTransform::from_focus(
         rect,
+        workspace.orthographic_view,
         workspace
             .orthographic_view
             .project_f32(workspace.orthographic_focus),
@@ -4770,7 +4773,7 @@ pub(super) fn press_release(point: Pos2) -> (Vec<egui::Event>, Vec<egui::Event>)
 /// Click the widget whose rendered galley text equals `label`, through full
 /// `workspace.draw` frames so the Inspector transaction wrapper owns history
 /// exactly as it does in production.
-fn run_real_egui_workspace_click_on_label(workspace: &mut EditorWorkspace, label: &str) {
+pub(super) fn run_real_egui_workspace_click_on_label(workspace: &mut EditorWorkspace, label: &str) {
     let (ctx, viewport) = real_egui_workspace_ctx("workspace-label-click");
     let point = locate_unique_label(&ctx, workspace, &viewport, label);
     let (press, release) = press_release(point);

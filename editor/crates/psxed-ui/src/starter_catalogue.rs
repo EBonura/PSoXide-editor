@@ -404,7 +404,24 @@ pub(crate) fn find_starter_catalogue_target(
 
     // Resource display names may evolve, but cooked asset paths are stable.
     // Match them before names so a catalogue rename updates existing projects
-    // in place instead of installing a duplicate clip or model.
+    // in place instead of installing a duplicate clip or model. Two starter
+    // models can share one mesh (the plain and energy swords differ only by
+    // texture), so a same-name path match wins over a path-only one.
+    let same_model_path = |resource: &Resource| match (&starter_resource.data, &resource.data) {
+        (ResourceData::Model(starter), ResourceData::Model(existing)) => {
+            starter.model_path == existing.model_path
+        }
+        _ => false,
+    };
+    if let Some(id) = project
+        .resources
+        .iter()
+        .filter(|resource| !claimed.contains(&resource.id))
+        .find(|resource| same_model_path(resource) && resource.name == starter_resource.name)
+        .map(|resource| resource.id)
+    {
+        return Some(id);
+    }
     if let Some(id) = project
         .resources
         .iter()
@@ -507,6 +524,11 @@ pub(crate) fn remap_resource_data(
             for clip in &mut set.clips {
                 if let Some(mapped) = id_map.get(clip).copied() {
                     *clip = mapped;
+                }
+            }
+            for track in &mut set.weapon_appearance_tracks {
+                if let Some(mapped) = id_map.get(&track.weapon).copied() {
+                    track.weapon = mapped;
                 }
             }
         }

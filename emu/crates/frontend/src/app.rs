@@ -2320,6 +2320,63 @@ impl AppState {
         String::new()
     }
 
+    /// Whether the window may close now. With unsaved editor edits this
+    /// opens the editor's Save / Discard / Cancel prompt (showing the editor
+    /// workspace if needed) and returns false; answering the prompt asks to
+    /// close the window again.
+    pub fn editor_close_allowed(&mut self) -> bool {
+        #[cfg(feature = "editor")]
+        {
+            if !self.editor.request_close() {
+                if !self.workspace.is_editor() {
+                    self.open_editor_workspace();
+                }
+                // The prompt is drawn by the editor; keep the overlay out of
+                // its way.
+                self.menu.open = false;
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Remember the open editor project so the next launch reopens it.
+    #[cfg(feature = "editor")]
+    fn remember_editor_project_dir(&mut self) {
+        let current = Some(self.editor.project_dir().to_path_buf());
+        if self.settings.editor.last_project_dir != current {
+            self.settings.editor.last_project_dir = current;
+        }
+    }
+
+    /// Everything that must happen before the process exits, shared by the
+    /// window close button, File > Quit in the editor (egui's
+    /// `ViewportCommand::Close`) and the overlay menu's Quit, so the three
+    /// cannot drift apart.
+    pub fn shut_down_for_exit(&mut self) {
+        self.stop_input_recording_if_active();
+        #[cfg(feature = "editor")]
+        self.stop_embedded_playtest();
+        self.flush_pending_input_profile_capture();
+        self.stop_examples_build();
+        // Flush any dirty memory card so save progress survives a
+        // window-close. A hard crash still loses whatever hasn't been
+        // flushed.
+        if let Err(e) = self.flush_memcard_port1() {
+            eprintln!("[frontend] memcard flush on exit: {e}");
+        }
+        // The project itself is not saved here: closing with unsaved edits
+        // went through the editor's Save / Discard / Cancel prompt
+        // (`editor_close_allowed`), which saved or discarded them.
+        #[cfg(feature = "editor")]
+        self.remember_editor_project_dir();
+        // Persist current settings (library root, etc.) so the next launch
+        // picks up any user tweaks without needing a manual save step.
+        if let Err(e) = self.save_settings() {
+            eprintln!("[frontend] settings save on exit: {e}");
+        }
+    }
+
     /// Persist the embedded editor project if it has unsaved edits,
     /// and remember which project directory is active so the next
     /// launch reopens it.
