@@ -92,6 +92,7 @@ __pycache__/
 /tools/mkisopsx
 /tools/psoxide-link
 /tools/psoxide-pgo
+/tools/fmv_test_movie.py
 /tools/hazard_scan.py
 /tools/hazard_patch.py
 /tools/stack_guard.py

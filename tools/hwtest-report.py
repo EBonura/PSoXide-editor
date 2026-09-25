@@ -322,6 +322,16 @@ LABELS = {
     0x138: "spstack_level2_on_scratchpad_stack",
     0x139: "spstack_level2_on_ram_stack_during_list_dma",
     0x13A: "spstack_level2_on_scratchpad_stack_during_list_dma",
+    # v1.25 FMV STREAM TEST (MAIN MENU, last row; src/fmv_test.rs). Present
+    # only once the test has run. Not timings: each record carries three
+    # counters from the last run in its min/median/max fields, named by
+    # FMV_FIELDS below.
+    0x1F0: "fmv_pass_good_total",
+    0x1F1: "fmv_lost_bad_dropped",
+    0x1F2: "fmv_cderr_decerr_first_error_lba",
+    0x1F3: "fmv_shown_late_vblanks",
+    0x1F4: "fmv_kcyc_vlc_mdec_wait",
+    0x1F5: "fmv_last_lba_runs_setup_error",
     # v1.21 register A/B group. Present only in a PERF A/B capture.
     0xDC: "ab_ramsize_uncached_loads_control",
     0xDD: "ab_ramsize_uncached_loads_bit7_flipped",
@@ -403,6 +413,59 @@ def list_busy_rows(capture: Capture) -> list[str]:
             rows.append(f"{index},{label},never")
         else:
             rows.append(f"{index},{label},{value}")
+    return rows
+
+# v1.25 FMV STREAM TEST records: (min, median, max) field names per record.
+FMV_FIRST_RECORD = 0x1F0
+FMV_FIELDS = (
+    ("pass", "good_sectors", "total_sectors"),
+    ("lost_sectors", "bad_sectors", "dropped_frames"),
+    ("cd_errors", "decode_errors", "first_error_lba"),
+    ("frames_shown", "frames_late", "vblanks"),
+    ("kcyc_vlc", "kcyc_mdec_upload", "kcyc_wait"),
+    ("last_good_lba", "runs", "setup_error"),
+)
+# first_error_lba when nothing went wrong.
+FMV_NO_ERROR_LBA = 0xFFFF
+FMV_SETUP_ERRORS = ("none", "cd prepare", "MOVIE.STR not found", "cd xa mode", "mdec tables", "cd start")
+
+
+def fmv_rows(capture: Capture) -> list[str]:
+    """The FMV STREAM TEST result, unpacked, with its verdict re-derived from
+    the pass criteria. Empty unless the test ran before the capture encoded."""
+    by_id = {record.record_id: record for record in capture.records}
+    ids = range(FMV_FIRST_RECORD, FMV_FIRST_RECORD + len(FMV_FIELDS))
+    if not all(record_id in by_id for record_id in ids):
+        return []
+    fields: dict[str, int] = {}
+    for record_id, names in zip(ids, FMV_FIELDS):
+        record = by_id[record_id]
+        fields.update(zip(names, (record.minimum, record.median, record.maximum)))
+    host_pass = (
+        fields["total_sectors"] > 0
+        and fields["good_sectors"] == fields["total_sectors"]
+        and fields["lost_sectors"] == 0
+        and fields["bad_sectors"] == 0
+        and fields["dropped_frames"] == 0
+        and fields["cd_errors"] == 0
+        and fields["decode_errors"] == 0
+        and fields["setup_error"] == 0
+    )
+    verdict = "PASS" if fields["pass"] else "FAIL"
+    rows = [f"# fmv={verdict} criteria={'PASS' if host_pass else 'FAIL'}"]
+    if bool(fields["pass"]) != host_pass:
+        rows.append("# fmv verdict disagrees with its own counters")
+    rows.append("fmv,field,value")
+    for name, value in fields.items():
+        if name == "pass":
+            continue
+        if name == "first_error_lba" and value == FMV_NO_ERROR_LBA:
+            text = "none"
+        elif name == "setup_error":
+            text = FMV_SETUP_ERRORS[value] if value < len(FMV_SETUP_ERRORS) else f"code {value}"
+        else:
+            text = str(value)
+        rows.append(f"fmv,{name},{text}")
     return rows
 
 # Work is fixed by record ID, so the wire carries only id/min/median/max.
@@ -577,6 +640,7 @@ WORK_BY_ID = {
     0x138: 16,
     0x139: 16,
     0x13A: 16,
+    **{record_id: 0 for record_id in range(0x1F0, 0x1F6)},
     0x72: 128,
     0x73: 128,
     0x74: 64,
@@ -1095,6 +1159,8 @@ def print_report(
                     drift.append(f"precision {index:03d} ({label}): 0x{prior:08X} -> 0x{value:08X}")
             print(row)
     for row in list_busy_rows(capture):
+        print(row)
+    for row in fmv_rows(capture):
         print(row)
     settle = capture.observations[
         GTE_SETTLE_FIRST_CASE : GTE_SETTLE_FIRST_CASE + GTE_SETTLE_CASE_COUNT
