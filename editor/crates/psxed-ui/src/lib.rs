@@ -2550,87 +2550,12 @@ pub(crate) struct BrushDrag {
     pub(crate) settings: BrushDrawSettings,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum BrushDrawShape {
-    Box,
-    Ramp,
-    Cylinder,
-    DoorwayArch,
-    CurvedWall,
-    Stairs,
-}
-
-impl BrushDrawShape {
-    const ALL: [Self; 6] = [
-        Self::Box,
-        Self::Ramp,
-        Self::Cylinder,
-        Self::DoorwayArch,
-        Self::CurvedWall,
-        Self::Stairs,
-    ];
-
-    const fn label(self) -> &'static str {
-        match self {
-            Self::Box => "Box",
-            Self::Ramp => "Ramp",
-            Self::Cylinder => "Cylinder",
-            Self::DoorwayArch => "Doorway Arch",
-            Self::CurvedWall => "Curved Wall",
-            Self::Stairs => "Stairs",
-        }
-    }
-
-    const fn is_multi_brush(self) -> bool {
-        matches!(self, Self::DoorwayArch | Self::CurvedWall | Self::Stairs)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum BrushCardinalDirection {
-    North,
-    East,
-    South,
-    West,
-}
-
-impl BrushCardinalDirection {
-    const ALL: [Self; 4] = [Self::North, Self::East, Self::South, Self::West];
-
-    const fn label(self) -> &'static str {
-        match self {
-            Self::North => "North (-Z)",
-            Self::East => "East (+X)",
-            Self::South => "South (+Z)",
-            Self::West => "West (-X)",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct BrushDrawSettings {
-    pub(crate) shape: BrushDrawShape,
-    pub(crate) direction: BrushCardinalDirection,
-    pub(crate) cylinder_sides: u8,
-    pub(crate) arch_segments: u8,
-    pub(crate) arch_thickness: u16,
-    pub(crate) curved_wall_arc_degrees: u16,
-    pub(crate) stair_steps: u8,
-}
-
-impl Default for BrushDrawSettings {
-    fn default() -> Self {
-        Self {
-            shape: BrushDrawShape::Box,
-            direction: BrushCardinalDirection::North,
-            cylinder_sides: 8,
-            arch_segments: 6,
-            arch_thickness: 32,
-            curved_wall_arc_degrees: 90,
-            stair_steps: 8,
-        }
-    }
-}
+// Brush primitive recipes live in psxed-project so the editor's drag tool and
+// the authoring MCP expand one implementation. Re-exported under the original
+// names to keep the UI call sites unchanged.
+pub(crate) use psxed_project::brush_primitives::{
+    BrushCardinalDirection, BrushDrawSettings, BrushDrawShape,
+};
 
 /// One placed clip point: grid-snapped position plus the unit normal of
 /// the surface it was placed on (view depth axis in 2D).
