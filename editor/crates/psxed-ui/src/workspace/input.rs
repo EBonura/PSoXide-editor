@@ -1079,8 +1079,8 @@ impl EditorWorkspace {
                         .project
                         .active_scene()
                         .node(id)
-                        .map(|node| format!("Hiding {}", node.name))
-                        .unwrap_or_else(|| "Hiding node".to_string());
+                        .map(|node| format!("Hiding {} in the editor (still ships)", node.name))
+                        .unwrap_or_else(|| "Hiding node in the editor (still ships)".to_string());
                 }
                 if self.selection.hovered_entity_node == Some(id) {
                     self.selection.hovered_entity_node = None;
