@@ -27,32 +27,20 @@ fn dragging_selected_node_moves_it_in_xz_space() {
 }
 
 #[test]
-fn light_transform_normalises_hidden_rotation_scale_and_y_quantum() {
+fn light_transform_normalises_hidden_rotation_and_scale_and_keeps_y_exact() {
     let mut transform = psxed_project::Transform3 {
-        translation: [10.0, 0.05, 20.0],
+        translation: [10.0, 37.0, 20.0],
         rotation_degrees: [10.0, 90.0, 5.0],
         scale: [2.0, 3.0, 4.0],
     };
 
-    assert!(normalise_light_transform(
-        &mut transform,
-        DEFAULT_WORLD_SECTOR_SIZE
-    ));
+    assert!(normalise_light_transform(&mut transform));
 
-    assert_eq!(
-        transform.translation,
-        [
-            10.0,
-            HEIGHT_QUANTUM as f32 / DEFAULT_WORLD_SECTOR_SIZE as f32,
-            20.0
-        ]
-    );
+    // World-unit lights keep their authored height.
+    assert_eq!(transform.translation, [10.0, 37.0, 20.0]);
     assert_eq!(transform.rotation_degrees, [0.0, 0.0, 0.0]);
     assert_eq!(transform.scale, [1.0, 1.0, 1.0]);
-    assert!(!normalise_light_transform(
-        &mut transform,
-        DEFAULT_WORLD_SECTOR_SIZE
-    ));
+    assert!(!normalise_light_transform(&mut transform));
 }
 
 #[test]

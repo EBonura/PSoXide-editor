@@ -1900,8 +1900,6 @@ impl EditorWorkspace {
                                 let mut room_grid_resize: Option<(u16, u16)> = None;
                                 let mut character_preview_action = None;
                                 let mut snap_to_floor_requested = false;
-                                let inherited_sector_size =
-                                    node_translation_sector_size(&self.project, selected);
                                 let world_sector_size =
                                     self.project.world_sector_size_for_node(selected);
                                 let selected_kind_before = self
@@ -1948,7 +1946,6 @@ impl EditorWorkspace {
                                         changed |= draw_transform_policy_editor(
                                             ui,
                                             node,
-                                            inherited_sector_size,
                                             world_sector_size,
                                             &material_options,
                                             &mut nav_target,
@@ -1965,7 +1962,6 @@ impl EditorWorkspace {
                                                 changed |= draw_transform_policy_editor(
                                                     ui,
                                                     node,
-                                                    inherited_sector_size,
                                                     world_sector_size,
                                                     &texture_options,
                                                     &mut nav_target,
@@ -2006,7 +2002,6 @@ impl EditorWorkspace {
                                                 boost_module_options: &boost_module_options,
                                                 animator_clip_context: animator_clip_context
                                                     .as_ref(),
-                                                inherited_sector_size,
                                                 world_sector_size,
                                                 room_grid_resize: &mut room_grid_resize,
                                                 nav_target: &mut nav_target,

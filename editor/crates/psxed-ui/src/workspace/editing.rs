@@ -1492,7 +1492,6 @@ impl EditorWorkspace {
                         NodeKind::ArchProp { geometry, .. } => Some(*geometry),
                         _ => None,
                     },
-                    sector_size: node_translation_sector_size(&self.project, id),
                 })
             })
             .collect();
@@ -1641,8 +1640,8 @@ impl EditorWorkspace {
         let handle = drag.handle;
         let steps = drag.current_steps;
         let plane_delta_world = drag.current_plane_delta_world;
-        // World-unit nodes (sector_size == 1, i.e. BSP scenes) move on the
-        // brush grid; Shift (free) drops to single-unit precision.
+        // Nodes move on the brush grid; Shift (free) drops to single-unit
+        // precision.
         let free = drag.free;
         let world_quantum = if free {
             1
@@ -1750,7 +1749,6 @@ impl EditorWorkspace {
                             target.start_translation,
                             move_axis_world,
                             steps,
-                            target.sector_size,
                             world_quantum,
                         );
                     }
@@ -1760,7 +1758,6 @@ impl EditorWorkspace {
                             target.start_translation,
                             plane,
                             plane_delta_world,
-                            target.sector_size,
                             world_quantum,
                         );
                     }
@@ -1793,7 +1790,6 @@ impl EditorWorkspace {
                         target.start_box_prop_vertices,
                         face,
                         steps,
-                        target.sector_size,
                     ),
                     NodeGizmoHandle::Plane(_) => {}
                 },

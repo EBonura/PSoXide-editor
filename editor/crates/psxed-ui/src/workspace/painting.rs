@@ -531,21 +531,9 @@ impl EditorWorkspace {
             .map(|grid| grid.room_local_to_editor(hit_world))
             .unwrap_or([hit_world[0], hit_world[2]]);
         // Preserve the picked surface height instead of pinning placed
-        // content to the room floor. `hit_world` is room-local engine
-        // units; `translation[1]` is authored in sectors (the same
-        // convention `node_preview_origin` reads back as
-        // `translation[1] * sector_size`), so divide the hit Y by the
-        // sector size. A floor-plane pick reports `hit_world[1] == 0`,
-        // which keeps ground placement identical to the old behaviour;
-        // clicking a raised floor now drops the node onto that level,
-        // the first lever a user reaches for when stacking rooms.
-        let sector_size = self.room_sector_size(room_id).unwrap_or(1) as f32;
-        let y = if sector_size > 0.0 {
-            hit_world[1] / sector_size
-        } else {
-            0.0
-        };
-        [editor[0], y, editor[1]]
+        // content to the floor. Node translations are world units, so the
+        // hit height is the node height.
+        [editor[0], hit_world[1], editor[1]]
     }
 
     pub(crate) fn create_model_entity_at_room_hit(

@@ -564,11 +564,7 @@ pub(crate) fn draw_scene_viewport(
                     &mut hits,
                 );
             }
-            NodeKind::PointLight {
-                color,
-                intensity,
-                radius,
-            } if show_lights => {
+            NodeKind::PointLight { color, radius, .. } if show_lights => {
                 draw_light_marker(
                     painter,
                     transform,
@@ -576,8 +572,8 @@ pub(crate) fn draw_scene_viewport(
                     selected_nodes.contains(&node.id)
                         || (selected_nodes.is_empty() && selected == node.id),
                     *color,
-                    *intensity,
                     *radius,
+                    project.world_sector_size_for_node(node.id),
                     &mut hits,
                 );
             }
@@ -624,9 +620,13 @@ pub(crate) fn draw_mesh_marker(
         return;
     };
     let center = node_world(node);
+    // Scale is a fraction of a World sector, like the preview's mesh
+    // footprint; keep the marker clickable at any zoom.
+    let sector = project.world_sector_size_for_node(node.id).max(1) as f32;
+    let min_half = MARKER_RADIUS_PX / transform.zoom;
     let half = [
-        node.transform.scale[0].abs().max(0.35) * 0.5,
-        node.transform.scale[2].abs().max(0.18) * 0.5,
+        (node.transform.scale[0].abs() * sector * 0.5).max(min_half),
+        (node.transform.scale[2].abs() * sector * 0.5).max(min_half),
     ];
     let rect = transform.world_rect_to_screen(center, half);
     let color = material_color(project, material, SurfaceRole::Object);
@@ -685,27 +685,31 @@ pub(crate) fn draw_spawn_marker(
     );
 }
 
+/// A point light: its reach (radius in World sectors, as the cook and the 3D
+/// preview use it) as a faint disc, and a fixed-size bulb icon.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn draw_light_marker(
     painter: &egui::Painter,
     transform: ViewportTransform,
     node: &psxed_project::SceneNode,
     selected: bool,
     color: [u8; 3],
-    intensity: f32,
     radius: f32,
+    world_sector_size: i32,
     hits: &mut Vec<ViewportHit>,
 ) {
     let center = node_world(node);
-    let world_radius = (radius / 4096.0).clamp(0.45, 2.5) * intensity.max(0.25);
     let screen_center = transform.world_to_screen(center);
-    painter.circle_filled(
-        screen_center,
-        transform.screen_radius(world_radius),
-        Color32::from_rgba_unmultiplied(color[0], color[1], color[2], 28),
-    );
+    let reach = radius.max(0.0) * world_sector_size.max(1) as f32;
+    if reach.is_finite() {
+        painter.circle_filled(
+            screen_center,
+            transform.screen_radius(reach),
+            Color32::from_rgba_unmultiplied(color[0], color[1], color[2], 28),
+        );
+    }
     let fill = Color32::from_rgb(color[0], color[1], color[2]);
-    let icon_radius = transform.screen_radius(0.18).max(8.0);
-    draw_light_bulb_marker(painter, screen_center, icon_radius, fill, selected);
+    draw_light_bulb_marker(painter, screen_center, MARKER_RADIUS_PX, fill, selected);
     painter.text(
         screen_center + Vec2::new(0.0, 16.0),
         Align2::CENTER_TOP,
@@ -717,7 +721,7 @@ pub(crate) fn draw_light_marker(
         node.id,
         node.name.clone(),
         center,
-        0.18_f32.max(8.0 / transform.zoom),
+        MARKER_RADIUS_PX / transform.zoom,
     ));
 }
 
@@ -811,13 +815,8 @@ pub(crate) fn draw_simple_marker(
 ) {
     let center = node_world(node);
     let screen = transform.world_to_screen(center);
-    let radius = 0.18;
-    painter.circle_filled(screen, transform.screen_radius(radius).max(8.0), fill);
-    painter.circle_stroke(
-        screen,
-        transform.screen_radius(radius).max(8.0),
-        selected_stroke(selected),
-    );
+    painter.circle_filled(screen, MARKER_RADIUS_PX, fill);
+    painter.circle_stroke(screen, MARKER_RADIUS_PX, selected_stroke(selected));
     painter.text(
         screen,
         Align2::CENTER_CENTER,
@@ -836,9 +835,12 @@ pub(crate) fn draw_simple_marker(
         node.id,
         node.name.clone(),
         center,
-        radius.max(8.0 / transform.zoom),
+        MARKER_RADIUS_PX / transform.zoom,
     ));
 }
+
+/// Screen radius of a node marker in the 2D views, independent of zoom.
+const MARKER_RADIUS_PX: f32 = 8.0;
 
 #[cfg(test)]
 mod brush_surface_grid_tests {

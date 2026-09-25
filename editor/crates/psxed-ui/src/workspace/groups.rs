@@ -678,7 +678,6 @@ mod tests {
                 start_box_prop_vertices: None,
                 start_cylinder_prop_geometry: None,
                 start_arch_prop_geometry: None,
-                sector_size: 1,
             }],
             group_brushes: vec![GroupBrushGizmoTarget {
                 index: 1,
