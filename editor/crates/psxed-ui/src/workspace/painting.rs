@@ -521,7 +521,36 @@ impl EditorWorkspace {
         }
     }
 
+    /// Where a placed Entity lands for a pick: the hit, with X and Z on the
+    /// node snap step (`node_snap_step`) like every other move path.
     pub(crate) fn placement_translation_for_room_hit(
+        &self,
+        room_id: NodeId,
+        hit_world: [f32; 3],
+    ) -> [f32; 3] {
+        self.snap_placed_translation(
+            &NodeKind::Entity,
+            self.placement_hit_translation(room_id, hit_world),
+        )
+    }
+
+    /// Land a placed node's X and Z on its snap step. Y keeps the picked
+    /// surface height.
+    pub(crate) fn snap_placed_translation(
+        &self,
+        kind: &NodeKind,
+        translation: [f32; 3],
+    ) -> [f32; 3] {
+        let grid = i32::from(self.snap_units.max(1));
+        [
+            snap_node_component(kind, translation[0], grid),
+            translation[1],
+            snap_node_component(kind, translation[2], grid),
+        ]
+    }
+
+    /// The picked point as a node translation, before any snap.
+    pub(crate) fn placement_hit_translation(
         &self,
         room_id: NodeId,
         hit_world: [f32; 3],
@@ -942,7 +971,7 @@ impl EditorWorkspace {
     pub(crate) fn place_node_at_world_hit(&mut self, room_id: NodeId, hit_world: [f32; 3]) {
         let sector_size_i = self.room_sector_size(room_id).unwrap_or(1024);
         let arch_tile_size = self.project.world_sector_size_for_node(room_id);
-        let translation = self.placement_translation_for_room_hit(room_id, hit_world);
+        let translation = self.placement_hit_translation(room_id, hit_world);
         let kind = self.place_kind;
         if matches!(kind, PlaceKind::PlayerSpawn) && self.has_player_source() {
             self.status =
@@ -951,6 +980,7 @@ impl EditorWorkspace {
             return;
         }
         if matches!(kind, PlaceKind::PointOfInterest) {
+            let translation = self.snap_placed_translation(&NodeKind::Entity, translation);
             self.push_undo();
             let active_floor = self.active_floor;
             let scene = self.project.active_scene_mut();
@@ -1256,6 +1286,7 @@ impl EditorWorkspace {
             ),
             PlaceKind::PointOfInterest => unreachable!("handled above"),
         };
+        let translation = self.snap_placed_translation(&node_kind, translation);
         self.push_undo();
         let active_floor = self.active_floor;
         let id = self

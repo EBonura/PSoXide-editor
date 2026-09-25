@@ -2892,24 +2892,20 @@ impl EditorWorkspace {
             .collect::<Vec<_>>();
         let before = (!undo_recorded).then(|| self.project.clone());
         let snap_step = i32::from(self.snap_units.max(1));
+        let arch_tile_size = self
+            .project
+            .world_sector_size_for_node(self.project.active_scene().root);
         let mut moved = Vec::new();
         for (id, base) in targets {
             if let Some(node) = self.project.active_scene_mut().node_mut(id) {
                 let previous = node.transform.translation;
-                node.transform.translation[0] = base[0] + accumulated[0];
-                node.transform.translation[2] = base[2] + accumulated[1];
-                if matches!(
-                    node.kind,
-                    NodeKind::Entity
-                        | NodeKind::PointLight { .. }
-                        | NodeKind::ImageProp { .. }
-                        | NodeKind::BoxProp { .. }
-                        | NodeKind::CylinderProp { .. }
-                ) {
-                    node.transform.translation[0] =
-                        snap_world_units_component(node.transform.translation[0], snap_step);
-                    node.transform.translation[2] =
-                        snap_world_units_component(node.transform.translation[2], snap_step);
+                node.transform.translation[0] =
+                    snap_node_component(&node.kind, base[0] + accumulated[0], snap_step);
+                node.transform.translation[2] =
+                    snap_node_component(&node.kind, base[2] + accumulated[1], snap_step);
+                if let NodeKind::ArchProp { geometry, .. } = &node.kind {
+                    let geometry = *geometry;
+                    snap_arch_prop_transform(&mut node.transform, geometry, arch_tile_size);
                 }
                 if node.transform.translation != previous {
                     moved.push(node.name.clone());

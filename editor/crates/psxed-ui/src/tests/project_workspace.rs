@@ -4610,7 +4610,10 @@ fn souls_slice_project_is_authored_through_production_commands() {
         psxed_project::brush::BrushContents::Lava
     );
 
-    // Point placement happens on the interior floor.
+    // Point placement happens on the interior floor, on Grid 16: one engine
+    // unit, so every placed node cooks exactly where the route was authored
+    // (placement lands on the grid like every other move path).
+    workspace.snap_units = 16;
     workspace.orthographic_focus[1] = 256.0;
 
     // The verified player: the Aletha starter profile placed through the

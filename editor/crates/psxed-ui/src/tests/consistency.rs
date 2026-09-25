@@ -990,3 +990,59 @@ fn arch_props_snap_to_world_sector_tiles_in_world_units() {
     // Odd span centres on a tile, even depth on a tile line.
     assert_eq!(transform.translation, [512.0, 128.0, 1024.0]);
 }
+
+#[test]
+fn every_move_path_lands_nodes_on_the_same_grid_step() {
+    use crate::inspector_transform_node::{node_gizmo_plane_translation, node_snap_step};
+    // One rule: positional nodes land on the grid, whatever moves them.
+    let mut scratch = ProjectDocument::new("cylinder-plane-snap");
+    let root = scratch.active_scene().root;
+    let id = scratch.active_scene_mut().add_node(
+        root,
+        "Pillar",
+        NodeKind::CylinderProp {
+            materials: Default::default(),
+            uvs: Default::default(),
+            geometry: psxed_project::CylinderPropGeometry::default(),
+            collision_enabled: true,
+        },
+    );
+    let cylinder = scratch.active_scene().node(id).unwrap().clone();
+    // The plane gizmo used to leave Cylinder Props off the grid.
+    assert_eq!(
+        node_gizmo_plane_translation(
+            &cylinder,
+            [3.0, 0.0, 5.0],
+            crate::gizmo::NodeGizmoPlane::XZ,
+            [20.0, 0.0, 20.0],
+            16,
+        ),
+        [16.0, 0.0, 16.0]
+    );
+    for kind in [
+        NodeKind::SpawnPoint {
+            player: true,
+            character: None,
+        },
+        NodeKind::ParticleEmitter {
+            settings: psxed_project::ParticleEmitterSettings::default(),
+        },
+    ] {
+        assert_eq!(node_snap_step(&kind, 16), Some(16), "{}", kind.label());
+    }
+    assert_eq!(node_snap_step(&NodeKind::Group, 16), None);
+
+    // Placement lands on the grid too; the picked height stays exact.
+    let mut project = ProjectDocument::new("placement-snap");
+    let root = project.active_scene().root;
+    project.active_scene_mut().brushes.clear();
+    let mut workspace = EditorWorkspace::with_project(test_temp_dir("placement-snap"), project);
+    workspace.place_kind = PlaceKind::ParticleEmitter;
+    workspace.place_node_at_world_hit(root, [509.0, 37.0, 522.0]);
+    let node = workspace
+        .project
+        .active_scene()
+        .node(workspace.selected_node_id())
+        .expect("placed emitter is selected");
+    assert_eq!(node.transform.translation, [512.0, 37.0, 528.0]);
+}
