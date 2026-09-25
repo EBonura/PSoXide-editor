@@ -35,7 +35,7 @@ CUE="build/examples/mipsel-sony-psx/release/editor-playtest.cue"
 # so it moves with guest speed and is pinned for the canonical build only.
 # The build-independent clocks are the guest's own: pad polls and sim ticks,
 # which the cross-layout stage below compares directly.
-EXPECT_ROUTE_TICKS=3030
+EXPECT_ROUTE_TICKS=3029
 EXPECT_PAD_POLLS=3000
 EXPECT_SIM_TICKS=2998
 # Two heavy swings: the first staggers the Mantis, the second kills it.
@@ -88,8 +88,17 @@ EXPECT_PLAYER_Z_BIASED=1000099
 # light enemy's current behaviour (see write_souls_slice_canonical_tape).
 # Every pin in this block was measured on that route; frames at each beat
 # were reviewed before pinning.
-EXPECT_VRAM_HASH=0xa452573952ebab13
-EXPECT_DISPLAY_HASH=0x9c45aa2b3bcf481f
+#
+# Re-pinned 2026-09-25 (land/editor-audit): the fixture was regenerated
+# after node placement started landing on the grid and ArchProps started
+# snapping to World-sector tiles. The arch moved from (2900, 257, 300.5) to
+# (3072, 256, 512) and the far point light from x 6100 to 6096 (the light
+# bake reads the unrounded position). Every gameplay counter and both guest
+# clocks are unchanged; the host route clock drops one tick (3030 to 3029)
+# and the final frame differs by the idle pose phase. Frames at polls 300,
+# 1500 and 2990, before and after, were compared before pinning.
+EXPECT_VRAM_HASH=0xfc630d3e590e11ad
+EXPECT_DISPLAY_HASH=0x6f465d81d9bed789
 
 EXPECT_NEG_ROUTE_TICKS=1230
 EXPECT_NEG_PAD_POLLS=1200
