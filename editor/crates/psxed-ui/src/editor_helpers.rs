@@ -721,20 +721,6 @@ pub(crate) fn owning_entity_id(scene: &psxed_project::Scene, node_id: NodeId) ->
     None
 }
 
-/// Sector size a node's TRANSLATION is expressed in, the single source of
-/// truth for editor-unit <-> world-unit conversion. BSP scenes author node
-/// transforms in raw world units (1 editor unit = 1 world unit); grid scenes
-/// author in sectors of the enclosing Section grid, or the World default for
-/// nodes outside any room. Everything that moves, snaps, or displays a node
-/// translation must resolve units through here, or BSP entities drift at
-/// 1/1024 speed again.
-pub(crate) fn node_translation_sector_size(
-    _project: &psxed_project::ProjectDocument,
-    _node_id: NodeId,
-) -> i32 {
-    1
-}
-
 pub(crate) fn portal_seam_bounds_3d(
     grid: &WorldGrid,
     node: &psxed_project::SceneNode,

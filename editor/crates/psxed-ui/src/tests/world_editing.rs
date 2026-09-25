@@ -624,11 +624,6 @@ fn node_gizmo_moves_bsp_entity_in_world_units() {
     let mut workspace = EditorWorkspace::with_project(test_temp_dir("entity-gizmo-bsp"), project);
     set_gizmo_test_camera(&mut workspace);
     workspace.replace_node_selection(entity);
-    assert_eq!(
-        node_translation_sector_size(&workspace.project, entity),
-        1,
-        "roomless BSP node authors in world units"
-    );
 
     let viewport = Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0));
     let x_axis = projected_node_gizmo_axis(&workspace, viewport, PrimitiveGizmoAxis::X);
@@ -1153,20 +1148,21 @@ fn box_prop_face_resize_keeps_the_opposite_face_fixed() {
             erosion: psxed_project::BoxPropErosion::default(),
         },
     );
-    let start_translation = [3.0, 0.0, 2.0];
+    // Node translations are world units.
+    let start_translation = [3072.0, 0.0, 2048.0];
     let node = project.active_scene_mut().node_mut(node_id).unwrap();
     node.transform.translation = start_translation;
 
-    apply_box_prop_face_gizmo_resize(node, start_translation, Some(start_vertices), 1, 1, 1024);
+    apply_box_prop_face_gizmo_resize(node, start_translation, Some(start_vertices), 1, 1);
 
     let NodeKind::BoxProp { vertices, .. } = &node.kind else {
         unreachable!();
     };
     assert_eq!(vertices.iter().map(|vertex| vertex[0]).min(), Some(-544));
     assert_eq!(vertices.iter().map(|vertex| vertex[0]).max(), Some(544));
-    assert_eq!(node.transform.translation[0], 3.03125);
-    let left_world = node.transform.translation[0] * 1024.0 - 544.0;
-    let right_world = node.transform.translation[0] * 1024.0 + 544.0;
+    assert_eq!(node.transform.translation[0], 3104.0);
+    let left_world = node.transform.translation[0] - 544.0;
+    let right_world = node.transform.translation[0] + 544.0;
     assert_eq!(left_world, 2560.0, "the opposite (left) face stays fixed");
     assert_eq!(
         right_world, 3648.0,

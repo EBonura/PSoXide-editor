@@ -3,7 +3,6 @@ use super::*;
 pub(crate) fn draw_transform_policy_editor(
     ui: &mut egui::Ui,
     node: &mut psxed_project::SceneNode,
-    inherited_sector_size: i32,
     world_sector_size: i32,
     texture_options: &[(ResourceId, String)],
     nav_target: &mut Option<ResourceId>,
@@ -35,13 +34,10 @@ pub(crate) fn draw_transform_policy_editor(
         }
         _ => match node_transform_inspector(&node.kind) {
             NodeTransformInspector::Hidden => false,
-            NodeTransformInspector::PositionOnly => {
-                light_transform_editor(ui, &mut node.transform, inherited_sector_size)
-            }
+            NodeTransformInspector::PositionOnly => light_transform_editor(ui, &mut node.transform),
             NodeTransformInspector::PositionYaw => entity_transform_editor(
                 ui,
                 &mut node.transform,
-                inherited_sector_size,
                 false,
                 show_snap_to_floor,
                 snap_to_floor_requested,
@@ -49,7 +45,6 @@ pub(crate) fn draw_transform_policy_editor(
             NodeTransformInspector::PositionFullRotation => entity_transform_editor(
                 ui,
                 &mut node.transform,
-                inherited_sector_size,
                 true,
                 show_snap_to_floor,
                 snap_to_floor_requested,
@@ -1050,24 +1045,20 @@ pub(crate) fn draw_gameplay_camera_start_preview(ui: &mut egui::Ui, camera: Worl
     );
 }
 
+/// Position in world units (exact as typed) and yaw or full rotation.
 pub(crate) fn entity_transform_editor(
     ui: &mut egui::Ui,
     transform: &mut psxed_project::Transform3,
-    sector_size: i32,
     allow_full_rotation: bool,
     show_snap_to_floor: bool,
     snap_to_floor_requested: &mut bool,
 ) -> bool {
     let mut changed = false;
-    let sector_size = sector_size.max(1);
     inspector_property_row(ui, icons::label(icons::MOVE, "Position"), |ui| {
         ui.horizontal_wrapped(|ui| {
-            let mut x =
-                node_transform_component_to_world_units(transform.translation[0], sector_size);
-            let mut y =
-                node_transform_component_to_world_units(transform.translation[1], sector_size);
-            let mut z =
-                node_transform_component_to_world_units(transform.translation[2], sector_size);
+            let mut x = transform.translation[0].round() as i32;
+            let mut y = transform.translation[1].round() as i32;
+            let mut z = transform.translation[2].round() as i32;
             let pos_changed = ui
                 .add(
                     egui::DragValue::new(&mut x)
@@ -1088,17 +1079,7 @@ pub(crate) fn entity_transform_editor(
                 )
                 .changed();
             if pos_changed {
-                // World-unit nodes (BSP scenes) keep typed coordinates exact;
-                // grid nodes snap to the height quantum as before.
-                transform.translation = if sector_size == 1 {
-                    [x as f32, y as f32, z as f32]
-                } else {
-                    [
-                        node_transform_component_from_world_units(snap_height(x), sector_size),
-                        node_transform_component_from_world_units(snap_height(y), sector_size),
-                        node_transform_component_from_world_units(snap_height(z), sector_size),
-                    ]
-                };
+                transform.translation = [x as f32, y as f32, z as f32];
                 changed = true;
             }
             if show_snap_to_floor
@@ -1285,21 +1266,17 @@ pub(crate) fn snap_arch_prop_transform(
     changed
 }
 
+/// Position-only editor for point lights, in world units (exact as typed).
 pub(crate) fn light_transform_editor(
     ui: &mut egui::Ui,
     transform: &mut psxed_project::Transform3,
-    sector_size: i32,
 ) -> bool {
-    let mut changed = normalise_light_transform(transform, sector_size);
-    let sector_size = sector_size.max(1);
+    let mut changed = normalise_light_transform(transform);
     inspector_property_row(ui, icons::label(icons::MOVE, "Position"), |ui| {
         ui.horizontal_wrapped(|ui| {
-            let mut x =
-                node_transform_component_to_world_units(transform.translation[0], sector_size);
-            let mut y =
-                node_transform_component_to_world_units(transform.translation[1], sector_size);
-            let mut z =
-                node_transform_component_to_world_units(transform.translation[2], sector_size);
+            let mut x = transform.translation[0].round() as i32;
+            let mut y = transform.translation[1].round() as i32;
+            let mut z = transform.translation[2].round() as i32;
             let pos_changed = ui
                 .add(
                     egui::DragValue::new(&mut x)
@@ -1320,17 +1297,7 @@ pub(crate) fn light_transform_editor(
                 )
                 .changed();
             if pos_changed {
-                // Same exact-typing rule as the entity editor for world-unit
-                // (BSP) lights.
-                transform.translation = if sector_size == 1 {
-                    [x as f32, y as f32, z as f32]
-                } else {
-                    [
-                        node_transform_component_from_world_units(snap_height(x), sector_size),
-                        node_transform_component_from_world_units(snap_height(y), sector_size),
-                        node_transform_component_from_world_units(snap_height(z), sector_size),
-                    ]
-                };
+                transform.translation = [x as f32, y as f32, z as f32];
                 changed = true;
             }
         });
@@ -1349,20 +1316,12 @@ pub(crate) fn node_gizmo_translation(
     start: [f32; 3],
     direction: [f32; 3],
     steps: i32,
-    sector_size: i32,
     world_quantum: i32,
 ) -> [f32; 3] {
     let mut translation = start;
-    let sector_size = sector_size.max(1);
-    // World-unit nodes (BSP scenes, sector_size == 1) step and snap on the
-    // caller's quantum (the brush grid, or 1 when dragging free); grid nodes
-    // keep the legacy HEIGHT_QUANTUM step in sector units.
-    let world_units = sector_size == 1;
-    let entity_step = if world_units {
-        world_quantum.max(1) as f32
-    } else {
-        node_transform_component_from_world_units(HEIGHT_QUANTUM, sector_size)
-    };
+    // Nodes step and snap on the caller's quantum (the brush grid, or 1
+    // when dragging free).
+    let entity_step = world_quantum.max(1) as f32;
     let step = match &node.kind {
         NodeKind::Entity
         | NodeKind::PointLight { .. }
@@ -1390,11 +1349,8 @@ pub(crate) fn node_gizmo_translation(
                 | NodeKind::BoxProp { .. }
                 | NodeKind::CylinderProp { .. }
                 | NodeKind::ArchProp { .. } => {
-                    translation[index] = if world_units {
-                        snap_world_units_component(translation[index], world_quantum)
-                    } else {
-                        snap_node_transform_component_to_world_step(translation[index], sector_size)
-                    };
+                    translation[index] =
+                        snap_world_units_component(translation[index], world_quantum);
                 }
                 _ => {}
             }
@@ -1408,15 +1364,12 @@ pub(crate) fn node_gizmo_plane_translation(
     start: [f32; 3],
     plane: NodeGizmoPlane,
     delta_world: [f32; 3],
-    sector_size: i32,
     world_quantum: i32,
 ) -> [f32; 3] {
     let mut translation = start;
-    let sector_size = sector_size.max(1);
-    let world_units = sector_size == 1;
     for axis in plane.axes() {
         let index = axis.index();
-        translation[index] = start[index] + delta_world[index] / sector_size as f32;
+        translation[index] = start[index] + delta_world[index];
     }
 
     match &node.kind {
@@ -1429,11 +1382,8 @@ pub(crate) fn node_gizmo_plane_translation(
             for axis in plane.axes() {
                 let index = axis.index();
                 if delta_world[index].abs() > f32::EPSILON {
-                    translation[index] = if world_units {
-                        snap_world_units_component(translation[index], world_quantum)
-                    } else {
-                        snap_node_transform_component_to_world_step(translation[index], sector_size)
-                    };
+                    translation[index] =
+                        snap_world_units_component(translation[index], world_quantum);
                 }
             }
             translation
@@ -1459,7 +1409,6 @@ pub(crate) fn apply_box_prop_face_gizmo_resize(
     start_box_prop_vertices: Option<[[i16; 3]; psxed_project::BOX_PROP_VERTEX_COUNT]>,
     face: u8,
     steps: i32,
-    sector_size: i32,
 ) {
     let NodeKind::BoxProp { vertices, .. } = &mut node.kind else {
         return;
@@ -1524,11 +1473,10 @@ pub(crate) fn apply_box_prop_face_gizmo_resize(
     local_shift[index] = anchor_shift;
     let rotation = euler_degrees_to_matrix(node.transform.rotation_degrees);
     let world_shift = rotate_vector_by_matrix(&rotation, local_shift);
-    let sector_size = sector_size.max(1) as f32;
     node.transform.translation = [
-        start_translation[0] + world_shift[0] / sector_size,
-        start_translation[1] + world_shift[1] / sector_size,
-        start_translation[2] + world_shift[2] / sector_size,
+        start_translation[0] + world_shift[0],
+        start_translation[1] + world_shift[1],
+        start_translation[2] + world_shift[2],
     ];
 }
 
@@ -1785,20 +1733,10 @@ pub(crate) fn node_kind_supports_transform_gizmo(
     }
 }
 
-pub(crate) fn normalise_light_transform(
-    transform: &mut psxed_project::Transform3,
-    sector_size: i32,
-) -> bool {
+/// Point lights have no rotation or scale. Their world-unit position is kept
+/// exactly as authored.
+pub(crate) fn normalise_light_transform(transform: &mut psxed_project::Transform3) -> bool {
     let mut changed = false;
-    // Grid lights snap their Y to the height quantum; world-unit lights
-    // (BSP scenes, sector_size == 1) keep authored Y exact.
-    if sector_size > 1 {
-        let snapped_y = snap_light_transform_y(transform.translation[1], sector_size);
-        if transform.translation[1] != snapped_y {
-            transform.translation[1] = snapped_y;
-            changed = true;
-        }
-    }
     if transform.rotation_degrees != [0.0, 0.0, 0.0] {
         transform.rotation_degrees = [0.0, 0.0, 0.0];
         changed = true;
@@ -1810,28 +1748,11 @@ pub(crate) fn normalise_light_transform(
     changed
 }
 
-pub(crate) fn node_transform_component_to_world_units(value: f32, sector_size: i32) -> i32 {
-    (value * sector_size.max(1) as f32).round() as i32
-}
-
-pub(crate) fn node_transform_component_from_world_units(value: i32, sector_size: i32) -> f32 {
-    value as f32 / sector_size.max(1) as f32
-}
-
-pub(crate) fn snap_node_transform_component_to_world_step(value: f32, sector_size: i32) -> f32 {
-    let world = node_transform_component_to_world_units(value, sector_size);
-    node_transform_component_from_world_units(snap_height(world), sector_size)
-}
-
 /// Snap a raw world-unit component to a caller-chosen grid (the brush
 /// `snap_units` in BSP scenes). Quantum 1 rounds to whole units.
 pub(crate) fn snap_world_units_component(value: f32, quantum: i32) -> f32 {
     let q = quantum.max(1) as f32;
     (value / q).round() * q
-}
-
-pub(crate) fn snap_light_transform_y(value: f32, sector_size: i32) -> f32 {
-    snap_node_transform_component_to_world_step(value, sector_size)
 }
 
 pub(crate) fn image_prop_default_size_for_sector(sector_size: i32) -> u16 {
@@ -2091,7 +2012,6 @@ pub(crate) struct NodeKindEditorContext<'a> {
     pub(crate) weapon_options: &'a [(ResourceId, String)],
     pub(crate) boost_module_options: &'a [(ResourceId, String)],
     pub(crate) animator_clip_context: Option<&'a AnimatorClipContext>,
-    pub(crate) inherited_sector_size: i32,
     /// The World node's sector size. Point-light radius is stored in these
     /// sectors, and the cook, the brush-light bake and the viewport preview
     /// all scale it by this value, so the Inspector has to as well.
@@ -2193,7 +2113,6 @@ pub(crate) fn draw_node_kind_editor(
         weapon_options,
         boost_module_options,
         animator_clip_context,
-        inherited_sector_size,
         world_sector_size,
         room_grid_resize,
         nav_target,
@@ -2240,13 +2159,6 @@ pub(crate) fn draw_node_kind_editor(
                     *room_grid_resize = Some((new_w, new_d));
                     changed = true;
                 }
-            });
-            ui.horizontal(|ui| {
-                ui.label(icons::text(icons::WAYPOINT, 12.0).color(STUDIO_TEXT_WEAK));
-                ui.label("World Grid");
-                ui.label(
-                    RichText::new(format!("{inherited_sector_size} units")).color(STUDIO_TEXT_WEAK),
-                );
             });
             ui.horizontal(|ui| {
                 ui.label(icons::text(icons::BOX, 12.0).color(STUDIO_TEXT_WEAK));

@@ -2888,12 +2888,12 @@ impl EditorWorkspace {
         let targets = drag
             .base
             .iter()
-            .map(|(id, base)| (*id, *base, node_translation_sector_size(&self.project, *id)))
+            .map(|(id, base)| (*id, *base))
             .collect::<Vec<_>>();
         let before = (!undo_recorded).then(|| self.project.clone());
         let snap_step = i32::from(self.snap_units.max(1));
         let mut moved = Vec::new();
-        for (id, base, sector_size) in targets {
+        for (id, base) in targets {
             if let Some(node) = self.project.active_scene_mut().node_mut(id) {
                 let previous = node.transform.translation;
                 node.transform.translation[0] = base[0] + accumulated[0];
@@ -2906,22 +2906,10 @@ impl EditorWorkspace {
                         | NodeKind::BoxProp { .. }
                         | NodeKind::CylinderProp { .. }
                 ) {
-                    if sector_size == 1 {
-                        // World-unit nodes (BSP scenes) land on the brush grid.
-                        node.transform.translation[0] =
-                            snap_world_units_component(node.transform.translation[0], snap_step);
-                        node.transform.translation[2] =
-                            snap_world_units_component(node.transform.translation[2], snap_step);
-                    } else {
-                        node.transform.translation[0] = snap_node_transform_component_to_world_step(
-                            node.transform.translation[0],
-                            sector_size,
-                        );
-                        node.transform.translation[2] = snap_node_transform_component_to_world_step(
-                            node.transform.translation[2],
-                            sector_size,
-                        );
-                    }
+                    node.transform.translation[0] =
+                        snap_world_units_component(node.transform.translation[0], snap_step);
+                    node.transform.translation[2] =
+                        snap_world_units_component(node.transform.translation[2], snap_step);
                 }
                 if node.transform.translation != previous {
                     moved.push(node.name.clone());
