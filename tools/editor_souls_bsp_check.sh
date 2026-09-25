@@ -178,7 +178,8 @@ rm -rf "$OUT/slice-regen"
     cargo test -q -p psxed-ui \
     tests::project_workspace::souls_slice_project_is_authored_through_production_commands \
     -- --exact >/dev/null)
-diff -r "$OUT/slice-regen" "$PROJECT" >/dev/null 2>&1 || fail \
+# The editor's per-user view file is not part of the project (gitignored).
+diff -r -x .psxed-view.ron "$OUT/slice-regen" "$PROJECT" >/dev/null 2>&1 || fail \
     "authoring-test export differs from the tracked project; regenerate with
   rm -rf $PROJECT && (cd editor && PSOXIDE_SOULS_SLICE_PROJECT_OUT=/tmp/souls-slice-export cargo test -p psxed-ui tests::project_workspace::souls_slice_project_is_authored_through_production_commands -- --exact) && cp -R /tmp/souls-slice-export $PROJECT
 and commit the result"

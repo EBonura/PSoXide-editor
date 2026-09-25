@@ -993,6 +993,10 @@ impl ApplicationHandler for Shell {
 
         match event {
             WindowEvent::CloseRequested => {
+                if !self.state.editor_close_allowed() {
+                    gfx.window.request_redraw();
+                    return;
+                }
                 self.state.shut_down_for_exit();
                 event_loop.exit();
             }
@@ -1406,9 +1410,11 @@ impl ApplicationHandler for Shell {
                             self.host_input.clear();
                         }
                         MenuOutcome::Quit => {
-                            self.state.shut_down_for_exit();
-                            event_loop.exit();
-                            return;
+                            if self.state.editor_close_allowed() {
+                                self.state.shut_down_for_exit();
+                                event_loop.exit();
+                                return;
+                            }
                         }
                     }
                 }
@@ -1919,16 +1925,17 @@ impl ApplicationHandler for Shell {
                 });
                 match pointer_menu_outcome {
                     Some(MenuOutcome::ClearHostKeyboardInput) => self.host_input.clear(),
-                    Some(MenuOutcome::Quit) => {
+                    Some(MenuOutcome::Quit) if state.editor_close_allowed() => {
                         state.shut_down_for_exit();
                         event_loop.exit();
                         return;
                     }
+                    Some(MenuOutcome::Quit) => {}
                     Some(MenuOutcome::None) | None => {}
                 }
                 // File > Quit in the editor asks egui to close the window.
                 // Take the same path as the window's close button.
-                if gfx.take_close_requested() {
+                if gfx.take_close_requested() && state.editor_close_allowed() {
                     state.shut_down_for_exit();
                     event_loop.exit();
                     return;

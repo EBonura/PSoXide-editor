@@ -778,7 +778,6 @@ impl EditorWorkspace {
         self.show_lights = show_all;
         self.preview_bounds = show_all;
         self.show_bsp_leak_path = show_all;
-        self.persist_editor_visibility_state();
         self.status = if show_all {
             "Visibility: all shown".to_string()
         } else {
@@ -964,7 +963,6 @@ impl EditorWorkspace {
             TreeAction::Select { id, modifiers } => {
                 self.apply_node_selection_modifiers(id, modifiers, visible_order);
                 self.renaming = None;
-                self.persist_editor_camera_state();
             }
             TreeAction::BeginRename(id) => {
                 if let Some(node) = self.project.active_scene().node(id) {
@@ -1471,7 +1469,7 @@ impl EditorWorkspace {
                 ui.close_menu();
             }
             if ui.button("Reload").clicked() {
-                self.reload();
+                self.request_reload();
                 ui.close_menu();
             }
             ui.separator();

@@ -1527,7 +1527,7 @@ fn ashen_sanctum_project_is_authored_through_production_commands() {
     workspace.project.editor_camera.orbit_pitch_q12 = 3712;
     workspace.project.editor_camera.orbit_target = [11_000, 2_200, 13_000];
     workspace.project.editor_camera.orbit_radius = 22_000;
-    workspace.apply_project_editor_camera();
+    workspace.apply_editor_camera(workspace.project.editor_camera);
     workspace.mark_dirty();
 
     workspace.save_if_dirty().expect("persist Ashen Sanctum");
