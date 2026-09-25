@@ -4030,12 +4030,14 @@ impl EditorWorkspace {
     /// The coarsest grid finer than the drag's that builds the whole
     /// primitive (every piece or side) from the same snapped corners. The
     /// corners sit on the drag's grid, so only divisors of its step are
-    /// tried. `None` when even Grid 1 loses something.
+    /// tried, and only engine-unit multiples the cook keeps. `None` when
+    /// even Grid 16 loses something.
     fn brush_drag_whole_grid(drag: BrushDrag) -> Option<i32> {
         let step = drag.grid_step.max(1);
+        let unit = i32::from(ENGINE_UNIT);
         (1..step)
             .rev()
-            .filter(|candidate| step % candidate == 0)
+            .filter(|candidate| step % candidate == 0 && candidate % unit == 0)
             .find(|&candidate| {
                 let finer = BrushDrag {
                     grid_step: candidate,

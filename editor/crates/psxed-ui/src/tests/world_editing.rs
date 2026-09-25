@@ -643,27 +643,25 @@ fn node_gizmo_moves_bsp_entity_in_world_units() {
     };
     let start = screen_at(&workspace, 0.0);
     let target = screen_at(&workspace, 100.0);
+    workspace.snap_units = 64;
     assert!(workspace.begin_node_gizmo_drag(PrimitiveGizmoAxis::X, viewport, start));
     workspace.update_node_gizmo_drag(viewport, target, false);
     workspace.end_node_gizmo_drag();
     let node = workspace.project.active_scene().node(entity).unwrap();
-    let step = f32::from(workspace.snap_units.max(1));
-    assert_eq!(step, 16.0);
     assert_eq!(
-        node.transform.translation[0], 96.0,
-        "100 units along the axis lands on the nearest Grid 16 line"
+        node.transform.translation[0], 128.0,
+        "100 units along the axis lands on the nearest Grid 64 line"
     );
     workspace.do_undo();
 
-    // Shift: single-unit precision, still under the pointer.
+    // Shift: one engine unit (16 authored units), still under the pointer.
     assert!(workspace.begin_node_gizmo_drag(PrimitiveGizmoAxis::X, viewport, start));
     workspace.update_node_gizmo_drag(viewport, target, true);
     workspace.end_node_gizmo_drag();
     let node = workspace.project.active_scene().node(entity).unwrap();
-    assert!(
-        (node.transform.translation[0] - 100.0).abs() <= 1.0,
-        "free drag follows the pointer to 100 units, got {}",
-        node.transform.translation[0]
+    assert_eq!(
+        node.transform.translation[0], 96.0,
+        "free drag follows the pointer to the nearest engine unit"
     );
     workspace.do_undo();
 
@@ -676,10 +674,9 @@ fn node_gizmo_moves_bsp_entity_in_world_units() {
     workspace.update_node_gizmo_drag(viewport, target, true);
     workspace.end_node_gizmo_drag();
     let node = workspace.project.active_scene().node(entity).unwrap();
-    assert!(
-        (node.transform.translation[0] - 100.0).abs() <= 1.0,
-        "zoomed-out drag still follows the pointer, got {}",
-        node.transform.translation[0]
+    assert_eq!(
+        node.transform.translation[0], 96.0,
+        "zoomed-out drag still follows the pointer"
     );
 }
 

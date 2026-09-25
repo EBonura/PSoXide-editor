@@ -721,6 +721,22 @@ pub(crate) fn owning_entity_id(scene: &psxed_project::Scene, node_id: NodeId) ->
     None
 }
 
+/// Authored units per engine unit: the cook divides every length by this
+/// (`psxed_project::units::WORLD_UNIT_DIVISOR`), so it is the finest step a
+/// position or brush point keeps through the cook.
+pub(crate) const ENGINE_UNIT: u16 = psxed_project::units::WORLD_UNIT_DIVISOR as u16;
+
+/// Largest grid step the editor offers.
+pub(crate) const MAX_GRID_UNITS: u16 = 2048;
+
+/// A grid step the cook can represent exactly: the nearest multiple of
+/// [`ENGINE_UNIT`], between one engine unit and [`MAX_GRID_UNITS`].
+pub(crate) fn engine_grid_units(requested: u16) -> u16 {
+    let unit = u32::from(ENGINE_UNIT);
+    let rounded = (u32::from(requested) + unit / 2) / unit * unit;
+    rounded.clamp(unit, u32::from(MAX_GRID_UNITS)) as u16
+}
+
 pub(crate) fn portal_seam_bounds_3d(
     grid: &WorldGrid,
     node: &psxed_project::SceneNode,

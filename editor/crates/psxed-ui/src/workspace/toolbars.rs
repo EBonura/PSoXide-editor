@@ -1000,12 +1000,17 @@ impl EditorWorkspace {
                 let snap_before = self.snap_units;
                 ui.add(
                     egui::DragValue::new(&mut self.snap_units)
-                        .range(1..=2048)
-                        .speed(1.0)
+                        .range(ENGINE_UNIT..=MAX_GRID_UNITS)
+                        .speed(f64::from(ENGINE_UNIT) * 0.25)
                         .prefix("Grid "),
+                )
+                .on_hover_text(
+                    "Multiples of 16: the cook keeps positions in 16-unit engine steps, \
+                     so a finer grid would not survive it.",
                 );
+                self.snap_units = engine_grid_units(self.snap_units);
                 ui.horizontal_wrapped(|ui| {
-                    for step in [1_u16, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048] {
+                    for step in [16_u16, 32, 64, 128, 256, 512, 1024, 2048] {
                         ui.selectable_value(&mut self.snap_units, step, step.to_string());
                     }
                 });
