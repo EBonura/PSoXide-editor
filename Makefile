@@ -861,12 +861,28 @@ $(HWTEST_CDDA):
 	@mkdir -p $(dir $@)
 	python3 tools/gen-cdda-tone.py --seconds 10 --out $@
 
-hardware-tests-disc: hardware-tests $(HWTEST_CDDA)
+# MOVIE.STR for the FMV STREAM TEST row (v1.25): 75 s of synthetic 320x240
+# 15 fps video at the full double-speed sector budget with interleaved XA
+# stereo beeps, every video sector stamped with an ordinal and a checksum. The
+# SDK's tools/fmv_test_movie.py encodes it with FFmpeg and psxavenc (neither
+# ships here: PSXAVENC names the psxavenc binary). The encode is not
+# bit-reproducible across tool versions, so keep the file once built; to reuse
+# one, copy it to this path. It lands after CDTEST.BIN, at LBA 1024, which moves
+# the CD-DA track outward but no fixed LBA a probe names.
+HWTEST_MOVIE := $(EXAMPLE_OUT)/fmv/MOVIE.STR
+PSXAVENC ?= psxavenc
+
+$(HWTEST_MOVIE):
+	@mkdir -p $(dir $@)
+	python3 tools/fmv_test_movie.py --psxavenc "$(PSXAVENC)" --out $@
+
+hardware-tests-disc: hardware-tests $(HWTEST_CDDA) $(HWTEST_MOVIE)
 	cd tools/mkisopsx && cargo run --release -- \
 		--exe ../../$(EXAMPLE_OUT)/hardware-tests.exe \
 		--out ../../$(EXAMPLE_OUT)/hardware-tests.bin \
 		--volume PSOXIDE \
 		--cdtest-sectors 500 \
+		--xa-file ../../$(HWTEST_MOVIE) \
 		--cdda-track ../../$(HWTEST_CDDA)
 
 $(foreach example,$(DATA_DISC_EXAMPLES),$(eval $(call build_data_disc,$(example))))

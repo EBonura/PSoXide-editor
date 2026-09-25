@@ -16,6 +16,7 @@ import struct
 import re
 import sys
 import unittest
+from types import SimpleNamespace
 from pathlib import Path
 
 TOOLS = Path(__file__).resolve().parent
@@ -128,12 +129,47 @@ class TableSyncTests(unittest.TestCase):
         }
         dma_pairs = 6
         retired = sum(1 for label in report.LABELS.values() if label.startswith("v122_only_"))
+        # The FMV STREAM TEST's records join any scope once it has run.
+        fmv = len(report.FMV_FIELDS)
         # What is left is the standing battery, which has not changed size.
-        standing = len(report.LABELS) - sum(table.values()) - dma_pairs - retired
+        standing = len(report.LABELS) - sum(table.values()) - dma_pairs - retired - fmv
         self.assertEqual(standing, 151)
         # The standard scope takes the standing battery, SAFE and LEVERS.
-        self.assertLessEqual(standing + table["SAFE"] + table["LEVERS"], slots)
-        self.assertLessEqual(sum(table.values()) + dma_pairs, slots)
+        self.assertLessEqual(standing + table["SAFE"] + table["LEVERS"] + fmv, slots)
+        self.assertLessEqual(sum(table.values()) + dma_pairs + fmv, slots)
+
+    def test_fmv_records_match_the_guest(self) -> None:
+        source = (GUEST_SRC / "fmv_test.rs").read_text(encoding="utf-8")
+        first = int(re.search(r"const FIRST_RECORD: u16 = (0x[0-9A-Fa-f]+);", source).group(1), 16)
+        count = int(re.search(r"const RECORD_COUNT: usize = (\d+);", source).group(1))
+        self.assertEqual(first, report.FMV_FIRST_RECORD)
+        self.assertEqual(count, len(report.FMV_FIELDS))
+        for record_id in range(first, first + count):
+            self.assertIn(record_id, report.LABELS)
+        errors = re.search(r"const SETUP_ERRORS: \[&str; \d+\] = \[(.*?)\];", source, re.S).group(1)
+        self.assertEqual(tuple(re.findall(r'"([^"]+)"', errors)), report.FMV_SETUP_ERRORS[1:])
+
+    def test_fmv_rows_rederive_the_verdict(self) -> None:
+        fields = [(1, 9826, 9826), (0, 0, 0), (0, 0, 0xFFFF), (889, 234, 4450), (40, 30, 20), (12253, 1, 0)]
+        records = tuple(
+            report.Record(report.FMV_FIRST_RECORD + index, 0, low, high, mid)
+            for index, (low, mid, high) in enumerate(fields)
+        )
+        capture = SimpleNamespace(records=records)
+        rows = report.fmv_rows(capture)
+        self.assertEqual(rows[0], "# fmv=PASS criteria=PASS")
+        self.assertIn("fmv,first_error_lba,none", rows)
+        self.assertIn("fmv,setup_error,none", rows)
+        # One lost sector fails the criteria even if the guest said PASS.
+        fields[1] = (1, 0, 0)
+        records = tuple(
+            report.Record(report.FMV_FIRST_RECORD + index, 0, low, high, mid)
+            for index, (low, mid, high) in enumerate(fields)
+        )
+        rows = report.fmv_rows(SimpleNamespace(records=records))
+        self.assertEqual(rows[0], "# fmv=PASS criteria=FAIL")
+        self.assertIn("# fmv verdict disagrees with its own counters", rows)
+        self.assertEqual(report.fmv_rows(SimpleNamespace(records=())), [])
 
     def test_no_label_claims_an_unused_slot_marker(self) -> None:
         self.assertNotIn(0xFF, report.LABELS)
