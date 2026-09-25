@@ -1235,8 +1235,12 @@ fn editor_viewport_saves_with_project_and_restores_on_open() {
     view.viewport.snap_units = 0;
     wild.apply_editor_view_state(view);
     assert_eq!(wild.viewport_zoom, MAX_VIEWPORT_ZOOM);
-    assert_eq!(wild.snap_units, 1);
-    assert_eq!(wild.grid_snap_units(), 1);
+    // The grid never goes below one engine unit, and lands on multiples of it.
+    assert_eq!(wild.snap_units, 16);
+    assert_eq!(wild.grid_snap_units(), 16);
+    view.viewport.snap_units = 40;
+    wild.apply_editor_view_state(view);
+    assert_eq!(wild.snap_units, 48);
 
     let _ = std::fs::remove_dir_all(project_dir);
 }

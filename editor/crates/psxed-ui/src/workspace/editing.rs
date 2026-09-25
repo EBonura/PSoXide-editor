@@ -1620,8 +1620,8 @@ impl EditorWorkspace {
         if let (TransformGizmoMode::Move, Some((pivot, start_t))) =
             (drag.mode, drag.move_axis_ray_start)
         {
-            // Follow the pointer ray along the axis, in grid steps (single
-            // units when free), like the plane handle follows its plane.
+            // Follow the pointer ray along the axis, in grid steps (one
+            // engine unit when free), like the plane handle follows its plane.
             let Some((origin, dir)) = self.camera_ray_for_pointer(rect, pointer) else {
                 return;
             };
@@ -1630,7 +1630,7 @@ impl EditorWorkspace {
                 return;
             };
             let quantum = if free {
-                1.0
+                f32::from(ENGINE_UNIT)
             } else {
                 f32::from(self.snap_units.max(1))
             };
@@ -1679,11 +1679,11 @@ impl EditorWorkspace {
         let handle = drag.handle;
         let steps = drag.current_steps;
         let plane_delta_world = drag.current_plane_delta_world;
-        // Nodes move on the brush grid; Shift (free) drops to single-unit
-        // precision.
+        // Nodes move on the brush grid; Shift (free) drops to one engine
+        // unit, the finest step that survives the cook.
         let free = drag.free;
         let world_quantum = if free {
-            1
+            i32::from(ENGINE_UNIT)
         } else {
             i32::from(self.snap_units.max(1))
         };

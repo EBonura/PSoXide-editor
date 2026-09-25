@@ -1079,7 +1079,10 @@ pub(crate) fn entity_transform_editor(
                 )
                 .changed();
             if pos_changed {
-                transform.translation = [x as f32, y as f32, z as f32];
+                // Typed positions land on engine units, as the cook keeps them.
+                let unit = i32::from(ENGINE_UNIT);
+                transform.translation =
+                    [x, y, z].map(|value| snap_world_units_component(value as f32, unit));
                 changed = true;
             }
             if show_snap_to_floor
@@ -1297,7 +1300,10 @@ pub(crate) fn light_transform_editor(
                 )
                 .changed();
             if pos_changed {
-                transform.translation = [x as f32, y as f32, z as f32];
+                // Typed positions land on engine units, as the cook keeps them.
+                let unit = i32::from(ENGINE_UNIT);
+                transform.translation =
+                    [x, y, z].map(|value| snap_world_units_component(value as f32, unit));
                 changed = true;
             }
         });

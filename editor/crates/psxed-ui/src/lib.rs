@@ -3659,7 +3659,7 @@ impl EditorWorkspace {
         } else {
             DEFAULT_VIEWPORT_ZOOM
         };
-        self.snap_units = editor_viewport.snap_units.max(1);
+        self.snap_units = engine_grid_units(editor_viewport.snap_units);
     }
 
     /// Where the editor is looking now: camera, overlay visibility,
