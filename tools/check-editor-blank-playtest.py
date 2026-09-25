@@ -41,16 +41,19 @@ EXPECTED_TRI_PRIMS = 125_409
 EXPECTED_LAST_TRI_PRIMS = 214
 EXPECTED_VRAM_HASH = "0xedddd3b2ab8700a3"
 EXPECTED_DISPLAY_HASH = "0x74d51a87d19b267c"
+# The HLE boot writes the measured BIOS entry draw mode, GP0(E1h), before
+# the executable runs (emulator dbdcd43), so the first tick carries one more
+# one-word command than it did under the BIOS path.
 EXPECTED_GPU_CENSUS: dict[str, int | str] = {
     "rows": 1_232,
-    "commands": 304_680,
+    "commands": 304_681,
     "draws": 148_453,
     "fills": 526,
     "textured_tris": 117_501,
     "textured_quads": 12_817,
     "textured_rects": 3_519,
-    "run_draw_words": 1_528_673,
-    "run_draw_hash": "0xfe8276b2c475b980",
+    "run_draw_words": 1_528_675,
+    "run_draw_hash": "0xace93027e40c7404",
 }
 IMAGE_SUFFIXES = {".bmp", ".gif", ".jpeg", ".jpg", ".png", ".ppm", ".webp"}
 
