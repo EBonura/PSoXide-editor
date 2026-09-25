@@ -380,8 +380,13 @@ impl EditorWorkspace {
         let consume_new = consume_command_shortcut(ctx, egui::Key::N);
         let consume_build = consume_command_shortcut(ctx, egui::Key::B);
         let consume_play = consume_command_shortcut(ctx, egui::Key::Enter);
-        let consume_redo = consume_command_shift_shortcut(ctx, egui::Key::Z);
-        let consume_undo = consume_command_shortcut(ctx, egui::Key::Z);
+        // A focused text field keeps Cmd+Z / Cmd+Shift+Z for its own text
+        // undo. Only a text field: a button that kept focus after a click
+        // must not block project undo. Clicking back into the viewport
+        // surrenders stale text focus (`surrender_stale_focus_on_viewport_pointer`).
+        let text_field_focused = ctx.wants_keyboard_input();
+        let consume_redo = !text_field_focused && consume_command_shift_shortcut(ctx, egui::Key::Z);
+        let consume_undo = !text_field_focused && consume_command_shortcut(ctx, egui::Key::Z);
         let focus_taken = widget_owns_keyboard_shortcuts(ctx);
         let consume_ungroup = !focus_taken
             && self.active_workspace == WorkspaceView::Room

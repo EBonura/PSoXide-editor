@@ -838,3 +838,48 @@ fn new_projects_keep_the_player_weapon_appearance_tracks_pointing_at_weapons() {
         "the starter player has weapon appearance tracks"
     );
 }
+
+#[test]
+fn cmd_z_in_a_focused_text_field_undoes_the_text_not_the_project() {
+    let mut project = ProjectDocument::new("text-field-undo");
+    let material = project.add_resource(
+        "Zircon",
+        ResourceData::Material(MaterialResource::opaque(None)),
+    );
+    project.active_scene_mut().brushes.clear();
+    let mut workspace = EditorWorkspace::with_project(test_temp_dir("text-field-undo"), project);
+    // One recorded project edit the text-field Cmd+Z must leave alone.
+    workspace.push_undo();
+    workspace
+        .project
+        .active_scene_mut()
+        .brushes
+        .push(psxed_project::brush::Brush::cuboid(
+            [0, 0, 0],
+            [512, 512, 512],
+        ));
+    workspace.active_workspace = WorkspaceView::Material;
+    assert!(workspace.focus_material_resource(material));
+    let mut frames = EditorFrames::new();
+    let output = frames.idle(&mut workspace);
+    let name_field = material_lab_field(&output, "Name");
+    frames.click(&mut workspace, name_field);
+    frames.type_text(&mut workspace, " Slab");
+    frames.key(&mut workspace, egui::Key::Z, egui::Modifiers::COMMAND);
+    assert_eq!(
+        workspace.project.active_scene().brushes.len(),
+        1,
+        "Cmd+Z in a focused text field undid the project edit"
+    );
+    frames.key(&mut workspace, egui::Key::Enter, egui::Modifiers::NONE);
+    frames.idle(&mut workspace);
+    assert_eq!(
+        workspace.project.resource(material).unwrap().name,
+        "Zircon",
+        "Cmd+Z in the field should undo the typed text"
+    );
+
+    // With no text field focused, Cmd+Z is project undo again.
+    frames.key(&mut workspace, egui::Key::Z, egui::Modifiers::COMMAND);
+    assert!(workspace.project.active_scene().brushes.is_empty());
+}
