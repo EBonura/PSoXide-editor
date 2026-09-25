@@ -35,26 +35,31 @@ CUE="build/examples/mipsel-sony-psx/release/editor-playtest.cue"
 # so it moves with guest speed and is pinned for the canonical build only.
 # The build-independent clocks are the guest's own: pad polls and sim ticks,
 # which the cross-layout stage below compares directly.
-EXPECT_ROUTE_TICKS=3030
+EXPECT_ROUTE_TICKS=3029
 EXPECT_PAD_POLLS=3000
-EXPECT_SIM_TICKS=2999
-EXPECT_ATTACK_STARTS=6
-EXPECT_MELEE_HITS=4
-EXPECT_DUPLICATE_REJECTIONS=44
+EXPECT_SIM_TICKS=2998
+# Two heavy swings: the first staggers the Mantis, the second kills it.
+EXPECT_ATTACK_STARTS=2
+EXPECT_MELEE_HITS=2
+EXPECT_DUPLICATE_REJECTIONS=48
 EXPECT_STAGGERS=1
 EXPECT_ENEMY_DEATHS=1
-EXPECT_HITS_TAKEN=4
-EXPECT_WEAPON_ATTACHMENTS=2
+# The Mantis fires one needle and dies before landing a hit on this route.
+EXPECT_HITS_TAKEN=0
+# The energy blade materialises only during an attack, so this counts lives
+# in which the player swung: the first life fights, the second does not.
+EXPECT_WEAPON_ATTACHMENTS=1
 EXPECT_CHECKPOINT_ACTIVATIONS=1
 EXPECT_DOOR_ACTIVATIONS=1
-EXPECT_PVS_SUPPRESSIONS=2927
-EXPECT_LIQUID_EVENTS=6
+EXPECT_PVS_SUPPRESSIONS=2547
+EXPECT_LIQUID_EVENTS=40
 EXPECT_PLAYER_DEATHS=1
-# Post-respawn evidence: the player respawns at the checkpoint (x ~2048,
-# far from the 1024 spawn) and walks the confirmation leg east into the
-# door that reset closed, wall-stopping at x 3862 on the route line.
-EXPECT_PLAYER_X_BIASED=1003862
-EXPECT_PLAYER_Z_BIASED=1001536
+# Post-respawn evidence, engine units (authored / 16): the player respawns
+# at the checkpoint pose (x 116) and walks the confirmation leg east into
+# the door that reset closed, wall-stopping at x 241 (authored 3856) on the
+# route line z 99.
+EXPECT_PLAYER_X_BIASED=1000241
+EXPECT_PLAYER_Z_BIASED=1000099
 # The two image hashes pin the CANONICAL build's final presented frame. They
 # are deliberately NOT part of the cross-layout comparison: the run stops on
 # tape exhaustion, so the last frame a build presented belongs to whichever
@@ -77,15 +82,33 @@ EXPECT_PLAYER_Z_BIASED=1001536
 # final images, and the number of gameplay ticks for which the sealed entity
 # is PVS-suppressed. The guest clocks and progression/combat counters remain
 # pinned above, and both canonical replays must still agree exactly.
-EXPECT_VRAM_HASH=0xcf44bf29f64da3a6
-EXPECT_DISPLAY_HASH=0x1622990324fd570a
+#
+# Re-pinned 2026-09-24 with the fixture regenerated from its generator and
+# both tapes re-authored for the wake-up intro, the spawn facing and the
+# light enemy's current behaviour (see write_souls_slice_canonical_tape).
+# Every pin in this block was measured on that route; frames at each beat
+# were reviewed before pinning.
+#
+# Re-pinned 2026-09-25 (land/editor-audit): the fixture was regenerated
+# after node placement started landing on the grid and ArchProps started
+# snapping to World-sector tiles. The arch moved from (2900, 257, 300.5) to
+# (3072, 256, 512) and the far point light from x 6100 to 6096 (the light
+# bake reads the unrounded position). Every gameplay counter and both guest
+# clocks are unchanged; the host route clock drops one tick (3030 to 3029)
+# and the final frame differs by the idle pose phase. Frames at polls 300,
+# 1500 and 2990, before and after, were compared before pinning.
+EXPECT_VRAM_HASH=0xfc630d3e590e11ad
+EXPECT_DISPLAY_HASH=0x6f465d81d9bed789
 
-EXPECT_NEG_ROUTE_TICKS=931
-EXPECT_NEG_PAD_POLLS=900
-EXPECT_NEG_WEAPON_ATTACHMENTS=1
-EXPECT_NEG_PVS_SUPPRESSIONS=827
-EXPECT_NEG_PLAYER_X_BIASED=1001024
-EXPECT_NEG_PLAYER_Z_BIASED=1001536
+EXPECT_NEG_ROUTE_TICKS=1230
+EXPECT_NEG_PAD_POLLS=1200
+# The negative tape only holds Cross to skip the intro, never swings, so
+# the energy blade never materialises.
+EXPECT_NEG_WEAPON_ATTACHMENTS=0
+EXPECT_NEG_PVS_SUPPRESSIONS=747
+# The authored spawn (1024, 1536) in engine units.
+EXPECT_NEG_PLAYER_X_BIASED=1000064
+EXPECT_NEG_PLAYER_Z_BIASED=1000096
 
 fail() {
     echo "editor-souls-bsp-check: FAIL: $1" >&2
@@ -164,7 +187,8 @@ rm -rf "$OUT/slice-regen"
     cargo test -q -p psxed-ui \
     tests::project_workspace::souls_slice_project_is_authored_through_production_commands \
     -- --exact >/dev/null)
-diff -r "$OUT/slice-regen" "$PROJECT" >/dev/null 2>&1 || fail \
+# The editor's per-user view file is not part of the project (gitignored).
+diff -r -x .psxed-view.ron "$OUT/slice-regen" "$PROJECT" >/dev/null 2>&1 || fail \
     "authoring-test export differs from the tracked project; regenerate with
   rm -rf $PROJECT && (cd editor && PSOXIDE_SOULS_SLICE_PROJECT_OUT=/tmp/souls-slice-export cargo test -p psxed-ui tests::project_workspace::souls_slice_project_is_authored_through_production_commands -- --exact) && cp -R /tmp/souls-slice-export $PROJECT
 and commit the result"
@@ -237,7 +261,7 @@ assert_eq "enemy deaths" \
     "$(counter_or_zero "$MAIN" "game entity deaths")" "$EXPECT_ENEMY_DEATHS"
 assert_eq "player hits taken" \
     "$(counter_or_zero "$MAIN" "player hits taken")" "$EXPECT_HITS_TAKEN"
-assert_eq "weapon attachments (one per life, two lives)" \
+assert_eq "weapon attachments (lives in which the blade materialised)" \
     "$(counter_or_zero "$MAIN" "player weapon attachments")" "$EXPECT_WEAPON_ATTACHMENTS"
 assert_eq "checkpoint activations" \
     "$(counter_or_zero "$MAIN" "player checkpoint activations")" "$EXPECT_CHECKPOINT_ACTIVATIONS"
@@ -284,7 +308,7 @@ assert_eq "negative: player deaths" \
     "$(counter_or_zero "$NEG" "player deaths")" "0"
 assert_eq "negative: liquid damage events" \
     "$(counter_or_zero "$NEG" "player liquid damage events")" "0"
-assert_eq "negative: weapon attachments (single life)" \
+assert_eq "negative: weapon attachments (no swing, no blade)" \
     "$(counter_or_zero "$NEG" "player weapon attachments")" "$EXPECT_NEG_WEAPON_ATTACHMENTS"
 assert_eq "negative: pvs suppressions" \
     "$(counter_or_zero "$NEG" "game entity pvs suppressions")" "$EXPECT_NEG_PVS_SUPPRESSIONS"

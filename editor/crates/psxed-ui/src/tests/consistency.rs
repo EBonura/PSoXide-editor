@@ -599,38 +599,54 @@ fn committed_primitive(
 }
 
 #[test]
-fn primitives_that_lose_pieces_to_the_grid_say_so() {
+fn primitives_that_would_lose_pieces_to_the_grid_are_refused_with_a_finer_grid() {
     // 24 voussoirs of a 512-wide arch on the 64 grid: the snapped corners
     // of several coincide and `convex_prism` rejects the degenerate slivers.
     let arch = committed_primitive(BrushDrawShape::DoorwayArch, 64, [512, 512, 64], |s| {
         s.arch_segments = 24;
         s.arch_thickness = 64;
     });
-    let built = arch.project.active_scene().brushes.len();
-    assert!(built > 0, "the arch still commits what it could build");
     assert!(
-        built < 24 + 2,
-        "fixture must actually lose pieces (built {built})"
+        arch.project.active_scene().brushes.is_empty(),
+        "a gapped arch must not be committed"
     );
     assert!(
-        arch.status.contains(&format!("{built} of 26")),
-        "status must report the missing arch pieces, got {:?}",
+        arch.status.contains("of 26 pieces") && arch.status.contains("nothing was created"),
+        "status must report the missing arch pieces and the refusal, got {:?}",
         arch.status
     );
+    let suggested = suggested_grid(&arch.status);
+    assert!(suggested < 64, "the suggestion must be finer than Grid 64");
+    // The suggestion is true: the same drag on that grid builds all 26.
+    let whole = committed_primitive(
+        BrushDrawShape::DoorwayArch,
+        suggested,
+        [512, 512, 64],
+        |s| {
+            s.arch_segments = 24;
+            s.arch_thickness = 64;
+        },
+    );
+    assert_eq!(whole.project.active_scene().brushes.len(), 26);
+    assert_eq!(whole.status, "Created Doorway Arch");
 
     // A 16-sided cylinder 512 across on the 64 grid snaps to far fewer sides.
     let cylinder = committed_primitive(BrushDrawShape::Cylinder, 64, [512, 256, 512], |s| {
         s.cylinder_sides = 16;
     });
-    let brushes = &cylinder.project.active_scene().brushes;
-    assert_eq!(brushes.len(), 1);
-    let sides = brushes[0].faces.len() - 2;
-    assert!(sides < 16, "fixture must actually lose sides (got {sides})");
+    assert!(cylinder.project.active_scene().brushes.is_empty());
     assert!(
-        cylinder.status.contains(&format!("{sides} of 16 sides")),
+        cylinder.status.contains("of 16 sides"),
         "status must report the collapsed cylinder sides, got {:?}",
         cylinder.status
     );
+    let suggested = suggested_grid(&cylinder.status);
+    let whole = committed_primitive(BrushDrawShape::Cylinder, suggested, [512, 256, 512], |s| {
+        s.cylinder_sides = 16;
+    });
+    let brushes = &whole.project.active_scene().brushes;
+    assert_eq!(brushes.len(), 1);
+    assert_eq!(brushes[0].faces.len() - 2, 16);
 
     // 256 across, nothing survives at all: the refusal names the grid.
     let nothing = committed_primitive(BrushDrawShape::Cylinder, 64, [256, 256, 256], |s| {
@@ -650,6 +666,18 @@ fn primitives_that_lose_pieces_to_the_grid_say_so() {
     });
     assert_eq!(clean.project.active_scene().brushes.len(), 8);
     assert_eq!(clean.status, "Created Doorway Arch");
+}
+
+/// The grid a refused primitive's status suggests ("Grid N keeps every piece").
+fn suggested_grid(status: &str) -> i32 {
+    let tail = status
+        .rsplit("; Grid ")
+        .next()
+        .filter(|tail| tail.ends_with(" keeps every piece"))
+        .unwrap_or_else(|| panic!("no grid suggestion in {status:?}"));
+    tail.trim_end_matches(" keeps every piece")
+        .parse()
+        .unwrap_or_else(|_| panic!("bad grid suggestion in {status:?}"))
 }
 
 #[test]
@@ -775,4 +803,365 @@ fn snap_to_grid_snaps_every_selected_brush_like_its_neighbour_buttons() {
         before,
         "one undo step restores the whole selection"
     );
+}
+
+#[test]
+fn new_projects_keep_the_player_weapon_appearance_tracks_pointing_at_weapons() {
+    // Aletha's animation set materialises her blades through weapon
+    // appearance tracks. A New Project hydrates that set from the default
+    // project; its track weapon ids must land on the copied weapons, not on
+    // whatever resource happens to hold the template's raw id.
+    let mut workspace =
+        EditorWorkspace::open_directory(psxed_project::default_project_dir()).unwrap();
+    let name = format!(
+        "Weapon Tracks {} {}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    );
+    let target = psxed_project::projects_dir().join(psxed_project::project_file_stem(&name));
+    let _scratch = ScratchProjectDir::new(target.clone());
+    workspace.create_and_open_project(&name).unwrap();
+
+    let project = workspace.project();
+    let mut tracks = 0;
+    for resource in &project.resources {
+        let ResourceData::AnimationSet(set) = &resource.data else {
+            continue;
+        };
+        for track in &set.weapon_appearance_tracks {
+            tracks += 1;
+            let weapon = project.resource(track.weapon).unwrap_or_else(|| {
+                panic!(
+                    "{}: track weapon {:?} is missing",
+                    resource.name, track.weapon
+                )
+            });
+            let ResourceData::Weapon(weapon_data) = &weapon.data else {
+                panic!(
+                    "{}: track weapon {:?} is '{}', not a Weapon",
+                    resource.name, track.weapon, weapon.name
+                );
+            };
+            let model = weapon_data
+                .model
+                .and_then(|id| project.resource(id))
+                .unwrap_or_else(|| panic!("weapon '{}' has no model", weapon.name));
+            let ResourceData::Model(model_data) = &model.data else {
+                panic!("weapon '{}' model is not a Model", weapon.name);
+            };
+            for path in std::iter::once(&model_data.model_path).chain(&model_data.texture_path) {
+                assert!(
+                    target.join(path).is_file(),
+                    "weapon '{}' asset {path} was not copied",
+                    weapon.name
+                );
+            }
+        }
+    }
+    assert!(
+        tracks > 0,
+        "the starter player has weapon appearance tracks"
+    );
+}
+
+#[test]
+fn cmd_z_in_a_focused_text_field_undoes_the_text_not_the_project() {
+    let mut project = ProjectDocument::new("text-field-undo");
+    let material = project.add_resource(
+        "Zircon",
+        ResourceData::Material(MaterialResource::opaque(None)),
+    );
+    project.active_scene_mut().brushes.clear();
+    let mut workspace = EditorWorkspace::with_project(test_temp_dir("text-field-undo"), project);
+    // One recorded project edit the text-field Cmd+Z must leave alone.
+    workspace.push_undo();
+    workspace
+        .project
+        .active_scene_mut()
+        .brushes
+        .push(psxed_project::brush::Brush::cuboid(
+            [0, 0, 0],
+            [512, 512, 512],
+        ));
+    workspace.active_workspace = WorkspaceView::Material;
+    assert!(workspace.focus_material_resource(material));
+    let mut frames = EditorFrames::new();
+    let output = frames.idle(&mut workspace);
+    let name_field = material_lab_field(&output, "Name");
+    frames.click(&mut workspace, name_field);
+    frames.type_text(&mut workspace, " Slab");
+    frames.key(&mut workspace, egui::Key::Z, egui::Modifiers::COMMAND);
+    assert_eq!(
+        workspace.project.active_scene().brushes.len(),
+        1,
+        "Cmd+Z in a focused text field undid the project edit"
+    );
+    frames.key(&mut workspace, egui::Key::Enter, egui::Modifiers::NONE);
+    frames.idle(&mut workspace);
+    assert_eq!(
+        workspace.project.resource(material).unwrap().name,
+        "Zircon",
+        "Cmd+Z in the field should undo the typed text"
+    );
+
+    // With no text field focused, Cmd+Z is project undo again.
+    frames.key(&mut workspace, egui::Key::Z, egui::Modifiers::COMMAND);
+    assert!(workspace.project.active_scene().brushes.is_empty());
+}
+
+#[test]
+fn box_prop_one_to_one_texels_repeat_one_tile_per_world_sector() {
+    // "1:1 Texels" means one texture tile per World sector, the unit the
+    // ArchProp cook tiles by. It used to divide by the node-translation
+    // unit (1 in BSP scenes) and always clamp to the maximum 255 span.
+    let mut project = ProjectDocument::new("box-prop-one-to-one");
+    let material = project.add_resource(
+        "Crate",
+        ResourceData::Material(MaterialResource::opaque(None)),
+    );
+    let root = project.active_scene().root;
+    let world_sector = project.world_sector_size_for_node(root);
+    let prop = project.active_scene_mut().add_node(
+        root,
+        "Crate",
+        NodeKind::BoxProp {
+            materials: [Some(material); psxed_project::BOX_PROP_FACE_COUNT],
+            uvs: [psxed_project::GridUvTransform::default(); psxed_project::BOX_PROP_FACE_COUNT],
+            vertices: psxed_project::box_prop_vertices_for_size(world_sector as u16),
+            collision_enabled: true,
+            break_flags: 0,
+            erosion: psxed_project::BoxPropErosion::default(),
+        },
+    );
+    let mut workspace =
+        EditorWorkspace::with_project(test_temp_dir("box-prop-one-to-one"), project);
+    workspace.active_workspace = WorkspaceView::Room;
+    workspace.replace_node_selection(prop);
+    let handle = egui::Context::default().load_texture(
+        "box-prop-one-to-one",
+        egui::ColorImage::new([1, 1], egui::Color32::WHITE),
+        egui::TextureOptions::NEAREST,
+    );
+    workspace.texture_thumbs.insert(
+        material,
+        ThumbnailEntry {
+            signature: workspace.test_material_thumbnail_signature(material),
+            handle,
+            image: egui::ColorImage::new([1, 1], egui::Color32::WHITE),
+            stats: PsxtStats {
+                width: 64,
+                height: 64,
+                depth_bits: 4,
+                clut_entries: 16,
+                index_zero_transparent: false,
+                pixel_bytes: 1,
+                clut_bytes: 32,
+                file_bytes: 45,
+            },
+        },
+    );
+    super::brush_tools::run_real_egui_workspace_click_on_label(&mut workspace, "1:1 Texels");
+    let node = workspace.project.active_scene().node(prop).unwrap();
+    let NodeKind::BoxProp { uvs, .. } = &node.kind else {
+        unreachable!()
+    };
+    // A one-sector face repeats a 64 px texture once: inclusive span 63.
+    assert_eq!(uvs[0].span, [63, 63]);
+}
+
+#[test]
+fn arch_props_snap_to_world_sector_tiles_in_world_units() {
+    // The cook expands an ArchProp in tiles of the World sector size around
+    // its world-unit anchor; the editor snapped the anchor as if it were in
+    // tiles of 1 unit, so it landed on half-units.
+    let geometry = psxed_project::ArchPropGeometry {
+        span_tiles: 3,
+        depth_tiles: 2,
+        ..psxed_project::ArchPropGeometry::default()
+    };
+    let mut transform = psxed_project::Transform3 {
+        translation: [1000.0, 100.0, 1000.0],
+        ..psxed_project::Transform3::default()
+    };
+    crate::inspector_transform_node::snap_arch_prop_transform(&mut transform, geometry, 1024);
+    // Odd span centres on a tile, even depth on a tile line.
+    assert_eq!(transform.translation, [512.0, 128.0, 1024.0]);
+}
+
+#[test]
+fn every_move_path_lands_nodes_on_the_same_grid_step() {
+    use crate::inspector_transform_node::{node_gizmo_plane_translation, node_snap_step};
+    // One rule: positional nodes land on the grid, whatever moves them.
+    let mut scratch = ProjectDocument::new("cylinder-plane-snap");
+    let root = scratch.active_scene().root;
+    let id = scratch.active_scene_mut().add_node(
+        root,
+        "Pillar",
+        NodeKind::CylinderProp {
+            materials: Default::default(),
+            uvs: Default::default(),
+            geometry: psxed_project::CylinderPropGeometry::default(),
+            collision_enabled: true,
+        },
+    );
+    let cylinder = scratch.active_scene().node(id).unwrap().clone();
+    // The plane gizmo used to leave Cylinder Props off the grid.
+    assert_eq!(
+        node_gizmo_plane_translation(
+            &cylinder,
+            [3.0, 0.0, 5.0],
+            crate::gizmo::NodeGizmoPlane::XZ,
+            [20.0, 0.0, 20.0],
+            16,
+        ),
+        [16.0, 0.0, 16.0]
+    );
+    for kind in [
+        NodeKind::SpawnPoint {
+            player: true,
+            character: None,
+        },
+        NodeKind::ParticleEmitter {
+            settings: psxed_project::ParticleEmitterSettings::default(),
+        },
+    ] {
+        assert_eq!(node_snap_step(&kind, 16), Some(16), "{}", kind.label());
+    }
+    assert_eq!(node_snap_step(&NodeKind::Group, 16), None);
+
+    // Placement lands on the grid too; the picked height stays exact.
+    let mut project = ProjectDocument::new("placement-snap");
+    let root = project.active_scene().root;
+    project.active_scene_mut().brushes.clear();
+    let mut workspace = EditorWorkspace::with_project(test_temp_dir("placement-snap"), project);
+    workspace.place_kind = PlaceKind::ParticleEmitter;
+    workspace.place_node_at_world_hit(root, [509.0, 37.0, 522.0]);
+    let node = workspace
+        .project
+        .active_scene()
+        .node(workspace.selected_node_id())
+        .expect("placed emitter is selected");
+    assert_eq!(node.transform.translation, [512.0, 37.0, 528.0]);
+}
+
+/// A copy of the New Project template to open, save and close for real.
+fn template_copy(label: &str) -> PathBuf {
+    let dir = test_temp_dir(label);
+    let _ = std::fs::remove_dir_all(&dir);
+    crate::starter_catalogue::copy_dir_recursive(&psxed_project::new_project_template_dir(), &dir)
+        .unwrap();
+    let _ = std::fs::remove_file(dir.join(psxed_project::EDITOR_VIEW_STATE_FILE));
+    dir
+}
+
+#[test]
+fn looking_around_never_edits_the_project_and_the_view_comes_back_on_open() {
+    let dir = template_copy("view-state-sidecar");
+    let before = std::fs::read(dir.join("project.ron")).unwrap();
+    let mut workspace = EditorWorkspace::open_directory(&dir).unwrap();
+    workspace.active_workspace = WorkspaceView::Room;
+    workspace.rotate_viewport_3d_camera(Vec2::new(40.0, -12.0));
+    workspace.scroll_viewport_3d_camera(120.0);
+    workspace.show_grid = !workspace.show_grid;
+    workspace.snap_units = 32;
+    assert!(
+        !workspace.is_dirty(),
+        "orbiting the camera marked the project unsaved"
+    );
+    let view = workspace.editor_view_state();
+
+    // Closing with nothing unsaved is allowed at once and writes only the
+    // view file.
+    assert!(workspace.request_close());
+    assert_eq!(std::fs::read(dir.join("project.ron")).unwrap(), before);
+    assert!(dir.join(psxed_project::EDITOR_VIEW_STATE_FILE).is_file());
+
+    let reopened = EditorWorkspace::open_directory(&dir).unwrap();
+    assert_eq!(reopened.editor_view_state(), view);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn closing_with_unsaved_edits_asks_save_discard_or_cancel() {
+    let dir = template_copy("unsaved-close-prompt");
+    let before = std::fs::read(dir.join("project.ron")).unwrap();
+    let mut workspace = EditorWorkspace::open_directory(&dir).unwrap();
+    workspace.active_workspace = WorkspaceView::Room;
+    workspace.push_undo();
+    workspace.project.active_scene_mut().brushes.pop();
+    workspace.mark_dirty();
+
+    // Cancel keeps the edit and the window.
+    assert!(!workspace.request_close());
+    assert!(matches!(workspace.modal, Modal::UnsavedChanges { .. }));
+    super::brush_tools::run_real_egui_workspace_click_on_label(&mut workspace, "Cancel");
+    assert!(matches!(workspace.modal, Modal::None));
+    assert!(workspace.is_dirty());
+
+    // Discard closes without writing project.ron.
+    assert!(!workspace.request_close());
+    super::brush_tools::run_real_egui_workspace_click_on_label(&mut workspace, "Discard and Close");
+    assert!(
+        workspace.request_close(),
+        "the answered prompt lets the close through"
+    );
+    assert_eq!(std::fs::read(dir.join("project.ron")).unwrap(), before);
+
+    // Save writes the edit, then closes.
+    let mut workspace = EditorWorkspace::open_directory(&dir).unwrap();
+    let brushes = workspace.project.active_scene().brushes.len();
+    workspace.push_undo();
+    workspace.project.active_scene_mut().brushes.pop();
+    workspace.mark_dirty();
+    assert!(!workspace.request_close());
+    super::brush_tools::run_real_egui_workspace_click_on_label(&mut workspace, "Save and Close");
+    assert!(!workspace.is_dirty());
+    assert!(workspace.request_close());
+    let saved = ProjectDocument::load_from_path(dir.join("project.ron")).unwrap();
+    assert_eq!(saved.active_scene().brushes.len(), brushes - 1);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn reload_with_unsaved_edits_asks_first() {
+    let dir = template_copy("unsaved-reload-prompt");
+    let mut workspace = EditorWorkspace::open_directory(&dir).unwrap();
+    workspace.active_workspace = WorkspaceView::Room;
+    let brushes = workspace.project.active_scene().brushes.len();
+    workspace.push_undo();
+    workspace.project.active_scene_mut().brushes.pop();
+    workspace.mark_dirty();
+
+    workspace.request_reload();
+    assert!(matches!(workspace.modal, Modal::UnsavedChanges { .. }));
+    super::brush_tools::run_real_egui_workspace_click_on_label(&mut workspace, "Cancel");
+    assert_eq!(workspace.project.active_scene().brushes.len(), brushes - 1);
+
+    workspace.request_reload();
+    super::brush_tools::run_real_egui_workspace_click_on_label(
+        &mut workspace,
+        "Discard and Reload",
+    );
+    assert_eq!(workspace.project.active_scene().brushes.len(), brushes);
+    assert!(!workspace.is_dirty());
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn after_save_the_open_document_is_what_reopening_the_file_gives() {
+    let dir = template_copy("save-normalises-open-document");
+    let mut workspace = EditorWorkspace::open_directory(&dir).unwrap();
+    workspace.push_undo();
+    workspace.project.active_scene_mut().brushes.pop();
+    workspace.mark_dirty();
+    workspace.save().unwrap();
+    let on_disk = ProjectDocument::load_from_path(dir.join("project.ron")).unwrap();
+    assert!(
+        on_disk == workspace.project,
+        "the editor kept a document that differs from the file it just saved"
+    );
+    let _ = std::fs::remove_dir_all(dir);
 }

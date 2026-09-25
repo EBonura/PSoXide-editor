@@ -380,8 +380,13 @@ impl EditorWorkspace {
         let consume_new = consume_command_shortcut(ctx, egui::Key::N);
         let consume_build = consume_command_shortcut(ctx, egui::Key::B);
         let consume_play = consume_command_shortcut(ctx, egui::Key::Enter);
-        let consume_redo = consume_command_shift_shortcut(ctx, egui::Key::Z);
-        let consume_undo = consume_command_shortcut(ctx, egui::Key::Z);
+        // A focused text field keeps Cmd+Z / Cmd+Shift+Z for its own text
+        // undo. Only a text field: a button that kept focus after a click
+        // must not block project undo. Clicking back into the viewport
+        // surrenders stale text focus (`surrender_stale_focus_on_viewport_pointer`).
+        let text_field_focused = ctx.wants_keyboard_input();
+        let consume_redo = !text_field_focused && consume_command_shift_shortcut(ctx, egui::Key::Z);
+        let consume_undo = !text_field_focused && consume_command_shortcut(ctx, egui::Key::Z);
         let focus_taken = widget_owns_keyboard_shortcuts(ctx);
         let consume_ungroup = !focus_taken
             && self.active_workspace == WorkspaceView::Room
@@ -773,7 +778,6 @@ impl EditorWorkspace {
         self.show_lights = show_all;
         self.preview_bounds = show_all;
         self.show_bsp_leak_path = show_all;
-        self.persist_editor_visibility_state();
         self.status = if show_all {
             "Visibility: all shown".to_string()
         } else {
@@ -959,7 +963,6 @@ impl EditorWorkspace {
             TreeAction::Select { id, modifiers } => {
                 self.apply_node_selection_modifiers(id, modifiers, visible_order);
                 self.renaming = None;
-                self.persist_editor_camera_state();
             }
             TreeAction::BeginRename(id) => {
                 if let Some(node) = self.project.active_scene().node(id) {
@@ -1074,8 +1077,8 @@ impl EditorWorkspace {
                         .project
                         .active_scene()
                         .node(id)
-                        .map(|node| format!("Hiding {}", node.name))
-                        .unwrap_or_else(|| "Hiding node".to_string());
+                        .map(|node| format!("Hiding {} in the editor (still ships)", node.name))
+                        .unwrap_or_else(|| "Hiding node in the editor (still ships)".to_string());
                 }
                 if self.selection.hovered_entity_node == Some(id) {
                     self.selection.hovered_entity_node = None;
@@ -1466,10 +1469,18 @@ impl EditorWorkspace {
                 ui.close_menu();
             }
             if ui.button("Reload").clicked() {
-                self.reload();
+                self.request_reload();
                 ui.close_menu();
             }
             ui.separator();
+            if ui
+                .button("Emulator Menu")
+                .on_hover_text("Open the emulator overlay (Esc stays with the editor)")
+                .clicked()
+            {
+                self.emulator_menu_requested = true;
+                ui.close_menu();
+            }
             if ui.button("Quit").clicked() {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }

@@ -1432,6 +1432,16 @@ impl EditorWorkspace {
             }
             _ => [0.0; 3],
         };
+        let move_axis_ray_start = match (mode, handle) {
+            (TransformGizmoMode::Move, NodeGizmoHandle::Axis(_)) => self
+                .node_gizmo_bounds_3d(&ids)
+                .zip(self.camera_ray_for_pointer(rect, pointer))
+                .and_then(|((pivot, _), (origin, dir))| {
+                    gizmo_axis_param_under_ray(pivot, move_axis_world, origin, dir)
+                        .map(|t| (pivot, t))
+                }),
+            _ => None,
+        };
 
         let scene = self.project.active_scene();
         let group_roots: Vec<NodeId> = ids
@@ -1492,7 +1502,6 @@ impl EditorWorkspace {
                         NodeKind::ArchProp { geometry, .. } => Some(*geometry),
                         _ => None,
                     },
-                    sector_size: node_translation_sector_size(&self.project, id),
                 })
             })
             .collect();
@@ -1526,6 +1535,7 @@ impl EditorWorkspace {
             start_plane_hit,
             current_plane_delta_world: [0.0, 0.0, 0.0],
             move_axis_world,
+            move_axis_ray_start,
             rotate: rotate_state,
             targets,
             group_brushes,
@@ -1607,6 +1617,34 @@ impl EditorWorkspace {
             return;
         }
 
+        if let (TransformGizmoMode::Move, Some((pivot, start_t))) =
+            (drag.mode, drag.move_axis_ray_start)
+        {
+            // Follow the pointer ray along the axis, in grid steps (one
+            // engine unit when free), like the plane handle follows its plane.
+            let Some((origin, dir)) = self.camera_ray_for_pointer(rect, pointer) else {
+                return;
+            };
+            let Some(t) = gizmo_axis_param_under_ray(pivot, drag.move_axis_world, origin, dir)
+            else {
+                return;
+            };
+            let quantum = if free {
+                f32::from(ENGINE_UNIT)
+            } else {
+                f32::from(self.snap_units.max(1))
+            };
+            let steps = ((t - start_t) / quantum).round() as i32;
+            if steps == drag.current_steps {
+                return;
+            }
+            if let Some(drag) = self.interaction.node_gizmo_drag_mut() {
+                drag.current_steps = steps;
+            }
+            self.apply_node_gizmo_drag();
+            return;
+        }
+
         let axis_len_sq = drag.screen_axis.length_sq();
         if axis_len_sq < f32::EPSILON {
             return;
@@ -1641,11 +1679,11 @@ impl EditorWorkspace {
         let handle = drag.handle;
         let steps = drag.current_steps;
         let plane_delta_world = drag.current_plane_delta_world;
-        // World-unit nodes (sector_size == 1, i.e. BSP scenes) move on the
-        // brush grid; Shift (free) drops to single-unit precision.
+        // Nodes move on the brush grid; Shift (free) drops to one engine
+        // unit, the finest step that survives the cook.
         let free = drag.free;
         let world_quantum = if free {
-            1
+            i32::from(ENGINE_UNIT)
         } else {
             i32::from(self.snap_units.max(1))
         };
@@ -1733,6 +1771,10 @@ impl EditorWorkspace {
             self.push_undo();
         }
         let texture_lock = self.brush_texture_lock;
+        // Arch props span whole World sectors (the cook's tile size).
+        let arch_tile_size = self
+            .project
+            .world_sector_size_for_node(self.project.active_scene().root);
         let scene = self.project.active_scene_mut();
         for target in targets {
             let Some(node) = scene.node_mut(target.node) else {
@@ -1746,7 +1788,6 @@ impl EditorWorkspace {
                             target.start_translation,
                             move_axis_world,
                             steps,
-                            target.sector_size,
                             world_quantum,
                         );
                     }
@@ -1756,7 +1797,6 @@ impl EditorWorkspace {
                             target.start_translation,
                             plane,
                             plane_delta_world,
-                            target.sector_size,
                             world_quantum,
                         );
                     }
@@ -1789,13 +1829,12 @@ impl EditorWorkspace {
                         target.start_box_prop_vertices,
                         face,
                         steps,
-                        target.sector_size,
                     ),
                     NodeGizmoHandle::Plane(_) => {}
                 },
             }
             if let NodeKind::ArchProp { geometry, .. } = &node.kind {
-                snap_arch_prop_transform(&mut node.transform, *geometry, target.sector_size);
+                snap_arch_prop_transform(&mut node.transform, *geometry, arch_tile_size);
             }
         }
         if mode == TransformGizmoMode::Move {

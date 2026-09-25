@@ -12,35 +12,45 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-SPAWN_X = 192
-SPAWN_Z = 192
-ROOM_INNER_MIN_Z = 64
-PLAYER_RADIUS = 16
+# Positions are ENGINE units: the cook divides every authored length by
+# psxed_project::units::WORLD_UNIT_DIVISOR (16). The spawn is authored at
+# (192, 257, 192) on top of the hollow's 2048 x 2048 roof slab.
+SPAWN_X = 12
+SPAWN_Z = 12
+# The route. The New Project template boots into a wake-up intro, so the
+# Make recipe holds forward, holds Cross over polls 200-440 to skip it, and
+# stops on the pad clock at poll 1200 (`--stop-at-poll`). Held forward walks
+# +Z across the roof and stops at its +Z edge: the roof ends at authored
+# z 2048 (engine 128) and the 12-unit player hull settles 11 units past it,
+# still on the roof (Y stays at the roof top). Measured on 2026-09-24; the
+# stop is reached by poll 800 and unchanged at polls 1200 and 2400.
+ROOF_MAX_Z = 128
+LEDGE_STOP_OVERHANG = 11
 TELEMETRY_POSITION_BIAS = 1_000_000
-EXPECTED_ROUTE_TICKS = 152
-EXPECTED_PAD_POLLS = 122
-EXPECTED_GUEST_FRAMES = 121
-EXPECTED_VISUAL_FRAMES = 60
+EXPECTED_ROUTE_TICKS = 1_232
+EXPECTED_PAD_POLLS = 1_201
+EXPECTED_GUEST_FRAMES = 1_199
+EXPECTED_VISUAL_FRAMES = 525
+# This scene presents about one frame per two ticks through the intro and
+# gameplay. The gate pins the reported cadence instead of requiring
+# "steady", so a change either way is visible here.
+EXPECTED_CADENCE_STATUS = "missed_or_late"
 MIN_SKY_CYCLES = 100_000
-EXPECTED_SKY_HITS = 57
-EXPECTED_TRI_PRIMS = 1_053
-EXPECTED_LAST_TRI_PRIMS = 19
-EXPECTED_VRAM_HASH = "0xda4fdfcfe3c27a87"
-EXPECTED_DISPLAY_HASH = "0xdf10b8075b9d718b"
+EXPECTED_SKY_HITS = 524
+EXPECTED_TRI_PRIMS = 125_409
+EXPECTED_LAST_TRI_PRIMS = 214
+EXPECTED_VRAM_HASH = "0xedddd3b2ab8700a3"
+EXPECTED_DISPLAY_HASH = "0x74d51a87d19b267c"
 EXPECTED_GPU_CENSUS: dict[str, int | str] = {
-    "rows": 152,
-    "commands": 4_427,
-    "draws": 1_576,
-    "fills": 60,
-    "textured_tris": 927,
-    "textured_quads": 555,
-    "textured_rects": 84,
-    "run_draw_words": 21_281,
-    # Re-pinned after 84ed9633 made depth-sorted texture-window packets
-    # self-scoped. Its 1,034 additional GP0(E2) full-window resets account
-    # exactly for the command delta and two hashed words each (length plus
-    # payload). Draw-class, visual, movement, and collision pins are unchanged.
-    "run_draw_hash": "0x019fa1138fdeaa58",
+    "rows": 1_232,
+    "commands": 304_680,
+    "draws": 148_453,
+    "fills": 526,
+    "textured_tris": 117_501,
+    "textured_quads": 12_817,
+    "textured_rects": 3_519,
+    "run_draw_words": 1_528_673,
+    "run_draw_hash": "0xfe8276b2c475b980",
 }
 IMAGE_SUFFIXES = {".bmp", ".gif", ".jpeg", ".jpg", ".png", ".ppm", ".webp"}
 
@@ -52,6 +62,7 @@ class ReplayEvidence:
     guest_frames: int
     sim_ticks: int
     visual_frames: int
+    cadence_status: str
     sky_cycles: int
     sky_hits: int
     tri_prims: int
@@ -106,7 +117,8 @@ def parse_replay(text: str, label: str) -> ReplayEvidence:
         text, r"^\s*player local z\s+.*latest=(\d+)$", f"{label} player Z counter"
     )
     require("visual_budget_status=pass" in text, f"{label} visual budget did not pass")
-    require("cadence_status=steady" in text, f"{label} cadence was not steady")
+    cadence = re.search(r"^\s*cadence_status=(\S+)$", text, re.MULTILINE)
+    require(cadence is not None, f"{label} has no cadence status")
     sky = re.search(
         r"^\s*sky\s+total=(\d+).*?hits=(\d+)$", text, re.MULTILINE
     )
@@ -121,6 +133,7 @@ def parse_replay(text: str, label: str) -> ReplayEvidence:
         visual_frames=match_int(
             text, r"^\s*visual_frames=(\d+)$", f"{label} visual frame count"
         ),
+        cadence_status=cadence.group(1),
         sky_cycles=int(sky.group(1)),
         sky_hits=int(sky.group(2)),
         tri_prims=int(tri.group(1)),
@@ -245,7 +258,7 @@ def main() -> None:
     )
     require(mover_ids is not None, "expected exactly one authored brush Door mover")
     require(
-        "PlayerSpawnRecord { room: RoomIndex(0), x: 192, y: 65, z: 192" in manifest,
+        "PlayerSpawnRecord { room: RoomIndex(0), x: 12, y: 17, z: 12" in manifest,
         "authored Player Spawn record is missing",
     )
     box_props = re.search(
@@ -254,13 +267,13 @@ def main() -> None:
     require(box_props is not None, "cooked Box Prop table is missing")
     require(box_props.group(1).count("LevelBoxPropRecord {") == 1, "expected one cooked Box Prop")
     require(
-        "x: 1536, y: 65, z: 1536" in box_props.group(1)
+        "x: 96, y: 16, z: 96" in box_props.group(1)
         and "flags: 1" in box_props.group(1),
         "Box Prop placement/collision record is missing",
     )
     require(manifest.count("PointLightRecord {") == 1, "expected one cooked Point Light")
     require(
-        "PointLightRecord { room: RoomIndex(0), x: 512, y: 320, z: 512" in manifest,
+        "PointLightRecord { room: RoomIndex(0), x: 32, y: 32, z: 32" in manifest,
         "authored Point Light record is missing",
     )
     require(pxbsp[:4] == b"PXB%", "cooked world has no PXBSP magic")
@@ -287,6 +300,10 @@ def main() -> None:
         f"visual frame pin drifted: {replay_a.visual_frames}",
     )
     require(
+        replay_a.cadence_status == EXPECTED_CADENCE_STATUS,
+        f"cadence status pin drifted: {replay_a.cadence_status}",
+    )
+    require(
         replay_a.sky_cycles >= MIN_SKY_CYCLES
         and replay_a.sky_hits == EXPECTED_SKY_HITS,
         "PXBSP panorama did not perform the expected rendered work: "
@@ -306,11 +323,11 @@ def main() -> None:
         (replay_a.player_x, replay_a.player_z) != (SPAWN_X, SPAWN_Z),
         "held input never moved the player away from the authored spawn",
     )
-    expected_wall_contact = (SPAWN_X, ROOM_INNER_MIN_Z + PLAYER_RADIUS)
+    expected_edge_stop = (SPAWN_X, ROOF_MAX_Z + LEDGE_STOP_OVERHANG)
     require(
-        (replay_a.player_x, replay_a.player_z) == expected_wall_contact,
-        "sustained forward input did not stop at the authored wall and player-radius boundary: "
-        f"expected {expected_wall_contact}, got {(replay_a.player_x, replay_a.player_z)}",
+        (replay_a.player_x, replay_a.player_z) == expected_edge_stop,
+        "sustained forward input did not stop at the roof's +Z edge: "
+        f"expected {expected_edge_stop}, got {(replay_a.player_x, replay_a.player_z)}",
     )
     require(
         (replay_a.display_width, replay_a.display_height) == (320, 240),
@@ -324,10 +341,16 @@ def main() -> None:
         f"GPU command census pin drifted: {gpu_totals}",
     )
 
+    # Only what the gate itself writes counts: the exported project carries
+    # the template's source images (UI prompt PNGs) under its assets/ tree,
+    # which are inputs, not output of the headless run.
+    project_assets = args.project.parent / "assets"
     image_artifacts = sorted(
         path
         for path in args.artifact_root.rglob("*")
-        if path.is_file() and path.suffix.lower() in IMAGE_SUFFIXES
+        if path.is_file()
+        and path.suffix.lower() in IMAGE_SUFFIXES
+        and project_assets not in path.parents
     )
     require(
         not image_artifacts,
@@ -339,7 +362,7 @@ def main() -> None:
     print(f"  guest/visual frames: {replay_a.guest_frames}/{replay_a.visual_frames}")
     print(
         f"  player XZ: ({SPAWN_X}, {SPAWN_Z}) -> "
-        f"({replay_a.player_x}, {replay_a.player_z}) at wall"
+        f"({replay_a.player_x}, {replay_a.player_z}) at the roof edge"
     )
     print(f"  vram/display: {replay_a.vram_hash} / {replay_a.display_hash}")
     print(
