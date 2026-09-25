@@ -12,6 +12,20 @@ impl EditorWorkspace {
         viewport_3d: EditorViewport3dPresentation,
         playtest_status: EditorPlaytestStatus,
     ) {
+        self.draw_with_play_panel(ctx, viewport_3d, playtest_status, None);
+    }
+
+    /// [`Self::draw`], with the frontend's guest performance panel. While
+    /// Play runs and the panel is toggled on (F3, the bars button on the
+    /// Play view, or the column header), it takes the Inspector's column;
+    /// the Inspector returns when Play stops or the panel is toggled off.
+    pub fn draw_with_play_panel(
+        &mut self,
+        ctx: &egui::Context,
+        viewport_3d: EditorViewport3dPresentation,
+        playtest_status: EditorPlaytestStatus,
+        play_panel: Option<&mut dyn FnMut(&mut egui::Ui)>,
+    ) {
         self.poll_project_watch(false);
         self.poll_bsp_leak_refresh(ctx);
         apply_studio_visuals(ctx);
@@ -43,7 +57,12 @@ impl EditorWorkspace {
         let camera_preview = viewport_3d.camera_preview;
         self.draw_action_bar(ctx, playtest_status, play_metrics);
         self.draw_left_dock(ctx);
-        self.draw_inspector(ctx, camera_preview);
+        match play_panel {
+            Some(panel) if playtest_status.is_playing() && self.show_play_debug_overlays => {
+                self.draw_play_performance_column(ctx, panel);
+            }
+            _ => self.draw_inspector(ctx, camera_preview, playtest_status.is_playing()),
+        }
         self.draw_content_browser(ctx);
         self.draw_viewport(ctx, viewport_3d, playtest_status);
         self.draw_clipboard_notice(ctx);

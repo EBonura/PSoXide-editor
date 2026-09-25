@@ -746,27 +746,6 @@ impl EditorWorkspace {
 
     /// Play-mode 3D body -- paints the live emulator framebuffer into
     /// the viewport and suppresses all authoring hit-testing.
-    pub(crate) fn record_play_frame_time(&mut self, metrics: EditorPlaytestMetrics) {
-        if self.play_frame_last_sample_serial == Some(metrics.sample_serial) {
-            return;
-        }
-        self.play_frame_last_sample_serial = Some(metrics.sample_serial);
-        for &frame_ms in metrics
-            .visual_frame_times_ms
-            .iter()
-            .take(metrics.visual_frame_time_count as usize)
-        {
-            if !frame_ms.is_finite() || frame_ms <= 0.0 {
-                continue;
-            }
-            if self.play_frame_times_ms.len() >= PLAY_FRAME_HISTORY_CAP {
-                self.play_frame_times_ms.pop_front();
-            }
-            self.play_frame_times_ms
-                .push_back(frame_ms.clamp(0.0, 120.0));
-        }
-    }
-
     pub(crate) fn draw_viewport_3d_play_body(
         &mut self,
         ui: &mut egui::Ui,
@@ -805,20 +784,19 @@ impl EditorWorkspace {
             replay_rect.left_bottom() + Vec2::new(0.0, control_gap),
             control_size,
         );
-        let controls_rect = Rect::from_min_max(visibility_rect.min, dump_rect.max);
+        let perf_rect = Rect::from_min_size(
+            dump_rect.left_bottom() + Vec2::new(0.0, control_gap),
+            control_size,
+        );
+        let controls_rect = Rect::from_min_max(visibility_rect.min, perf_rect.max);
         let recording = viewport_3d.play_tape.mode == EditorPlaytestTapeMode::Recording;
         let replaying = viewport_3d.play_tape.mode == EditorPlaytestTapeMode::Replaying;
         let can_record = !replaying;
         let can_replay = !recording;
 
-        let show_debug_overlays = self.show_play_debug_overlays;
-        let debug_rect = Rect::from_min_size(
-            rect.left_top() + Vec2::new(44.0, 8.0),
-            Vec2::new(320.0, 171.0),
-        );
-        let clicked_overlay = response.interact_pointer_pos().is_some_and(|pos| {
-            controls_rect.contains(pos) || (show_debug_overlays && debug_rect.contains(pos))
-        });
+        let clicked_overlay = response
+            .interact_pointer_pos()
+            .is_some_and(|pos| controls_rect.contains(pos));
         if response.clicked() && !clicked_overlay {
             self.pending_playtest_request = Some(EditorPlaytestRequest::CaptureInput);
         }
@@ -834,157 +812,31 @@ impl EditorWorkspace {
                 STUDIO_TEXT,
             );
         }
-        if show_debug_overlays {
-            if let Some(metrics) = viewport_3d.play_metrics {
-                self.record_play_frame_time(metrics);
+        // Tape status beside the record/replay buttons, only while it says
+        // something. Performance lives in the docked Guest performance panel.
+        let tape_line = match viewport_3d.play_tape.mode {
+            EditorPlaytestTapeMode::Idle if viewport_3d.play_tape.frames == 0 => None,
+            EditorPlaytestTapeMode::Idle => {
+                Some(format!("Tape {} frames", viewport_3d.play_tape.frames))
             }
-            painter.rect_filled(debug_rect, 4.0, Color32::from_black_alpha(164));
-            let mut y = debug_rect.top() + 7.0;
-            draw_play_metric_line(
-                &painter,
-                debug_rect.left() + 8.0,
-                &mut y,
-                "Play profiler",
-                STUDIO_TEXT,
+            EditorPlaytestTapeMode::Recording => {
+                Some(format!("Recording {} frames", viewport_3d.play_tape.frames))
+            }
+            EditorPlaytestTapeMode::Replaying => Some(format!(
+                "Replay {}/{}",
+                viewport_3d.play_tape.cursor, viewport_3d.play_tape.frames
+            )),
+        };
+        if let Some(line) = tape_line {
+            let galley = painter.layout_no_wrap(line, FontId::monospace(11.0), STUDIO_TEXT);
+            let pill = Rect::from_min_size(
+                Pos2::new(record_rect.right() + 6.0, record_rect.center().y - 10.0),
+                galley.size() + Vec2::new(12.0, 20.0 - galley.size().y),
             );
-            if let Some(metrics) = viewport_3d.play_metrics {
-                let visual_hz = metrics.visual_hz.unwrap_or(metrics.draw_hz);
-                let frame_ms = self
-                    .play_frame_times_ms
-                    .back()
-                    .copied()
-                    .unwrap_or(metrics.frame_ms);
-                draw_play_metric_line(
-                    &painter,
-                    debug_rect.left() + 8.0,
-                    &mut y,
-                    &format!("HOST {:>5.1} fps", metrics.host_fps),
-                    STUDIO_TEXT_WEAK,
-                );
-                draw_play_metric_line(
-                    &painter,
-                    debug_rect.left() + 8.0,
-                    &mut y,
-                    &format!(
-                        "VIS {:>5.1}Hz {:>5.1}ms M/L {}/{}",
-                        visual_hz,
-                        frame_ms,
-                        metrics.visual_deadline_misses,
-                        metrics.visual_lateness_vblanks
-                    ),
-                    STUDIO_TEXT,
-                );
-                draw_play_metric_line(
-                    &painter,
-                    debug_rect.left() + 8.0,
-                    &mut y,
-                    &format!(
-                        "AVG {:>5.1} ms  EMU/HW/UI {:>4.1}/{:>4.1}/{:>4.1}",
-                        metrics.total_ms, metrics.emu_ms, metrics.hw_ms, metrics.ui_ms
-                    ),
-                    STUDIO_TEXT_WEAK,
-                );
-                draw_play_metric_line(
-                    &painter,
-                    debug_rect.left() + 8.0,
-                    &mut y,
-                    &format!(
-                        "TASK fix {:>4.1}/{:>4.1}  vis {:>4.1}/{:>4.1} ms",
-                        metrics.fixed_update_task_ms,
-                        metrics.fixed_update_task_max_ms,
-                        metrics.visual_render_task_ms,
-                        metrics.visual_render_task_max_ms
-                    ),
-                    STUDIO_TEXT,
-                );
-                draw_play_metric_line(
-                    &painter,
-                    debug_rect.left() + 8.0,
-                    &mut y,
-                    &format!(
-                        "PORT vis {:>2} front {:>2} tests {:>2} rej {:>2}",
-                        metrics.portal_visible_rooms,
-                        metrics.portal_frontier_rooms,
-                        metrics.portal_tests,
-                        metrics.portal_rejects.iter().copied().sum::<u32>()
-                    ),
-                    STUDIO_TEXT,
-                );
-                draw_play_metric_line(
-                    &painter,
-                    debug_rect.left() + 8.0,
-                    &mut y,
-                    &format!(
-                        "STRM {:>2}/{:<2} load {:>2} evict {:>2} pre {:>2}",
-                        metrics.chunk_loaded,
-                        metrics.stream_slot_limit,
-                        metrics.stream_pending,
-                        metrics.stream_evictions,
-                        metrics.stream_prefetches
-                    ),
-                    STUDIO_TEXT_WEAK,
-                );
-                // Correctness / over-budget signals: every value should sit at 0
-                // on a healthy stream. The line lights up when streaming breaks
-                // (visible geometry not resident/built) or the resident budget
-                // is exceeded (more high-priority rooms than slots).
-                let stream_warnings = metrics.portal_missing_resident
-                    + metrics.portal_build_failed
-                    + metrics.stream_failed
-                    + metrics.stream_protected_full;
-                let warn_color = if stream_warnings > 0 {
-                    Color32::from_rgb(255, 120, 120)
-                } else {
-                    STUDIO_TEXT_WEAK
-                };
-                draw_play_metric_line(
-                    &painter,
-                    debug_rect.left() + 8.0,
-                    &mut y,
-                    &format!(
-                        "WARN miss {:>2} bfail {:>2} fail {:>2} full {:>2}",
-                        metrics.portal_missing_resident,
-                        metrics.portal_build_failed,
-                        metrics.stream_failed,
-                        metrics.stream_protected_full
-                    ),
-                    warn_color,
-                );
-                let chart_rect = Rect::from_min_size(
-                    Pos2::new(debug_rect.left() + 8.0, y + 2.0),
-                    Vec2::new(debug_rect.width() - 16.0, 42.0),
-                );
-                draw_play_frame_rate_chart(&painter, chart_rect, &self.play_frame_times_ms);
-            } else {
-                draw_play_metric_line(
-                    &painter,
-                    debug_rect.left() + 8.0,
-                    &mut y,
-                    "collecting...",
-                    STUDIO_TEXT_WEAK,
-                );
-            }
-            y = (debug_rect.bottom() - 18.0).max(y);
-            let tape_line = match viewport_3d.play_tape.mode {
-                EditorPlaytestTapeMode::Idle if viewport_3d.play_tape.frames == 0 => {
-                    "Tape empty".to_string()
-                }
-                EditorPlaytestTapeMode::Idle => {
-                    format!("Tape {:>5} fr", viewport_3d.play_tape.frames)
-                }
-                EditorPlaytestTapeMode::Recording => {
-                    format!("Rec  {:>5} fr", viewport_3d.play_tape.frames)
-                }
-                EditorPlaytestTapeMode::Replaying => format!(
-                    "Replay {:>5}/{:<5}",
-                    viewport_3d.play_tape.cursor, viewport_3d.play_tape.frames
-                ),
-            };
-            draw_play_metric_line(
-                &painter,
-                debug_rect.left() + 8.0,
-                &mut y,
-                &tape_line,
+            painter.rect_filled(pill, 4.0, Color32::from_black_alpha(164));
+            painter.galley(
+                Pos2::new(pill.left() + 6.0, pill.center().y - galley.size().y / 2.0),
+                galley,
                 STUDIO_TEXT,
             );
         }
@@ -1056,12 +908,29 @@ impl EditorWorkspace {
             dump_rect,
             "play_profiler_history_dump",
             icons::FILE,
-            "Dump last profiler frames",
+            "Save the last 30 s of guest performance telemetry as CSV",
             false,
             true,
             Some(STUDIO_ACCENT_DIM),
         ) {
             self.pending_playtest_request = Some(EditorPlaytestRequest::DumpProfilerHistory);
+        }
+        let perf_visible = self.show_play_debug_overlays;
+        if draw_play_overlay_icon_button(
+            ui,
+            perf_rect,
+            "play_performance_panel_toggle",
+            icons::AUDIO_LINES,
+            if perf_visible {
+                "Hide the Guest performance panel (F3)"
+            } else {
+                "Show the Guest performance panel (F3)"
+            },
+            perf_visible,
+            true,
+            Some(STUDIO_ACCENT_DIM),
+        ) {
+            self.toggle_play_performance_panel();
         }
     }
 
@@ -1084,8 +953,8 @@ impl EditorWorkspace {
                         .show(ui, |ui| {
                             visibility_menu_row(
                                 ui,
-                                "play-overlay-profiler",
-                                "Profiler",
+                                "play-overlay-performance-panel",
+                                "Performance panel (F3)",
                                 &mut self.show_play_debug_overlays,
                             );
                         });

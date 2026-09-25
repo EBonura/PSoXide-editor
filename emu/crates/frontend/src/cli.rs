@@ -609,6 +609,26 @@ pub struct DumpEditorUiArgs {
     /// 60 Hz animation-frame distance between sequence images.
     #[arg(long, default_value_t = 1)]
     pub ui_frame_step: u16,
+    /// Embedded-playtest disc (`.cue`) to run headless first. The capture
+    /// then shows the editor in Play with that session's output and the
+    /// guest performance panel in the Inspector's column, as the app draws it.
+    #[arg(long)]
+    pub play_disc: Option<PathBuf>,
+    /// Pad polls the headless Play session runs for. It holds forward and
+    /// presses Cross over route ticks 200-440, like the blank-playtest gate.
+    #[arg(long, default_value_t = 1200)]
+    pub play_polls: u64,
+    /// Pointer position `X,Y` for the capture (hover cursor and tooltip).
+    #[arg(long, value_parser = parse_editor_ui_point)]
+    pub pointer: Option<(f32, f32)>,
+}
+
+fn parse_editor_ui_point(text: &str) -> Result<(f32, f32), String> {
+    let (x, y) = text
+        .split_once(',')
+        .ok_or_else(|| format!("expected X,Y, got {text:?}"))?;
+    let parse = |v: &str| v.trim().parse::<f32>().map_err(|e| format!("{v:?}: {e}"));
+    Ok((parse(x)?, parse(y)?))
 }
 
 /// Arguments for `validate`.
@@ -3131,9 +3151,50 @@ fn cmd_dump_editor_ui(args: DumpEditorUiArgs) -> Result<(), String> {
         viewport_image,
         egui::TextureOptions::NEAREST,
     );
-    let viewport =
+    let mut viewport =
         standalone_editor_preview_presentation(viewport_texture.id(), viewport_overlay_lines);
-    let play_status = EditorPlaytestStatus::Idle;
+    let mut play_status = EditorPlaytestStatus::Idle;
+    // Optional headless Play session: its telemetry feeds the docked panel,
+    // its display replaces the 3D viewport.
+    let mut play = match args.play_disc.as_deref() {
+        Some(disc) => Some(headless_play_session(disc, args.play_polls)?),
+        None => None,
+    };
+    let mut play_textures = None;
+    if let Some(session) = play.as_ref() {
+        let display = ctx.load_texture(
+            "headless-play-display",
+            session.display.clone(),
+            egui::TextureOptions::NEAREST,
+        );
+        let vram = ctx.load_texture(
+            "headless-play-vram",
+            session.vram.clone(),
+            egui::TextureOptions::NEAREST,
+        );
+        viewport = EditorViewport3dPresentation::play(
+            display.id(),
+            egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+            psxed_ui::EditorPlaytestTapeStatus::default(),
+            None,
+            false,
+        );
+        play_status = EditorPlaytestStatus::Running {
+            input_captured: true,
+        };
+        play_textures = Some((display, vram));
+    }
+    let vram_id = play_textures.as_ref().map(|(_, vram)| vram.id());
+    let mut draw = |ctx: &egui::Context| match (play.as_mut(), vram_id) {
+        (Some(session), Some(vram)) => {
+            let stats = &mut session.stats;
+            let mut panel = |ui: &mut egui::Ui| {
+                let _ = crate::ui::play_panel_contents(ui, stats, vram);
+            };
+            editor.draw_with_play_panel(ctx, viewport.clone(), play_status, Some(&mut panel));
+        }
+        _ => editor.draw(ctx, viewport.clone(), play_status),
+    };
 
     // Prime one complete frame before injecting input. This mirrors the native
     // app's first layout pass and ensures fonts/resource textures and widget
@@ -3142,7 +3203,7 @@ fn cmd_dump_editor_ui(args: DumpEditorUiArgs) -> Result<(), String> {
     let prime_time = (first_capture_time - 1.0 / 60.0).max(0.0);
     let first = ctx.run(
         headless_editor_input(args.width, args.height, prime_time, Vec::new()),
-        |ctx| editor.draw(ctx, viewport.clone(), play_status),
+        &mut draw,
     );
     let mut textures_delta = first.textures_delta;
     let mut headless_renderer = None;
@@ -3151,9 +3212,20 @@ fn cmd_dump_editor_ui(args: DumpEditorUiArgs) -> Result<(), String> {
             .ui_frame
             .wrapping_add(capture_index.wrapping_mul(args.ui_frame_step));
         let capture_time = f64::from(ui_frame) / 60.0;
+        let events = args
+            .pointer
+            .map(|(x, y)| vec![egui::Event::PointerMoved(egui::pos2(x, y))])
+            .unwrap_or_default();
+        if !events.is_empty() {
+            // Let the hover land before the captured frame.
+            let _ = ctx.run(
+                headless_editor_input(args.width, args.height, capture_time - 0.5, events.clone()),
+                &mut draw,
+            );
+        }
         let captured = ctx.run(
-            headless_editor_input(args.width, args.height, capture_time, Vec::new()),
-            |ctx| editor.draw(ctx, viewport.clone(), play_status),
+            headless_editor_input(args.width, args.height, capture_time, events),
+            &mut draw,
         );
         textures_delta.append(captured.textures_delta);
         let paint_jobs = ctx.tessellate(captured.shapes, captured.pixels_per_point);
@@ -3201,6 +3273,70 @@ fn apply_headless_editor_pre_capture_actions(editor: &mut EditorWorkspace, frame
     if frame_selected {
         editor.frame_current_view();
     }
+}
+
+/// A headless embedded-playtest run for `dump-editor-ui --play-disc`.
+#[cfg(feature = "editor")]
+struct HeadlessPlaySession {
+    stats: psoxide_debug_ui::GuestStats,
+    display: egui::ColorImage,
+    vram: egui::ColorImage,
+}
+
+/// Boot an embedded-playtest disc and run it on the editor's tick clock
+/// (one vblank period per tick) until `polls` pad polls, recording guest
+/// telemetry every tick. Holds forward; Cross over ticks 200-440.
+#[cfg(feature = "editor")]
+fn headless_play_session(cue: &Path, polls: u64) -> Result<HeadlessPlaySession, String> {
+    let mut bus = Bus::new_without_bios();
+    let mut cpu = Cpu::new();
+    let disc = psoxide_settings::library::load_disc_from_cue(cue)?;
+    fast_boot_embedded_playtest_disc(&mut bus, &mut cpu, &disc, cue)?;
+    bus.cdrom.insert_disc(Some(disc));
+    attach_headless_playtest_pad(&mut bus, false);
+    bus.set_port1_sticks(0x80, 0x80, 0x80, 0x00);
+    let mut stats = psoxide_debug_ui::GuestStats::new();
+    stats.set_cpu_attribution(&mut cpu, true);
+    let period = bus.vblank_period().max(1);
+    let mut tick = 0u64;
+    while bus.port1_completed_polls() < polls && tick < polls * 8 {
+        let cross = (200..440).contains(&tick);
+        bus.set_port1_buttons(ButtonState::from_bits(if cross {
+            button::CROSS
+        } else {
+            0
+        }));
+        let deadline = bus.cycles().saturating_add(period);
+        let mut steps = 0u64;
+        while bus.cycles() < deadline && steps < 1_000_000 {
+            cpu.step(&mut bus)
+                .map_err(|e| format!("play session stopped at tick {tick}: {e:?}"))?;
+            steps += 1;
+        }
+        bus.run_spu_to_current_cycle();
+        let _ = bus.spu.drain_audio();
+        let _ = bus.telemetry.drain_events();
+        let _ = bus.telemetry.drain_debug_logs();
+        stats.record(&cpu, &bus);
+        tick += 1;
+    }
+    let (rgba, width, height) = bus.gpu.display_rgba8();
+    let display =
+        egui::ColorImage::from_rgba_unmultiplied([width as usize, height as usize], &rgba);
+    let vram = egui::ColorImage::from_rgba_unmultiplied(
+        [1024, 512],
+        &bus.gpu.vram.to_rgba8(0, 0, 1024, 512),
+    );
+    println!(
+        "headless play: {tick} ticks, {} polls, {} vblanks recorded",
+        bus.port1_completed_polls(),
+        stats.len()
+    );
+    Ok(HeadlessPlaySession {
+        stats,
+        display,
+        vram,
+    })
 }
 
 #[cfg(feature = "editor")]
