@@ -408,6 +408,7 @@ fn run_real_egui_orthographic_click(workspace: &mut EditorWorkspace, world: [f32
     );
     let pointer = crate::viewport2d::ViewportTransform::from_focus(
         rect,
+        workspace.orthographic_view,
         workspace
             .orthographic_view
             .project_f32(workspace.orthographic_focus),
@@ -482,6 +483,7 @@ fn run_real_egui_orthographic_drag(
     let rect = workspace.last_orthographic_viewport_rect;
     let transform = crate::viewport2d::ViewportTransform::from_focus(
         rect,
+        workspace.orthographic_view,
         workspace
             .orthographic_view
             .project_f32(workspace.orthographic_focus),
@@ -726,6 +728,7 @@ fn run_real_egui_orthographic_brush_drag(
     let rect = workspace.last_orthographic_viewport_rect;
     let transform = crate::viewport2d::ViewportTransform::from_focus(
         rect,
+        workspace.orthographic_view,
         workspace
             .orthographic_view
             .project_f32(workspace.orthographic_focus),
