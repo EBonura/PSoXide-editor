@@ -44,7 +44,9 @@ pub(super) fn face_shade(
     textures: &EditorTextures,
 ) -> FaceShade {
     let tint = material_color(project, material, fallback);
-    let sidedness = material_sidedness(project, material);
+    // Every caller shades a brush face, so preview the side the PXBSP
+    // runtime draws (front only for `Both`).
+    let sidedness = material_sidedness(project, material).brush_face_drawn();
     if let Some(id) = material {
         if let Some(slot) = textures.slot(id) {
             return FaceShade::Textured {

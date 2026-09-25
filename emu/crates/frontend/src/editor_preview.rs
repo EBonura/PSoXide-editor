@@ -2537,6 +2537,32 @@ mod tests {
     }
 
     #[test]
+    fn two_sided_brush_materials_preview_front_only_like_the_runtime() {
+        use psxed_project::{MaterialFaceSidedness, MaterialResource, ResourceData};
+        let commands = |sidedness: MaterialFaceSidedness| {
+            let mut project = ProjectDocument::new("two-sided-brush-preview");
+            let mut material = MaterialResource::opaque(None);
+            material.face_sidedness = sidedness;
+            material.sync_legacy_sidedness();
+            let material = project.add_resource("Glass", ResourceData::Material(material));
+            let mut brush = psxed_project::brush::Brush::cuboid([0, 0, 0], [1024, 512, 1024]);
+            for face in &mut brush.faces {
+                face.material = Some(material);
+            }
+            project.active_scene_mut().brushes.push(brush);
+            preview_commands(&project, &HashSet::new())
+        };
+        let front = commands(MaterialFaceSidedness::Front);
+        assert!(!front.is_empty());
+        assert_eq!(
+            commands(MaterialFaceSidedness::Both),
+            front,
+            "a Both brush material previewed back faces the runtime never draws"
+        );
+        assert_ne!(commands(MaterialFaceSidedness::Back), front);
+    }
+
+    #[test]
     fn hiding_a_light_hides_its_gizmo_but_keeps_its_lighting() {
         // Hide is editor-only: the light still ships, so the preview keeps
         // lighting the room with it.
