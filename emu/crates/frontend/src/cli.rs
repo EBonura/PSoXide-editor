@@ -285,8 +285,8 @@ pub struct LaunchArgs {
     /// through the same no-BIOS HLE path used by the editor viewport.
     #[arg(long)]
     pub embedded_playtest: bool,
-    /// Apply the late PAL PSone SCPH-9902 memory-controller profile after
-    /// BIOS warmup. Useful with an earlier PAL BIOS used as a substitute ROM.
+    /// Apply the late PAL PSone SCPH-9902 memory-controller profile before
+    /// the guest starts.
     #[arg(long)]
     pub scph_9902: bool,
     /// Print an FNV-1a-64 VRAM hash at the end. Same algorithm the
