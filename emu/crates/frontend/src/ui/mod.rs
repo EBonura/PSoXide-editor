@@ -8,7 +8,6 @@
 pub mod burn;
 pub mod debug_sidebar;
 pub mod framebuffer;
-pub mod hud;
 pub mod memory;
 pub mod menu;
 pub mod profiler;
@@ -31,7 +30,7 @@ pub fn draw_layout(
     display_uv: egui::Rect,
     dt: f32,
 ) {
-    state.hud.update(dt, state.cpu.tick());
+    state.guest_stats.note_host_frame(f64::from(dt));
     state.tick_status(dt);
     let recording_input = state.input_recording_status().0;
     state.menu.sync_input_recording_label(recording_input);
@@ -46,6 +45,8 @@ pub fn draw_layout(
     #[cfg(feature = "editor")]
     if state.workspace.is_editor() {
         let playtest_status = state.editor_playtest_status();
+        // Docked before the editor lays out, so its panels share the rest.
+        debug_sidebar::draw_play_performance(ctx, state, vram_tex);
         state.editor.draw(ctx, editor_viewport, playtest_status);
         if state.editor.take_emulator_menu_request() {
             state.menu.open = true;

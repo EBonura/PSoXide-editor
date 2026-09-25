@@ -6,7 +6,7 @@
 //! - `icons`   -- Lucide codepoint constants.
 //! - `gfx`     -- winit window + wgpu surface + egui-wgpu plumbing.
 //! - `app`     -- top-level state, UI orchestration entry point.
-//! - `ui/*`    -- individual panels (central, registers, vram, menu, hud).
+//! - `ui/*`    -- individual panels (central, registers, vram, menu).
 
 #![warn(missing_docs)]
 
@@ -867,7 +867,6 @@ fn keycode_to_binding(code: KeyCode) -> Option<InputBinding> {
         KeyCode::Tab => named("Tab"),
         KeyCode::F1 => named("F1"),
         KeyCode::F2 => named("F2"),
-        KeyCode::F3 => named("F3"),
         KeyCode::F4 => named("F4"),
         KeyCode::F6 => named("F6"),
         KeyCode::F9 => named("F9"),
@@ -906,8 +905,9 @@ fn keycode_to_binding(code: KeyCode) -> Option<InputBinding> {
         KeyCode::Backquote => named("Backquote"),
         KeyCode::IntlRo => named("IntlRo"),
         KeyCode::IntlBackslash => named("IntlBackslash"),
-        // Escape toggles the menu, F5/F7 save/load, F8 records input, and
-        // F12 toggles the renderer display source. Keeping host commands out
+        // Escape toggles the menu, F3 the guest performance panel, F5/F7
+        // save/load, F8 records input, and F12 toggles the renderer display
+        // source. Keeping host commands out
         // of pad bindings prevents one key press from firing both actions.
         _ => None,
     }
@@ -1136,6 +1136,7 @@ impl ApplicationHandler for Shell {
                 // records from cold boot; stopping downloads a CSV tape).
                 if state == ElementState::Pressed && !repeat {
                     match &logical_key {
+                        Key::Named(NamedKey::F3) => self.state.toggle_performance_panel(),
                         Key::Named(NamedKey::F5) => self.state.save_state(),
                         Key::Named(NamedKey::F7) => self.state.load_latest_state(false),
                         Key::Named(NamedKey::F8) => self.state.toggle_input_recording(),
@@ -1600,8 +1601,6 @@ impl ApplicationHandler for Shell {
                                     if !samples.is_empty() {
                                         audio.push_samples(&samples);
                                     }
-                                    // Surface the cpal ring depth in the HUD.
-                                    self.state.hud.set_audio_queue_len(audio.queue_len());
                                 } else {
                                     // No output device -- drain and discard so the
                                     // SPU's internal queue doesn't grow unbounded.
@@ -1805,7 +1804,7 @@ impl ApplicationHandler for Shell {
                 // frame so an open sidebar shows this frame, and only when
                 // the sidebar can actually be seen -- a hidden panel costs
                 // nothing at all.
-                if state.panels.debug_sidebar && state.bus.is_some() {
+                if state.guest_panel_visible() && state.bus.is_some() {
                     let vram_upload_start = Instant::now();
                     gfx.prepare_vram();
                     profile.vram_upload_ms = elapsed_ms(vram_upload_start);
@@ -2226,26 +2225,6 @@ fn editor_play_metrics(state: &app::AppState) -> Option<psxed_ui::EditorPlaytest
         .live_average()
         .or_else(|| state.profiler.average())
         .unwrap_or(latest);
-    let visual_hz = sample.guest_visual_frame_hz();
-    let display_hz = visual_hz.unwrap_or_else(|| sample.psx_draw_hz());
-    let visual_interval_vblanks = latest
-        .guest_visual_interval_vblanks()
-        .or_else(|| sample.guest_visual_interval_vblanks())
-        .unwrap_or(0.0);
-    let (visual_frame_times_ms, visual_frame_time_count) = latest.guest.visual_frame_intervals_ms();
-    let visual_deadline_misses = latest
-        .guest_visual_deadline_misses()
-        .round()
-        .clamp(0.0, u32::MAX as f32) as u32;
-    let visual_lateness_vblanks = latest
-        .guest_visual_max_lateness_vblanks()
-        .round()
-        .clamp(0.0, u32::MAX as f32) as u32;
-    let frame_ms = if display_hz > 0.0 {
-        1000.0 / display_hz
-    } else {
-        latest.total_ms
-    };
     let task_ms_per_hit = |task_id: u16| {
         let task_id = task_id as usize;
         let hits = sample.guest.task_hits[task_id];
@@ -2417,27 +2396,6 @@ fn editor_play_metrics(state: &app::AppState) -> Option<psxed_ui::EditorPlaytest
         .counter_latest_value(counter::ROOM_CAMERA_VIEW_COS_PITCH_Q12_BIASED as usize);
     let pose_valid = pose_sample.is_some();
     Some(psxed_ui::EditorPlaytestMetrics {
-        sample_serial: latest.sample_serial,
-        host_fps: sample.host_fps(),
-        host_ms: sample.host_dt_ms,
-        emu_hz: sample.emulated_vblank_hz(),
-        visual_hz,
-        draw_hz: sample.psx_draw_hz(),
-        visual_frames: latest
-            .guest_visual_frame_count()
-            .round()
-            .clamp(0.0, u32::MAX as f32) as u32,
-        visual_interval_vblanks,
-        visual_frame_times_ms,
-        visual_frame_time_count,
-        visual_deadline_misses,
-        visual_lateness_vblanks,
-        total_ms: sample.total_ms,
-        frame_ms,
-        emu_ms: sample.emu_ms,
-        hw_ms: sample.hw_render_ms,
-        ui_ms: sample.egui.total_ms,
-        step_budget_percent: sample.psx_budget_percent(),
         fixed_update_task_ms: task_ms_per_hit(task::FIXED_UPDATE),
         fixed_update_task_max_ms: task_max_ms(task::FIXED_UPDATE),
         visual_render_task_ms: task_ms_per_hit(task::VISUAL_RENDER),
@@ -2919,6 +2877,7 @@ mod tests {
         // Host commands are deliberately unavailable as pad bindings.
         for code in [
             KeyCode::Escape,
+            KeyCode::F3,
             KeyCode::F5,
             KeyCode::F7,
             KeyCode::F8,

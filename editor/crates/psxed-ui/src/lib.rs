@@ -392,9 +392,7 @@ const RESOURCE_CARD_HEIGHT: f32 = 128.0;
 const VIEWPORT_PREVIEW_ASPECT: f32 = 320.0 / 240.0;
 const SHORTCUT_GROUP_FLASH_SECONDS: f32 = 0.85;
 const ACTION_BAR_COMPACT_HEIGHT: f32 = 50.0;
-const PLAY_FRAME_HISTORY_CAP: usize = 150;
 const PLAY_DEBUG_TERMINAL_LINE_CAP: usize = 1_000;
-const PLAY_FRAME_TARGET_FPS: f32 = 30.0;
 const PSOXIDE_APP_ICON_PNG: &[u8] =
     include_bytes!("../../../../assets/branding/psoxide-app-icon.png");
 pub(crate) const BUILTIN_QUAKE_SKY_NAME: &str = "Sky: Quake Layered Sunset";
@@ -848,9 +846,8 @@ pub struct EditorWorkspace {
     /// Wireframe outlines for unselected brushes (View menu toggle).
     show_brush_wireframes: bool,
     preview_bounds: bool,
+    /// Docked Guest performance panel during Play (sidecar-persisted).
     show_play_debug_overlays: bool,
-    play_frame_times_ms: VecDeque<f32>,
-    play_frame_last_sample_serial: Option<u32>,
     play_debug_terminal_lines: VecDeque<String>,
     shortcut_group_flash: Option<(ShortcutGroup, Instant)>,
     view_2d: bool,
@@ -3379,8 +3376,6 @@ impl EditorWorkspace {
             preview_bounds: editor_visibility.preview_bounds,
             show_play_debug_overlays: editor_visibility.show_play_debug_overlays,
             show_brush_wireframes: editor_visibility.show_brush_wireframes,
-            play_frame_times_ms: VecDeque::with_capacity(PLAY_FRAME_HISTORY_CAP),
-            play_frame_last_sample_serial: None,
             play_debug_terminal_lines: VecDeque::with_capacity(PLAY_DEBUG_TERMINAL_LINE_CAP),
             shortcut_group_flash: None,
             // The 3D workspace uses the bit-faithful BSP preview by
@@ -3524,6 +3519,18 @@ impl EditorWorkspace {
         self.camera_rig.free_initialized =
             editor_camera.free_initialized || editor_camera.mode == EditorCameraMode::Free;
         self.camera_rig.zoom_speed = editor_camera.zoom_speed;
+    }
+
+    /// Whether the docked Guest performance panel should show during Play.
+    /// Persisted in the view sidecar (`show_play_debug_overlays`).
+    pub fn play_performance_panel_visible(&self) -> bool {
+        self.show_play_debug_overlays
+    }
+
+    /// Show or hide the docked Guest performance panel (button, visibility
+    /// menu, or F3).
+    pub fn toggle_play_performance_panel(&mut self) {
+        self.show_play_debug_overlays = !self.show_play_debug_overlays;
     }
 
     fn current_editor_visibility_state(&self) -> EditorVisibilityState {

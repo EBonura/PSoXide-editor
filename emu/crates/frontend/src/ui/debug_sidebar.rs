@@ -8,7 +8,7 @@ use egui::{Align, Layout, Rect, RichText, SidePanel, UiBuilder};
 use crate::app::AppState;
 use crate::theme;
 
-use super::{memory, profiler, registers, vram};
+use super::{memory, registers, vram};
 
 const SIDEBAR_MIN_WIDTH: f32 = 320.0;
 const SIDEBAR_MAX_WIDTH: f32 = 900.0;
@@ -24,12 +24,62 @@ const SIDEBAR_PAD: f32 = 8.0;
 /// panel is resizable only when fully open; its width is remembered as the
 /// animation target so a resized sidebar animates to its own width.
 pub fn draw(ctx: &egui::Context, state: &mut AppState, vram_tex: egui::TextureId) {
-    // 0.0 = closed, 1.0 = open.
-    let t = ctx.animate_bool_with_time(
-        egui::Id::new("debug_sidebar_slide"),
-        state.panels.debug_sidebar,
-        0.22,
+    let open = state.panels.debug_sidebar;
+    draw_sliding(ctx, state, "debug-sidebar", open, |ui, state| {
+        draw_contents(ui, state, vram_tex)
+    });
+}
+
+/// The guest performance panel docked beside the editor's Play viewport,
+/// with the same slide and width as the emulator workspace's sidebar.
+#[cfg(feature = "editor")]
+pub fn draw_play_performance(ctx: &egui::Context, state: &mut AppState, vram_tex: egui::TextureId) {
+    let open = state.guest_panel_visible();
+    draw_sliding(ctx, state, "play-performance-panel", open, |ui, state| {
+        let export = play_panel_contents(ui, &mut state.guest_stats, vram_tex);
+        if let Some(psoxide_debug_ui::PanelAction::ExportCsv { csv, seconds }) = export {
+            state.export_guest_stats_csv(&csv, seconds);
+        }
+    });
+}
+
+/// Contents of the Play-docked panel; shared with the headless capture.
+#[cfg(feature = "editor")]
+pub fn play_panel_contents(
+    ui: &mut egui::Ui,
+    stats: &mut psoxide_debug_ui::GuestStats,
+    vram_tex: egui::TextureId,
+) -> Option<psoxide_debug_ui::PanelAction> {
+    ui.label(
+        RichText::new("Guest performance (PS1)")
+            .color(theme::ACCENT)
+            .size(theme::FONT_SIZE_HEADING),
     );
+    ui.label(
+        RichText::new("F3 or the bars button on the Play view hides this panel.")
+            .color(theme::TEXT_DIM)
+            .size(theme::FONT_SIZE_SMALL),
+    );
+    ui.separator();
+    egui::ScrollArea::vertical()
+        .auto_shrink([false, false])
+        .show(ui, |ui| {
+            theme::viz_frame(ui, "", |ui| {
+                psoxide_debug_ui::draw(ui, stats, Some(vram_tex))
+            })
+        })
+        .inner
+}
+
+fn draw_sliding(
+    ctx: &egui::Context,
+    state: &mut AppState,
+    id: &'static str,
+    open: bool,
+    draw_contents: impl FnOnce(&mut egui::Ui, &mut AppState),
+) {
+    // 0.0 = closed, 1.0 = open.
+    let t = ctx.animate_bool_with_time(egui::Id::new((id, "slide")), open, 0.22);
     if t <= 0.002 {
         return;
     }
@@ -42,7 +92,7 @@ pub fn draw(ctx: &egui::Context, state: &mut AppState, vram_tex: egui::TextureId
 
     // Zero-margin fill frame: content padding is handled by hand (SIDEBAR_PAD)
     // so both the animated and open paths share the exact same layout.
-    let panel = SidePanel::right("debug-sidebar").frame(egui::Frame::NONE.fill(panel_fill));
+    let panel = SidePanel::right(id).frame(egui::Frame::NONE.fill(panel_fill));
     let panel = if animating {
         panel.resizable(false).exact_width((target * t).max(1.0))
     } else {
@@ -73,7 +123,7 @@ pub fn draw(ctx: &egui::Context, state: &mut AppState, vram_tex: egui::TextureId
                 .layout(Layout::top_down(Align::Min)),
             |ui| {
                 ui.set_clip_rect(content_rect.intersect(panel_rect));
-                draw_contents(ui, state, vram_tex);
+                draw_contents(ui, state);
             },
         );
         // egui persists the panel's width from the frame content's measured
@@ -106,6 +156,13 @@ fn draw_contents(ui: &mut egui::Ui, state: &mut AppState, vram_tex: egui::Textur
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
         .show(ui, |ui| {
+            let mut export = None;
+            collapsible(ui, "Guest performance (PS1)", true, |ui| {
+                export = psoxide_debug_ui::draw(ui, &mut state.guest_stats, Some(vram_tex));
+            });
+            if let Some(psoxide_debug_ui::PanelAction::ExportCsv { csv, seconds }) = export {
+                state.export_guest_stats_csv(&csv, seconds);
+            }
             collapsible(ui, "CPU Registers", state.panels.registers, |ui| {
                 registers::draw_contents(
                     ui,
@@ -126,9 +183,6 @@ fn draw_contents(ui: &mut egui::Ui, state: &mut AppState, vram_tex: egui::Textur
             });
             collapsible(ui, "VRAM", state.panels.vram, |ui| {
                 vram::draw_contents(ui, vram_tex);
-            });
-            collapsible(ui, "Frame Profiler", state.panels.profiler, |ui| {
-                profiler::draw_contents(ui, &mut state.profiler);
             });
         });
 }
