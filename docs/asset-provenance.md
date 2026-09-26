@@ -141,6 +141,8 @@ See [`sdk/crates/psx-spu/vendor/PROVENANCE.md`](../sdk/crates/psx-spu/vendor/PRO
 | --- | --- | --- | --- |
 | `assets/audio/cdda/GONCHAROV.wav` | Cooked from `local-assets/audio/goncharov-source.mp3` (magikAAAAArp track). No longer tracked: the `.track02.cdda` below holds the identical PCM, and `tools/wav_from_cdda.py` rebuilds this on demand | magikAAAAArp | Used with magikAAAAArp's permission; keep the authorization on record |
 | `assets/audio/cdda/GONCHAROV.track02.cdda` | Cooked from `GONCHAROV.wav` as 44.1 kHz stereo signed 16-bit PCM, sector-padded for CD-DA track 2. The tracked form of the magikAAAAArp track, so the permission above covers it | magikAAAAArp | Used with magikAAAAArp's permission; keep the authorization on record |
+| `editor/projects/default/assets/audio/cdda/menu2.wav` | Cortex Ignition menu music, delivered as `Menu2.wav` | Carmelo Miceli | Written for Cortex Ignition and used with the composer's permission; credited in the game's credits screen |
+| `editor/projects/default/assets/audio/cdda/cortex_boss.wav` | Cortex Ignition combat music, delivered as `Cortex Boss.wav` | Carmelo Miceli | Written for Cortex Ignition and used with the composer's permission; credited in the game's credits screen |
 
 ## OBJ Reference Models
 
