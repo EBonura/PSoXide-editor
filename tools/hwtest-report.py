@@ -332,6 +332,13 @@ LABELS = {
     0x1F3: "fmv_shown_late_vblanks",
     0x1F4: "fmv_kcyc_vlc_mdec_wait",
     0x1F5: "fmv_last_lba_runs_setup_error",
+    # v1.26 MDEC DIAGNOSTIC (src/fmv_diag.rs): packed halfword streams, not
+    # timings; mdec_diag_rows() below unpacks them.
+    **{0x200 + 0x10 * v + k: f"mdec_diag_{'ABCDEF'[v]}_{k:X}" for v in range(6) for k in range(14)},
+    0x260: "mdec_diag_overview",
+    **{0x270 + 4 * v + k: f"mdec_play_{'ABCDEF'[v]}_{k}" for v in range(6) for k in range(4)},
+    **{0x290 + 5 * t + k: f"mdec_reset_trace_{t}_{k}" for t in range(3) for k in range(5)},
+    **{0x2A0 + k: f"mdec_frame_control_{k}" for k in range(3)},
     # v1.21 register A/B group. Present only in a PERF A/B capture.
     0xDC: "ab_ramsize_uncached_loads_control",
     0xDD: "ab_ramsize_uncached_loads_bit7_flipped",
@@ -428,6 +435,131 @@ FMV_FIELDS = (
 # first_error_lba when nothing went wrong.
 FMV_NO_ERROR_LBA = 0xFFFF
 FMV_SETUP_ERRORS = ("none", "cd prepare", "MOVIE.STR not found", "cd xa mode", "mdec tables", "cd start")
+
+# v1.26 MDEC DIAGNOSTIC (src/fmv_diag.rs, `records` documents the layout).
+MDEC_SEQUENCES = (
+    "A control v1.25",
+    "B settle then enable",
+    "C fixed delay",
+    "D cpu tables",
+    "E psn00bsdk order",
+    "F sdk driver",
+)
+MDEC_STEPS = ("none", "reset settle", "quant upload", "scale upload", "idle after tables", "probe dma0 in", "probe dma1 out")
+MDEC_SNAPSHOTS = ("before_reset", "after_reset", "after_enable", "after_command", "after_tables", "after_probe")
+MDEC_STOPS = ("end", "stall", "wedged", "cd error", "setup")
+MDEC_TRACES = ("from_idle", "from_busy", "from_busy_with_enable")
+MDEC_NEVER = 0xFFFF
+
+
+def mdec_status_text(value: int) -> str:
+    """MDEC1 status decoded per psx-spx."""
+    flags = [
+        name
+        for bit, name in ((31, "out_empty"), (30, "in_full"), (29, "busy"), (28, "in_req"), (27, "out_req"))
+        if value >> bit & 1
+    ]
+    block = value >> 16 & 7
+    remaining = value & 0xFFFF
+    return f"0x{value:08X} [{' '.join(flags) or '-'} block={block} words-1={remaining:#06x}]"
+
+
+def mdec_stream(by_id: dict, first: int, records: int) -> list[int]:
+    halves: list[int] = []
+    for k in range(records):
+        record = by_id.get(first + k)
+        if record is None:
+            break
+        halves += [record.minimum, record.median, record.maximum]
+    return halves
+
+
+def mdec_diag_rows(capture: Capture) -> list[str]:
+    """The v1.26 MDEC DIAGNOSTIC and its playbacks, unpacked. Empty unless
+    the capture carries them."""
+    by_id = {record.record_id: record for record in capture.records}
+    if 0x260 not in by_id:
+        return []
+    rows = []
+    overview = by_id[0x260]
+    chosen = overview.minimum
+    rows.append(
+        f"# mdec_diag chosen={'none' if chosen == 0xFFFF else MDEC_SEQUENCES[chosen]} "
+        f"runs={overview.median} batteries={overview.maximum}"
+    )
+    rows.append("mdec_diag,sequence,field,value")
+    clocks = lambda v: "never" if v == MDEC_NEVER else str(v)  # noqa: E731
+    for v, name in enumerate(MDEC_SEQUENCES):
+        h = mdec_stream(by_id, 0x200 + 0x10 * v, 14)
+        if len(h) < 27:
+            rows.append(f"mdec_diag,{name},missing,{len(h)} halfwords")
+            continue
+        word = lambda i: h[i] | h[i + 1] << 16  # noqa: E731
+        mask, runs = h[0] & 0xFF, h[0] >> 8
+        run_fails = word(9)
+        fails = [MDEC_STEPS[min(run_fails >> 4 * r & 0xF, len(MDEC_STEPS) - 1)] for r in range(runs)]
+        out = rows.append
+        out(f"mdec_diag,{name},worked,{bin(mask).count('1')}/{runs} runs_1_to_8={format(mask, '08b')[::-1]}")
+        out(f"mdec_diag,{name},per_run_fail,{' | '.join(fails)}")
+        out(f"mdec_diag,{name},detail_run,{(h[1] >> 8) + 1} fail={MDEC_STEPS[min(h[1] & 0xFF, len(MDEC_STEPS) - 1)]}")
+        out(f"mdec_diag,{name},settle_clocks,{clocks(h[2])}")
+        out(f"mdec_diag,{name},request_clocks,{clocks(h[3])}")
+        out(f"mdec_diag,{name},probe_request_clocks,{clocks(h[4])}")
+        if v == 5:
+            out(
+                f"mdec_diag,{name},sdk_driver,enable_writes={h[5] & 0xFF} "
+                f"cpu_uploads={h[5] >> 8 & 0x7F} reset_settled={h[5] >> 15}"
+            )
+        taken, rescue = h[6] & 0xFF, h[6] >> 8
+        for slot, label in enumerate(MDEC_SNAPSHOTS):
+            value = word(11 + 2 * slot)
+            text = mdec_status_text(value) if taken >> slot & 1 else "not read"
+            out(f"mdec_diag,{name},status_{label},{text}")
+        out(f"mdec_diag,{name},probe,words={h[7] & 0x7FFF}/128 flat={h[7] >> 15} first=0x{word(23):08X}")
+        if v == 0:
+            out(
+                f"mdec_diag,{name},late_enable,"
+                + {0: "not tried (no timeout)", 1: "freed the stuck DMA", 2: "did not free it"}.get(rescue, str(rescue))
+                + (f" status={mdec_status_text(word(25))}" if rescue else "")
+            )
+        if h[8] and len(h) >= 39:
+            chcr, bcr, madr, dpcr, dicr, kick = (word(27 + 2 * i) for i in range(6))
+            moved = ((madr & 0xFFFFFF) - (kick & 0xFFFFFF)) // 4
+            out(
+                f"mdec_diag,{name},dma_timeout,chcr=0x{chcr:08X} bcr=0x{bcr:08X} madr=0x{madr:08X} "
+                f"kick_madr=0x{kick:08X} words_moved={moved} blocks_left={bcr >> 16} "
+                f"dpcr=0x{dpcr:08X} dicr=0x{dicr:08X}"
+            )
+    for v, name in enumerate(MDEC_SEQUENCES):
+        h = mdec_stream(by_id, 0x270 + 4 * v, 4)
+        if len(h) < 12:
+            continue
+        stop, passed, setup = h[0] & 0xF, h[0] >> 4 & 1, h[0] >> 8
+        rows.append(
+            f"mdec_play,{name},{'PASS' if passed else 'FAIL'},stop={MDEC_STOPS[min(stop, 4)]} "
+            f"setup_error={FMV_SETUP_ERRORS[setup] if setup < len(FMV_SETUP_ERRORS) else setup} "
+            f"sectors={h[3]}/{h[4]} lost={h[5]} bad={h[6]} dropped={h[7]} decode_errors={h[8]} "
+            f"cd_errors={h[9]} first_error_lba={'none' if h[10] == 0xFFFF else h[10]} "
+            f"last_good_lba={h[11]} shown={h[1]} late={h[2]}"
+        )
+    for t, name in enumerate(MDEC_TRACES):
+        h = mdec_stream(by_id, 0x290 + 5 * t, 5)
+        if len(h) < 13:
+            continue
+        samples = [
+            f"{h[1 + 3 * i]}clk:{mdec_status_text(h[2 + 3 * i] | h[3 + 3 * i] << 16)}"
+            for i in range(min(h[0], 4))
+        ]
+        rows.append(f"mdec_reset_trace,{name}," + " -> ".join(samples))
+    h = mdec_stream(by_id, 0x2A0, 3)
+    if len(h) >= 9:
+        cpu_sum, dma_sum = h[5] | h[6] << 16, h[7] | h[8] << 16
+        rows.append(
+            f"mdec_frame_control,read={h[0] & 1} cpu_ok={h[0] >> 1 & 1} dma_ok={h[0] >> 2 & 1} "
+            f"sums_equal={h[0] >> 3 & 1} rle_words={h[1]} expected={h[2]} cpu_words={h[3]} "
+            f"dma_words={h[4]} cpu_sum=0x{cpu_sum:08X} dma_sum=0x{dma_sum:08X}"
+        )
+    return rows
 
 
 def fmv_rows(capture: Capture) -> list[str]:
@@ -641,6 +773,7 @@ WORK_BY_ID = {
     0x139: 16,
     0x13A: 16,
     **{record_id: 0 for record_id in range(0x1F0, 0x1F6)},
+    **{record_id: 0 for record_id in range(0x200, 0x2B0)},
     0x72: 128,
     0x73: 128,
     0x74: 64,
@@ -1161,6 +1294,8 @@ def print_report(
     for row in list_busy_rows(capture):
         print(row)
     for row in fmv_rows(capture):
+        print(row)
+    for row in mdec_diag_rows(capture):
         print(row)
     settle = capture.observations[
         GTE_SETTLE_FIRST_CASE : GTE_SETTLE_FIRST_CASE + GTE_SETTLE_CASE_COUNT
