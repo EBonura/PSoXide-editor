@@ -773,7 +773,7 @@ WORK_BY_ID = {
     0x139: 16,
     0x13A: 16,
     **{record_id: 0 for record_id in range(0x1F0, 0x1F6)},
-    **{record_id: 0 for record_id in range(0x200, 0x2B0)},
+    **{record_id: 0 for record_id in LABELS if 0x200 <= record_id < 0x2B0},
     0x72: 128,
     0x73: 128,
     0x74: 64,

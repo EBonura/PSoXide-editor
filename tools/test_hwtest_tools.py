@@ -131,8 +131,11 @@ class TableSyncTests(unittest.TestCase):
         retired = sum(1 for label in report.LABELS.values() if label.startswith("v122_only_"))
         # The FMV STREAM TEST's records join any scope once it has run.
         fmv = len(report.FMV_FIELDS)
+        # The v1.26 MDEC DIAGNOSTIC's records replace an earlier battery's
+        # slots when it runs, so they are not part of the standing battery.
+        mdec = sum(1 for record_id in report.LABELS if 0x200 <= record_id < 0x2B0)
         # What is left is the standing battery, which has not changed size.
-        standing = len(report.LABELS) - sum(table.values()) - dma_pairs - retired - fmv
+        standing = len(report.LABELS) - sum(table.values()) - dma_pairs - retired - fmv - mdec
         self.assertEqual(standing, 151)
         # The standard scope takes the standing battery, SAFE and LEVERS.
         self.assertLessEqual(standing + table["SAFE"] + table["LEVERS"] + fmv, slots)
