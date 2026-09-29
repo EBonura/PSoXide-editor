@@ -63,6 +63,19 @@ pre-split repository paths.
 preserved. Hardware-sensitive changes still require original-console evidence;
 emulator checks alone do not establish hardware correctness.
 
+## How This Was Built
+
+PSoXide was developed with heavy use of AI coding assistants, with a human
+directing the architecture, debugging and hardware verification. A large part
+of the code was written by an AI assistant under human direction, review and
+integration.
+
+This is not a clean-room implementation, and disclosing AI assistance is not a
+warranty of clean-room provenance or of non-infringement. Provenance is tracked
+explicitly; see PSoXide's
+[downstream licensing](https://github.com/EBonura/PSoXide/blob/main/docs/downstream-licensing.md)
+document.
+
 ## Recent changes
 
 The current source adds a skippable opening to Cortex Ignition, with orbiting camera shots and Aletha's wake-up animation. See [opening sequence notes](docs/cortex/opening.md) for timing and camera controls.
