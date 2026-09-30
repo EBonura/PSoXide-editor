@@ -144,3 +144,9 @@ V3 replaces clip 81 while preserving its action binding. It combines weighted ba
 ## Approved left/right side steps
 
 V2 replaces clips 82/83 with faster, weighted side steps. Each source loop is one second, with a leading-foot step and trailing-foot recovery, stronger body compression, and arm follow-through. Sources 210/211 preserve the approved masters. Runtime speed 276 compensates for integer-rate cooking and the duplicate endpoint, giving a 0.99972-second cycle. Character movement speed is unchanged. See the [source and validation](source_assets/animations/player/cybernetic_strafe_review_v2/README.md).
+
+## Main integration, 2026-09-30
+
+The approved animation branch now includes local main `fc6c68f4` and remote main `4f7adcf9` on `codex/cortex-animations-main`. The editor release executable was rebuilt with the shared guest-performance debug panel, and the default 0.4b disc was recooked and rebuilt with the updated SDK and emulator pins.
+
+All 78 existing animation asset hashes are unchanged. Approved attack event timing is retained alongside main's enlarged weapon capsules, including the combo follow-up. Validation passed: 458 project tests, 247 runtime tests, 81 playtest tests and 2 debug-panel tests; zero guest load-delay hazards; native gameplay smoke with all fault registers zero. The redesigned debug panel was also rendered offscreen and inspected. These checks do not constitute physical-console validation. Build hashes and integration revisions are recorded in `animation-register.json` under `main_integration`.
