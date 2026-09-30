@@ -1,6 +1,6 @@
 # Animation register — Cortex Ignition v0.4b
 
-Updated 30 September 2026. **4 approved replacements; 1 approved combo follow-up; 1 retired combo candidate; all remaining animations are original to this pass.**
+Updated 30 September 2026. **6 approved replacements; 1 approved combo follow-up; 1 retired combo candidate; all remaining animations are original to this pass.**
 
 “Original” means unchanged from the v0.4b project before these replacements, not necessarily an artist’s original capture. The baseline is Git commit `44d1f52bdcaacc0444a43af8dcc76ebcc205ea5a`. Resource IDs and paths remain stable so existing character bindings keep working.
 
@@ -12,8 +12,10 @@ Updated 30 September 2026. **4 approved replacements; 1 approved combo follow-up
 | Aletha / Horizon LightAttack | Cybernetic light attack v5 + approved v12 head motion | 84 · `gen_light_attack` | [Editable master and export](source_assets/animations/player/cybernetic_light_attack/README.md) |
 | Aletha / Horizon HeavyAttack | Cybernetic cross slash v2 | 85 · `gen_heavy_attack` | [Editable master and bake notes](source_assets/animations/player/cybernetic_heavy_attack_review_v2/README.md) |
 | Aletha / WalkBackward | Cybernetic backward walk v3 | 81 · `gen_walk_bwd` | [Editable master and bake notes](source_assets/animations/player/cybernetic_back_walk_review_v3/README.md) |
+| Aletha / StrafeLeft | Faster cybernetic side step v2 | 82 · `gen_walk_lft` | [Editable masters and bake notes](source_assets/animations/player/cybernetic_strafe_review_v2/README.md) |
+| Aletha / StrafeRight | Faster cybernetic side step v2 | 83 · `gen_walk_rgt` | [Editable masters and bake notes](source_assets/animations/player/cybernetic_strafe_review_v2/README.md) |
 
-The walk keeps its restrained body motion and wider arms. The light attack keeps the approved two-second performance, sword cast, deep load, lunge, strike and weighted recovery. All four replacements retain authored body translation (`in_place: false`). The Zenith light attack is still the original.
+The walk keeps its restrained body motion and wider arms. The light attack keeps the approved two-second performance, sword cast, deep load, lunge, strike and weighted recovery. All six replacements retain authored body translation (`in_place: false`). The Zenith light attack is still the original.
 
 ## Approved two-hit combo
 
@@ -68,8 +70,8 @@ Used by: Aletha (62).
 | Stun | 54 · `aletha_stun` | Original |
 | WalkBackward | 81 · `gen_walk_bwd` | **Replaced - approved v3** |
 | Walk | 73 · `gen_walk_fwd` | **Replaced — approved v7** |
-| StrafeLeft | 82 · `gen_walk_lft` | Original |
-| StrafeRight | 83 · `gen_walk_rgt` | Original |
+| StrafeLeft | 82 · `gen_walk_lft` | **Replaced - approved v2** |
+| StrafeRight | 83 · `gen_walk_rgt` | **Replaced - approved v2** |
 | WalkWindup | 74 · `gen_walk_fwd_windup` | Original |
 | WalkWinddown | 75 · `gen_walk_fwd_winddown` | Original |
 | WalkWinddownAlt | 76 · `gen_walk_fwd_winddown_mirror` | Original |
@@ -137,4 +139,8 @@ The JSON register inventories every registered animation and legacy clip, with c
 
 ## Approved backward walk
 
-V3 replaces clip 81 while preserving its action binding. It combines weighted backward steps, sole contact pivots, torso counter-rotation and delayed arm follow-through. Source 209 retains the exact approved Blender master and GLB. Left/right strafes are still original. See the [source and runtime validation](source_assets/animations/player/cybernetic_back_walk_review_v3/README.md).
+V3 replaces clip 81 while preserving its action binding. It combines weighted backward steps, sole contact pivots, torso counter-rotation and delayed arm follow-through. Source 209 retains the exact approved Blender master and GLB. Left/right strafes now use the approved faster v2 side steps. See the [source and runtime validation](source_assets/animations/player/cybernetic_back_walk_review_v3/README.md).
+
+## Approved left/right side steps
+
+V2 replaces clips 82/83 with faster, weighted side steps. Each source loop is one second, with a leading-foot step and trailing-foot recovery, stronger body compression, and arm follow-through. Sources 210/211 preserve the approved masters. Runtime speed 276 compensates for integer-rate cooking and the duplicate endpoint, giving a 0.99972-second cycle. Character movement speed is unchanged. See the [source and validation](source_assets/animations/player/cybernetic_strafe_review_v2/README.md).

@@ -6,6 +6,8 @@
   "replacements": [
     73,
     81,
+    82,
+    83,
     84,
     85
   ],
@@ -181,13 +183,13 @@
           "action": "StrafeLeft",
           "clip_resource": 82,
           "clip_name": "gen_walk_lft",
-          "status": "original"
+          "status": "replaced"
         },
         {
           "action": "StrafeRight",
           "clip_resource": 83,
           "clip_name": "gen_walk_rgt",
-          "status": "original"
+          "status": "replaced"
         },
         {
           "action": "WalkWindup",
@@ -701,21 +703,27 @@
       "resource_id": 82,
       "name": "gen_walk_lft",
       "path": "assets/animations/gen/walk_lft.psxanim",
-      "status": "original",
-      "sha256": "470a57319ab76cb253c54cfbd2aa01293abb725a71051161e19e850a7df5801f",
+      "status": "replaced",
+      "sha256": "2225f16a718b9fe48b73f12501d890d5992610344e76b5883e0e9110cca82d4b",
       "baseline_sha256": "470a57319ab76cb253c54cfbd2aa01293abb725a71051161e19e850a7df5801f",
-      "stored_frames": 9,
-      "sample_rate_hz": 15
+      "stored_frames": 31,
+      "sample_rate_hz": 30,
+      "source_resource": 210,
+      "approved_version": "v2",
+      "source_directory": "source_assets/animations/player/cybernetic_strafe_review_v2"
     },
     {
       "resource_id": 83,
       "name": "gen_walk_rgt",
       "path": "assets/animations/gen/walk_rgt.psxanim",
-      "status": "original",
-      "sha256": "3c6bf3ec181dd7464d8c6771fe9551548392e3262c85777f6d9f08b3ad19884f",
+      "status": "replaced",
+      "sha256": "d608f7d6ee8c7c335d72d895992b813e31ceac06b5db27b15d7d35f18e52a8e2",
       "baseline_sha256": "3c6bf3ec181dd7464d8c6771fe9551548392e3262c85777f6d9f08b3ad19884f",
-      "stored_frames": 9,
-      "sample_rate_hz": 15
+      "stored_frames": 31,
+      "sample_rate_hz": 30,
+      "source_resource": 211,
+      "approved_version": "v2",
+      "source_directory": "source_assets/animations/player/cybernetic_strafe_review_v2"
     },
     {
       "resource_id": 84,
@@ -1593,5 +1601,33 @@
     "runtime_validation": "source_assets/animations/player/cybernetic_back_walk_review_v3/runtime-validation.json",
     "runtime_loop_seconds": 1.4032202809181227,
     "runtime_speed_q8": 281
+  },
+  "side_steps": {
+    "status": "approved_installed",
+    "approved_version": "v2",
+    "clip_resources": [
+      82,
+      83
+    ],
+    "source_resources": [
+      210,
+      211
+    ],
+    "studio_video": "review/strafe-v2/side-step-comparison.mp4",
+    "review_history": [
+      {
+        "version": "v1",
+        "status": "superseded_slow",
+        "source_directory": "source_assets/animations/player/cybernetic_strafe_review_v1"
+      },
+      {
+        "version": "v2",
+        "status": "approved",
+        "source_directory": "source_assets/animations/player/cybernetic_strafe_review_v2"
+      }
+    ],
+    "runtime_speed_q8": 276,
+    "runtime_loop_seconds": 0.999721059972106,
+    "runtime_validation": "source_assets/animations/player/cybernetic_strafe_review_v2/runtime-validation.json"
   }
 }

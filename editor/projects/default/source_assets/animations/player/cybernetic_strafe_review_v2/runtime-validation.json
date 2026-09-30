@@ -1,0 +1,48 @@
+{
+  "status": "approved_installed",
+  "clips": {
+    "walk_lft": {
+      "clip_resource": 82,
+      "source_resource": 210,
+      "runtime_version": 5,
+      "frames": 14,
+      "hz": 13,
+      "bytes": 4348,
+      "speed_q8": 276,
+      "loop_seconds": 0.999721059972106,
+      "endpoint_pose_identical": true,
+      "flags": 3
+    },
+    "walk_rgt": {
+      "clip_resource": 83,
+      "source_resource": 211,
+      "runtime_version": 5,
+      "frames": 14,
+      "hz": 13,
+      "bytes": 4364,
+      "speed_q8": 276,
+      "loop_seconds": 0.999721059972106,
+      "endpoint_pose_identical": true,
+      "flags": 3
+    }
+  },
+  "source_samples": 31,
+  "source_hz": 30,
+  "changed_clip_files": [
+    "assets/animations/gen/walk_lft.psxanim",
+    "assets/animations/gen/walk_rgt.psxanim"
+  ],
+  "other_clip_files_unchanged": 76,
+  "fault_registers": {
+    "cause": 0,
+    "epc": 0,
+    "badvaddr": 0,
+    "count": 0
+  },
+  "remaining_heap_bytes_at_replay_end": 15228,
+  "load_delay_hazards": 0,
+  "native_smoke": "Default disc boot and gameplay smoke. Locked-on strafe activation and world-speed contact matching were not exercised by this route. Actual cooked poses, bindings and timing checked separately.",
+  "disc_sha256": "3a0027f1603e72d6a7f9b89f90f34fd35581eb0b7af119a285357775aef7b952",
+  "guest_sha256": "bbcd9a76ca4718001c88b070b47f416b2cf59c0e2d9a44f14aa518a08e9bc9ff",
+  "validation": "source and cooked studio inspection; native emulator boot/gameplay; not hardware"
+}

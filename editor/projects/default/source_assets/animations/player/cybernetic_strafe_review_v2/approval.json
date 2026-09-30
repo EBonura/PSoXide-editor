@@ -1,0 +1,10 @@
+{
+  "approved_on": "2026-09-30",
+  "user_approval": "here we go, those are good",
+  "sources": {
+    "walk_lft.blend": "53040633de1cc48b4582e03aa2c935516c1561d1e742b2e0f9f278ff977b8713",
+    "walk_rgt.glb": "c169a958b54515d54f0628502706cbbbc260ea632da1f53834e52fc0e988d9e1",
+    "walk_lft.glb": "eb742565ca1565da0ff9f9383bde60ae6360563e600fa164c4a0b7569ac70701",
+    "walk_rgt.blend": "fdbdbb9b47f74331eab992265fb0706a48844b4fb055cfd65c1d0394455c00f5"
+  }
+}
