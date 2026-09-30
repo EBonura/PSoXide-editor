@@ -1,0 +1,33 @@
+{
+  "cause": 0,
+  "epc": 0,
+  "badvaddr": 0,
+  "count": 0,
+  "bss_end": "0x801f3ad8",
+  "static_headroom_bytes": 17704,
+  "heap_cursor": "0x801f5c84",
+  "remaining_boot_heap_bytes": 9084,
+  "guest_sha256": "9799562c288947fe52985ad0206c97ebd8812e475b8c897b8466b7a7b2c9310c",
+  "disc_sha256": "5729bd065be3c3d99e2320e3ada79238362fc637b04cf9612dfd1eeda8418195",
+  "load_delay_hazards": 0,
+  "validation": "native emulator; not hardware",
+  "cases": [
+    "one press: one strike",
+    "second press at 600 ms: two strikes",
+    "held R1: one strike",
+    "second press at 167 ms: one strike",
+    "second press at 1333 ms: one strike",
+    "repeated presses: two strikes then recovery"
+  ],
+  "baked_handoff_rotations_byte_identical": true,
+  "baked_handoff_max_translation_delta_packed_units": 856,
+  "handoff_note": "Independent retargeted translations are bridged by the existing four-tick blend; source poses match.",
+  "source_frames": 40,
+  "baked_frames": 21,
+  "baked_rate_hz": 15,
+  "runtime_tests": 242,
+  "playtest_tests": 78,
+  "project_chain_tests": 2,
+  "video": "review/light-combo-install-v12/native-single-vs-combo.mp4",
+  "existing_other_registered_assets_unchanged": 62
+}

@@ -1,0 +1,1489 @@
+{
+  "project": "Cortex Ignition Tech Demo 0.4b",
+  "updated": "2026-09-30",
+  "baseline_commit": "44d1f52bdcaacc0444a43af8dcc76ebcc205ea5a",
+  "original_definition": "Unchanged from the v0.4b repository baseline before this walk/light-attack replacement pass. This does not imply artist-original provenance.",
+  "replacements": [
+    73,
+    84
+  ],
+  "animation_sets": [
+    {
+      "resource_id": 60,
+      "name": "Light Enemy Animation Set",
+      "characters": [
+        "Light Enemy (113)",
+        "Light Enemy / Charged Cannon (198)"
+      ],
+      "actions": [
+        {
+          "action": "Idle",
+          "clip_resource": 32,
+          "clip_name": "Light Enemy / Idle",
+          "status": "original"
+        },
+        {
+          "action": "Walk",
+          "clip_resource": 33,
+          "clip_name": "Light Enemy / Walk",
+          "status": "original"
+        },
+        {
+          "action": "Run",
+          "clip_resource": 34,
+          "clip_name": "Light Enemy / Run",
+          "status": "original"
+        },
+        {
+          "action": "StrafeLeft",
+          "clip_resource": 71,
+          "clip_name": "Light Enemy / Strafe Left",
+          "status": "original"
+        },
+        {
+          "action": "StrafeRight",
+          "clip_resource": 72,
+          "clip_name": "Light Enemy / Strafe Right",
+          "status": "original"
+        },
+        {
+          "action": "Death",
+          "clip_resource": 91,
+          "clip_name": "Light Enemy / Death",
+          "status": "original"
+        },
+        {
+          "action": "HitReact",
+          "clip_resource": 92,
+          "clip_name": "Light Enemy / Hit React",
+          "status": "original"
+        },
+        {
+          "action": "Stun",
+          "clip_resource": 108,
+          "clip_name": "Light Enemy / Stun + Recovery",
+          "status": "original"
+        },
+        {
+          "action": "HeavyAttack",
+          "clip_resource": 139,
+          "clip_name": "Light Enemy / Horizon Heavy (Three Swings)",
+          "status": "original"
+        },
+        {
+          "action": "LightAttack",
+          "clip_resource": 141,
+          "clip_name": "Light Enemy / Horizon Light (Single Strike)",
+          "status": "original"
+        },
+        {
+          "action": "VertLightAttack",
+          "clip_resource": 192,
+          "clip_name": "Light Enemy / Charged Shot",
+          "status": "original"
+        },
+        {
+          "action": "WalkBackward",
+          "clip_resource": 104,
+          "clip_name": "Light Enemy / Walk Backward",
+          "status": "original"
+        },
+        {
+          "action": "Turn",
+          "clip_resource": 64,
+          "clip_name": "Light Enemy / Turn In Place",
+          "status": "original"
+        },
+        {
+          "action": "Intro",
+          "clip_resource": 65,
+          "clip_name": "Light Enemy / Alert",
+          "status": "original"
+        }
+      ]
+    },
+    {
+      "resource_id": 61,
+      "name": "Aletha Delivered Animation Set",
+      "characters": [
+        "Aletha (62)"
+      ],
+      "actions": [
+        {
+          "action": "Intro",
+          "clip_resource": 201,
+          "clip_name": "Aletha / Wake Up \u2014 Take 3",
+          "status": "original"
+        },
+        {
+          "action": "Roll",
+          "clip_resource": 36,
+          "clip_name": "aletha_dash_fwd",
+          "status": "original"
+        },
+        {
+          "action": "Death",
+          "clip_resource": 39,
+          "clip_name": "aletha_death",
+          "status": "original"
+        },
+        {
+          "action": "HitReact",
+          "clip_resource": 87,
+          "clip_name": "gen_hit_react",
+          "status": "original"
+        },
+        {
+          "action": "Idle",
+          "clip_resource": 45,
+          "clip_name": "aletha_idle",
+          "status": "original"
+        },
+        {
+          "action": "HeavyAttack",
+          "clip_resource": 85,
+          "clip_name": "gen_heavy_attack",
+          "status": "original"
+        },
+        {
+          "action": "LightAttack",
+          "clip_resource": 84,
+          "clip_name": "gen_light_attack",
+          "status": "replaced"
+        },
+        {
+          "action": "Run",
+          "clip_resource": 77,
+          "clip_name": "gen_run_fwd",
+          "status": "original"
+        },
+        {
+          "action": "Stun",
+          "clip_resource": 54,
+          "clip_name": "aletha_stun",
+          "status": "original"
+        },
+        {
+          "action": "WalkBackward",
+          "clip_resource": 81,
+          "clip_name": "gen_walk_bwd",
+          "status": "original"
+        },
+        {
+          "action": "Walk",
+          "clip_resource": 73,
+          "clip_name": "gen_walk_fwd",
+          "status": "replaced"
+        },
+        {
+          "action": "StrafeLeft",
+          "clip_resource": 82,
+          "clip_name": "gen_walk_lft",
+          "status": "original"
+        },
+        {
+          "action": "StrafeRight",
+          "clip_resource": 83,
+          "clip_name": "gen_walk_rgt",
+          "status": "original"
+        },
+        {
+          "action": "WalkWindup",
+          "clip_resource": 74,
+          "clip_name": "gen_walk_fwd_windup",
+          "status": "original"
+        },
+        {
+          "action": "WalkWinddown",
+          "clip_resource": 75,
+          "clip_name": "gen_walk_fwd_winddown",
+          "status": "original"
+        },
+        {
+          "action": "WalkWinddownAlt",
+          "clip_resource": 76,
+          "clip_name": "gen_walk_fwd_winddown_mirror",
+          "status": "original"
+        },
+        {
+          "action": "RunWinddownAlt",
+          "clip_resource": 78,
+          "clip_name": "gen_run_fwd_winddown_mirror",
+          "status": "original"
+        },
+        {
+          "action": "RunWindup",
+          "clip_resource": 79,
+          "clip_name": "gen_run_fwd_windup",
+          "status": "original"
+        },
+        {
+          "action": "RunWinddown",
+          "clip_resource": 80,
+          "clip_name": "gen_run_fwd_winddown",
+          "status": "original"
+        },
+        {
+          "action": "VertLightAttack",
+          "clip_resource": 88,
+          "clip_name": "gen_vert_light_attack",
+          "status": "original"
+        },
+        {
+          "action": "VertHeavyAttack",
+          "clip_resource": 89,
+          "clip_name": "gen_vert_heavy_attack",
+          "status": "original"
+        },
+        {
+          "action": "LightAttackFollowup",
+          "clip_resource": 204,
+          "clip_name": "gen_light_attack_followup",
+          "status": "new_approved_v12"
+        }
+      ]
+    },
+    {
+      "resource_id": 100,
+      "name": "Heavy Enemy Animation Set",
+      "characters": [
+        "Heavy Enemy (95)"
+      ],
+      "actions": [
+        {
+          "action": "Idle",
+          "clip_resource": 98,
+          "clip_name": "Heavy Enemy / Idle",
+          "status": "original"
+        },
+        {
+          "action": "Walk",
+          "clip_resource": 99,
+          "clip_name": "Heavy Enemy / Walk Forward",
+          "status": "original"
+        },
+        {
+          "action": "WalkBackward",
+          "clip_resource": 101,
+          "clip_name": "Heavy Enemy / Walk Backward",
+          "status": "original"
+        },
+        {
+          "action": "StrafeLeft",
+          "clip_resource": 102,
+          "clip_name": "Heavy Enemy / Strafe Left",
+          "status": "original"
+        },
+        {
+          "action": "StrafeRight",
+          "clip_resource": 103,
+          "clip_name": "Heavy Enemy / Strafe Right",
+          "status": "original"
+        },
+        {
+          "action": "Death",
+          "clip_resource": 105,
+          "clip_name": "Heavy Enemy / Death",
+          "status": "original"
+        },
+        {
+          "action": "HitReact",
+          "clip_resource": 106,
+          "clip_name": "Heavy Enemy / Hit React",
+          "status": "original"
+        },
+        {
+          "action": "Stun",
+          "clip_resource": 109,
+          "clip_name": "Heavy Enemy / Stun + Recovery",
+          "status": "original"
+        },
+        {
+          "action": "LightAttack",
+          "clip_resource": 137,
+          "clip_name": "Heavy Enemy / Light Attack",
+          "status": "original"
+        },
+        {
+          "action": "HeavyAttack",
+          "clip_resource": 107,
+          "clip_name": "Heavy Enemy / Heavy Attack",
+          "status": "original"
+        },
+        {
+          "action": "RangedAttack",
+          "clip_resource": 138,
+          "clip_name": "Heavy Enemy / Ranged Attack",
+          "status": "original"
+        },
+        {
+          "action": "Intro",
+          "clip_resource": 194,
+          "clip_name": "Heavy Enemy / Alert",
+          "status": "original"
+        },
+        {
+          "action": "Turn",
+          "clip_resource": 195,
+          "clip_name": "Heavy Enemy / Turn",
+          "status": "original"
+        }
+      ]
+    }
+  ],
+  "registered_clips": [
+    {
+      "resource_id": 199,
+      "name": "Aletha / Wake Up",
+      "path": "assets/animations/aletha_delivered/aletha_wake_up.psxanim",
+      "status": "original",
+      "sha256": "54556f3788a8235227e430dd03f18f1dd1f4c7e602c3dddd47b47cb5652f23d9",
+      "baseline_sha256": "54556f3788a8235227e430dd03f18f1dd1f4c7e602c3dddd47b47cb5652f23d9",
+      "stored_frames": 49,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 200,
+      "name": "Aletha / Wake Up \u2014 Take 2",
+      "path": "assets/animations/aletha_delivered/aletha_wake_up_take2.psxanim",
+      "status": "original",
+      "sha256": "721e597f9e93d9bc5e4e0435033e162002812fc190528a28e0d73f1eb121c601",
+      "baseline_sha256": "721e597f9e93d9bc5e4e0435033e162002812fc190528a28e0d73f1eb121c601",
+      "stored_frames": 306,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 201,
+      "name": "Aletha / Wake Up \u2014 Take 3",
+      "path": "assets/animations/aletha_delivered/aletha_wake_up_take3.psxanim",
+      "status": "original",
+      "sha256": "d66497f23c5cd938eac4f5f46e278b72c3d4ca6acbdc8be2df9bab1134e9e5be",
+      "baseline_sha256": "d66497f23c5cd938eac4f5f46e278b72c3d4ca6acbdc8be2df9bab1134e9e5be",
+      "stored_frames": 363,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 32,
+      "name": "Light Enemy / Idle",
+      "path": "assets/animations/rust_mantis_starter/idle.psxanim",
+      "status": "original",
+      "sha256": "94fc8bfcf77d494de4868529688d3fa4cff8ee5ef935576c2291355ccbef02e6",
+      "baseline_sha256": "94fc8bfcf77d494de4868529688d3fa4cff8ee5ef935576c2291355ccbef02e6",
+      "stored_frames": 97,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 33,
+      "name": "Light Enemy / Walk",
+      "path": "assets/animations/rust_mantis_starter/walk.psxanim",
+      "status": "original",
+      "sha256": "07a20bf6f52d6a0164ba1b051d9fb2e583ae6cd45889d1d696de5e73e3c81214",
+      "baseline_sha256": "07a20bf6f52d6a0164ba1b051d9fb2e583ae6cd45889d1d696de5e73e3c81214",
+      "stored_frames": 30,
+      "sample_rate_hz": 15
+    },
+    {
+      "resource_id": 34,
+      "name": "Light Enemy / Run",
+      "path": "assets/animations/rust_mantis_starter/run.psxanim",
+      "status": "original",
+      "sha256": "7e69dbfbb0aa5116df3de11a254418acf8ec45e87d71a0672c9958d0f60c5c6a",
+      "baseline_sha256": "7e69dbfbb0aa5116df3de11a254418acf8ec45e87d71a0672c9958d0f60c5c6a",
+      "stored_frames": 28,
+      "sample_rate_hz": 15
+    },
+    {
+      "resource_id": 36,
+      "name": "aletha_dash_fwd",
+      "path": "assets/animations/aletha_delivered/aletha_dash_fwd.psxanim",
+      "status": "original",
+      "sha256": "bba1e10a33c1c0993557fb9684393747b54feac50d8de61f4cb63eed3a5a1e38",
+      "baseline_sha256": "bba1e10a33c1c0993557fb9684393747b54feac50d8de61f4cb63eed3a5a1e38",
+      "stored_frames": 8,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 39,
+      "name": "aletha_death",
+      "path": "assets/animations/aletha_delivered/aletha_death.psxanim",
+      "status": "original",
+      "sha256": "c5a57138895a03744f9c315302a600ace7f5873ff08cb3cddd947d026aef2d1d",
+      "baseline_sha256": "c5a57138895a03744f9c315302a600ace7f5873ff08cb3cddd947d026aef2d1d",
+      "stored_frames": 43,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 43,
+      "name": "aletha_hurt_a",
+      "path": "assets/animations/aletha_delivered/aletha_hurt_a.psxanim",
+      "status": "original",
+      "sha256": "bdb7adbab6804ca218885e958fc39cab134b73233b4ad6545f40eb5665360e9f",
+      "baseline_sha256": "bdb7adbab6804ca218885e958fc39cab134b73233b4ad6545f40eb5665360e9f",
+      "stored_frames": 8,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 45,
+      "name": "aletha_idle",
+      "path": "assets/animations/aletha_delivered/aletha_idle.psxanim",
+      "status": "original",
+      "sha256": "b53d79124bc2d71c5f5f111ab9b636fd5ff354157bf18c22de4d8a9d144ef138",
+      "baseline_sha256": "b53d79124bc2d71c5f5f111ab9b636fd5ff354157bf18c22de4d8a9d144ef138",
+      "stored_frames": 170,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 49,
+      "name": "aletha_rest_pose",
+      "path": "assets/animations/aletha_delivered/aletha_rest_pose.psxanim",
+      "status": "original",
+      "sha256": "459a11c4bdbb345515995f0aef1be28ddbd7ac1832dd789177c4d5d76c7df698",
+      "baseline_sha256": "459a11c4bdbb345515995f0aef1be28ddbd7ac1832dd789177c4d5d76c7df698",
+      "stored_frames": 1,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 50,
+      "name": "aletha_run_bwd",
+      "path": "assets/animations/aletha_delivered/aletha_run_bwd.psxanim",
+      "status": "original",
+      "sha256": "843f99c192cce24a78a8423bb13275e2368f31e9e55c42fbb7b0c41042fd64bd",
+      "baseline_sha256": "843f99c192cce24a78a8423bb13275e2368f31e9e55c42fbb7b0c41042fd64bd",
+      "stored_frames": 17,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 51,
+      "name": "aletha_run_fwd",
+      "path": "assets/animations/aletha_delivered/aletha_run_fwd.psxanim",
+      "status": "original",
+      "sha256": "091e01c3ec8bd52697feb276bb2ffca9af915d0f4b2f26012e19d8335c2c3980",
+      "baseline_sha256": "091e01c3ec8bd52697feb276bb2ffca9af915d0f4b2f26012e19d8335c2c3980",
+      "stored_frames": 16,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 52,
+      "name": "aletha_run_lft",
+      "path": "assets/animations/aletha_delivered/aletha_run_lft.psxanim",
+      "status": "original",
+      "sha256": "15cfdab73aee02721fb28d7535aa5df87ba87c5964d4e0fa6aadf091ef9aad52",
+      "baseline_sha256": "15cfdab73aee02721fb28d7535aa5df87ba87c5964d4e0fa6aadf091ef9aad52",
+      "stored_frames": 16,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 53,
+      "name": "aletha_run_rgt",
+      "path": "assets/animations/aletha_delivered/aletha_run_rgt.psxanim",
+      "status": "original",
+      "sha256": "f8fed86b749a450433e919cc8ac8571acb4e9df835754be58e5bff15dce1ad47",
+      "baseline_sha256": "f8fed86b749a450433e919cc8ac8571acb4e9df835754be58e5bff15dce1ad47",
+      "stored_frames": 16,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 54,
+      "name": "aletha_stun",
+      "path": "assets/animations/aletha_delivered/aletha_stun.psxanim",
+      "status": "original",
+      "sha256": "8f4f47f275f6afb0a6e20c752c63fea085839217e730800093169de52570a202",
+      "baseline_sha256": "8f4f47f275f6afb0a6e20c752c63fea085839217e730800093169de52570a202",
+      "stored_frames": 25,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 55,
+      "name": "aletha_stun_recovery",
+      "path": "assets/animations/aletha_delivered/aletha_stun_recovery.psxanim",
+      "status": "original",
+      "sha256": "b391b687ced434d0a2c92c180c1a519bef123ae474252c70e784aed6c871ef66",
+      "baseline_sha256": "b391b687ced434d0a2c92c180c1a519bef123ae474252c70e784aed6c871ef66",
+      "stored_frames": 13,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 56,
+      "name": "aletha_walk_bkw",
+      "path": "assets/animations/aletha_delivered/aletha_walk_bkw.psxanim",
+      "status": "original",
+      "sha256": "5f18a059fce811666822eac5ed33830e3fe96ecd24b5cd445450f6af47fe8574",
+      "baseline_sha256": "5f18a059fce811666822eac5ed33830e3fe96ecd24b5cd445450f6af47fe8574",
+      "stored_frames": 75,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 57,
+      "name": "aletha_walk_fwd",
+      "path": "assets/animations/aletha_delivered/aletha_walk_fwd.psxanim",
+      "status": "original",
+      "sha256": "e82c2605081dfa3830805901af1e4928182d8b22fca0719c5a267baec01d2dbd",
+      "baseline_sha256": "e82c2605081dfa3830805901af1e4928182d8b22fca0719c5a267baec01d2dbd",
+      "stored_frames": 75,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 58,
+      "name": "aletha_walk_lft",
+      "path": "assets/animations/aletha_delivered/aletha_walk_lft.psxanim",
+      "status": "original",
+      "sha256": "706d50ddd41c282fb0c1b1e738bcbced30be97fb161151bc603907416a940c4d",
+      "baseline_sha256": "706d50ddd41c282fb0c1b1e738bcbced30be97fb161151bc603907416a940c4d",
+      "stored_frames": 78,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 59,
+      "name": "aletha_walk_rgt",
+      "path": "assets/animations/aletha_delivered/aletha_walk_rgt.psxanim",
+      "status": "original",
+      "sha256": "92fef801bbb0133c54ca527792cb727b0655bfd629c698eea4bbb6414c32cad8",
+      "baseline_sha256": "92fef801bbb0133c54ca527792cb727b0655bfd629c698eea4bbb6414c32cad8",
+      "stored_frames": 78,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 64,
+      "name": "Light Enemy / Turn In Place",
+      "path": "assets/animations/rust_mantis_starter/turn.psxanim",
+      "status": "original",
+      "sha256": "fff535a7e4ef841a8781ba9f5461fb4ac5f2a35743a9b63e4b1b52e6b24dd794",
+      "baseline_sha256": "fff535a7e4ef841a8781ba9f5461fb4ac5f2a35743a9b63e4b1b52e6b24dd794",
+      "stored_frames": 11,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 65,
+      "name": "Light Enemy / Alert",
+      "path": "assets/animations/rust_mantis_starter/alert.psxanim",
+      "status": "original",
+      "sha256": "56c18c5fae14e6cae6dfd196e162dfb480a0c0c2962f83ba3471704eb2983a4b",
+      "baseline_sha256": "56c18c5fae14e6cae6dfd196e162dfb480a0c0c2962f83ba3471704eb2983a4b",
+      "stored_frames": 9,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 71,
+      "name": "Light Enemy / Strafe Left",
+      "path": "assets/animations/rust_mantis_starter/strafe_left.psxanim",
+      "status": "original",
+      "sha256": "b1bd921596006be5ea7e10c540c4ca2dedd743ce9b221d5d747c088d720b26ec",
+      "baseline_sha256": "b1bd921596006be5ea7e10c540c4ca2dedd743ce9b221d5d747c088d720b26ec",
+      "stored_frames": 31,
+      "sample_rate_hz": 15
+    },
+    {
+      "resource_id": 72,
+      "name": "Light Enemy / Strafe Right",
+      "path": "assets/animations/rust_mantis_starter/strafe_right.psxanim",
+      "status": "original",
+      "sha256": "652a49c75312db27f824882db28c1636c93e9699102c506474a31e4d30a76bd3",
+      "baseline_sha256": "652a49c75312db27f824882db28c1636c93e9699102c506474a31e4d30a76bd3",
+      "stored_frames": 31,
+      "sample_rate_hz": 15
+    },
+    {
+      "resource_id": 73,
+      "name": "gen_walk_fwd",
+      "path": "assets/animations/gen/walk_fwd.psxanim",
+      "status": "replaced",
+      "sha256": "76a05a422980a8770fb9b005b4c79553f4d96b3b2b322a937a61a8bfcfa273c6",
+      "baseline_sha256": "33ece7af06043bd6918a57e3f74b677f02142b82b0e0cbe49d72df12c1952107",
+      "stored_frames": 43,
+      "sample_rate_hz": 30,
+      "replacement": {
+        "approved_version": 7,
+        "action": "Walk",
+        "source_resource": 202,
+        "source_directory": "source_assets/animations/player/cybernetic_walk",
+        "master": "walk_fwd.blend",
+        "export": "walk_fwd.glb",
+        "authored_seconds": 1.4,
+        "speed_q8": 262,
+        "frames": [
+          0,
+          42
+        ],
+        "looping": true,
+        "notes": "Restrained cybernetic gait with wider arm clearance; approved standard forward walk.",
+        "date": "2026-09-30",
+        "in_place": false,
+        "export_sha256": "d7543ca0d24a9a3389da0ee5c2505d7d63f9e8016ee963fa5bda59bd23e6ee0b",
+        "master_sha256": "4bec73ccbba4b9a0146f3b84910e0da3db9961313058d1a79044cd388a2da818"
+      }
+    },
+    {
+      "resource_id": 74,
+      "name": "gen_walk_fwd_windup",
+      "path": "assets/animations/gen/walk_fwd_windup.psxanim",
+      "status": "original",
+      "sha256": "2b4bed5333e1dc4caa6303f2570602fb3affe07abdaaa84d6dfdac4bae4b0099",
+      "baseline_sha256": "2b4bed5333e1dc4caa6303f2570602fb3affe07abdaaa84d6dfdac4bae4b0099",
+      "stored_frames": 8,
+      "sample_rate_hz": 15
+    },
+    {
+      "resource_id": 75,
+      "name": "gen_walk_fwd_winddown",
+      "path": "assets/animations/gen/walk_fwd_winddown.psxanim",
+      "status": "original",
+      "sha256": "431a6197c70a48e39c57bb712199d878c48a2529e2a8b742a77e8604e23720a2",
+      "baseline_sha256": "431a6197c70a48e39c57bb712199d878c48a2529e2a8b742a77e8604e23720a2",
+      "stored_frames": 8,
+      "sample_rate_hz": 15
+    },
+    {
+      "resource_id": 76,
+      "name": "gen_walk_fwd_winddown_mirror",
+      "path": "assets/animations/gen/walk_fwd_winddown_mirror.psxanim",
+      "status": "original",
+      "sha256": "d8e839c47b285f3888033bac6ff4d57e6a22f7bea5120bd8361a734ed7e17ced",
+      "baseline_sha256": "d8e839c47b285f3888033bac6ff4d57e6a22f7bea5120bd8361a734ed7e17ced",
+      "stored_frames": 8,
+      "sample_rate_hz": 15
+    },
+    {
+      "resource_id": 77,
+      "name": "gen_run_fwd",
+      "path": "assets/animations/gen/run_fwd.psxanim",
+      "status": "original",
+      "sha256": "2138326d072091972a2b8b81658fbccfb6096566d255099bbe34a590548cefd3",
+      "baseline_sha256": "2138326d072091972a2b8b81658fbccfb6096566d255099bbe34a590548cefd3",
+      "stored_frames": 9,
+      "sample_rate_hz": 15
+    },
+    {
+      "resource_id": 78,
+      "name": "gen_run_fwd_winddown_mirror",
+      "path": "assets/animations/gen/run_fwd_winddown_mirror.psxanim",
+      "status": "original",
+      "sha256": "251aa1405171469ede080f44338de5bb52b42b16aaac9d8195c4a0e3322fb5a2",
+      "baseline_sha256": "251aa1405171469ede080f44338de5bb52b42b16aaac9d8195c4a0e3322fb5a2",
+      "stored_frames": 8,
+      "sample_rate_hz": 15
+    },
+    {
+      "resource_id": 79,
+      "name": "gen_run_fwd_windup",
+      "path": "assets/animations/gen/run_fwd_windup.psxanim",
+      "status": "original",
+      "sha256": "482f414c94241bee4c94cb44e1fe2b6548a71a3e618fb467d77741d18a3178d3",
+      "baseline_sha256": "482f414c94241bee4c94cb44e1fe2b6548a71a3e618fb467d77741d18a3178d3",
+      "stored_frames": 8,
+      "sample_rate_hz": 15
+    },
+    {
+      "resource_id": 80,
+      "name": "gen_run_fwd_winddown",
+      "path": "assets/animations/gen/run_fwd_winddown.psxanim",
+      "status": "original",
+      "sha256": "2306bf09c662af9a1829594050bef4841678378bbebdde673624fadd80f0ea09",
+      "baseline_sha256": "2306bf09c662af9a1829594050bef4841678378bbebdde673624fadd80f0ea09",
+      "stored_frames": 8,
+      "sample_rate_hz": 15
+    },
+    {
+      "resource_id": 81,
+      "name": "gen_walk_bwd",
+      "path": "assets/animations/gen/walk_bwd.psxanim",
+      "status": "original",
+      "sha256": "6c37560e55c3df2ecffa234735fdeb4e1fdb3584ed19dc0b55e6ab34196044a9",
+      "baseline_sha256": "6c37560e55c3df2ecffa234735fdeb4e1fdb3584ed19dc0b55e6ab34196044a9",
+      "stored_frames": 21,
+      "sample_rate_hz": 15
+    },
+    {
+      "resource_id": 82,
+      "name": "gen_walk_lft",
+      "path": "assets/animations/gen/walk_lft.psxanim",
+      "status": "original",
+      "sha256": "470a57319ab76cb253c54cfbd2aa01293abb725a71051161e19e850a7df5801f",
+      "baseline_sha256": "470a57319ab76cb253c54cfbd2aa01293abb725a71051161e19e850a7df5801f",
+      "stored_frames": 9,
+      "sample_rate_hz": 15
+    },
+    {
+      "resource_id": 83,
+      "name": "gen_walk_rgt",
+      "path": "assets/animations/gen/walk_rgt.psxanim",
+      "status": "original",
+      "sha256": "3c6bf3ec181dd7464d8c6771fe9551548392e3262c85777f6d9f08b3ad19884f",
+      "baseline_sha256": "3c6bf3ec181dd7464d8c6771fe9551548392e3262c85777f6d9f08b3ad19884f",
+      "stored_frames": 9,
+      "sample_rate_hz": 15
+    },
+    {
+      "resource_id": 84,
+      "name": "gen_light_attack",
+      "path": "assets/animations/gen/light_attack.psxanim",
+      "status": "replaced",
+      "sha256": "70be1682f8a26333c46d205327b9b42ab10fb96c709cdb51808e17436c6234a9",
+      "baseline_sha256": "0c5d884ddff0a588f75b9dd054963c2ff15466889e679d4c6f4aafd0ffcb56b2",
+      "stored_frames": 61,
+      "sample_rate_hz": 30,
+      "replacement": {
+        "approved_version": "v12 combo opener (v5 performance with approved head revision)",
+        "action": "LightAttack",
+        "source_resource": 203,
+        "source_directory": "source_assets/animations/player/cybernetic_light_combo_review_v12",
+        "master": "light_attack.blend",
+        "export": "light_attack.glb",
+        "authored_seconds": 2.0,
+        "speed_q8": 256,
+        "frames": [
+          0,
+          60
+        ],
+        "looping": false,
+        "blade_cast_frames": [
+          6,
+          12
+        ],
+        "blade_dissolve_frames": [
+          42,
+          48
+        ],
+        "hit_and_trail_frames": [
+          22,
+          29
+        ],
+        "notes": "Horizon light attack: sword cast, deep load, 84 cm driving step, broad strike, weighted recovery.",
+        "date": "2026-09-30",
+        "in_place": false,
+        "export_sha256": "f55f5ccbc48fb1ccb739f377d367b38872a8e51855511d56aa27d475631b5cdc",
+        "master_sha256": "54d865f4dc16c0b4fad3bbf2be3bd43234793db4eaf39fc9a67d0900fb279628"
+      },
+      "revisions": [
+        {
+          "status": "replaced",
+          "sha256": "0e4c13e353ee02821c8b49cb56f54445978eaf70ec344eb81fa1e951a42ef4e2",
+          "replacement": {
+            "approved_version": "v12 combo opener (v5 performance with approved head revision)",
+            "action": "LightAttack",
+            "source_resource": 203,
+            "source_directory": "source_assets/animations/player/cybernetic_light_combo_review_v12",
+            "master": "light_attack.blend",
+            "export": "light_attack.glb",
+            "authored_seconds": 2.0,
+            "speed_q8": 256,
+            "frames": [
+              0,
+              60
+            ],
+            "looping": false,
+            "blade_cast_frames": [
+              6,
+              12
+            ],
+            "blade_dissolve_frames": [
+              42,
+              48
+            ],
+            "hit_and_trail_frames": [
+              22,
+              29
+            ],
+            "notes": "Horizon light attack: sword cast, deep load, 84 cm driving step, broad strike, weighted recovery.",
+            "date": "2026-09-30",
+            "in_place": false,
+            "export_sha256": "f55f5ccbc48fb1ccb739f377d367b38872a8e51855511d56aa27d475631b5cdc",
+            "master_sha256": "54d865f4dc16c0b4fad3bbf2be3bd43234793db4eaf39fc9a67d0900fb279628"
+          }
+        }
+      ],
+      "source_files": {
+        "source_assets/animations/player/cybernetic_light_combo_review_v12/light_attack.blend": "54d865f4dc16c0b4fad3bbf2be3bd43234793db4eaf39fc9a67d0900fb279628",
+        "source_assets/animations/player/cybernetic_light_combo_review_v12/light_attack.glb": "f55f5ccbc48fb1ccb739f377d367b38872a8e51855511d56aa27d475631b5cdc"
+      }
+    },
+    {
+      "resource_id": 85,
+      "name": "gen_heavy_attack",
+      "path": "assets/animations/gen/heavy_attack.psxanim",
+      "status": "original",
+      "sha256": "d161c538825ca0c2853b7b4a320cb1c0073c920b4360a29a6055fd2aec4f746f",
+      "baseline_sha256": "d161c538825ca0c2853b7b4a320cb1c0073c920b4360a29a6055fd2aec4f746f",
+      "stored_frames": 99,
+      "sample_rate_hz": 15
+    },
+    {
+      "resource_id": 87,
+      "name": "gen_hit_react",
+      "path": "assets/animations/gen/hit_react.psxanim",
+      "status": "original",
+      "sha256": "4fce5dbb5a4a551505af7a54df84bc8f51099cc516f605505cf7b309635f93ac",
+      "baseline_sha256": "4fce5dbb5a4a551505af7a54df84bc8f51099cc516f605505cf7b309635f93ac",
+      "stored_frames": 43,
+      "sample_rate_hz": 15
+    },
+    {
+      "resource_id": 88,
+      "name": "gen_vert_light_attack",
+      "path": "assets/animations/gen/vert_light_attack.psxanim",
+      "status": "original",
+      "sha256": "52d35e46d8b9451d3175da9a720440d4ea1d6ee973c4c068ec9606cfc6e83073",
+      "baseline_sha256": "52d35e46d8b9451d3175da9a720440d4ea1d6ee973c4c068ec9606cfc6e83073",
+      "stored_frames": 82,
+      "sample_rate_hz": 15
+    },
+    {
+      "resource_id": 89,
+      "name": "gen_vert_heavy_attack",
+      "path": "assets/animations/gen/vert_heavy_attack.psxanim",
+      "status": "original",
+      "sha256": "e18e35fc3bfdf3a169ee86c40ec0f8d977803dc1f3f1632c2464ce20f004d809",
+      "baseline_sha256": "e18e35fc3bfdf3a169ee86c40ec0f8d977803dc1f3f1632c2464ce20f004d809",
+      "stored_frames": 108,
+      "sample_rate_hz": 15
+    },
+    {
+      "resource_id": 91,
+      "name": "Light Enemy / Death",
+      "path": "assets/animations/mantis_combat/death.psxanim",
+      "status": "original",
+      "sha256": "8879f5c27b0f1ae463f50b1ab6b94b324a4dd05e78ea3974bf7625841d612d9b",
+      "baseline_sha256": "8879f5c27b0f1ae463f50b1ab6b94b324a4dd05e78ea3974bf7625841d612d9b",
+      "stored_frames": 27,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 92,
+      "name": "Light Enemy / Hit React",
+      "path": "assets/animations/mantis_combat/hit_react.psxanim",
+      "status": "original",
+      "sha256": "eeb8d26a045bfaaa6059f3d9fb62d1d9d73e2c9ff1861fd4bb0b2e25ecd4b5e0",
+      "baseline_sha256": "eeb8d26a045bfaaa6059f3d9fb62d1d9d73e2c9ff1861fd4bb0b2e25ecd4b5e0",
+      "stored_frames": 15,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 93,
+      "name": "Light Enemy / Zenith Light",
+      "path": "assets/animations/mantis_combat/zenith_light.psxanim",
+      "status": "original",
+      "sha256": "5f3b579ef9eb6b3e31915f354c87bb9b208f2c31c1a1c7536f9e2960e7fe0890",
+      "baseline_sha256": "5f3b579ef9eb6b3e31915f354c87bb9b208f2c31c1a1c7536f9e2960e7fe0890",
+      "stored_frames": 70,
+      "sample_rate_hz": 15
+    },
+    {
+      "resource_id": 98,
+      "name": "Heavy Enemy / Idle",
+      "path": "assets/animations/tank_boss_ai/idle.psxanim",
+      "status": "original",
+      "sha256": "790033c588c727269306ed015bfeedbf73412cfac2de87fd8282bdff9a0c60bd",
+      "baseline_sha256": "790033c588c727269306ed015bfeedbf73412cfac2de87fd8282bdff9a0c60bd",
+      "stored_frames": 49,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 99,
+      "name": "Heavy Enemy / Walk Forward",
+      "path": "assets/animations/tank_boss_ai/walk_fwd.psxanim",
+      "status": "original",
+      "sha256": "e10ad8d37ec0e1f37947e13cc012b50148699cce44e960bede61ab1c7c798326",
+      "baseline_sha256": "e10ad8d37ec0e1f37947e13cc012b50148699cce44e960bede61ab1c7c798326",
+      "stored_frames": 51,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 101,
+      "name": "Heavy Enemy / Walk Backward",
+      "path": "assets/animations/tank_boss_ai/walk_bwd.psxanim",
+      "status": "original",
+      "sha256": "48b41f738cf9c34422b530b66d5ee751af8439f58d884afdd61dec3cbe526993",
+      "baseline_sha256": "48b41f738cf9c34422b530b66d5ee751af8439f58d884afdd61dec3cbe526993",
+      "stored_frames": 51,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 102,
+      "name": "Heavy Enemy / Strafe Left",
+      "path": "assets/animations/tank_boss_ai/walk_lft.psxanim",
+      "status": "original",
+      "sha256": "8a0cc153535f55ad8fe387713a17360bc5432564c949209e3f03c374c03b1e71",
+      "baseline_sha256": "8a0cc153535f55ad8fe387713a17360bc5432564c949209e3f03c374c03b1e71",
+      "stored_frames": 25,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 103,
+      "name": "Heavy Enemy / Strafe Right",
+      "path": "assets/animations/tank_boss_ai/walk_rgt.psxanim",
+      "status": "original",
+      "sha256": "81918ea1f92572fb99f5dbf26aca7ad12e38888c06aea728d29c70ad2d39a850",
+      "baseline_sha256": "81918ea1f92572fb99f5dbf26aca7ad12e38888c06aea728d29c70ad2d39a850",
+      "stored_frames": 25,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 104,
+      "name": "Light Enemy / Walk Backward",
+      "path": "assets/animations/rust_mantis_starter/walk_bwd.psxanim",
+      "status": "original",
+      "sha256": "37ffe89f48d7bde5c9a63e94e16e1dda75b44b9c48f4d65f6b780a1412dfcbd8",
+      "baseline_sha256": "37ffe89f48d7bde5c9a63e94e16e1dda75b44b9c48f4d65f6b780a1412dfcbd8",
+      "stored_frames": 21,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 105,
+      "name": "Heavy Enemy / Death",
+      "path": "assets/animations/tank_boss_ai/death.psxanim",
+      "status": "original",
+      "sha256": "5bd975d01363f5c89a80835330b7e7ad465631e56cf1068e5e339c30774c0749",
+      "baseline_sha256": "5bd975d01363f5c89a80835330b7e7ad465631e56cf1068e5e339c30774c0749",
+      "stored_frames": 54,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 106,
+      "name": "Heavy Enemy / Hit React",
+      "path": "assets/animations/tank_boss_ai/hit_react.psxanim",
+      "status": "original",
+      "sha256": "fc13ed7997686d8292fabd8cad2084a5114109c16d749403c7a2d33638f3d8f7",
+      "baseline_sha256": "fc13ed7997686d8292fabd8cad2084a5114109c16d749403c7a2d33638f3d8f7",
+      "stored_frames": 19,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 107,
+      "name": "Heavy Enemy / Heavy Attack",
+      "path": "assets/animations/tank_boss_ai/heavy_attack.psxanim",
+      "status": "original",
+      "sha256": "ed8b434c3999b8efed9f352109ca849b8f3c682a8806b1854d5dcf6f2a0aea75",
+      "baseline_sha256": "ed8b434c3999b8efed9f352109ca849b8f3c682a8806b1854d5dcf6f2a0aea75",
+      "stored_frames": 66,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 108,
+      "name": "Light Enemy / Stun + Recovery",
+      "path": "assets/animations/rust_mantis_starter/stun_recovery.psxanim",
+      "status": "original",
+      "sha256": "4a8cf073d12cdbf785c1fd1050758c25ccb3a08bcff67bef40029a9de715f3dd",
+      "baseline_sha256": "4a8cf073d12cdbf785c1fd1050758c25ccb3a08bcff67bef40029a9de715f3dd",
+      "stored_frames": 12,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 109,
+      "name": "Heavy Enemy / Stun + Recovery",
+      "path": "assets/animations/tank_boss_ai/stun_recovery.psxanim",
+      "status": "original",
+      "sha256": "76fba671ae80d754d7a3b46bfaf0621ed9f5cea07445774800519c17a919e602",
+      "baseline_sha256": "76fba671ae80d754d7a3b46bfaf0621ed9f5cea07445774800519c17a919e602",
+      "stored_frames": 24,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 137,
+      "name": "Heavy Enemy / Light Attack",
+      "path": "assets/animations/tank_boss_ai/light_attack.psxanim",
+      "status": "original",
+      "sha256": "eef2b38c6fbc2f66158ed77fa88ca2a44bcbda3a69ed730651903359cced9d79",
+      "baseline_sha256": "eef2b38c6fbc2f66158ed77fa88ca2a44bcbda3a69ed730651903359cced9d79",
+      "stored_frames": 52,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 138,
+      "name": "Heavy Enemy / Ranged Attack",
+      "path": "assets/animations/tank_boss_ai/ranged_attack.psxanim",
+      "status": "original",
+      "sha256": "2e02ef52a23ac118f04a584d94a9b8e2c9c168aaf58d572062ef9c1f83e48ba0",
+      "baseline_sha256": "2e02ef52a23ac118f04a584d94a9b8e2c9c168aaf58d572062ef9c1f83e48ba0",
+      "stored_frames": 42,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 139,
+      "name": "Light Enemy / Horizon Heavy (Three Swings)",
+      "path": "assets/animations/mantis_combat/horizon_light.psxanim",
+      "status": "original",
+      "sha256": "2ac67ed0752780332040d35b62ef7b06a678af48b27362bcc00435354fb72300",
+      "baseline_sha256": "2ac67ed0752780332040d35b62ef7b06a678af48b27362bcc00435354fb72300",
+      "stored_frames": 62,
+      "sample_rate_hz": 15
+    },
+    {
+      "resource_id": 141,
+      "name": "Light Enemy / Horizon Light (Single Strike)",
+      "path": "assets/animations/mantis_combat/horizon_heavy.psxanim",
+      "status": "original",
+      "sha256": "fd8db81225e11e0e7af205500979561aa2442652606b2989df0914ad5e5c6ce1",
+      "baseline_sha256": "fd8db81225e11e0e7af205500979561aa2442652606b2989df0914ad5e5c6ce1",
+      "stored_frames": 143,
+      "sample_rate_hz": 15
+    },
+    {
+      "resource_id": 192,
+      "name": "Light Enemy / Charged Shot",
+      "path": "assets/animations/mantis_combat/charge_volley.psxanim",
+      "status": "original",
+      "sha256": "3b4332f13d77b76a1e23bfadc6022b463cba70f8b7cf590984cac491cc0db54e",
+      "baseline_sha256": "3b4332f13d77b76a1e23bfadc6022b463cba70f8b7cf590984cac491cc0db54e",
+      "stored_frames": 49,
+      "sample_rate_hz": 15
+    },
+    {
+      "resource_id": 194,
+      "name": "Heavy Enemy / Alert",
+      "path": "assets/animations/tank_boss_ai/alert.psxanim",
+      "status": "original",
+      "sha256": "e786ce0f9656e195615160a8b0b944ae15f53acc8c0e4813265705a19ac817c3",
+      "baseline_sha256": "e786ce0f9656e195615160a8b0b944ae15f53acc8c0e4813265705a19ac817c3",
+      "stored_frames": 18,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 195,
+      "name": "Heavy Enemy / Turn",
+      "path": "assets/animations/tank_boss_ai/turn.psxanim",
+      "status": "original",
+      "sha256": "8183558a74185479b9b1cee57d38c9ddc219700b512503c94e510c9d64dcca96",
+      "baseline_sha256": "8183558a74185479b9b1cee57d38c9ddc219700b512503c94e510c9d64dcca96",
+      "stored_frames": 13,
+      "sample_rate_hz": 12
+    },
+    {
+      "resource_id": 204,
+      "name": "gen_light_attack_followup",
+      "path": "assets/animations/gen/light_attack_followup.psxanim",
+      "status": "new_approved_v12",
+      "sha256": "327414638443832dba0b8ca901ad04bc1f7afe3443c130a054ee7144f7319c07",
+      "baseline_sha256": null,
+      "stored_frames": 21,
+      "sample_rate_hz": 15,
+      "source_resource": 206,
+      "source_files": {
+        "source_assets/animations/player/cybernetic_light_combo_review_v12/light_attack_followup.blend": "0de36889a3f0b516dd455f7eb41a8b5300edc8f135c684decbb583c488bf5dc1",
+        "source_assets/animations/player/cybernetic_light_combo_review_v12/light_attack_followup.glb": "0abdd29c05075483ab6852f22fe5374218d2df33a213e88895ea56a79fd7d507"
+      },
+      "revisions": [
+        {
+          "status": "new_candidate_v1",
+          "sha256": "9482a6641ac6905e435973f3baee2920cd0add596735abb8639b1d3634100cea",
+          "source_files": {
+            "source_assets/animations/player/cybernetic_light_combo/light_attack_followup.blend": "35cdfe6147d6002188b1d0c7d33ef9516c145956d492633cdb0dfc13a1189dfd",
+            "source_assets/animations/player/cybernetic_light_combo/light_attack_followup.glb": "b34997807a93ec51f8aff255f5faa07ac1b9a409b6fc0d1cd0faf73eb1364c73"
+          }
+        },
+        {
+          "status": "new_candidate_v2",
+          "sha256": "0ca60c73dc06c17b3a76dd72c5f4963550fb0d6a5942b74568d9de8bbaef4d5f",
+          "source_files": {
+            "source_assets/animations/player/cybernetic_light_combo/light_attack_followup.blend": "edc56c4ceba448e1c0c16b380e2abd143e650a7e5e08db45b26f8d0cae14356e",
+            "source_assets/animations/player/cybernetic_light_combo/light_attack_followup.glb": "dd5ba7a2bf05f438aed45a0292a2a1800c2ed28c3c495b272b8b5f9b6da67663"
+          }
+        },
+        {
+          "status": "new_candidate_v3",
+          "sha256": "0bac2dbd08317d437939afa721a5c57c66d78a9ad26460a027d851bc6ea081cf",
+          "source_files": {
+            "source_assets/animations/player/cybernetic_light_combo/light_attack_followup.blend": "90d107f95446955ea283e4802004fd9433a8396c735b4ef14957f08fa31cf467",
+            "source_assets/animations/player/cybernetic_light_combo/light_attack_followup.glb": "c7da71939c8d49190dbc0000fc6c1ac87c3fb5b5b19fbf0180584bd3749b4d73"
+          }
+        }
+      ],
+      "approved_date": "2026-09-30",
+      "hit_and_trail_frames": [
+        6,
+        8
+      ],
+      "blade_dissolve_frames": [
+        17,
+        20
+      ]
+    },
+    {
+      "resource_id": 205,
+      "name": "gen_light_attack_finisher",
+      "path": "assets/animations/gen/light_attack_finisher.psxanim",
+      "status": "retired_candidate_v3",
+      "sha256": "fa6a96203c7669055d86a3f871b8167d4c9044bc5c038c6be7de448404685310",
+      "baseline_sha256": null,
+      "stored_frames": 14,
+      "sample_rate_hz": 10,
+      "source_resource": 207,
+      "source_files": {
+        "source_assets/animations/player/cybernetic_light_combo/light_attack_finisher.blend": "e406cecdfbb2de0aacf55b4e9ce9a96d15e780ffa2300dc68753ab7eb8d9107a",
+        "source_assets/animations/player/cybernetic_light_combo/light_attack_finisher.glb": "cbd32ae8a33b0d49fa5043f52386292d2854db8621b66ff3c8b5916c0ba33d30"
+      },
+      "revisions": [
+        {
+          "status": "new_candidate_v1",
+          "sha256": "3634585df75a065389d25d1ae9a73aeb9bbf2a655945110d51725ad00c658e26",
+          "source_files": {
+            "source_assets/animations/player/cybernetic_light_combo/light_attack_finisher.blend": "d6ec1a8908536d5415fa6ec61f1c6754798983f75f9db62e58f86e9bbbfbf4ec",
+            "source_assets/animations/player/cybernetic_light_combo/light_attack_finisher.glb": "5937d3ef06418d6eccb7af8f730e9774c3fce1ff5ea7739ed6a6e476445f7c93"
+          }
+        },
+        {
+          "status": "new_candidate_v2",
+          "sha256": "1732b7450f747ba8805153de7085c8ac46d0676324b5cb7128fc871678430f63",
+          "source_files": {
+            "source_assets/animations/player/cybernetic_light_combo/light_attack_finisher.blend": "38607937a993ce760a6c59902a0559459be3b6c5c6c036b9048f1c057ad8a742",
+            "source_assets/animations/player/cybernetic_light_combo/light_attack_finisher.glb": "f8b68b8fee815a9ad49f3c8883f2ab4cf1ddd768d1e52ca6199896e06281ede2"
+          }
+        }
+      ],
+      "bound": false,
+      "notes": "Historical third strike retained in catalogue; not part of the approved two-hit combo."
+    }
+  ],
+  "unregistered_legacy_files": [
+    {
+      "path": "assets/animations/aletha_delivered/aletha_dash_bwd.psxanim",
+      "status": "original",
+      "sha256": "361838ccfeba68e05df048a5ef74f6c69b4d9f32c4c3e7587f810a354b2633fe",
+      "baseline_sha256": "361838ccfeba68e05df048a5ef74f6c69b4d9f32c4c3e7587f810a354b2633fe"
+    },
+    {
+      "path": "assets/animations/aletha_delivered/aletha_dash_lft.psxanim",
+      "status": "original",
+      "sha256": "025c69fc6fd81927829640c743947cfba318c975da96f75ee6cd4a1c6eacce04",
+      "baseline_sha256": "025c69fc6fd81927829640c743947cfba318c975da96f75ee6cd4a1c6eacce04"
+    },
+    {
+      "path": "assets/animations/aletha_delivered/aletha_dash_rgt.psxanim",
+      "status": "original",
+      "sha256": "36aa02a88d3dfc13117e9869883dd55ffa7ad3b22b8688976a45478dd567d0ab",
+      "baseline_sha256": "36aa02a88d3dfc13117e9869883dd55ffa7ad3b22b8688976a45478dd567d0ab"
+    },
+    {
+      "path": "assets/animations/aletha_delivered/aletha_heavy_wpn_heavy_atk.psxanim",
+      "status": "original",
+      "sha256": "14d581e6a3cf79dd6027f7540d74de1a29e9972cb7c8e3d4013e1f6b44ba5fa6",
+      "baseline_sha256": "14d581e6a3cf79dd6027f7540d74de1a29e9972cb7c8e3d4013e1f6b44ba5fa6"
+    },
+    {
+      "path": "assets/animations/aletha_delivered/aletha_heavy_wpn_light_atk_a.psxanim",
+      "status": "original",
+      "sha256": "420ac5cc4870a741e1e036dfd776dbc9120c4b71f5fe943844f6c3c844ffe719",
+      "baseline_sha256": "420ac5cc4870a741e1e036dfd776dbc9120c4b71f5fe943844f6c3c844ffe719"
+    },
+    {
+      "path": "assets/animations/aletha_delivered/aletha_heavy_wpn_light_atk_b.psxanim",
+      "status": "original",
+      "sha256": "8dd0182b251390e4ab7b0d9bd9e82543f7b6d9669356f73419a5f1404506545d",
+      "baseline_sha256": "8dd0182b251390e4ab7b0d9bd9e82543f7b6d9669356f73419a5f1404506545d"
+    },
+    {
+      "path": "assets/animations/aletha_delivered/aletha_hurt_b.psxanim",
+      "status": "original",
+      "sha256": "1f1851168999ebab7393e30034aa488989cb3e7d963d3c25fadeb6abe084bbad",
+      "baseline_sha256": "1f1851168999ebab7393e30034aa488989cb3e7d963d3c25fadeb6abe084bbad"
+    },
+    {
+      "path": "assets/animations/aletha_delivered/aletha_light_wpn_heavy_atk.psxanim",
+      "status": "original",
+      "sha256": "6c9b8e6c83cd8782645874a10eefcfb2b0f4ad9c1a999ebb5e6d3094218ea3db",
+      "baseline_sha256": "6c9b8e6c83cd8782645874a10eefcfb2b0f4ad9c1a999ebb5e6d3094218ea3db"
+    },
+    {
+      "path": "assets/animations/aletha_delivered/aletha_light_wpn_light_atk_a.psxanim",
+      "status": "original",
+      "sha256": "5a18a834b42a4ea3b372af1f2104c3abf94a9857765f4ffdf06e7a3cd0f3682e",
+      "baseline_sha256": "5a18a834b42a4ea3b372af1f2104c3abf94a9857765f4ffdf06e7a3cd0f3682e"
+    },
+    {
+      "path": "assets/animations/aletha_delivered/aletha_light_wpn_light_atk_b.psxanim",
+      "status": "original",
+      "sha256": "487e31a0b41208d04c2700fb19bc90cf245a8bb9c4bb8166e900419d2424048e",
+      "baseline_sha256": "487e31a0b41208d04c2700fb19bc90cf245a8bb9c4bb8166e900419d2424048e"
+    },
+    {
+      "path": "assets/animations/gen/combo_attack.psxanim",
+      "status": "original",
+      "sha256": "8d6af25cf6b22ea08dc9f3e9df90b8a624561ecf62d19db47abf83c81f3425a1",
+      "baseline_sha256": "8d6af25cf6b22ea08dc9f3e9df90b8a624561ecf62d19db47abf83c81f3425a1"
+    },
+    {
+      "path": "assets/animations/gen/vert_combo_attack.psxanim",
+      "status": "original",
+      "sha256": "606731042b172b584445e5f8e7bc3faa1276fdf082fc31ebdf762a04935256ce",
+      "baseline_sha256": "606731042b172b584445e5f8e7bc3faa1276fdf082fc31ebdf762a04935256ce"
+    },
+    {
+      "path": "assets/animations/mantis_combat/idle.psxanim",
+      "status": "original",
+      "sha256": "85ac3658e4c488d454405c42e9073f050ac3eddf771e61f34af1855dc13fc57a",
+      "baseline_sha256": "85ac3658e4c488d454405c42e9073f050ac3eddf771e61f34af1855dc13fc57a"
+    },
+    {
+      "path": "assets/animations/mantis_combat/light_attack.psxanim",
+      "status": "original",
+      "sha256": "4ce826ab3148dbdda4b20355f446d6449aabe72de176123a561338891d9e2ee0",
+      "baseline_sha256": "4ce826ab3148dbdda4b20355f446d6449aabe72de176123a561338891d9e2ee0"
+    }
+  ],
+  "new_candidates": [
+    204,
+    205
+  ],
+  "light_combo": {
+    "status": "approved v12; installed and native-emulator validated",
+    "animation_set": 61,
+    "sequence": [
+      "LightAttack",
+      "LightAttackFollowup"
+    ],
+    "single_cast": true,
+    "chains": [
+      {
+        "action": "LightAttack",
+        "next_action": "LightAttackFollowup",
+        "input_start": 12,
+        "input_end": 34,
+        "handoff_frame": 34,
+        "blend_ticks": 4
+      }
+    ],
+    "revision": "Approved two-hit X v12; correct blade plane; one sword cast",
+    "followup_trail_history_frames": 2,
+    "review_history": [
+      {
+        "version": "v4",
+        "status": "studio review only; not baked",
+        "reason": "Rebuild awkward second and third swing arcs with explicit FK arm poses",
+        "sources": {
+          "source_assets/animations/player/cybernetic_light_combo_review_v4/light_attack_finisher.blend": "15c908fd237398b10e6c3770442b1d1f047f00abb18c75bfd313cc1a686d435a",
+          "source_assets/animations/player/cybernetic_light_combo_review_v4/light_attack_finisher.glb": "e1ad6f1598f4b5714efa90f45bb08a3383cabbe985dd52a22616cd7c4a42963e",
+          "source_assets/animations/player/cybernetic_light_combo_review_v4/light_attack_followup.blend": "efecff38259390fadbdb00970be693c7c8b62d3961e0e80a0d66b585c524b6cd",
+          "source_assets/animations/player/cybernetic_light_combo_review_v4/light_attack_followup.glb": "3953f5be3448d1b88698df76cfeb92a03a51623799fed8cae88122f7374fa879"
+        },
+        "validation": "source_assets/animations/player/cybernetic_light_combo_review_v4/validation.json",
+        "video": "review/light-combo-v4/studio-two-angles.mp4"
+      },
+      {
+        "version": "v5",
+        "status": "studio review only; not baked",
+        "reason": "Head follows torso with authored anticipation and follow-through; removes excessive fixed-target neck counter-rotation",
+        "includes_opener_head_only_review_variant": true,
+        "sources": {
+          "source_assets/animations/player/cybernetic_light_combo_review_v5/light_attack.blend": "54d865f4dc16c0b4fad3bbf2be3bd43234793db4eaf39fc9a67d0900fb279628",
+          "source_assets/animations/player/cybernetic_light_combo_review_v5/light_attack.glb": "f55f5ccbc48fb1ccb739f377d367b38872a8e51855511d56aa27d475631b5cdc",
+          "source_assets/animations/player/cybernetic_light_combo_review_v5/light_attack_finisher.blend": "5cb34c5e46c4be281876b5f9c51bf7912426b79d6614b1c55330fed9d2c087ed",
+          "source_assets/animations/player/cybernetic_light_combo_review_v5/light_attack_finisher.glb": "b22360c645cf01ad59c53cfd21d4497701eea22fd4cbdde994b7bcdc8b2215ce",
+          "source_assets/animations/player/cybernetic_light_combo_review_v5/light_attack_followup.blend": "fd233ddcc57a3bd91c83ac221f550a233711802975ecfd64b157d6fe5b324b40",
+          "source_assets/animations/player/cybernetic_light_combo_review_v5/light_attack_followup.glb": "45093ce4fcd16adf38a06e29cf10ccf35ae7ab5288b369393fa1c5aab375f0ae"
+        },
+        "validation": "source_assets/animations/player/cybernetic_light_combo_review_v5/head-validation.json",
+        "video": "review/light-combo-v5/studio-two-angles.mp4"
+      },
+      {
+        "version": "v6",
+        "status": "studio review only; not baked",
+        "reason": "Correct reverse-cut blade facing; third strike returns through the approved first slash instead of a thrust",
+        "includes_opener_head_only_review_variant": true,
+        "preserves_v5_head_motion": true,
+        "sources": {
+          "source_assets/animations/player/cybernetic_light_combo_review_v6/light_attack.blend": "54d865f4dc16c0b4fad3bbf2be3bd43234793db4eaf39fc9a67d0900fb279628",
+          "source_assets/animations/player/cybernetic_light_combo_review_v6/light_attack.glb": "f55f5ccbc48fb1ccb739f377d367b38872a8e51855511d56aa27d475631b5cdc",
+          "source_assets/animations/player/cybernetic_light_combo_review_v6/light_attack_finisher.blend": "2854e508dccb732886e537fa7485289238b957a0e5b6a39a1f9d2a4750b5537e",
+          "source_assets/animations/player/cybernetic_light_combo_review_v6/light_attack_finisher.glb": "bda14ceaf60fd55970620bac83c6d04140b7d86fe1b83e1435cfb2bbadad355f",
+          "source_assets/animations/player/cybernetic_light_combo_review_v6/light_attack_followup.blend": "8c6142a86859320e392fe73fb017ea8751b7c381f39f2ca5c4cd4760342a50ce",
+          "source_assets/animations/player/cybernetic_light_combo_review_v6/light_attack_followup.glb": "5da4db163826ac8fa666377ca845e8c4567a26905ca9d23cfaa18ebd94ce59d7"
+        },
+        "validation": [
+          "source_assets/animations/player/cybernetic_light_combo_review_v6/validation.json",
+          "source_assets/animations/player/cybernetic_light_combo_review_v6/blade-validation.json"
+        ],
+        "video": "review/light-combo-v6/studio-two-angles.mp4"
+      },
+      {
+        "version": "v7",
+        "status": "studio review only; not baked",
+        "reason": "Rework second strike with compact chamber, sustained elbow bend and opening reverse cut",
+        "preserves_v6_first_and_third_byte_for_byte": true,
+        "visual_feedback": {
+          "v6_first_strike": "accepted visually by user",
+          "v6_third_strike": "accepted visually by user",
+          "second_strike": "v7 awaiting visual review"
+        },
+        "sources": {
+          "source_assets/animations/player/cybernetic_light_combo_review_v7/light_attack.blend": "54d865f4dc16c0b4fad3bbf2be3bd43234793db4eaf39fc9a67d0900fb279628",
+          "source_assets/animations/player/cybernetic_light_combo_review_v7/light_attack.glb": "f55f5ccbc48fb1ccb739f377d367b38872a8e51855511d56aa27d475631b5cdc",
+          "source_assets/animations/player/cybernetic_light_combo_review_v7/light_attack_finisher.blend": "2854e508dccb732886e537fa7485289238b957a0e5b6a39a1f9d2a4750b5537e",
+          "source_assets/animations/player/cybernetic_light_combo_review_v7/light_attack_finisher.glb": "bda14ceaf60fd55970620bac83c6d04140b7d86fe1b83e1435cfb2bbadad355f",
+          "source_assets/animations/player/cybernetic_light_combo_review_v7/light_attack_followup.blend": "f5db16e652073f1d3a60b3a02b8e4bafcec8d50a4a8d1bea9c820b9006750942",
+          "source_assets/animations/player/cybernetic_light_combo_review_v7/light_attack_followup.glb": "78d0898d33fe53c2d59e45232c4895572206cf18e91d0ee78073f5d6f897e0ab"
+        },
+        "validation": [
+          "source_assets/animations/player/cybernetic_light_combo_review_v7/validation.json",
+          "source_assets/animations/player/cybernetic_light_combo_review_v7/motion-validation.json"
+        ],
+        "video": "review/light-combo-v7/studio-two-angles.mp4"
+      },
+      {
+        "version": "v8",
+        "status": "two-hit X studio review only; not baked",
+        "sequence": [
+          "LightAttack",
+          "LightAttackFollowup"
+        ],
+        "reason": "User simplified to first diagonal plus opposite descending return; torso and sword share one timing curve",
+        "preserves_v6_first_strike_byte_for_byte": true,
+        "supersedes_previous_three_hit_choreography": true,
+        "sources": {
+          "source_assets/animations/player/cybernetic_light_combo_review_v8/light_attack.blend": "54d865f4dc16c0b4fad3bbf2be3bd43234793db4eaf39fc9a67d0900fb279628",
+          "source_assets/animations/player/cybernetic_light_combo_review_v8/light_attack.glb": "f55f5ccbc48fb1ccb739f377d367b38872a8e51855511d56aa27d475631b5cdc",
+          "source_assets/animations/player/cybernetic_light_combo_review_v8/light_attack_followup.blend": "8aac22d6ac7fc3d9df2e9545d3de935efe05e79fa83ace4b8fb98934e1a780aa",
+          "source_assets/animations/player/cybernetic_light_combo_review_v8/light_attack_followup.glb": "b5f870d33d0eb52062748ef34e28687452dad81fa35437956666f77539656408"
+        },
+        "validation": [
+          "source_assets/animations/player/cybernetic_light_combo_review_v8/validation.json",
+          "source_assets/animations/player/cybernetic_light_combo_review_v8/x-validation.json"
+        ],
+        "video": "review/light-combo-v8/studio-two-hit-x.mp4",
+        "visual_feedback": "User: kinda better, but second swing still needs improvement."
+      },
+      {
+        "version": "v9",
+        "status": "studio two-hit review only; not baked",
+        "sequence": [
+          "LightAttack",
+          "LightAttackFollowup"
+        ],
+        "reason": "Reauthor second swipe as compact backhand with synchronized body turn, continuous chamber transition and low finish",
+        "preserves_v6_first_strike_byte_for_byte": true,
+        "supersedes_previous_three_hit_choreography": true,
+        "sources": {
+          "source_assets/animations/player/cybernetic_light_combo_review_v9/light_attack.blend": "54d865f4dc16c0b4fad3bbf2be3bd43234793db4eaf39fc9a67d0900fb279628",
+          "source_assets/animations/player/cybernetic_light_combo_review_v9/light_attack.glb": "f55f5ccbc48fb1ccb739f377d367b38872a8e51855511d56aa27d475631b5cdc",
+          "source_assets/animations/player/cybernetic_light_combo_review_v9/light_attack_followup.blend": "be5c55b634188faf97a72a1d1d2298d378ec924b3fba97c564ae594911aa8dfa",
+          "source_assets/animations/player/cybernetic_light_combo_review_v9/light_attack_followup.glb": "c475cebfd6fe3be77c5515eb6275db9937ba7cf2890acc93dbf477c38cdb54ce"
+        },
+        "validation": [
+          "source_assets/animations/player/cybernetic_light_combo_review_v9/validation.json",
+          "source_assets/animations/player/cybernetic_light_combo_review_v9/x-validation.json"
+        ],
+        "video": "review/light-combo-v9/studio-two-hit-x.mp4",
+        "visual_feedback": "Rejected: user says second strike still looks weird; requested another attempt."
+      },
+      {
+        "version": "v10",
+        "status": "studio two-hit review only; not baked",
+        "sequence": [
+          "LightAttack",
+          "LightAttackFollowup"
+        ],
+        "reason": "Rebuild second strike using authored FK shoulder/elbow poses, neutral wrist grip and stronger forward weight transfer",
+        "preserves_v6_first_strike_byte_for_byte": true,
+        "supersedes_previous_three_hit_choreography": true,
+        "sources": {
+          "source_assets/animations/player/cybernetic_light_combo_review_v10/light_attack.blend": "54d865f4dc16c0b4fad3bbf2be3bd43234793db4eaf39fc9a67d0900fb279628",
+          "source_assets/animations/player/cybernetic_light_combo_review_v10/light_attack.glb": "f55f5ccbc48fb1ccb739f377d367b38872a8e51855511d56aa27d475631b5cdc",
+          "source_assets/animations/player/cybernetic_light_combo_review_v10/light_attack_followup.blend": "4d389c9fe438e6aef09fa0ee53b8218a360fa52df3c48bbd7b1a5f66472b2941",
+          "source_assets/animations/player/cybernetic_light_combo_review_v10/light_attack_followup.glb": "62ce912037cd8f2266960b89e7071f84e131452daed5d4ad95915f7d6f6c9999"
+        },
+        "validation": [
+          "source_assets/animations/player/cybernetic_light_combo_review_v10/validation.json",
+          "source_assets/animations/player/cybernetic_light_combo_review_v10/x-validation.json"
+        ],
+        "video": "review/light-combo-v10/studio-two-hit-x.mp4",
+        "visual_feedback": "User: getting there, but second strike feels flat and lacks the impact of the first."
+      },
+      {
+        "version": "v11",
+        "status": "studio two-hit review only; not baked",
+        "sequence": [
+          "LightAttack",
+          "LightAttackFollowup"
+        ],
+        "reason": "Stronger second-strike anticipation, four-frame accelerating cut, deeper weight transfer and firmer stop; preserves FK arm and steady grip",
+        "preserves_v6_first_strike_byte_for_byte": true,
+        "supersedes_previous_three_hit_choreography": true,
+        "sources": {
+          "source_assets/animations/player/cybernetic_light_combo_review_v11/light_attack.blend": "54d865f4dc16c0b4fad3bbf2be3bd43234793db4eaf39fc9a67d0900fb279628",
+          "source_assets/animations/player/cybernetic_light_combo_review_v11/light_attack.glb": "f55f5ccbc48fb1ccb739f377d367b38872a8e51855511d56aa27d475631b5cdc",
+          "source_assets/animations/player/cybernetic_light_combo_review_v11/light_attack_followup.blend": "b8524ac40e93b80a8945fc9be2079f3af20afaab0a4e6afa03a8b4f1b2f12da0",
+          "source_assets/animations/player/cybernetic_light_combo_review_v11/light_attack_followup.glb": "84f05b7d869041054574657c5a894bfa48c8a0dc222436397ec9f78452145559"
+        },
+        "validation": [
+          "source_assets/animations/player/cybernetic_light_combo_review_v11/validation.json",
+          "source_assets/animations/player/cybernetic_light_combo_review_v11/x-validation.json"
+        ],
+        "video": "review/light-combo-v11/studio-two-hit-x.mp4",
+        "visual_feedback": "User: getting there; focus on blade alignment in the second swing.",
+        "validation_correction": "Historical blade-facing score used the broad-face normal (-X), not the cutting edge; superseded by v12 edge/plane checks."
+      }
+    ],
+    "target_sequence": [
+      "LightAttack",
+      "LightAttackFollowup"
+    ],
+    "previous_installed": {
+      "status": "implemented; follow-up animations pending user review",
+      "sequence": [
+        "LightAttack",
+        "LightAttackFollowup",
+        "LightAttackFinisher"
+      ],
+      "chains": [
+        {
+          "action": "LightAttack",
+          "next_action": "LightAttackFollowup",
+          "input_start": 20,
+          "input_end": 34,
+          "handoff_frame": 34,
+          "blend_ticks": 4
+        },
+        {
+          "action": "LightAttackFollowup",
+          "next_action": "LightAttackFinisher",
+          "input_start": 5,
+          "input_end": 9,
+          "handoff_frame": 9,
+          "blend_ticks": 4
+        }
+      ],
+      "revision": "v3: lower cross-cut through the front of the torso; centered descending finisher; stable wrist; shorter sword trails"
+    },
+    "input_window_seconds": [
+      0.4,
+      1.1333333333333333
+    ],
+    "handoff_seconds": 1.1333333333333333,
+    "followup_sample_rate_hz": 15,
+    "followup_frames": [
+      0,
+      20
+    ],
+    "followup_hit_and_trail_frames": [
+      6,
+      8
+    ],
+    "native_video": "review/light-combo-install-v12/native-single-vs-combo.mp4",
+    "runtime_validation": "source_assets/animations/player/cybernetic_light_combo_review_v12/runtime-validation.json",
+    "approved_candidate": {
+      "version": "v12",
+      "status": "approved by user; baked and installed",
+      "sequence": [
+        "LightAttack",
+        "LightAttackFollowup"
+      ],
+      "reason": "Correct flat-first blade orientation with forearm roll; preserve v11 body motion, timing and wrist path",
+      "preserves_v6_first_strike_byte_for_byte": true,
+      "preserves_v11_except_right_forearm_roll": true,
+      "supersedes_previous_three_hit_choreography": true,
+      "sources": {
+        "source_assets/animations/player/cybernetic_light_combo_review_v12/light_attack.blend": "54d865f4dc16c0b4fad3bbf2be3bd43234793db4eaf39fc9a67d0900fb279628",
+        "source_assets/animations/player/cybernetic_light_combo_review_v12/light_attack.glb": "f55f5ccbc48fb1ccb739f377d367b38872a8e51855511d56aa27d475631b5cdc",
+        "source_assets/animations/player/cybernetic_light_combo_review_v12/light_attack_followup.blend": "0de36889a3f0b516dd455f7eb41a8b5300edc8f135c684decbb583c488bf5dc1",
+        "source_assets/animations/player/cybernetic_light_combo_review_v12/light_attack_followup.glb": "0abdd29c05075483ab6852f22fe5374218d2df33a213e88895ea56a79fd7d507"
+      },
+      "validation": [
+        "source_assets/animations/player/cybernetic_light_combo_review_v12/validation.json",
+        "source_assets/animations/player/cybernetic_light_combo_review_v12/x-validation.json",
+        "source_assets/animations/player/cybernetic_light_combo_review_v12/preservation-validation.json"
+      ],
+      "video": "review/light-combo-v12/studio-two-hit-x.mp4",
+      "approval_date": "2026-09-30"
+    }
+  },
+  "cook_notes": [
+    "Resampling now retains the source payload when lowering its sample rate would increase resident bytes. Light Enemy Hit React and Heavy Enemy Strafe Left/Right retain their original 12 Hz sampling; registered source assets are unchanged."
+  ]
+}

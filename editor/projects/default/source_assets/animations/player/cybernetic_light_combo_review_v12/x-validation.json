@@ -1,0 +1,55 @@
+{
+  "entry_max_matrix_delta": 3.5762786865234375e-07,
+  "first_master_and_glb_byte_identical_to_v6": true,
+  "tip_endpoints": {
+    "first": {
+      "start": [
+        -1.3996987342834473,
+        -0.24853064119815826,
+        1.9866466522216797
+      ],
+      "end": [
+        0.11494848132133484,
+        0.6292244791984558,
+        1.0826011896133423
+      ],
+      "displacement": [
+        1.5146472454071045,
+        0.8777551054954529,
+        -0.9040454626083374
+      ]
+    },
+    "second": {
+      "start": [
+        1.0685304403305054,
+        -0.8304657340049744,
+        1.9860506057739258
+      ],
+      "end": [
+        -1.3783023357391357,
+        -1.386869192123413,
+        0.29342421889305115
+      ],
+      "displacement": [
+        -2.4468326568603516,
+        -0.5564034581184387,
+        -1.6926263570785522
+      ]
+    }
+  },
+  "second_edge_leading_alignment_mean": 0.9872257500673116,
+  "chest_peak_motion_studio_frame": 48,
+  "blade_q_peak_motion_studio_frame": 48,
+  "clip_count": 2,
+  "studio_frames": 74,
+  "peak_tip_travel_m_per_frame": {
+    "first": 2.101132558074308,
+    "second": 1.6847591747617727
+  },
+  "cut_duration_frames": {
+    "first": 4,
+    "second": 4
+  },
+  "second_cut_edge_angle_degrees_max": 12.445922040499399,
+  "second_cut_flat_normal_velocity_component_max": 0.2155177640961483
+}

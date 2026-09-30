@@ -1,0 +1,29 @@
+{
+  "cause": 0,
+  "epc": 0,
+  "badvaddr": 0,
+  "count": 0,
+  "revision": "candidate v3",
+  "bss_end": "0x801f4b20",
+  "static_headroom_bytes": 13536,
+  "heap_cursor": "0x801f6ccc",
+  "remaining_boot_heap_bytes": 4660,
+  "guest_sha256": "c88ecca8e067652d46c6ce55b85d668ebfc713dfb116bf78fb06e410cf3c9c70",
+  "disc_sha256": "c1274f96583be23d8b649f533236fcb840b9ae921151ab32f18d07a03267d8ed",
+  "port1_polls": 2800,
+  "route_ticks": 3119,
+  "validation": "native emulator; not hardware",
+  "native_cases": [
+    "one strike and recovery",
+    "two strikes and recovery",
+    "three strikes and recovery"
+  ],
+  "load_delay_hazards": 0,
+  "source_frames": 40,
+  "baked_frames": 14,
+  "baked_rate_hz": 10,
+  "second_to_third_baked_entry_match": true,
+  "existing_animation_assets_unchanged": 62,
+  "evidence": "review/light-combo-v3/",
+  "trail_history_frames": 2
+}

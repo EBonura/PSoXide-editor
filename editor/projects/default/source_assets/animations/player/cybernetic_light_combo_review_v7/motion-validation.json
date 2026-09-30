@@ -1,0 +1,35 @@
+{
+  "versions": {
+    "v6": {
+      "windup_mean_shoulder_hand_distance_m": 0.5092478715656786,
+      "windup_mean_elbow_flex_degrees": 41.760084626989524,
+      "reverse_cut_frames": [
+        47,
+        55
+      ],
+      "mean_blade_facing_alignment": 0.996987688562298,
+      "min_blade_facing_alignment": 0.9897083264659159
+    },
+    "v7": {
+      "windup_mean_shoulder_hand_distance_m": 0.18828392464079036,
+      "windup_mean_elbow_flex_degrees": 139.84665613137736,
+      "reverse_cut_frames": [
+        47,
+        55
+      ],
+      "mean_blade_facing_alignment": 0.9995988041974601,
+      "min_blade_facing_alignment": 0.9984927517361939
+    }
+  },
+  "unchanged_clips": {
+    "light_attack": {
+      ".blend": "54d865f4dc16c0b4fad3bbf2be3bd43234793db4eaf39fc9a67d0900fb279628",
+      ".glb": "f55f5ccbc48fb1ccb739f377d367b38872a8e51855511d56aa27d475631b5cdc"
+    },
+    "light_attack_finisher": {
+      ".blend": "2854e508dccb732886e537fa7485289238b957a0e5b6a39a1f9d2a4750b5537e",
+      ".glb": "bda14ceaf60fd55970620bac83c6d04140b7d86fe1b83e1435cfb2bbadad355f"
+    }
+  },
+  "non_arm_max_local_matrix_delta": 4.6938657760620117e-07
+}

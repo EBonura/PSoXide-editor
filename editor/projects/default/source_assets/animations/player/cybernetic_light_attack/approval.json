@@ -1,0 +1,7 @@
+{
+  "status": "user-approved",
+  "version": 5,
+  "user_feedback": "amazing, that's the one!",
+  "glb_sha256": "188e3f651bc015af9c5112510111e9a2b24bbd7054819e9b6f024a91b90467dc",
+  "integration": "Baked into default Cortex Ignition v0.4b: clip 84, source 203, LightAttack; 2026-09-30"
+}

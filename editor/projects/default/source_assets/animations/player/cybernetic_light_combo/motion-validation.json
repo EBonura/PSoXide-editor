@@ -1,0 +1,115 @@
+{
+  "light_attack_followup": {
+    "fps": 30,
+    "frames": 40,
+    "body_channels_preserved": true,
+    "max_degrees_per_source_frame": {
+      "RightUpperArm": {
+        "v1": 175.50386974342834,
+        "v2": 23.824666951533565,
+        "v2_recovery": 14.718823957125208,
+        "v3": 31.73633757772308,
+        "v3_recovery": 7.754388412189256
+      },
+      "RightLowerArm": {
+        "v1": 96.13006977318777,
+        "v2": 50.3829003959741,
+        "v2_recovery": 2.004625898016918,
+        "v3": 41.13602493331705,
+        "v3_recovery": 5.97450822928276
+      },
+      "RightHand": {
+        "v1": 144.98009788135005,
+        "v2": 0.5859334075520111,
+        "v2_recovery": 0.4260610339617576,
+        "v3": 0.585954289230625,
+        "v3_recovery": 0.4260610093732656
+      }
+    },
+    "centering": {
+      "body_local_matrix_max_delta": 4.76837158203125e-07,
+      "active_frames": [
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      "metrics": {
+        "v2": {
+          "active_mean_blade_height_m": 1.8497334361076354,
+          "active_mean_abs_lateral_tip_m": 0.961843204498291,
+          "active_mean_abs_lateral_wrist_m": 0.37766868621110916
+        },
+        "v3": {
+          "active_mean_blade_height_m": 1.50703706741333,
+          "active_mean_abs_lateral_tip_m": 0.6390237361192703,
+          "active_mean_abs_lateral_wrist_m": 0.19986029751598836
+        }
+      }
+    }
+  },
+  "light_attack_finisher": {
+    "fps": 30,
+    "frames": 40,
+    "body_channels_preserved": true,
+    "max_degrees_per_source_frame": {
+      "RightUpperArm": {
+        "v1": 55.8728008826865,
+        "v2": 43.09867438403596,
+        "v2_recovery": 8.350533233460418,
+        "v3": 57.50751210311579,
+        "v3_recovery": 20.388456863150733
+      },
+      "RightLowerArm": {
+        "v1": 91.57198685861613,
+        "v2": 33.6114680995336,
+        "v2_recovery": 2.963238622325051,
+        "v3": 39.50164079139596,
+        "v3_recovery": 10.620320469099886
+      },
+      "RightHand": {
+        "v1": 87.63588126695893,
+        "v2": 0.1341900807413278,
+        "v2_recovery": 0.09830630436878492,
+        "v3": 0.1341899962509199,
+        "v3_recovery": 0.09830629357271788
+      }
+    },
+    "centering": {
+      "body_local_matrix_max_delta": 4.4330954551696777e-07,
+      "active_frames": [
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27
+      ],
+      "metrics": {
+        "v2": {
+          "active_mean_blade_height_m": 0.8809246341697872,
+          "active_mean_abs_lateral_tip_m": 0.8789042994379997,
+          "active_mean_abs_lateral_wrist_m": 0.3262475125491619
+        },
+        "v3": {
+          "active_mean_blade_height_m": 0.5386599555611611,
+          "active_mean_abs_lateral_tip_m": 0.10235825453419238,
+          "active_mean_abs_lateral_wrist_m": 0.08422863241285086
+        }
+      }
+    }
+  },
+  "second_to_third_baked_entry_match": true,
+  "revision": "candidate v3",
+  "followup_trail_history_frames": 2
+}

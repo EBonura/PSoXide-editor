@@ -1,0 +1,36 @@
+{
+  "approved_source_matches": true,
+  "runtime_version": 5,
+  "runtime_joints": 26,
+  "runtime_frames": 61,
+  "runtime_hz": 30,
+  "runtime_seconds": 2.0,
+  "runtime_flags": 2,
+  "runtime_speed_q8": 256,
+  "runtime_frame_range": [
+    0,
+    60
+  ],
+  "hit_and_trail_frames": [
+    22,
+    29
+  ],
+  "blade_fully_visible_frame": 12,
+  "blade_hidden_frame": 48,
+  "blade_transition_frames": 6,
+  "changed_clips_this_bake": [
+    "assets/animations/gen/light_attack.psxanim"
+  ],
+  "approved_walk_unchanged": true,
+  "disc_sha256": "a5f99702fef76426b633a1cf83dc9e7c0cb9b456fae963d26e9d466a79f72ad5",
+  "exe_sha256": "aabe781906aa7f5bfc3829d98711f8474fbf4001a397dd4254ee8bda56e7acdf",
+  "hazard_scan": "0 hazards in build/examples/mipsel-sony-psx/release/editor-playtest.exe",
+  "native_smoke": {
+    "route_ticks": 2820,
+    "port1_polls": 2501,
+    "attacks_exercised": 2,
+    "video": "review/light-attack-bake/approved-light-in-game.mp4",
+    "visual_check": "Observed cast, strike/trail, dissolve and return to idle in native gameplay."
+  },
+  "catalogue_audit": "Pre-existing issue only: 14 unregistered legacy clips; all unchanged."
+}
