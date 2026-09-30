@@ -104,8 +104,15 @@ impl EditorWorkspace {
                         {
                             let delta = ui.input(|input| input.pointer.delta());
                             let [horizontal, vertical] = orthographic_view.plane_axes();
-                            self.orthographic_focus[horizontal] -= delta.x / self.viewport_zoom;
-                            self.orthographic_focus[vertical] += delta.y / self.viewport_zoom;
+                            let world = ViewportTransform::from_focus(
+                                rect,
+                                orthographic_view,
+                                [0.0, 0.0],
+                                self.viewport_zoom,
+                            )
+                            .screen_delta_to_world(delta);
+                            self.orthographic_focus[horizontal] -= world[0];
+                            self.orthographic_focus[vertical] -= world[1];
                         }
 
                         if !dnd_active && response.hovered() {
@@ -116,6 +123,7 @@ impl EditorWorkspace {
                                     .unwrap_or_else(|| rect.center());
                                 let before = ViewportTransform::from_focus(
                                     rect,
+                                    orthographic_view,
                                     orthographic_view.project_f32(self.orthographic_focus),
                                     self.viewport_zoom,
                                 )
@@ -125,6 +133,7 @@ impl EditorWorkspace {
                                     .clamp(MIN_VIEWPORT_ZOOM, MAX_VIEWPORT_ZOOM);
                                 let after = ViewportTransform::from_focus(
                                     rect,
+                                    orthographic_view,
                                     orthographic_view.project_f32(self.orthographic_focus),
                                     self.viewport_zoom,
                                 )
@@ -143,6 +152,7 @@ impl EditorWorkspace {
 
                         let transform = ViewportTransform::from_focus(
                             rect,
+                            orthographic_view,
                             orthographic_view.project_f32(self.orthographic_focus),
                             self.viewport_zoom,
                         );
@@ -978,7 +988,6 @@ impl EditorWorkspace {
                     "Project grid over brush faces",
                 );
                 if visibility_before != (self.show_grid, self.show_brush_surface_grid) {
-                    self.persist_editor_visibility_state();
                     self.mark_shortcut_group_changed(ShortcutGroup::Visibility);
                 }
 
@@ -991,17 +1000,21 @@ impl EditorWorkspace {
                 let snap_before = self.snap_units;
                 ui.add(
                     egui::DragValue::new(&mut self.snap_units)
-                        .range(1..=2048)
-                        .speed(1.0)
+                        .range(ENGINE_UNIT..=MAX_GRID_UNITS)
+                        .speed(f64::from(ENGINE_UNIT) * 0.25)
                         .prefix("Grid "),
+                )
+                .on_hover_text(
+                    "Multiples of 16: the cook keeps positions in 16-unit engine steps, \
+                     so a finer grid would not survive it.",
                 );
+                self.snap_units = engine_grid_units(self.snap_units);
                 ui.horizontal_wrapped(|ui| {
-                    for step in [1_u16, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048] {
+                    for step in [16_u16, 32, 64, 128, 256, 512, 1024, 2048] {
                         ui.selectable_value(&mut self.snap_units, step, step.to_string());
                     }
                 });
                 if self.snap_units != snap_before {
-                    self.persist_editor_viewport_state();
                     self.status = format!("Grid: {} units", self.snap_units);
                 }
                 ui.weak("Brush geometry always snaps to this interval.");
@@ -1028,7 +1041,6 @@ impl EditorWorkspace {
         let visible = !(self.show_grid || self.show_brush_surface_grid);
         self.show_grid = visible;
         self.show_brush_surface_grid = visible;
-        self.persist_editor_visibility_state();
         self.status = if visible {
             "Grid overlays shown".to_string()
         } else {
@@ -1284,7 +1296,6 @@ impl EditorWorkspace {
                 }
             });
         if changed {
-            self.persist_editor_visibility_state();
             self.mark_shortcut_group_changed(ShortcutGroup::Visibility);
         }
     }
@@ -1349,7 +1360,6 @@ impl EditorWorkspace {
             .changed()
         {
             self.camera_rig.set_zoom_speed(zoom_speed);
-            self.persist_editor_camera_state();
         }
     }
 

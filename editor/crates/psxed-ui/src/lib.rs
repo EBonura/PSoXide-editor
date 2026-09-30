@@ -392,9 +392,7 @@ const RESOURCE_CARD_HEIGHT: f32 = 128.0;
 const VIEWPORT_PREVIEW_ASPECT: f32 = 320.0 / 240.0;
 const SHORTCUT_GROUP_FLASH_SECONDS: f32 = 0.85;
 const ACTION_BAR_COMPACT_HEIGHT: f32 = 50.0;
-const PLAY_FRAME_HISTORY_CAP: usize = 150;
 const PLAY_DEBUG_TERMINAL_LINE_CAP: usize = 1_000;
-const PLAY_FRAME_TARGET_FPS: f32 = 30.0;
 const PSOXIDE_APP_ICON_PNG: &[u8] =
     include_bytes!("../../../../assets/branding/psoxide-app-icon.png");
 pub(crate) const BUILTIN_QUAKE_SKY_NAME: &str = "Sky: Quake Layered Sunset";
@@ -421,6 +419,8 @@ const STARTER_CHARACTER_ASSET_DIRS: &[&str] = &[
     "assets/animations/tank_boss_ai",
     "assets/models/sword1_light",
     "assets/models/sword1_heavy",
+    // The energy blades' noise texture.
+    "assets/models/weapon_energy",
     // The canonical default project is also the material library for a new
     // BSP map. Copy every saved PSXT so its synced Material resource is usable
     // immediately instead of pointing back into another project.
@@ -448,6 +448,10 @@ const STARTER_CHARACTER_MODEL_NAMES: &[&str] = &[
     "Heavy Enemy Model",
     "Sword1 Light",
     "Sword1 Heavy",
+    // The player's materialising blades: Aletha's weapon appearance tracks
+    // name these, not the plain swords above.
+    "Sword1 Light Energy",
+    "Sword1 Heavy Energy",
 ];
 const STARTER_CHARACTER_SKELETON_NAMES: &[&str] = &[
     "Light Enemy Skeleton",
@@ -457,7 +461,12 @@ const STARTER_CHARACTER_SKELETON_NAMES: &[&str] = &[
 ];
 const STARTER_CHARACTER_MATERIAL_NAMES: &[&str] = &["Aletha Crystal"];
 /// Verified combat loadout weapons synced beside the character profiles.
-const STARTER_WEAPON_NAMES: &[&str] = &["Sword1 Light", "Sword1 Heavy"];
+const STARTER_WEAPON_NAMES: &[&str] = &[
+    "Sword1 Light",
+    "Sword1 Heavy",
+    "Sword1 Light Energy",
+    "Sword1 Heavy Energy",
+];
 /// Projectile profiles referenced by the verified starter enemies.
 const STARTER_PROJECTILE_NAMES: &[&str] = &["Choir Needle"];
 const STARTER_ANIMATION_SET_NAMES: &[&str] = &[
@@ -837,9 +846,8 @@ pub struct EditorWorkspace {
     /// Wireframe outlines for unselected brushes (View menu toggle).
     show_brush_wireframes: bool,
     preview_bounds: bool,
+    /// Docked Guest performance panel during Play (sidecar-persisted).
     show_play_debug_overlays: bool,
-    play_frame_times_ms: VecDeque<f32>,
-    play_frame_last_sample_serial: Option<u32>,
     play_debug_terminal_lines: VecDeque<String>,
     shortcut_group_flash: Option<(ShortcutGroup, Instant)>,
     view_2d: bool,
@@ -927,6 +935,15 @@ pub struct EditorWorkspace {
     /// to handle. The frontend owns emulator state and build child
     /// processes, so the editor never launches playtest directly.
     pending_playtest_request: Option<EditorPlaytestRequest>,
+    /// The view last read from or written to the view file, so an unchanged
+    /// view is not rewritten.
+    saved_view_state: psxed_project::EditorViewState,
+    /// The user answered the unsaved-changes prompt for closing the window
+    /// (saved or discarded), so the next close request may proceed.
+    close_confirmed: bool,
+    /// File > Emulator Menu was chosen this frame. Esc belongs to the editor,
+    /// so this is how the editor reaches the emulator overlay.
+    emulator_menu_requested: bool,
 }
 
 /// One cached `.psxt` thumbnail plus the metadata the inspector
@@ -1597,6 +1614,10 @@ struct NodeGizmoDrag {
     /// World-space direction (gizmo-basis column) a Move axis handle
     /// translates along; identity-basis columns in Global space.
     move_axis_world: [f32; 3],
+    /// Move axis handles follow the pointer ray: the gizmo pivot the axis
+    /// runs through, and the axis distance under the pointer at the press.
+    /// `None` falls back to screen-pixel steps (ray along the axis).
+    move_axis_ray_start: Option<([f32; 3], f32)>,
     /// Angular tracking state, present only for Rotate drags.
     rotate: Option<NodeGizmoRotateDrag>,
     targets: Vec<NodeGizmoTarget>,
@@ -1651,7 +1672,6 @@ struct NodeGizmoTarget {
     start_box_prop_vertices: Option<[[i16; 3]; psxed_project::BOX_PROP_VERTEX_COUNT]>,
     start_cylinder_prop_geometry: Option<psxed_project::CylinderPropGeometry>,
     start_arch_prop_geometry: Option<psxed_project::ArchPropGeometry>,
-    sector_size: i32,
 }
 
 #[derive(Debug, Clone)]
@@ -2018,6 +2038,25 @@ enum Modal {
     },
     /// Delete the current project. Carries the last delete error, if any.
     DeleteProject { error: Option<String> },
+    /// The project has unsaved edits and the user asked for something that
+    /// would drop them: Save, Discard or Cancel. Carries the last save
+    /// error, if any.
+    UnsavedChanges {
+        then: AfterUnsavedPrompt,
+        error: Option<String>,
+    },
+}
+
+/// What the unsaved-changes prompt does once the edits are saved or
+/// discarded.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum AfterUnsavedPrompt {
+    /// Close the window.
+    Close,
+    /// Re-read project.ron from disk.
+    Reload,
+    /// Open another project.
+    SwitchProject(PathBuf),
 }
 
 /// What the editor currently has selected or is hovering, across the scene
@@ -3160,10 +3199,13 @@ impl EditorWorkspace {
             workspace.focus_debug_scene_node_from_env();
             workspace.apply_debug_terrain_tool_from_env();
         }
-        workspace.apply_project_editor_camera();
+        // The view file beside the project wins; a project without one
+        // opens at the starting view authored into project.ron.
+        let view = psxed_project::EditorViewState::load(&workspace.project_dir)
+            .unwrap_or_else(|| psxed_project::EditorViewState::starting_view(&workspace.project));
+        workspace.apply_editor_view_state(view);
+        workspace.saved_view_state = view;
         workspace.frame_bsp_camera_if_uninitialized();
-        workspace.apply_project_editor_visibility();
-        workspace.apply_project_editor_viewport();
         if workspace.active_workspace == WorkspaceView::Room && workspace.view_2d {
             let status = workspace.status.clone();
             workspace.frame_bsp_viewport_if_uninitialized();
@@ -3334,8 +3376,6 @@ impl EditorWorkspace {
             preview_bounds: editor_visibility.preview_bounds,
             show_play_debug_overlays: editor_visibility.show_play_debug_overlays,
             show_brush_wireframes: editor_visibility.show_brush_wireframes,
-            play_frame_times_ms: VecDeque::with_capacity(PLAY_FRAME_HISTORY_CAP),
-            play_frame_last_sample_serial: None,
             play_debug_terminal_lines: VecDeque::with_capacity(PLAY_DEBUG_TERMINAL_LINE_CAP),
             shortcut_group_flash: None,
             // The 3D workspace uses the bit-faithful BSP preview by
@@ -3426,6 +3466,9 @@ impl EditorWorkspace {
             show_bsp_leak_path: true,
             bsp_leak_cursor: 0,
             pending_playtest_request: None,
+            saved_view_state: psxed_project::EditorViewState::default(),
+            close_confirmed: false,
+            emulator_menu_requested: false,
         }
     }
 
@@ -3451,17 +3494,7 @@ impl EditorWorkspace {
         }
     }
 
-    fn persist_editor_camera_state(&mut self) {
-        let mut editor_camera = self.current_editor_camera_state();
-        editor_camera.normalize();
-        if self.project.editor_camera != editor_camera {
-            self.project.editor_camera = editor_camera;
-            self.dirty = true;
-        }
-    }
-
-    fn apply_project_editor_camera(&mut self) {
-        let mut editor_camera = self.project.editor_camera;
+    fn apply_editor_camera(&mut self, mut editor_camera: EditorCameraState) {
         editor_camera.normalize();
         self.camera_rig.mode = match editor_camera.mode {
             EditorCameraMode::Orbit => ViewportCameraMode::Orbit,
@@ -3488,6 +3521,18 @@ impl EditorWorkspace {
         self.camera_rig.zoom_speed = editor_camera.zoom_speed;
     }
 
+    /// Whether the docked Guest performance panel should show during Play.
+    /// Persisted in the view sidecar (`show_play_debug_overlays`).
+    pub fn play_performance_panel_visible(&self) -> bool {
+        self.show_play_debug_overlays
+    }
+
+    /// Show or hide the docked Guest performance panel (button, visibility
+    /// menu, or F3).
+    pub fn toggle_play_performance_panel(&mut self) {
+        self.show_play_debug_overlays = !self.show_play_debug_overlays;
+    }
+
     fn current_editor_visibility_state(&self) -> EditorVisibilityState {
         EditorVisibilityState {
             show_grid: self.show_grid,
@@ -3499,16 +3544,7 @@ impl EditorWorkspace {
         }
     }
 
-    fn persist_editor_visibility_state(&mut self) {
-        let editor_visibility = self.current_editor_visibility_state();
-        if self.project.editor_visibility != editor_visibility {
-            self.project.editor_visibility = editor_visibility;
-            self.dirty = true;
-        }
-    }
-
-    fn apply_project_editor_visibility(&mut self) {
-        let editor_visibility = self.project.editor_visibility;
+    fn apply_editor_visibility(&mut self, editor_visibility: EditorVisibilityState) {
         self.show_grid = editor_visibility.show_grid;
         self.show_brush_surface_grid = editor_visibility.show_brush_surface_grid;
         self.show_lights = editor_visibility.show_lights;
@@ -3537,16 +3573,7 @@ impl EditorWorkspace {
         }
     }
 
-    fn persist_editor_viewport_state(&mut self) {
-        let editor_viewport = self.current_editor_viewport_state();
-        if self.project.editor_viewport != editor_viewport {
-            self.project.editor_viewport = editor_viewport;
-            self.dirty = true;
-        }
-    }
-
-    fn apply_project_editor_viewport(&mut self) {
-        let editor_viewport = self.project.editor_viewport;
+    fn apply_editor_viewport(&mut self, editor_viewport: psxed_project::EditorViewportState) {
         self.view_2d = editor_viewport.view_2d;
         self.orthographic_view = match editor_viewport.orthographic_view {
             psxed_project::EditorOrthographicView::Top => OrthographicView::Top,
@@ -3564,19 +3591,73 @@ impl EditorWorkspace {
         } else {
             DEFAULT_VIEWPORT_ZOOM
         };
-        self.snap_units = editor_viewport.snap_units.max(1);
+        self.snap_units = engine_grid_units(editor_viewport.snap_units);
     }
 
-    fn persist_editor_workspace_state(&mut self) {
-        let editor_workspace = self.current_editor_workspace_state();
-        if self.project.editor_workspace != editor_workspace {
-            self.project.editor_workspace = editor_workspace;
-            self.dirty = true;
+    /// Where the editor is looking now: camera, overlay visibility,
+    /// workspace and 2D layout. It lives in the project's view file
+    /// ([`psxed_project::EDITOR_VIEW_STATE_FILE`]), never in the document.
+    pub fn editor_view_state(&self) -> psxed_project::EditorViewState {
+        let mut camera = self.current_editor_camera_state();
+        camera.normalize();
+        psxed_project::EditorViewState {
+            camera,
+            visibility: self.current_editor_visibility_state(),
+            workspace: self.current_editor_workspace_state(),
+            viewport: self.current_editor_viewport_state(),
         }
     }
 
-    fn apply_project_editor_workspace(&mut self) {
-        self.active_workspace = WorkspaceView::from_project(self.project.editor_workspace.active);
+    /// Look where `view` says.
+    pub(crate) fn apply_editor_view_state(&mut self, view: psxed_project::EditorViewState) {
+        self.apply_editor_camera(view.camera);
+        self.apply_editor_visibility(view.visibility);
+        self.apply_editor_viewport(view.viewport);
+        self.active_workspace = WorkspaceView::from_project(view.workspace.active);
+    }
+
+    /// Write the view file when the view changed since it was read or last
+    /// written. Never touches `project.ron` or the dirty flag.
+    pub fn save_view_state(&mut self) -> Result<(), String> {
+        let view = self.editor_view_state();
+        if view == self.saved_view_state {
+            return Ok(());
+        }
+        view.save(&self.project_dir)
+            .map_err(|error| format!("save editor view: {error}"))?;
+        self.saved_view_state = view;
+        Ok(())
+    }
+
+    /// The window wants to close. True when it may: nothing is unsaved, or
+    /// the user already answered the prompt. Otherwise this opens the
+    /// Save / Discard / Cancel prompt, which asks egui to close the window
+    /// again once answered, and returns false. The view file is written
+    /// either way.
+    pub fn request_close(&mut self) -> bool {
+        if let Err(error) = self.save_view_state() {
+            self.status = error;
+        }
+        if self.close_confirmed || !self.dirty {
+            return true;
+        }
+        self.modal = Modal::UnsavedChanges {
+            then: AfterUnsavedPrompt::Close,
+            error: None,
+        };
+        false
+    }
+
+    /// File > Reload: asks first when there are unsaved edits.
+    pub(crate) fn request_reload(&mut self) {
+        if self.dirty {
+            self.modal = Modal::UnsavedChanges {
+                then: AfterUnsavedPrompt::Reload,
+                error: None,
+            };
+        } else {
+            self.reload();
+        }
     }
 
     /// Current project document.
@@ -3766,10 +3847,6 @@ impl EditorWorkspace {
         // authority boundary. Check once more so the status can report an
         // external edit before this explicit Save replaces it.
         self.poll_project_watch(true);
-        self.persist_editor_camera_state();
-        self.persist_editor_visibility_state();
-        self.persist_editor_workspace_state();
-        self.persist_editor_viewport_state();
         if self.floating_geometry.is_some() {
             return Err("Place or cancel the duplicate preview before saving".to_string());
         }
@@ -3790,6 +3867,9 @@ impl EditorWorkspace {
         self.dirty = false;
         self.project_watch = ProjectWatchState::capture(&self.project_dir, &self.project);
         self.status = format!("Saved {}", short_path(&self.project_dir));
+        if let Err(error) = self.save_view_state() {
+            self.status = format!("Saved {}; {error}", short_path(&self.project_dir));
+        }
         Ok(())
     }
 
@@ -3829,10 +3909,9 @@ impl EditorWorkspace {
 
     /// Save only when the project contains unsaved edits.
     pub fn save_if_dirty(&mut self) -> Result<bool, String> {
-        self.persist_editor_camera_state();
-        self.persist_editor_visibility_state();
-        self.persist_editor_workspace_state();
-        self.persist_editor_viewport_state();
+        if let Err(error) = self.save_view_state() {
+            self.status = error;
+        }
         // Play and Build use this path. Detect disk divergence even when the
         // document was clean at the start of the frame so cooking can never
         // consume an externally replaced project.ron behind the editor's back.
@@ -3905,16 +3984,8 @@ impl EditorWorkspace {
                 self.reconcile_selection_after_document_change();
                 self.status = sync_status
                     .unwrap_or_else(|| format!("Reloaded {}", short_path(&self.project_dir)));
-                self.apply_project_editor_camera();
-                self.frame_bsp_camera_if_uninitialized();
-                self.apply_project_editor_visibility();
-                self.apply_project_editor_workspace();
-                self.apply_project_editor_viewport();
-                if self.active_workspace == WorkspaceView::Room && self.view_2d {
-                    let status = self.status.clone();
-                    self.frame_bsp_viewport_if_uninitialized();
-                    self.status = status;
-                }
+                // The view is not part of the document: Reload keeps
+                // looking where the user was.
             }
             Err(error) => {
                 self.status = format!("Reload failed: {error}");
@@ -4006,6 +4077,9 @@ impl EditorWorkspace {
         }
         copy_dir_recursive(&psxed_project::new_project_template_dir(), &target)
             .map_err(|error| format!("copy BSP starter project: {error}"))?;
+        // Where someone last looked in the template is not the new
+        // project's view.
+        let _ = std::fs::remove_file(target.join(psxed_project::EDITOR_VIEW_STATE_FILE));
         let mut opened = Self::open_directory(&target)?;
         // The geometry template stays a clean roofless BSP courtyard, while
         // its catalogue is hydrated from the canonical default project. This
@@ -4063,6 +4137,9 @@ impl EditorWorkspace {
     /// texture handles long enough for the current frame to finish.
     fn switch_project(&mut self, dir: impl Into<PathBuf>) -> Result<(), String> {
         let target = dir.into();
+        if let Err(error) = self.save_view_state() {
+            self.status = error;
+        }
         let mut opened = Self::open_directory(&target)?;
         opened.portable_geometry_clipboard = self.portable_geometry_clipboard.clone();
         if let Some(clipboard) = opened.portable_geometry_clipboard.as_ref() {
@@ -4090,6 +4167,17 @@ impl EditorWorkspace {
             self.status = format!("Already loaded {}", short_path(path));
             return;
         }
+        if self.dirty {
+            self.modal = Modal::UnsavedChanges {
+                then: AfterUnsavedPrompt::SwitchProject(path.to_path_buf()),
+                error: None,
+            };
+            return;
+        }
+        self.switch_to_project_from_menu(path);
+    }
+
+    fn switch_to_project_from_menu(&mut self, path: &Path) {
         if let Err(error) = self.switch_project(path.to_path_buf()) {
             self.status = format!("Open project failed: {error}");
         }
@@ -4509,6 +4597,12 @@ impl EditorWorkspace {
     /// and performs the actual cook/build/load/stop work.
     pub fn take_playtest_request(&mut self) -> Option<EditorPlaytestRequest> {
         self.pending_playtest_request.take()
+    }
+
+    /// True once after the user chose File > Emulator Menu. The frontend
+    /// opens its overlay menu in response.
+    pub fn take_emulator_menu_request(&mut self) -> bool {
+        std::mem::take(&mut self.emulator_menu_requested)
     }
 
     /// Let the frontend surface embedded play status in the editor's

@@ -624,38 +624,59 @@ fn node_gizmo_moves_bsp_entity_in_world_units() {
     let mut workspace = EditorWorkspace::with_project(test_temp_dir("entity-gizmo-bsp"), project);
     set_gizmo_test_camera(&mut workspace);
     workspace.replace_node_selection(entity);
-    assert_eq!(
-        node_translation_sector_size(&workspace.project, entity),
-        1,
-        "roomless BSP node authors in world units"
-    );
 
     let viewport = Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0));
-    let x_axis = projected_node_gizmo_axis(&workspace, viewport, PrimitiveGizmoAxis::X);
-    let unit = (x_axis.end - x_axis.start).normalized();
-    assert!(workspace.begin_node_gizmo_drag(PrimitiveGizmoAxis::X, viewport, x_axis.start));
-    workspace.update_node_gizmo_drag(viewport, x_axis.start + unit * 4.0, false);
+    // The axis handle follows the pointer ray, like the plane handle: the
+    // node moves to the axis point under the pointer, on the grid.
+    let (pivot, _) = workspace.node_gizmo_bounds_3d(&[entity]).unwrap();
+    let screen_at = |workspace: &EditorWorkspace, dx: f64| {
+        workspace
+            .project_brush_point_3d(
+                viewport,
+                [
+                    f64::from(pivot[0]) + dx,
+                    f64::from(pivot[1]),
+                    f64::from(pivot[2]),
+                ],
+            )
+            .unwrap()
+    };
+    let start = screen_at(&workspace, 0.0);
+    let target = screen_at(&workspace, 100.0);
+    workspace.snap_units = 64;
+    assert!(workspace.begin_node_gizmo_drag(PrimitiveGizmoAxis::X, viewport, start));
+    workspace.update_node_gizmo_drag(viewport, target, false);
     workspace.end_node_gizmo_drag();
     let node = workspace.project.active_scene().node(entity).unwrap();
-    let step = f32::from(workspace.snap_units.max(1));
-    assert!(
-        (node.transform.translation[0] - step).abs() < 0.001,
-        "one gizmo step = one grid step in world units, got {}",
-        node.transform.translation[0]
+    assert_eq!(
+        node.transform.translation[0], 128.0,
+        "100 units along the axis lands on the nearest Grid 64 line"
     );
     workspace.do_undo();
 
-    // Shift: single-unit steps.
-    let x_axis = projected_node_gizmo_axis(&workspace, viewport, PrimitiveGizmoAxis::X);
-    let unit = (x_axis.end - x_axis.start).normalized();
-    assert!(workspace.begin_node_gizmo_drag(PrimitiveGizmoAxis::X, viewport, x_axis.start));
-    workspace.update_node_gizmo_drag(viewport, x_axis.start + unit * 4.0, true);
+    // Shift: one engine unit (16 authored units), still under the pointer.
+    assert!(workspace.begin_node_gizmo_drag(PrimitiveGizmoAxis::X, viewport, start));
+    workspace.update_node_gizmo_drag(viewport, target, true);
     workspace.end_node_gizmo_drag();
     let node = workspace.project.active_scene().node(entity).unwrap();
-    assert!(
-        (node.transform.translation[0] - 1.0).abs() < 0.001,
-        "free drag steps single world units, got {}",
-        node.transform.translation[0]
+    assert_eq!(
+        node.transform.translation[0], 96.0,
+        "free drag follows the pointer to the nearest engine unit"
+    );
+    workspace.do_undo();
+
+    // Zoomed out, the same world point is fewer pixels away; the node still
+    // lands under the pointer (the old handle moved one step per 4 px).
+    workspace.camera_rig.free_position = [512 * 3, 768 * 3, -2048 * 3];
+    let start = screen_at(&workspace, 0.0);
+    let target = screen_at(&workspace, 100.0);
+    assert!(workspace.begin_node_gizmo_drag(PrimitiveGizmoAxis::X, viewport, start));
+    workspace.update_node_gizmo_drag(viewport, target, true);
+    workspace.end_node_gizmo_drag();
+    let node = workspace.project.active_scene().node(entity).unwrap();
+    assert_eq!(
+        node.transform.translation[0], 96.0,
+        "zoomed-out drag still follows the pointer"
     );
 }
 
@@ -1153,20 +1174,21 @@ fn box_prop_face_resize_keeps_the_opposite_face_fixed() {
             erosion: psxed_project::BoxPropErosion::default(),
         },
     );
-    let start_translation = [3.0, 0.0, 2.0];
+    // Node translations are world units.
+    let start_translation = [3072.0, 0.0, 2048.0];
     let node = project.active_scene_mut().node_mut(node_id).unwrap();
     node.transform.translation = start_translation;
 
-    apply_box_prop_face_gizmo_resize(node, start_translation, Some(start_vertices), 1, 1, 1024);
+    apply_box_prop_face_gizmo_resize(node, start_translation, Some(start_vertices), 1, 1);
 
     let NodeKind::BoxProp { vertices, .. } = &node.kind else {
         unreachable!();
     };
     assert_eq!(vertices.iter().map(|vertex| vertex[0]).min(), Some(-544));
     assert_eq!(vertices.iter().map(|vertex| vertex[0]).max(), Some(544));
-    assert_eq!(node.transform.translation[0], 3.03125);
-    let left_world = node.transform.translation[0] * 1024.0 - 544.0;
-    let right_world = node.transform.translation[0] * 1024.0 + 544.0;
+    assert_eq!(node.transform.translation[0], 3104.0);
+    let left_world = node.transform.translation[0] - 544.0;
+    let right_world = node.transform.translation[0] + 544.0;
     assert_eq!(left_world, 2560.0, "the opposite (left) face stays fixed");
     assert_eq!(
         right_world, 3648.0,

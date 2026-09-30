@@ -3,13 +3,14 @@
   "components": {
     "sdk": {
       "repository": "EBonura/PSoXide",
-      "revision": "19ce38a095acfef54b40435aee8974437d85e12b",
+      "revision": "f65b8c4f290c9692eae857098e1efaae3e059f92",
       "paths": [
         "sdk",
         "crates",
         "tools/mkisopsx",
         "tools/psoxide-link",
         "tools/psoxide-pgo",
+        "tools/fmv_test_movie.py",
         "tools/hazard_scan.py",
         "tools/hazard_patch.py",
         "tools/stack_guard.py",
@@ -20,9 +21,10 @@
     },
     "emulator": {
       "repository": "EBonura/PSoXide-emulator",
-      "revision": "1f2b2e53db9098dce103618393e012c735ac9c18",
+      "revision": "fc1c2cc5f92a88233543d55b90f666fab84cffac",
       "paths": [
         "emu/crates/emulator-core",
+        "emu/crates/psoxide-debug-ui",
         "emu/crates/psoxide-settings",
         "emu/crates/psoxide-validation",
         "emu/crates/psx-gpu-render"

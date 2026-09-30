@@ -12,6 +12,20 @@ impl EditorWorkspace {
         viewport_3d: EditorViewport3dPresentation,
         playtest_status: EditorPlaytestStatus,
     ) {
+        self.draw_with_play_panel(ctx, viewport_3d, playtest_status, None);
+    }
+
+    /// [`Self::draw`], with the frontend's guest performance panel. While
+    /// Play runs and the panel is toggled on (F3, the bars button on the
+    /// Play view, or the column header), it takes the Inspector's column;
+    /// the Inspector returns when Play stops or the panel is toggled off.
+    pub fn draw_with_play_panel(
+        &mut self,
+        ctx: &egui::Context,
+        viewport_3d: EditorViewport3dPresentation,
+        playtest_status: EditorPlaytestStatus,
+        play_panel: Option<&mut dyn FnMut(&mut egui::Ui)>,
+    ) {
         self.poll_project_watch(false);
         self.poll_bsp_leak_refresh(ctx);
         apply_studio_visuals(ctx);
@@ -43,12 +57,18 @@ impl EditorWorkspace {
         let camera_preview = viewport_3d.camera_preview;
         self.draw_action_bar(ctx, playtest_status, play_metrics);
         self.draw_left_dock(ctx);
-        self.draw_inspector(ctx, camera_preview);
+        match play_panel {
+            Some(panel) if playtest_status.is_playing() && self.show_play_debug_overlays => {
+                self.draw_play_performance_column(ctx, panel);
+            }
+            _ => self.draw_inspector(ctx, camera_preview, playtest_status.is_playing()),
+        }
         self.draw_content_browser(ctx);
         self.draw_viewport(ctx, viewport_3d, playtest_status);
         self.draw_clipboard_notice(ctx);
         self.draw_new_project_dialog(ctx);
         self.draw_delete_project_dialog(ctx);
+        self.draw_unsaved_changes_dialog(ctx);
         self.draw_brush_overlap_dialog(ctx);
         self.draw_texture_import_dialog(ctx);
         self.draw_model_import_dialog(ctx);
@@ -190,6 +210,89 @@ impl EditorWorkspace {
         }
         if close {
             self.modal = Modal::None;
+        }
+    }
+
+    /// Save / Discard / Cancel before closing the window, reloading, or
+    /// opening another project with unsaved edits.
+    pub(crate) fn draw_unsaved_changes_dialog(&mut self, ctx: &egui::Context) {
+        let (then, error_text) = match &self.modal {
+            Modal::UnsavedChanges { then, error } => (then.clone(), error.clone()),
+            _ => return,
+        };
+        #[derive(PartialEq)]
+        enum Choice {
+            Save,
+            Discard,
+            Cancel,
+        }
+        let mut choice = None;
+        let project_name = self.project.name.clone();
+        let (consequence, verb) = match &then {
+            AfterUnsavedPrompt::Close => ("before closing".to_string(), "Close"),
+            AfterUnsavedPrompt::Reload => ("before reloading it from disk".to_string(), "Reload"),
+            AfterUnsavedPrompt::SwitchProject(path) => {
+                (format!("before opening {}", short_path(path)), "Open")
+            }
+        };
+        egui::Window::new("Unsaved Changes")
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+            .show(ctx, |ui| {
+                ui.set_min_width(420.0);
+                ui.label(
+                    RichText::new(format!("Save changes to \"{project_name}\" {consequence}?"))
+                        .strong(),
+                );
+                ui.label(
+                    RichText::new("Discard throws away every edit since the last save.")
+                        .color(STUDIO_TEXT_WEAK),
+                );
+                if let Some(error) = &error_text {
+                    ui.add_space(6.0);
+                    ui.label(RichText::new(error).color(Color32::from_rgb(0xE0, 0x60, 0x60)));
+                }
+                ui.add_space(10.0);
+                ui.horizontal(|ui| {
+                    if ui.button("Cancel").clicked() {
+                        choice = Some(Choice::Cancel);
+                    }
+                    if ui.button(format!("Discard and {verb}")).clicked() {
+                        choice = Some(Choice::Discard);
+                    }
+                    if ui.button(format!("Save and {verb}")).clicked() {
+                        choice = Some(Choice::Save);
+                    }
+                });
+                if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                    choice = Some(Choice::Cancel);
+                }
+            });
+        let Some(choice) = choice else {
+            return;
+        };
+        if choice == Choice::Cancel {
+            self.modal = Modal::None;
+            return;
+        }
+        if choice == Choice::Save {
+            if let Err(error) = self.save() {
+                self.modal = Modal::UnsavedChanges {
+                    then,
+                    error: Some(format!("Save failed: {error}")),
+                };
+                return;
+            }
+        }
+        self.modal = Modal::None;
+        match then {
+            AfterUnsavedPrompt::Close => {
+                self.close_confirmed = true;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
+            AfterUnsavedPrompt::Reload => self.reload(),
+            AfterUnsavedPrompt::SwitchProject(path) => self.switch_to_project_from_menu(&path),
         }
     }
 
