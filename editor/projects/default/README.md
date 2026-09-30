@@ -25,7 +25,9 @@ Open `project.ron` in the editor and rebuild Play after changes. The verified na
   matching room concepts to build from.
 - Aletha’s standard forward walk is the approved cybernetic gait: a 1.4-second loop sampled at 30 Hz, with restrained body motion and slightly wider arms. The editable Blender file and GLB are in `source_assets/animations/player/cybernetic_walk/`. See that directory’s README for rebaking and the required root-motion settings.
 - Aletha’s Horizon light attack keeps the approved v5 performance with the approved v12 head motion: a two-second sword cast, deep load, driving step, broad strike and weighted recovery. Current opener and combo sources are in `source_assets/animations/player/cybernetic_light_combo_review_v12/`; historical v5 sources remain in `cybernetic_light_attack/`.
-- [The animation register](ANIMATION_REGISTER.md) tracks both approved replacements and every remaining original player/enemy animation, with versions and checksums in `animation-register.json`. Update it whenever an animation is replaced.
+- Aletha’s Horizon heavy attack (R2) is the approved v2 cross slash: staggered dual-blade casts, deep load, a 94 cm driving step and weighted recoil. Editable sources and bake settings are in `source_assets/animations/player/cybernetic_heavy_attack_review_v2/`.
+- Aletha's backward walk is the approved dynamic v3 with planted sole pivots and arm follow-through. Editable sources are in `source_assets/animations/player/cybernetic_back_walk_review_v3/`.
+- [The animation register](ANIMATION_REGISTER.md) tracks all four approved replacements and every remaining original player/enemy animation, with versions and checksums in `animation-register.json`. Update it whenever an animation is replaced.
 - `Aletha (Player)` is a complete player entity with model renderer, animation,
   character controller, third-person camera, and light sword equipment.
 - `Intake Custodian` and `Gallery Custodian` are two separate enemy entities

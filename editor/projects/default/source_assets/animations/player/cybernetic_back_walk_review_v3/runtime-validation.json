@@ -1,0 +1,32 @@
+{
+  "status": "approved_installed",
+  "clip_resource": 81,
+  "source_resource": 209,
+  "source_frames": 43,
+  "source_hz": 30,
+  "runtime_version": 5,
+  "runtime_frames": 20,
+  "runtime_hz": 13,
+  "runtime_encoded_bytes": 6308,
+  "runtime_speed_q8": 281,
+  "runtime_loop_seconds": 1.4032202809181227,
+  "runtime_flags": 3,
+  "runtime_endpoint_pose_identical": true,
+  "changed_clip_files": [
+    "assets/animations/gen/walk_bwd.psxanim"
+  ],
+  "other_clip_files_unchanged": 77,
+  "fault_registers": {
+    "cause": 0,
+    "epc": 0,
+    "badvaddr": 0,
+    "count": 0
+  },
+  "remaining_heap_bytes_at_replay_end": 17276,
+  "load_delay_hazards": 0,
+  "project_test": "embedded_default_project_ron_deserializes passed",
+  "native_smoke": "Default disc boots to gameplay and responds to directional input. Route did not acquire an enemy lock; locked-on WalkBackward activation was not established in this replay. Cooked clip/binding and pose playback were checked separately.",
+  "disc_sha256": "ad99c6622f170a8287b88922a32ee9d940c58e9a29d00c86831749a5abfa94b7",
+  "guest_sha256": "d89cbe77c2d16bf4726010e6250e301fee4c5804b6f0de72f71b0908935deaaa",
+  "validation": "source, cooked studio inspection and native emulator smoke; not hardware"
+}
