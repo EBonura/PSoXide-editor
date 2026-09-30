@@ -1,0 +1,30 @@
+{
+  "light_attack": {
+    "frames": 61,
+    "fps": 30,
+    "only_neck_changed": true,
+    "old_max_neck_rotation_from_neutral_degrees": 140.22622705445102,
+    "new_max_neck_rotation_from_neutral_degrees": 21.07441614429838,
+    "max_neck_step_degrees": 10.984527081720653,
+    "verified_non_neck_local_matrix_max_delta": 8.940696716308594e-07
+  },
+  "light_attack_followup": {
+    "frames": 40,
+    "fps": 30,
+    "only_neck_changed": true,
+    "old_max_neck_rotation_from_neutral_degrees": 140.1817360292297,
+    "new_max_neck_rotation_from_neutral_degrees": 18.90834799409774,
+    "max_neck_step_degrees": 7.619326174827576,
+    "verified_non_neck_local_matrix_max_delta": 4.6566128730773926e-07
+  },
+  "light_attack_finisher": {
+    "frames": 40,
+    "fps": 30,
+    "only_neck_changed": true,
+    "old_max_neck_rotation_from_neutral_degrees": 140.22623431778152,
+    "new_max_neck_rotation_from_neutral_degrees": 13.584867068537136,
+    "max_neck_step_degrees": 3.607267506833385,
+    "verified_non_neck_local_matrix_max_delta": 3.7904828786849976e-07
+  },
+  "head_handoffs_match": true
+}

@@ -1,0 +1,26 @@
+{
+  "light_attack_followup": {
+    "frames": 40,
+    "fps": 30,
+    "min_skin_z": 0.04341883957386017,
+    "floor_range_m": 4.302710294723511e-06,
+    "max_joint_degrees_per_frame": {
+      "RightUpperArm": 27.635701408907497,
+      "RightLowerArm": 34.28766741941092,
+      "RightHand": 2.8000683857358246
+    }
+  },
+  "light_attack_finisher": {
+    "frames": 40,
+    "fps": 30,
+    "min_skin_z": 0.043421946465969086,
+    "floor_range_m": 1.4603137969970703e-06,
+    "max_joint_degrees_per_frame": {
+      "RightUpperArm": 68.18931102947137,
+      "RightLowerArm": 19.172569333844272,
+      "RightHand": 4.202916210822973
+    }
+  },
+  "handoff_max_matrix_delta": 1.4901161193847656e-07,
+  "status": "studio candidate v7; not installed in default project"
+}

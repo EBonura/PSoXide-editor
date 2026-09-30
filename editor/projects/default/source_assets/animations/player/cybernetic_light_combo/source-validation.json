@@ -1,0 +1,20 @@
+{
+  "light_attack_followup": {
+    "min_surface_z": 0.04341883957386017,
+    "max_lowest_surface_z": 0.043422821909189224,
+    "floor_range_m": 3.982335329055786e-06,
+    "frames": 40,
+    "fps": 30,
+    "scene_objects": 3,
+    "action": "aletha_light_attack_followup_v3"
+  },
+  "light_attack_finisher": {
+    "min_surface_z": 0.04342195764183998,
+    "max_lowest_surface_z": 0.0434228852391243,
+    "floor_range_m": 9.275972843170166e-07,
+    "frames": 40,
+    "fps": 30,
+    "scene_objects": 3,
+    "action": "aletha_light_attack_finisher_v3"
+  }
+}

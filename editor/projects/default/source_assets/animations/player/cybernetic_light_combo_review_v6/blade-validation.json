@@ -1,0 +1,59 @@
+{
+  "reference": "Match the blade-facing direction of the approved first slash (weapon local -X) against transverse blade travel; evaluate the driven cut, excluding slow wind-up/recovery.",
+  "versions": {
+    "v5": {
+      "opener": {
+        "studio_frame_range": [
+          23,
+          27
+        ],
+        "mean_facing_dot_transverse_travel": 0.9919313317912469,
+        "minimum_facing_dot_transverse_travel": 0.9728919267654419
+      },
+      "second": {
+        "studio_frame_range": [
+          49,
+          57
+        ],
+        "mean_facing_dot_transverse_travel": -0.9282536987884573,
+        "minimum_facing_dot_transverse_travel": -0.995638620108366
+      },
+      "third": {
+        "studio_frame_range": [
+          81,
+          85
+        ],
+        "mean_facing_dot_transverse_travel": 0.8456675957425306,
+        "minimum_facing_dot_transverse_travel": -0.8932713158428669
+      }
+    },
+    "v6": {
+      "opener": {
+        "studio_frame_range": [
+          23,
+          27
+        ],
+        "mean_facing_dot_transverse_travel": 0.991931306381965,
+        "minimum_facing_dot_transverse_travel": 0.9728920608758926
+      },
+      "second": {
+        "studio_frame_range": [
+          49,
+          57
+        ],
+        "mean_facing_dot_transverse_travel": 0.9979148975723877,
+        "minimum_facing_dot_transverse_travel": 0.993891529738903
+      },
+      "third": {
+        "studio_frame_range": [
+          81,
+          85
+        ],
+        "mean_facing_dot_transverse_travel": 0.9882890825213545,
+        "minimum_facing_dot_transverse_travel": 0.95787513256073
+      }
+    }
+  },
+  "light_attack_followup_max_non_arm_matrix_delta": 6.854534149169922e-07,
+  "light_attack_finisher_max_non_arm_matrix_delta": 5.671754479408264e-07
+}

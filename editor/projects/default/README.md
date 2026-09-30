@@ -23,6 +23,9 @@ Open `project.ron` in the editor and rebuild Play after changes. The verified na
   material pass now painted across the current level geometry.
 - `concept/reference_set_v2/` contains the original hero-room reference and four
   matching room concepts to build from.
+- Aletha’s standard forward walk is the approved cybernetic gait: a 1.4-second loop sampled at 30 Hz, with restrained body motion and slightly wider arms. The editable Blender file and GLB are in `source_assets/animations/player/cybernetic_walk/`. See that directory’s README for rebaking and the required root-motion settings.
+- Aletha’s Horizon light attack keeps the approved v5 performance with the approved v12 head motion: a two-second sword cast, deep load, driving step, broad strike and weighted recovery. Current opener and combo sources are in `source_assets/animations/player/cybernetic_light_combo_review_v12/`; historical v5 sources remain in `cybernetic_light_attack/`.
+- [The animation register](ANIMATION_REGISTER.md) tracks both approved replacements and every remaining original player/enemy animation, with versions and checksums in `animation-register.json`. Update it whenever an animation is replaced.
 - `Aletha (Player)` is a complete player entity with model renderer, animation,
   character controller, third-person camera, and light sword equipment.
 - `Intake Custodian` and `Gallery Custodian` are two separate enemy entities
@@ -66,3 +69,7 @@ kit immediately. See `DP_CITY_TEXTURE_KIT.md` for the contact sheet and roles.
 This 0.4 snapshot is now an independent authored project. Save further level
 changes directly into this directory; the original 0.2 generator does not own
 or regenerate it.
+
+### Horizon light combo
+
+R1 once plays one light attack. Release and press again from 0.40–1.13 seconds after attack start (opener frames 12–34) to queue the approved v12 opposite diagonal swipe. The handoff occurs at frame 34 and keeps the sword materialized. Holding R1 does not chain. There is one pending continuation and no third strike; presses outside the window do not leak into another attack. See [timing, research and source notes](source_assets/animations/player/cybernetic_light_combo_review_v12/README.md) and the [animation register](ANIMATION_REGISTER.md).

@@ -1,0 +1,6 @@
+{
+  "all_local_channels_except_right_forearm_preserved_from_v11_max_matrix_delta": 2.4586915969848633e-07,
+  "wrist_world_position_max_delta_m": 5.397430144630323e-07,
+  "correction": "-90 degree forearm roll, eased in/out; blade YZ plane follows the cut, local -Y leads",
+  "previous_metric_warning": "v6-v11 blade-facing metrics measured -X, the broad-face normal, rather than an edge; not valid evidence of edge alignment"
+}

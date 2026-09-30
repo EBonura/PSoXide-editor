@@ -646,6 +646,7 @@ fn moveset_visual_fallbacks(
         A::Roll => [Some(A::Run), Some(A::Walk), Some(A::Idle), None],
         A::Backstep => [Some(A::Roll), Some(A::Walk), Some(A::Idle), None],
         A::LightAttack => [Some(A::ComboAttack), Some(A::Idle), None, None],
+        A::LightAttackFollowup | A::LightAttackFinisher => [None, None, None, None],
         A::HeavyAttack => [Some(A::LightAttack), Some(A::Idle), None, None],
         A::ComboAttack => [Some(A::LightAttack), Some(A::Idle), None, None],
         A::Block | A::HitReact | A::Death | A::Intro => [Some(A::Idle), None, None, None],
@@ -1013,6 +1014,9 @@ pub(crate) fn draw_model_animation_viewer_toolbar(
         if store_timeline_action_options(project, context, state.selected_action, options) {
             action = Some(AnimationViewerAction::ProjectChanged);
         }
+    }
+    if draw_action_chain_controls(ui, project, state.selected_character, state.selected_action) {
+        action = Some(AnimationViewerAction::ProjectChanged);
     }
     let character_available = state.selected_character.is_some_and(|id| {
         project
@@ -1992,7 +1996,11 @@ fn preview_weapon_materialization_q12(
     if phase_q12 < start_q12 || phase_q12 >= hidden_q12 {
         return 0;
     }
-    let rising = (phase_q12 - start_q12) / transition;
+    let rising = if track.fully_visible_frame == 0 {
+        4096
+    } else {
+        (phase_q12 - start_q12) / transition
+    };
     let falling = (hidden_q12 - phase_q12) / transition;
     rising.min(falling).min(4096) as u16
 }
@@ -10125,6 +10133,14 @@ mod focus_tests {
         assert_eq!(preview_weapon_materialization_q12(&track, 12.0, 30), 4096);
         assert_eq!(preview_weapon_materialization_q12(&track, 22.0, 30), 2048);
         assert_eq!(preview_weapon_materialization_q12(&track, 24.0, 30), 0);
+        let continuation = psxed_project::WeaponAppearanceTrack {
+            fully_visible_frame: 0,
+            ..track
+        };
+        assert_eq!(preview_weapon_materialization_q12(&continuation, 0.0, 30), 4096);
+        assert_eq!(preview_weapon_materialization_q12(&continuation, 1.0, 30), 4096);
+        assert_eq!(preview_weapon_materialization_q12(&continuation, 22.0, 30), 2048);
+        assert_eq!(preview_weapon_materialization_q12(&continuation, 24.0, 30), 0);
     }
 
     #[test]
@@ -10159,4 +10175,51 @@ mod focus_tests {
         assert_eq!(preview_weapon_materialization_q12(&track, 8.99, 20), 4096);
         assert_eq!(preview_weapon_materialization_q12(&track, 9.0, 20), 0);
     }
+}
+
+/// Chain controls sit beside the action timeline; values use source clip frames.
+fn draw_action_chain_controls(
+    ui: &mut egui::Ui,
+    project: &mut ProjectDocument,
+    character: Option<ResourceId>,
+    action: CharacterAnimationAction,
+) -> bool {
+    use CharacterAnimationAction as A;
+    let next = match action {
+        A::LightAttack => A::LightAttackFollowup,
+        A::LightAttackFollowup => A::LightAttackFinisher,
+        _ => return false,
+    };
+    let Some(set_id) = character_animation_set_id(project, character) else {
+        return false;
+    };
+    let Some(resource) = project.resource_mut(set_id) else {
+        return false;
+    };
+    let ResourceData::AnimationSet(set) = &mut resource.data else {
+        return false;
+    };
+    let index = set.action_chains.iter().position(|c| c.action == action);
+    let mut enabled = index.is_some();
+    let mut changed = false;
+    ui.collapsing("R1 combo continuation", |ui| {
+        if ui.checkbox(&mut enabled, format!("Continue into {}", next.label())).changed() {
+            changed = true;
+            if let Some(index) = index { set.action_chains.remove(index); }
+            else { set.action_chains.push(psxed_project::AnimationActionChain { action, next_action: next, input_start: 20, input_end: 34, handoff_frame: 34, blend_ticks: 4 }); }
+        }
+        if let Some(chain) = set.action_chains.iter_mut().find(|c| c.action == action) {
+            ui.label("Source frames; R1 queues one strike. Target must have a bound clip and matching entry pose.");
+            ui.horizontal(|ui| {
+                ui.label("Input opens"); changed |= ui.add(egui::DragValue::new(&mut chain.input_start)).changed();
+                ui.label("closes"); changed |= ui.add(egui::DragValue::new(&mut chain.input_end)).changed();
+                ui.label("Handoff"); changed |= ui.add(egui::DragValue::new(&mut chain.handoff_frame)).changed();
+                ui.label("Blend ticks (60 Hz)"); changed |= ui.add(egui::DragValue::new(&mut chain.blend_ticks).range(1..=12)).changed();
+            });
+            if chain.input_start > chain.input_end || chain.input_end > chain.handoff_frame {
+                ui.colored_label(egui::Color32::YELLOW, "Required: input opens <= closes <= handoff. The cook validates clip bounds.");
+            }
+        }
+    });
+    changed
 }

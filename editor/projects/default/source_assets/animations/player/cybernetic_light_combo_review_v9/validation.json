@@ -1,0 +1,14 @@
+{
+  "light_attack_followup": {
+    "frames": 40,
+    "fps": 30,
+    "min_skin_z": 0.04342222213745117,
+    "floor_range_m": 0.004363425076007843,
+    "max_joint_degrees_per_frame": {
+      "RightUpperArm": 30.293933408793816,
+      "RightLowerArm": 66.76602509522878,
+      "RightHand": 14.042245101303942
+    }
+  },
+  "status": "v9 two-hit X studio candidate; not installed in default project"
+}
