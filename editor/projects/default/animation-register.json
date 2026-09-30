@@ -5,7 +5,9 @@
   "original_definition": "Unchanged from the v0.4b repository baseline before this walk/light-attack replacement pass. This does not imply artist-original provenance.",
   "replacements": [
     73,
-    84
+    81,
+    84,
+    85
   ],
   "animation_sets": [
     {
@@ -143,7 +145,7 @@
           "action": "HeavyAttack",
           "clip_resource": 85,
           "clip_name": "gen_heavy_attack",
-          "status": "original"
+          "status": "replaced"
         },
         {
           "action": "LightAttack",
@@ -167,7 +169,7 @@
           "action": "WalkBackward",
           "clip_resource": 81,
           "clip_name": "gen_walk_bwd",
-          "status": "original"
+          "status": "replaced"
         },
         {
           "action": "Walk",
@@ -686,11 +688,14 @@
       "resource_id": 81,
       "name": "gen_walk_bwd",
       "path": "assets/animations/gen/walk_bwd.psxanim",
-      "status": "original",
-      "sha256": "6c37560e55c3df2ecffa234735fdeb4e1fdb3584ed19dc0b55e6ab34196044a9",
+      "status": "replaced",
+      "sha256": "2dbdbc05e1aac370c85f67225e7e1ea8da702bca320352be740633f8a35e919b",
       "baseline_sha256": "6c37560e55c3df2ecffa234735fdeb4e1fdb3584ed19dc0b55e6ab34196044a9",
-      "stored_frames": 21,
-      "sample_rate_hz": 15
+      "stored_frames": 43,
+      "sample_rate_hz": 30,
+      "source_resource": 209,
+      "approved_version": "v3",
+      "source_directory": "source_assets/animations/player/cybernetic_back_walk_review_v3"
     },
     {
       "resource_id": 82,
@@ -800,11 +805,62 @@
       "resource_id": 85,
       "name": "gen_heavy_attack",
       "path": "assets/animations/gen/heavy_attack.psxanim",
-      "status": "original",
-      "sha256": "d161c538825ca0c2853b7b4a320cb1c0073c920b4360a29a6055fd2aec4f746f",
+      "status": "replaced",
+      "sha256": "e62827d8daaa87cc309be56361afbd070cd3e66200dbf46daa432929de691605",
       "baseline_sha256": "d161c538825ca0c2853b7b4a320cb1c0073c920b4360a29a6055fd2aec4f746f",
-      "stored_frames": 99,
-      "sample_rate_hz": 15
+      "stored_frames": 61,
+      "sample_rate_hz": 30,
+      "revisions": [
+        {
+          "status": "original",
+          "sha256": "d161c538825ca0c2853b7b4a320cb1c0073c920b4360a29a6055fd2aec4f746f",
+          "baseline_sha256": "d161c538825ca0c2853b7b4a320cb1c0073c920b4360a29a6055fd2aec4f746f",
+          "stored_frames": 99,
+          "sample_rate_hz": 15
+        }
+      ],
+      "replacement": {
+        "approved_version": "v2",
+        "action": "HeavyAttack",
+        "source_resource": 208,
+        "source_directory": "source_assets/animations/player/cybernetic_heavy_attack_review_v2",
+        "master": "heavy_attack.blend",
+        "export": "heavy_attack.glb",
+        "date": "2026-09-30",
+        "authored_seconds": 2.0,
+        "speed_q8": 256,
+        "frames": [
+          0,
+          60
+        ],
+        "looping": false,
+        "in_place": false,
+        "right_blade_cast_frames": [
+          6,
+          11
+        ],
+        "left_blade_cast_frames": [
+          12,
+          17
+        ],
+        "blade_dissolve_frames": [
+          45,
+          50
+        ],
+        "hit_and_trail_frames": [
+          23,
+          29
+        ],
+        "damage": 38,
+        "poise_damage": 50,
+        "master_sha256": "f365a8bb877170efec646ae36b7a0fe2aefdf8b7e42fccf5973909e9d7d0ae22",
+        "export_sha256": "5983229df1539401a89605d8deb060cb9f50c072fec79407d37bff5efc5b6a77",
+        "notes": "Approved dynamic cross slash: deeper load, 94 cm step, stronger torso drive and weighted recoil. Both existing blades and original damage retained. The studio schematic wire disappears at 51; runtime uses a matching five-frame cast/dissolve transition and disappears at 50."
+      },
+      "source_files": {
+        "source_assets/animations/player/cybernetic_heavy_attack_review_v2/heavy_attack.blend": "f365a8bb877170efec646ae36b7a0fe2aefdf8b7e42fccf5973909e9d7d0ae22",
+        "source_assets/animations/player/cybernetic_heavy_attack_review_v2/heavy_attack.glb": "5983229df1539401a89605d8deb060cb9f50c072fec79407d37bff5efc5b6a77"
+      }
     },
     {
       "resource_id": 87,
@@ -1485,5 +1541,57 @@
   },
   "cook_notes": [
     "Resampling now retains the source payload when lowering its sample rate would increase resident bytes. Light Enemy Hit React and Heavy Enemy Strafe Left/Right retain their original 12 Hz sampling; registered source assets are unchanged."
-  ]
+  ],
+  "heavy_attack": {
+    "status": "approved_installed",
+    "approved_version": "v2",
+    "clip_resource": 85,
+    "source_resource": 208,
+    "studio_video": "review/heavy-attack-v2/heavy-cross-slash-preview.mp4",
+    "runtime_validation": "source_assets/animations/player/cybernetic_heavy_attack_review_v2/runtime-validation.json",
+    "native_video": "review/heavy-attack-install-v2/native-heavy-attack.mp4",
+    "review_history": [
+      {
+        "version": "v1",
+        "status": "superseded_review",
+        "source_directory": "source_assets/animations/player/cybernetic_heavy_attack_review_v1"
+      },
+      {
+        "version": "v2",
+        "status": "approved",
+        "source_directory": "source_assets/animations/player/cybernetic_heavy_attack_review_v2"
+      }
+    ]
+  },
+  "backward_walk": {
+    "status": "approved_installed",
+    "approved_version": "v3",
+    "clip_resource": 81,
+    "source_resource": 209,
+    "studio_video": "review/back-walk-v3/back-walk-comparison.mp4",
+    "review_history": [
+      {
+        "version": "v1",
+        "status": "rejected_stiff",
+        "source_directory": "source_assets/animations/player/cybernetic_back_walk_review_v1"
+      },
+      {
+        "version": "v2",
+        "status": "superseded_dynamic_baseline",
+        "source_directory": "source_assets/animations/player/cybernetic_back_walk_review_v2"
+      },
+      {
+        "version": "v3",
+        "status": "approved",
+        "source_directory": "source_assets/animations/player/cybernetic_back_walk_review_v3"
+      }
+    ],
+    "sources": {
+      "source_assets/animations/player/cybernetic_back_walk_review_v3/walk_bwd.glb": "b8196ae4e65a672aaa436a898ea8f2a68e193fa67593a6c000c1a7b984104f51",
+      "source_assets/animations/player/cybernetic_back_walk_review_v3/walk_bwd.blend": "dc570bdfbcc34deda5ec01d41333cb93e701305eb4419351a66afd91bc6f13b1"
+    },
+    "runtime_validation": "source_assets/animations/player/cybernetic_back_walk_review_v3/runtime-validation.json",
+    "runtime_loop_seconds": 1.4032202809181227,
+    "runtime_speed_q8": 281
+  }
 }

@@ -1,6 +1,6 @@
 # Animation register — Cortex Ignition v0.4b
 
-Updated 30 September 2026. **2 approved replacements; 1 approved combo follow-up; 1 retired combo candidate; all remaining animations are original to this pass.**
+Updated 30 September 2026. **4 approved replacements; 1 approved combo follow-up; 1 retired combo candidate; all remaining animations are original to this pass.**
 
 “Original” means unchanged from the v0.4b project before these replacements, not necessarily an artist’s original capture. The baseline is Git commit `44d1f52bdcaacc0444a43af8dcc76ebcc205ea5a`. Resource IDs and paths remain stable so existing character bindings keep working.
 
@@ -10,8 +10,10 @@ Updated 30 September 2026. **2 approved replacements; 1 approved combo follow-up
 | --- | --- | --- | --- |
 | Aletha / Walk | Cybernetic walk v7 | 73 · `gen_walk_fwd` | [Editable master and export](source_assets/animations/player/cybernetic_walk/README.md) |
 | Aletha / Horizon LightAttack | Cybernetic light attack v5 + approved v12 head motion | 84 · `gen_light_attack` | [Editable master and export](source_assets/animations/player/cybernetic_light_attack/README.md) |
+| Aletha / Horizon HeavyAttack | Cybernetic cross slash v2 | 85 · `gen_heavy_attack` | [Editable master and bake notes](source_assets/animations/player/cybernetic_heavy_attack_review_v2/README.md) |
+| Aletha / WalkBackward | Cybernetic backward walk v3 | 81 · `gen_walk_bwd` | [Editable master and bake notes](source_assets/animations/player/cybernetic_back_walk_review_v3/README.md) |
 
-The walk keeps its restrained body motion and wider arms. The light attack keeps the approved two-second performance, sword cast, deep load, lunge, strike and weighted recovery. Both retain authored body translation (`in_place: false`). The Zenith light attack is still the original.
+The walk keeps its restrained body motion and wider arms. The light attack keeps the approved two-second performance, sword cast, deep load, lunge, strike and weighted recovery. All four replacements retain authored body translation (`in_place: false`). The Zenith light attack is still the original.
 
 ## Approved two-hit combo
 
@@ -20,6 +22,10 @@ The [approved v12 X combo](source_assets/animations/player/cybernetic_light_comb
 Clip 84 now includes the approved studio opener's head motion. Clip 204 is the approved edge-aligned return, baked at 15 Hz with interpolation; its 12/14/16 source-frame strike keys land exactly on baked samples 6/7/8. Clip 205 remains in the catalogue as a retired v3 candidate, with no active binding, appearance track, hitbox or chain. The Zenith attacks remain original.
 
 Native emulator verification covers single, double, held, early, late and repeated R1 inputs; [validation](source_assets/animations/player/cybernetic_light_combo_review_v12/runtime-validation.json). The register retains all historical review sources and checksums.
+
+## Approved heavy cross slash
+
+Horizon R2 uses the approved v2 heavy cross slash: staggered heavy/right and light/left casts, deep load, 94 cm driving step, inward crossing cut and weighted recoil. Frames 0-60 at 30 Hz, speed 256, authored translation retained. Right blade casts over 6-11, left over 12-17; damage and both trails run over 23-29; blades dissolve over 45-50. Damage 38 and poise 50 are unchanged. Zenith heavy remains original. See the [master and validation](source_assets/animations/player/cybernetic_heavy_attack_review_v2/README.md).
 
 ## Character action checklist
 
@@ -55,12 +61,12 @@ Used by: Aletha (62).
 | Death | 39 · `aletha_death` | Original |
 | HitReact | 87 · `gen_hit_react` | Original |
 | Idle | 45 · `aletha_idle` | Original |
-| HeavyAttack | 85 · `gen_heavy_attack` | Original |
+| HeavyAttack | 85 · `gen_heavy_attack` | **Replaced - approved cross slash v2** |
 | LightAttack | 84 · `gen_light_attack` | **Replaced — approved v5 performance / v12 head** |
 | LightAttackFollowup | 204 · `gen_light_attack_followup` | **New — approved v12** |
 | Run | 77 · `gen_run_fwd` | Original |
 | Stun | 54 · `aletha_stun` | Original |
-| WalkBackward | 81 · `gen_walk_bwd` | Original |
+| WalkBackward | 81 · `gen_walk_bwd` | **Replaced - approved v3** |
 | Walk | 73 · `gen_walk_fwd` | **Replaced — approved v7** |
 | StrafeLeft | 82 · `gen_walk_lft` | Original |
 | StrafeRight | 83 · `gen_walk_rgt` | Original |
@@ -128,3 +134,7 @@ The combo build also prevents animation resampling from increasing resident byte
 For each future approved replacement, update this checklist and [the machine-readable register](animation-register.json), preserve the editable master and exact approved GLB under `source_assets/animations/`, and record its version, source resource, timing, and checksums. Keep unchanged actions marked Original until explicitly replaced.
 
 The JSON register inventories every registered animation and legacy clip, with current and baseline SHA-256 values. It also records approval versions, source/master hashes, action bindings, and attack event frames. Original tracked files and settings can be recovered from the baseline Git commit above.
+
+## Approved backward walk
+
+V3 replaces clip 81 while preserving its action binding. It combines weighted backward steps, sole contact pivots, torso counter-rotation and delayed arm follow-through. Source 209 retains the exact approved Blender master and GLB. Left/right strafes are still original. See the [source and runtime validation](source_assets/animations/player/cybernetic_back_walk_review_v3/README.md).

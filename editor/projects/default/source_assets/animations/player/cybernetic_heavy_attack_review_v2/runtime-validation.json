@@ -1,0 +1,56 @@
+{
+  "runtime_version": 5,
+  "runtime_joints": 26,
+  "runtime_frames": 61,
+  "runtime_hz": 30,
+  "runtime_seconds": 2,
+  "runtime_encoded_bytes": 17112,
+  "runtime_flags": 2,
+  "runtime_speed_q8": 256,
+  "runtime_frame_range": [
+    0,
+    60
+  ],
+  "hit_and_trail_frames": [
+    23,
+    29
+  ],
+  "damage": 38,
+  "poise_damage": 50,
+  "right_blade_cast_frames": [
+    6,
+    11
+  ],
+  "left_blade_cast_frames": [
+    12,
+    17
+  ],
+  "blade_dissolve_frames": [
+    45,
+    50
+  ],
+  "changed_clips_this_bake": [
+    "assets/animations/gen/heavy_attack.psxanim"
+  ],
+  "other_clip_assets_unchanged": 77,
+  "disc_sha256": "1e1e41200ab33aec2a3fcec535dea5d5ebc510c791638c0ac4bcb74569a1dd39",
+  "guest_sha256": "cf1279608c9a0ee93bf07ad9fff5283c7e423c22ad097ac7461fdff8e6a3c2e2",
+  "hazard_scan": "0 hazards in build/examples/mipsel-sony-psx/release/editor-playtest.exe",
+  "cause": 0,
+  "epc": 0,
+  "badvaddr": 0,
+  "count": 0,
+  "bss_end": "0x801f22d8",
+  "static_headroom_bytes": 23848,
+  "heap_cursor": "0x801f4484",
+  "remaining_boot_heap_bytes": 15228,
+  "validation": "native emulator; not hardware",
+  "cases": [
+    "R2 single heavy attack",
+    "R2 second activation after recovery",
+    "R1 single light attack unchanged",
+    "R1 repeated within window: two-hit light combo unchanged"
+  ],
+  "video": "review/heavy-attack-install-v2/native-heavy-attack.mp4",
+  "project_chain_tests_passed": 2
+}
