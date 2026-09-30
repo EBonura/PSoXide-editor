@@ -1629,5 +1629,31 @@
     "runtime_speed_q8": 276,
     "runtime_loop_seconds": 0.999721059972106,
     "runtime_validation": "source_assets/animations/player/cybernetic_strafe_review_v2/runtime-validation.json"
+  },
+  "main_integration": {
+    "date": "2026-09-30",
+    "branch": "codex/cortex-animations-main",
+    "integration_commit": "1c25af36b2d60bb0a940ee920800ea96b364f35c",
+    "local_main": "fc6c68f4dfe321dd2f436130792f0a8b77308256",
+    "origin_main": "4f7adcf98ae3e0022b3257cb9d98a4a3122e15ea",
+    "animations_unchanged": 78,
+    "fault_registers": {
+      "cause": 0,
+      "epc": 0,
+      "badvaddr": 0,
+      "count": 0
+    },
+    "heap_remaining_bytes": 82976,
+    "tests": {
+      "project": 458,
+      "runtime": 247,
+      "playtest": 81,
+      "debug_panel": 2
+    },
+    "load_delay_hazards": 0,
+    "frontend_sha256": "9a63c4888cd398f9599f70b9d8e12d8d12173266816354740a72c4aae7d568c4",
+    "disc_sha256": "7b3d848a364235904faacfea973c49a17c16d7e0e7974eab19928b4769e90037",
+    "guest_sha256": "0c63f9a51e5d74568edfe5425c817e6e9f33b3697ee80aff7ee0264c6cceeae9",
+    "validation_scope": "Offscreen debug panel render; native gameplay smoke; no physical-console validation."
   }
 }
