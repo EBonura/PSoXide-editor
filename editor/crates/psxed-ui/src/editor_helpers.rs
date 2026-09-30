@@ -721,18 +721,20 @@ pub(crate) fn owning_entity_id(scene: &psxed_project::Scene, node_id: NodeId) ->
     None
 }
 
-/// Sector size a node's TRANSLATION is expressed in, the single source of
-/// truth for editor-unit <-> world-unit conversion. BSP scenes author node
-/// transforms in raw world units (1 editor unit = 1 world unit); grid scenes
-/// author in sectors of the enclosing Section grid, or the World default for
-/// nodes outside any room. Everything that moves, snaps, or displays a node
-/// translation must resolve units through here, or BSP entities drift at
-/// 1/1024 speed again.
-pub(crate) fn node_translation_sector_size(
-    _project: &psxed_project::ProjectDocument,
-    _node_id: NodeId,
-) -> i32 {
-    1
+/// Authored units per engine unit: the cook divides every length by this
+/// (`psxed_project::units::WORLD_UNIT_DIVISOR`), so it is the finest step a
+/// position or brush point keeps through the cook.
+pub(crate) const ENGINE_UNIT: u16 = psxed_project::units::WORLD_UNIT_DIVISOR as u16;
+
+/// Largest grid step the editor offers.
+pub(crate) const MAX_GRID_UNITS: u16 = 2048;
+
+/// A grid step the cook can represent exactly: the nearest multiple of
+/// [`ENGINE_UNIT`], between one engine unit and [`MAX_GRID_UNITS`].
+pub(crate) fn engine_grid_units(requested: u16) -> u16 {
+    let unit = u32::from(ENGINE_UNIT);
+    let rounded = (u32::from(requested) + unit / 2) / unit * unit;
+    rounded.clamp(unit, u32::from(MAX_GRID_UNITS)) as u16
 }
 
 pub(crate) fn portal_seam_bounds_3d(
@@ -973,7 +975,8 @@ pub(crate) fn entity_bound_kind_and_size(
             ))
         }
         NodeKind::ArchProp { geometry, .. } => {
-            let sector = node_translation_sector_size(&workspace.project, node.id).max(1) as f32;
+            // One arch tile is one World sector, as in the cook.
+            let sector = workspace.project.world_sector_size_for_node(node.id).max(1) as f32;
             let span = f32::from(geometry.span_tiles.clamp(
                 psxed_project::ARCH_PROP_MIN_TILES,
                 psxed_project::ARCH_PROP_MAX_TILES,

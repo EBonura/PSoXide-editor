@@ -1349,3 +1349,12 @@ fn material_thumbnail_signature(project: &ProjectDocument, id: ResourceId) -> St
     append(project, id, &mut Vec::new(), &mut signature);
     signature
 }
+
+#[cfg(test)]
+impl EditorWorkspace {
+    /// The signature the thumbnail cache keys a material's entry on, so a
+    /// test can seed an entry the refresh keeps.
+    pub(crate) fn test_material_thumbnail_signature(&self, id: ResourceId) -> String {
+        material_thumbnail_signature(&self.project, id)
+    }
+}

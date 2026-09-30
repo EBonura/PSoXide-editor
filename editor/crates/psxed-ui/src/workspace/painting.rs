@@ -521,7 +521,36 @@ impl EditorWorkspace {
         }
     }
 
+    /// Where a placed Entity lands for a pick: the hit, with X and Z on the
+    /// node snap step (`node_snap_step`) like every other move path.
     pub(crate) fn placement_translation_for_room_hit(
+        &self,
+        room_id: NodeId,
+        hit_world: [f32; 3],
+    ) -> [f32; 3] {
+        self.snap_placed_translation(
+            &NodeKind::Entity,
+            self.placement_hit_translation(room_id, hit_world),
+        )
+    }
+
+    /// Land a placed node's X and Z on its snap step. Y keeps the picked
+    /// surface height.
+    pub(crate) fn snap_placed_translation(
+        &self,
+        kind: &NodeKind,
+        translation: [f32; 3],
+    ) -> [f32; 3] {
+        let grid = i32::from(self.snap_units.max(1));
+        [
+            snap_node_component(kind, translation[0], grid),
+            translation[1],
+            snap_node_component(kind, translation[2], grid),
+        ]
+    }
+
+    /// The picked point as a node translation, before any snap.
+    pub(crate) fn placement_hit_translation(
         &self,
         room_id: NodeId,
         hit_world: [f32; 3],
@@ -531,21 +560,9 @@ impl EditorWorkspace {
             .map(|grid| grid.room_local_to_editor(hit_world))
             .unwrap_or([hit_world[0], hit_world[2]]);
         // Preserve the picked surface height instead of pinning placed
-        // content to the room floor. `hit_world` is room-local engine
-        // units; `translation[1]` is authored in sectors (the same
-        // convention `node_preview_origin` reads back as
-        // `translation[1] * sector_size`), so divide the hit Y by the
-        // sector size. A floor-plane pick reports `hit_world[1] == 0`,
-        // which keeps ground placement identical to the old behaviour;
-        // clicking a raised floor now drops the node onto that level,
-        // the first lever a user reaches for when stacking rooms.
-        let sector_size = self.room_sector_size(room_id).unwrap_or(1) as f32;
-        let y = if sector_size > 0.0 {
-            hit_world[1] / sector_size
-        } else {
-            0.0
-        };
-        [editor[0], y, editor[1]]
+        // content to the floor. Node translations are world units, so the
+        // hit height is the node height.
+        [editor[0], hit_world[1], editor[1]]
     }
 
     pub(crate) fn create_model_entity_at_room_hit(
@@ -953,7 +970,8 @@ impl EditorWorkspace {
     /// Place the active entity kind at a BSP world-space hit.
     pub(crate) fn place_node_at_world_hit(&mut self, room_id: NodeId, hit_world: [f32; 3]) {
         let sector_size_i = self.room_sector_size(room_id).unwrap_or(1024);
-        let translation = self.placement_translation_for_room_hit(room_id, hit_world);
+        let arch_tile_size = self.project.world_sector_size_for_node(room_id);
+        let translation = self.placement_hit_translation(room_id, hit_world);
         let kind = self.place_kind;
         if matches!(kind, PlaceKind::PlayerSpawn) && self.has_player_source() {
             self.status =
@@ -962,6 +980,7 @@ impl EditorWorkspace {
             return;
         }
         if matches!(kind, PlaceKind::PointOfInterest) {
+            let translation = self.snap_placed_translation(&NodeKind::Entity, translation);
             self.push_undo();
             let active_floor = self.active_floor;
             let scene = self.project.active_scene_mut();
@@ -1267,6 +1286,7 @@ impl EditorWorkspace {
             ),
             PlaceKind::PointOfInterest => unreachable!("handled above"),
         };
+        let translation = self.snap_placed_translation(&node_kind, translation);
         self.push_undo();
         let active_floor = self.active_floor;
         let id = self
@@ -1283,7 +1303,7 @@ impl EditorWorkspace {
                 crate::inspector_transform_node::snap_arch_prop_transform(
                     &mut node.transform,
                     geometry,
-                    sector_size_i,
+                    arch_tile_size,
                 );
             }
             // Record the floor this was placed on (0 = ground). The

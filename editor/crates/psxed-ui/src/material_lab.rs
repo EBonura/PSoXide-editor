@@ -1282,17 +1282,36 @@ fn draw_material_sidedness(ui: &mut egui::Ui, material: &mut MaterialResource) {
         material.face_sidedness = resolved;
     }
     egui::ComboBox::from_label("Rendered sides")
-        .selected_text(material.face_sidedness.label())
+        .selected_text(material_lab_sidedness_label(material.face_sidedness))
         .show_ui(ui, |ui| {
             for side in [
                 MaterialFaceSidedness::Front,
                 MaterialFaceSidedness::Back,
                 MaterialFaceSidedness::Both,
             ] {
-                ui.selectable_value(&mut material.face_sidedness, side, side.label());
+                ui.selectable_value(
+                    &mut material.face_sidedness,
+                    side,
+                    material_lab_sidedness_label(side),
+                );
             }
-        });
+        })
+        .response
+        .on_hover_text(
+            "Brush faces draw their front side in game even with Both: a closed brush's \
+             back is another face. Both applies to models using this material.",
+        );
     material.sync_legacy_sidedness();
+}
+
+/// Material Lab wording for a sidedness. `Both` says where it applies,
+/// because brush faces draw front only in game
+/// ([`MaterialFaceSidedness::brush_face_drawn`]).
+pub(crate) fn material_lab_sidedness_label(side: MaterialFaceSidedness) -> &'static str {
+    match side {
+        MaterialFaceSidedness::Both => "Both (models; brushes draw Front)",
+        other => other.label(),
+    }
 }
 
 fn draw_sky_mode(ui: &mut egui::Ui, material: &mut MaterialResource) {

@@ -1732,10 +1732,56 @@ impl EditorWorkspace {
         }
     }
 
+    /// The Inspector's column during Play, showing the frontend's guest
+    /// performance panel instead. Same panel id, so it keeps the width the
+    /// user gave the Inspector.
+    pub(crate) fn draw_play_performance_column(
+        &mut self,
+        ctx: &egui::Context,
+        panel: &mut dyn FnMut(&mut egui::Ui),
+    ) {
+        let max_width = max_resizable_side_dock_width(ctx, false);
+        let mut show_inspector = false;
+        egui::SidePanel::right("psxed_inspector")
+            .resizable(true)
+            .default_width(320.0)
+            .min_width(RESIZABLE_DOCK_MIN_WIDTH)
+            .max_width(max_width)
+            .frame(dock_frame())
+            .show(ctx, |ui| {
+                fixed_panel_content(ui, "psxed_play_performance_fixed_content", |ui| {
+                    ui.set_width(ui.available_width().max(1.0));
+                    tool_panel_frame().show(ui, |ui| {
+                        let content_width = ui.available_width().max(1.0);
+                        constrain_resizable_dock_content(ui, content_width);
+                        tool_panel_header(ui, icons::AUDIO_LINES, "Guest performance", |ui| {
+                            show_inspector = ui
+                                .small_button(icons::label(icons::SCAN, "Inspector"))
+                                .on_hover_text("Show the Inspector in this column (F3)")
+                                .clicked();
+                        });
+                        tool_panel_body(ui, |ui| {
+                            let content_width = ui.available_width().max(1.0);
+                            constrain_resizable_dock_content(ui, content_width);
+                            egui::ScrollArea::vertical()
+                                .id_salt("psxed_play_performance_scroll")
+                                .max_width(content_width)
+                                .auto_shrink([false, false])
+                                .show(ui, |ui| panel(ui));
+                        });
+                    });
+                });
+            });
+        if show_inspector {
+            self.toggle_play_performance_panel();
+        }
+    }
+
     pub(crate) fn draw_inspector(
         &mut self,
         ctx: &egui::Context,
         camera_preview: Option<EditorCameraPreviewPresentation>,
+        playing: bool,
     ) {
         if !self.inspector_open {
             self.inspector_undo_transaction = None;
@@ -1758,7 +1804,20 @@ impl EditorWorkspace {
                     tool_panel_frame().show(ui, |ui| {
                         let content_width = ui.available_width().max(1.0);
                         constrain_resizable_dock_content(ui, content_width);
-                        tool_panel_header(ui, icons::SCAN, "Inspector", |_| {});
+                        let mut show_performance = false;
+                        tool_panel_header(ui, icons::SCAN, "Inspector", |ui| {
+                            if playing {
+                                show_performance = ui
+                                    .small_button(icons::label(icons::AUDIO_LINES, "Performance"))
+                                    .on_hover_text(
+                                        "Show the guest performance panel in this column (F3)",
+                                    )
+                                    .clicked();
+                            }
+                        });
+                        if show_performance {
+                            self.toggle_play_performance_panel();
+                        }
                         tool_panel_body(ui, |ui| {
                             apply_inspector_layout(ui);
                             let content_width = ui.available_width().max(1.0);
@@ -1900,8 +1959,6 @@ impl EditorWorkspace {
                                 let mut room_grid_resize: Option<(u16, u16)> = None;
                                 let mut character_preview_action = None;
                                 let mut snap_to_floor_requested = false;
-                                let inherited_sector_size =
-                                    node_translation_sector_size(&self.project, selected);
                                 let world_sector_size =
                                     self.project.world_sector_size_for_node(selected);
                                 let selected_kind_before = self
@@ -1948,7 +2005,7 @@ impl EditorWorkspace {
                                         changed |= draw_transform_policy_editor(
                                             ui,
                                             node,
-                                            inherited_sector_size,
+                                            world_sector_size,
                                             &material_options,
                                             &mut nav_target,
                                             &mut snap_to_floor_requested,
@@ -1964,7 +2021,7 @@ impl EditorWorkspace {
                                                 changed |= draw_transform_policy_editor(
                                                     ui,
                                                     node,
-                                                    inherited_sector_size,
+                                                    world_sector_size,
                                                     &texture_options,
                                                     &mut nav_target,
                                                     &mut snap_to_floor_requested,
@@ -2004,7 +2061,6 @@ impl EditorWorkspace {
                                                 boost_module_options: &boost_module_options,
                                                 animator_clip_context: animator_clip_context
                                                     .as_ref(),
-                                                inherited_sector_size,
                                                 world_sector_size,
                                                 room_grid_resize: &mut room_grid_resize,
                                                 nav_target: &mut nav_target,

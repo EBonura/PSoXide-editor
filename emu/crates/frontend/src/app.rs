@@ -33,7 +33,6 @@ use crate::playtest_disc::{
 };
 use crate::playtest_input::{PlaytestInputEvent, PlaytestInputTape, Port1PadSample};
 use crate::ui;
-use crate::ui::hud::HudState;
 use crate::ui::memory::MemoryView;
 use crate::ui::menu::{LibraryItem as MenuLibraryItem, MenuState, PadBindTarget, SaveStateRow};
 use crate::{paths_equivalent, repo_root_dir};
@@ -64,8 +63,6 @@ pub struct PanelVisibility {
     pub memory: bool,
     /// VRAM viewer section.
     pub vram: bool,
-    /// Frame-profiler section.
-    pub profiler: bool,
 }
 
 impl PanelVisibility {
@@ -81,7 +78,6 @@ impl PanelVisibility {
             registers: dev_open,
             memory: dev_open,
             vram: dev_open,
-            profiler: dev_open,
         }
     }
 }
@@ -454,9 +450,11 @@ pub struct AppState {
     /// replaying the next command log.
     pub gpu_resync_generation: u64,
     pub menu: MenuState,
-    pub hud: HudState,
     /// Rolling frame-time breakdown, visible from the profiler toolbar button.
     pub profiler: ui::profiler::FrameProfiler,
+    /// Per-vblank PS1 telemetry behind the debug sidebar's guest
+    /// performance section. Records only while the sidebar is open.
+    pub guest_stats: psoxide_debug_ui::GuestStats,
     pub memory_view: MemoryView,
     /// When true, the shell advances emulation on each redraw. Toggled
     /// via the Menu's Run/Pause item.
@@ -496,6 +494,10 @@ pub struct AppState {
     /// = no game loaded yet (initial state on first run, also after
     /// "Reset" with no last-loaded game).
     pub current_game: Option<LibraryEntry>,
+    /// The file port 1's memory card was loaded from at the last launch,
+    /// and the only file [`AppState::flush_memcard_port1`] writes. `None`
+    /// when no card is attached or the card is not backed by a file.
+    memcard_port1_path: Option<PathBuf>,
     /// Short-lived status line -- shows "Launched <title>",
     /// "Scan complete: 54 games", etc. Displayed beneath the
     /// library panel; cleared after a few frames.
@@ -666,8 +668,8 @@ impl AppState {
             bus,
             gpu_resync_generation: initial_gpu_resync_generation,
             menu: MenuState::with_running(autorun),
-            hud: HudState::default(),
             profiler: ui::profiler::FrameProfiler::default(),
+            guest_stats: psoxide_debug_ui::GuestStats::new(),
             memory_view: MemoryView::default(),
             running: autorun,
             run_steps_per_frame: 1_000_000,
@@ -678,6 +680,7 @@ impl AppState {
             library,
             paths,
             current_game: None,
+            memcard_port1_path: None,
             status_message: None,
             audio_volume: 1.0,
             audio_muted: false,
@@ -783,6 +786,7 @@ impl AppState {
         fast_boot_disc(&mut bus, &mut cpu, &disc).map_err(|e| format!("boot disc: {e:?}"))?;
         bus.cdrom.insert_disc(Some(disc));
         bus.attach_digital_pad_port1();
+        self.memcard_port1_path = None;
         bus.attach_memcard_port1(Vec::new());
         self.swap_in_booted(bus, cpu);
         Ok(())
@@ -802,6 +806,7 @@ impl AppState {
         }
         let mut cpu = Cpu::new();
         let mut boot_mode = "EXE";
+        let mut memcard_port1_path = None;
         // Image hash for input-tape change detection, computed where the
         // bytes are already in hand so no path re-reads the file.
         let game_hash;
@@ -850,12 +855,10 @@ impl AppState {
                 // Load + attach the per-game memory card on port 1.
                 // File lives under `<config>/games/<id>/memcard-1.mcd`;
                 // first launch of any game gets a fresh 128 KiB blank.
-                self.paths
-                    .ensure_game_tree(&entry.id)
-                    .map_err(|e| e.to_string())?;
-                let mc_path = self.paths.memcard_file(&entry.id, 1);
+                let mc_path = self.port1_memcard_for_launch(&entry.id)?;
                 let mc_bytes = std::fs::read(&mc_path).unwrap_or_default();
                 bus.attach_memcard_port1(mc_bytes);
+                memcard_port1_path = Some(mc_path);
                 bus
             }
             GameKind::DiscCue | GameKind::DiscCcd => {
@@ -870,13 +873,12 @@ impl AppState {
                     .map_err(|e| format!("boot disc: {e:?}"))?;
                 boot_mode = "HLE";
                 bus.cdrom.insert_disc(Some(disc));
+                apply_libcrypt_sbi(&mut bus, &entry.path);
                 bus.attach_digital_pad_port1();
-                self.paths
-                    .ensure_game_tree(&entry.id)
-                    .map_err(|e| e.to_string())?;
-                let mc_path = self.paths.memcard_file(&entry.id, 1);
+                let mc_path = self.port1_memcard_for_launch(&entry.id)?;
                 let mc_bytes = std::fs::read(&mc_path).unwrap_or_default();
                 bus.attach_memcard_port1(mc_bytes);
+                memcard_port1_path = Some(mc_path);
                 bus
             }
             GameKind::Unknown => {
@@ -901,6 +903,7 @@ impl AppState {
         self.exec_history.clear();
         self.gpr_snapshot = None;
         self.current_game = Some(entry.clone());
+        self.memcard_port1_path = memcard_port1_path;
         self.current_game_hash = game_hash;
         self.refresh_save_state_menu_rows();
         self.menu.sync_run_label(true);
@@ -1148,7 +1151,11 @@ impl AppState {
         if let Some(fresh_bus) = self.bus.as_mut() {
             payload.bus.restore_excluded_from(fresh_bus);
         }
-        let mc_bytes = std::fs::read(self.paths.memcard_file(&game.id, 1)).unwrap_or_default();
+        let mc_bytes = self
+            .memcard_port1_path
+            .as_ref()
+            .and_then(|path| std::fs::read(path).ok())
+            .unwrap_or_default();
         payload.bus.attach_memcard_port1(mc_bytes);
         self.cpu = payload.cpu;
         self.bus = Some(payload.bus);
@@ -2320,6 +2327,63 @@ impl AppState {
         String::new()
     }
 
+    /// Whether the window may close now. With unsaved editor edits this
+    /// opens the editor's Save / Discard / Cancel prompt (showing the editor
+    /// workspace if needed) and returns false; answering the prompt asks to
+    /// close the window again.
+    pub fn editor_close_allowed(&mut self) -> bool {
+        #[cfg(feature = "editor")]
+        {
+            if !self.editor.request_close() {
+                if !self.workspace.is_editor() {
+                    self.open_editor_workspace();
+                }
+                // The prompt is drawn by the editor; keep the overlay out of
+                // its way.
+                self.menu.open = false;
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Remember the open editor project so the next launch reopens it.
+    #[cfg(feature = "editor")]
+    fn remember_editor_project_dir(&mut self) {
+        let current = Some(self.editor.project_dir().to_path_buf());
+        if self.settings.editor.last_project_dir != current {
+            self.settings.editor.last_project_dir = current;
+        }
+    }
+
+    /// Everything that must happen before the process exits, shared by the
+    /// window close button, File > Quit in the editor (egui's
+    /// `ViewportCommand::Close`) and the overlay menu's Quit, so the three
+    /// cannot drift apart.
+    pub fn shut_down_for_exit(&mut self) {
+        self.stop_input_recording_if_active();
+        #[cfg(feature = "editor")]
+        self.stop_embedded_playtest();
+        self.flush_pending_input_profile_capture();
+        self.stop_examples_build();
+        // Flush any dirty memory card so save progress survives a
+        // window-close. A hard crash still loses whatever hasn't been
+        // flushed.
+        if let Err(e) = self.flush_memcard_port1() {
+            eprintln!("[frontend] memcard flush on exit: {e}");
+        }
+        // The project itself is not saved here: closing with unsaved edits
+        // went through the editor's Save / Discard / Cancel prompt
+        // (`editor_close_allowed`), which saved or discarded them.
+        #[cfg(feature = "editor")]
+        self.remember_editor_project_dir();
+        // Persist current settings (library root, etc.) so the next launch
+        // picks up any user tweaks without needing a manual save step.
+        if let Err(e) = self.save_settings() {
+            eprintln!("[frontend] settings save on exit: {e}");
+        }
+    }
+
     /// Persist the embedded editor project if it has unsaved edits,
     /// and remember which project directory is active so the next
     /// launch reopens it.
@@ -3025,44 +3089,30 @@ impl AppState {
         self.editor
             .project_dir()
             .join("logs")
-            .join("play_profiler_history.csv")
+            .join("play_guest_performance.csv")
     }
 
+    /// The Play overlay's save button: the last 30 s of guest telemetry.
     fn dump_embedded_playtest_profiler_history(&mut self) {
-        let sample_count = self.profiler.history_len();
-        if sample_count == 0 {
-            let message = "Profiler history is empty";
+        if self.guest_stats.is_empty() {
+            let message = "Guest performance history is empty";
             self.editor.set_status(message);
             self.status_message_set(message);
             return;
         }
-
         let path = self.embedded_playtest_profiler_history_path();
-        let write_result = (|| -> Result<(), String> {
-            if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|error| format!("{}: {error}", parent.display()))?;
-            }
-            std::fs::write(&path, self.profiler.history_csv())
-                .map_err(|error| format!("{}: {error}", path.display()))?;
-            Ok(())
-        })();
-
-        match write_result {
-            Ok(()) => {
-                let message = format!(
-                    "Profiler history saved: {sample_count} frames -> {}",
-                    path.display()
-                );
-                self.editor.set_status(message.clone());
-                self.status_message_set(message);
-            }
-            Err(error) => {
-                let message = format!("Profiler history save failed: {error}");
-                self.editor.set_status(message.clone());
-                self.status_message_set(message);
-            }
-        }
+        let csv = self.guest_stats.csv(30);
+        let write_result = path
+            .parent()
+            .map_or(Ok(()), std::fs::create_dir_all)
+            .and_then(|()| std::fs::write(&path, csv))
+            .map_err(|error| format!("{}: {error}", path.display()));
+        let message = match write_result {
+            Ok(()) => format!("Guest performance, last 30 s saved -> {}", path.display()),
+            Err(error) => format!("Guest performance save failed: {error}"),
+        };
+        self.editor.set_status(message.clone());
+        self.status_message_set(message);
     }
 
     /// Handle one request emitted by the editor UI.
@@ -3387,23 +3437,35 @@ impl AppState {
         }
     }
 
-    /// Flush any dirty memory-card state on port 1 back to its
-    /// `<config>/games/<id>/memcard-1.mcd` file. A no-op when no
+    /// The card file port 1 uses for a disc launch: the game's
+    /// `memcard-1.mcd`, after [`preserve_pre_hle_memcard`] has kept a copy
+    /// of a card from before the HLE kernel.
+    fn port1_memcard_for_launch(&self, game_id: &str) -> Result<PathBuf, String> {
+        self.paths
+            .ensure_game_tree(game_id)
+            .map_err(|e| e.to_string())?;
+        preserve_pre_hle_memcard(&self.paths, game_id)?;
+        Ok(self.paths.memcard_file(game_id, 1))
+    }
+
+    /// Flush any dirty memory-card state on port 1 back to the file it
+    /// was loaded from (`<config>/games/<id>/memcard-1.mcd`). A no-op when no
     /// card is attached or when no writes have landed since load.
     /// Called from the shell's exit path and periodically during
     /// run so a hard crash doesn't lose save progress.
     pub fn flush_memcard_port1(&mut self) -> Result<(), String> {
-        let Some(game) = self.current_game.as_ref().map(|g| g.id.clone()) else {
-            return Ok(()); // no game loaded → nothing to persist
+        // Only ever the file the card was loaded from at launch.
+        let Some(path) = self.memcard_port1_path.clone() else {
+            return Ok(()); // no card attached → nothing to persist
         };
         let Some(bus) = self.bus.as_mut() else {
             return Ok(());
         };
         if let Some(bytes) = bus.memcard_port1_snapshot() {
-            let path = self.paths.memcard_file(&game, 1);
-            self.paths
-                .ensure_game_tree(&game)
-                .map_err(|e| e.to_string())?;
+            if let Some(dir) = path.parent() {
+                std::fs::create_dir_all(dir)
+                    .map_err(|e| format!("save memcard {}: {e}", dir.display()))?;
+            }
             std::fs::write(&path, &bytes)
                 .map_err(|e| format!("save memcard {}: {e}", path.display()))?;
             eprintln!(
@@ -3431,6 +3493,61 @@ impl AppState {
     /// Menu without allocating a whole notification subsystem.
     pub fn status_message_set(&mut self, msg: impl Into<String>) {
         self.status_message = Some((msg.into(), STATUS_MESSAGE_TTL_SECS));
+    }
+
+    /// Whether the guest performance panel is on screen: the debug sidebar,
+    /// or the panel docked beside the editor's Play viewport.
+    pub fn guest_panel_visible(&self) -> bool {
+        #[cfg(feature = "editor")]
+        if self.workspace.is_editor() {
+            return self.embedded_playtest.is_running()
+                && self.editor.play_performance_panel_visible();
+        }
+        self.panels.debug_sidebar
+    }
+
+    /// F3: show or hide the guest performance panel where the user is.
+    pub fn toggle_performance_panel(&mut self) {
+        #[cfg(feature = "editor")]
+        if self.workspace.is_editor() {
+            self.editor.toggle_play_performance_panel();
+            return;
+        }
+        self.panels.debug_sidebar = !self.panels.debug_sidebar;
+    }
+
+    /// Save a guest-performance CSV from the debug sidebar: next to the
+    /// game's saves on native, as a browser download on the web.
+    pub fn export_guest_stats_csv(&mut self, csv: &str, seconds: u32) {
+        let game_id = self
+            .current_game
+            .as_ref()
+            .map(|game| game.id.clone())
+            .unwrap_or_else(|| "unknown".to_string());
+        #[cfg(not(target_arch = "wasm32"))]
+        let result = {
+            let stamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            let dir = self.paths.game_dir(&game_id).join("perf");
+            let path = dir.join(format!("guest-perf-{stamp}.csv"));
+            std::fs::create_dir_all(&dir)
+                .and_then(|()| std::fs::write(&path, csv))
+                .map(|()| path.display().to_string())
+                .map_err(|error| format!("{}: {error}", path.display()))
+        };
+        #[cfg(target_arch = "wasm32")]
+        let result = crate::web_files::download_input_csv(&format!("psoxide-perf-{game_id}"), csv)
+            .map(|()| "download".to_string());
+        match result {
+            Ok(target) => self.status_message_set(format!(
+                "Saved the last {seconds} s of guest telemetry: {target}"
+            )),
+            Err(error) => {
+                self.status_message_set(format!("Guest telemetry export failed: {error}"))
+            }
+        }
     }
 
     /// Current output gain after the mute latch is applied.
@@ -3731,6 +3848,42 @@ fn path_label(path: impl AsRef<Path>) -> String {
         .unwrap_or_else(|| path.display().to_string())
 }
 
+/// Load the LibCrypt `.sbi` next to a disc sheet, if any, into the mounted
+/// disc's controller. A malformed file is reported and ignored.
+pub(crate) fn apply_libcrypt_sbi(bus: &mut Bus, sheet: &Path) {
+    match psoxide_settings::library::load_sbi_for(sheet) {
+        Ok(Some(lbas)) => {
+            eprintln!(
+                "[frontend] LibCrypt: {} subchannel sectors from {}",
+                lbas.len(),
+                psoxide_settings::library::sbi_path_for(sheet).display()
+            );
+            bus.cdrom.set_bad_subq_sectors(lbas);
+        }
+        Ok(None) => {}
+        Err(e) => eprintln!("[frontend] ignoring {e}"),
+    }
+}
+
+/// Keep a one-time copy of a game's port-1 card before the HLE kernel
+/// first writes to it: `memcard-1.pre-hle.mcd`, made once and never
+/// overwritten, so saves from before PSoXide dropped BIOS support survive
+/// a card-driver bug. Cards the HLE created need no copy.
+pub(crate) fn preserve_pre_hle_memcard(paths: &ConfigPaths, game_id: &str) -> Result<(), String> {
+    let card = paths.memcard_file(game_id, 1);
+    let backup = paths.pre_hle_memcard_file(game_id, 1);
+    if card.exists() && !backup.exists() {
+        std::fs::copy(&card, &backup).map_err(|e| {
+            format!(
+                "copy memcard {} -> {}: {e}",
+                card.display(),
+                backup.display()
+            )
+        })?;
+    }
+    Ok(())
+}
+
 /// Record a retired instruction into the ring buffer, evicting the
 /// oldest entry when capacity is reached.
 ///
@@ -3840,6 +3993,7 @@ mod freelook_projection_tests {
 }
 
 pub fn step_one_frame(state: &mut AppState) -> StepFrameReport {
+    let guest_panel_visible = state.guest_panel_visible();
     let max_steps = state.run_steps_per_frame.max(1);
     // Freelook: integrate held keys into the camera pose, then push it to the
     // GTE hook for this frame (a no-op while the toggle is off).
@@ -3863,6 +4017,11 @@ pub fn step_one_frame(state: &mut AppState) -> StepFrameReport {
     // per-instruction breakpoint probe entirely in the common
     // no-breakpoints case.
     let check_breakpoints = !state.breakpoints.is_empty();
+    // CPU cycle attribution (a per-instruction cost) runs only while the
+    // guest performance panel is on screen; the rest records every vblank.
+    state
+        .guest_stats
+        .set_cpu_attribution(&mut state.cpu, guest_panel_visible);
     let cycles_before = bus.cycles();
     let tick_before = state.cpu.tick();
     let vblank_before = bus.irq().raise_counts()[0];
@@ -3903,6 +4062,7 @@ pub fn step_one_frame(state: &mut AppState) -> StepFrameReport {
         }
     }
 
+    state.guest_stats.record(&state.cpu, bus);
     let cycles_after = bus.cycles();
     let vblank_after = bus.irq().raise_counts()[0];
     StepFrameReport {
@@ -4510,6 +4670,91 @@ mod tests {
                 ..Default::default()
             });
         }
+    }
+
+    fn bootable_test_bin() -> Vec<u8> {
+        let mut exe = vec![0u8; psx_iso::EXE_HEADER_BYTES];
+        exe[..8].copy_from_slice(b"PS-X EXE");
+        exe[0x10..0x14].copy_from_slice(&0x8001_0000u32.to_le_bytes());
+        exe[0x18..0x1C].copy_from_slice(&0x8001_0000u32.to_le_bytes());
+        exe[0x1C..0x20].copy_from_slice(&4u32.to_le_bytes());
+        exe.extend_from_slice(&[0; 4]);
+        let mut builder = psx_iso::IsoBuilder::new();
+        builder.add_file("SYSTEM.CNF", b"BOOT = cdrom:\\GAME.EXE;1\r\n".to_vec());
+        builder.add_file("GAME.EXE", exe);
+        builder.build_bin()
+    }
+
+    fn disc_entry(path: &Path) -> LibraryEntry {
+        LibraryEntry {
+            id: "hlecardtest".into(),
+            path: path.to_path_buf(),
+            kind: GameKind::DiscBin,
+            title: "HLE card test".into(),
+            region: Region::Unknown,
+            size: 0,
+            mtime: 0,
+            diagnostic: None,
+        }
+    }
+
+    /// Clock one memory-card frame write through SIO0 port 1, the way a
+    /// game's card driver does, so the attached card turns dirty.
+    fn write_card_frame0(bus: &mut Bus, fill: u8) {
+        bus.write16(0x1F80_104A, 0x0003); // TX enable + /CS on port 1
+        let mut bytes = vec![0x81, 0x57, 0x00, 0x00, 0x00, 0x00];
+        bytes.extend(std::iter::repeat_n(fill, 128));
+        let checksum = (0..128).fold(0u8, |acc, _| acc ^ fill);
+        bytes.extend([checksum, 0x00, 0x00, 0x00]);
+        for byte in bytes {
+            bus.write8(0x1F80_1040, byte);
+            let _ = bus.read8(0x1F80_1040);
+        }
+        bus.write16(0x1F80_104A, 0x0000);
+    }
+
+    /// A disc saves to its own `memcard-1.mcd`. A card that predates the
+    /// HLE kernel is copied once to `memcard-1.pre-hle.mcd` before the first
+    /// launch writes to it, and that copy is never touched again.
+    #[test]
+    fn disc_launch_saves_to_the_card_after_keeping_a_pre_hle_copy() {
+        let root = frontend_test_temp_dir("pre-hle-card");
+        let bin = root.join("game.bin");
+        std::fs::write(&bin, bootable_test_bin()).unwrap();
+        let mut state = AppState::with_config_dir(Some(root.join("config")));
+        let entry = disc_entry(&bin);
+
+        let card = state.paths.memcard_file(&entry.id, 1);
+        std::fs::create_dir_all(card.parent().unwrap()).unwrap();
+        let old_bytes = vec![0x5Au8; emulator_core::pad::MEMCARD_SIZE];
+        std::fs::write(&card, &old_bytes).unwrap();
+
+        state.launch_entry(&entry).unwrap();
+        assert_eq!(state.memcard_port1_path.as_deref(), Some(card.as_path()));
+        let backup = state.paths.pre_hle_memcard_file(&entry.id, 1);
+        assert_eq!(std::fs::read(&backup).unwrap(), old_bytes);
+
+        write_card_frame0(state.bus.as_mut().unwrap(), 0xC3);
+        state.flush_memcard_port1().unwrap();
+        let saved = std::fs::read(&card).unwrap();
+        assert!(saved[..128].iter().all(|&b| b == 0xC3), "the save landed");
+
+        // Later launches keep the first copy, not the card as it is now.
+        state.launch_entry(&entry).unwrap();
+        assert_eq!(std::fs::read(&backup).unwrap(), old_bytes);
+        assert_eq!(std::fs::read(&card).unwrap(), saved);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A game with no card yet gets none copied.
+    #[test]
+    fn a_new_card_needs_no_pre_hle_copy() {
+        let root = frontend_test_temp_dir("new-card");
+        let state = AppState::with_config_dir(Some(root.join("config")));
+        let path = state.port1_memcard_for_launch("g").unwrap();
+        assert_eq!(path, state.paths.memcard_file("g", 1));
+        assert!(!state.paths.pre_hle_memcard_file("g", 1).exists());
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     fn frontend_test_temp_dir(name: &str) -> PathBuf {

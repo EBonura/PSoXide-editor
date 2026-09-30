@@ -66,6 +66,10 @@ pub struct Graphics {
     /// (`Duration::MAX` when nothing is animating). Feeds the shell's
     /// redraw scheduler.
     last_repaint_delay: std::time::Duration,
+    /// egui asked to close the window (`ViewportCommand::Close`, sent by the
+    /// editor's File > Quit). Taken by the shell, which runs the same exit
+    /// path as the window's close button.
+    close_requested: bool,
     /// Egui-side handle for the VRAM texture; panels reference it via
     /// [`Graphics::vram_texture_id`].
     vram_texture_id: egui::TextureId,
@@ -207,6 +211,7 @@ impl Graphics {
             egui_renderer,
             vram_view,
             last_repaint_delay: std::time::Duration::MAX,
+            close_requested: false,
             vram_texture_id,
             display_texture,
             display_texture_id,
@@ -236,6 +241,11 @@ impl Graphics {
     /// frame (`Duration::MAX` when nothing is animating).
     pub fn repaint_delay(&self) -> std::time::Duration {
         self.last_repaint_delay
+    }
+
+    /// True once after egui asked to close the window.
+    pub fn take_close_requested(&mut self) -> bool {
+        std::mem::take(&mut self.close_requested)
     }
 
     /// Egui handle for the packed 24bpp display fallback texture.
@@ -571,11 +581,15 @@ impl Graphics {
         // Remember egui's own repaint request (slide animations, caret
         // blink, tooltips) so the shell's redraw scheduler can honor it
         // now that redraws are no longer continuous while paused.
-        self.last_repaint_delay = full_output
-            .viewport_output
-            .get(&egui::ViewportId::ROOT)
+        let root_output = full_output.viewport_output.get(&egui::ViewportId::ROOT);
+        self.last_repaint_delay = root_output
             .map(|v| v.repaint_delay)
             .unwrap_or(std::time::Duration::MAX);
+        self.close_requested |= root_output.is_some_and(|v| {
+            v.commands
+                .iter()
+                .any(|command| matches!(command, egui::ViewportCommand::Close))
+        });
 
         let t = Instant::now();
         self.egui_winit

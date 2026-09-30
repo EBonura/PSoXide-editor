@@ -18,6 +18,8 @@
 !default/**
 !quake-e1m1-geometry/
 !quake-e1m1-geometry/**
+# The per-user editor view file inside a tracked project stays local.
+**/.psxed-view.ron
 
 # Animation-generation auditions and review renders are local working inputs.
 # Cooked runtime clips under assets/animations remain tracked.

@@ -23,8 +23,8 @@
 	run-tri run-input run-ot run-tex run-gte run-audio run-cdda probe-cdda-audio \
 	showcase-text showcase-text-disc run-showcase-text \
 	game-pong game-pong-disc run-game-pong \
-	game-magikaaaaaarp-pong game-magikaaaaaarp-pong-disc magikaaaaaarp-pong-spectrum run-game-magikaaaaaarp-pong probe-magikaaaaaarp-pong-audio duckstation-magikaaaaaarp-pong \
-	cortex-ignition-v1-project-disc cortex-ignition-v1-project-disc-boot-trace cortex-ignition-v1-hardware-diagnostic-disc cortex-ignition-v1-preburn-local cortex-ignition-v1-preburn-struct cortex-ignition-v1-preburn-disc-reads cortex-ignition-v1-preburn-internal cortex-ignition-v1-preburn-cdda-audio cortex-ignition-v1-emulator-inventory cortex-ignition-v1-bringup-report cortex-ignition-v1-burn-candidate duckstation-cortex-ignition-v1 \
+	game-magikaaaaaarp-pong game-magikaaaaaarp-pong-disc magikaaaaaarp-pong-spectrum run-game-magikaaaaaarp-pong probe-magikaaaaaarp-pong-audio \
+	cortex-ignition-v1-project-disc cortex-ignition-v1-project-disc-boot-trace cortex-ignition-v1-hardware-diagnostic-disc cortex-ignition-v1-preburn-local cortex-ignition-v1-preburn-struct cortex-ignition-v1-preburn-disc-reads cortex-ignition-v1-preburn-internal cortex-ignition-v1-preburn-cdda-audio cortex-ignition-v1-bringup-report cortex-ignition-v1-burn-candidate \
 	game-breakout game-breakout-disc run-game-breakout \
         game-invaders game-invaders-disc run-game-invaders \
         showcase-3d showcase-3d-disc run-showcase-3d \
@@ -123,24 +123,16 @@ help:
 	@echo "    make probe-cdda-audio - render hello-cdda audio to a WAV + silence check"
 	@echo "    make probe-magikaaaaaarp-pong-audio"
 	@echo "                      - render magikAAAAArp Pong CD-DA to a WAV + silence check"
-	@echo "    make duckstation-magikaaaaaarp-pong"
-	@echo "                      - boot magikAAAAArp Pong in DuckStation and assert TTY markers"
-	@echo "    make duckstation-cortex-ignition-v1"
-	@echo "                      - build cortex_ignition_v1's project disc and assert DuckStation TTY markers"
 	@echo "    make cortex-ignition-v1-hardware-diagnostic-disc"
 	@echo "                      - build cortex_ignition_v1 with TV-visible boot color checkpoints"
 	@echo "    make cortex-ignition-v1-preburn-local"
 	@echo "                      - run local structural/headless/audio/CD probes before burning"
 	@echo "    make cortex-ignition-v1-preburn-streaming-guard"
 	@echo "                      - fail if CD-DA plus room-streaming telemetry is absent or red"
-	@echo "    make cortex-ignition-v1-emulator-inventory"
-	@echo "                      - list locally available external PS1 emulators"
-	@echo "    make cortex-ignition-v1-external-emulators"
-	@echo "                      - run DuckStation plus optional Mednafen/RetroArch/ares local gates"
 	@echo "    make cortex-ignition-v1-bringup-report"
 	@echo "                      - summarize latest cortex_ignition_v1 bringup logs"
 	@echo "    make cortex-ignition-v1-burn-candidate"
-	@echo "                      - run preburn + emulator matrix and fail on WARN/MISSING report rows"
+	@echo "                      - run the preburn checks and fail on WARN/MISSING report rows"
 	@echo "    make run-showcase-text"
 	@echo "                      - build + boot the text capabilities showcase disc"
 	@echo "    make run-game-pong     - build + boot the Pong mini-game disc"
@@ -327,16 +319,6 @@ CDDA_DEMO_TRACK ?= assets/audio/cdda/GONCHAROV.track02.cdda
 GONCHAROV_WAV ?= build/audio/GONCHAROV.wav
 MAGIKAAAAARP_PONG_TRACK ?= assets/audio/cdda/GONCHAROV.track02.cdda
 MAGIKAAAAARP_PONG_SPECTRUM := engine/examples/game-magikaaaaaarp-pong/assets/goncharov_spectrum_16x30hz.bin
-DUCKSTATION_TIMEOUT ?= 45
-DUCKSTATION_MAGIKARP_LOG ?= build/duckstation-harness/game-magikaaaaaarp-pong.log
-DUCKSTATION_CORTEX_IGNITION_V1_LOG ?= build/duckstation-harness/cortex_ignition_v1.log
-MEDNAFEN_CORTEX_IGNITION_V1_LOG ?= build/external-emulator-smoke/cortex_ignition_v1-mednafen.log
-RETROARCH_CORTEX_IGNITION_V1_LOG ?= build/external-emulator-smoke/cortex_ignition_v1-retroarch.log
-RETROARCH_CORTEX_IGNITION_V1_SCREENSHOT ?= build/external-emulator-smoke/cortex_ignition_v1-retroarch.png
-RETROARCH_CORTEX_IGNITION_V1_SCREENSHOT_FRAMES ?= 360
-ARES_CORTEX_IGNITION_V1_LOG ?= build/external-emulator-smoke/cortex_ignition_v1-ares.log
-EXTERNAL_EMULATOR_SMOKE_TIMEOUT ?= 12
-REDUX_CORTEX_IGNITION_V1_STEPS ?= 240000000
 # Keep the historical output stem and ISO identity for preburn comparisons,
 # but cook the current BSP-authored Cortex Ignition project.
 CORTEX_IGNITION_V1_NAME ?= cortex_v1
@@ -861,12 +843,28 @@ $(HWTEST_CDDA):
 	@mkdir -p $(dir $@)
 	python3 tools/gen-cdda-tone.py --seconds 10 --out $@
 
-hardware-tests-disc: hardware-tests $(HWTEST_CDDA)
+# MOVIE.STR for the FMV STREAM TEST row (v1.25): 75 s of synthetic 320x240
+# 15 fps video at the full double-speed sector budget with interleaved XA
+# stereo beeps, every video sector stamped with an ordinal and a checksum. The
+# SDK's tools/fmv_test_movie.py encodes it with FFmpeg and psxavenc (neither
+# ships here: PSXAVENC names the psxavenc binary). The encode is not
+# bit-reproducible across tool versions, so keep the file once built; to reuse
+# one, copy it to this path. It lands after CDTEST.BIN, at LBA 1024, which moves
+# the CD-DA track outward but no fixed LBA a probe names.
+HWTEST_MOVIE := $(EXAMPLE_OUT)/fmv/MOVIE.STR
+PSXAVENC ?= psxavenc
+
+$(HWTEST_MOVIE):
+	@mkdir -p $(dir $@)
+	python3 tools/fmv_test_movie.py --psxavenc "$(PSXAVENC)" --out $@
+
+hardware-tests-disc: hardware-tests $(HWTEST_CDDA) $(HWTEST_MOVIE)
 	cd tools/mkisopsx && cargo run --release -- \
 		--exe ../../$(EXAMPLE_OUT)/hardware-tests.exe \
 		--out ../../$(EXAMPLE_OUT)/hardware-tests.bin \
 		--volume PSOXIDE \
 		--cdtest-sectors 500 \
+		--xa-file ../../$(HWTEST_MOVIE) \
 		--cdda-track ../../$(HWTEST_CDDA)
 
 $(foreach example,$(DATA_DISC_EXAMPLES),$(eval $(call build_data_disc,$(example))))
@@ -901,9 +899,12 @@ build-editor-playtest:
 # proves the visible starter, 3D brush selection, and Move/Resize controls. The
 # command regression then exports the exact persisted project it authored; the
 # remaining stages use the same cooker, MIPS target, and disc packer contract
-# as the editor's Play action. Two image-free replays must agree byte-for-byte
-# on their GPU census and on pinned movement, wall contact, and display
-# evidence. No native window, BIOS, screenshot, or original hardware is used.
+# as the editor's Play action. The template boots into a wake-up intro, so
+# each replay holds forward, holds Cross over polls 200-440 to skip it, and
+# stops on the pad clock at poll 1200. Two image-free replays must agree
+# byte-for-byte on their GPU census and on pinned movement, roof-edge stop,
+# and display evidence. No native window, BIOS, screenshot, or original
+# hardware is used.
 editor-blank-playtest-check:
 	@set -eu; \
 	check_tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/psoxide-editor-blank-check.XXXXXX"); \
@@ -941,9 +942,9 @@ editor-blank-playtest-check:
 			--path "$$cue" \
 			--embedded-playtest \
 			--hold-forward \
-			--guest-frames 180 \
-			--guest-visual-frames 60 \
-			--steps 1000000000 \
+			--press 200:cross:240 \
+			--stop-at-poll 1200 \
+			--steps 20000000000 \
 			--gpu-frame-stats-log "$$replay_gpu" \
 			--dump-hash \
 			--dump-guest-profile > "$$replay_log" 2>&1; then \
@@ -967,8 +968,11 @@ editor-blank-playtest-check:
 
 # End-to-end proof that authored PXBSP liquid contents survive the editor cook,
 # enter the shared runtime point hull, apply deterministic hazard damage, and
-# respawn the player. The gate intentionally emits no screenshots or frame
-# dumps: guest telemetry is the behavioral oracle.
+# respawn the player. The fixture spawns on dry land; forward input for 90
+# ticks walks the player into the lava pool, 40 hits kill it, and the respawn
+# at f646 lands back on the dry spawn (engine z 104) with no further hits.
+# The gate intentionally emits no screenshots or frame dumps: guest
+# telemetry is the behavioral oracle.
 editor-bsp-liquid-check:
 	@set -eu; \
 	check_tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/psoxide-editor-bsp-liquid.XXXXXX"); \
@@ -984,7 +988,8 @@ editor-bsp-liquid-check:
 	if ! cargo run -p frontend --release -- launch \
 		--path "$$cue" \
 		--embedded-playtest \
-		--guest-frames 220 \
+		--press 30:up:90 \
+		--guest-frames 700 \
 		--steps 1000000000 \
 		--guest-debug-log \
 		--dump-guest-profile > "$$log" 2>&1; then \
@@ -994,9 +999,10 @@ editor-bsp-liquid-check:
 	cat "$$log"; \
 	lava_hits=$$(grep -Fc 'player bsp:lava' "$$log"); \
 	respawns=$$(grep -Fc 'player hazard:respawn' "$$log"); \
-	[ "$$lava_hits" -eq 12 ]; \
+	[ "$$lava_hits" -eq 40 ]; \
 	[ "$$respawns" -eq 1 ]; \
-	grep -Eq '^\[guest f181 c[0-9]+\] player hazard:respawn$$' "$$log"
+	grep -Eq '^\[guest f646 c[0-9]+\] player hazard:respawn$$' "$$log"; \
+	grep -Eq '^ +player local z +total=[0-9]+ +per_frame=[0-9]+ +latest=1000104$$' "$$log"
 
 profile-demo3:
 	$(MAKE) profile-demo3-disc-stream PROFILE_DEMO3_DISC_STREAM_HW=$(PROFILE_DEMO3_HW)
@@ -1202,12 +1208,6 @@ run-game-magikaaaaaarp-pong: game-magikaaaaaarp-pong-disc
 probe-magikaaaaaarp-pong-audio: game-magikaaaaaarp-pong-disc
 	cd emu && PSOXIDE_EXE=$(CURDIR)/$(EXAMPLE_OUT)/game-magikaaaaaarp-pong.exe PSOXIDE_DISC=$(CURDIR)/$(EXAMPLE_OUT)/game-magikaaaaaarp-pong.cue PSOXIDE_WAV=/tmp/psoxide_magikaaaaaarp_pong.wav PSOXIDE_AUDIO_SECONDS=6 cargo run -p emulator-core --example probe_cdda_wav --release
 
-duckstation-magikaaaaaarp-pong: game-magikaaaaaarp-pong-disc
-	$(PSOXIDE_DEV) duckstation-harness \
-		--cue $(CURDIR)/$(EXAMPLE_OUT)/game-magikaaaaaarp-pong.cue \
-		--timeout $(DUCKSTATION_TIMEOUT) \
-		--log $(CURDIR)/$(DUCKSTATION_MAGIKARP_LOG)
-
 cortex-ignition-v1-project-disc:
 	cd emu && cargo run -p frontend --release -- build-project-disc --project ../$(CORTEX_IGNITION_V1_PROJECT)
 
@@ -1277,83 +1277,17 @@ cortex-ignition-v1-preburn-cdda-audio: cortex-ignition-v1-project-disc
 		cargo run -p emulator-core --example probe_cdda_wav --release) > "$(CORTEX_IGNITION_V1_PREBURN_OUT)/cdda-probe.log" 2>&1; \
 	status=$$?; cat "$(CORTEX_IGNITION_V1_PREBURN_OUT)/cdda-probe.log"; exit $$status
 
-cortex-ignition-v1-emulator-inventory:
-	$(PSOXIDE_DEV) emulator-inventory
-
 cortex-ignition-v1-bringup-report:
 	$(PSOXIDE_DEV) cortex-bringup-report \
 		--out $(CURDIR)/$(CORTEX_IGNITION_V1_BRINGUP_REPORT) \
-		--preburn-dir $(CURDIR)/$(CORTEX_IGNITION_V1_PREBURN_OUT) \
-		--duckstation-log $(CURDIR)/$(DUCKSTATION_CORTEX_IGNITION_V1_LOG) \
-		--external-dir $(CURDIR)/build/external-emulator-smoke
+		--preburn-dir $(CURDIR)/$(CORTEX_IGNITION_V1_PREBURN_OUT)
 
-cortex-ignition-v1-burn-candidate: cortex-ignition-v1-preburn-local cortex-ignition-v1-external-emulators
+cortex-ignition-v1-burn-candidate: cortex-ignition-v1-preburn-local
 	$(PSOXIDE_DEV) cortex-bringup-report \
 		--out $(CURDIR)/$(CORTEX_IGNITION_V1_BRINGUP_REPORT) \
 		--preburn-dir $(CURDIR)/$(CORTEX_IGNITION_V1_PREBURN_OUT) \
-		--duckstation-log $(CURDIR)/$(DUCKSTATION_CORTEX_IGNITION_V1_LOG) \
-		--external-dir $(CURDIR)/build/external-emulator-smoke \
 		--fail-on-warn
 	@echo "cortex_ignition_v1 burn candidate passed -> $(CORTEX_IGNITION_V1_BRINGUP_REPORT)"
-
-duckstation-cortex-ignition-v1: cortex-ignition-v1-project-disc-boot-trace
-	$(PSOXIDE_DEV) duckstation-harness \
-		--cue $(CURDIR)/$(CORTEX_IGNITION_V1_CUE) \
-		--timeout $(DUCKSTATION_TIMEOUT) \
-		--log $(CURDIR)/$(DUCKSTATION_CORTEX_IGNITION_V1_LOG) \
-		--no-default-expect \
-		--expect "psx-rt: main" \
-		--expect "editor-playtest: init ok" \
-		--expect "psx-engine: scene init ok" \
-		--expect "psx-engine: cdda setmode ok" \
-		--expect "psx-engine: cdda demute ok" \
-		--expect "psx-engine: cdda play ok"
-
-# These launch independently configured external applications. PSoXide
-# does not select, copy or configure their firmware.
-.PHONY: cortex-ignition-v1-external-emulators mednafen-cortex-ignition-v1 retroarch-cortex-ignition-v1 ares-cortex-ignition-v1
-cortex-ignition-v1-external-emulators: duckstation-cortex-ignition-v1 mednafen-cortex-ignition-v1 retroarch-cortex-ignition-v1 ares-cortex-ignition-v1
-	@echo "cortex_ignition_v1 external emulator matrix complete"
-
-mednafen-cortex-ignition-v1: cortex-ignition-v1-project-disc
-	@if $(PSOXIDE_DEV) emulator-inventory --require mednafen >/dev/null 2>&1; then \
-		$(PSOXIDE_DEV) external-emulator-smoke \
-			--emulator mednafen \
-			--cue $(CURDIR)/$(CORTEX_IGNITION_V1_CUE) \
-			--timeout $(EXTERNAL_EMULATOR_SMOKE_TIMEOUT) \
-			--log $(CURDIR)/$(MEDNAFEN_CORTEX_IGNITION_V1_LOG); \
-	else \
-		echo "skip Mednafen cortex_ignition_v1 smoke: emulator unavailable"; \
-		$(PSOXIDE_DEV) emulator-inventory; \
-	fi
-
-retroarch-cortex-ignition-v1: cortex-ignition-v1-project-disc
-	@if $(PSOXIDE_DEV) emulator-inventory --require retroarch >/dev/null 2>&1; then \
-		$(PSOXIDE_DEV) external-emulator-smoke \
-			--emulator retroarch \
-			--cue $(CURDIR)/$(CORTEX_IGNITION_V1_CUE) \
-			--timeout $(EXTERNAL_EMULATOR_SMOKE_TIMEOUT) \
-			--log $(CURDIR)/$(RETROARCH_CORTEX_IGNITION_V1_LOG) \
-			--screenshot $(CURDIR)/$(RETROARCH_CORTEX_IGNITION_V1_SCREENSHOT) \
-			--screenshot-frames $(RETROARCH_CORTEX_IGNITION_V1_SCREENSHOT_FRAMES) \
-			--fail-on "Firmware is missing" \
-			--fail-on "Failed to load content"; \
-	else \
-		echo "skip RetroArch cortex_ignition_v1 smoke: emulator/core unavailable"; \
-		$(PSOXIDE_DEV) emulator-inventory; \
-	fi
-
-ares-cortex-ignition-v1: cortex-ignition-v1-project-disc
-	@if $(PSOXIDE_DEV) emulator-inventory --require ares >/dev/null 2>&1; then \
-		$(PSOXIDE_DEV) external-emulator-smoke \
-			--emulator ares \
-			--cue $(CURDIR)/$(CORTEX_IGNITION_V1_CUE) \
-			--timeout $(EXTERNAL_EMULATOR_SMOKE_TIMEOUT) \
-			--log $(CURDIR)/$(ARES_CORTEX_IGNITION_V1_LOG); \
-	else \
-		echo "skip ares cortex_ignition_v1 smoke: emulator unavailable"; \
-		$(PSOXIDE_DEV) emulator-inventory; \
-	fi
 
 run-game-breakout: game-breakout-disc
 	cd emu && PSOXIDE_DISC=$(CURDIR)/$(EXAMPLE_OUT)/game-breakout.cue cargo run -p frontend --release

@@ -71,7 +71,7 @@ def materialize(case, bindings):
 
 # Deliberately bounded to the documented suite lanes. Add new flags here with
 # their input/output semantics instead of permitting invisible file inputs.
-INPUT_FLAGS = {'--path', '--disc', '--bios', '--input-tape', '--load-state'}
+INPUT_FLAGS = {'--path', '--disc', '--input-tape', '--load-state'}
 OUTPUT_FLAGS = {'--config-dir', '--route-log', '--cpu-cycle-profile-log',
                 '--gpu-frame-stats-log', '--cd-command-log', '--profile-log',
                 '--counter-log', '--route-screenshot-dir', '--dump-display',
@@ -82,7 +82,7 @@ SCALAR_FLAGS = {'--steps', '--stop-at-poll', '--guest-frames',
                 '--route-screenshot-interval', '--pc-sample-instructions',
                 '--pc-line-start-route-tick', '--icache-event-start-route-tick',
                 '--stack-profile-root-pc', '--press'}
-BOOL_FLAGS = {'--embedded-playtest', '--bios-boot', '--digital-pad', '--dump-hash',
+BOOL_FLAGS = {'--embedded-playtest', '--digital-pad', '--dump-hash',
               '--guest-debug-log', '--dump-guest-profile'}
 
 
@@ -139,10 +139,6 @@ def plan(case, bindings):
         raise ValueError('config-dir must be fresh {out}/config')
     if '--path' not in argv:
         raise ValueError('explicit --path is required; library lookup is not reproducible')
-    if '--embedded-playtest' not in argv and '--bios' not in argv:
-        raise ValueError('declare HLE or BIOS boot explicitly')
-    if '--bios' in argv and argv[argv.index('--bios') + 1] != '{input.bios}':
-        raise ValueError('BIOS must be a hashed bios input')
     if '--input-tape' in argv and argv[argv.index('--input-tape') + 1] != '{input.tape}':
         raise ValueError('tape must be a hashed tape input')
     if '--path' in argv and not argv[argv.index('--path') + 1].startswith('{input.'):
@@ -327,7 +323,7 @@ def compare(left, right):
     allowed = set(ia['case'].get('candidate_inputs', []))
     if allowed != set(ib['case'].get('candidate_inputs', [])):
         raise ValueError('A/B allowed candidate inputs differ')
-    if allowed & {'emulator', 'tape', 'bios', 'python', 'driver'}:
+    if allowed & {'emulator', 'tape', 'python', 'driver'}:
         raise ValueError('runtime/control inputs cannot vary across A/B')
     for identity in (ia, ib):
         completion_spec = identity['case']['completion']

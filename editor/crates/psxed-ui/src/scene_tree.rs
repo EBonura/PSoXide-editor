@@ -635,9 +635,9 @@ pub(crate) fn draw_scene_node_row(
             Sense::click(),
         )
         .on_hover_text(if directly_hidden {
-            "Show node"
+            "Show in editor (hidden nodes still ship in the build)"
         } else {
-            "Hide node"
+            "Hide in editor (still ships in the build, and a hidden light still lights)"
         });
     painter.text(
         eye_rect.center(),

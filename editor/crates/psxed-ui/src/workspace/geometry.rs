@@ -20,7 +20,6 @@ impl EditorWorkspace {
         let default_camera = EditorCameraState::default();
         if self.active_room_id().is_some()
             || self.project.active_scene().brushes.is_empty()
-            || self.project.editor_camera != default_camera
             || self.current_editor_camera_state() != default_camera
         {
             return false;
@@ -2519,7 +2518,6 @@ impl EditorWorkspace {
         if !self.view_2d {
             if let Some((center, half)) = self.current_frame_bounds_3d() {
                 self.frame_3d_bounds(center, half);
-                self.persist_editor_camera_state();
                 self.status = "Framed selection".to_string();
             } else {
                 self.status = "Nothing to frame".to_string();
@@ -2852,10 +2850,13 @@ impl EditorWorkspace {
             return;
         }
 
-        let world_delta = [
-            screen_delta.x / self.viewport_zoom,
-            -screen_delta.y / self.viewport_zoom,
-        ];
+        let world_delta = ViewportTransform::from_focus(
+            Rect::NOTHING,
+            OrthographicView::Top,
+            [0.0, 0.0],
+            self.viewport_zoom,
+        )
+        .screen_delta_to_world(screen_delta);
         let same_gesture = self.node_drag_2d.as_ref().is_some_and(|drag| {
             drag.base
                 .iter()
@@ -2888,40 +2889,24 @@ impl EditorWorkspace {
         let targets = drag
             .base
             .iter()
-            .map(|(id, base)| (*id, *base, node_translation_sector_size(&self.project, *id)))
+            .map(|(id, base)| (*id, *base))
             .collect::<Vec<_>>();
         let before = (!undo_recorded).then(|| self.project.clone());
         let snap_step = i32::from(self.snap_units.max(1));
+        let arch_tile_size = self
+            .project
+            .world_sector_size_for_node(self.project.active_scene().root);
         let mut moved = Vec::new();
-        for (id, base, sector_size) in targets {
+        for (id, base) in targets {
             if let Some(node) = self.project.active_scene_mut().node_mut(id) {
                 let previous = node.transform.translation;
-                node.transform.translation[0] = base[0] + accumulated[0];
-                node.transform.translation[2] = base[2] + accumulated[1];
-                if matches!(
-                    node.kind,
-                    NodeKind::Entity
-                        | NodeKind::PointLight { .. }
-                        | NodeKind::ImageProp { .. }
-                        | NodeKind::BoxProp { .. }
-                        | NodeKind::CylinderProp { .. }
-                ) {
-                    if sector_size == 1 {
-                        // World-unit nodes (BSP scenes) land on the brush grid.
-                        node.transform.translation[0] =
-                            snap_world_units_component(node.transform.translation[0], snap_step);
-                        node.transform.translation[2] =
-                            snap_world_units_component(node.transform.translation[2], snap_step);
-                    } else {
-                        node.transform.translation[0] = snap_node_transform_component_to_world_step(
-                            node.transform.translation[0],
-                            sector_size,
-                        );
-                        node.transform.translation[2] = snap_node_transform_component_to_world_step(
-                            node.transform.translation[2],
-                            sector_size,
-                        );
-                    }
+                node.transform.translation[0] =
+                    snap_node_component(&node.kind, base[0] + accumulated[0], snap_step);
+                node.transform.translation[2] =
+                    snap_node_component(&node.kind, base[2] + accumulated[1], snap_step);
+                if let NodeKind::ArchProp { geometry, .. } = &node.kind {
+                    let geometry = *geometry;
+                    snap_arch_prop_transform(&mut node.transform, geometry, arch_tile_size);
                 }
                 if node.transform.translation != previous {
                     moved.push(node.name.clone());

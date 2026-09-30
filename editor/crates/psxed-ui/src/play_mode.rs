@@ -180,45 +180,10 @@ pub struct EditorPlaytestTapeStatus {
     pub cursor: u32,
 }
 
-/// Rolling emulator metrics shown over the live editor Play viewport.
+/// Engine telemetry from instrumented playtest builds (scheduler tasks,
+/// streaming, portals, player and camera pose), for the Debug snapshot.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct EditorPlaytestMetrics {
-    /// Frontend profiler redraw sample id.
-    pub sample_serial: u32,
-    /// Host redraw rate from the frontend profiler.
-    pub host_fps: f32,
-    /// Average host frame time.
-    pub host_ms: f32,
-    /// Emulated VBlank rate per host second.
-    pub emu_hz: f32,
-    /// Paced visual frames produced by instrumented playtest builds.
-    pub visual_hz: Option<f32>,
-    /// VBlanks that produced draw traffic per guest refresh.
-    pub draw_hz: f32,
-    /// Visual frames emitted by the most recent frontend redraw.
-    pub visual_frames: u32,
-    /// Guest VBlank interval per paced visual frame.
-    pub visual_interval_vblanks: f32,
-    /// Measured guest visual-frame intervals produced by the latest redraw.
-    pub visual_frame_times_ms: [f32; 4],
-    /// Populated entries in `visual_frame_times_ms`.
-    pub visual_frame_time_count: u8,
-    /// Guest visual deadline misses emitted by the most recent frontend redraw.
-    pub visual_deadline_misses: u32,
-    /// Maximum guest visual lateness emitted by the most recent frontend redraw.
-    pub visual_lateness_vblanks: u32,
-    /// Full frontend frame cost.
-    pub total_ms: f32,
-    /// Average visual-frame interval, derived from guest cycle timestamps.
-    pub frame_ms: f32,
-    /// Guest execution cost.
-    pub emu_ms: f32,
-    /// Hardware renderer cost.
-    pub hw_ms: f32,
-    /// egui/wgpu UI cost.
-    pub ui_ms: f32,
-    /// Guest cycle budget consumed by stepped frames.
-    pub step_budget_percent: f32,
     /// Average fixed-update scheduler task cost, in guest milliseconds per task hit.
     pub fixed_update_task_ms: f32,
     /// Worst fixed-update scheduler task cost in the current profiler window, in guest milliseconds.
