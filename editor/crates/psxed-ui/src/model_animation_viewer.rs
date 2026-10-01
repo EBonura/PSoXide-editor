@@ -8205,6 +8205,53 @@ fn effective_radius(state: &ModelAnimationViewerState, model: Option<&LoadedMode
     .clamp(640, 8192)
 }
 
+/// Chain controls sit beside the action timeline; values use source clip frames.
+fn draw_action_chain_controls(
+    ui: &mut egui::Ui,
+    project: &mut ProjectDocument,
+    character: Option<ResourceId>,
+    action: CharacterAnimationAction,
+) -> bool {
+    use CharacterAnimationAction as A;
+    let next = match action {
+        A::LightAttack => A::LightAttackFollowup,
+        A::LightAttackFollowup => A::LightAttackFinisher,
+        _ => return false,
+    };
+    let Some(set_id) = character_animation_set_id(project, character) else {
+        return false;
+    };
+    let Some(resource) = project.resource_mut(set_id) else {
+        return false;
+    };
+    let ResourceData::AnimationSet(set) = &mut resource.data else {
+        return false;
+    };
+    let index = set.action_chains.iter().position(|c| c.action == action);
+    let mut enabled = index.is_some();
+    let mut changed = false;
+    ui.collapsing("R1 combo continuation", |ui| {
+        if ui.checkbox(&mut enabled, format!("Continue into {}", next.label())).changed() {
+            changed = true;
+            if let Some(index) = index { set.action_chains.remove(index); }
+            else { set.action_chains.push(psxed_project::AnimationActionChain { action, next_action: next, input_start: 20, input_end: 34, handoff_frame: 34, blend_ticks: 4 }); }
+        }
+        if let Some(chain) = set.action_chains.iter_mut().find(|c| c.action == action) {
+            ui.label("Source frames; R1 queues one strike. Target must have a bound clip and matching entry pose.");
+            ui.horizontal(|ui| {
+                ui.label("Input opens"); changed |= ui.add(egui::DragValue::new(&mut chain.input_start)).changed();
+                ui.label("closes"); changed |= ui.add(egui::DragValue::new(&mut chain.input_end)).changed();
+                ui.label("Handoff"); changed |= ui.add(egui::DragValue::new(&mut chain.handoff_frame)).changed();
+                ui.label("Blend ticks (60 Hz)"); changed |= ui.add(egui::DragValue::new(&mut chain.blend_ticks).range(1..=12)).changed();
+            });
+            if chain.input_start > chain.input_end || chain.input_end > chain.handoff_frame {
+                ui.colored_label(egui::Color32::YELLOW, "Required: input opens <= closes <= handoff. The cook validates clip bounds.");
+            }
+        }
+    });
+    changed
+}
+
 #[cfg(test)]
 mod focus_tests {
     use super::*;
@@ -10187,51 +10234,4 @@ mod focus_tests {
         assert_eq!(preview_weapon_materialization_q12(&track, 8.99, 20), 4096);
         assert_eq!(preview_weapon_materialization_q12(&track, 9.0, 20), 0);
     }
-}
-
-/// Chain controls sit beside the action timeline; values use source clip frames.
-fn draw_action_chain_controls(
-    ui: &mut egui::Ui,
-    project: &mut ProjectDocument,
-    character: Option<ResourceId>,
-    action: CharacterAnimationAction,
-) -> bool {
-    use CharacterAnimationAction as A;
-    let next = match action {
-        A::LightAttack => A::LightAttackFollowup,
-        A::LightAttackFollowup => A::LightAttackFinisher,
-        _ => return false,
-    };
-    let Some(set_id) = character_animation_set_id(project, character) else {
-        return false;
-    };
-    let Some(resource) = project.resource_mut(set_id) else {
-        return false;
-    };
-    let ResourceData::AnimationSet(set) = &mut resource.data else {
-        return false;
-    };
-    let index = set.action_chains.iter().position(|c| c.action == action);
-    let mut enabled = index.is_some();
-    let mut changed = false;
-    ui.collapsing("R1 combo continuation", |ui| {
-        if ui.checkbox(&mut enabled, format!("Continue into {}", next.label())).changed() {
-            changed = true;
-            if let Some(index) = index { set.action_chains.remove(index); }
-            else { set.action_chains.push(psxed_project::AnimationActionChain { action, next_action: next, input_start: 20, input_end: 34, handoff_frame: 34, blend_ticks: 4 }); }
-        }
-        if let Some(chain) = set.action_chains.iter_mut().find(|c| c.action == action) {
-            ui.label("Source frames; R1 queues one strike. Target must have a bound clip and matching entry pose.");
-            ui.horizontal(|ui| {
-                ui.label("Input opens"); changed |= ui.add(egui::DragValue::new(&mut chain.input_start)).changed();
-                ui.label("closes"); changed |= ui.add(egui::DragValue::new(&mut chain.input_end)).changed();
-                ui.label("Handoff"); changed |= ui.add(egui::DragValue::new(&mut chain.handoff_frame)).changed();
-                ui.label("Blend ticks (60 Hz)"); changed |= ui.add(egui::DragValue::new(&mut chain.blend_ticks).range(1..=12)).changed();
-            });
-            if chain.input_start > chain.input_end || chain.input_end > chain.handoff_frame {
-                ui.colored_label(egui::Color32::YELLOW, "Required: input opens <= closes <= handoff. The cook validates clip bounds.");
-            }
-        }
-    });
-    changed
 }
