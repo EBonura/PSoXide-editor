@@ -10137,10 +10137,22 @@ mod focus_tests {
             fully_visible_frame: 0,
             ..track
         };
-        assert_eq!(preview_weapon_materialization_q12(&continuation, 0.0, 30), 4096);
-        assert_eq!(preview_weapon_materialization_q12(&continuation, 1.0, 30), 4096);
-        assert_eq!(preview_weapon_materialization_q12(&continuation, 22.0, 30), 2048);
-        assert_eq!(preview_weapon_materialization_q12(&continuation, 24.0, 30), 0);
+        assert_eq!(
+            preview_weapon_materialization_q12(&continuation, 0.0, 30),
+            4096
+        );
+        assert_eq!(
+            preview_weapon_materialization_q12(&continuation, 1.0, 30),
+            4096
+        );
+        assert_eq!(
+            preview_weapon_materialization_q12(&continuation, 22.0, 30),
+            2048
+        );
+        assert_eq!(
+            preview_weapon_materialization_q12(&continuation, 24.0, 30),
+            0
+        );
     }
 
     #[test]

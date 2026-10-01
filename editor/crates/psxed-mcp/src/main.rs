@@ -15,8 +15,8 @@ use std::fmt::Write as _;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use rmcp::handler::server::wrapper::Parameters;
 use base64::Engine as _;
+use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{ErrorData, ServerHandler, ServiceExt};
 
@@ -27,9 +27,7 @@ use psxed_mcp::nodes::{entity_types, get_node};
 use psxed_mcp::play;
 use psxed_mcp::shot;
 use psxed_mcp::{metrics, plan_view, scene_info, Focus, PlanAxis};
-use psxed_project::brush_primitives::{
-    BrushCardinalDirection, BrushDrawSettings, BrushDrawShape,
-};
+use psxed_project::brush_primitives::{BrushCardinalDirection, BrushDrawSettings, BrushDrawShape};
 
 #[derive(Clone)]
 struct EditorServer {
@@ -70,7 +68,6 @@ struct PlanReq {
     /// room at a readable human scale.
     extent: Option<i32>,
 }
-
 
 /// The map's working grid; every generated coordinate snaps to it.
 const GRID_STEP: i32 = 64;
@@ -618,8 +615,7 @@ impl EditorServer {
         }): Parameters<CarveReq>,
     ) -> Result<CallToolResult, ErrorData> {
         let text = self.with(|workspace| {
-            let report =
-                workspace.carve(scene, first, count, min, max, material.as_deref())?;
+            let report = workspace.carve(scene, first, count, min, max, material.as_deref())?;
             Ok(report + &Self::staged_note(workspace))
         })?;
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
@@ -706,7 +702,9 @@ impl EditorServer {
         )
         .map_err(|error| ErrorData::internal_error(error, None))?;
         let png = std::fs::read(&dump)
-            .map_err(|error| ErrorData::internal_error(format!("read the dumped frame: {error}"), None))
+            .map_err(|error| {
+                ErrorData::internal_error(format!("read the dumped frame: {error}"), None)
+            })
             .and_then(|raw| {
                 shot::png_from_ppm(&raw).map_err(|error| ErrorData::internal_error(error, None))
             })?;
@@ -980,7 +978,14 @@ impl EditorServer {
                 (Some(first), None) => Some((first, usize::MAX)),
                 _ => None,
             };
-            Ok(audit(project, &root, scene, depth, grid.unwrap_or(GRID_STEP), range)? + &note)
+            Ok(audit(
+                project,
+                &root,
+                scene,
+                depth,
+                grid.unwrap_or(GRID_STEP),
+                range,
+            )? + &note)
         })?;
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
@@ -1151,7 +1156,11 @@ impl EditorServer {
             Ok(if backups.is_empty() {
                 "no snapshots yet; one is written each time save replaces the file".to_string()
             } else {
-                format!("{} snapshot(s), newest first:\n{}", backups.len(), backups.join("\n"))
+                format!(
+                    "{} snapshot(s), newest first:\n{}",
+                    backups.len(),
+                    backups.join("\n")
+                )
             })
         })?;
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
@@ -1292,7 +1301,10 @@ fn new_project(dir: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
         doc.resources.len()
     );
     println!("entities stayed at their authored positions; clone them with place_node");
-    println!("link its assets, e.g.: ln -s ../default/assets {}/assets", dir.display());
+    println!(
+        "link its assets, e.g.: ln -s ../default/assets {}/assets",
+        dir.display()
+    );
     Ok(())
 }
 
