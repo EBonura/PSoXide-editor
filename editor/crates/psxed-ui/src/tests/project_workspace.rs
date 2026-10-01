@@ -3750,44 +3750,62 @@ fn new_project_starts_with_verified_character_and_material_content() {
     let ResourceData::Character(aletha) = &aletha.data else {
         unreachable!();
     };
-    // v0.4b's Aletha is the artist moveset: two hurtboxes and five swing
-    // hitboxes, including the split zenith-heavy pair, where the old starter
-    // had one hurtbox and three hitboxes all hung off joint 13.
-    assert_eq!(aletha.combat_capsules.len(), 7);
-    let capsule = |index: usize| &aletha.combat_capsules[index];
-    assert_eq!(capsule(0).name, "Torso Hurtbox");
-    assert_eq!(capsule(0).joint, 7);
-    assert_eq!(capsule(0).capsule.radius, 180);
-    assert_eq!(capsule(0).role, psxed_project::CombatCapsuleRole::Hurtbox);
-    assert_eq!(capsule(1).name, "Head Hurtbox");
-    assert_eq!(capsule(1).joint, 9);
-    assert_eq!(capsule(1).capsule.radius, 110);
-    assert_eq!(capsule(1).role, psxed_project::CombatCapsuleRole::Hurtbox);
+    // v0.4b's Aletha is the artist moveset: two hurtboxes and six swing
+    // hitboxes, including the two-hit R1 combo's follow-up and the split
+    // zenith-heavy pair, where the old starter had one hurtbox and three
+    // hitboxes all hung off joint 13. Looked up by name: list order is
+    // authoring order, not part of the content.
+    assert_eq!(aletha.combat_capsules.len(), 8);
+    let capsule = |name: &str| {
+        let mut matches = aletha.combat_capsules.iter().filter(|c| c.name == name);
+        let capsule = matches
+            .next()
+            .unwrap_or_else(|| panic!("Aletha is missing capsule {name:?}"));
+        assert!(matches.next().is_none(), "duplicate capsule {name:?}");
+        capsule
+    };
+    for (name, joint, radius) in [("Torso Hurtbox", 7, 180), ("Head Hurtbox", 9, 110)] {
+        assert_eq!(capsule(name).joint, joint);
+        assert_eq!(capsule(name).capsule.radius, radius);
+        assert_eq!(
+            capsule(name).role,
+            psxed_project::CombatCapsuleRole::Hurtbox
+        );
+    }
     // Swing hitbox radii are doubled from the artist values (Comicon reach
     // feedback: blades lengthened and thickened 2x from the same start).
-    for (index, name, joint, radius, action, window, damage, poise) in [
+    // Windows follow the approved clips: light opener strike 22-29, its
+    // follow-up's strike keys on baked samples 6-8, heavy cross slash
+    // damage 23-29 (editor/projects/default/ANIMATION_REGISTER.md).
+    for (name, joint, radius, action, window, damage, poise) in [
         (
-            2,
             "Light Sword Active",
             13,
             200,
             psxed_project::CharacterAnimationAction::LightAttack,
-            (48, 68),
+            (22, 29),
             25,
             25,
         ),
         (
-            3,
+            "LightAttackFollowup sword active",
+            13,
+            200,
+            psxed_project::CharacterAnimationAction::LightAttackFollowup,
+            (6, 8),
+            25,
+            25,
+        ),
+        (
             "Heavy Sword Active",
             16,
             226,
             psxed_project::CharacterAnimationAction::HeavyAttack,
-            (55, 76),
+            (23, 29),
             38,
             50,
         ),
         (
-            4,
             "Vert Light Sword Active",
             13,
             200,
@@ -3797,7 +3815,6 @@ fn new_project_starts_with_verified_character_and_material_content() {
             25,
         ),
         (
-            5,
             "Zenith Heavy / Right Swing",
             16,
             226,
@@ -3807,7 +3824,6 @@ fn new_project_starts_with_verified_character_and_material_content() {
             50,
         ),
         (
-            6,
             "Zenith Heavy / Left Swing",
             21,
             200,
@@ -3817,11 +3833,10 @@ fn new_project_starts_with_verified_character_and_material_content() {
             50,
         ),
     ] {
-        assert_eq!(capsule(index).name, name);
-        assert_eq!(capsule(index).joint, joint);
-        assert_eq!(capsule(index).capsule.radius, radius);
+        assert_eq!(capsule(name).joint, joint);
+        assert_eq!(capsule(name).capsule.radius, radius);
         assert_eq!(
-            capsule(index).role,
+            capsule(name).role,
             psxed_project::CombatCapsuleRole::Hitbox {
                 action,
                 active_start_frame: window.0,
