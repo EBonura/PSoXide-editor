@@ -4788,7 +4788,7 @@ fn combat_vec3_editor(ui: &mut egui::Ui, label: &str, value: &mut [i32; 3]) -> b
                 .add(
                     egui::DragValue::new(&mut value[axis])
                         .prefix(*prefix)
-                        .range(-32768..=32767)
+                        .range(CAPSULE_COORD_MIN..=CAPSULE_COORD_MAX)
                         .speed(2.0),
                 )
                 .changed();
@@ -6115,8 +6115,16 @@ fn manipulate_selected_capsule(
     true
 }
 
+/// Capsule endpoints are authored units in the model-local space; the cook
+/// divides them by `WORLD_UNIT_DIVISOR` and then needs an `i16`. These are the
+/// authored bounds of that range. Clamping to `i16` here instead silently
+/// rewrote the doubled sword capsules (beyond +-32767 authored) whenever their
+/// editor was drawn.
+const CAPSULE_COORD_MIN: i32 = i16::MIN as i32 * psxed_project::units::WORLD_UNIT_DIVISOR;
+const CAPSULE_COORD_MAX: i32 = i16::MAX as i32 * psxed_project::units::WORLD_UNIT_DIVISOR;
+
 fn compact_capsule_coord(value: i32) -> i32 {
-    value.clamp(i16::MIN as i32, i16::MAX as i32)
+    value.clamp(CAPSULE_COORD_MIN, CAPSULE_COORD_MAX)
 }
 
 #[derive(Debug, Default, Clone)]
