@@ -95,7 +95,10 @@ pub fn last_cue(project_dir: &Path) -> Result<PathBuf, String> {
         }
     }
     newest.map(|(_, path)| path).ok_or_else(|| {
-        format!("no .cue in {}; run without skip_build first", baked.display())
+        format!(
+            "no .cue in {}; run without skip_build first",
+            baked.display()
+        )
     })
 }
 
@@ -220,7 +223,11 @@ mod tests {
 
         // A run that never left the menu says so rather than looking healthy.
         let stalled = parse_report("route-ticks=903  port1-polls=900\n");
-        assert!(stalled.summary(7000).contains("far short"), "{}", stalled.summary(7000));
+        assert!(
+            stalled.summary(7000).contains("far short"),
+            "{}",
+            stalled.summary(7000)
+        );
         assert!(!report.summary(7000).contains("far short"));
 
         // Missing counters must not panic or invent numbers.

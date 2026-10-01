@@ -162,9 +162,7 @@ pub fn brush_range_target(
         return Err("those brushes enclose no volume".to_string());
     }
     let center = std::array::from_fn(|axis| ((min[axis] + max[axis]) * 0.5).round() as i32);
-    let span = (0..3)
-        .map(|axis| max[axis] - min[axis])
-        .fold(0.0, f64::max);
+    let span = (0..3).map(|axis| max[axis] - min[axis]).fold(0.0, f64::max);
     Ok((center, (span * 1.2).round().max(512.0) as i32))
 }
 
@@ -187,8 +185,10 @@ pub fn find_frontend(explicit: Option<&Path>) -> Result<PathBuf, String> {
             return Ok(path);
         }
     }
-    Err("no frontend binary found; build one with `cargo build -p frontend --profile run-fast`"
-        .to_string())
+    Err(
+        "no frontend binary found; build one with `cargo build -p frontend --profile run-fast`"
+            .to_string(),
+    )
 }
 
 /// Render `shot` and return PNG bytes.
@@ -230,7 +230,10 @@ pub fn png_from_ppm(raw: &[u8]) -> Result<Vec<u8>, String> {
     let mut fields = Vec::new();
     let mut index = 0usize;
     while fields.len() < 4 {
-        while raw.get(index).is_some_and(|byte| byte.is_ascii_whitespace()) {
+        while raw
+            .get(index)
+            .is_some_and(|byte| byte.is_ascii_whitespace())
+        {
             index += 1;
         }
         if raw.get(index) == Some(&b'#') {
@@ -260,7 +263,9 @@ pub fn png_from_ppm(raw: &[u8]) -> Result<Vec<u8>, String> {
         return Err(format!("expected a P6 PPM, got {:?}", fields[0]));
     }
     let width: u32 = fields[1].parse().map_err(|_| "bad PPM width".to_string())?;
-    let height: u32 = fields[2].parse().map_err(|_| "bad PPM height".to_string())?;
+    let height: u32 = fields[2]
+        .parse()
+        .map_err(|_| "bad PPM height".to_string())?;
     let wanted = width as usize * height as usize * 3;
     let pixels = raw
         .get(index..index + wanted)
@@ -298,8 +303,7 @@ mod tests {
         // Not to below the room's half-extent though: along a diagonal the
         // eye can be 2693 units out and still well inside a 2048 half-room,
         // so the radius alone says nothing. Containment is the real invariant.
-        let shot = frame(&project, None, [0, 0, 0], 50_000, None, None)
-            .expect("a camera solves");
+        let shot = frame(&project, None, [0, 0, 0], 50_000, None, None).expect("a camera solves");
         assert!(
             shot.radius < 50_000,
             "radius {} was not pulled in at all",

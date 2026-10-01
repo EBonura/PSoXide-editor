@@ -214,7 +214,11 @@ pub fn audit(
             let _ = writeln!(out, "the leak check could not run: {error}");
         }
     }
-    let _ = writeln!(out, "(sealing check took {:.1}s)", started.elapsed().as_secs_f64());
+    let _ = writeln!(
+        out,
+        "(sealing check took {:.1}s)",
+        started.elapsed().as_secs_f64()
+    );
 
     if depth == AuditDepth::Sealing {
         out.push_str("\n(pass depth=\"full\" to cook and measure draw cost)\n");
@@ -403,17 +407,26 @@ mod tests {
         project.scenes[0].brushes.clear();
         let scene = &mut project.scenes[0];
         // Two slabs sharing their top plane over the same footprint.
-        scene.brushes.push(Brush::cuboid([0, 0, 0], [1024, 256, 1024]));
-        scene.brushes.push(Brush::cuboid([0, 0, 0], [1024, 256, 1024]));
+        scene
+            .brushes
+            .push(Brush::cuboid([0, 0, 0], [1024, 256, 1024]));
+        scene
+            .brushes
+            .push(Brush::cuboid([0, 0, 0], [1024, 256, 1024]));
         // One brush deliberately off the 64 grid.
-        scene.brushes.push(Brush::cuboid([7, 0, 7], [1031, 256, 1031]));
+        scene
+            .brushes
+            .push(Brush::cuboid([7, 0, 7], [1031, 256, 1031]));
 
         let report = audit(&project, Path::new("."), None, AuditDepth::Quick, 64, None)
             .expect("the quick audit runs");
         assert!(report.contains("coplanar face overlaps: "), "{report}");
         assert!(!report.contains("coplanar face overlaps: none"), "{report}");
         assert!(report.contains("are off it"), "{report}");
-        assert!(report.contains("degenerate (enclose no volume): none"), "{report}");
+        assert!(
+            report.contains("degenerate (enclose no volume): none"),
+            "{report}"
+        );
         // The quick pass must not cook; it says so instead.
         assert!(report.contains("quick audit"), "{report}");
 
@@ -422,13 +435,25 @@ mod tests {
         let clean = audit(&project, Path::new("."), None, AuditDepth::Quick, 64, None)
             .expect("the quick audit runs");
         assert!(clean.contains("coplanar face overlaps: none"), "{clean}");
-        assert!(clean.contains("every authored coordinate is aligned"), "{clean}");
+        assert!(
+            clean.contains("every authored coordinate is aligned"),
+            "{clean}"
+        );
 
         // Scoping hides the rest of the scene: brush 0 alone is clean even
         // while its coplanar twin is still present.
-        project.scenes[0].brushes.push(Brush::cuboid([0, 0, 0], [1024, 256, 1024]));
-        let scoped = audit(&project, Path::new("."), None, AuditDepth::Quick, 64, Some((0, 1)))
-            .expect("a scoped audit runs");
+        project.scenes[0]
+            .brushes
+            .push(Brush::cuboid([0, 0, 0], [1024, 256, 1024]));
+        let scoped = audit(
+            &project,
+            Path::new("."),
+            None,
+            AuditDepth::Quick,
+            64,
+            Some((0, 1)),
+        )
+        .expect("a scoped audit runs");
         assert!(scoped.contains("Scoped to brushes 0..1"), "{scoped}");
         // The pair still touches brush 0, so it is still reported: a scoped
         // audit hides unrelated history, not collisions with it.
@@ -436,6 +461,14 @@ mod tests {
         assert!(scoped.contains("1 brushes, 6 faces"), "{scoped}");
 
         // An out-of-range scope is an error, not an empty report.
-        assert!(audit(&project, Path::new("."), None, AuditDepth::Quick, 64, Some((99, 1))).is_err());
+        assert!(audit(
+            &project,
+            Path::new("."),
+            None,
+            AuditDepth::Quick,
+            64,
+            Some((99, 1))
+        )
+        .is_err());
     }
 }

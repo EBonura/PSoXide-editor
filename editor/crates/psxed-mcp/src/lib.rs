@@ -112,7 +112,11 @@ pub fn resolve_scene(project: &ProjectDocument, index: Option<usize>) -> Result<
         .scenes
         .iter()
         .position(|scene| !scene.brushes.is_empty())
-        .or(if project.scenes.is_empty() { None } else { Some(0) })
+        .or(if project.scenes.is_empty() {
+            None
+        } else {
+            Some(0)
+        })
         .ok_or_else(|| "the project has no scenes".to_string())
 }
 
@@ -124,9 +128,7 @@ fn solid_brushes(scene: &Scene) -> Vec<(&Brush, [f64; 3], [f64; 3])> {
         .filter(|brush| brush.contents.is_solid())
         .filter_map(|brush| {
             let solved = brush.solve();
-            solved
-                .is_valid()
-                .then_some((brush, solved.min, solved.max))
+            solved.is_valid().then_some((brush, solved.min, solved.max))
         })
         .collect()
 }
@@ -328,25 +330,21 @@ pub fn scene_info(project: &ProjectDocument, scene_index: Option<usize>) -> Resu
 
     out.push_str("\n## Horizontal surface levels (brush tops by footprint area)\n\n");
     for (y, area, count) in busiest_levels(&solids).iter().take(8) {
-        let _ = writeln!(
-            out,
-            "- Y {y}: {area:.0} sq units across {count} brushes"
-        );
+        let _ = writeln!(out, "- Y {y}: {area:.0} sq units across {count} brushes");
     }
     out.push_str("\nPass one of these +512 as `slice` to plan_view for a floor plan.\n");
     Ok(out)
 }
 
 fn world_bounds(solids: &[(&Brush, [f64; 3], [f64; 3])]) -> ([f64; 3], [f64; 3]) {
-    solids.iter().fold(
-        ([f64::MAX; 3], [f64::MIN; 3]),
-        |(lo, hi), (_, min, max)| {
+    solids
+        .iter()
+        .fold(([f64::MAX; 3], [f64::MIN; 3]), |(lo, hi), (_, min, max)| {
             (
                 std::array::from_fn(|a| lo[a].min(min[a])),
                 std::array::from_fn(|a| hi[a].max(max[a])),
             )
-        },
-    )
+        })
 }
 
 /// Brush-top Y values ranked by the footprint area resting on them. These are
@@ -638,7 +636,9 @@ pub fn plan_view(
         );
     }
     if matches!(axis, PlanAxis::Top) {
-        legend.push_str("\ncandidate floor levels (Y, footprint area) - section at one of these +512:\n");
+        legend.push_str(
+            "\ncandidate floor levels (Y, footprint area) - section at one of these +512:\n",
+        );
         for (y, area, count) in busiest_levels(&solids).iter().take(6) {
             let _ = writeln!(legend, "  Y {y}: {area:.0} sq units across {count} brushes");
         }
@@ -679,7 +679,9 @@ mod tests {
         // empty document, so clear it before authoring the fixture.
         scene.brushes.clear();
         // Floor slab 0..256, and a wall standing on it up to 2048.
-        scene.brushes.push(Brush::cuboid([0, 0, 0], [4096, 256, 4096]));
+        scene
+            .brushes
+            .push(Brush::cuboid([0, 0, 0], [4096, 256, 4096]));
         scene
             .brushes
             .push(Brush::cuboid([0, 256, 0], [128, 2048, 4096]));
@@ -687,13 +689,21 @@ mod tests {
         // A slice through the wall only.
         let high = plan_view(&project, None, PlanAxis::Top, Some(1024), 256, None)
             .expect("wall slice renders");
-        assert!(high.legend.contains("1 of 2 solid brushes"), "{}", high.legend);
+        assert!(
+            high.legend.contains("1 of 2 solid brushes"),
+            "{}",
+            high.legend
+        );
 
         // A slice through the slab catches both (the wall's base is at 256,
         // the slab spans 0..256, so 200 is slab-only; use 128).
         let low = plan_view(&project, None, PlanAxis::Top, Some(128), 256, None)
             .expect("slab slice renders");
-        assert!(low.legend.contains("1 of 2 solid brushes"), "{}", low.legend);
+        assert!(
+            low.legend.contains("1 of 2 solid brushes"),
+            "{}",
+            low.legend
+        );
 
         // PNG magic, so an encoding regression fails here and not in a client.
         assert_eq!(&high.png[..8], b"\x89PNG\r\n\x1a\n");

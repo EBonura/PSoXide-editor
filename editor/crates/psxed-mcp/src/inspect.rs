@@ -222,7 +222,10 @@ mod tests {
         assert!(report.contains("down, a ceiling surface"), "{report}");
         assert!(report.contains("<none>"), "an untextured face must say so");
         // Identity UVs read as 100%, not as a raw Q8 256.
-        assert!(report.contains("| 100, 100 |") || report.contains("[100, 100]"), "{report}");
+        assert!(
+            report.contains("| 100, 100 |") || report.contains("[100, 100]"),
+            "{report}"
+        );
 
         // A scale above ~128% used to overflow the i16 while being formatted.
         project.scenes[0].brushes[0].faces[0].uv.scale_q8 = [512, 4096];

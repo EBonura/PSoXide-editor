@@ -240,9 +240,7 @@ impl Workspace {
         let outer_max = std::array::from_fn(|axis| inner_max[axis] + thickness);
         let shell = Brush::cuboid(outer_min, outer_max)
             .hollow(thickness)
-            .ok_or_else(|| {
-                format!("a {thickness}-unit shell does not fit around this interior")
-            })?;
+            .ok_or_else(|| format!("a {thickness}-unit shell does not fit around this interior"))?;
         let mut shell = shell;
         if let Some(id) = material {
             for face in shell.iter_mut().flat_map(|brush| brush.faces.iter_mut()) {
@@ -330,10 +328,6 @@ impl Workspace {
             faces + source.iter().map(|b| b.faces.len()).sum::<usize>()
         ))
     }
-
-
-
-
 
     /// Directory holding pre-save snapshots.
     fn backup_dir(&self) -> PathBuf {
@@ -488,7 +482,6 @@ impl Workspace {
         ))
     }
 
-
     /// Put a run of brushes in a named group, creating it if needed.
     ///
     /// Blockout practice calls these labelled spaces, and they solve a
@@ -521,7 +514,10 @@ impl Workspace {
         for brush in scene_doc.brushes[first..first + count].iter_mut() {
             brush.group = Some(id);
         }
-        self.record(format!("group_brushes {first}..{} as {name:?}", first + count));
+        self.record(format!(
+            "group_brushes {first}..{} as {name:?}",
+            first + count
+        ));
         Ok(format!(
             "put {count} brush(es) in group {name:?}. Pass that name as `group` to \
              array, set_material, set_face_uv, audit, screenshot or delete instead of \
@@ -549,7 +545,10 @@ impl Workspace {
                 if names.is_empty() {
                     format!("no group named {name:?}; the scene has none yet")
                 } else {
-                    format!("no group named {name:?}; the scene has {}", names.join(", "))
+                    format!(
+                        "no group named {name:?}; the scene has {}",
+                        names.join(", ")
+                    )
                 }
             })?;
         let members: Vec<usize> = scene_doc
@@ -650,7 +649,9 @@ impl Workspace {
             node.transform.translation =
                 [position[0] as f32, position[1] as f32, position[2] as f32];
         }
-        self.record(format!("place_node {source:?} -> {new_name:?} at {position:?}"));
+        self.record(format!(
+            "place_node {source:?} -> {new_name:?} at {position:?}"
+        ));
         let mut out = format!(
             "cloned {source:?} ({label}) as {new_name:?} (id {}) at {position:?}: {copied} node(s) \
              including its component children",
@@ -747,7 +748,9 @@ impl Workspace {
             return Err(format!("the scene refused to remove {name:?}"));
         }
         self.record(format!("delete_node {name:?}"));
-        Ok(format!("removed {name:?} and its subtree, {removed} node(s)"))
+        Ok(format!(
+            "removed {name:?} and its subtree, {removed} node(s)"
+        ))
     }
 
     /// Place a static point light.
@@ -770,7 +773,9 @@ impl Workspace {
             return Err("radius must be positive".to_string());
         }
         if !(0.0..=8.0).contains(&intensity) {
-            return Err(format!("intensity {intensity} is outside the sane range 0..=8"));
+            return Err(format!(
+                "intensity {intensity} is outside the sane range 0..=8"
+            ));
         }
         let draft = self.doc.bsp_cook_mode == BrushWorldCookMode::Draft;
         let scene_doc = &mut self.doc.scenes[scene_index];
@@ -986,9 +991,11 @@ impl Workspace {
                     let dot = plane.normal[0] * i64::from(wanted[0])
                         + plane.normal[1] * i64::from(wanted[1])
                         + plane.normal[2] * i64::from(wanted[2]);
-                    let cross_free = plane.normal.iter().zip(wanted.iter()).all(|(n, w)| {
-                        (*w != 0) || (*n == 0)
-                    });
+                    let cross_free = plane
+                        .normal
+                        .iter()
+                        .zip(wanted.iter())
+                        .all(|(n, w)| (*w != 0) || (*n == 0));
                     if dot <= 0 || !cross_free {
                         continue;
                     }
@@ -1036,15 +1043,12 @@ impl Workspace {
         if count == 0 {
             return Err("count must be at least 1".to_string());
         }
-        scene
-            .brushes
-            .get(first..end)
-            .ok_or_else(|| {
-                format!(
-                    "brushes {first}..{end} are out of range: scene {scene_index} has {}",
-                    scene.brushes.len()
-                )
-            })
+        scene.brushes.get(first..end).ok_or_else(|| {
+            format!(
+                "brushes {first}..{end} are out of range: scene {scene_index} has {}",
+                scene.brushes.len()
+            )
+        })
     }
 
     fn brush_slice_mut(
@@ -1058,7 +1062,6 @@ impl Workspace {
         Ok(&mut scene.brushes[first..first + count])
     }
 }
-
 
 /// Copy `source` and every descendant under `parent`, returning the new root.
 fn clone_subtree(
@@ -1118,10 +1121,7 @@ fn list_backups(dir: &Path) -> Vec<PathBuf> {
 fn duplicate_persistence_ids(scene: &psxed_project::Scene) -> Vec<String> {
     let mut seen: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
     for node in scene.nodes() {
-        if let NodeKind::PointOfInterest {
-            persistence_id, ..
-        } = &node.kind
-        {
+        if let NodeKind::PointOfInterest { persistence_id, .. } = &node.kind {
             if !persistence_id.is_empty() {
                 *seen.entry(persistence_id.clone()).or_default() += 1;
             }
@@ -1279,10 +1279,19 @@ mod tests {
 
         // Now simulate the editor saving underneath a staged edit.
         workspace
-            .add_shape(None, [0, 0, 0], [512, 512, 512], BrushDrawSettings::default(), 64, None)
+            .add_shape(
+                None,
+                [0, 0, 0],
+                [512, 512, 512],
+                BrushDrawSettings::default(),
+                64,
+                None,
+            )
             .expect("a box builds");
         std::fs::write(&workspace.path, "// touched by the editor\n").unwrap();
-        let refused = workspace.save().expect_err("a changed file must block the save");
+        let refused = workspace
+            .save()
+            .expect_err("a changed file must block the save");
         assert!(refused.contains("changed on disk"), "{refused}");
 
         std::fs::remove_dir_all(&dir).ok();

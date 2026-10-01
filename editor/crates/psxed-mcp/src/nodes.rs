@@ -77,7 +77,10 @@ pub fn find_node(scene: &Scene, needle: &str) -> Result<NodeId, String> {
 /// Deliberately reports what the project actually contains rather than every
 /// variant the format allows: an example you can clone is more useful than a
 /// name you would have to construct from scratch.
-pub fn entity_types(project: &ProjectDocument, scene_index: Option<usize>) -> Result<String, String> {
+pub fn entity_types(
+    project: &ProjectDocument,
+    scene_index: Option<usize>,
+) -> Result<String, String> {
     let index = resolve_scene(project, scene_index)?;
     let scene = &project.scenes[index];
     let mut kinds: BTreeMap<&'static str, (usize, Vec<String>)> = BTreeMap::new();
@@ -89,7 +92,12 @@ pub fn entity_types(project: &ProjectDocument, scene_index: Option<usize>) -> Re
         }
     }
     let mut out = format!("# Node kinds in scene {index}\n\n");
-    let _ = writeln!(out, "{} nodes across {} kinds.\n", scene.nodes().len(), kinds.len());
+    let _ = writeln!(
+        out,
+        "{} nodes across {} kinds.\n",
+        scene.nodes().len(),
+        kinds.len()
+    );
     for (label, (count, names)) in &kinds {
         let _ = writeln!(
             out,
@@ -149,7 +157,11 @@ pub fn get_node(
             .collect();
         let _ = writeln!(out, "children: {}", names.join(", "));
     }
-    let _ = writeln!(out, "\n## kind payload (RON)\n\n```\n{}\n```", node_kind_to_ron(&node.kind)?);
+    let _ = writeln!(
+        out,
+        "\n## kind payload (RON)\n\n```\n{}\n```",
+        node_kind_to_ron(&node.kind)?
+    );
     Ok(out)
 }
 
