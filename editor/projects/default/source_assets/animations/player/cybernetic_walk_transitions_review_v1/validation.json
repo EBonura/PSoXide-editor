@@ -1,0 +1,838 @@
+{
+  "status": "candidate; not installed",
+  "fps": 30,
+  "transitions": {
+    "walk_fwd_windup": {
+      "frames": 15,
+      "duration": 0.4666666666666667,
+      "max_reach": 0.9803760267251723,
+      "max_foot_target_error": 6.333232929458346e-05,
+      "samples": [
+        {
+          "frame": 1,
+          "side": "Left",
+          "reach": 0.9522515073615534,
+          "target_error": 1.9202249780634432e-05
+        },
+        {
+          "frame": 1,
+          "side": "Right",
+          "reach": 0.9803760267251723,
+          "target_error": 3.369309396606225e-05
+        },
+        {
+          "frame": 2,
+          "side": "Left",
+          "reach": 0.9441018322602021,
+          "target_error": 1.7101626272538614e-05
+        },
+        {
+          "frame": 2,
+          "side": "Right",
+          "reach": 0.9771385924228816,
+          "target_error": 3.4036199570147874e-05
+        },
+        {
+          "frame": 3,
+          "side": "Left",
+          "reach": 0.9321327561797523,
+          "target_error": 1.4092978024550937e-05
+        },
+        {
+          "frame": 3,
+          "side": "Right",
+          "reach": 0.9713024559400192,
+          "target_error": 3.441033044560497e-05
+        },
+        {
+          "frame": 4,
+          "side": "Left",
+          "reach": 0.918090068795521,
+          "target_error": 1.1383166279649152e-05
+        },
+        {
+          "frame": 4,
+          "side": "Right",
+          "reach": 0.9573290322465402,
+          "target_error": 3.473741937498225e-05
+        },
+        {
+          "frame": 5,
+          "side": "Left",
+          "reach": 0.9038137776712596,
+          "target_error": 9.816988163244464e-06
+        },
+        {
+          "frame": 5,
+          "side": "Right",
+          "reach": 0.927473075953103,
+          "target_error": 3.512030147789248e-05
+        },
+        {
+          "frame": 6,
+          "side": "Left",
+          "reach": 0.8910398036960736,
+          "target_error": 9.309529524702825e-06
+        },
+        {
+          "frame": 6,
+          "side": "Right",
+          "reach": 0.884907995637225,
+          "target_error": 3.327259124712888e-05
+        },
+        {
+          "frame": 7,
+          "side": "Left",
+          "reach": 0.8811700665815098,
+          "target_error": 9.433224173977693e-06
+        },
+        {
+          "frame": 7,
+          "side": "Right",
+          "reach": 0.8541571448945238,
+          "target_error": 3.1660143575943694e-05
+        },
+        {
+          "frame": 8,
+          "side": "Left",
+          "reach": 0.8750022549682258,
+          "target_error": 9.823581378635715e-06
+        },
+        {
+          "frame": 8,
+          "side": "Right",
+          "reach": 0.8593753098217894,
+          "target_error": 2.5477945318219787e-05
+        },
+        {
+          "frame": 9,
+          "side": "Left",
+          "reach": 0.872570371808218,
+          "target_error": 9.520772160654398e-06
+        },
+        {
+          "frame": 9,
+          "side": "Right",
+          "reach": 0.8931158835627309,
+          "target_error": 2.912352664375129e-05
+        },
+        {
+          "frame": 10,
+          "side": "Left",
+          "reach": 0.8732104742061456,
+          "target_error": 8.702068427627884e-06
+        },
+        {
+          "frame": 10,
+          "side": "Right",
+          "reach": 0.9268395456797894,
+          "target_error": 3.426148333088644e-05
+        },
+        {
+          "frame": 11,
+          "side": "Left",
+          "reach": 0.8757883483445227,
+          "target_error": 7.789396727235991e-06
+        },
+        {
+          "frame": 11,
+          "side": "Right",
+          "reach": 0.9452755895955339,
+          "target_error": 6.333232929458346e-05
+        },
+        {
+          "frame": 12,
+          "side": "Left",
+          "reach": 0.8789600830240649,
+          "target_error": 7.379040316105735e-06
+        },
+        {
+          "frame": 12,
+          "side": "Right",
+          "reach": 0.952858441126818,
+          "target_error": 6.268400399000422e-05
+        },
+        {
+          "frame": 13,
+          "side": "Left",
+          "reach": 0.8814454214210238,
+          "target_error": 7.011199230510142e-06
+        },
+        {
+          "frame": 13,
+          "side": "Right",
+          "reach": 0.9568240902813727,
+          "target_error": 6.276293253069636e-05
+        }
+      ]
+    },
+    "walk_fwd_winddown": {
+      "frames": 25,
+      "duration": 0.8,
+      "max_reach": 0.9811797430501716,
+      "max_foot_target_error": 6.252496030007884e-05,
+      "samples": [
+        {
+          "frame": 1,
+          "side": "Left",
+          "reach": 0.8823586156251151,
+          "target_error": 6.919824749459644e-06
+        },
+        {
+          "frame": 1,
+          "side": "Right",
+          "reach": 0.9578726252748911,
+          "target_error": 6.252496030007884e-05
+        },
+        {
+          "frame": 2,
+          "side": "Left",
+          "reach": 0.8808824316851933,
+          "target_error": 6.859164902460443e-06
+        },
+        {
+          "frame": 2,
+          "side": "Right",
+          "reach": 0.9567852590462445,
+          "target_error": 6.182750250170464e-05
+        },
+        {
+          "frame": 3,
+          "side": "Left",
+          "reach": 0.8748564604390432,
+          "target_error": 6.467846398487074e-06
+        },
+        {
+          "frame": 3,
+          "side": "Right",
+          "reach": 0.9550480345611663,
+          "target_error": 6.0959813704941166e-05
+        },
+        {
+          "frame": 4,
+          "side": "Left",
+          "reach": 0.8625692231474439,
+          "target_error": 5.988325361182859e-06
+        },
+        {
+          "frame": 4,
+          "side": "Right",
+          "reach": 0.952764488236132,
+          "target_error": 6.015848394140598e-05
+        },
+        {
+          "frame": 5,
+          "side": "Left",
+          "reach": 0.8468976434178891,
+          "target_error": 5.784480123306821e-06
+        },
+        {
+          "frame": 5,
+          "side": "Right",
+          "reach": 0.9500614309077776,
+          "target_error": 5.922385299079302e-05
+        },
+        {
+          "frame": 6,
+          "side": "Left",
+          "reach": 0.83553912182245,
+          "target_error": 5.952742030360503e-06
+        },
+        {
+          "frame": 6,
+          "side": "Right",
+          "reach": 0.9470817632781614,
+          "target_error": 5.839965044956005e-05
+        },
+        {
+          "frame": 7,
+          "side": "Left",
+          "reach": 0.8360254812448631,
+          "target_error": 6.218040155211774e-06
+        },
+        {
+          "frame": 7,
+          "side": "Right",
+          "reach": 0.9439783719109406,
+          "target_error": 5.8681678555351715e-05
+        },
+        {
+          "frame": 8,
+          "side": "Left",
+          "reach": 0.8493361595624856,
+          "target_error": 6.0218856764701186e-06
+        },
+        {
+          "frame": 8,
+          "side": "Right",
+          "reach": 0.9409199220775755,
+          "target_error": 4.659795150579012e-05
+        },
+        {
+          "frame": 9,
+          "side": "Left",
+          "reach": 0.8690108101776166,
+          "target_error": 6.4910190322055476e-06
+        },
+        {
+          "frame": 9,
+          "side": "Right",
+          "reach": 0.9380854525911452,
+          "target_error": 4.7137215602514553e-05
+        },
+        {
+          "frame": 10,
+          "side": "Left",
+          "reach": 0.8867939709144063,
+          "target_error": 7.88840578433733e-06
+        },
+        {
+          "frame": 10,
+          "side": "Right",
+          "reach": 0.9356149367455393,
+          "target_error": 4.730165627395706e-05
+        },
+        {
+          "frame": 11,
+          "side": "Left",
+          "reach": 0.8985081130403626,
+          "target_error": 9.821454282143114e-06
+        },
+        {
+          "frame": 11,
+          "side": "Right",
+          "reach": 0.9328581994599341,
+          "target_error": 4.6196718174370664e-05
+        },
+        {
+          "frame": 12,
+          "side": "Left",
+          "reach": 0.9049764117530523,
+          "target_error": 1.1870100767626124e-05
+        },
+        {
+          "frame": 12,
+          "side": "Right",
+          "reach": 0.9279712172748458,
+          "target_error": 4.1703636404816056e-05
+        },
+        {
+          "frame": 13,
+          "side": "Left",
+          "reach": 0.9090910319466954,
+          "target_error": 1.41999158232429e-05
+        },
+        {
+          "frame": 13,
+          "side": "Right",
+          "reach": 0.9191999490711235,
+          "target_error": 4.05422711630939e-05
+        },
+        {
+          "frame": 14,
+          "side": "Left",
+          "reach": 0.9130345888810921,
+          "target_error": 1.6484284972943043e-05
+        },
+        {
+          "frame": 14,
+          "side": "Right",
+          "reach": 0.90823858329976,
+          "target_error": 3.955080901971549e-05
+        },
+        {
+          "frame": 15,
+          "side": "Left",
+          "reach": 0.9177178874932056,
+          "target_error": 1.844023363752916e-05
+        },
+        {
+          "frame": 15,
+          "side": "Right",
+          "reach": 0.9016434126015203,
+          "target_error": 3.857269697536753e-05
+        },
+        {
+          "frame": 16,
+          "side": "Left",
+          "reach": 0.9229854437661354,
+          "target_error": 2.0071273659532557e-05
+        },
+        {
+          "frame": 16,
+          "side": "Right",
+          "reach": 0.906345187527273,
+          "target_error": 3.744913808826568e-05
+        },
+        {
+          "frame": 17,
+          "side": "Left",
+          "reach": 0.9286039845478586,
+          "target_error": 2.0978819093109333e-05
+        },
+        {
+          "frame": 17,
+          "side": "Right",
+          "reach": 0.9226603714268989,
+          "target_error": 3.6301351226407906e-05
+        },
+        {
+          "frame": 18,
+          "side": "Left",
+          "reach": 0.9343088039480896,
+          "target_error": 2.163770757810594e-05
+        },
+        {
+          "frame": 18,
+          "side": "Right",
+          "reach": 0.9435499586056749,
+          "target_error": 3.511492070303554e-05
+        },
+        {
+          "frame": 19,
+          "side": "Left",
+          "reach": 0.9398175997443989,
+          "target_error": 2.16176461494259e-05
+        },
+        {
+          "frame": 19,
+          "side": "Right",
+          "reach": 0.9611543320986042,
+          "target_error": 3.395764090985794e-05
+        },
+        {
+          "frame": 20,
+          "side": "Left",
+          "reach": 0.9448471706811324,
+          "target_error": 2.130798447351855e-05
+        },
+        {
+          "frame": 20,
+          "side": "Right",
+          "reach": 0.9722933551800091,
+          "target_error": 3.353534053116005e-05
+        },
+        {
+          "frame": 21,
+          "side": "Left",
+          "reach": 0.9491238660027146,
+          "target_error": 2.0661848032379688e-05
+        },
+        {
+          "frame": 21,
+          "side": "Right",
+          "reach": 0.9779716612750168,
+          "target_error": 3.359985515749337e-05
+        },
+        {
+          "frame": 22,
+          "side": "Left",
+          "reach": 0.9523997144295936,
+          "target_error": 2.021791375261119e-05
+        },
+        {
+          "frame": 22,
+          "side": "Right",
+          "reach": 0.9801302890011682,
+          "target_error": 3.3640139546975934e-05
+        },
+        {
+          "frame": 23,
+          "side": "Left",
+          "reach": 0.9544687152231767,
+          "target_error": 1.9818332913442845e-05
+        },
+        {
+          "frame": 23,
+          "side": "Right",
+          "reach": 0.9811797430501716,
+          "target_error": 3.3777990847283256e-05
+        }
+      ]
+    },
+    "walk_fwd_winddown_mirror": {
+      "frames": 25,
+      "duration": 0.8,
+      "max_reach": 0.9809627115434769,
+      "max_foot_target_error": 8.389213374347771e-05,
+      "samples": [
+        {
+          "frame": 1,
+          "side": "Left",
+          "reach": 0.9651946034571968,
+          "target_error": 7.364160731018534e-05
+        },
+        {
+          "frame": 1,
+          "side": "Right",
+          "reach": 0.9066844659100337,
+          "target_error": 7.57471578683253e-05
+        },
+        {
+          "frame": 2,
+          "side": "Left",
+          "reach": 0.9639107290294597,
+          "target_error": 7.497387805906914e-05
+        },
+        {
+          "frame": 2,
+          "side": "Right",
+          "reach": 0.9048846064931045,
+          "target_error": 7.340288106532503e-05
+        },
+        {
+          "frame": 3,
+          "side": "Left",
+          "reach": 0.9618598626392852,
+          "target_error": 7.714382897020372e-05
+        },
+        {
+          "frame": 3,
+          "side": "Right",
+          "reach": 0.8984502822379106,
+          "target_error": 6.979607350386473e-05
+        },
+        {
+          "frame": 4,
+          "side": "Left",
+          "reach": 0.9591599306907267,
+          "target_error": 7.93861996173574e-05
+        },
+        {
+          "frame": 4,
+          "side": "Right",
+          "reach": 0.8858780186731919,
+          "target_error": 6.13956453823526e-05
+        },
+        {
+          "frame": 5,
+          "side": "Left",
+          "reach": 0.9559564226941405,
+          "target_error": 8.14746712300111e-05
+        },
+        {
+          "frame": 5,
+          "side": "Right",
+          "reach": 0.8703901100669229,
+          "target_error": 5.617820032188444e-05
+        },
+        {
+          "frame": 6,
+          "side": "Left",
+          "reach": 0.9524151059052635,
+          "target_error": 8.306152799861545e-05
+        },
+        {
+          "frame": 6,
+          "side": "Right",
+          "reach": 0.8600946627989655,
+          "target_error": 5.128737511689674e-05
+        },
+        {
+          "frame": 7,
+          "side": "Left",
+          "reach": 0.9487187650528857,
+          "target_error": 8.389213374347771e-05
+        },
+        {
+          "frame": 7,
+          "side": "Right",
+          "reach": 0.8627227915855146,
+          "target_error": 4.3861049075481064e-05
+        },
+        {
+          "frame": 8,
+          "side": "Left",
+          "reach": 0.9450644302332409,
+          "target_error": 8.3028949590614e-05
+        },
+        {
+          "frame": 8,
+          "side": "Right",
+          "reach": 0.8790162566267503,
+          "target_error": 3.3704549100933316e-05
+        },
+        {
+          "frame": 9,
+          "side": "Left",
+          "reach": 0.9416596503766308,
+          "target_error": 8.079009989857522e-05
+        },
+        {
+          "frame": 9,
+          "side": "Right",
+          "reach": 0.9019603497069778,
+          "target_error": 2.583640058433897e-05
+        },
+        {
+          "frame": 10,
+          "side": "Left",
+          "reach": 0.9386579760112245,
+          "target_error": 7.745584251818943e-05
+        },
+        {
+          "frame": 10,
+          "side": "Right",
+          "reach": 0.9227122493706003,
+          "target_error": 2.438363203330861e-05
+        },
+        {
+          "frame": 11,
+          "side": "Left",
+          "reach": 0.9353824378254303,
+          "target_error": 7.400982475576943e-05
+        },
+        {
+          "frame": 11,
+          "side": "Right",
+          "reach": 0.9366101385230629,
+          "target_error": 2.5903691909835083e-05
+        },
+        {
+          "frame": 12,
+          "side": "Left",
+          "reach": 0.9299053022213869,
+          "target_error": 7.06834394037261e-05
+        },
+        {
+          "frame": 12,
+          "side": "Right",
+          "reach": 0.944067193101547,
+          "target_error": 5.089047616427478e-05
+        },
+        {
+          "frame": 13,
+          "side": "Left",
+          "reach": 0.9202899271203954,
+          "target_error": 2.0320844288600897e-05
+        },
+        {
+          "frame": 13,
+          "side": "Right",
+          "reach": 0.9475955231426023,
+          "target_error": 4.320792048753414e-05
+        },
+        {
+          "frame": 14,
+          "side": "Left",
+          "reach": 0.9079428008915991,
+          "target_error": 1.9190458288477542e-05
+        },
+        {
+          "frame": 14,
+          "side": "Right",
+          "reach": 0.9497313371909928,
+          "target_error": 3.8064586790653855e-05
+        },
+        {
+          "frame": 15,
+          "side": "Left",
+          "reach": 0.8990414820874837,
+          "target_error": 1.7298812197223288e-05
+        },
+        {
+          "frame": 15,
+          "side": "Right",
+          "reach": 0.9526729854165521,
+          "target_error": 3.5333506355534964e-05
+        },
+        {
+          "frame": 16,
+          "side": "Left",
+          "reach": 0.9002639561061108,
+          "target_error": 3.974089754154366e-05
+        },
+        {
+          "frame": 16,
+          "side": "Right",
+          "reach": 0.9563238987818621,
+          "target_error": 3.4092130890339676e-05
+        },
+        {
+          "frame": 17,
+          "side": "Left",
+          "reach": 0.9120931778907818,
+          "target_error": 3.109010296469191e-05
+        },
+        {
+          "frame": 17,
+          "side": "Right",
+          "reach": 0.9604638104950505,
+          "target_error": 3.345224731441231e-05
+        },
+        {
+          "frame": 18,
+          "side": "Left",
+          "reach": 0.9280757592789806,
+          "target_error": 2.4755439509696354e-05
+        },
+        {
+          "frame": 18,
+          "side": "Right",
+          "reach": 0.9648354135819605,
+          "target_error": 3.331336470071638e-05
+        },
+        {
+          "frame": 19,
+          "side": "Left",
+          "reach": 0.941075745071391,
+          "target_error": 2.06518674042278e-05
+        },
+        {
+          "frame": 19,
+          "side": "Right",
+          "reach": 0.9691657413571437,
+          "target_error": 3.3190385637255445e-05
+        },
+        {
+          "frame": 20,
+          "side": "Left",
+          "reach": 0.9485568757081047,
+          "target_error": 1.8391257165132533e-05
+        },
+        {
+          "frame": 20,
+          "side": "Right",
+          "reach": 0.9731831034072451,
+          "target_error": 3.323796112296346e-05
+        },
+        {
+          "frame": 21,
+          "side": "Left",
+          "reach": 0.9520634977854939,
+          "target_error": 1.8040777456363597e-05
+        },
+        {
+          "frame": 21,
+          "side": "Right",
+          "reach": 0.9766320413780033,
+          "target_error": 3.346296541639e-05
+        },
+        {
+          "frame": 22,
+          "side": "Left",
+          "reach": 0.9538112501653829,
+          "target_error": 1.8829007651340196e-05
+        },
+        {
+          "frame": 22,
+          "side": "Right",
+          "reach": 0.9792860199194507,
+          "target_error": 3.336811872314228e-05
+        },
+        {
+          "frame": 23,
+          "side": "Left",
+          "reach": 0.9548328281699577,
+          "target_error": 1.947607420210247e-05
+        },
+        {
+          "frame": 23,
+          "side": "Right",
+          "reach": 0.9809627115434769,
+          "target_error": 3.364124512681812e-05
+        }
+      ]
+    }
+  },
+  "references": {
+    "idle": {
+      "frames": 44,
+      "hz": 6,
+      "sha256": "44e9b48835dbd76e4b440b349476ffddbcd233d3f524db91cd2f8a708896aaf9"
+    },
+    "walk": {
+      "frames": 34,
+      "hz": 23,
+      "sha256": "dd1fafdf9edd21790dd480db33ce3c88f938ba5e26a379180bdee990bcb9dbf5"
+    },
+    "start_original": {
+      "frames": 8,
+      "hz": 15,
+      "sha256": "05edc3546af245d6de11a5e4418de7fb8657c35c0889dbc2b9262c1c12ea82a6"
+    },
+    "stop_original": {
+      "frames": 8,
+      "hz": 15,
+      "sha256": "82acdaee30adfa91754b631101b3b05fe4a9fb3728421a3c58e8c3d6e5feaa93"
+    },
+    "stop_alt_original": {
+      "frames": 2,
+      "hz": 1,
+      "sha256": "df208f78133404ff90b3de151125751997e9da3a7befcddf986bb4a271db7e71"
+    }
+  },
+  "walk_phase_step_per_preview_frame": 0.7841796875,
+  "review": "Current approved walk between original or new transitions; source reconstruction studio preview, not an engine capture.",
+  "source_sha256": {
+    "walk_fwd_winddown.glb": "1d2d23246d3f803ff0eb28bbc2a939bffcd46be3167ad4e34c66a166b47c7056",
+    "walk_fwd_winddown_mirror.glb": "4c90d142abc0b8d51edd902dbb0626141cbff7745a17d3631ad25c02393cf72f",
+    "walk_fwd_windup.glb": "3687b91e02e46b8712b95c6af3a97da2afcf5f2dff978eda597a253bb11e7407"
+  },
+  "render": {
+    "new_A_quarter": {
+      "frames": 161,
+      "floor_z": -0.044221002608537674,
+      "framing": {
+        "xmin": 0.374523401260376,
+        "xmax": 0.6354751586914062,
+        "ymin": 0.1578218638896942,
+        "ymax": 0.8264538645744324
+      }
+    },
+    "new_A_side": {
+      "frames": 161,
+      "floor_z": -0.044221002608537674,
+      "framing": {
+        "xmin": 0.32875457406044006,
+        "xmax": 0.6756115555763245,
+        "ymin": 0.15666116774082184,
+        "ymax": 0.8263524770736694
+      }
+    },
+    "original_A_quarter": {
+      "frames": 161,
+      "floor_z": -0.044221002608537674,
+      "framing": {
+        "xmin": 0.36806491017341614,
+        "xmax": 0.6354751586914062,
+        "ymin": 0.1549537032842636,
+        "ymax": 0.848002016544342
+      }
+    },
+    "original_A_side": {
+      "frames": 161,
+      "floor_z": -0.044221002608537674,
+      "framing": {
+        "xmin": 0.32875457406044006,
+        "xmax": 0.6756115555763245,
+        "ymin": 0.15516455471515656,
+        "ymax": 0.8483635187149048
+      }
+    },
+    "new_B_quarter": {
+      "frames": 139,
+      "floor_z": -0.04356389492750168,
+      "framing": {
+        "xmin": 0.374523401260376,
+        "xmax": 0.6354751586914062,
+        "ymin": 0.15759161114692688,
+        "ymax": 0.826223611831665
+      }
+    },
+    "original_B_quarter": {
+      "frames": 139,
+      "floor_z": -0.04356389492750168,
+      "framing": {
+        "xmin": 0.36806491017341614,
+        "xmax": 0.6354751586914062,
+        "ymin": 0.15759161114692688,
+        "ymax": 0.8477717638015747
+      }
+    }
+  },
+  "preview": "review/walk-transitions-v1/walk-transitions-comparison.mp4",
+  "limits": "Source studio reconstruction with short crossfades approximating the engine. Not installed. Runtime bake, root calibration, arbitrary-phase release and contact at actual game speed remain to be validated.",
+  "user_feedback": "much better",
+  "review_status": "preferred review version; not installed"
+}

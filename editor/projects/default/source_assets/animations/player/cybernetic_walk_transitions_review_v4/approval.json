@@ -1,0 +1,15 @@
+{
+  "status": "approved",
+  "feedback": "better, let's use this",
+  "version": 4,
+  "files": {
+    "walk_fwd_winddown.glb": "4d908f15e1039499cc4ec6c85acf4254160bc55b31a105a40b8ee812fd3e34b3",
+    "walk_fwd_winddown_mirror.blend": "ab40500e5402d587ec14e973d502ed54bd871cf613c0ac174cfb40a733b5fcd5",
+    "walk_fwd_windup.blend": "54dc76db322be0d9ee5263cac750c7a3177e1d1036b64dab8d14c981a3f8c557",
+    "walk_fwd_winddown_mirror.glb": "77bef1b6df3f17f98638aaf12c09186fc24dcfc1891a59fdfe17d605c8370610",
+    "walk_fwd_windup.glb": "5b8034579b743628ff2326dd84e3df3d42aae095f5e62d3c951cb7e73e53bb24",
+    "walk_fwd_winddown.blend": "1c3b14b6bbee8e6de25dfd31a773a1e7045728233a9ba5cf2c56898d6c3e810d",
+    "new_A.blend": "cf7afd357773f824c0002d0fb791fd68462be96d277a3dfd16d462f4cce63d45",
+    "new_B.blend": "989be33e979f63cad3f60413af7ddd342058efebf67f2536dfc916857442bb99"
+  }
+}

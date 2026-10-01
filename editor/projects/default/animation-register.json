@@ -5,6 +5,9 @@
   "original_definition": "Unchanged from the v0.4b repository baseline before this walk/light-attack replacement pass. This does not imply artist-original provenance.",
   "replacements": [
     73,
+    74,
+    75,
+    76,
     81,
     82,
     83,
@@ -195,19 +198,19 @@
           "action": "WalkWindup",
           "clip_resource": 74,
           "clip_name": "gen_walk_fwd_windup",
-          "status": "original"
+          "status": "replaced"
         },
         {
           "action": "WalkWinddown",
           "clip_resource": 75,
           "clip_name": "gen_walk_fwd_winddown",
-          "status": "original"
+          "status": "replaced"
         },
         {
           "action": "WalkWinddownAlt",
           "clip_resource": 76,
           "clip_name": "gen_walk_fwd_winddown_mirror",
-          "status": "original"
+          "status": "replaced"
         },
         {
           "action": "RunWinddownAlt",
@@ -620,31 +623,76 @@
       "resource_id": 74,
       "name": "gen_walk_fwd_windup",
       "path": "assets/animations/gen/walk_fwd_windup.psxanim",
-      "status": "original",
-      "sha256": "2b4bed5333e1dc4caa6303f2570602fb3affe07abdaaa84d6dfdac4bae4b0099",
+      "status": "replaced",
+      "sha256": "ed8d298a4980403f802049da038d2e08a85f1fdbbe44e175c02c2e93fd5e7904",
       "baseline_sha256": "2b4bed5333e1dc4caa6303f2570602fb3affe07abdaaa84d6dfdac4bae4b0099",
-      "stored_frames": 8,
-      "sample_rate_hz": 15
+      "stored_frames": 22,
+      "sample_rate_hz": 30,
+      "replacement": {
+        "approved_version": 4,
+        "source_resource": 212,
+        "source_directory": "source_assets/animations/player/cybernetic_walk_transitions_review_v4",
+        "master": "walk_fwd_windup.blend",
+        "export": "walk_fwd_windup.glb",
+        "master_sha256": "54dc76db322be0d9ee5263cac750c7a3177e1d1036b64dab8d14c981a3f8c557",
+        "export_sha256": "5b8034579b743628ff2326dd84e3df3d42aae095f5e62d3c951cb7e73e53bb24",
+        "authored_seconds": 0.6666666666666666,
+        "speed_q8": 256,
+        "looping": false,
+        "in_place": false,
+        "preserve_samples": true,
+        "notes": "Approved longer preparation / two-foot settle. Direct matrix bake with terminal sampler sentinel; use bake.py."
+      }
     },
     {
       "resource_id": 75,
       "name": "gen_walk_fwd_winddown",
       "path": "assets/animations/gen/walk_fwd_winddown.psxanim",
-      "status": "original",
-      "sha256": "431a6197c70a48e39c57bb712199d878c48a2529e2a8b742a77e8604e23720a2",
+      "status": "replaced",
+      "sha256": "7f55451aa42dba3da3d13479c3d11f29bc2653d604a0f73fc43c58b322a3c3b2",
       "baseline_sha256": "431a6197c70a48e39c57bb712199d878c48a2529e2a8b742a77e8604e23720a2",
-      "stored_frames": 8,
-      "sample_rate_hz": 15
+      "stored_frames": 30,
+      "sample_rate_hz": 30,
+      "replacement": {
+        "approved_version": 4,
+        "source_resource": 213,
+        "source_directory": "source_assets/animations/player/cybernetic_walk_transitions_review_v4",
+        "master": "walk_fwd_winddown.blend",
+        "export": "walk_fwd_winddown.glb",
+        "master_sha256": "1c3b14b6bbee8e6de25dfd31a773a1e7045728233a9ba5cf2c56898d6c3e810d",
+        "export_sha256": "4d908f15e1039499cc4ec6c85acf4254160bc55b31a105a40b8ee812fd3e34b3",
+        "authored_seconds": 0.9333333333333333,
+        "speed_q8": 256,
+        "looping": false,
+        "in_place": false,
+        "preserve_samples": true,
+        "notes": "Approved longer preparation / two-foot settle. Direct matrix bake with terminal sampler sentinel; use bake.py."
+      }
     },
     {
       "resource_id": 76,
       "name": "gen_walk_fwd_winddown_mirror",
       "path": "assets/animations/gen/walk_fwd_winddown_mirror.psxanim",
-      "status": "original",
-      "sha256": "d8e839c47b285f3888033bac6ff4d57e6a22f7bea5120bd8361a734ed7e17ced",
+      "status": "replaced",
+      "sha256": "55648fffb2c433fe6fd7b9c2e3b55ad96e119551dc03d0ff7f4c2cda3b2f99cb",
       "baseline_sha256": "d8e839c47b285f3888033bac6ff4d57e6a22f7bea5120bd8361a734ed7e17ced",
-      "stored_frames": 8,
-      "sample_rate_hz": 15
+      "stored_frames": 30,
+      "sample_rate_hz": 30,
+      "replacement": {
+        "approved_version": 4,
+        "source_resource": 214,
+        "source_directory": "source_assets/animations/player/cybernetic_walk_transitions_review_v4",
+        "master": "walk_fwd_winddown_mirror.blend",
+        "export": "walk_fwd_winddown_mirror.glb",
+        "master_sha256": "ab40500e5402d587ec14e973d502ed54bd871cf613c0ac174cfb40a733b5fcd5",
+        "export_sha256": "77bef1b6df3f17f98638aaf12c09186fc24dcfc1891a59fdfe17d605c8370610",
+        "authored_seconds": 0.9333333333333333,
+        "speed_q8": 256,
+        "looping": false,
+        "in_place": false,
+        "preserve_samples": true,
+        "notes": "Approved longer preparation / two-foot settle. Direct matrix bake with terminal sampler sentinel; use bake.py."
+      }
     },
     {
       "resource_id": 77,
@@ -1655,5 +1703,54 @@
     "disc_sha256": "7b3d848a364235904faacfea973c49a17c16d7e0e7974eab19928b4769e90037",
     "guest_sha256": "0c63f9a51e5d74568edfe5425c817e6e9f33b3697ee80aff7ee0264c6cceeae9",
     "validation_scope": "Offscreen debug panel render; native gameplay smoke; no physical-console validation."
+  },
+  "retained_originals": {
+    "run": {
+      "clip_resource": 77,
+      "status": "original retained by user after v1 and v2 comparison",
+      "sha256": "2138326d072091972a2b8b81658fbccfb6096566d255099bbe34a590548cefd3",
+      "reason": "Original forward lean and urgency preferred; both run candidates rejected and never installed."
+    }
+  },
+  "review_candidates": {
+    "walk_transitions": {
+      "clip_resources": [
+        74,
+        75,
+        76
+      ],
+      "version": 4,
+      "status": "v4 approved and installed",
+      "source": "source_assets/animations/player/cybernetic_walk_transitions_review_v4",
+      "preview": "review/walk-transitions-v4/walk-transitions-v4-comparison.mp4",
+      "previous_feedback": "v1 much better; v2 limp/pause; v3 smoother but start and stop too immediate, lost adjustment of both feet."
+    }
+  },
+  "walk_transitions": {
+    "status": "approved_installed",
+    "approved_version": 4,
+    "clip_resources": [
+      74,
+      75,
+      76
+    ],
+    "source_resources": [
+      212,
+      213,
+      214
+    ],
+    "runtime_validation": "source_assets/animations/player/cybernetic_walk_transitions_review_v4/runtime-validation.json",
+    "source_directory": "source_assets/animations/player/cybernetic_walk_transitions_review_v4",
+    "studio_video": "review/walk-transitions-v4/walk-transitions-v4-comparison.mp4",
+    "source_hashes": {
+      "walk_fwd_winddown.glb": "4d908f15e1039499cc4ec6c85acf4254160bc55b31a105a40b8ee812fd3e34b3",
+      "walk_fwd_winddown_mirror.blend": "ab40500e5402d587ec14e973d502ed54bd871cf613c0ac174cfb40a733b5fcd5",
+      "walk_fwd_windup.blend": "54dc76db322be0d9ee5263cac750c7a3177e1d1036b64dab8d14c981a3f8c557",
+      "walk_fwd_winddown_mirror.glb": "77bef1b6df3f17f98638aaf12c09186fc24dcfc1891a59fdfe17d605c8370610",
+      "walk_fwd_windup.glb": "5b8034579b743628ff2326dd84e3df3d42aae095f5e62d3c951cb7e73e53bb24",
+      "walk_fwd_winddown.blend": "1c3b14b6bbee8e6de25dfd31a773a1e7045728233a9ba5cf2c56898d6c3e810d",
+      "new_A.blend": "cf7afd357773f824c0002d0fb791fd68462be96d277a3dfd16d462f4cce63d45",
+      "new_B.blend": "989be33e979f63cad3f60413af7ddd342058efebf67f2536dfc916857442bb99"
+    }
   }
 }

@@ -8214,6 +8214,7 @@ mod focus_tests {
         let clip = project.add_resource(
             "Idle",
             ResourceData::AnimationClip(psxed_project::AnimationClipResource {
+                preserve_samples: false,
                 psxanim_path: "assets/idle.psxanim".to_string(),
                 skeleton: None,
                 target_model: None,
@@ -8844,6 +8845,7 @@ mod focus_tests {
         let clip = project.add_resource(
             "Stand To Roll",
             ResourceData::AnimationClip(psxed_project::AnimationClipResource {
+                preserve_samples: false,
                 psxanim_path: clip_path.to_string(),
                 skeleton: Some(skeleton),
                 target_model: Some(target_model),
@@ -8920,6 +8922,7 @@ mod focus_tests {
         project.add_resource(
             "Mantis Attack",
             ResourceData::AnimationClip(psxed_project::AnimationClipResource {
+                preserve_samples: false,
                 psxanim_path: shared_path.to_string(),
                 skeleton: Some(skeleton),
                 target_model: None,
@@ -9000,6 +9003,7 @@ mod focus_tests {
         project.add_resource(
             "Target Only",
             ResourceData::AnimationClip(psxed_project::AnimationClipResource {
+                preserve_samples: false,
                 psxanim_path: clip_path.to_string(),
                 skeleton: Some(skeleton),
                 target_model: Some(target),
@@ -9417,6 +9421,7 @@ mod focus_tests {
         let clip = project.add_resource(
             "CI Player / Armature|mixamo.com.003",
             ResourceData::AnimationClip(psxed_project::AnimationClipResource {
+                preserve_samples: false,
                 psxanim_path: "assets/attack.psxanim".to_string(),
                 skeleton: Some(skeleton),
                 target_model: Some(model),
@@ -9499,6 +9504,7 @@ mod focus_tests {
         );
         let clip_data = |path: &str, skeleton, target_model| {
             ResourceData::AnimationClip(psxed_project::AnimationClipResource {
+                preserve_samples: false,
                 psxanim_path: path.to_string(),
                 skeleton: Some(skeleton),
                 target_model,
@@ -9691,6 +9697,7 @@ mod focus_tests {
         let clip = project.add_resource(
             "Pose Test Clip",
             ResourceData::AnimationClip(psxed_project::AnimationClipResource {
+                preserve_samples: false,
                 psxanim_path: "assets/pose_test.psxanim".to_string(),
                 skeleton: None,
                 target_model: None,

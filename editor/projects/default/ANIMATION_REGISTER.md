@@ -1,6 +1,6 @@
 # Animation register — Cortex Ignition v0.4b
 
-Updated 30 September 2026. **6 approved replacements; 1 approved combo follow-up; 1 retired combo candidate; all remaining animations are original to this pass.**
+Updated 30 September 2026. **9 approved replacements; 1 approved combo follow-up; 1 retired combo candidate; all remaining animations are original to this pass.**
 
 “Original” means unchanged from the v0.4b project before these replacements, not necessarily an artist’s original capture. The baseline is Git commit `44d1f52bdcaacc0444a43af8dcc76ebcc205ea5a`. Resource IDs and paths remain stable so existing character bindings keep working.
 
@@ -14,8 +14,11 @@ Updated 30 September 2026. **6 approved replacements; 1 approved combo follow-up
 | Aletha / WalkBackward | Cybernetic backward walk v3 | 81 · `gen_walk_bwd` | [Editable master and bake notes](source_assets/animations/player/cybernetic_back_walk_review_v3/README.md) |
 | Aletha / StrafeLeft | Faster cybernetic side step v2 | 82 · `gen_walk_lft` | [Editable masters and bake notes](source_assets/animations/player/cybernetic_strafe_review_v2/README.md) |
 | Aletha / StrafeRight | Faster cybernetic side step v2 | 83 · `gen_walk_rgt` | [Editable masters and bake notes](source_assets/animations/player/cybernetic_strafe_review_v2/README.md) |
+| Aletha / WalkWindup | Cybernetic transitions v4 | 74 · `gen_walk_fwd_windup` | [Masters and bake notes](source_assets/animations/player/cybernetic_walk_transitions_review_v4/README.md) |
+| Aletha / WalkWinddown | Cybernetic transitions v4 | 75 · `gen_walk_fwd_winddown` | [Masters and bake notes](source_assets/animations/player/cybernetic_walk_transitions_review_v4/README.md) |
+| Aletha / WalkWinddownAlt | Cybernetic transitions v4 | 76 · `gen_walk_fwd_winddown_mirror` | [Masters and bake notes](source_assets/animations/player/cybernetic_walk_transitions_review_v4/README.md) |
 
-The walk keeps its restrained body motion and wider arms. The light attack keeps the approved two-second performance, sword cast, deep load, lunge, strike and weighted recovery. All six replacements retain authored body translation (`in_place: false`). The Zenith light attack is still the original.
+The walk keeps its restrained body motion and wider arms. The light attack keeps the approved two-second performance, sword cast, deep load, lunge, strike and weighted recovery. All nine replacements retain authored body translation (`in_place: false`). The Zenith light attack is still the original.
 
 ## Approved two-hit combo
 
@@ -66,15 +69,15 @@ Used by: Aletha (62).
 | HeavyAttack | 85 · `gen_heavy_attack` | **Replaced - approved cross slash v2** |
 | LightAttack | 84 · `gen_light_attack` | **Replaced — approved v5 performance / v12 head** |
 | LightAttackFollowup | 204 · `gen_light_attack_followup` | **New — approved v12** |
-| Run | 77 · `gen_run_fwd` | Original |
+| Run | 77 · `gen_run_fwd` | **Original retained by user** |
 | Stun | 54 · `aletha_stun` | Original |
 | WalkBackward | 81 · `gen_walk_bwd` | **Replaced - approved v3** |
 | Walk | 73 · `gen_walk_fwd` | **Replaced — approved v7** |
 | StrafeLeft | 82 · `gen_walk_lft` | **Replaced - approved v2** |
 | StrafeRight | 83 · `gen_walk_rgt` | **Replaced - approved v2** |
-| WalkWindup | 74 · `gen_walk_fwd_windup` | Original |
-| WalkWinddown | 75 · `gen_walk_fwd_winddown` | Original |
-| WalkWinddownAlt | 76 · `gen_walk_fwd_winddown_mirror` | Original |
+| WalkWindup | 74 · `gen_walk_fwd_windup` | **Replaced - approved v4** |
+| WalkWinddown | 75 · `gen_walk_fwd_winddown` | **Replaced - approved v4** |
+| WalkWinddownAlt | 76 · `gen_walk_fwd_winddown_mirror` | **Replaced - approved v4** |
 | RunWinddownAlt | 78 · `gen_run_fwd_winddown_mirror` | Original |
 | RunWindup | 79 · `gen_run_fwd_windup` | Original |
 | RunWinddown | 80 · `gen_run_fwd_winddown` | Original |
@@ -150,3 +153,17 @@ V2 replaces clips 82/83 with faster, weighted side steps. Each source loop is on
 The approved animation branch now includes local main `fc6c68f4` and remote main `4f7adcf9` on `codex/cortex-animations-main`. The editor release executable was rebuilt with the shared guest-performance debug panel, and the default 0.4b disc was recooked and rebuilt with the updated SDK and emulator pins.
 
 All 78 existing animation asset hashes are unchanged. Approved attack event timing is retained alongside main's enlarged weapon capsules, including the combo follow-up. Validation passed: 458 project tests, 247 runtime tests, 81 playtest tests and 2 debug-panel tests; zero guest load-delay hazards; native gameplay smoke with all fault registers zero. The redesigned debug panel was also rendered offscreen and inspected. These checks do not constitute physical-console validation. Build hashes and integration revisions are recorded in `animation-register.json` under `main_integration`.
+
+## Run review
+
+The user chose to keep the original forward run (clip 77) after reviewing v1 and v2. Both candidates are rejected and were never installed. The original forward lean, urgency and cadence remain the reference. Walk start and stop transitions are the next review target.
+
+## Walk transition review
+
+The user described the v1 start and two foot-specific stops as "much better". This is the preferred review version, built around the approved walk and current idle. Sources are in `source_assets/animations/player/cybernetic_walk_transitions_review_v1`. V1 was a studio review candidate; v4 is now installed as clips 74, 75 and 76.
+
+Walk transitions v2 adds stronger body loading and delayed torso/arm settling at the same timing and endpoint poses, following the request for more movement. Its source is preserved in `source_assets/animations/player/cybernetic_walk_transitions_review_v2`; the user then identified a limp or pause in the start and stop.
+
+Walk transitions v3 replaces the fixed startup destination with an advancing stride and removes the two separate settling steps from each stop. The startup remains 0.467 seconds; stops shorten to 0.6 seconds. Source and video comparison with v2 are in `source_assets/animations/player/cybernetic_walk_transitions_review_v3` and `review/walk-transitions-v3`. V3 remains a historical studio candidate and was not installed.
+
+Walk transitions v4 responds to feedback that v3 was too immediate and lost the two-foot adjustment. Startup now lasts 0.667 seconds and both stops 0.933 seconds, with overlapping first-foot placement and second-foot adjustment. The moving startup handoff is retained. Sources and validation are in `source_assets/animations/player/cybernetic_walk_transitions_review_v4`; the studio comparison is in `review/walk-transitions-v4`. V4 is approved and installed. The endpoint handoff and sampler padding are integrated; the disc and editor frontend are rebuilt. All 75 other animation files retain their pre-install checksums. See the v4 runtime validation record for tests, native replay and remaining limits.

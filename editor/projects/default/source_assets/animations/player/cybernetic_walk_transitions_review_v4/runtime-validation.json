@@ -1,0 +1,73 @@
+{
+  "status": "approved_installed",
+  "version": 4,
+  "clips": {
+    "walk_fwd_windup": {
+      "clip_resource": 74,
+      "source_resource": 212,
+      "frames": 22,
+      "authored_frames": 21,
+      "hz": 30,
+      "bytes": 13748,
+      "speed_q8": 256,
+      "flags": 2,
+      "pose_seconds": 0.6666666666666666,
+      "state_seconds": 0.6666666666666666,
+      "terminal_sentinel_identical": true,
+      "sha256": "de7b492c70c05e7b5a803e511e88f907ed9d3990b68ac8774497b643d1c4ca3c"
+    },
+    "walk_fwd_winddown": {
+      "clip_resource": 75,
+      "source_resource": 213,
+      "frames": 30,
+      "authored_frames": 29,
+      "hz": 30,
+      "bytes": 18740,
+      "speed_q8": 256,
+      "flags": 2,
+      "pose_seconds": 0.9333333333333333,
+      "state_seconds": 0.9666666666666667,
+      "terminal_sentinel_identical": true,
+      "sha256": "eb21d845d547cd29a24d31bb6300e9bf28c3beeb02d730d40bb8dab44b3572f3"
+    },
+    "walk_fwd_winddown_mirror": {
+      "clip_resource": 76,
+      "source_resource": 214,
+      "frames": 30,
+      "authored_frames": 29,
+      "hz": 30,
+      "bytes": 18740,
+      "speed_q8": 256,
+      "flags": 2,
+      "pose_seconds": 0.9333333333333333,
+      "state_seconds": 0.9666666666666667,
+      "terminal_sentinel_identical": true,
+      "sha256": "4885e8852224b436915800dbab1f6671e69fdaf709e547e7eec7635104edd233"
+    }
+  },
+  "changed_clip_files": [
+    "assets/animations/gen/walk_fwd_winddown.psxanim",
+    "assets/animations/gen/walk_fwd_winddown_mirror.psxanim",
+    "assets/animations/gen/walk_fwd_windup.psxanim"
+  ],
+  "other_clip_files_unchanged": 75,
+  "startup_handoff": {
+    "rotation_coefficient_max_error": 0.000244140625,
+    "translation_max_error_runtime_units": 0.0,
+    "duration_ticks": 40,
+    "crossfade_ticks": 0
+  },
+  "fault_registers": {
+    "cause": 0,
+    "epc": 0,
+    "badvaddr": 0,
+    "count": 0
+  },
+  "remaining_heap_bytes": 39968,
+  "load_delay_hazards": 0,
+  "project_tests": 459,
+  "playtest_tests": 82,
+  "native_smoke": "3101 controller polls; repeated forward starts/stops, direction reversal, early release and interrupted stop. Native frame sheet inspected; exact foot-contact physics and physical console unverified. Both stop variants inspected from cooked poses.",
+  "disc_sha256": "d6a4e33e725788c9ab2906185e8323016fe0fef9b22202426718fa67a28ba256",
+  "guest_sha256": "b4b60f911b7f17bce0a2c04e96af1b7769ab9cdb4e5e556e1a8944deeb217087"
+}

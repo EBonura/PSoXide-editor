@@ -1,0 +1,26 @@
+{
+  "walk_fwd_windup": {
+    "frames": 22,
+    "authored_frames": 21,
+    "hz": 30,
+    "speed_q8": 256,
+    "pose_seconds": 0.6666666666666666,
+    "state_seconds": 0.6666666666666666
+  },
+  "walk_fwd_winddown": {
+    "frames": 30,
+    "authored_frames": 29,
+    "hz": 30,
+    "speed_q8": 256,
+    "pose_seconds": 0.9333333333333333,
+    "state_seconds": 0.9666666666666667
+  },
+  "walk_fwd_winddown_mirror": {
+    "frames": 30,
+    "authored_frames": 29,
+    "hz": 30,
+    "speed_q8": 256,
+    "pose_seconds": 0.9333333333333333,
+    "state_seconds": 0.9666666666666667
+  }
+}

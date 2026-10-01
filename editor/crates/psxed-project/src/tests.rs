@@ -3382,6 +3382,7 @@ fn animation_library_resources_roundtrip_and_resolve_by_path() {
     let idle_animation = project.add_resource(
         "Idle",
         ResourceData::AnimationClip(AnimationClipResource {
+            preserve_samples: false,
             psxanim_path: "assets/animations/idle.psxanim".to_string(),
             skeleton: Some(skeleton),
             target_model: None,
@@ -3475,6 +3476,7 @@ fn model_targeted_animation_clips_do_not_leak_across_shared_skeletons() {
         ResourceData::Model(make_model("assets/models/b.psxmdl")),
     );
     let make_clip = |path: &str, target_model| AnimationClipResource {
+        preserve_samples: false,
         psxanim_path: path.to_string(),
         skeleton: Some(skeleton),
         target_model,
@@ -4678,5 +4680,26 @@ fn action_chains_cook_and_reject_missing_targets_bad_windows_and_duplicates() {
             "{:?}",
             report.errors
         );
+    }
+}
+
+#[test]
+fn approved_walk_transitions_keep_samples_and_terminal_pose() {
+    let project = ProjectDocument::from_ron_str(DEFAULT_PROJECT_RON).unwrap();
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../projects/default");
+    for (id, source, frames) in [(74, 212, 22), (75, 213, 30), (76, 214, 30)] {
+        let ResourceData::AnimationClip(clip) = &project.resource(ResourceId(id)).unwrap().data else {
+            panic!("transition clip missing");
+        };
+        assert!(clip.preserve_samples);
+        assert!(!clip.looping && !clip.calibration.in_place);
+        assert_eq!(clip.source, Some(ResourceId(source)));
+        let bytes = std::fs::read(root.join(&clip.psxanim_path)).unwrap();
+        let animation = psx_asset::Animation::from_bytes(&bytes).unwrap();
+        assert_eq!(animation.sample_rate_hz(), 30);
+        assert_eq!(animation.frame_count(), frames);
+        for joint in 0..animation.joint_count() {
+            assert_eq!(animation.pose(frames - 2, joint), animation.pose(frames - 1, joint));
+        }
     }
 }
