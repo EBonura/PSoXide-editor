@@ -436,6 +436,48 @@ fn combat_capsules_can_be_hidden_and_shown_without_editing_gameplay_data() {
     assert_eq!(workspace.is_dirty(), dirty_before);
 }
 
+/// Capsule endpoints are authored units: the cook divides them by
+/// `WORLD_UNIT_DIVISOR` before its `i16` check, so values past +-32767 are
+/// valid (the doubled sword hitboxes use them). Drawing a capsule's editor
+/// used to clamp them to `i16`, rewriting the project just by entering Combat.
+#[test]
+fn combat_mode_keeps_capsule_endpoints_beyond_i16() {
+    let project_dir = default_project_dir();
+    let mut project = ProjectDocument::load_from_path(project_dir.join("project.ron"))
+        .expect("default project parses");
+    let far = [-39_322, 46_633, -40_000];
+    let mut capsules = 0;
+    for resource in &mut project.resources {
+        if let ResourceData::Character(character) = &mut resource.data {
+            if resource.name == "Aletha" {
+                for volume in &mut character.combat_capsules {
+                    volume.capsule.end = far;
+                    capsules += 1;
+                }
+            }
+        }
+    }
+    assert!(capsules > 0, "Aletha has combat capsules");
+    let mut workspace = EditorWorkspace::with_project(project_dir, project);
+    let (character_id, _, _, _) = character_context(&workspace);
+    assert!(workspace.open_animation_viewer_for_resource(character_id));
+    let resources_before = workspace.project().resources.clone();
+    let dirty_before = workspace.is_dirty();
+
+    let (ctx, viewport) = real_egui_workspace_ctx("animation-studio-capsule-authored-range");
+    let mut time = 0.0;
+    click_label(
+        &ctx,
+        &mut workspace,
+        &viewport,
+        &mut time,
+        &icons::label(icons::SCAN, "Combat"),
+    );
+
+    assert_eq!(workspace.project().resources, resources_before);
+    assert_eq!(workspace.is_dirty(), dirty_before);
+}
+
 #[test]
 fn category_add_reveals_the_new_volume_without_rewriting_existing_ones() {
     let mut workspace = default_workspace();
