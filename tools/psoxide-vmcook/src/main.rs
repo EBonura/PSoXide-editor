@@ -27,6 +27,15 @@
 //! from the source MDL with an area-average filter and a 16-colour k-means
 //! palette weighted toward the texels the weapon shows, and shifts the UVs.
 //!
+//! `--decimate <ratio>` (opt-in) reduces the mesh to about `ratio` of its
+//! triangles by quadric edge collapse inside each rigid bone (decimate.rs),
+//! dropping the vertices nothing references, and reports how many pixels of
+//! the weapon's coverage change in the worst reachable pose.
+//! `--decimate-report` prints that table for ratios 0.9 down to 0.3 without
+//! changing the output. `--render <dir> --render-name <n> --render-poses
+//! name:clip:key,...` writes game-size PPMs of the listed key poses before and
+//! after decimation (contact-sheet input).
+//!
 //! `--subdivide <max_tris>` splits triangles whose affine texture warp exceeds
 //! `--warp` pixels (default 1) at any key pose (two levels at most, worst
 //! first, never past `max_tris` or the runtime caps), then prunes again.
@@ -34,6 +43,7 @@
 #![allow(clippy::needless_range_loop)]
 
 mod cooked;
+mod decimate;
 mod fit;
 mod mdl;
 mod runtime;
@@ -48,7 +58,7 @@ use std::collections::BTreeMap;
 /// screen sees the unshifted image over x in [-6, W+6), y in [-4, H+14).
 const MARGIN: (u16, u16, u16, u16) = (6, 4, 6, 14);
 
-fn expanded(w: u16, hh: u16) -> ((u16, u16, u16, u16), (i16, i16)) {
+pub(crate) fn expanded(w: u16, hh: u16) -> ((u16, u16, u16, u16), (i16, i16)) {
     let (l, t, r, b) = MARGIN;
     (
         (0, 0, w + l + r, hh + t + b),
@@ -361,6 +371,45 @@ fn main() {
     }
     if let Some(mdl_path) = shrink_from {
         shrink_textures(&mut out, &vis, &mdl_path);
+    }
+    if a.iter().any(|x| x == "--decimate-report") {
+        for step in (3..=9).rev() {
+            let r = step as f64 / 10.0;
+            let d = decimate::decimate(&out, (out.tris.len() as f64 * r).ceil() as usize);
+            let (worst, cov, mean) = decimate::silhouette(&out, &d, &views);
+            println!(
+                "vmcook: decimate {r:.1}: {} -> {} tris, {} -> {} verts, silhouette worst {worst} px of {cov}, mean {mean:.1} px",
+                out.tris.len(), d.tris.len(), out.verts.len(), d.verts.len()
+            );
+        }
+    }
+    if let Some(r) = flag("--decimate") {
+        let r: f64 = r.parse().expect("--decimate <ratio>");
+        let d = decimate::decimate(&out, (out.tris.len() as f64 * r).ceil() as usize);
+        let (worst, cov, mean) = decimate::silhouette(&out, &d, &views);
+        println!(
+            "vmcook: decimate {r}: {} -> {} tris, {} -> {} verts, silhouette worst {worst} px of {cov}, mean {mean:.1} px",
+            out.tris.len(), d.tris.len(), out.verts.len(), d.verts.len()
+        );
+        if let Some(dir) = flag("--render") {
+            let name = flag("--render-name").unwrap_or_else(|| "weapon".into());
+            let spec = flag("--render-poses").unwrap_or_else(|| "idle:0:0".into());
+            for item in spec.split(',') {
+                let f: Vec<&str> = item.split(':').collect();
+                let (clip, key): (usize, u32) = (f[1].parse().unwrap(), f[2].parse().unwrap());
+                for (tag, mesh) in [("current", &out), ("decimated", &d)] {
+                    let rgb = decimate::render(mesh, (clip, clip, key * 256), views[0]);
+                    let (w, h) = (views[0].1 as usize, views[0].2 as usize);
+                    let mut ppm = format!("P6\n{w} {h}\n255\n").into_bytes();
+                    for px in rgb {
+                        ppm.extend_from_slice(&px);
+                    }
+                    std::fs::write(format!("{dir}/{name}-{}-{tag}.ppm", f[0]), ppm)
+                        .expect("write render");
+                }
+            }
+        }
+        out = d;
     }
     let (s0, s1) = (c.sizes(), out.sizes());
     println!(
