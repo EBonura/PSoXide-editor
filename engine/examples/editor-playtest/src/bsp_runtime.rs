@@ -50,7 +50,7 @@ use crate::generated::{
 use crate::world_objects_runtime::WorldObjectVisibility;
 use crate::{
     ensure_room_texture_uploaded, ensure_texture_uploaded, pxbsp_frame_face_chain_arena,
-    pxbsp_visible_face_chain_arena, PROJECTION,
+    pxbsp_visible_face_chain_arena, telemetry, PROJECTION,
 };
 
 pub(super) const MAX_BSP_DOORS: usize = 16;
@@ -362,6 +362,9 @@ pub(super) struct BspRuntime {
     world_object_pvs_leaf: Option<usize>,
     world_object_pvs: WorldObjectVisibility,
     fragment_events: [BspDestructibleFragmentEvent; MAX_BSP_DESTRUCTIBLES],
+    /// Packet words the world (plus its brush models) used last frame: the
+    /// prediction [`Self::draw`] fences against before drawing.
+    last_world_packet_words: usize,
 }
 
 impl BspRuntime {
@@ -530,6 +533,7 @@ impl BspRuntime {
             world_object_pvs_leaf: None,
             world_object_pvs: WorldObjectVisibility::NONE,
             fragment_events: [BspDestructibleFragmentEvent::EMPTY; MAX_BSP_DESTRUCTIBLES],
+            last_world_packet_words: 0,
         })
     }
 
@@ -943,7 +947,7 @@ impl BspRuntime {
             // features. An opaque material may still use CLUT entry zero as a
             // binary mask, so preserve an explicit PSXT transparent-zero flag
             // instead of forcing all opaque room materials to opaque-zero.
-            let slot = if texture.index_zero_transparent() {
+            let slot = if texture.is_index_zero_transparent() {
                 ensure_texture_uploaded(asset_id, asset.bytes)
             } else if material.blend_mode == material_blend::OPAQUE {
                 ensure_room_texture_uploaded(asset_id, asset.bytes)
@@ -1511,6 +1515,22 @@ impl BspRuntime {
         )
     }
 
+    /// Packet words the last world pass wrote.
+    pub(super) fn last_world_packet_words(&self) -> usize {
+        self.last_world_packet_words
+    }
+
+    /// True when last frame's world, with an eighth to spare, would fit in
+    /// the slots the in-flight frame leaves free, so drawing it now needs no
+    /// fence.
+    pub(super) fn fits_before_fence(&self, primitive_packets: &PrimitivePacketArena<'_>) -> bool {
+        let predicted_words = self
+            .last_world_packet_words
+            .saturating_add(self.last_world_packet_words / 8);
+        !primitive_packets.fence_pending()
+            || primitive_packets.remaining_words_before_fence() >= predicted_words
+    }
+
     pub(super) fn draw<const DEPTH: usize>(
         &mut self,
         camera: WorldCamera,
@@ -1535,7 +1555,7 @@ impl BspRuntime {
         psx_gte::scene::set_projection_plane(
             PROJECTION.focal_length.clamp(1, i32::from(u16::MAX)) as u16
         );
-        psx_gte::scene::set_avsz_weights(0x155, 0x100);
+        psx_gte::scene::set_average_z_weights(0x155, 0x100);
         let view_rotation = pxbsp_view_rotation(camera);
         let camera = pxbsp_camera(camera);
         let view = load_pxbsp_view_rotation(camera.origin, view_rotation);
@@ -1550,6 +1570,16 @@ impl BspRuntime {
         // whole arena. Restoring the frame counter makes the repeat select
         // exactly what the abandoned attempt did.
         let first_attempt_frame = self.renderer.frame_counter();
+        // Fence before drawing when last frame's world would not fit beside
+        // the in-flight frame. Finding out by overflowing costs a whole
+        // second world pass (selection, clipping, projection, packets): two
+        // characters near the camera grow the in-flight frame enough to force
+        // that on every frame, doubling the room stage. The retry below stays
+        // as the safety net for a world that outgrows the prediction.
+        if !self.fits_before_fence(primitive_packets) {
+            primitive_packets.fence();
+        }
+        let mut redraws = 0u32;
         loop {
             if primitive_packets.remaining_before_fence() == 0 {
                 primitive_packets.fence();
@@ -1629,10 +1659,13 @@ impl BspRuntime {
             };
             if overflowed && can_grow {
                 // The uncommitted reservation is abandoned, not linked.
+                redraws += 1;
                 primitive_packets.fence();
                 self.renderer.set_frame_counter(first_attempt_frame);
                 continue;
             }
+            self.last_world_packet_words = used_words;
+            telemetry::counter(telemetry::counter::ROOM_SUBMIT_PRIMITIVE_OVERFLOWS, redraws);
             let stream = reservation
                 .commit(used_words, packet_count)
                 .expect("PXBSP renderer reported an invalid shared-arena stream");

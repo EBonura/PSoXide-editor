@@ -100,8 +100,11 @@ pub(crate) fn push_projected_scene_sky(
         };
         stream
     };
-    let mut ot = psx_engine::OtFrame::resume(&mut scratch.ot);
+    // SAFETY: the preview table and every packet it links live in `scratch`
+    // for the whole preview frame; the host walks them with `iter_packets`,
+    // never by DMA. `stream` is a committed range of that scratch.
     unsafe {
+        let mut ot = psx_engine::OtFrame::resume(&mut scratch.ot);
         ot.add_committed_tagged_packet_stream_unchecked(stream);
     }
 }
