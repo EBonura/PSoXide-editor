@@ -20,7 +20,7 @@ pub fn tri_warp(c: &Cooked) -> Vec<f64> {
         let p = ps1::project(&md, pose, 160);
         let s = ps1::sort(&md, &p);
         for &t in &s.order {
-            let tri = md.tri(t);
+            let tri = md.triangle(t);
             let v: [usize; 3] = tri.idx.map(|x| x as usize);
             let z: [f64; 3] = v.map(|i| p.z[i] as f64);
             let uv: [[f64; 2]; 3] =

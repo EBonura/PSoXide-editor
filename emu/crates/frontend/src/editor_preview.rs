@@ -1677,7 +1677,7 @@ fn resolve_and_draw_model_instances(
             face_sidedness: material_override
                 .map(|material| material.face_sidedness)
                 .unwrap_or_else(|| {
-                    if model.double_sided() {
+                    if model.is_double_sided() {
                         psxed_project::MaterialFaceSidedness::Both
                     } else {
                         psxed_project::MaterialFaceSidedness::Front

@@ -144,7 +144,7 @@ fn visibility(c: &Cooked, views: &[(u16, u16, u16)]) -> Vis {
                     }
                     let tri = s.order[id as usize - 1];
                     *count.entry(tri).or_default() += 1;
-                    let tex = md.tri(tri).tex;
+                    let tex = md.triangle(tri).tex;
                     if let Some((u, v)) = uvp.uv(x, y) {
                         let tx = &c.texs[tex];
                         let (u, v) = (u as usize % tx.w as usize, v as usize % tx.h as usize);
@@ -154,7 +154,7 @@ fn visibility(c: &Cooked, views: &[(u16, u16, u16)]) -> Vis {
             }
             for (&t, &n) in &count {
                 max_px[t] = max_px[t].max(n);
-                let tri = md.tri(t);
+                let tri = md.triangle(t);
                 let xy: [[f64; 2]; 3] = std::array::from_fn(|k| {
                     let q = p.xy[tri.idx[k] as usize];
                     [q[0] as f64, q[1] as f64]
@@ -186,7 +186,8 @@ fn compare_all(a: &Cooked, b: &Cooked, views: &[(u16, u16, u16)]) -> (usize, usi
     let (ma, mb) = (runtime::load_model(a), runtime::load_model(b));
     let poses = runtime::runtime_poses(a);
     let (mut bad_frames, mut bad_px) = (0, 0);
-    let shade = |m: &psx_asset::hmd8::Model, i: usize| runtime::vm_normal_shade(m.tri(i).normal);
+    let shade =
+        |m: &psx_asset::hmd8::Model, i: usize| runtime::vm_normal_shade(m.triangle(i).normal);
     for &(h, w, hh) in views {
         let (rect, center) = expanded(w, hh);
         let mut fa = runtime::Frame::with_center(a, rect, center);

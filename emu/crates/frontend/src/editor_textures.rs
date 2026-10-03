@@ -467,7 +467,7 @@ impl EditorTextures {
             }
         }
 
-        let transparent_zero = texture.index_zero_transparent();
+        let transparent_zero = texture.is_index_zero_transparent();
         for index in 0..usize::from(texture.clut_entries()) {
             let source = index * 2;
             let raw = u16::from_le_bytes([
@@ -569,7 +569,7 @@ impl EditorTextures {
         // declared CLUT entry count rather than the depth enum so
         // the only psx-asset surface this file touches is `Texture`.
         let clut_bytes = texture.clut_bytes();
-        let transparent_index_zero = texture.index_zero_transparent();
+        let transparent_index_zero = texture.is_index_zero_transparent();
         if !clut_bytes.is_empty() {
             for i in 0..16 {
                 let off = i * 2;
@@ -907,7 +907,7 @@ impl EditorTextures {
         if clut_bytes.len() != expected_clut_bytes {
             return None;
         }
-        let transparent_index_zero = texture.index_zero_transparent();
+        let transparent_index_zero = texture.is_index_zero_transparent();
         for i in 0..clut_entries {
             let off = i * 2;
             let raw = u16::from_le_bytes([clut_bytes[off], clut_bytes[off + 1]]);
