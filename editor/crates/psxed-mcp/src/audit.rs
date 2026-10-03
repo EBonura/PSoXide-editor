@@ -20,7 +20,7 @@ use std::time::Instant;
 
 use psxed_project::brush::BRUSH_EDIT_EXTENT_LIMIT;
 use psxed_project::brush_overlap::find_brush_face_overlaps;
-use psxed_project::brush_world::diagnose_brush_world_leak;
+use psxed_project::brush_world::{diagnose_brush_world_leak, BrushWorldLeakDiagnostic};
 use psxed_project::playtest::{analyze_pxbsp_draw_cost, build_package};
 use psxed_project::ProjectDocument;
 
@@ -183,33 +183,7 @@ pub fn audit(
         Ok(diagnostic) if diagnostic.is_empty() => {
             out.push_str("sealed: no path from the interior to the void\n");
         }
-        Ok(diagnostic) => {
-            let _ = writeln!(
-                out,
-                "LEAKS. A {}-point path escapes to the void. The engine cannot compute \
-                 visibility through a leak, so the whole map falls back to drawing \
-                 everything.",
-                diagnostic.path.len()
-            );
-            if let Some(first) = diagnostic.path.first() {
-                let authored = first.map(|value| value * crate::WORLD_UNIT_DIVISOR);
-                let _ = writeln!(
-                    out,
-                    "  path starts at {first:?} engine = {authored:?} authored, which is the \
-                     OCCUPANT the flood starts from, normally the player."
-                );
-                out.push_str(
-                    "  Check that point is inside your geometry first. A player left at another \
-                     level's coordinates reports every map as leaking, however well sealed it is.\n",
-                );
-            }
-            if let Some(opening) = diagnostic.likely_opening.first() {
-                let _ = writeln!(out, "  likely opening near {opening:?} (engine units)");
-            }
-            out.push_str(
-                "  Note these are ENGINE units: multiply by 16 for authored coordinates.\n",
-            );
-        }
+        Ok(diagnostic) => out.push_str(&describe_leak(&diagnostic)),
         Err(error) => {
             let _ = writeln!(out, "the leak check could not run: {error}");
         }
@@ -392,10 +366,64 @@ fn count_off_grid(brushes: &[psxed_project::brush::Brush], grid: i32) -> (usize,
     (off, total)
 }
 
+/// The leak section of the audit. `diagnose_brush_world_leak` already scales
+/// its points to AUTHORED units, so they are reported as such, with the engine
+/// figure (authored / 16) beside the start point for matching the cook log.
+fn describe_leak(diagnostic: &BrushWorldLeakDiagnostic) -> String {
+    let mut out = String::new();
+    let _ = writeln!(
+        out,
+        "LEAKS. A {}-point path escapes to the void. The engine cannot compute \
+         visibility through a leak, so the whole map falls back to drawing \
+         everything.",
+        diagnostic.path.len()
+    );
+    if let Some(first) = diagnostic.path.first() {
+        let engine = first.map(|value| value / crate::WORLD_UNIT_DIVISOR);
+        let _ = writeln!(
+            out,
+            "  path starts at authored {first:?} (engine {engine:?}), which is the \
+             OCCUPANT the flood starts from, normally the player."
+        );
+        out.push_str(
+            "  Check that point is inside your geometry first. A player left at another \
+             level's coordinates reports every map as leaking, however well sealed it is.\n",
+        );
+    }
+    if let Some(opening) = diagnostic.likely_opening.first() {
+        let _ = writeln!(out, "  likely opening near authored {opening:?}");
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use psxed_project::brush::Brush;
+
+    /// The leak diagnostic arrives in authored units. The report used to treat
+    /// it as engine units and multiply by 16 again, sending the reader 16x too
+    /// far: a player at authored Z -7600 came out as -121600.
+    #[test]
+    fn leak_report_keeps_authored_coordinates_authored() {
+        let diagnostic = BrushWorldLeakDiagnostic {
+            path: vec![[0, 144, -7600], [0, 144, -6016], [-24000, 14016, -6656]],
+            likely_opening: vec![[-24000, 14016, -6656]],
+            likely_opening_path_index: Some(2),
+        };
+        let report = describe_leak(&diagnostic);
+        assert!(report.contains("A 3-point path"), "{report}");
+        assert!(
+            report.contains("authored [0, 144, -7600] (engine [0, 9, -475])"),
+            "{report}"
+        );
+        assert!(
+            report.contains("likely opening near authored [-24000, 14016, -6656]"),
+            "{report}"
+        );
+        assert!(!report.contains("-121600"), "{report}");
+        assert!(!report.contains("multiply by 16"), "{report}");
+    }
 
     /// The quick pass has to name the two defects an agent authors by
     /// accident: a face sharing a plane with another, and a coordinate that
