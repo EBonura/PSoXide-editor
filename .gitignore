@@ -92,12 +92,8 @@ __pycache__/
 /tools/mkisopsx
 /tools/psoxide-link
 /tools/psoxide-pgo
-/tools/fmv_test_movie.py
-/tools/hazard_scan.py
-/tools/hazard_patch.py
-/tools/stack_guard.py
+/tools/psoxide-hazard
 /tools/guest_symbol_gate.sh
-/tools/check_mfc0.py
 /emu/crates/emulator-core
 /emu/crates/psoxide-debug-ui
 /emu/crates/psoxide-settings
