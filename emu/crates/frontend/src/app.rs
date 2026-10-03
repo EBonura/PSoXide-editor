@@ -4089,10 +4089,15 @@ pub(crate) fn fast_boot_embedded_playtest_disc(
 /// Input-tape change-detection hash for a modelled disc: every track's raw
 /// bytes in order, hashed as one stream. A single-track bin matches
 /// [`emulator_core::game_image_hash`] of the raw file.
+///
+/// The image is read through in megabyte pieces, so hashing it holds no
+/// more of it than that.
 fn disc_image_hash(disc: &Disc) -> u64 {
-    emulator_core::game_image_hash_parts(
-        (0u8..=99).filter_map(|number| disc.track(number).map(|track| track.bytes.as_slice())),
-    )
+    let mut hasher = emulator_core::GameImageHasher::new();
+    for track in disc.tracks() {
+        psoxide_settings::disc_image::for_each_chunk(&*track.source, |bytes| hasher.update(bytes));
+    }
+    hasher.finish()
 }
 
 /// The settings field a rebind target reads from. Kept as a pair of

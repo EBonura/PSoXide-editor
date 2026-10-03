@@ -548,7 +548,7 @@ showcase-particles:
 
 hardware-tests:
 	cd engine/examples/hardware-tests && $(ENGINE_EXAMPLE_CARGO_ENV) cargo build --release $(PSX_BUILD_FLAGS)
-	python3 tools/hazard_scan.py $(EXAMPLE_OUT)/hardware-tests.exe
+	cargo run -q --release --locked -p psoxide-hazard --bin hazard-scan -- $(EXAMPLE_OUT)/hardware-tests.exe
 
 # --- hardware-test capture pipeline -------------------------------------
 # The disc now boots side-effect free into its main menu. Headless capture
@@ -846,17 +846,21 @@ $(HWTEST_CDDA):
 # MOVIE.STR for the FMV STREAM TEST row (v1.25): 75 s of synthetic 320x240
 # 15 fps video at the full double-speed sector budget with interleaved XA
 # stereo beeps, every video sector stamped with an ordinal and a checksum. The
-# SDK's tools/fmv_test_movie.py encodes it with FFmpeg and psxavenc (neither
-# ships here: PSXAVENC names the psxavenc binary). The encode is not
+# SDK's `xtask fmv-test-movie` encodes it with FFmpeg and psxavenc (neither
+# ships here: PSXAVENC names the psxavenc binary). xtask is not imported, so
+# PSOXIDE_SDK names a PSoXide checkout to run it from. The encode is not
 # bit-reproducible across tool versions, so keep the file once built; to reuse
 # one, copy it to this path. It lands after CDTEST.BIN, at LBA 1024, which moves
 # the CD-DA track outward but no fixed LBA a probe names.
 HWTEST_MOVIE := $(EXAMPLE_OUT)/fmv/MOVIE.STR
 PSXAVENC ?= psxavenc
+PSOXIDE_SDK ?=
 
 $(HWTEST_MOVIE):
+	@[ -n "$(PSOXIDE_SDK)" ] || { echo "MOVIE.STR: set PSOXIDE_SDK to a PSoXide checkout (its xtask encodes the movie)" >&2; exit 1; }
 	@mkdir -p $(dir $@)
-	python3 tools/fmv_test_movie.py --psxavenc "$(PSXAVENC)" --out $@
+	cargo run -q --release --locked --manifest-path "$(PSOXIDE_SDK)/Cargo.toml" -p xtask -- \
+		fmv-test-movie --psxavenc "$(PSXAVENC)" --out $@
 
 hardware-tests-disc: hardware-tests $(HWTEST_CDDA) $(HWTEST_MOVIE)
 	cd tools/mkisopsx && cargo run --release -- \

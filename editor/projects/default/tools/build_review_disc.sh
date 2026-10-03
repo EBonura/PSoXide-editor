@@ -1,13 +1,14 @@
 #!/bin/sh
 # Cook and build this project's normal-spawn native review disc.
-# Requires the repository Rust toolchain, Python 3, rsync and MIPS binutils.
+# Requires the repository Rust toolchain, Python 3 and rsync.
 set -eu
 PROJECT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 REPO=$(CDPATH= cd -- "$PROJECT/../../.." && pwd)
 OUT="$PROJECT/baked/cortex_ignition_tech_demo_0_4b"
 cd "$REPO"
 cargo run -p psxed-project --example cook_cortex_polish -- "$PROJECT"
-cargo build --release -p mkisopsx
+cargo build --release -p mkisopsx -p psoxide-hazard
+HAZARD_DIR="${CARGO_TARGET_DIR:-$REPO/target}/release"
 # Use a disposable source closure so cooking this project never overwrites
 # another editor session's generated guest fixtures.
 SRC=$(mktemp -d "${TMPDIR:-/tmp}/cortex04b-build.XXXXXX")
@@ -16,7 +17,7 @@ mkdir -p "$SRC/engine/examples" "$SRC/sdk" "$SRC/editor/crates" "$SRC/crates" "$
 cp "$REPO/Cargo.toml" "$REPO/rust-toolchain.toml" "$SRC/"
 cp "$REPO/engine/Cargo.toml" "$SRC/engine/"
 cp "$REPO/sdk/Cargo.toml" "$REPO/sdk/psoxide.ld" "$SRC/sdk/"
-cp "$REPO/tools/build_guest_staged.sh" "$REPO/tools/hazard_patch.py" "$SRC/tools/"
+cp "$REPO/tools/build_guest_staged.sh" "$SRC/tools/"
 ln -s "$REPO/engine/crates" "$SRC/engine/crates"
 ln -s "$REPO/sdk/crates" "$SRC/sdk/crates"
 ln -s "$REPO/editor/crates/psxed-format" "$SRC/editor/crates/psxed-format"
@@ -26,6 +27,7 @@ rsync -a --exclude generated --exclude target "$REPO/engine/examples/editor-play
 rsync -a "$PROJECT/baked/generated/" "$SRC/engine/examples/editor-playtest/generated/"
 PSOXIDE_GUEST_STAGE_ROOT="${PSOXIDE_GUEST_STAGE_ROOT:-/tmp/cortex04b-guest}" \
 PSOXIDE_GUEST_LINK_MAP="$OUT.map" \
+PSOXIDE_HAZARD_DIR="$HAZARD_DIR" \
 sh "$SRC/tools/build_guest_staged.sh" --target mipsel-sony-psx -Zjson-target-spec \
   -Zbuild-std=core,alloc -Zbuild-std-features=compiler-builtins-mem \
   --features 'cd-stream-bench emulator-telemetry'
@@ -37,5 +39,5 @@ cp "$SRC/build/examples/mipsel-sony-psx/release/editor-playtest.exe" "$OUT.exe"
   --ui-pack-dir "$PROJECT/baked/generated/ui_stream_chunks" \
   --ui-pack-order-file "$PROJECT/baked/generated/ui_pack_order.txt" \
   --cdda-track-list "$PROJECT/baked/generated/cdda_tracks.txt"
-python3 "$REPO/tools/hazard_scan.py" "$OUT.exe"
+"$HAZARD_DIR/hazard-scan" "$OUT.exe"
 shasum -a 256 "$OUT.exe" "$OUT.bin" "$OUT.cue"
