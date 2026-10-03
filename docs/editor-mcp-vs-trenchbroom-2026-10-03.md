@@ -108,6 +108,37 @@ lines down stdout (the seven resample lines now go to stderr), and its leak repo
    camera instead of auto-framing in front of the hero.
 8. **Live GUI bridge.** Already planned; it matters once Manny edits alongside the agent.
 
+## Update: convex brushes and transforms built, and the foundry ring rebuilt
+
+`add_convex_brushes` and `transform_brushes` now exist (`psxed-project/src/brush_convex.rs`,
+`brush_transform.rs`, wired in `psxed-mcp`).
+- **`add_convex_brushes`** follows the TrenchBroom contract: integer vertices plus polygon faces in
+  either winding. It checks for a closed two-manifold, flat faces, convexity, and that the planes
+  rebuild the given corners. It takes up to 512 brushes per call, all or nothing, with material and
+  UV per face, an optional group and optional contents. On integers the checks are exact, not
+  tolerance-based.
+- **`transform_brushes`** mirrors, turns in quarters about Y and translates a range or a named
+  group. Points stay integers, and texture lock is solved per face, so it's exact for quarter turns
+  and mirrors.
+
+The proof imported the foundry-ring v2 exterior from TrenchBroom's own `brush-specs.json`, using
+the importer's `[x, z, -y] * 16` mapping:
+
+- **All 645 integer brushes passed validation, with no rejections.** That's 219 structural, plus the
+  sculpted rock, heightfield ground and lamp fixtures. Exactness costs nothing on real content.
+- **The level leaks in the editor.** TrenchBroom's map was sealed only because the 200 arena brushes
+  close the forecourt gate, and those have float coordinates that can't be imported exactly (the
+  known unsnapped-arena problem).
+- **Quake-scale texturing breaks the face budget.** At TrenchBroom's 1 texel per Quake unit, large
+  faces exceed the PS1's 255-texel UV window and get split. That pushes the structural shell to
+  6,706 render faces against the 6,144 resident cap. At 400% texture scale it cooks: 4,705 world
+  faces, and a worst leaf of 5,142 packet slots (inflated by the leak).
+- **Rock as structure cannot cook.** With the rock included, PXBSP visibility needs 97,281 entries
+  against a u16 limit of 65,535. TrenchBroom avoided this with `func_detail`; the cooker has no
+  equivalent. Gap 5 (detail brushes) is therefore a hard blocker for sculpted levels, not a nicety.
+- **`walk_test` needs a fully cooked world,** so a render-budget failure also blocks a collision
+  check that doesn't depend on rendering. Decoupling it is a small, worthwhile follow-up.
+
 ## Proposed order of work
 
 1. The three bugs: a one-line stderr fix, the leak-unit fix with a regression test, and either
