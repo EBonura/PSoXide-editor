@@ -211,6 +211,210 @@ impl Workspace {
         Ok(out)
     }
 
+    /// Add closed convex solids from integer vertices and polygon faces.
+    ///
+    /// The whole batch is validated before anything is staged, as the
+    /// TrenchBroom MCP does: one bad brush rejects the call and names it.
+    pub fn add_convex_brushes(
+        &mut self,
+        scene: Option<usize>,
+        specs: &[ConvexBrushSpec],
+        material: Option<&str>,
+        group: Option<&str>,
+    ) -> Result<String, String> {
+        self.document()?;
+        let scene_index = resolve_scene(&self.doc, scene)?;
+        if specs.is_empty() || specs.len() > CONVEX_BATCH_LIMIT {
+            return Err(format!(
+                "pass 1..={CONVEX_BATCH_LIMIT} brushes per call, got {}",
+                specs.len()
+            ));
+        }
+        let mut materials: std::collections::HashMap<String, ResourceId> =
+            std::collections::HashMap::new();
+        let mut resolve = |doc: &ProjectDocument, name: &str| -> Result<ResourceId, String> {
+            if let Some(id) = materials.get(name) {
+                return Ok(*id);
+            }
+            let id = find_material(doc, name)?;
+            materials.insert(name.to_string(), id);
+            Ok(id)
+        };
+        let mut built = Vec::with_capacity(specs.len());
+        let mut untextured = 0usize;
+        let mut off_grid = 0usize;
+        for (index, spec) in specs.iter().enumerate() {
+            let faces: Vec<Vec<usize>> =
+                spec.faces.iter().map(|face| face.indices.clone()).collect();
+            let mut brush = Brush::from_convex_polyhedron(&spec.vertices, &faces)
+                .map_err(|error| format!("brush {index} of the batch: {error}"))?;
+            if let Some(name) = &spec.contents {
+                brush.contents =
+                    parse_contents(name).map_err(|error| format!("brush {index}: {error}"))?;
+            }
+            for (face, face_spec) in brush.faces.iter_mut().zip(&spec.faces) {
+                let name = face_spec
+                    .material
+                    .as_deref()
+                    .or(spec.material.as_deref())
+                    .or(material);
+                match name {
+                    Some(name) => {
+                        face.material = Some(
+                            resolve(&self.doc, name)
+                                .map_err(|error| format!("brush {index}: {error}"))?,
+                        );
+                    }
+                    None => untextured += 1,
+                }
+                if let Some(uv) = &face_spec.uv {
+                    if let Some(offset) = uv.offset {
+                        face.uv.offset_texels = offset;
+                    }
+                    if let Some(rotation) = uv.rotation {
+                        face.uv.rotation_deg = rotation;
+                    }
+                    if let Some(percent) = uv.scale_percent {
+                        face.uv.scale_q8 = scale_percent_q8(percent)
+                            .map_err(|error| format!("brush {index}: {error}"))?;
+                    }
+                }
+            }
+            off_grid += spec
+                .vertices
+                .iter()
+                .filter(|vertex| vertex.iter().any(|value| value % 64 != 0))
+                .count();
+            built.push(brush);
+        }
+        let faces: usize = built.iter().map(|brush| brush.faces.len()).sum();
+        let (first, count) = self.push_brushes(scene_index, built)?;
+        self.record(format!(
+            "add_convex_brushes -> brushes {first}..{}",
+            first + count
+        ));
+        let mut out = String::new();
+        let _ = writeln!(
+            out,
+            "added {count} convex brush(es), {faces} faces, as indices {first}..{} in scene \
+             {scene_index}",
+            first + count
+        );
+        if let Some(name) = group {
+            let _ = writeln!(
+                out,
+                "{}",
+                self.group_brushes(Some(scene_index), first, count, name)?
+            );
+        }
+        if untextured > 0 {
+            let _ = writeln!(
+                out,
+                "{untextured} face(s) have no material and will cook untextured"
+            );
+        }
+        if off_grid > 0 {
+            let _ = writeln!(
+                out,
+                "{off_grid} vertex(es) are off the 64 grid. That is fine for sculpted detail; \
+                 for structure, audit will list them."
+            );
+        }
+        let _ = write!(
+            out,
+            "pass first={first} count={count} to transform_brushes, set_material or delete"
+        );
+        Ok(out)
+    }
+
+    /// Mirror, quarter-turn and move brushes, keeping their textures locked.
+    ///
+    /// The brushes are a range or a named group. The pivot defaults to the
+    /// centre of their combined bounds, rounded to whole units.
+    pub fn transform_brushes(
+        &mut self,
+        scene: Option<usize>,
+        selection: BrushSelection<'_>,
+        translate: [i32; 3],
+        quarter_turns: i32,
+        mirror_axis: Option<usize>,
+        pivot: Option<[i32; 3]>,
+    ) -> Result<String, String> {
+        use psxed_project::brush::BRUSH_EDIT_EXTENT_LIMIT;
+        use psxed_project::brush_transform::OrthoTransform;
+
+        self.document()?;
+        let scene_index = resolve_scene(&self.doc, scene)?;
+        if translate == [0, 0, 0] && quarter_turns.rem_euclid(4) == 0 && mirror_axis.is_none() {
+            return Err(
+                "nothing to do: give translate, rotate_quarter_turns or mirror".to_string(),
+            );
+        }
+        let indices = match selection {
+            BrushSelection::Range { first, count } => {
+                self.brush_slice(scene_index, first, count)?;
+                (first..first + count).collect::<Vec<_>>()
+            }
+            BrushSelection::Group(name) => self.group_range(Some(scene_index), name)?,
+        };
+        let brushes = &self.doc.scenes[scene_index].brushes;
+        let pivot = pivot.unwrap_or_else(|| {
+            let mut min = [f64::INFINITY; 3];
+            let mut max = [f64::NEG_INFINITY; 3];
+            for index in &indices {
+                let solved = brushes[*index].solve();
+                for axis in 0..3 {
+                    min[axis] = min[axis].min(solved.min[axis]);
+                    max[axis] = max[axis].max(solved.max[axis]);
+                }
+            }
+            std::array::from_fn(|axis| ((min[axis] + max[axis]) / 2.0).round() as i32)
+        });
+        let transform = OrthoTransform {
+            pivot,
+            mirror_axis,
+            quarter_turns,
+            translate,
+        };
+        let mut moved = Vec::with_capacity(indices.len());
+        let mut approximate = 0usize;
+        for index in &indices {
+            let mut brush = brushes[*index].clone();
+            approximate += brush.transform_ortho_with_uv_lock(transform);
+            let solved = brush.solve();
+            if !solved.is_valid() || !solved.within_extent(BRUSH_EDIT_EXTENT_LIMIT) {
+                return Err(format!(
+                    "brush {index} would leave the {BRUSH_EDIT_EXTENT_LIMIT} unit editing extent; \
+                     nothing was moved"
+                ));
+            }
+            moved.push(brush);
+        }
+        let scene_doc = &mut self.doc.scenes[scene_index];
+        for (index, brush) in indices.iter().zip(moved) {
+            scene_doc.brushes[*index] = brush;
+        }
+        self.record(format!(
+            "transform_brushes {} brush(es) about {pivot:?}",
+            indices.len()
+        ));
+        let mut out = format!(
+            "transformed {} brush(es) about pivot {pivot:?}: mirror {}, {} quarter turn(s) \
+             (+X toward +Z), then moved by {translate:?}. Textures stayed locked to the surfaces.",
+            indices.len(),
+            mirror_axis.map_or("none", |axis| ["X", "Y", "Z"][axis]),
+            quarter_turns
+        );
+        if approximate > 0 {
+            let _ = write!(
+                out,
+                "\n{approximate} face(s) sit at exactly 45 degrees and could only be locked \
+                 approximately; check them with get_brush."
+            );
+        }
+        Ok(out)
+    }
+
     /// Hollow box: a room of the given INNER dimensions, walls grown outward.
     ///
     /// Inner rather than outer because every spatial judgement about a room is
@@ -520,8 +724,9 @@ impl Workspace {
         ));
         Ok(format!(
             "put {count} brush(es) in group {name:?}. Pass that name as `group` to \
-             array, set_material, set_face_uv, audit, screenshot or delete instead of \
-             an index range that goes stale as soon as you carve or delete."
+             transform_brushes instead of an index range that goes stale as soon as you \
+             carve or delete; `groups` gives its current centre and size for screenshot \
+             and walk_test targets."
         ))
     }
 
@@ -1144,6 +1349,78 @@ fn count_subtree(scene: &psxed_project::Scene, id: NodeId) -> usize {
     })
 }
 
+/// Texture placement for one face of a convex brush, as `set_face_uv` takes it.
+#[derive(Clone, Debug, Default, serde::Deserialize, schemars::JsonSchema)]
+pub struct FaceUvSpec {
+    /// Texel offset `[u, v]` added after scale and rotation.
+    pub offset: Option<[i16; 2]>,
+    /// Rotation in degrees.
+    pub rotation: Option<i16>,
+    /// Scale per axis as a percentage, 100 being 1:1. Negative mirrors.
+    pub scale_percent: Option<[i32; 2]>,
+}
+
+/// One polygon face of a convex brush.
+#[derive(Clone, Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct ConvexFaceSpec {
+    /// Indices into the brush's `vertices`, in order around the polygon.
+    /// Either winding works; faces are oriented outward automatically.
+    pub indices: Vec<usize>,
+    /// Material for this face. Falls back to the brush's, then the batch's.
+    pub material: Option<String>,
+    /// Texture placement for this face.
+    pub uv: Option<FaceUvSpec>,
+}
+
+/// One closed convex solid: integer vertices plus the polygons that bound it.
+#[derive(Clone, Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct ConvexBrushSpec {
+    /// Corner points `[x, y, z]` in authored units, 4..=128 of them.
+    pub vertices: Vec<[i32; 3]>,
+    /// Boundary polygons, 4..=128 of them, together closing the solid.
+    pub faces: Vec<ConvexFaceSpec>,
+    /// Material for every face of this brush that does not name its own.
+    pub material: Option<String>,
+    /// solid (default), water, slime or lava.
+    pub contents: Option<String>,
+}
+
+/// Which brushes an edit applies to.
+#[derive(Clone, Copy, Debug)]
+pub enum BrushSelection<'a> {
+    /// A contiguous index range.
+    Range {
+        /// First brush index.
+        first: usize,
+        /// How many brushes from `first`.
+        count: usize,
+    },
+    /// Every brush in a named group, wherever edits have moved them.
+    Group(&'a str),
+}
+
+/// Most brushes one `add_convex_brushes` call may add, matching the
+/// TrenchBroom MCP's limit.
+pub const CONVEX_BATCH_LIMIT: usize = 512;
+
+/// Scale-percent to the Q8 the format stores, as `set_face_uv` converts it.
+fn scale_percent_q8(percent: [i32; 2]) -> Result<[i16; 2], String> {
+    if percent.contains(&0) {
+        return Err("a zero scale would divide by zero; use 100 for 1:1".to_string());
+    }
+    Ok(std::array::from_fn(|axis| {
+        (percent[axis].clamp(-12_000, 12_000) * 256 / 100) as i16
+    }))
+}
+
+fn parse_contents(name: &str) -> Result<psxed_project::brush::BrushContents, String> {
+    use psxed_project::brush::BrushContents;
+    BrushContents::ALL
+        .into_iter()
+        .find(|contents| contents.label().eq_ignore_ascii_case(name))
+        .ok_or_else(|| format!("unknown contents {name:?}: use solid, water, slime or lava"))
+}
+
 /// Centre and sweep of a radial [`Workspace::array`].
 #[derive(Clone, Copy, Debug)]
 pub struct RadialArray {
@@ -1218,6 +1495,122 @@ mod tests {
         let path = dir.join("project.ron");
         std::fs::write(&path, doc.to_ron_string().unwrap()).unwrap();
         Workspace::open(&path).unwrap()
+    }
+
+    fn wedge_spec(x: i32, material: Option<&str>) -> ConvexBrushSpec {
+        let face = |indices: &[usize]| ConvexFaceSpec {
+            indices: indices.to_vec(),
+            material: None,
+            uv: None,
+        };
+        ConvexBrushSpec {
+            vertices: vec![
+                [x, 0, 0],
+                [x + 256, 0, 0],
+                [x + 256, 0, 128],
+                [x, 0, 128],
+                [x, 96, 0],
+                [x + 256, 96, 0],
+            ],
+            faces: vec![
+                face(&[0, 1, 2, 3]),
+                face(&[0, 4, 5, 1]),
+                face(&[3, 2, 5, 4]),
+                face(&[0, 3, 4]),
+                face(&[1, 5, 2]),
+            ],
+            material: material.map(str::to_string),
+            contents: None,
+        }
+    }
+
+    /// The TrenchBroom contract: one bad brush rejects the whole batch with
+    /// its index, a good batch lands in one range, materials fall back from
+    /// face to brush to batch, and the group it lands in can then be moved
+    /// by name with textures locked.
+    #[test]
+    fn convex_batches_are_atomic_and_groups_transform_by_name() {
+        let dir = std::env::temp_dir().join(format!("psxed-mcp-convex-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut workspace = empty_workspace(&dir);
+        let material = workspace
+            .doc
+            .resources
+            .iter()
+            .find(|resource| matches!(resource.data, ResourceData::Material(_)))
+            .map(|resource| resource.name.clone())
+            .expect("the starter has materials");
+
+        let mut broken = wedge_spec(512, None);
+        broken.faces.pop();
+        let error = workspace
+            .add_convex_brushes(None, &[wedge_spec(0, None), broken], None, None)
+            .unwrap_err();
+        assert!(error.contains("brush 1 of the batch"), "{error}");
+        assert!(
+            workspace.doc.scenes[0].brushes.is_empty(),
+            "a rejected batch staged nothing"
+        );
+        assert!(!workspace.is_dirty());
+
+        let mut faced = wedge_spec(512, None);
+        faced.faces[0].material = Some(material.clone());
+        faced.faces[0].uv = Some(FaceUvSpec {
+            offset: Some([4, 8]),
+            rotation: Some(90),
+            scale_percent: Some([200, 100]),
+        });
+        let report = workspace
+            .add_convex_brushes(
+                None,
+                &[wedge_spec(0, Some(&material)), faced],
+                None,
+                Some("Wedges"),
+            )
+            .expect("two wedges build");
+        assert!(
+            report.contains("added 2 convex brush(es), 10 faces"),
+            "{report}"
+        );
+        assert!(report.contains("4 face(s) have no material"), "{report}");
+        let brushes = &workspace.doc.scenes[0].brushes;
+        assert!(brushes[0].faces.iter().all(|face| face.material.is_some()));
+        assert_eq!(brushes[1].faces[0].uv.scale_q8, [512, 256]);
+        assert_eq!(brushes[1].faces[0].uv.rotation_deg, 90);
+
+        let moved = workspace
+            .transform_brushes(
+                None,
+                BrushSelection::Group("Wedges"),
+                [0, 0, 1024],
+                1,
+                None,
+                Some([0, 0, 0]),
+            )
+            .expect("the group transforms");
+        assert!(moved.contains("transformed 2 brush(es)"), "{moved}");
+        assert!(!moved.contains("approximately"), "{moved}");
+        // The 768-long run along X now runs along Z, then moved 1024 in Z.
+        let solved: Vec<_> = workspace.doc.scenes[0]
+            .brushes
+            .iter()
+            .map(Brush::solve)
+            .collect();
+        assert_eq!(solved[0].min, [-128.0, 0.0, 1024.0]);
+        assert_eq!(solved[1].max, [0.0, 96.0, 1792.0]);
+
+        assert!(workspace
+            .transform_brushes(
+                None,
+                BrushSelection::Group("Wedges"),
+                [0, 0, 0],
+                4,
+                None,
+                None
+            )
+            .unwrap_err()
+            .contains("nothing to do"));
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     /// The write path end to end: build, array, retexture, delete, and the
