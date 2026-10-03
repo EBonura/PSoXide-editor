@@ -2016,7 +2016,10 @@ fn draw_preview_model_instances(
     let tex_start = scratch.model_tex_used;
     let mut triangles = psx_engine::PrimitiveArena::new(&mut scratch.model_tex_tris[tex_start..]);
     let mut model_commands = [psx_engine::WorldTriCommand::EMPTY; PREVIEW_MODEL_COMMAND_CAP];
-    let mut ot = psx_engine::OtFrame::resume(&mut scratch.ot);
+    // SAFETY: the preview table and every packet it already links live in
+    // `scratch` for the whole preview frame; the host walks them with
+    // `iter_packets`, never by DMA.
+    let mut ot = unsafe { psx_engine::OtFrame::resume(&mut scratch.ot) };
     let mut world = psx_engine::WorldRenderPass::new_deferred_sorted(&mut ot, &mut model_commands);
 
     for instance in instances {
