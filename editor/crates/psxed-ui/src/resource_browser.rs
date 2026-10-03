@@ -621,7 +621,7 @@ pub(crate) fn decode_psxt_thumbnail(bytes: &[u8]) -> Option<(ColorImage, PsxtSta
         height: texture.height(),
         depth_bits,
         clut_entries: clut_entries as u16,
-        index_zero_transparent: texture.index_zero_transparent(),
+        index_zero_transparent: texture.is_index_zero_transparent(),
         pixel_bytes: texture.pixel_bytes().len() as u32,
         clut_bytes: clut_bytes.len() as u32,
         file_bytes: bytes.len() as u32,
@@ -629,7 +629,7 @@ pub(crate) fn decode_psxt_thumbnail(bytes: &[u8]) -> Option<(ColorImage, PsxtSta
     let palette: Vec<Color32> = (0..clut_entries)
         .map(|i| {
             let raw_full = u16::from_le_bytes([clut_bytes[i * 2], clut_bytes[i * 2 + 1]]);
-            if i == 0 && texture.index_zero_transparent() && raw_full == 0 {
+            if i == 0 && texture.is_index_zero_transparent() && raw_full == 0 {
                 return Color32::TRANSPARENT;
             }
             let raw = raw_full & 0x7FFF;

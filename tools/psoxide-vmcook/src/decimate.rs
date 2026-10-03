@@ -317,7 +317,7 @@ pub fn render(c: &Cooked, pose: (usize, usize, u32), view: (u16, u16, u16)) -> V
     let s = runtime::sort(&md, &p);
     fr.begin(0x3def);
     fr.draw_textured(&md, &p, &s.order, |i| {
-        runtime::vm_normal_shade(md.tri(i).normal)
+        runtime::vm_normal_shade(md.triangle(i).normal)
     });
     fr.rgb()
 }
