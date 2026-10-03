@@ -21,7 +21,7 @@ use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{ErrorData, ServerHandler, ServiceExt};
 
 use psxed_mcp::audit::{audit, AuditDepth};
-use psxed_mcp::edit::{RadialArray, Workspace};
+use psxed_mcp::edit::{BrushSelection, ConvexBrushSpec, RadialArray, Workspace};
 use psxed_mcp::inspect::{brush_info, materials as material_table};
 use psxed_mcp::nodes::{entity_types, get_node};
 use psxed_mcp::play;
@@ -221,6 +221,42 @@ struct FaceUvReq {
     /// Scale per axis as a percentage, 100 being 1:1. Larger makes the
     /// texture bigger and repeat less often. Omitted fields are left alone.
     scale_percent: Option<[i32; 2]>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct ConvexReq {
+    /// Scene index. Omit for the first scene that has brushes.
+    scene: Option<usize>,
+    /// 1..=512 closed convex solids. Each is integer `vertices` plus `faces`,
+    /// every face a polygon of vertex indices. Validated as a whole batch
+    /// before anything is staged.
+    brushes: Vec<ConvexBrushSpec>,
+    /// Material for every face that names none, at brush or face level.
+    material: Option<String>,
+    /// Put the new brushes in this named group, creating it if needed.
+    group: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct TransformReq {
+    /// Scene index. Omit for the first scene that has brushes.
+    scene: Option<usize>,
+    /// First brush index. Give this with `count`, or give `group` instead.
+    first: Option<usize>,
+    /// How many brushes from `first`.
+    count: Option<usize>,
+    /// A named group: every brush in it, wherever edits have moved them.
+    group: Option<String>,
+    /// Offset `[x, y, z]`, applied last.
+    translate: Option<[i32; 3]>,
+    /// Quarter turns about the vertical axis through the pivot. One turn
+    /// carries +X onto +Z; negative turns go the other way.
+    rotate_quarter_turns: Option<i32>,
+    /// Mirror across the x, y or z plane through the pivot, applied first.
+    mirror: Option<String>,
+    /// Point to rotate and mirror about. Default: the centre of the
+    /// selection's bounds, rounded to whole units.
+    pivot: Option<[i32; 3]>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -525,6 +561,82 @@ impl EditorServer {
                 settings,
                 grid.unwrap_or(GRID_STEP),
                 material.as_deref(),
+            )?;
+            Ok(report + &Self::staged_note(workspace))
+        })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    #[rmcp::tool(
+        description = "Add closed convex solids from integer vertices and polygon faces: angled walls, wedges, doorway plugs, sculpted rock, heightfield floors, anything add_shape cannot make. Per face you can set a material and texture placement. Faces may be wound either way. Every brush is checked (closed surface, flat faces, convex, planes rebuild the given corners) and one failure rejects the whole batch with its index and reason. Up to 512 brushes per call. Edits stage in memory until `save`."
+    )]
+    async fn add_convex_brushes(
+        &self,
+        Parameters(ConvexReq {
+            scene,
+            brushes,
+            material,
+            group,
+        }): Parameters<ConvexReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let text = self.with(|workspace| {
+            let report = workspace.add_convex_brushes(
+                scene,
+                &brushes,
+                material.as_deref(),
+                group.as_deref(),
+            )?;
+            Ok(report + &Self::staged_note(workspace))
+        })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    #[rmcp::tool(
+        description = "Mirror, rotate in quarter turns about the vertical axis, and move a brush range or a named group, in that order, keeping every texture locked to its surface. Points stay exact integers. The pivot defaults to the centre of the selection. Edits stage in memory until `save`."
+    )]
+    async fn transform_brushes(
+        &self,
+        Parameters(TransformReq {
+            scene,
+            first,
+            count,
+            group,
+            translate,
+            rotate_quarter_turns,
+            mirror,
+            pivot,
+        }): Parameters<TransformReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let selection = match (first, count, group.as_deref()) {
+            (Some(first), Some(count), None) => BrushSelection::Range { first, count },
+            (None, None, Some(name)) => BrushSelection::Group(name),
+            _ => {
+                return Err(ErrorData::invalid_params(
+                    "give either first and count, or group".to_string(),
+                    None,
+                ))
+            }
+        };
+        let mirror_axis = match mirror.as_deref().map(str::to_ascii_lowercase).as_deref() {
+            None => None,
+            Some("x") => Some(0),
+            Some("y") => Some(1),
+            Some("z") => Some(2),
+            Some(other) => {
+                return Err(ErrorData::invalid_params(
+                    format!("unknown mirror axis {other:?}: use x, y or z"),
+                    None,
+                ))
+            }
+        };
+        let text = self.with(|workspace| {
+            let report = workspace.transform_brushes(
+                scene,
+                selection,
+                translate.unwrap_or([0, 0, 0]),
+                rotate_quarter_turns.unwrap_or(0),
+                mirror_axis,
+                pivot,
             )?;
             Ok(report + &Self::staged_note(workspace))
         })?;
