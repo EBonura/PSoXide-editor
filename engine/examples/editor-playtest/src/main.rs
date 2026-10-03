@@ -75,12 +75,12 @@ use psx_engine::{
     CharacterCollisionAabb, CharacterCollisionCylinder, CharacterCollisionRoom, CharacterMotorAnim,
     CharacterMotorConfig, CharacterMotorInput, CharacterMotorState, Config, Ctx, DepthBand,
     DepthRange, LoadedWorldCameraGte, OtFrame, PacketFramePair, PrimitivePacketArena,
-    PrimitivePacketScratch, PrimitiveSink, ProjectedVertex, RenderSubmission, Rgb8, RoomPoint,
-    RuntimeCollisionRoom, RuntimeRoom, Scene, SceneStateRef, SchedulerConfig, SimTick,
+    PrimitivePacketScratch, PrimitiveSink, ProjectedVertex, QueuedFrame, RenderSubmission, Rgb8,
+    RoomPoint, RuntimeCollisionRoom, RuntimeRoom, Scene, SceneStateRef, SchedulerConfig, SimTick,
     TexturedModelRenderFace, ThirdPersonCameraConfig, ThirdPersonCameraInput,
     ThirdPersonCameraState, ThirdPersonCameraTarget, VideoHz, VisualPacing, WorldCamera,
     WorldProjection, WorldRenderMaterial, WorldRenderPass, WorldSurfaceOptions, WorldTriCommand,
-    WorldVertex, Q12,
+    WorldVertex, PRIMITIVE_PACKET_SLOT_WORDS, Q12,
 };
 #[cfg(all(
     feature = "world-grid-visible",
@@ -121,7 +121,7 @@ use psx_level::{
     LevelUiValueBinding, LevelWaterCellRecord, ModelClipIndex, ParticleEmitterRecord, RoomIndex,
     RuntimeDebugMask,
 };
-use psx_vram::{TexDepth, Tpage};
+use psx_vram::{TextureDepth, TexturePage};
 
 mod active_room_cache;
 mod active_room_streaming;
@@ -623,6 +623,21 @@ struct Playtest {
     prepared_poi_page_type_frame: u16,
     overlay_poi_panel_frame: u16,
     overlay_poi_page_type_frame: u16,
+    /// The frame the last render built for the present queue: its ordering
+    /// table's head and the arena words reserved for its recorded overlay.
+    /// Null when that render was not offered the queue.
+    queued_head: *const u32,
+    queued_overlay: *mut u32,
+    queued_overlay_words: usize,
+    /// The present queue is held off: last frame's packets ahead of the
+    /// world pass would not fit beside a queued frame, so the paired-arena
+    /// fence would wait for its kick early in the frame. Zero (the
+    /// `init_zeroed` state) offers the queue.
+    present_queue_held_off: bool,
+    /// Frames in the current stay: in the queue, or held off and fitting.
+    present_queue_frames: u16,
+    /// Doublings of the re-entry wait after short stays in the queue.
+    present_queue_backoff: u8,
     /// Sim ticks since the last POI presentation step.
     poi_presentation_subtick: u8,
     /// Unique reward currently replacing the just-closed POI message panel.

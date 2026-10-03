@@ -3271,6 +3271,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "psoxide-hazard"
+version = "0.1.0"
+dependencies = [
+ "psx-disasm",
+ "regex",
+]
+
+[[package]]
 name = "psoxide-link"
 version = "0.1.0"
 dependencies = [
@@ -3283,6 +3291,7 @@ version = "0.1.0"
 dependencies = [
  "gimli",
  "object",
+ "psoxide-hazard",
  "rustc-demangle",
  "serde_json",
 ]
@@ -3340,6 +3349,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "psx-disasm"
+version = "0.1.0"
+
+[[package]]
 name = "psx-engine"
 version = "0.1.0"
 dependencies = [
@@ -3347,6 +3360,7 @@ dependencies = [
  "psx-font",
  "psx-gpu",
  "psx-gte",
+ "psx-hw",
  "psx-io",
  "psx-level",
  "psx-math",
@@ -3445,6 +3459,7 @@ version = "0.1.0"
 name = "psx-pack"
 version = "0.1.0"
 dependencies = [
+ "psx-hw",
  "psx-io",
 ]
 

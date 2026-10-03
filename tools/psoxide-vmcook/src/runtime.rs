@@ -23,7 +23,7 @@ pub fn leak(b: Vec<u8>) -> &'static [u8] {
 }
 
 pub fn load_model(c: &Cooked) -> Model {
-    Model::load_with_vertex_cap(leak(c.geom_bytes()), 4096)
+    Model::from_bytes_with_vertex_cap(leak(c.geom_bytes()), 4096)
 }
 
 /// Every sample the runtime can draw. HMA1 models: the games drive held
@@ -37,7 +37,7 @@ pub fn runtime_poses(c: &Cooked) -> Vec<(usize, usize, u32)> {
     let md = load_model(c);
     if md.has_tracks() {
         let mut out = Vec::new();
-        for clip in 0..md.n_clips {
+        for clip in 0..md.clip_count() {
             let d = md.clip_hold_ticks(clip).max(1) as usize;
             for e in 0..=d {
                 out.push(md.one_shot_clip_phase(clip, d, e));
@@ -73,9 +73,9 @@ pub fn runtime_poses(c: &Cooked) -> Vec<(usize, usize, u32)> {
 /// whole source frame of every clip.
 pub fn key_poses(c: &Cooked) -> Vec<(usize, usize, u32)> {
     let md = load_model(c);
-    if let Some(tracks) = md.hma1() {
+    if let Some(tracks) = md.tracks() {
         let mut out = Vec::new();
-        for clip in 0..md.n_clips {
+        for clip in 0..md.clip_count() {
             for f in 0..=tracks.model.clip_intervals(clip) {
                 out.push((clip, clip, f * 256));
             }
@@ -119,13 +119,13 @@ pub fn project(md: &Model, pose: (usize, usize, u32), h: u16) -> Projected {
     );
     scene::set_screen_offset(0, 0);
     scene::set_projection_plane(h);
-    let mut scratch = [psx_asset::hma1::Aff::ZERO; 256];
+    let mut scratch = [psx_asset::hma1::Affine::ZERO; 256];
     let fr = md.pose(pose.0, pose.1, pose.2, 0, &mut scratch);
-    let n = md.n_verts;
+    let n = md.vertex_count();
     let mut xy = vec![[0i16; 2]; n];
     let mut z = vec![0u16; n];
-    for ri in 0..md.n_ranges {
-        let range = md.range(ri);
+    for ri in 0..md.bone_range_count() {
+        let range = md.bone_range(ri);
         let bone = fr.bone(range.bone, range.mouth, 0);
         // compose_hmd7_bone_gte
         scene::load_rotation(&r);
@@ -157,7 +157,7 @@ pub fn project(md: &Model, pose: (usize, usize, u32), h: u16) -> Projected {
         let end = (range.first + range.count).min(n);
         let mut v = range.first.min(end);
         while v + 2 < end {
-            let p = scene::project_triangle(md.vert(v), md.vert(v + 1), md.vert(v + 2));
+            let p = scene::project_triangle(md.vertex(v), md.vertex(v + 1), md.vertex(v + 2));
             for k in 0..3 {
                 xy[v + k] = [p[k].sx, p[k].sy];
                 z[v + k] = p[k].sz;
@@ -165,7 +165,7 @@ pub fn project(md: &Model, pose: (usize, usize, u32), h: u16) -> Projected {
             v += 3;
         }
         while v < end {
-            let p = scene::project_vertex(md.vert(v));
+            let p = scene::project_vertex(md.vertex(v));
             xy[v] = [p.sx, p.sy];
             z[v] = p.sz;
             v += 1;
@@ -235,7 +235,7 @@ pub fn gpu_cycles_for(
 ) -> u64 {
     let px: f64 = order
         .iter()
-        .map(|&i| clipped_area(md.tri(i).idx.map(|k| p.xy[k as usize]), center, rect))
+        .map(|&i| clipped_area(md.triangle(i).idx.map(|k| p.xy[k as usize]), center, rect))
         .sum();
     (px * 179.0 / 64.0).round() as u64
 }
@@ -262,8 +262,8 @@ pub fn sort(md: &Model, p: &Projected) -> Sorted {
     let (s, shift) = local_scale_shift(md.local_to_world_q12());
     let near = (NEAR_Z * s) as u16;
     let mut buckets: Vec<Vec<usize>> = vec![Vec::new(); BUCKETS];
-    for i in 0..md.n_tris {
-        let t = md.tri(i);
+    for i in 0..md.triangle_count() {
+        let t = md.triangle(i);
         let [a, b, c] = t.idx.map(|x| x as usize);
         let (za, zb, zc) = (p.z[a], p.z[b], p.z[c]);
         if za < near || zb < near || zc < near {
@@ -456,7 +456,7 @@ impl Frame {
         let before: u64 = self.gpu.gp0_timing_histogram().iter().sum();
         let mut window = u32::MAX;
         for &i in order {
-            let t = md.tri(i);
+            let t = md.triangle(i);
             let slot = self.slots[t.tex.min(self.slots.len() - 1)];
             if slot.window != window {
                 gp0(&mut self.gpu, slot.window);
@@ -484,7 +484,7 @@ impl Frame {
             let id = (k + 1) as u32;
             assert!(id < 0x8000);
             let rgb = ((id & 31) << 3) | (((id >> 5) & 31) << 11) | (((id >> 10) & 31) << 19);
-            let t = md.tri(i);
+            let t = md.triangle(i);
             let [a, b, c] = t.idx.map(|x| x as usize);
             gp0(&mut self.gpu, 0x2000_0000 | rgb);
             gp0(&mut self.gpu, Self::xy(p.xy[a]));
@@ -559,7 +559,7 @@ impl UvPass {
         let tpage = (512u32 / 64) | (2 << 7); // 15bpp
         let mut window = u32::MAX;
         for &i in order {
-            let t = md.tri(i);
+            let t = md.triangle(i);
             let tx = &c.texs[t.tex];
             let win = tex_window_word(0, 0, tx.w, tx.h);
             if win != window {

@@ -14,6 +14,7 @@
 
 use psx_font::FontAtlas;
 use psx_gpu::framebuf::FrameBuffer;
+use psx_io::periph::GpuDma;
 use psx_level::{AssetId, LevelOptionDef, LevelUiValueBinding, LevelWorldLayer};
 use psx_pad::{button, poll_port2, ActionInput, ActionMap, PadState};
 
@@ -43,13 +44,49 @@ pub enum RenderSubmission {
     /// not touch the GPU or channel 2 except through calls that drain the
     /// channel first (VRAM uploads do).
     QueuedDoubleBuffered,
+    /// [`QueuedDoubleBuffered`](Self::QueuedDoubleBuffered), except that the
+    /// runner hands the whole frame to psx-rt's present queue instead of
+    /// kicking it itself: frame N's ordering table, its overlay and the draw
+    /// target and clear that precede it become one DMA chain, which the VBlank
+    /// handler starts (and flips N-1 onto the display) on the first edge
+    /// after N-1 has drawn. The CPU goes straight on to the next frame.
+    ///
+    /// `render` ends its ordering table on [`Ctx::present_queue_hook`] right
+    /// after clearing it and reserves overlay space;
+    /// [`Scene::take_queued_frame`] then returns both, and the runner records
+    /// [`Scene::render_overlay`] into that space with psx-io's command
+    /// recording. Display-control writes are not recorded; psx-vram uploads
+    /// reach the GPU at once, outside the recording.
+    /// When `take_queued_frame` returns `None`, the runner presents the frame
+    /// through the `QueuedDoubleBuffered` path instead, so the scene must
+    /// also support [`Scene::submit_render`].
+    ///
+    /// Needs psx-engine's `present-queue` feature; without it the runner
+    /// presents these scenes as `QueuedDoubleBuffered`.
+    PresentQueue,
 }
 
 impl RenderSubmission {
     /// True for both queued contracts: `render` builds, `submit_render` kicks.
     pub const fn is_queued(self) -> bool {
-        matches!(self, Self::Queued | Self::QueuedDoubleBuffered)
+        matches!(
+            self,
+            Self::Queued | Self::QueuedDoubleBuffered | Self::PresentQueue
+        )
     }
+}
+
+/// A frame a [`RenderSubmission::PresentQueue`] scene built, returned by
+/// [`Scene::take_queued_frame`]. Everything it points at must stay live and
+/// unmodified until the frame after next starts rendering.
+#[derive(Copy, Clone, Debug)]
+pub struct QueuedFrame {
+    /// The ordering table's submit head (the first node the walk reads).
+    pub head: *const u32,
+    /// Space for the runner to record the overlay into.
+    pub overlay: *mut u32,
+    /// Words available at `overlay`.
+    pub overlay_words: usize,
 }
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -89,6 +126,8 @@ pub struct Ctx {
     /// receive the clear immediately before [`Scene::submit_render`].
     pub fb: FrameBuffer,
     runtime_requests: RuntimeRequests,
+    gpu_dma: Option<GpuDma>,
+    present_queue_hook: Option<*const u32>,
 }
 
 impl Ctx {
@@ -110,7 +149,41 @@ impl Ctx {
             pad2_prev: PadState::NONE,
             fb,
             runtime_requests: RuntimeRequests::default(),
+            gpu_dma: None,
+            present_queue_hook: None,
         }
+    }
+
+    /// Hand the context the GPU DMA token; the app runner does this once.
+    pub(crate) fn set_gpu_dma(&mut self, dma: GpuDma) {
+        self.gpu_dma = Some(dma);
+    }
+
+    /// The GPU DMA token, for [`OtFrame::submit`](crate::OtFrame::submit)
+    /// and the other calls that walk or write through channel 2.
+    ///
+    /// # Panics
+    ///
+    /// Outside the app runner, which takes the token at boot.
+    #[inline]
+    pub fn gpu_dma(&mut self) -> &mut GpuDma {
+        self.gpu_dma
+            .as_mut()
+            .expect("the app runner holds the GPU DMA token")
+    }
+
+    /// During a [`RenderSubmission::PresentQueue`] render, the node the
+    /// frame's ordering table must end on: pass it to
+    /// [`OtFrame::end_with_chain`](crate::OtFrame::end_with_chain) right after
+    /// clearing the table. The runner points it at the recorded overlay.
+    /// `None` in every other render.
+    #[inline]
+    pub fn present_queue_hook(&self) -> Option<*const u32> {
+        self.present_queue_hook
+    }
+
+    pub(crate) fn set_present_queue_hook(&mut self, hook: Option<*const u32>) {
+        self.present_queue_hook = hook;
     }
 
     /// Fixed simulation delta as Q12 seconds.
@@ -452,10 +525,9 @@ pub trait Scene {
     /// build CPU-side packets here; the runner clears the next back buffer and
     /// calls [`submit_render`](Scene::submit_render) afterwards.
     ///
-    /// A scene that kicks its ordering table asynchronously (via
-    /// [`OtFrame::submit_async`](crate::OtFrame::submit_async) +
-    /// [`OtSubmitInFlight::detach`](crate::OtSubmitInFlight::detach))
-    /// must not issue any immediate GP0 draw after the kick; put that
+    /// A scene that kicks its ordering table asynchronously (with
+    /// [`psx_gpu::submit_linked_list_raw_async`], leaving the wait to the
+    /// runner) must not issue any immediate GP0 draw after the kick; put that
     /// work in [`render_overlay`](Scene::render_overlay) instead, which
     /// the engine calls once the GPU has drained the table.
     ///
@@ -468,6 +540,16 @@ pub trait Scene {
     /// after the prior frame has finished and the next back buffer is ready.
     #[allow(unused_variables)]
     fn submit_render(&mut self, ctx: &mut Ctx) {}
+
+    /// Hand over the frame the last [`Scene::render`] built for the present
+    /// queue ([`RenderSubmission::PresentQueue`]). Called right after
+    /// `render`, before the runner records [`Scene::render_overlay`], so
+    /// commit here whatever state the overlay reads. `None` makes the runner
+    /// present the frame through [`Scene::submit_render`] instead.
+    #[allow(unused_variables)]
+    fn take_queued_frame(&mut self, ctx: &mut Ctx) -> Option<QueuedFrame> {
+        None
+    }
 
     /// Draw the 2D overlay layer (HUD, prompts, debug readouts) on top
     /// of the frame built by the last [`render`](Scene::render) call.
