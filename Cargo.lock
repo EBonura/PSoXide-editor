@@ -3389,6 +3389,7 @@ dependencies = [
 name = "psx-gpu"
 version = "0.1.0"
 dependencies = [
+ "bitflags 2.11.1",
  "psx-hw",
  "psx-io",
 ]
