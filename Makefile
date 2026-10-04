@@ -862,13 +862,36 @@ $(HWTEST_MOVIE):
 	cargo run -q --release --locked --manifest-path "$(PSOXIDE_SDK)/Cargo.toml" -p xtask -- \
 		fmv-test-movie --psxavenc "$(PSXAVENC)" --out $@
 
-hardware-tests-disc: hardware-tests $(HWTEST_CDDA) $(HWTEST_MOVIE)
+# HWSONGS.XA for the XA MUSIC LOOP case (v1.27): the SDK's four generated
+# tone songs (6 s each, plain synthesis, nothing sampled) as the channels of one
+# 37.8 kHz stereo single-speed file, so a loop restart is the interesting
+# part of the test. It goes after MOVIE.STR so CDTEST.BIN and MOVIE.STR keep
+# their LBAs and only the CD-DA track moves outward. The SDK's psx-audio-cook
+# is not imported here, so PSOXIDE_SDK names a PSoXide checkout to run it from,
+# as for MOVIE.STR; the encode is deterministic, and to reuse a built file,
+# copy it to this path.
+HWTEST_XA_DIR := $(EXAMPLE_OUT)/xa
+HWTEST_XA := $(HWTEST_XA_DIR)/HWSONGS.XA
+HWTEST_XA_COOK = cargo run -q --release --locked --manifest-path "$(PSOXIDE_SDK)/Cargo.toml" \
+	--target-dir "$(CURDIR)/build/xa-tools" -p psx-audio-cook
+
+$(HWTEST_XA):
+	@[ -n "$(PSOXIDE_SDK)" ] || { echo "HWSONGS.XA: set PSOXIDE_SDK to a PSoXide checkout (its psx-audio-cook encodes the songs)" >&2; exit 1; }
+	@mkdir -p $(HWTEST_XA_DIR)
+	$(HWTEST_XA_COOK) --example xa_demo_songs -- "$(HWTEST_XA_DIR)" 6
+	$(HWTEST_XA_COOK) -- xa-encode $@ \
+		$(HWTEST_XA_DIR)/song0_pad.wav $(HWTEST_XA_DIR)/song1_high.wav \
+		$(HWTEST_XA_DIR)/song2_blips.wav $(HWTEST_XA_DIR)/song3_whistle.wav \
+		--manifest $(HWTEST_XA_DIR)/songs.json
+
+hardware-tests-disc: hardware-tests $(HWTEST_CDDA) $(HWTEST_MOVIE) $(HWTEST_XA)
 	cd tools/mkisopsx && cargo run --release -- \
 		--exe ../../$(EXAMPLE_OUT)/hardware-tests.exe \
 		--out ../../$(EXAMPLE_OUT)/hardware-tests.bin \
 		--volume PSOXIDE \
 		--cdtest-sectors 500 \
 		--xa-file ../../$(HWTEST_MOVIE) \
+		--xa-file ../../$(HWTEST_XA) \
 		--cdda-track ../../$(HWTEST_CDDA)
 
 $(foreach example,$(DATA_DISC_EXAMPLES),$(eval $(call build_data_disc,$(example))))
