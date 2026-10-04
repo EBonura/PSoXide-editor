@@ -15,14 +15,17 @@ pub(crate) fn push_clear(scratch: &mut PreviewScratch, color: [u8; 3]) {
         0x0200_0000_u32 | color[0] as u32 | ((color[1] as u32) << 8) | ((color[2] as u32) << 16);
     let xy_word = 0u32; // top-left at (0, 0)
     let wh_word = ((240u32) << 16) | 320u32; // pack_xy(320, 240)
-                                             // word[0] is rewritten by `OrderingTable::insert` with the
+                                             // word[0] is rewritten by `OtFrame::add_raw` with the
                                              // chain tag -- leave it at 0 here.
     scratch.clear_packet[1] = color_word;
     scratch.clear_packet[2] = xy_word;
     scratch.clear_packet[3] = wh_word;
     let ptr: *mut u32 = scratch.clear_packet.as_mut_ptr();
     unsafe {
-        scratch.ot.insert(PREVIEW_CLEAR_SLOT, ptr, 3);
+        scratch
+            .ot
+            .resume_frame()
+            .add_raw(PREVIEW_CLEAR_SLOT, ptr, 3);
     }
 }
 
@@ -176,7 +179,8 @@ pub(crate) fn push_sky_quad_corners(
     unsafe {
         scratch
             .ot
-            .insert(PREVIEW_SKY_SLOT, ptr.cast::<u32>(), QuadGouraud::WORDS);
+            .resume_frame()
+            .add_raw(PREVIEW_SKY_SLOT, ptr.cast::<u32>(), QuadGouraud::WORDS);
     }
 }
 
@@ -330,8 +334,10 @@ pub(crate) fn push_far_vista_quad(
     scratch.far_vista_used += 1;
     let ptr: *mut QuadFlat = &mut scratch.far_vista_quads[idx];
     unsafe {
-        scratch
-            .ot
-            .insert(PREVIEW_FAR_VISTA_SLOT, ptr.cast::<u32>(), QuadFlat::WORDS);
+        scratch.ot.resume_frame().add_raw(
+            PREVIEW_FAR_VISTA_SLOT,
+            ptr.cast::<u32>(),
+            QuadFlat::WORDS,
+        );
     }
 }
