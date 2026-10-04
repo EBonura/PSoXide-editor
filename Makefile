@@ -267,19 +267,13 @@ fmt:
 	cd engine && cargo fmt --all
 	cd sdk && cargo fmt --all
 
-# The SDK pin at ae6e1ef10 deprecates psx-gpu's free functions, FrameBuffer,
-# Resolution and VideoMode in favour of the Gpu token and `display`, one stage
-# ahead of removing them (sdk/docs/MIGRATION-psx-gpu.md). The editor, engine,
-# hardware tests and the imported emulator crates still call them, so the
-# editor's lints allow `deprecated` until they migrate; the SDK workspace itself
-# is linted without the allowance.
 lint:
 	$(PSOXIDE_DEV) lint-policy-guard
 	$(PSOXIDE_DEV) runtime-numeric-guard
-	cargo clippy --workspace --all-targets --all-features -- -D warnings -A deprecated
-	cd engine && cargo clippy --workspace --all-targets --all-features -- -D warnings -A deprecated
+	cargo clippy --workspace --all-targets --all-features -- -D warnings
+	cd engine && cargo clippy --workspace --all-targets --all-features -- -D warnings
 	cd sdk && cargo clippy --workspace --all-targets --all-features -- -D warnings
-	cd engine/examples/hardware-tests && CARGO_TARGET_DIR="$(CURDIR)/build/examples-clippy" cargo clippy --release $(PSX_BUILD_FLAGS) -- -D warnings -A deprecated
+	cd engine/examples/hardware-tests && CARGO_TARGET_DIR="$(CURDIR)/build/examples-clippy" cargo clippy --release $(PSX_BUILD_FLAGS) -- -D warnings
 
 lint-policy-guard:
 	$(PSOXIDE_DEV) lint-policy-guard

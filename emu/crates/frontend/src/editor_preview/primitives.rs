@@ -586,7 +586,7 @@ pub(crate) fn push_textured_material_tri_split(
     );
     let packet_ptr: *mut TriTexturedGouraud = &mut scratch.tex_tris[idx];
     unsafe {
-        scratch.ot.insert(
+        scratch.ot.resume_frame().add_raw(
             slot_idx,
             packet_ptr.cast::<u32>(),
             TriTexturedGouraud::WORDS,
@@ -636,7 +636,8 @@ pub(crate) fn push_tri_split(
     unsafe {
         scratch
             .ot
-            .insert(slot, packet_ptr.cast::<u32>(), TriGouraud::WORDS);
+            .resume_frame()
+            .add_raw(slot, packet_ptr.cast::<u32>(), TriGouraud::WORDS);
     }
     true
 }
