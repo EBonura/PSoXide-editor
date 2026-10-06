@@ -7,6 +7,19 @@ smaller comparison. Shared character, animation and UI assets resolve through
 
 ## Physical scarf, 2026-10-06
 
+The optimized renderer batches the scarf's solid Gouraud triangles while retaining
+all 16 particles, two solver passes, 30 triangles, shading and stance fragments.
+Against the frozen folded-wrap build, full recorded gameplay improves from
+26.068 to 26.198 fps (strict DMA: 26.068 to 26.155). The heavy dash at poll 1688
+improves from 20.184 to 20.401 fps in both modes. This is a modest saving;
+the route still does not hold 30 fps. Final gameplay and stance-review images
+match the baseline exactly, and 880 isolated engine/BSP/runtime tests pass.
+Four additional solver experiments were rejected for insufficient gains.
+See [optimization measurements](validation/scarf/optimization.json) and
+[stance comparison](validation/scarf/optimization-stance-review.png).
+Timings isolate the scarf from concurrent camera/enemy work; physical-console
+performance remains unverified. Rebuild & Play picks up the optimized code.
+
 The neck wrap now uses uneven cloth contours: a narrow upper opening and a
 wider lower edge with an off-centre front dip. This replaces the circular tube
 while retaining 30 total scarf triangles. The [1080p close-up video](validation/scarf/folded-wrap-1080p.mp4)
