@@ -1,0 +1,66 @@
+{
+  "walk_backward": {
+    "frames": 20,
+    "direction": [
+      0,
+      0,
+      -1
+    ],
+    "lift": 1200.0,
+    "lead": 0,
+    "sample_hz": 15,
+    "stored_frames": 21,
+    "period_seconds": 1.3333333333333333,
+    "duty": 0.58,
+    "start_phase_frames": 0,
+    "pelvis_lowering": 1172.8006497062688,
+    "max_leg_extension": 0.9394028235614412,
+    "translation_shift": 0
+  },
+  "strafe_left": {
+    "frames": 16,
+    "direction": [
+      -1,
+      0,
+      0
+    ],
+    "lift": 1000.0,
+    "lead": 1,
+    "sample_hz": 15,
+    "stored_frames": 17,
+    "period_seconds": 1.0666666666666667,
+    "duty": 0.58,
+    "start_phase_frames": 8,
+    "pelvis_lowering": 773.3754529199596,
+    "max_leg_extension": 0.9443572047730912,
+    "translation_shift": 0
+  },
+  "strafe_right": {
+    "frames": 16,
+    "direction": [
+      1,
+      0,
+      0
+    ],
+    "lift": 1150.0,
+    "lead": 0,
+    "sample_hz": 15,
+    "stored_frames": 17,
+    "period_seconds": 1.0666666666666667,
+    "duty": 0.58,
+    "start_phase_frames": 8,
+    "pelvis_lowering": 368.81147629255975,
+    "max_leg_extension": 0.9441126651579894,
+    "translation_shift": 0
+  },
+  "calibration": {
+    "cooked_speed_per_tick": 1,
+    "ticks_per_second": 60,
+    "visual_scale_q12": 184,
+    "cook_position_divisor": 16,
+    "visual_scale_q8": 417,
+    "authored_walk_speed": 28,
+    "model_q12_before_cook": 113,
+    "assumption": "Steady straight travel. Circling radius correction and turning can introduce contact slip."
+  }
+}

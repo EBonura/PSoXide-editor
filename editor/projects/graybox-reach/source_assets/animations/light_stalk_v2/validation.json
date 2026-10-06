@@ -1,0 +1,21 @@
+{
+  "idle": {
+    "frames": 96,
+    "loop_seam_over_largest_step": 0.006682686288574094,
+    "max_planted_foot_drift_per_sample_world_units": 0.0,
+    "max_leg_extension": 0.8890574582029709,
+    "floor_range_world_units": 0.0
+  },
+  "walk": {
+    "frames": 24,
+    "loop_seam_over_largest_step": 0.6956598633354952,
+    "max_planted_foot_drift_per_sample_world_units": 0.0782789796091946,
+    "max_leg_extension": 0.9296367274813065,
+    "floor_range_world_units": 0.6182460784912109
+  },
+  "project_disc_build": "passed",
+  "rig_max_position_error": {
+    "idle": 0.0005052287554877414,
+    "walk": 0.0001894453963922276
+  }
+}

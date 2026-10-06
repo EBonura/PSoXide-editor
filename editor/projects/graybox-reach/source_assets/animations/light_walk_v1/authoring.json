@@ -1,0 +1,17 @@
+{
+  "frames": 24,
+  "sample_hz": 30,
+  "period_seconds": 0.8,
+  "source_stride": [
+    1,
+    23.5
+  ],
+  "stance_fraction": 0.52,
+  "swing_clearance_model_units": 2200,
+  "pelvis_drop_model_units": 2488.839105505991,
+  "max_leg_extension": 0.9849999999999999,
+  "target_world_speed_per_second": 1680,
+  "visual_scale_q8": 417,
+  "local_to_world_scale": 0.044921875,
+  "translation_shift": 0
+}

@@ -1,0 +1,17 @@
+;FFMETADATA1
+title=Graybox Reach — single enemy behaviour review
+[CHAPTER]
+TIMEBASE=1/1000
+START=0
+END=27290
+title=Engage and flank
+[CHAPTER]
+TIMEBASE=1/1000
+START=27290
+END=51560
+title=Disengage and return home
+[CHAPTER]
+TIMEBASE=1/1000
+START=51560
+END=75864
+title=Blocked-path recovery

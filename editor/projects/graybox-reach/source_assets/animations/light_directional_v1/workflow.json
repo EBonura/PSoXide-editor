@@ -1,0 +1,33 @@
+{
+  "purpose": "Backward walk and two target-facing sidesteps for the Graybox Reach light enemy.",
+  "blender_version": "5.2.2 LTS",
+  "runtime_joints": 22,
+  "model_triangles": 457,
+  "source_body": "../light_walk_v5/walk.npz",
+  "bind_rig": "../../characters/light_body_v1/bind.npz",
+  "actions": {
+    "walk_backward": "20 unique frames + loop endpoint; 15 Hz, 1.33s cycle",
+    "strafe_left": "16 unique frames + loop endpoint; 15 Hz, 1.07s cycle",
+    "strafe_right": "16 unique frames + loop endpoint; 15 Hz, 1.07s cycle"
+  },
+  "poses": [
+    "Collected stance and double support at entry for the sidesteps.",
+    "Leading foot reaches outward while the trailing foot supports; trailing foot follows without crossing.",
+    "Torso remains aimed toward the target, retaining v5 torso twist and separate cannon/claw inertia.",
+    "Retreat uses low backward steps, with soft knees and a forward-looking head."
+  ],
+  "commands": {
+    "regenerate": "Blender --background --factory-startup --python-exit-code 1 -P author.py",
+    "save_and_render": "Blender --background --factory-startup --python-exit-code 1 -P save_blends.py",
+    "validate": "Blender bundled python3.13 validate.py",
+    "export_manual_edits": "Blender --background --factory-startup --python-exit-code 1 -P export_blend.py -- strafe_left [optional output.psxanim]"
+  },
+  "editing": "Each .blend contains the 22-bone rig, original mesh weights, packed texture and one looping action. Save manual edits before regeneration. Regeneration replaces these snapshots. Export then copy the PSXA into assets/animations/light_directional_v1.",
+  "calibration": "The light enemy walk speed cooks to 2 units/tick; spacing_speed_percent=50 selects 1 unit/tick for circling and retreat. Clips run at 15 Hz with the same poses/strides. Source model scale113 and instance scale417 produce Q12 184; cooking divides positions by16. The distance-driven gait clock uses this spacing speed as its nominal rate.",
+  "limits": "Contact checks assume straight constant-speed movement. Orbit rotation, radius correction and collisions can still introduce foot slip.",
+  "source_hashes": {
+    "strafe_right.npz": "d411a72836a929bc6da0f3a9cdcfe7b8a26b13120ad6eddb9cfd41bbda5e4137",
+    "walk_backward.npz": "3b9b21973bb4f76f2287d68cee8aa82958a0385852adc170fe86e07de96ee303",
+    "strafe_left.npz": "289379a9ef053d682560ed0dfdaf0b6ff90ac81ac3f729598142090fc742511a"
+  }
+}

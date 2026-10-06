@@ -1,0 +1,61 @@
+{
+  "project": "Graybox Reach",
+  "date": "2026-10-06",
+  "animations": [
+    "walk_backward",
+    "strafe_left",
+    "strafe_right"
+  ],
+  "installed": {
+    "walk_backward": "e09f698af86c89c4753eb3d0f5fc25f74d8ade468b0bccef61912db7b1b9b4ea",
+    "strafe_left": "334ac88ce75a3070b96c42c17ee2325145f0527d1e300754aac416644e0c9744",
+    "strafe_right": "b9a2218733f91fa01046047c15de0b973360500a5fe35bb7cc98f9c21d3d7f93"
+  },
+  "normal_disc_sha256": "5638445f0a6cf33b0efba606d4fdec3e4ca59c3cb865481f9977d959b48dc7a0",
+  "saved_project_disc_matches_validated_disc": true,
+  "normal_exe_sha256": "f30d67969a73cc27cb770472003cdd92dbc0f0529e90fe4cd8acbaa243dd399e",
+  "diagnostic_exe_sha256": "6a7afd91faa9ec53fe9bc62aa53debc18e60cba2ff46aa9eb3134d45a94a7449",
+  "build": "Normal project disc cook/build passed; hazard and scratchpad guards passed.",
+  "normal_replays": {
+    "circle": {
+      "expected_poll": 2760,
+      "actual_poll": 2760
+    },
+    "observe": {
+      "tape_end_poll": 2400,
+      "actual_poll": 2400
+    }
+  },
+  "diagnostic_replay": {
+    "expected_poll": 3000,
+    "actual_poll": 3000,
+    "feature": "emulator-telemetry",
+    "coverage": {
+      "circle-left": {
+        "expected_clip": 6,
+        "matching_samples": 34,
+        "sample_tick": 2412,
+        "screenshot_route_tick": 2490
+      },
+      "circle-right": {
+        "expected_clip": 7,
+        "matching_samples": 40,
+        "sample_tick": 1368,
+        "screenshot_route_tick": 1470
+      },
+      "retreat": {
+        "expected_clip": 10,
+        "matching_samples": 10,
+        "sample_tick": 1752,
+        "screenshot_route_tick": 1830
+      }
+    },
+    "note": "Same frozen source/asset closure, telemetry enabled. The diagnostic executable was not installed over the shipping disc."
+  },
+  "asset_validation": "Source and cooked loop/contact checks passed, including fractional interpolation. All knees below 95.5% extension. Blender rig deformation verified across every frame; one editable Blender export roundtrip tested.",
+  "performance_scope": "457-triangle mesh and 22-joint rig unchanged. No new per-frame engine algorithm. No claim of a new frame-rate benchmark.",
+  "preview": "directional-cycles-1080p.mp4",
+  "limits": "Straight-motion foot contact calibration; circling, collision-constrained motion and integer runtime skinning can still introduce sliding. Not tested on original console.",
+  "final_install": "Rebuilt after concurrent build; saved CUE/BIN matches the normal disc used for gameplay replay, byte for byte.",
+  "revision": "Original fast-cadence integration, before 15 Hz retiming. See retime-integration.json for current build."
+}

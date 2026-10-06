@@ -1,0 +1,57 @@
+{
+  "triangles": 438,
+  "vertices": 400,
+  "changes": [
+    {
+      "component": 3,
+      "vertices": 18,
+      "max_move": 1600.8027299530067
+    },
+    {
+      "component": 4,
+      "vertices": 4,
+      "max_move": 247.28257727749462
+    },
+    {
+      "component": 2,
+      "vertices": 12,
+      "max_move": 365.1570169461353
+    },
+    {
+      "component": 0,
+      "vertices": 10,
+      "max_move": 265.00733843612727
+    },
+    {
+      "component": 6,
+      "vertices": 19,
+      "max_move": 197.75550586519725
+    },
+    {
+      "component": 7,
+      "vertices": 25,
+      "max_move": 190.99050971187066
+    },
+    {
+      "component": 9,
+      "vertices": 12,
+      "max_move": 644.9137728409903
+    },
+    {
+      "component": 30,
+      "vertices": 10,
+      "max_move": 655.8691979350764
+    },
+    {
+      "component": 43,
+      "vertices": 13,
+      "max_move": 481.5062212451031
+    },
+    {
+      "component": 35,
+      "vertices": 11,
+      "max_move": 205.3805335172447
+    }
+  ],
+  "unchanged": "Skeleton, weights, face indices, UVs, palette banks, cannon, claw, feet, joints and connector rods"
+}

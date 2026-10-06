@@ -1,0 +1,17 @@
+[
+  {
+    "resource_id": 104,
+    "old_path": "../default/assets/animations/rust_mantis_starter/walk_bwd.psxanim",
+    "new_path": "assets/animations/light_directional_v1/walk_backward.psxanim"
+  },
+  {
+    "resource_id": 71,
+    "old_path": "../default/assets/animations/rust_mantis_starter/strafe_left.psxanim",
+    "new_path": "assets/animations/light_directional_v1/strafe_left.psxanim"
+  },
+  {
+    "resource_id": 72,
+    "old_path": "../default/assets/animations/rust_mantis_starter/strafe_right.psxanim",
+    "new_path": "assets/animations/light_directional_v1/strafe_right.psxanim"
+  }
+]

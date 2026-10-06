@@ -1,0 +1,39 @@
+{
+  "project": "Graybox Reach",
+  "change": "Half-speed strafe-left, strafe-right and backward-walk cycles; matching half-speed circle/retreat travel for light enemy only.",
+  "clips": {
+    "walk_backward": {
+      "sample_hz": 15,
+      "cycle_seconds": 1.3333333333333333,
+      "installed_sha256": "8cff593acc773bb648faee2c4b154f602ab96a572c5625979ecd6c7dfb9205b2",
+      "cooked_sha256": "6fc69b39dda90f6cee373e171e2ba3e20359b097f5efd4cdce947680bbeed2fb"
+    },
+    "strafe_left": {
+      "sample_hz": 15,
+      "cycle_seconds": 1.0666666666666667,
+      "installed_sha256": "f3a6f4752f3e5f6c87fe9e4873fcebd545a3918b861f07ee08aa2841ed83f5af",
+      "cooked_sha256": "da25a84510e5cc68f301a580ee13ba0faf64d074630fa1b56a5229fb15ab60e5"
+    },
+    "strafe_right": {
+      "sample_hz": 15,
+      "cycle_seconds": 1.0666666666666667,
+      "installed_sha256": "fe813b571e971ec8c7c37d555b97e2673b06e8bbbf54ac12a0a8ef6787cfbe85",
+      "cooked_sha256": "57773a3d2c1367c4982931fd9c6121351a9ee605e35dab267ec84d5a85383c9e"
+    }
+  },
+  "spacing_speed_percent": 50,
+  "cooked_walk_units_per_tick": 2,
+  "cooked_spacing_units_per_tick": 1,
+  "animation_clock": "Distance-driven clock normalized to spacing speed; prevents double slowdown.",
+  "checks": [
+    "23 tactical runtime tests passed, including delta=1/2 speed and animation-clock regression cases.",
+    "Legacy enemy settings deserialize with default speed 100%.",
+    "Source and cooked contact/loop checks passed; Blender export roundtrip passed.",
+    "Frontend/editor/MCP release build and normal project disc build passed.",
+    "Normal game replay completed to 3000 polls; contact-sheet reviewed."
+  ],
+  "replay_log_tail": "[cli] loaded poll-bound input tape editor/projects/graybox-reach/validation/light-directional-v1/extended-observe.csv (3000 polls, starting at poll 0)\n[cli] mounted cue-backed disc editor/projects/graybox-reach/baked/graybox_reach.cue\ncombat music:on\ncombat music:on\ntick=808697921  cycles=1763560910  pc=0x8002d844  stopped-at=808697921\nroute-ticks=3086  port1-polls=3000\n[cli] CPU display \u2192 build/graybox-reach/light-directional-v1/retime-gameplay/final.ppm (320x240)\n",
+  "disc_sha256": "b41746521fd77ff0b1e4d083b56ef138c9705a462129ee7cab9f0374a3d2cbc9",
+  "preview": "directional-cycles-slower-1080p.mp4",
+  "limits": "Nominal speed quantizes to whole cooked units. Straight-line contact checks; collision/orbit quantization can still produce slip. Original hardware not tested."
+}

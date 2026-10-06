@@ -1,0 +1,35 @@
+{
+  "frames": 4498,
+  "first_route_tick": 450,
+  "last_route_tick": 4947,
+  "encoded_fps": 59.28965431523888,
+  "actual_fps": 59.29014248359063,
+  "audio_start_seconds": 7.589811035525321,
+  "chapters": [
+    {
+      "title": "Engage and flank",
+      "poll": 360,
+      "seconds": 0
+    },
+    {
+      "title": "Disengage and return home",
+      "poll": 1980,
+      "seconds": 27.28952236276455
+    },
+    {
+      "title": "Blocked-path recovery",
+      "poll": 3420,
+      "seconds": 51.5600035430839
+    }
+  ],
+  "disc_sha256": "67b773ef5e78c0eeb7529cd0d5fe2850d7d468fcb4cdf8134dcc2376ce0e33dd",
+  "features": [
+    "cd-stream-bench"
+  ],
+  "notes": [
+    "Same controller tape as video-review.",
+    "Gameplay at normal speed, with original audio.",
+    "Nearest-neighbour upscale; no motion interpolation.",
+    "Directional clips are authored at 15 Hz for half-speed spacing."
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "samples": 309,
+  "goals": {
+    "None": 40,
+    "Approach": 142,
+    "CircleLeft": 6,
+    "WaitRetry": 43,
+    "CircleRight": 37,
+    "Reposition": 15,
+    "Retreat": 3,
+    "ReturnHome": 23
+  },
+  "states": {
+    "2": 279,
+    "3": 2,
+    "4": 24,
+    "5": 4
+  },
+  "clips": {
+    "5": 8,
+    "1": 102,
+    "3": 3,
+    "2": 149,
+    "0": 30,
+    "7": 6,
+    "4": 8,
+    "10": 3
+  }
+}
