@@ -1,0 +1,230 @@
+{
+  "light": [
+    {
+      "component": 1,
+      "original": 12,
+      "ratio": 0.7,
+      "triangles": 8,
+      "error": 0.8657877569194511
+    },
+    {
+      "component": 3,
+      "original": 42,
+      "ratio": 0.75,
+      "triangles": 30,
+      "error": 0.966508797324672
+    },
+    {
+      "component": 6,
+      "original": 51,
+      "ratio": 0.6,
+      "triangles": 29,
+      "error": 1.039205501148206
+    },
+    {
+      "component": 10,
+      "original": 8,
+      "ratio": 0.85,
+      "triangles": 6,
+      "error": 0.8817082574350106
+    },
+    {
+      "component": 11,
+      "original": 20,
+      "ratio": 0.65,
+      "triangles": 12,
+      "error": 0.8065580655742625
+    },
+    {
+      "component": 31,
+      "original": 12,
+      "ratio": 0.8,
+      "triangles": 9,
+      "error": 1.0453816386420787
+    },
+    {
+      "component": 32,
+      "original": 8,
+      "ratio": 0.95,
+      "triangles": 7,
+      "error": 1.1841622759561248
+    },
+    {
+      "component": 33,
+      "original": 20,
+      "ratio": 0.65,
+      "triangles": 12,
+      "error": 0.756776676087816
+    },
+    {
+      "component": 35,
+      "original": 19,
+      "ratio": 0.75,
+      "triangles": 13,
+      "error": 1.022062231964649
+    },
+    {
+      "component": 39,
+      "original": 14,
+      "ratio": 0.85,
+      "triangles": 10,
+      "error": 0.862565100013723
+    },
+    {
+      "component": 43,
+      "original": 22,
+      "ratio": 0.95,
+      "triangles": 20,
+      "error": 0.6860303120598754
+    },
+    {
+      "component": 45,
+      "original": 10,
+      "ratio": 0.65,
+      "triangles": 5,
+      "error": 0.875254828990351
+    }
+  ],
+  "heavy": [
+    {
+      "component": 1,
+      "original": 16,
+      "ratio": 0.85,
+      "triangles": 12,
+      "error": 0.36835977250843727
+    },
+    {
+      "component": 2,
+      "original": 44,
+      "ratio": 0.65,
+      "triangles": 28,
+      "error": 1.1171432205791425
+    },
+    {
+      "component": 7,
+      "original": 15,
+      "ratio": 0.7,
+      "triangles": 9,
+      "error": 1.168604562229493
+    },
+    {
+      "component": 8,
+      "original": 10,
+      "ratio": 0.95,
+      "triangles": 8,
+      "error": 1.1362738424554308
+    },
+    {
+      "component": 10,
+      "original": 18,
+      "ratio": 0.65,
+      "triangles": 10,
+      "error": 0.9424695599108616
+    },
+    {
+      "component": 14,
+      "original": 8,
+      "ratio": 0.6,
+      "triangles": 4,
+      "error": 0.2446568073168925
+    },
+    {
+      "component": 15,
+      "original": 16,
+      "ratio": 0.6,
+      "triangles": 9,
+      "error": 0.7865299687145765
+    },
+    {
+      "component": 16,
+      "original": 8,
+      "ratio": 0.6,
+      "triangles": 4,
+      "error": 0.9637774210377164
+    },
+    {
+      "component": 17,
+      "original": 38,
+      "ratio": 0.8,
+      "triangles": 30,
+      "error": 0.8825107961278854
+    },
+    {
+      "component": 18,
+      "original": 10,
+      "ratio": 0.95,
+      "triangles": 9,
+      "error": 0.8644027269682605
+    },
+    {
+      "component": 21,
+      "original": 8,
+      "ratio": 0.95,
+      "triangles": 6,
+      "error": 0.2105311105198243
+    },
+    {
+      "component": 28,
+      "original": 31,
+      "ratio": 0.8,
+      "triangles": 23,
+      "error": 0.8682663077081616
+    },
+    {
+      "component": 30,
+      "original": 32,
+      "ratio": 0.85,
+      "triangles": 26,
+      "error": 0.9823183215362222
+    },
+    {
+      "component": 32,
+      "original": 20,
+      "ratio": 0.65,
+      "triangles": 12,
+      "error": 1.1332991710892415
+    },
+    {
+      "component": 35,
+      "original": 39,
+      "ratio": 0.75,
+      "triangles": 29,
+      "error": 0.7367575347472691
+    },
+    {
+      "component": 36,
+      "original": 34,
+      "ratio": 0.7,
+      "triangles": 23,
+      "error": 0.7835632978346558
+    },
+    {
+      "component": 41,
+      "original": 7,
+      "ratio": 0.95,
+      "triangles": 5,
+      "error": 1.0211178621573578
+    },
+    {
+      "component": 42,
+      "original": 10,
+      "ratio": 0.75,
+      "triangles": 6,
+      "error": 0.800373728375541
+    },
+    {
+      "component": 43,
+      "original": 20,
+      "ratio": 0.65,
+      "triangles": 12,
+      "error": 1.0575768328459914
+    },
+    {
+      "component": 48,
+      "original": 28,
+      "ratio": 0.95,
+      "triangles": 26,
+      "error": 0.45958194591147983
+    }
+  ]
+}

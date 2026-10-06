@@ -1,0 +1,102 @@
+{
+  "light": {
+    "animation_frames_checked": 330,
+    "clips": [
+      "rust_mantis_starter/idle",
+      "rust_mantis_starter/walk",
+      "rust_mantis_starter/turn",
+      "mantis_combat/horizon_heavy",
+      "mantis_combat/charge_volley"
+    ],
+    "sampled_surface_max_error_percent_height": 1.0395979543176903,
+    "sampled_surface_max_errors_percent_height": [
+      1.0393254993604293,
+      1.0394231208568485,
+      1.039585331554929,
+      1.0395572991856803,
+      1.0393254993604293,
+      1.0395979543176903,
+      1.0393582037912197,
+      1.0393100077879496,
+      1.0391968127530584,
+      1.0392286155579376,
+      1.0393254993604293,
+      1.039468693948376,
+      1.039374351091635,
+      1.0392745984794247,
+      1.0393254993604293,
+      1.039420415979114,
+      1.0395310700682545,
+      1.0393393516130698,
+      1.0392655822203094,
+      1.0393064832502954,
+      1.039288696630041,
+      1.0395113162641931,
+      1.0392453366202963,
+      1.0393850066705892,
+      1.0395721350302245
+    ],
+    "renders": [
+      "light-idle-before.png",
+      "light-idle-after.png",
+      "light-walk-before.png",
+      "light-walk-after.png",
+      "light-turn-before.png",
+      "light-turn-after.png",
+      "light-horizon_heavy-before.png",
+      "light-horizon_heavy-after.png",
+      "light-charge_volley-before.png",
+      "light-charge_volley-after.png"
+    ]
+  },
+  "heavy": {
+    "animation_frames_checked": 221,
+    "clips": [
+      "tank_boss_ai/idle",
+      "tank_boss_ai/walk_fwd",
+      "tank_boss_ai/turn",
+      "tank_boss_ai/heavy_attack",
+      "tank_boss_ai/ranged_attack"
+    ],
+    "sampled_surface_max_error_percent_height": 1.1690676847176422,
+    "sampled_surface_max_errors_percent_height": [
+      1.1687511874935594,
+      1.1686502505410141,
+      1.1686251924142106,
+      1.1689329343891695,
+      1.1687511874935594,
+      1.168550118668848,
+      1.1690676847176422,
+      1.1686956369473929,
+      1.1688148894785655,
+      1.1688516212708677,
+      1.168706404897465,
+      1.168801001842024,
+      1.1680423142196517,
+      1.1686561880088109,
+      1.168706404897465,
+      1.1689232734246187,
+      1.16873488461588,
+      1.1688042221635409,
+      1.1689092851530298,
+      1.16891934865777,
+      1.1685507224791325,
+      1.168768798626855,
+      1.168927298826515,
+      1.1689169334166323,
+      1.1685213370452907
+    ],
+    "renders": [
+      "heavy-idle-before.png",
+      "heavy-idle-after.png",
+      "heavy-walk_fwd-before.png",
+      "heavy-walk_fwd-after.png",
+      "heavy-turn-before.png",
+      "heavy-turn-after.png",
+      "heavy-heavy_attack-before.png",
+      "heavy-heavy_attack-after.png",
+      "heavy-ranged_attack-before.png",
+      "heavy-ranged_attack-after.png"
+    ]
+  }
+}

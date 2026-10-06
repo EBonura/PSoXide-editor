@@ -1,0 +1,5 @@
+[cli] mounted cue-backed disc build/graybox-reach/enemy-reduction/baked/graybox_reach.cue
+combat music:on
+tick=177413413  cycles=393538369  pc=0x8001e360  stopped-at=177413413
+route-ticks=688  port1-polls=600
+[cli] CPU display → /Users/ebonura/Desktop/repos/PSoXide/output/graybox-enemy-reduction/encounter-final.ppm (320x240)

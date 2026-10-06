@@ -1,0 +1,40 @@
+{
+  "date": "2026-10-06",
+  "triangles": {
+    "light": 438,
+    "heavy": 631,
+    "light_clawless_visible": 392
+  },
+  "previous_triangles": {
+    "light": 498,
+    "heavy": 703
+  },
+  "vertices": {
+    "light": 400,
+    "heavy": 549
+  },
+  "animation_frames_checked": 551,
+  "encounter_stop_at_poll_target": 600,
+  "encounter_actual_final_polls": 601,
+  "encounter_route_ticks": 689,
+  "encounter_setup": "Same temporary encounter as pass1: player at normal spawn, light at (-1000,0,-10000), heavy at (1000,0,-10000), unchanged normal project scene placements.",
+  "normal_project_rebuilt": true,
+  "hazard_scan": "0 hazards",
+  "stack_guard": "passed",
+  "normal_executable_sha256": "fdd328e932f37c82c663780b2a351575a544524e22b1bc4458d8d45ec52f82ab",
+  "assets_sha256": {
+    "light.psxmdl": "a6aaf79c3642f9149695e382c03822f81262a973297f9431b2543db5055772a9",
+    "heavy.psxmdl": "f93fb34487f9841f289ad6c8c564c250e85ea163c5c0cd2f069d06e408130b53",
+    "light_clawless.psxmdl": "6f5e8c6b6a3de525f8388b2d240a23235a99ec6212e75d220d7748ca03490028"
+  },
+  "visual_reviews": [
+    "Textured idle and combat",
+    "Front, side and back clay against pass1",
+    "Actual emulator encounter capture"
+  ],
+  "limitations": [
+    "No physical console test or FPS claim",
+    "Normal arrival route not repeated; new pass tested in two-enemy encounter",
+    "Surface distance sampling is not an exact Hausdorff bound"
+  ]
+}

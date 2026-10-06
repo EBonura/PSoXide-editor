@@ -1,0 +1,464 @@
+{
+  "light": {
+    "before_triangles": 530,
+    "triangles": 438,
+    "before_vertices": 451,
+    "vertices": 400,
+    "joints": 22,
+    "changes": [
+      {
+        "component": 1,
+        "joint": [
+          [
+            0,
+            255,
+            0
+          ]
+        ],
+        "before": 12,
+        "after": 8,
+        "saved": 4
+      },
+      {
+        "component": 3,
+        "joint": [
+          [
+            3,
+            255,
+            0
+          ]
+        ],
+        "before": 42,
+        "after": 30,
+        "saved": 12
+      },
+      {
+        "component": 6,
+        "joint": [
+          [
+            5,
+            255,
+            0
+          ]
+        ],
+        "before": 51,
+        "after": 29,
+        "saved": 22
+      },
+      {
+        "component": 7,
+        "joint": [
+          [
+            5,
+            255,
+            0
+          ]
+        ],
+        "before": 56,
+        "after": 40,
+        "saved": 16
+      },
+      {
+        "component": 10,
+        "joint": [
+          [
+            7,
+            255,
+            0
+          ]
+        ],
+        "before": 8,
+        "after": 6,
+        "saved": 2
+      },
+      {
+        "component": 11,
+        "joint": [
+          [
+            7,
+            255,
+            0
+          ]
+        ],
+        "before": 20,
+        "after": 12,
+        "saved": 8
+      },
+      {
+        "component": 31,
+        "joint": [
+          [
+            12,
+            255,
+            0
+          ]
+        ],
+        "before": 12,
+        "after": 9,
+        "saved": 3
+      },
+      {
+        "component": 32,
+        "joint": [
+          [
+            12,
+            255,
+            0
+          ]
+        ],
+        "before": 8,
+        "after": 7,
+        "saved": 1
+      },
+      {
+        "component": 33,
+        "joint": [
+          [
+            12,
+            255,
+            0
+          ]
+        ],
+        "before": 20,
+        "after": 12,
+        "saved": 8
+      },
+      {
+        "component": 35,
+        "joint": [
+          [
+            14,
+            255,
+            0
+          ]
+        ],
+        "before": 19,
+        "after": 13,
+        "saved": 6
+      },
+      {
+        "component": 39,
+        "joint": [
+          [
+            15,
+            255,
+            0
+          ]
+        ],
+        "before": 14,
+        "after": 10,
+        "saved": 4
+      },
+      {
+        "component": 43,
+        "joint": [
+          [
+            18,
+            255,
+            0
+          ]
+        ],
+        "before": 22,
+        "after": 20,
+        "saved": 2
+      },
+      {
+        "component": 45,
+        "joint": [
+          [
+            19,
+            255,
+            0
+          ]
+        ],
+        "before": 10,
+        "after": 6,
+        "saved": 4
+      }
+    ],
+    "rejected": []
+  },
+  "heavy": {
+    "before_triangles": 756,
+    "triangles": 631,
+    "before_vertices": 618,
+    "vertices": 549,
+    "joints": 27,
+    "changes": [
+      {
+        "component": 1,
+        "joint": [
+          [
+            1,
+            255,
+            0
+          ]
+        ],
+        "before": 16,
+        "after": 12,
+        "saved": 4
+      },
+      {
+        "component": 2,
+        "joint": [
+          [
+            2,
+            255,
+            0
+          ]
+        ],
+        "before": 44,
+        "after": 28,
+        "saved": 16
+      },
+      {
+        "component": 7,
+        "joint": [
+          [
+            2,
+            255,
+            0
+          ]
+        ],
+        "before": 15,
+        "after": 9,
+        "saved": 6
+      },
+      {
+        "component": 8,
+        "joint": [
+          [
+            2,
+            255,
+            0
+          ]
+        ],
+        "before": 10,
+        "after": 8,
+        "saved": 2
+      },
+      {
+        "component": 10,
+        "joint": [
+          [
+            2,
+            12,
+            128
+          ]
+        ],
+        "before": 18,
+        "after": 10,
+        "saved": 8
+      },
+      {
+        "component": 14,
+        "joint": [
+          [
+            2,
+            255,
+            0
+          ]
+        ],
+        "before": 8,
+        "after": 4,
+        "saved": 4
+      },
+      {
+        "component": 15,
+        "joint": [
+          [
+            2,
+            255,
+            0
+          ]
+        ],
+        "before": 16,
+        "after": 9,
+        "saved": 7
+      },
+      {
+        "component": 16,
+        "joint": [
+          [
+            2,
+            255,
+            0
+          ]
+        ],
+        "before": 8,
+        "after": 4,
+        "saved": 4
+      },
+      {
+        "component": 17,
+        "joint": [
+          [
+            4,
+            255,
+            0
+          ]
+        ],
+        "before": 38,
+        "after": 30,
+        "saved": 8
+      },
+      {
+        "component": 18,
+        "joint": [
+          [
+            4,
+            255,
+            0
+          ]
+        ],
+        "before": 10,
+        "after": 9,
+        "saved": 1
+      },
+      {
+        "component": 21,
+        "joint": [
+          [
+            4,
+            255,
+            0
+          ]
+        ],
+        "before": 8,
+        "after": 6,
+        "saved": 2
+      },
+      {
+        "component": 24,
+        "joint": [
+          [
+            6,
+            255,
+            0
+          ]
+        ],
+        "before": 26,
+        "after": 22,
+        "saved": 4
+      },
+      {
+        "component": 28,
+        "joint": [
+          [
+            13,
+            255,
+            0
+          ]
+        ],
+        "before": 31,
+        "after": 23,
+        "saved": 8
+      },
+      {
+        "component": 30,
+        "joint": [
+          [
+            13,
+            255,
+            0
+          ]
+        ],
+        "before": 32,
+        "after": 26,
+        "saved": 6
+      },
+      {
+        "component": 32,
+        "joint": [
+          [
+            14,
+            255,
+            0
+          ]
+        ],
+        "before": 20,
+        "after": 12,
+        "saved": 8
+      },
+      {
+        "component": 35,
+        "joint": [
+          [
+            15,
+            255,
+            0
+          ]
+        ],
+        "before": 39,
+        "after": 29,
+        "saved": 10
+      },
+      {
+        "component": 36,
+        "joint": [
+          [
+            17,
+            255,
+            0
+          ]
+        ],
+        "before": 34,
+        "after": 23,
+        "saved": 11
+      },
+      {
+        "component": 41,
+        "joint": [
+          [
+            18,
+            255,
+            0
+          ]
+        ],
+        "before": 7,
+        "after": 5,
+        "saved": 2
+      },
+      {
+        "component": 42,
+        "joint": [
+          [
+            18,
+            255,
+            0
+          ]
+        ],
+        "before": 10,
+        "after": 6,
+        "saved": 4
+      },
+      {
+        "component": 43,
+        "joint": [
+          [
+            18,
+            255,
+            0
+          ]
+        ],
+        "before": 20,
+        "after": 12,
+        "saved": 8
+      },
+      {
+        "component": 48,
+        "joint": [
+          [
+            22,
+            255,
+            0
+          ]
+        ],
+        "before": 28,
+        "after": 26,
+        "saved": 2
+      }
+    ],
+    "rejected": []
+  }
+}
