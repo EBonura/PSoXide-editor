@@ -5,6 +5,33 @@ retired Graybox Highlands experiment. Graybox Valley remains available as the
 smaller comparison. Shared character, animation and UI assets resolve through
 `../default`; keep that project alongside this one.
 
+## World texture-state fix, 2026-10-06
+
+The user's recorded Play run reproduced black triangular gaps near the camera
+and missing grid textures in the covered hall. Aletha's draw packets left a
+texture window active. World polygons interleaved with those packets inherited
+it and sampled the reflection atlas with the grid palette. Each page-local world
+polygon now resets the texture window in its own GPU packet. This restores the
+floor and wall textures without changing the level, character or near plane.
+
+The recording completes in both DMA modes. Across polls 400 to 3120, default
+DMA averages **26.220 fps**, compared with 26.264 before the fix. Strict FIFO
+averages 26.177 versus 26.220. Both have 50.599 ms p95 intervals and approximately
+101.2 ms maximum intervals on this recording, so this remains below a locked
+30 fps. These are guest display-cadence measurements; the supplied 3,165-sample
+CSV contains aggregate host timings and cannot establish guest framerate.
+
+All 162 BSP and 451 engine unit tests pass, including the texture-window packet
+regression. The rebuilt PS1 guest passes load-delay and scratchpad-stack guards.
+Default replay captures at every 100 ticks and strict FIFO captures every 500
+ticks show the reported world artifacts resolved. Physical-console validation
+and primitive-overflow telemetry remain unavailable.
+
+See [before/after captures](validation/texture-state-before-after.png) and
+[measurements and packet evidence](validation/texture-state-fix.json). Replay
+`validation/texture-state-user.pxtape` from the normal project spawn, stopping at
+poll 3143. The rebuilt disc is ready for Play.
+
 ## Recovered animations
 
 The approved Cortex Ignition v0.4b walk-transition v4 pass is installed, including

@@ -1,0 +1,7 @@
+kind,id,name,total,hits,average,max,latest,capacity,peak_percent
+session,0,host samples,3165,3165,1.000,3165,3165,,
+host,0,host frame dt ms,52500,3165,16.588,20,0,,
+host,1,total frame work ms,39009,3165,12.325,20,0,,
+host,2,emulation ms,24464,3165,7.730,12,0,,
+host,3,vram upload ms,0,3165,0.000,0,0,,
+host,4,hardware render ms,767,3165,0.242,9,0,,
