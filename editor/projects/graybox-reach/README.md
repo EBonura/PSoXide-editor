@@ -5,6 +5,18 @@ retired Graybox Highlands experiment. Graybox Valley remains available as the
 smaller comparison. Shared character, animation and UI assets resolve through
 `../default`; keep that project alongside this one.
 
+## Stance changes while moving, 2026-10-06
+
+Tap **Triangle** while walking, or hold **Circle** to run and tap **Triangle**.
+Both keep locomotion active while the body and scarf burst and reconstruct.
+The authored swap cooldown is 300 ticks (five seconds at 60 Hz).
+
+The saved disc was verified with a poll-bound walking/running replay under
+strict DMA FIFO through poll 1712. This confirms existing behavior; no runtime
+change was required. See the [1080p replay](validation/moving-stance/walking-running-stance-1080p.mp4),
+[input tape](validation/moving-stance/walk-run.pxtape), and
+[validation details](validation/moving-stance/report.json).
+
 ## Physical scarf, 2026-10-06
 
 The optimized renderer batches the scarf's solid Gouraud triangles while retaining
