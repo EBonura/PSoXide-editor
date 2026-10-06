@@ -1,0 +1,12 @@
+{
+  "unique_frames": 24,
+  "stored_frames": 25,
+  "sample_hz": 30,
+  "period_seconds": 0.8,
+  "stance_fraction": 0.56,
+  "foot_clearance_model_units": 1100.0,
+  "extra_pelvis_lowering_model_units": 643.25661301531,
+  "max_leg_extension": 0.955000006288092,
+  "world_speed_per_second": 1680,
+  "visual_scale_q8": 417
+}

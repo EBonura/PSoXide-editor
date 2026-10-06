@@ -1,0 +1,34 @@
+{
+  "passed": true,
+  "samples": {
+    "reset": 209,
+    "blocked": 309,
+    "circle": 209,
+    "retreat": 209
+  },
+  "identical_reset_checkpoints": 75,
+  "reset_mismatches": [],
+  "observed_goals": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+  ],
+  "combat_clips": [
+    0,
+    12,
+    13
+  ],
+  "blocked_max_retries": 3,
+  "home_movement_samples": 30,
+  "home_final_position": [
+    0,
+    0,
+    -12
+  ]
+}

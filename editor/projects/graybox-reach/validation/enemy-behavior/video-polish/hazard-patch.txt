@@ -1,0 +1,47 @@
+hazard 8001f8e0: jr at | slot lw a2,0(s5) | consumer 8001f8e8 via table entry 800dff58
+hazard 8001f8e0: jr at | slot lw a2,0(s5) | consumer 8001f924 via table entry 800dff5c
+hazard 8001f8e0: jr at | slot lw a2,0(s5) | consumer 8001f94c via table entry 800dff60
+hazard 8001f8e0: jr at | slot lw a2,0(s5) | consumer 80020980 via table entry 800dff6c
+hazard 8001f8e0: jr at | slot lw a2,0(s5) | consumer 800209a8 via table entry 800dff70
+hazard 8003c0f8: beqz at,0x8003c1b0 | slot lhu v1,0(v0) | consumer 8003c1b0
+hazard 8003d9cc: beqz s1,0x8003da00 | slot lw v1,196(sp) | consumer 8003d9d4
+hazard 80045f0c: beqz at,0x800493dc | slot lhu t4,4448(sp) | consumer 800493dc
+hazard 80053d9c: bnez v1,0x80053da8 | slot lw a0,200(sp) | consumer 80053da8
+hazard 8005926c: bnez v0,0x8005939c | slot lw s5,0(s7) | consumer 8005939c
+hazard 8005f344: beqz v0,0x8005f420 | slot lhu a1,4(sp) | consumer 8005f420
+hazard 8005f344: beqz v0,0x8005f420 | slot lhu a1,4(sp) | consumer 8005f34c
+hazard 800655f8: j 0x80065614 | slot lbu at,15196(s4) | consumer 80065614
+hazard 800656b8: j 0x800656cc | slot lbu at,15196(s4) | consumer 800656cc
+hazard 80065764: j 0x80065778 | slot lbu at,15196(s4) | consumer 80065778
+hazard 80065810: j 0x80065824 | slot lbu at,15196(s4) | consumer 80065824
+hazard 80078b34: bnez v0,0x80078b60 | slot lw a0,48(sp) | consumer 80078b3c
+hazard 8007d928: bne a2,t0,0x8007d968 | slot lw a1,11308(at) | consumer 8007d930
+hazard 800bbbf8: bnez at,0x800bbc04 | slot lw v0,0(a1) | consumer 800bbc04
+hazard 800bc6c8: bne v0,t2,0x800bc72c | slot lw t1,0(a0) | consumer 800bc72c
+hazard 800bc6c8: bne v0,t2,0x800bc72c | slot lw t1,0(a0) | consumer 800bc6d0
+hazard 800c006c: bne t8,v0,0x800c00b4 | slot lw t5,0(a1) | consumer 800c0074
+hazard 800c11d4: beqz a2,0x800c11f8 | slot lw v1,100(sp) | consumer 800c11f8
+hazard 800d64b0: j 0x800d64cc | slot lbu at,0(s0) | consumer 800d64cc
+patched table entry 800dff58 (jr at 8001f8e0) -> trampoline 800dfb28 -> 8001f8e8
+patched table entry 800dff5c (jr at 8001f8e0) -> trampoline 800dfb34 -> 8001f924
+patched table entry 800dff60 (jr at 8001f8e0) -> trampoline 800dfb40 -> 8001f94c
+patched table entry 800dff6c (jr at 8001f8e0) -> trampoline 800dfb4c -> 80020980
+patched table entry 800dff70 (jr at 8001f8e0) -> trampoline 800dfb58 -> 800209a8
+patched 8003c0f8 -> trampoline 800dfb64 (6 words)
+patched 8003d9cc -> trampoline 800dfb7c (6 words)
+patched 80045f0c -> trampoline 800dfb94 (6 words)
+patched 80053d9c -> trampoline 800dfbac (6 words)
+patched 8005926c -> trampoline 800dfbc4 (6 words)
+patched 8005f344 -> trampoline 800dfbdc (6 words)
+patched 800655f8 -> trampoline 800dfbf4 (3 words)
+patched 800656b8 -> trampoline 800dfc00 (3 words)
+patched 80065764 -> trampoline 800dfc0c (3 words)
+patched 80065810 -> trampoline 800dfc18 (3 words)
+patched 80078b34 -> trampoline 800dfc24 (6 words)
+patched 8007d928 -> trampoline 800dfc3c (6 words)
+patched 800bbbf8 -> trampoline 800dfc54 (6 words)
+patched 800bc6c8 -> trampoline 800dfc6c (6 words)
+patched 800c006c -> trampoline 800dfc84 (6 words)
+patched 800c11d4 -> trampoline 800dfc9c (6 words)
+patched 800d64b0 -> trampoline 800dfcb4 (3 words)
+22 patched, 0 remaining, 102/256 trampoline words used in /tmp/psoxide-psx-guest-v1/stage/build/examples/mipsel-sony-psx/release/editor-playtest.exe

@@ -450,6 +450,8 @@ fn draw_enemy_behavior_fields(
     changed |= drag_i32(ui, "X", &mut enemy.patrol_offset[0], -32767, 32767);
     changed |= drag_i32(ui, "Y", &mut enemy.patrol_offset[1], -32767, 32767);
     changed |= drag_i32(ui, "Z", &mut enemy.patrol_offset[2], -32767, 32767);
+    changed |= ui.checkbox(&mut enemy.tactical, "Tactical behaviour").changed();
+    changed |= ui.checkbox(&mut enemy.training, "Encounter test controls").changed();
 
     ui.separator();
     ui.label(RichText::new("Spacing & intent").strong());
@@ -493,6 +495,7 @@ fn draw_enemy_behavior_fields(
         &mut enemy.group_attack_delay_ticks,
         0,
         255,
+    changed |= drag_u8(ui, "Circle/retreat speed (%)", &mut enemy.spacing_speed_percent, 1, 100);
     );
     attack_changed |= drag_u8(ui, "Windup ticks", &mut enemy.windup_ticks, 1, 255);
     attack_changed |= drag_u8(ui, "Recovery ticks", &mut enemy.recovery_ticks, 0, 255);

@@ -1,0 +1,49 @@
+{
+  "unique_frames": 24,
+  "stored_frames": 25,
+  "sample_hz": 30,
+  "period_seconds": 0.8,
+  "stance_fraction": 0.56,
+  "foot_clearance_model_units": 1100.0,
+  "extra_pelvis_lowering_model_units": 27.385380170013377,
+  "max_leg_extension": 0.9549999971279451,
+  "world_speed_per_second": 1680,
+  "visual_scale_q8": 417,
+  "hip_impact_keys": [
+    [
+      0.0,
+      0.0
+    ],
+    [
+      2.0,
+      -850.0
+    ],
+    [
+      5.0,
+      -250.0
+    ],
+    [
+      8.0,
+      250.0
+    ],
+    [
+      10.0,
+      220.0
+    ]
+  ],
+  "hip_lateral_amplitude": 1750,
+  "pelvis_yaw_degrees": 4,
+  "chest_counter_yaw_degrees": 6,
+  "chest_roll_degrees": 4,
+  "impact_chest_pitch_degrees": 3.5,
+  "claw_lag_frames": 1,
+  "cannon_lag_frames": 2,
+  "torso_yaw_bias_degrees": 22,
+  "waist_yaw_bias_degrees": 8,
+  "chest_yaw_bias_degrees": 14,
+  "shoulder_roll_bias_degrees": 1.5,
+  "gaze_counter_yaw_degrees": -14,
+  "torso_yaw_second_harmonic_degrees": 1.5,
+  "shoulder_roll_second_harmonic_degrees": 1.2,
+  "impact_pitch_asymmetry_fraction": 0.2
+}

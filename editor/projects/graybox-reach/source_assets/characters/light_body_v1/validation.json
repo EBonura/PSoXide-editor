@@ -1,0 +1,22 @@
+{
+  "triangles": 457,
+  "vertices": 410,
+  "increase_from_reduced": 19,
+  "skeleton_and_material_table_identical": true,
+  "cannon_claw_and_feet_faces_identical": true,
+  "animation_frames_checked": 330,
+  "clips": [
+    "rust_mantis_starter/idle",
+    "rust_mantis_starter/walk",
+    "rust_mantis_starter/turn",
+    "mantis_combat/horizon_heavy",
+    "mantis_combat/charge_volley"
+  ],
+  "duplicate_faces": 0,
+  "zero_area_faces": 0,
+  "blender_rig_max_position_error": 0.00040661616338692335,
+  "project_disc_build": "passed",
+  "mips_hazards": 0,
+  "scratchpad_stack_guard": "passed",
+  "clawless_visible_triangles": 411
+}

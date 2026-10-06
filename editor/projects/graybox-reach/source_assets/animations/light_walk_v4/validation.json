@@ -1,0 +1,31 @@
+{
+  "before": {
+    "unique_frames": 24,
+    "seam_over_largest_step": 0.47187641542313397,
+    "max_leg_extension": 0.9550277899383763,
+    "head_vertical_range_world_units": 30.28981328557711,
+    "cannon_forward_range_world_units": 47.83298217167612,
+    "knee_lateral_range_world_units": [
+      52.901973999803886,
+      54.85427571157925
+    ],
+    "floor_range_world_units": 0.032320499420166016
+  },
+  "after": {
+    "unique_frames": 24,
+    "seam_over_largest_step": 0.615342900656856,
+    "max_leg_extension": 0.9550006872216339,
+    "head_vertical_range_world_units": 67.05706697446294,
+    "cannon_forward_range_world_units": 116.6960426151054,
+    "knee_lateral_range_world_units": [
+      99.67786698439158,
+      93.12539626122452
+    ],
+    "floor_range_world_units": 0.032320499420166016,
+    "max_contact_drift_world_units": 0.02734375
+  },
+  "contact_assumption": "Straight forward speed1680 world units/sec, scale417, 30Hz clip, in_place=false; fractional source matrix interpolation included.",
+  "project_disc_build": "passed",
+  "blender_rig_max_position_error": 0.00029643178651308545,
+  "preview_loop_ms": 800
+}
