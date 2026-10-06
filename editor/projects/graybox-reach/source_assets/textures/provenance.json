@@ -1,0 +1,27 @@
+{
+  "source_cart": "/Users/ebonura/Library/Application Support/picotron/drive/archlight_v3_0.p64",
+  "source_cart_sha256": "c7c47f0a873f2ecb33c991dfbff42a500a37a20bd84fc032e0dfae0f3dd20528",
+  "asset": "gfx/0.gfx",
+  "sprite": 15,
+  "width": 64,
+  "height": 64,
+  "colors": [
+    [
+      36,
+      99,
+      176
+    ],
+    [
+      100,
+      223,
+      246
+    ],
+    [
+      255,
+      241,
+      232
+    ]
+  ],
+  "png_sha256": "6bccf42de0e858ef2e4aef6b7e2077d162b7a28a6be009b863147aa8124ddf09",
+  "note": "Original indexed pixels decoded using shrinko8 picotron_cart and the default Picotron palette. Also present in archlight_v4_0.p64. PSXT packs the same pixels as opaque 4bpp with RGB555 palette conversion; no resizing or filtering."
+}

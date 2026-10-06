@@ -1,0 +1,113 @@
+{
+  "date": "2026-10-06",
+  "project": "Graybox Reach",
+  "investigation": {
+    "gpu_busy_fraction": 0.2649494265,
+    "baseline_instruction_samples": {
+      "submit_facet_reflection_batch_percent": 12.5,
+      "facet_reflection_face_percent": 9.75
+    },
+    "sample_scope": "route-tick buckets starting at 900 or later; retired-instruction samples, not CPU-time percentages",
+    "finding": "CPU reflection work, including duplicate vertex loads/culling and 16-face staging; not texture fill rate"
+  },
+  "changes": [
+    "Fuse extent-safe bucketed culling, reflection mapping and packet emission",
+    "Use the existing guarded scratchpad stack for the walker",
+    "Replace nonnegative quantization division with an exact bit mask and unsigned coordinate division",
+    "Inline per-face mapping to remove argument/result spill and call overhead"
+  ],
+  "visual_behavior": "unchanged integer UVs and GPU packet/order/counter semantics; model, texture, animation and project settings unchanged",
+  "validation": {
+    "engine_tests_passed": 451,
+    "randomized_mapping_parity_cases": 20000,
+    "packet_order_counter_parity": "backface and double-sided, 37 faces across multiple old chunks, mixed winding, degenerate faces, gradient and palette-bank cases, invalid joint, roughness levels 0..3",
+    "scratchpad_call_tree_bytes": 432,
+    "scratchpad_available_bytes": 1004,
+    "load_delay_hazard_proof": "passed",
+    "native_playback_polls": 2569,
+    "main_route_polls": 4250,
+    "side_route_polls": 4873,
+    "dma_models_tested": [
+      0,
+      1
+    ],
+    "hardware_tested": false,
+    "final_disc_vs_tested_disc": "only ISO volume descriptor sector 16 differs; executable and asset payloads identical"
+  },
+  "measurements": {
+    "baseline": {
+      "first_poll": 651,
+      "last_poll": 4229,
+      "display_intervals": 1534,
+      "display_fps": 25.412,
+      "interval_ms_p95": 50.599,
+      "interval_ms_max": 67.466,
+      "intervals_over_two_vblanks": 511,
+      "cadence_pass": false,
+      "telemetry_available": false,
+      "primitive_overflows": null,
+      "measured_pass": null
+    },
+    "v2": {
+      "first_poll": 651,
+      "last_poll": 4229,
+      "display_intervals": 1679,
+      "display_fps": 27.83,
+      "interval_ms_p95": 50.599,
+      "interval_ms_max": 50.599,
+      "intervals_over_two_vblanks": 228,
+      "cadence_pass": false,
+      "telemetry_available": false,
+      "primitive_overflows": null,
+      "measured_pass": null
+    },
+    "v2-loop": {
+      "first_poll": 650,
+      "last_poll": 4849,
+      "display_intervals": 2082,
+      "display_fps": 29.412,
+      "interval_ms_p95": 33.733,
+      "interval_ms_max": 50.599,
+      "intervals_over_two_vblanks": 43,
+      "cadence_pass": false,
+      "telemetry_available": false,
+      "primitive_overflows": null,
+      "measured_pass": null
+    },
+    "baseline-fifo": {
+      "first_poll": 650,
+      "last_poll": 4229,
+      "display_intervals": 1527,
+      "display_fps": 25.296,
+      "interval_ms_p95": 50.599,
+      "interval_ms_max": 67.465,
+      "intervals_over_two_vblanks": 526,
+      "cadence_pass": false,
+      "telemetry_available": false,
+      "primitive_overflows": null,
+      "measured_pass": null
+    },
+    "v2-fifo": {
+      "first_poll": 651,
+      "last_poll": 4229,
+      "display_intervals": 1674,
+      "display_fps": 27.747,
+      "interval_ms_p95": 50.599,
+      "interval_ms_max": 50.599,
+      "intervals_over_two_vblanks": 239,
+      "cadence_pass": false,
+      "telemetry_available": false,
+      "primitive_overflows": null,
+      "measured_pass": null
+    }
+  },
+  "prior_458_reflection_side_route_fps": 28.706,
+  "hashes": {
+    "project": "c95328c823e12b842e2b3092142c66ff827e427d4d4f81fb57d388776beb433a",
+    "final_disc": "2baaa1cec9fe206f4d7459b2c95ad9ff2a32033e53d74a1a4d2c096382460e85",
+    "tested_disc": "03bc874998b800c941864830f7b92478e2ffb227c84646e4cecc415d8e0ddd87",
+    "final_guest_exe": "d3c4935c2a56c759340de78e55659d59f436c542a41b7fc16e5d85d37c48938a",
+    "renderer_source": "4e64886dcf4ff5d2b43ac6c15c82a8fda54b574ebbc631dc4e766c4103afe1b9"
+  },
+  "raw_evidence": "build/graybox-reach/reflection-opt"
+}

@@ -225,7 +225,10 @@ fn push_poi_triangle(
     projected: [psx_gte::scene::Projected; 3],
     color: (u8, u8, u8),
 ) {
-    let slot = preview_geometry_depth_slot(projected_avg_sz(projected));
+    let slot = preview_depth_slot(
+        scratch.depth_range,
+        projected_avg_sz(projected) << scratch.gte_depth_shift,
+    );
     let _ = push_tri_colors_at_slot(scratch, projected, [color; 3], slot);
 }
 

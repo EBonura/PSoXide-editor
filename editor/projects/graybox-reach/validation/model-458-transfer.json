@@ -1,0 +1,119 @@
+{
+  "source_project": "Cortex Ignition 0.5",
+  "model_resource": 27,
+  "model_name": "Aletha Closed Fists 458",
+  "triangles": 458,
+  "vertices": 235,
+  "joints": 26,
+  "files": {
+    "assets/models/aletha_closed_458/aletha_mirror_458.psxmdl": "1e6b9dfbdcea77da434d0c2608f65dc2c6ab4552507b0e307187cd72595d5774",
+    "assets/models/aletha_closed_458/aletha_closed_458.psxmdl": "0f9e1deda4637d63b84fa9613969b76a9f7527c38b777bf2da7f6a53fd694715",
+    "assets/models/aletha_delivered/aletha_delivered.psxt": "20dc1f7782e23a8adfcfe2a2072950eec670b2a32b04bf79b365788d0555b509",
+    "source_assets/characters/aletha_closed_458/Aletha-closed-458.glb": "540fb264b2cb699ebaf309b77a223138236b4803fdc20a441b3e870ad2b11f90",
+    "source_assets/characters/aletha_closed_458/Aletha-closed-458.blend": "7c6a36e37e1f5a1aec0d1eec60a36ad730ca3b0b64329c422247b63b55ff9ef1",
+    "source_assets/characters/aletha_closed_458/Aletha-crystal-458.blend": "ccad1dcf546f23d8669b1efed243439df3ccaa9eae487d868ddc8c6b2d1036c5",
+    "source_assets/characters/aletha_closed_458/README.txt": "b8ad86e5732084c46b5aad6e7c7e77b435aabe6a1786352883b077a99071e6fd"
+  },
+  "source_project_sha256": "f3d58549c7be6d4a927d0c3c716aa40c283bb6671bc0b1377835bdf22e608d7b",
+  "project_sha256": "c95328c823e12b842e2b3092142c66ff827e427d4d4f81fb57d388776beb433a",
+  "animations_and_other_project_content_unchanged": true,
+  "skeleton_resource_identical": true,
+  "material_texture_identical": true,
+  "build": {
+    "disc_sha256": "fae68f9ed98d3db7cef4f3708f475f72c6c1e953fe504acb170dbfba0f01ec53",
+    "frontend_sha256": "2bfb9c28857b2e62d46124d44a56a79aca63263ddff6394d4c2e82cfe9b6c635",
+    "manifest_sha256": "a312444f94ce71aa3de9951f872a6caa5933feb7dcb43b0b6f1a938d09acc2d0",
+    "cooked_faces": 458,
+    "cooked_vertices": 235,
+    "transition_samples": [
+      22,
+      30,
+      30
+    ],
+    "transition_rate_hz": 30
+  },
+  "validation": {
+    "mcp_full_audit": "passed; existing missing Aletha turn-clip warning",
+    "normal_play_features": "cd-stream-bench and default guest features, no emulator-telemetry",
+    "dma_fifo": 0,
+    "completed_polls": {
+      "animation": 2569,
+      "main_route": 4250,
+      "side_route": 4873
+    },
+    "asset_load_failures": false,
+    "performance": {
+      "main_route": {
+        "first_poll": 651,
+        "last_poll": 4229,
+        "display_intervals": 1534,
+        "display_fps": 25.412,
+        "interval_ms_p95": 50.599,
+        "interval_ms_max": 67.466,
+        "intervals_over_two_vblanks": 511,
+        "cadence_pass": false,
+        "telemetry_available": false,
+        "primitive_overflows": null,
+        "measured_pass": null
+      },
+      "side_route": {
+        "first_poll": 651,
+        "last_poll": 4849,
+        "display_intervals": 2032,
+        "display_fps": 28.706,
+        "interval_ms_p95": 50.599,
+        "interval_ms_max": 67.465,
+        "intervals_over_two_vblanks": 139,
+        "cadence_pass": false,
+        "telemetry_available": false,
+        "primitive_overflows": null,
+        "measured_pass": null
+      },
+      "arrival_approach": {
+        "first_poll": 651,
+        "last_poll": 1800,
+        "display_intervals": 513,
+        "display_fps": 26.472,
+        "interval_ms_p95": 50.599,
+        "interval_ms_max": 50.599,
+        "intervals_over_two_vblanks": 124,
+        "cadence_pass": false,
+        "telemetry_available": false,
+        "primitive_overflows": null,
+        "measured_pass": null
+      },
+      "north_traversal": {
+        "first_poll": 2300,
+        "last_poll": 3700,
+        "display_intervals": 584,
+        "display_fps": 24.75,
+        "interval_ms_p95": 50.599,
+        "interval_ms_max": 67.465,
+        "intervals_over_two_vblanks": 231,
+        "cadence_pass": false,
+        "telemetry_available": false,
+        "primitive_overflows": null,
+        "measured_pass": null
+      },
+      "north_sweep": {
+        "first_poll": 3802,
+        "last_poll": 4229,
+        "display_intervals": 190,
+        "display_fps": 26.382,
+        "interval_ms_p95": 50.599,
+        "interval_ms_max": 67.466,
+        "intervals_over_two_vblanks": 46,
+        "cadence_pass": false,
+        "telemetry_available": false,
+        "primitive_overflows": null,
+        "measured_pass": null
+      }
+    },
+    "previous_506_triangle_reflection_fps": {
+      "main_route": 24.958,
+      "side_route": 28.466
+    },
+    "physical_console_tested": false,
+    "capture": "build/graybox-reach/model-458-transfer/aletha-458-in-reach.png"
+  }
+}

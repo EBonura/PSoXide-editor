@@ -1,0 +1,103 @@
+{
+  "main_route": {
+    "first_poll": 650,
+    "last_poll": 4229,
+    "display_intervals": 1507,
+    "display_fps": 24.958,
+    "interval_ms_p95": 50.599,
+    "interval_ms_max": 67.465,
+    "intervals_over_two_vblanks": 568,
+    "cadence_pass": false,
+    "telemetry_available": false,
+    "primitive_overflows": null,
+    "measured_pass": null
+  },
+  "arrival_and_hall_approach": {
+    "first_poll": 650,
+    "last_poll": 1799,
+    "display_intervals": 501,
+    "display_fps": 25.83,
+    "interval_ms_p95": 50.599,
+    "interval_ms_max": 50.6,
+    "intervals_over_two_vblanks": 149,
+    "cadence_pass": false,
+    "telemetry_available": false,
+    "primitive_overflows": null,
+    "measured_pass": null
+  },
+  "hall_rest": {
+    "first_poll": 2001,
+    "last_poll": 2179,
+    "display_intervals": 67,
+    "display_fps": 22.317,
+    "interval_ms_p95": 50.599,
+    "interval_ms_max": 50.599,
+    "intervals_over_two_vblanks": 44,
+    "cadence_pass": false,
+    "telemetry_available": false,
+    "primitive_overflows": null,
+    "measured_pass": null
+  },
+  "north_traversal": {
+    "first_poll": 2302,
+    "last_poll": 3699,
+    "display_intervals": 574,
+    "display_fps": 24.379,
+    "interval_ms_p95": 50.599,
+    "interval_ms_max": 67.465,
+    "intervals_over_two_vblanks": 247,
+    "cadence_pass": false,
+    "telemetry_available": false,
+    "primitive_overflows": null,
+    "measured_pass": null
+  },
+  "north_camera_sweep": {
+    "first_poll": 3800,
+    "last_poll": 4229,
+    "display_intervals": 188,
+    "display_fps": 25.922,
+    "interval_ms_p95": 50.599,
+    "interval_ms_max": 67.465,
+    "intervals_over_two_vblanks": 54,
+    "cadence_pass": false,
+    "telemetry_available": false,
+    "primitive_overflows": null,
+    "measured_pass": null
+  },
+  "side_route": {
+    "first_poll": 650,
+    "last_poll": 4849,
+    "display_intervals": 2016,
+    "display_fps": 28.466,
+    "interval_ms_p95": 50.599,
+    "interval_ms_max": 67.465,
+    "intervals_over_two_vblanks": 167,
+    "cadence_pass": false,
+    "telemetry_available": false,
+    "primitive_overflows": null,
+    "measured_pass": null
+  },
+  "side_gallery": {
+    "first_poll": 2201,
+    "last_poll": 3299,
+    "display_intervals": 529,
+    "display_fps": 28.565,
+    "interval_ms_p95": 50.599,
+    "interval_ms_max": 50.6,
+    "intervals_over_two_vblanks": 41,
+    "cadence_pass": false,
+    "telemetry_available": false,
+    "primitive_overflows": null,
+    "measured_pass": null
+  },
+  "metadata": {
+    "disc_sha256": "41a2de17eb0f76aeaecf27b706b969dc4226623a0c86d0ef6c7ca9e857e72a71",
+    "frontend_sha256": "2bfb9c28857b2e62d46124d44a56a79aca63263ddff6394d4c2e82cfe9b6c635",
+    "project_sha256": "4a04f946edcb873a3ccffd2748eefc331f48752f3afa80ef675d9e9f784f52e0",
+    "guest": "normal Play, no emulator-telemetry",
+    "dma_fifo": 0
+  },
+  "prior_main_route_fps": 28.568,
+  "prior_side_route_fps": 29.532,
+  "main_route_regression_percent": 12.64
+}

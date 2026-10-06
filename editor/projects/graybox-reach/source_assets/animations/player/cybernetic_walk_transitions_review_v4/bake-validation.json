@@ -1,0 +1,23 @@
+{
+  "walk_fwd_windup": {
+    "frames": 22,
+    "authored_frames": 21,
+    "hz": 30,
+    "bytes": 17180,
+    "sha256": "ed8d298a4980403f802049da038d2e08a85f1fdbbe44e175c02c2e93fd5e7904"
+  },
+  "walk_fwd_winddown": {
+    "frames": 30,
+    "authored_frames": 29,
+    "hz": 30,
+    "bytes": 23420,
+    "sha256": "7f55451aa42dba3da3d13479c3d11f29bc2653d604a0f73fc43c58b322a3c3b2"
+  },
+  "walk_fwd_winddown_mirror": {
+    "frames": 30,
+    "authored_frames": 29,
+    "hz": 30,
+    "bytes": 23420,
+    "sha256": "55648fffb2c433fe6fd7b9c2e3b55ad96e119551dc03d0ff7f4c2cda3b2f99cb"
+  }
+}

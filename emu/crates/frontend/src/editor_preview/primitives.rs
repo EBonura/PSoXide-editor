@@ -144,16 +144,19 @@ pub(crate) fn clip_preview_brush_polygon(
 /// One depth key for every triangle produced from the same clipped surface.
 /// Keeping a fan atomic prevents an unrelated polygon from being submitted
 /// between its halves merely because their centroids have different depths.
-pub(crate) fn clipped_surface_depth_slot(vertices: &[PreviewClipVertex]) -> usize {
+pub(crate) fn clipped_surface_depth_slot(
+    vertices: &[PreviewClipVertex],
+    range: psx_engine::DepthRange,
+) -> usize {
     if vertices.is_empty() {
-        return room_depth_slot(0);
+        return preview_depth_slot(range, 0);
     }
     let avg_sz = vertices
         .iter()
-        .map(|vertex| vertex.view.z.clamp(0, i32::from(u16::MAX)) as u64)
+        .map(|vertex| vertex.view.z.max(0) as u64)
         .sum::<u64>()
         / vertices.len() as u64;
-    room_depth_slot(avg_sz as u32)
+    preview_depth_slot(range, avg_sz as u32)
 }
 
 /// Clip one world-space editor guide segment to the preview frustum before
@@ -523,7 +526,11 @@ pub(crate) fn push_shadow_tex_tri(
             BlendMode::Average,
         )
         .with_raw_texture(true),
-        shadow_depth_slot(projected_avg_sz(p)),
+        preview_depth_slot(
+            scratch.depth_range,
+            (projected_avg_sz(p) << scratch.gte_depth_shift)
+                .saturating_sub(PREVIEW_SHADOW_DEPTH_BIAS),
+        ),
     )
 }
 
@@ -643,16 +650,4 @@ pub(crate) fn push_tri_split(
 
 pub(crate) fn projected_avg_sz(p: [psx_gte::scene::Projected; 3]) -> u32 {
     (p[0].sz as u32 + p[1].sz as u32 + p[2].sz as u32) / 3
-}
-
-pub(crate) fn room_depth_slot(avg_sz: u32) -> usize {
-    preview_geometry_depth_slot(avg_sz)
-}
-
-pub(crate) fn shadow_depth_slot(avg_sz: u32) -> usize {
-    preview_geometry_depth_slot(avg_sz.saturating_sub(PREVIEW_SHADOW_DEPTH_BIAS))
-}
-
-pub(crate) fn preview_geometry_depth_slot(avg_sz: u32) -> usize {
-    ((avg_sz as usize) >> 2).clamp(PREVIEW_GEOMETRY_SLOT_MIN, PREVIEW_GEOMETRY_SLOT_MAX)
 }

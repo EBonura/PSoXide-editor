@@ -1,0 +1,225 @@
+{
+  "areas": [
+    {
+      "assumed_enemies": 2,
+      "faces_remaining": null,
+      "max_base_triangles": 787,
+      "max_pvs_faces": 418,
+      "name": "arrival",
+      "samples": [
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              0,
+              1792,
+              -4096
+            ],
+            "base_packet_slots": 787,
+            "base_triangles": 787,
+            "faces_remaining": null,
+            "leaf": 29,
+            "pvs_faces": 418,
+            "sky_aperture_faces": 21,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            0,
+            1536,
+            -7168
+          ]
+        }
+      ],
+      "status": "runtime_measurement_required",
+      "triangles_remaining": null
+    },
+    {
+      "assumed_enemies": 2,
+      "faces_remaining": null,
+      "max_base_triangles": 792,
+      "max_pvs_faces": 421,
+      "name": "north terrace",
+      "samples": [
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              2048,
+              1024,
+              32256
+            ],
+            "base_packet_slots": 792,
+            "base_triangles": 792,
+            "faces_remaining": null,
+            "leaf": 3,
+            "pvs_faces": 421,
+            "sky_aperture_faces": 21,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            0,
+            1536,
+            32256
+          ]
+        }
+      ],
+      "status": "runtime_measurement_required",
+      "triangles_remaining": null
+    }
+  ],
+  "cook_mode": "Release",
+  "cook_warnings": [
+    "Character 'Aletha' has no turn clip"
+  ],
+  "heaviest_leaves": [
+    {
+      "approximate_surface_anchor": [
+        2048,
+        768,
+        26624
+      ],
+      "base_packet_slots": 792,
+      "base_triangles": 792,
+      "faces_remaining": null,
+      "leaf": 2,
+      "pvs_faces": 421,
+      "sky_aperture_faces": 21,
+      "status": "runtime_measurement_required",
+      "triangles_remaining": null
+    },
+    {
+      "approximate_surface_anchor": [
+        2048,
+        1024,
+        32256
+      ],
+      "base_packet_slots": 792,
+      "base_triangles": 792,
+      "faces_remaining": null,
+      "leaf": 3,
+      "pvs_faces": 421,
+      "sky_aperture_faces": 21,
+      "status": "runtime_measurement_required",
+      "triangles_remaining": null
+    },
+    {
+      "approximate_surface_anchor": [
+        2560,
+        768,
+        27648
+      ],
+      "base_packet_slots": 792,
+      "base_triangles": 792,
+      "faces_remaining": null,
+      "leaf": 4,
+      "pvs_faces": 421,
+      "sky_aperture_faces": 21,
+      "status": "runtime_measurement_required",
+      "triangles_remaining": null
+    },
+    {
+      "approximate_surface_anchor": [
+        -3584,
+        1536,
+        28416
+      ],
+      "base_packet_slots": 792,
+      "base_triangles": 792,
+      "faces_remaining": null,
+      "leaf": 5,
+      "pvs_faces": 421,
+      "sky_aperture_faces": 21,
+      "status": "runtime_measurement_required",
+      "triangles_remaining": null
+    },
+    {
+      "approximate_surface_anchor": [
+        2048,
+        1792,
+        22528
+      ],
+      "base_packet_slots": 792,
+      "base_triangles": 792,
+      "faces_remaining": null,
+      "leaf": 6,
+      "pvs_faces": 421,
+      "sky_aperture_faces": 21,
+      "status": "runtime_measurement_required",
+      "triangles_remaining": null
+    },
+    {
+      "approximate_surface_anchor": [
+        0,
+        1792,
+        22528
+      ],
+      "base_packet_slots": 792,
+      "base_triangles": 792,
+      "faces_remaining": null,
+      "leaf": 7,
+      "pvs_faces": 421,
+      "sky_aperture_faces": 21,
+      "status": "runtime_measurement_required",
+      "triangles_remaining": null
+    },
+    {
+      "approximate_surface_anchor": [
+        0,
+        6144,
+        39168
+      ],
+      "base_packet_slots": 792,
+      "base_triangles": 792,
+      "faces_remaining": null,
+      "leaf": 9,
+      "pvs_faces": 421,
+      "sky_aperture_faces": 21,
+      "status": "runtime_measurement_required",
+      "triangles_remaining": null
+    },
+    {
+      "approximate_surface_anchor": [
+        4608,
+        1024,
+        37120
+      ],
+      "base_packet_slots": 792,
+      "base_triangles": 792,
+      "faces_remaining": null,
+      "leaf": 10,
+      "pvs_faces": 421,
+      "sky_aperture_faces": 21,
+      "status": "runtime_measurement_required",
+      "triangles_remaining": null
+    }
+  ],
+  "limits": null,
+  "meaning": "PVS includes potential geometry in adjacent areas before frustum/backface culling. Base triangles exclude sky and runtime subdivision. Null remaining budgets mean no explicit project budget was supplied, not zero headroom. Supplied budgets are authoring constraints, not calibrated FPS limits.",
+  "next_action": "Measure representative views in normal Play. Do not shrink the level or remove actors solely because PVS counts exceed the withdrawn reference fixture.",
+  "performance_evidence": "benchmarks/engine-stress/valley-recheck.md",
+  "profile": "pxbsp-area-costs-v2",
+  "profile_status": "no_universal_fps_ceiling_calibrated",
+  "runtime_acceptance": "Use the normal Play guest, without emulator-telemetry, and host route/display logs on representative traversal and combat. Record build flags, DMA mode and camera/input tape. Profile a separate instrumented build to diagnose costs and quantify its overhead; missing guest counters remain unknown.",
+  "schema_version": 2,
+  "sealing": {
+    "leak_path": [],
+    "sealed": true
+  },
+  "sky_modes": [
+    "Panorama"
+  ],
+  "staged_geometry": true,
+  "withdrawn_default": {
+    "base_world_triangles": 240,
+    "enemies": 1,
+    "pvs_faces": 120,
+    "reason": "Not validated for normal Play. Derived from instrumented fixtures and PVS upper bounds rather than actual per-view submitted work; do not restrict levels or enemy counts using it."
+  },
+  "world": {
+    "above_authored_geometry_budget_leaves": null,
+    "non_solid_leaves": 65,
+    "status": "runtime_measurement_required",
+    "total_faces": 421,
+    "unreadable_pvs_leaves": 0
+  }
+}

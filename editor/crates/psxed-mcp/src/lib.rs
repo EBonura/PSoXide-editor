@@ -11,6 +11,7 @@
 //! question directly instead, by sectioning the authored brush solids.
 
 pub mod audit;
+pub mod performance;
 pub mod edit;
 pub mod inspect;
 pub mod nodes;

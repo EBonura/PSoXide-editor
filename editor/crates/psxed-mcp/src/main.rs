@@ -361,8 +361,18 @@ struct LightReq {
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 struct CookModeReq {
-    /// true for Release (bakes lights), false for Draft (fullbright).
+    /// true for Release (bakes lights with occlusion), false for Draft (unshadowed lighting, faster visibility on large maps).
     release: bool,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct AreaBudgetReq {
+    /// Named areas with camera positions in authored units. Omit for whole-map
+    /// costs and eight heaviest leaves. Cooks staged edits.
+    areas: Option<Vec<psxed_mcp::performance::AreaSamples>>,
+    /// Optional explicit project-specific budget. Omit for cost measurements only;
+    /// no universal 30 fps face or enemy limit is assumed.
+    budget: Option<psxed_mcp::performance::DesignBudget>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -1053,7 +1063,7 @@ impl EditorServer {
     }
 
     #[rmcp::tool(
-        description = "Switch the BSP cook between Draft (fullbright, ignores lights) and Release (bakes point lights over a dark ambient). Lighting work is invisible until this is Release."
+        description = "Switch the BSP cook between Draft (unshadowed point lights; faster visibility for large maps) and Release (full visibility and occluded point lights). Use Release for final area budgets."
     )]
     async fn set_cook_mode(
         &self,
@@ -1062,6 +1072,25 @@ impl EditorServer {
         let text = self.with(|workspace| {
             let report = workspace.set_cook_mode(release)?;
             Ok(report + &Self::staged_note(workspace))
+        })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    #[rmcp::tool(
+        description = "Measure PVS costs for named areas and camera samples. Optional explicit project budgets return remaining margins; no universal FPS or enemy limit is assumed. The former 120-face cap is withdrawn. Measure frame rate on the normal Play guest using host display logs, separately from instrumented profiling."
+    )]
+    async fn area_budget(
+        &self,
+        Parameters(AreaBudgetReq { areas, budget }): Parameters<AreaBudgetReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let text = self.with(|workspace| {
+            let root = workspace.root().to_path_buf();
+            psxed_mcp::performance::area_budget(
+                workspace.document()?,
+                &root,
+                &areas.unwrap_or_default(),
+                budget.as_ref(),
+            )
         })?;
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
@@ -1348,7 +1377,7 @@ impl EditorServer {
 #[rmcp::tool_handler(
     name = "psoxide-editor",
     version = "0.1.0",
-    instructions = "PSoXide level authoring, in authored editor units. Work in a loop: READ, ACT, VERIFY.\n\nREAD first. `metrics` carries the unit scale, the player's size, the 64-unit working grid, the ceiling heights that actually shipped, and the footprint each pillar side-count needs; call it before inventing any dimension. `scene_info` gives the scene's extents and its candidate floor levels. `materials` lists what you can texture with.\n\nACT with `add_shape`, `make_room`, `array`, `set_material` and `delete`. Every shape reports the brushes and faces it really produced, and warns when grid snapping cost it sides or segments, so read the result instead of assuming. Rooms are authored by their INTERIOR. Give every face a material: untextured faces still cook, they just look wrong. Note the first/count each call returns; the later tools take them.\n\nVERIFY two ways, and do both. `audit` scoped to the brushes you just added (pass first and count) catches coplanar faces that will z-fight, off-grid coordinates and untextured faces in milliseconds; run it after every structural change. `plan_view` is how you judge the SPACE: section a floor plan at a candidate floor level plus 512, pass center and extent to frame one room at human scale, and check a front or side section before trusting a height. Do not reach for a 3D render, the level is dark night-time art at fullbright and volumes read as black masses in perspective.\n\nBefore calling a section done, run `audit` at depth full. It cooks the map and reports the per-leaf PS1 draw cost. Watch the worst leaf's packet slots: if that number climbed after your edit, the edit opened a sightline, and the fix is to break the sightline with geometry rather than to delete detail. An n-sided pillar is n+2 faces and an arch is segments+2 brushes, so a long arcade down an open hall is exactly what makes a level unshippable.\n\nEdits stage in memory. Nothing reaches project.ron until `save`, which refuses if the editor saved over the file meanwhile."
+    instructions = "PSoXide level authoring, in authored editor units. Work in a loop: READ, ACT, VERIFY.\n\nREAD first. `metrics` carries the unit scale, the player's size, the 64-unit working grid, the ceiling heights that actually shipped, and the footprint each pillar side-count needs; call it before inventing any dimension. `scene_info` gives the scene's extents and its candidate floor levels. `materials` lists what you can texture with.\n\nACT with `add_shape`, `make_room`, `array`, `set_material` and `delete`. Every shape reports the brushes and faces it really produced, and warns when grid snapping cost it sides or segments, so read the result instead of assuming. Rooms are authored by their INTERIOR. Give every face a material: untextured faces still cook, they just look wrong. Note the first/count each call returns; the later tools take them.\n\nVERIFY two ways, and do both. `audit` scoped to the brushes you just added (pass first and count) catches coplanar faces that will z-fight, off-grid coordinates and untextured faces in milliseconds; run it after every structural change. `plan_view` is how you judge the SPACE: section a floor plan at a candidate floor level plus 512, pass center and extent to frame one room at human scale, and check a front or side section before trusting a height. Do not reach for a 3D render, the level is dark night-time art at fullbright and volumes read as black masses in perspective.\n\nBefore calling a section done, run `audit` at depth full. It cooks the map and reports the per-leaf PS1 draw cost. Call `area_budget` with named camera samples in each area and at its transitions. It measures candidate faces/triangles and compares optional explicit project budgets. There is no calibrated universal 30 fps face or enemy cap; establish budgets using normal Play display-cadence measurements. Total world size is not the per-view workload. PVS packet counts are candidate costs, not FPS predictions. An area is not 30 fps validated until a gameplay replay with its intended actor load holds two-vblank display cadence without primitive overflows. An n-sided pillar is n+2 faces and an arch is segments+2 brushes; use these counts to understand edits, then measure their actual runtime impact.\n\nEdits stage in memory. Nothing reaches project.ron until `save`, which refuses if the editor saved over the file meanwhile."
 )]
 impl ServerHandler for EditorServer {}
 

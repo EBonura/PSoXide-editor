@@ -611,3 +611,14 @@ revision, and the agent re-reads when it moved. Do not build locking.
 mode, which is the default, so anything the agent judges by eye in the
 preview is unlit. `plan_view` sidesteps this; `screenshot` must say which
 mode produced it.
+
+
+## 6 October: per-area measurements and withdrawn default cap
+
+`area_budget` cooks staged geometry and returns JSON with named camera samples
+resolved through the exact cooked BSP. It compares optional **caller-provided**
+project budgets; otherwise margins are null and status is `runtime_measurement_required`.
+The former default 120-face / 240-triangle / one-enemy limit was withdrawn after
+normal Play testing of Graybox Valley. PVS candidates are not submitted geometry,
+and fixture timings cannot establish a universal frame-rate cap. See
+[`benchmarks/engine-stress/valley-recheck.md`](../benchmarks/engine-stress/valley-recheck.md).

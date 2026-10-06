@@ -7,3 +7,5 @@ legacy-grid/*
 **/cooked/
 **/baked/
 **/logs/
+# Recoverable local experiments removed from the editor's project picker.
+/local-tests/

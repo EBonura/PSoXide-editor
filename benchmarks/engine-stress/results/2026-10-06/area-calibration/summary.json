@@ -1,0 +1,359 @@
+[
+  {
+    "first_poll": 600,
+    "last_poll": 1750,
+    "render_samples": 574,
+    "display_intervals": 575,
+    "display_fps": 29.645,
+    "interval_ms_p95": 33.733,
+    "interval_ms_max": 33.733,
+    "intervals_over_two_vblanks": 0,
+    "primitive_overflows": 0,
+    "render_cycles_p95": 1014141,
+    "mean_cycles": {
+      "visual_render_task": 1011231,
+      "room": 121432,
+      "player": 203130,
+      "model_instances": 371199,
+      "update": 53691
+    },
+    "max_actor_draws": 2,
+    "measured_pass": true,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    },
+    "pillars": 0,
+    "faces": 49,
+    "manifest": {
+      "project_sha256": "7d1249d61a845735ce7bd29df01d19ef451fa4f78f933abd88e30acf51ff2067",
+      "frontend_sha256": "3725dee5e91ed4aeebd826bef8c841ed0b5bd70c4f69cc596f4d1ad0b28d7bca",
+      "cue": "/Users/ebonura/Desktop/repos/PSoXide-editor/build/area-calibration/pillars-0/project/baked/graybox_valley.cue",
+      "disc_files": {
+        "graybox_valley.bin": "218d37fc070d29fc309a021d23e8eacb0e7e846235444ef601ff5f0414e0a8f8"
+      },
+      "features": "cd-stream-bench emulator-telemetry"
+    },
+    "raw_logs": "/Users/ebonura/Desktop/repos/PSoXide-editor/build/area-calibration/pillars-0"
+  },
+  {
+    "first_poll": 601,
+    "last_poll": 1749,
+    "render_samples": 573,
+    "display_intervals": 574,
+    "display_fps": 29.645,
+    "interval_ms_p95": 33.733,
+    "interval_ms_max": 33.733,
+    "intervals_over_two_vblanks": 0,
+    "primitive_overflows": 0,
+    "render_cycles_p95": 950123,
+    "mean_cycles": {
+      "visual_render_task": 944873,
+      "room": 180176,
+      "player": 200319,
+      "model_instances": 371181,
+      "update": 58498
+    },
+    "max_actor_draws": 2,
+    "measured_pass": true,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    },
+    "pillars": 4,
+    "faces": 79,
+    "manifest": {
+      "project_sha256": "01fa5a9714f3970e5ad932f749521435853e1d5bb37a6e60912a025848ca9a23",
+      "frontend_sha256": "3725dee5e91ed4aeebd826bef8c841ed0b5bd70c4f69cc596f4d1ad0b28d7bca",
+      "cue": "/Users/ebonura/Desktop/repos/PSoXide-editor/build/area-calibration/pillars-4/project/baked/graybox_valley.cue",
+      "disc_files": {
+        "graybox_valley.bin": "0b8fc796214997134fd415cc0fb3093e122a14c0000d81c1e593ef138fe3c88d"
+      },
+      "features": "cd-stream-bench emulator-telemetry"
+    },
+    "raw_logs": "/Users/ebonura/Desktop/repos/PSoXide-editor/build/area-calibration/pillars-4"
+  },
+  {
+    "first_poll": 601,
+    "last_poll": 1749,
+    "render_samples": 573,
+    "display_intervals": 574,
+    "display_fps": 29.645,
+    "interval_ms_p95": 33.733,
+    "interval_ms_max": 33.733,
+    "intervals_over_two_vblanks": 0,
+    "primitive_overflows": 0,
+    "render_cycles_p95": 964549,
+    "mean_cycles": {
+      "visual_render_task": 959479,
+      "room": 207240,
+      "player": 200314,
+      "model_instances": 371177,
+      "update": 58689
+    },
+    "max_actor_draws": 2,
+    "measured_pass": true,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    },
+    "pillars": 8,
+    "faces": 105,
+    "manifest": {
+      "project_sha256": "ac96dc37405351230ec19115683b03029ecdadeea7772e22b964855c8a8580f9",
+      "frontend_sha256": "3725dee5e91ed4aeebd826bef8c841ed0b5bd70c4f69cc596f4d1ad0b28d7bca",
+      "cue": "/Users/ebonura/Desktop/repos/PSoXide-editor/build/area-calibration/pillars-8/project/baked/graybox_valley.cue",
+      "disc_files": {
+        "graybox_valley.bin": "50d152f76ddb4a7ca31154771f967e370df40bfe6a7122d608223c4c7a158c10"
+      },
+      "features": "cd-stream-bench emulator-telemetry"
+    },
+    "raw_logs": "/Users/ebonura/Desktop/repos/PSoXide-editor/build/area-calibration/pillars-8"
+  },
+  {
+    "first_poll": 600,
+    "last_poll": 1749,
+    "render_samples": 574,
+    "display_intervals": 575,
+    "display_fps": 29.645,
+    "interval_ms_p95": 33.733,
+    "interval_ms_max": 33.733,
+    "intervals_over_two_vblanks": 0,
+    "primitive_overflows": 0,
+    "render_cycles_p95": 1075272,
+    "mean_cycles": {
+      "visual_render_task": 1010574,
+      "room": 244126,
+      "player": 200321,
+      "model_instances": 371167,
+      "update": 56907
+    },
+    "max_actor_draws": 2,
+    "measured_pass": true,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    },
+    "pillars": 12,
+    "faces": 135,
+    "manifest": {
+      "project_sha256": "bab8f18bde9f5a9c8f824118e6f02cfaf10ba51de6953ae31dab6be09d786263",
+      "frontend_sha256": "3725dee5e91ed4aeebd826bef8c841ed0b5bd70c4f69cc596f4d1ad0b28d7bca",
+      "cue": "/Users/ebonura/Desktop/repos/PSoXide-editor/build/area-calibration/pillars-12/project/baked/graybox_valley.cue",
+      "disc_files": {
+        "graybox_valley.bin": "1cd3d46ef2bf3a7dca66d3b0a400189ff8c9cbc94266e6f5a4ebfaec3fb4fbe7"
+      },
+      "features": "cd-stream-bench emulator-telemetry"
+    },
+    "raw_logs": "/Users/ebonura/Desktop/repos/PSoXide-editor/build/area-calibration/pillars-12"
+  },
+  {
+    "first_poll": 602,
+    "last_poll": 1750,
+    "render_samples": 573,
+    "display_intervals": 574,
+    "display_fps": 29.645,
+    "interval_ms_p95": 33.733,
+    "interval_ms_max": 33.733,
+    "intervals_over_two_vblanks": 0,
+    "primitive_overflows": 0,
+    "render_cycles_p95": 1074854,
+    "mean_cycles": {
+      "visual_render_task": 1010241,
+      "room": 280959,
+      "player": 200290,
+      "model_instances": 371173,
+      "update": 57125
+    },
+    "max_actor_draws": 2,
+    "measured_pass": true,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    },
+    "pillars": 16,
+    "faces": 161,
+    "manifest": {
+      "project_sha256": "8f9243b49c96d1657be6bff087bfa8ad75f0417852dfe7909c5c5b51b7bd0ce9",
+      "frontend_sha256": "3725dee5e91ed4aeebd826bef8c841ed0b5bd70c4f69cc596f4d1ad0b28d7bca",
+      "cue": "/Users/ebonura/Desktop/repos/PSoXide-editor/build/area-calibration/pillars-16/project/baked/graybox_valley.cue",
+      "disc_files": {
+        "graybox_valley.bin": "26af4d671719e3491cb8c3390fb3d14e7eb9050c527336cf5e90ac0c90f3f250"
+      },
+      "features": "cd-stream-bench emulator-telemetry"
+    },
+    "raw_logs": "/Users/ebonura/Desktop/repos/PSoXide-editor/build/area-calibration/pillars-16"
+  },
+  {
+    "first_poll": 601,
+    "last_poll": 1749,
+    "render_samples": 573,
+    "display_intervals": 574,
+    "display_fps": 29.645,
+    "interval_ms_p95": 33.733,
+    "interval_ms_max": 33.733,
+    "intervals_over_two_vblanks": 0,
+    "primitive_overflows": 0,
+    "render_cycles_p95": 1027036,
+    "mean_cycles": {
+      "visual_render_task": 999012,
+      "room": 324291,
+      "player": 200316,
+      "model_instances": 371166,
+      "update": 58874
+    },
+    "max_actor_draws": 2,
+    "measured_pass": true,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    },
+    "pillars": 18,
+    "faces": 180,
+    "manifest": {
+      "project_sha256": "811c963252dd9201ee59dffbc309d22b89b9b2cdae9a9b3bdc5035d1a5a1437e",
+      "frontend_sha256": "3725dee5e91ed4aeebd826bef8c841ed0b5bd70c4f69cc596f4d1ad0b28d7bca",
+      "cue": "/Users/ebonura/Desktop/repos/PSoXide-editor/build/area-calibration/pillars-18/project/baked/graybox_valley.cue",
+      "disc_files": {
+        "graybox_valley.bin": "fc06dde1c505af2b6d70a47daa5e38b183599af2bb0f6ab92a1314d33e54a922"
+      },
+      "features": "cd-stream-bench emulator-telemetry"
+    },
+    "raw_logs": "/Users/ebonura/Desktop/repos/PSoXide-editor/build/area-calibration/pillars-18"
+  },
+  {
+    "first_poll": 600,
+    "last_poll": 1750,
+    "render_samples": 459,
+    "display_intervals": 459,
+    "display_fps": 23.726,
+    "interval_ms_p95": 50.599,
+    "interval_ms_max": 50.6,
+    "intervals_over_two_vblanks": 229,
+    "primitive_overflows": 0,
+    "render_cycles_p95": 1487050,
+    "mean_cycles": {
+      "visual_render_task": 1263715,
+      "room": 337718,
+      "player": 201467,
+      "model_instances": 371301,
+      "update": 56507
+    },
+    "max_actor_draws": 2,
+    "measured_pass": false,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    },
+    "pillars": 20,
+    "faces": 191,
+    "manifest": {
+      "project_sha256": "bc38fdcb81ed97bbaaf86a7499ca6264682b5337f753ca79d1e6d91223a167ff",
+      "frontend_sha256": "3725dee5e91ed4aeebd826bef8c841ed0b5bd70c4f69cc596f4d1ad0b28d7bca",
+      "cue": "/Users/ebonura/Desktop/repos/PSoXide-editor/build/area-calibration/pillars-20/project/baked/graybox_valley.cue",
+      "disc_files": {
+        "graybox_valley.bin": "03aa81555a886b54d086af817cd792d52d2bd24eb4e9fd7705db8f7b96dcff7f"
+      },
+      "features": "cd-stream-bench emulator-telemetry"
+    },
+    "raw_logs": "/Users/ebonura/Desktop/repos/PSoXide-editor/build/area-calibration/pillars-20"
+  }
+]

@@ -19,11 +19,11 @@ def sha(p):
     return h.hexdigest()
 def scenario(name):
     out=ROOT/name; out.mkdir(parents=True,exist_ok=True)
-    project=E/'editor/projects'/('stress-20261006-'+name)
+    project=out/'project'
     if project.exists(): raise RuntimeError(f'Refusing to overwrite {project}')
     project.mkdir()
     shutil.copy2(FIXTURES/SCENARIOS[name]/'project.ron', project/'project.ron')
-    (project/'assets').symlink_to('../default/assets')
+    (project/'assets').symlink_to(os.path.relpath(E/'editor/projects/default/assets',project))
     c=Client(project)
     calls=[]
     def call(tool,args={}):
@@ -91,7 +91,15 @@ def scenario(name):
     (out/'manifest.json').write_text(json.dumps(manifest,indent=2))
     replay(out, cue)
     print(name+': done',flush=True)
+def resolve_retained_cue(cue):
+    """Find a retained test disc after its project was moved out of the picker."""
+    if cue.exists():return cue
+    archive=E/'editor/archive/local-tests'
+    matches=list(archive.glob(f'*/{cue.parent.parent.name}/baked/{cue.name}'))
+    if len(matches)==1:return matches[0]
+    raise FileNotFoundError(f'Disc missing or archive location ambiguous: {cue}')
 def replay(out, cue):
+    cue=resolve_retained_cue(cue)
     name=out.name
     manifest=json.loads((out/'manifest.json').read_text())
     assert sha(FE)==manifest['frontend_sha256'], 'Frontend changed: establish a new baseline'

@@ -1,0 +1,42 @@
+# Audit of scene 0: "Main"
+
+## Geometry
+
+52 brushes, 304 faces
+degenerate (enclose no volume): none
+beyond the 131072-unit extent limit: none
+coplanar face overlaps: none
+grid 64: every authored coordinate is aligned
+
+Note: this finds faces sharing a PLANE, which z-fight. Solids that merely interpenetrate are legal here (BrushContents::precedence resolves them, and the shipped level relies on it), so a pillar passing through a stair is a look-at-it decision, not an error. Check a plan_view for those.
+
+## Sealing
+
+sealed: no path from the interior to the void
+(sealing check took 0.0s)
+
+## Cook and draw cost
+
+warning: Character 'Aletha' has no turn clip
+
+642 world faces, 1259 base triangles, 1424 all-face packet slots, 66 non-solid leaves
+
+Heaviest leaves. Base packet slots describe the PVS candidate set before frustum/backface culling, clipping and subdivision, not actual submitted packets.
+  leaf 19: 1197 packet slots, 528 visible faces across 52 visible leaves, near authored (1024, 3072, 18432)
+  leaf 20: 1197 packet slots, 528 visible faces across 52 visible leaves, near authored (1024, 3072, 22528)
+  leaf 5: 1149 packet slots, 503 visible faces across 46 visible leaves, near authored (0, 6144, 45056)
+  leaf 2: 1133 packet slots, 495 visible faces across 44 visible leaves, near authored (0, 6144, 45056)
+  leaf 6: 1133 packet slots, 495 visible faces across 44 visible leaves, near authored (14336, 2048, 49152)
+  leaf 48: 1125 packet slots, 487 visible faces across 52 visible leaves, near authored (0, 6144, -4096)
+  leaf 54: 1125 packet slots, 487 visible faces across 52 visible leaves, near authored (-2048, 2048, -10240)
+  leaf 49: 1117 packet slots, 483 visible faces across 52 visible leaves, near authored (0, 6144, -4096)
+
+Frame-rate budget: UNCALIBRATED. The former 120-face / 240-triangle / one-enemy default has been withdrawn. It extrapolated instrumented, camera-specific fixtures into a general Play limit.
+Heaviest PVS: 528 candidate faces, 1032 base triangles. These are not actual submitted geometry or a prediction of FPS.
+Use area_budget for named samples and optional explicit project budgets. Establish performance with a normal Play build and host display-cadence logs; use instrumented builds only for diagnosis and measure their overhead separately.
+
+cooked world spans authored [-16384, 0, -16384]..[24576, 12288, 61440]
+
+Worst sightline is leaf 19 at 1197 packet slots. Added detail and opened sightlines both increase this cost. Use area_budget to check the numerical limit and reduce visible detail or add occlusion where it is exceeded.
+
+(cook took 0.1s)
