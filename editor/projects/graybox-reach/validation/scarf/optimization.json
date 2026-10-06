@@ -1,0 +1,213 @@
+{
+  "date": "2026-10-06",
+  "project": "Graybox Reach",
+  "change": "Batch the scarf solid-color Gouraud triangles, sharing depth setup and capacity checks. Flush before clipped faces to retain submission order. Keep particle simulation, Gouraud dithering, geometry and stance burst unchanged.",
+  "identity": {
+    "commit": "a995991a48397df7793fc3bcde5c688d09b21aba",
+    "frontend_sha256": "2bfb9c28857b2e62d46124d44a56a79aca63263ddff6394d4c2e82cfe9b6c635",
+    "exe_sha256": "c1fb0e709d6e031c7d71428e9ffb9c5624f2d288fad28c2dc6f93c43dd0bd483",
+    "bin_sha256": "43e2de2b272b3136266b07a1aecc6d4533c21287eb9efa75d52c09b5a212f5ca",
+    "tape_sha256": "e25deefe6047f0652e95d153e004f6ed9a21ea8490e0577269399877e3802349",
+    "features": "cd-stream-bench",
+    "stage_root": "/tmp/psoxide-reach-scarf-folded",
+    "baseline_source_hashes": "source-hashes.json"
+  },
+  "optimized_exe_sha256": "a584d427662517a9db71a94d4e496a2b52b2fec2f804ecd2f4a59d6477cae60c",
+  "source_changes": [
+    "engine/crates/psx-engine/src/render3d/world_pass_model.rs",
+    "engine/crates/psx-game-runtime/src/model_rendering/scarf.rs"
+  ],
+  "source_snapshot_manifest_sha256": "58fee00a1950ce934dec7d97bfe4783a4d11ba3e7810805984bfb112307a954b",
+  "measurements": {
+    "baseline": {
+      "first_poll": 401,
+      "last_poll": 3120,
+      "display_intervals": 1195,
+      "display_fps": 26.068,
+      "interval_ms_p95": 50.599,
+      "interval_ms_max": 67.465,
+      "intervals_over_two_vblanks": 341,
+      "cadence_pass": false,
+      "telemetry_available": false,
+      "primitive_overflows": null,
+      "measured_pass": null
+    },
+    "baseline-strict": {
+      "first_poll": 401,
+      "last_poll": 3119,
+      "display_intervals": 1195,
+      "display_fps": 26.068,
+      "interval_ms_p95": 50.599,
+      "interval_ms_max": 67.465,
+      "intervals_over_two_vblanks": 346,
+      "cadence_pass": false,
+      "telemetry_available": false,
+      "primitive_overflows": null,
+      "measured_pass": null
+    },
+    "final-normal": {
+      "first_poll": 400,
+      "last_poll": 3120,
+      "display_intervals": 1201,
+      "display_fps": 26.198,
+      "interval_ms_p95": 50.599,
+      "interval_ms_max": 67.465,
+      "intervals_over_two_vblanks": 328,
+      "cadence_pass": false,
+      "telemetry_available": false,
+      "primitive_overflows": null,
+      "measured_pass": null
+    },
+    "final-strict": {
+      "first_poll": 401,
+      "last_poll": 3119,
+      "display_intervals": 1199,
+      "display_fps": 26.155,
+      "interval_ms_p95": 50.599,
+      "interval_ms_max": 67.465,
+      "intervals_over_two_vblanks": 330,
+      "cadence_pass": false,
+      "telemetry_available": false,
+      "primitive_overflows": null,
+      "measured_pass": null
+    }
+  },
+  "dash_windows_96_polls": {
+    "729": {
+      "baseline": 28.117,
+      "baseline-strict": 28.117,
+      "final-normal": 28.117,
+      "final-strict": 28.117
+    },
+    "1688": {
+      "baseline": 20.184,
+      "baseline-strict": 20.184,
+      "final-normal": 20.401,
+      "final-strict": 20.401
+    },
+    "1791": {
+      "baseline": 20.999,
+      "baseline-strict": 21.038,
+      "final-normal": 21.267,
+      "final-strict": 21.267
+    },
+    "2525": {
+      "baseline": 28.41,
+      "baseline-strict": 28.41,
+      "final-normal": 28.728,
+      "final-strict": 28.728
+    }
+  },
+  "full_run_denominators": {
+    "baseline": {
+      "display_flips": 1269,
+      "last_route_tick": 3228,
+      "last_recorded_poll": 3142,
+      "flips_per_tape_second": 24.03,
+      "flips_per_cold_boot_bus_second": 23.305,
+      "note": "Full-run denominators include boot/menu and tail. Gameplay window below is the performance comparison; tool log confirms stop poll 3143."
+    },
+    "baseline-strict": {
+      "display_flips": 1269,
+      "last_route_tick": 3228,
+      "last_recorded_poll": 3141,
+      "flips_per_tape_second": 24.03,
+      "flips_per_cold_boot_bus_second": 23.308,
+      "note": "Full-run denominators include boot/menu and tail. Gameplay window below is the performance comparison; tool log confirms stop poll 3143."
+    },
+    "final-normal": {
+      "display_flips": 1276,
+      "last_route_tick": 3228,
+      "last_recorded_poll": 3142,
+      "flips_per_tape_second": 24.163,
+      "flips_per_cold_boot_bus_second": 23.433,
+      "note": "Full-run denominators include boot/menu and tail. Gameplay window below is the performance comparison; tool log confirms stop poll 3143."
+    },
+    "final-strict": {
+      "display_flips": 1274,
+      "last_route_tick": 3228,
+      "last_recorded_poll": 3141,
+      "flips_per_tape_second": 24.125,
+      "flips_per_cold_boot_bus_second": 23.4,
+      "note": "Full-run denominators include boot/menu and tail. Gameplay window below is the performance comparison; tool log confirms stop poll 3143."
+    }
+  },
+  "validation": {
+    "native_tests_passed": 880,
+    "engine_tests": 458,
+    "bsp_tests": 162,
+    "runtime_tests": 260,
+    "packet_oracle": "1620 combinations of packet/command capacity, ordering mode, cull mode, depth policy and bias; includes invalid, reversed and degenerate faces, and depth clamp extremes.",
+    "normal_and_strict_completed_poll": 3143,
+    "stance_review_strict_completed_poll": 2212,
+    "final_display_sha256": "63706492b26de54e273711c2123a7577ff27d6b1eb1aa6c5cce9b672c4ee0c30",
+    "final_display_matches_baseline_in_both_modes": true,
+    "stance_final_sha256": "9103dd296232995da6cc057024429fa2fc86a99848be058f1d9eef68ee19833c",
+    "stance_final_matches_baseline": true,
+    "visual_review": "Standing, explosion, reconstruction and persistent stance colors checked against original contact sheet. Fixed route-tick captures can show adjacent effect phases as cadence shifts.",
+    "physical_console_tested": false,
+    "runtime_overflow_telemetry_available": false,
+    "live_checkout_tests_passed": 892,
+    "live_checkout_note": "Final current-checkout engine/BSP/runtime rerun passes all 892 tests, including the concurrently updated camera tests. Performance measurements still use the isolated frozen source."
+  },
+  "memory": {
+    "baseline_sections": {
+      ".text": 798860,
+      ".data": 206704,
+      ".bss": 615612
+    },
+    "optimized_sections": {
+      ".text": 801948,
+      ".data": 205664,
+      ".bss": 615612
+    },
+    "extra_bss_bytes": 0,
+    "extra_exe_bytes": 2048,
+    "scarf_scratchpad_stack_bytes": 160,
+    "scarf_scratchpad_capacity": 1004,
+    "remaining_load_delay_hazards": 0,
+    "geometry_triangles": 30,
+    "particles": 16,
+    "texture_bytes": 0
+  },
+  "experiments": [
+    {
+      "candidate": "squared",
+      "decision": "rejected",
+      "reason": "Full route cadence decreased from 26.068 to 26.002 fps; larger fast/fallback code and guards outweighed fewer overflow tests.",
+      "normal_fps": 26.002
+    },
+    {
+      "candidate": "scratch-state",
+      "decision": "rejected",
+      "reason": "Only one additional displayed frame (26.068 to 26.089 fps), insufficient to justify the larger 608-byte scratchpad stack. Final pixels matched.",
+      "normal_fps": 26.089
+    },
+    {
+      "candidate": "batch",
+      "decision": "accepted",
+      "normal_fps": 26.198,
+      "strict_fps": 26.155,
+      "reason": "Improves full route and slow dash windows in both DMA models; exact packet oracle and final display match."
+    },
+    {
+      "candidate": "stiffness",
+      "decision": "rejected",
+      "normal_fps": 26.198,
+      "reason": "Compile-time stiffness specialization and skipping fully pinned constraint gave no displayed cadence gain over batch; reverted."
+    },
+    {
+      "candidate": "capsule",
+      "decision": "rejected",
+      "normal_fps": 26.198,
+      "reason": "Enclosing-box rejection and bounded distance math matched original collision oracle and final pixels, but full displayed cadence did not improve over batch. Reverted."
+    }
+  ],
+  "reproduce": {
+    "artifacts": "build/graybox-reach/scarf-opt",
+    "build": "Isolated /tmp/psoxide-reach-scarf-folded/stage with identical features and assets. Overlay only the two source files; standard PSX release build, hazard_patch.py, stack_guard.py.",
+    "replay": "PSOXIDE_EXPERIMENTAL_DMA_FIFO={0|1} target/release/frontend launch --path <candidate.exe> --disc <frozen-baseline.cue> --embedded-playtest --input-tape editor/projects/graybox-reach/validation/texture-state-user.pxtape --stop-at-poll=3143 --steps=6900000000 --route-log <route.csv> --dump-display <final.ppm>",
+    "measure": "python3 benchmarks/engine-stress/measure_route.py <run-dir> 400 3120"
+  },
+  "scope": "A/B isolates the scarf from simultaneous camera/enemy work. These timings describe the frozen comparison, not a later rebuilt project with those other changes. No locked 30 fps claim."
+}
