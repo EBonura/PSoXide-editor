@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-06",
+  "fixes": [
+    "Use motor player.y as floor; visual model origin is lifted to hips and incorrectly flattened the tail.",
+    "Lower neck attachment by character height / 20.",
+    "Burst and reassemble all cloth triangles using shared body stance timing; retain stance color after body fade."
+  ],
+  "validation": {
+    "runtime_unit_tests_passed": 260,
+    "saved_user_route_completed_poll": 3143,
+    "standing_and_both_stances_normal_and_strict_completed_poll": 2212,
+    "normal_route": {
+      "first_poll": 400,
+      "last_poll": 3120,
+      "display_intervals": 1201,
+      "display_fps": 26.198,
+      "interval_ms_p95": 50.599,
+      "interval_ms_max": 67.465,
+      "intervals_over_two_vblanks": 327,
+      "cadence_pass": false,
+      "telemetry_available": false,
+      "primitive_overflows": null,
+      "measured_pass": null
+    },
+    "native_tests_added": [
+      "settled_tip_points_down_after_stopping",
+      "cloth_bursts_and_reassembles_on_the_body_clock_without_finish_fade"
+    ],
+    "scratchpad_stack_bytes": 160,
+    "scratchpad_stack_capacity": 1004,
+    "remaining_load_delay_hazards": 0,
+    "physical_console_tested": false
+  },
+  "tested_exe_sha256": "e68282d361509e97c4532e06ed072c88411c9e86dec1b476c8f8b99613a58aa6",
+  "tested_bin_sha256": "3b492858830b471f5e15d3fa44df9b2793afc846adcb953840ce67b429875058",
+  "review_tape_sha256": "060d1a52a1dfd394b0a9d9dfe85275f5e59785584b6d8ab63f5c1b75f9092771",
+  "artifacts_root": "/Users/ebonura/Desktop/repos/PSoXide-editor/build/graybox-reach/scarf-revision",
+  "note": "Other local camera/editor changes are in progress; hashes identify the frozen build used for these checks."
+}

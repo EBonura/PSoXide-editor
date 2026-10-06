@@ -1070,7 +1070,7 @@
                 collision_radius: 192,
                 scale_q8: (256, 256, 256),
                 default_visual_yaw_q12: 0,
-                attachments: [(name: "right_hand_grip", joint: 13, translation: (-17390, -2240, -6229), translation_space: BindSpace, rotation_q12: (32, 0, 1696)), (name: "left_hand_grip", joint: 21, translation: (17899, -2032, -6523), translation_space: BindSpace, rotation_q12: (32, 0, -1696))],
+                attachments: [(name: "scarf_neck", joint: 9, translation: (0, 0, 0), translation_space: JointOffset, rotation_q12: (0, 0, 0)), (name: "right_hand_grip", joint: 13, translation: (-17390, -2240, -6229), translation_space: BindSpace, rotation_q12: (32, 0, 1696)), (name: "left_hand_grip", joint: 21, translation: (17899, -2032, -6523), translation_space: BindSpace, rotation_q12: (32, 0, -1696))],
             )),
         ),
         /*[7]*/ (
