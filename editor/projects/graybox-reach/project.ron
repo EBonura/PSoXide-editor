@@ -1047,8 +1047,8 @@
             id: (26),
             name: "Light Enemy / Artigli",
             data: Model((
-                model_path: "../default/assets/models/rust_mantis/rust_mantis.psxmdl",
-                source_path: Some("../default/source_assets/characters/rust_mantis.glb"),
+                model_path: "assets/models/enemy_reduced/light.psxmdl",
+                source_path: None,
                 texture_path: Some("../default/assets/models/shared_enemy_01/shared_enemy_01.psxt"),
                 skeleton: Some((22)),
                 world_height: 1024,
@@ -1944,7 +1944,7 @@
             id: (97),
             name: "Heavy Enemy Model",
             data: Model((
-                model_path: "../default/assets/models/tank_boss_animated_model/tank_boss_animated_model.psxmdl",
+                model_path: "assets/models/enemy_reduced/heavy.psxmdl",
                 source_path: None,
                 texture_path: Some("../default/assets/models/shared_enemy_01/shared_enemy_01.psxt"),
                 skeleton: Some((96)),
@@ -2146,7 +2146,7 @@
             id: (111),
             name: "Light Enemy / Clawless Body",
             data: Model((
-                model_path: "../default/assets/models/rust_mantis_clawless/rust_mantis_clawless.psxmdl",
+                model_path: "assets/models/enemy_reduced/light_clawless.psxmdl",
                 source_path: None,
                 texture_path: Some("../default/assets/models/shared_enemy_01/shared_enemy_01.psxt"),
                 skeleton: Some((22)),

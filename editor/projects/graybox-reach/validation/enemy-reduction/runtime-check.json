@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-06",
+  "normal_project_tape": "validation/texture-state-user.pxtape",
+  "normal_project_stop_at_poll": 3143,
+  "normal_project_route_ticks": 3228,
+  "encounter_stop_at_poll": 600,
+  "encounter_route_ticks": 688,
+  "encounter_setup": "Temporary project build/graybox-reach/enemy-reduction/project.ron: original player spawn; light at (-1000,0,-10000), heavy at (1000,0,-10000). Second controller uses character95, renderer model97. Main scene placements unchanged.",
+  "checks": [
+    "No duplicate or zero-area reduced triangles",
+    "Skeleton and material headers unchanged",
+    "551 animation frames deformed; 25 sampled poses per model checked against original surfaces",
+    "Normal project tape replay completed",
+    "Temporary two-enemy encounter visibly renders both models and heavy attacks",
+    "Executable hazard scan and scratchpad stack guard passed"
+  ],
+  "limitations": [
+    "Emulator only, no physical console test",
+    "No FPS improvement claim",
+    "Normal Graybox scene places light enemies only; heavy resource updated and tested in temporary encounter"
+  ],
+  "assets": {
+    "light.psxmdl": "cc0ac3c21e865394bda9cffca71528b758ee2f7b0fb42cda55329df5bb94b6f3",
+    "light_clawless.psxmdl": "94e49404be6e6b3d3891757e057053fe3b13bc22dcb11ab2764f298032f8075c",
+    "heavy.psxmdl": "d60aa930308ad217d893319e2cacdab55572393b76adb9b2738aaf7b44bbef59"
+  },
+  "normal_executable_sha256": "09d3995f596e48c31d46e45be6c2c3d6678b057436acd42707fe47f78cd5096a",
+  "final_normal_rebuild_matches_tested_executable": true
+}

@@ -1,0 +1,5 @@
+[cli] loaded poll-bound input tape editor/projects/graybox-reach/validation/texture-state-user.pxtape (3131 polls, starting at poll 12)
+[cli] mounted cue-backed disc editor/projects/graybox-reach/baked/graybox_reach.cue
+tick=840121537  cycles=1844485892  pc=0x800c8ce8  stopped-at=840121537
+route-ticks=3228  port1-polls=3143
+[cli] CPU display → /Users/ebonura/Desktop/repos/PSoXide/output/graybox-enemy-reduction/gameplay-final.ppm (320x240)
