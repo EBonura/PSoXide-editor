@@ -1,0 +1,42 @@
+# Audit of scene 0: "Main"
+
+## Geometry
+
+5 brushes, 30 faces
+degenerate (enclose no volume): none
+beyond the 131072-unit extent limit: none
+coplanar face overlaps: none
+grid 64: every authored coordinate is aligned
+
+Note: this finds faces sharing a PLANE, which z-fight. Solids that merely interpenetrate are legal here (BrushContents::precedence resolves them, and the shipped level relies on it), so a pillar passing through a stair is a look-at-it decision, not an error. Check a plan_view for those.
+
+## Sealing
+
+LEAKS. A 4-point path escapes to the void. The engine cannot compute visibility through a leak, so the whole map falls back to drawing everything.
+  path starts at authored [0, 16, -4096] (engine [0, 1, -256]), which is the OCCUPANT the flood starts from, normally the player.
+  Check that point is inside your geometry first. A player left at another level's coordinates reports every map as leaking, however well sealed it is.
+  likely opening near authored [-12288, 1152, -8448]
+(sealing check took 0.0s)
+
+## Cook and draw cost
+
+warning: BSP leak reaches the infinite exterior through 4 pointfile points; portal PVS includes the opening and writes brush_world.pts
+warning: Character 'Aletha' has no turn clip
+
+612 world faces, 1224 base triangles, 1389 all-face packet slots, 18 non-solid leaves
+
+Heaviest leaves. `base packet slots` is the figure to watch: it is what one frame has to push from a camera standing in that leaf.
+  leaf 2: 1389 packet slots, 612 visible faces across 18 visible leaves, near authored (0, 384, 20736)
+  leaf 4: 1389 packet slots, 612 visible faces across 18 visible leaves, near authored (0, 384, -8448)
+  leaf 6: 1389 packet slots, 612 visible faces across 18 visible leaves, near authored (12416, 384, -8448)
+  leaf 7: 1389 packet slots, 612 visible faces across 18 visible leaves, near authored (12416, 384, 20736)
+  leaf 8: 1389 packet slots, 612 visible faces across 18 visible leaves, near authored (12544, 384, 6144)
+  leaf 10: 1389 packet slots, 612 visible faces across 18 visible leaves, near authored (-12416, 384, -8448)
+  leaf 11: 1389 packet slots, 612 visible faces across 18 visible leaves, near authored (-12416, 384, 20736)
+  leaf 12: 1389 packet slots, 612 visible faces across 18 visible leaves, near authored (-12544, 384, 6144)
+
+cooked world spans authored [-12544, -256, -8448]..[12544, 768, 20736]
+
+Worst sightline is leaf 2 at 1389 packet slots. If that number climbed after an edit, the edit opened a sightline; break it with geometry rather than by deleting detail.
+
+(cook took 0.1s)
