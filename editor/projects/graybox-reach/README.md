@@ -5,6 +5,64 @@ retired Graybox Highlands experiment. Graybox Valley remains available as the
 smaller comparison. Shared character, animation and UI assets resolve through
 `../default`; keep that project alongside this one.
 
+## Physical scarf, 2026-10-06
+
+The neck wrap now uses uneven cloth contours: a narrow upper opening and a
+wider lower edge with an off-centre front dip. This replaces the circular tube
+while retaining 30 total scarf triangles. The [1080p close-up video](validation/scarf/folded-wrap-1080p.mp4)
+shows the native PS1 image enlarged sharply; the [4x internal-render still](validation/scarf/folded-wrap-front-4x.png)
+provides a cleaner geometry inspection. The complete standing/moving/both-stance
+replay and all 260 runtime tests pass. See [capture details](validation/scarf/folded-wrap-report.json).
+
+Follow-up: the standing tip now hangs below the waist. The initial implementation
+used the lifted visual model origin as its floor; the solver now receives the
+motor's actual floor height. The wrap is lower by 5% of character height so it
+sits below the jaw. Its triangles now burst and reassemble on the body's stance
+clock, then retain the active stance color while the body fades to silver.
+
+260 runtime tests pass, including regressions for the hanging tip and cloth
+burst/arrival timing. The recorded user route completes at 26.198 fps average;
+a dedicated stop-and-switch recording verifies both stances in normal and strict
+DMA modes. See [follow-up evidence](validation/scarf/revision-report.json),
+[standing comparison](validation/scarf/revision-standing.png), and
+[stance recording](validation/scarf/revision-stance.gif). Measurements below are
+the original implementation's frozen comparison.
+
+Aletha now has a neck wrap and a simulated tail attached to her animated neck.
+The scarf follows the active stance: Horizon orange `(255, 113, 58)` or Zenith
+turquoise `(108, 224, 198)`. The body still restores its neutral reflective
+appearance after a stance change; the scarf retains the stance hue. Press
+**Triangle** to switch, then run, turn and dash to see the tail react.
+
+The model opts in through the `scarf_neck` socket on joint 9. The ribbon uses
+16 fixed-point particles, two position-constraint passes at 30 Hz NTSC / 25 Hz
+PAL, and 30 opaque double-sided triangles including the wrap. The attachment
+updates every gameplay tick. Gravity, inertia, damping, torso and floor
+collision run independently of rendering. Teleports reset the cloth. There is
+no extra texture or VRAM allocation. Wall and self collision are not simulated.
+
+The final normal Play build was compared with a control compiled from the
+same frozen source and cooked assets, with only the scarf socket lookup disabled:
+
+| Saved user tape, polls 400–3120 | Display cadence |
+| --- | ---: |
+| Scarf disabled | 27.267 fps |
+| Scarf enabled | 25.893 fps |
+| Scarf enabled, strict DMA FIFO | 25.849 fps |
+
+This is approximately a 5% cadence cost, not a locked 30 fps result. Both full
+replays completed through poll 3143. Six new scarf tests cover movement,
+constraints, torso collision, teleports, fixed PAL/NTSC stepping, persistent hue,
+near clipping and packet capacity; all 872 native engine/BSP/runtime tests passed
+at feature validation. The final guest passes load-delay and scratchpad guards
+(the cloth call tree uses 160 of 1004 available bytes). Physical-console timing
+and runtime primitive-overflow telemetry remain unverified.
+
+The saved disc includes the scarf. Use **Rebuild & Play** in Graybox Reach.
+See [measurements](validation/scarf/report.json),
+[stance captures](validation/scarf/stances.png), and
+[movement recording](validation/scarf/scarf.gif).
+
 ## Dash follow-up, 2026-10-06
 
 The second pass caches the fixed wire edges and batches their packets, skips

@@ -1,0 +1,71 @@
+{
+  "date": "2026-10-06",
+  "project": "Graybox Reach",
+  "behavior": "Scarf remains active stance hue after body fade; neck wrap and trailing simulated ribbon.",
+  "geometry": {
+    "triangles": 30,
+    "particles": 16,
+    "simulation_hz_ntsc": 30,
+    "simulation_hz_pal": 25,
+    "texture_bytes": 0
+  },
+  "collision": "upright torso capsule and floor plane; no BSP wall or self collision",
+  "tests": {
+    "new_scarf_tests": 6,
+    "total_native_tests_passed": 872,
+    "physical_console_tested": false,
+    "scratchpad_bytes": 160,
+    "scratchpad_capacity": 1004,
+    "remaining_load_delay_hazards": 0
+  },
+  "comparison": {
+    "method": "Identical frozen staged source and cooked assets; control changes only socket lookup name in staged scarf.rs to disable cloth. Both side-load their EXE and mount the same final disc. Normal guest, no telemetry instrumentation.",
+    "control_exe_sha256": "c2f318f0b619fd1d2cd6bb7f5481a8c0a2f3ec564d6368de662d98ccaf2cb8f8",
+    "final_exe_sha256": "67aed70258d4de9a952f7370db0b583a6ea3b153642e3abc855a71102d3fdd30",
+    "final_bin_sha256": "70365d4cadfca559bf0c6894e08f1d16a29f2f6fa22c8862300927ef4ad5ba8a",
+    "tape_sha256": "e25deefe6047f0652e95d153e004f6ed9a21ea8490e0577269399877e3802349",
+    "measurements": {
+      "control": {
+        "first_poll": 400,
+        "last_poll": 3120,
+        "display_intervals": 1250,
+        "display_fps": 27.267,
+        "interval_ms_p95": 50.599,
+        "interval_ms_max": 67.465,
+        "intervals_over_two_vblanks": 241,
+        "cadence_pass": false,
+        "telemetry_available": false,
+        "primitive_overflows": null,
+        "measured_pass": null
+      },
+      "final": {
+        "first_poll": 401,
+        "last_poll": 3120,
+        "display_intervals": 1187,
+        "display_fps": 25.893,
+        "interval_ms_p95": 50.599,
+        "interval_ms_max": 67.465,
+        "intervals_over_two_vblanks": 355,
+        "cadence_pass": false,
+        "telemetry_available": false,
+        "primitive_overflows": null,
+        "measured_pass": null
+      },
+      "final-strict": {
+        "first_poll": 401,
+        "last_poll": 3119,
+        "display_intervals": 1185,
+        "display_fps": 25.849,
+        "interval_ms_p95": 50.599,
+        "interval_ms_max": 67.465,
+        "intervals_over_two_vblanks": 360,
+        "cadence_pass": false,
+        "telemetry_available": false,
+        "primitive_overflows": null,
+        "measured_pass": null
+      }
+    }
+  },
+  "artifacts_root": "/Users/ebonura/Desktop/repos/PSoXide-editor/build/graybox-reach/scarf",
+  "stance_verification": "Moving replay switches Triangle at tape polls 500 and 1000; both stance colors remain after body restoration."
+}

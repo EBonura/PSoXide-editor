@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-06",
+  "change": "Replace regular circular neck tube with hand-shaped upper and lower cloth edges, narrower neck opening, asymmetric front dip and irregular fold heights. Physics and stance burst remain active.",
+  "triangles": 30,
+  "tests_passed": 260,
+  "replay_completed_poll": 2212,
+  "exe_sha256": "c1fb0e709d6e031c7d71428e9ffb9c5624f2d288fad28c2dc6f93c43dd0bd483",
+  "video": {
+    "path": "folded-wrap-1080p.mp4",
+    "resolution": [
+      1920,
+      1080
+    ],
+    "fps": 30,
+    "source": "320x240 native PS1 display sampled every two video ticks, enlarged nearest-neighbor into scene and scarf detail panels; no interpolated game detail."
+  },
+  "still": {
+    "path": "folded-wrap-front-4x.png",
+    "resolution": [
+      1280,
+      960
+    ],
+    "source": "Hardware renderer command replay at 4x internal resolution."
+  }
+}

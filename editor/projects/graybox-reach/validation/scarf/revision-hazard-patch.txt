@@ -1,0 +1,37 @@
+hazard 8001f388: jr at | slot lw a2,0(s5) | consumer 8001f390 via table entry 800d7d98
+hazard 8001f388: jr at | slot lw a2,0(s5) | consumer 8001f3cc via table entry 800d7d9c
+hazard 8001f388: jr at | slot lw a2,0(s5) | consumer 8001f3f4 via table entry 800d7da0
+hazard 8003b808: beqz at,0x8003b918 | slot lhu a2,0(v0) | consumer 8003b918
+hazard 8003d188: beqz s1,0x8003d1bc | slot lw v1,196(sp) | consumer 8003d190
+hazard 800461dc: beqz at,0x800471d8 | slot lhu s5,2524(sp) | consumer 800471d8
+hazard 800604e0: j 0x800604fc | slot lbu at,-17228(s4) | consumer 800604fc
+hazard 800605a0: j 0x800605b4 | slot lbu at,-17228(s4) | consumer 800605b4
+hazard 8006064c: j 0x80060660 | slot lbu at,-17228(s4) | consumer 80060660
+hazard 800606f8: j 0x8006070c | slot lbu at,-17228(s4) | consumer 8006070c
+hazard 8006b764: beqz t5,0x8006b818 | slot lhu t3,4(sp) | consumer 8006b818
+hazard 8006b764: beqz t5,0x8006b818 | slot lhu t3,4(sp) | consumer 8006b76c
+hazard 80073d60: bnez v0,0x80073d8c | slot lw a0,48(sp) | consumer 80073d68
+hazard 800b31c0: bnez at,0x800b31cc | slot lw v0,0(a1) | consumer 800b31cc
+hazard 800b3c90: bne v0,t2,0x800b3cf4 | slot lw t1,0(a0) | consumer 800b3cf4
+hazard 800b3c90: bne v0,t2,0x800b3cf4 | slot lw t1,0(a0) | consumer 800b3c98
+hazard 800b7634: bne t8,v0,0x800b767c | slot lw t5,0(a1) | consumer 800b763c
+hazard 800b879c: beqz a2,0x800b87c0 | slot lw v1,100(sp) | consumer 800b87c0
+hazard 800ce300: j 0x800ce31c | slot lbu at,0(s0) | consumer 800ce31c
+patched table entry 800d7d98 (jr at 8001f388) -> trampoline 800d7978 -> 8001f390
+patched table entry 800d7d9c (jr at 8001f388) -> trampoline 800d7984 -> 8001f3cc
+patched table entry 800d7da0 (jr at 8001f388) -> trampoline 800d7990 -> 8001f3f4
+patched 8003b808 -> trampoline 800d799c (6 words)
+patched 8003d188 -> trampoline 800d79b4 (6 words)
+patched 800461dc -> trampoline 800d79cc (6 words)
+patched 800604e0 -> trampoline 800d79e4 (3 words)
+patched 800605a0 -> trampoline 800d79f0 (3 words)
+patched 8006064c -> trampoline 800d79fc (3 words)
+patched 800606f8 -> trampoline 800d7a08 (3 words)
+patched 8006b764 -> trampoline 800d7a14 (6 words)
+patched 80073d60 -> trampoline 800d7a2c (6 words)
+patched 800b31c0 -> trampoline 800d7a44 (6 words)
+patched 800b3c90 -> trampoline 800d7a5c (6 words)
+patched 800b7634 -> trampoline 800d7a74 (6 words)
+patched 800b879c -> trampoline 800d7a8c (6 words)
+patched 800ce300 -> trampoline 800d7aa4 (3 words)
+17 patched, 0 remaining, 78/256 trampoline words used in /tmp/psoxide-reach-scarf-revision/stage/build/examples/mipsel-sony-psx/release/editor-playtest.exe
