@@ -1,0 +1,42 @@
+Aletha crystal material — saved 2026-10-06
+
+Approved geometry: 458 triangles, 235 vertices, 26 joints; symmetric closed
+hands, original feet, no scarf mesh. Runtime animation clips are preserved.
+The neutral blue-silver reflection texture is 128x128 at 4bpp (16 colors):
+8192 pixel bytes + 32 CLUT bytes. Per-corner texture offsets create gradients
+inside facets. Aletha stance tint is disabled while reviewing this material.
+
+Editable packed Blender scene:
+source_assets/characters/aletha_closed_458/Aletha-crystal-458.blend
+Source geometry: same directory, Aletha-closed-458.glb.
+Runtime model: assets/models/aletha_closed_458/aletha_mirror_458.psxmdl
+Runtime texture: assets/textures/aletha_mirror_128_4bit.psxt
+Preview and gameplay recording: review/aletha-crystal/
+
+From the repository root, regenerate with Python + NumPy + Pillow:
+python3 editor/projects/cortex-ignition-0.5/tools/aletha-crystal/refine_texture.py
+python3 editor/projects/cortex-ignition-0.5/tools/aletha-crystal/cook_reflection_model.py
+
+Build and play the project with the editor's build-project-disc command:
+EDITOR_PLAYTEST_FEATURES='cd-stream-bench emulator-telemetry' target/release/frontend build-project-disc --project editor/projects/cortex-ignition-0.5
+The generated disc stays in baked/ and is not committed.
+
+The reflection-only PSMD copy uses asset flag bit 6. Its six UV bytes contain
+Q7 normal XYZ, dominant joint, then a little-endian gradient word. Bit 15 of
+that word enables three 2-bit UV pairs, each mapped to (2*value - 3)*4 texels.
+The loader preserves metadata instead of clamping it to the texture dimensions.
+A plain geometry reimport needs the cook script to restore these values.
+Runtime uses dominant-joint normals; Blender uses exact face normals.
+This is a stylized reflection lookup, not real refraction or transparency.
+
+Validation: renderer/runtime/level tests passed, including regression coverage
+for gradient UV bounds and metadata preservation. The tested PS1 executable
+passed hazard_scan and scratchpad stack_guard. Gameplay captures cover movement,
+attacks and stance switching in the emulator; no physical-console test yet.
+Measured route cost: average frame cycles 1,134,046 before, 1,376,375 after
+(+21.4%). This is a saved material prototype with an optimization cost still
+outstanding, not a claim of unchanged performance. See performance.json.
+
+This snapshot includes all referenced runtime assets and available source assets.
+The pre-existing sword1_light.glb and sword1_heavy.glb source references are
+unavailable; their cooked runtime models are included and the game builds.
