@@ -1,0 +1,1828 @@
+[
+  {
+    "scenario": "e0",
+    "dma": "fifo",
+    "profile_rows": 1200,
+    "render_calls": 600,
+    "bus_start": 2473980122,
+    "bus_end": 3159463006,
+    "seconds": 20.223,
+    "first_poll": 4201,
+    "last_poll": 5399,
+    "display_flips": 599,
+    "display_fps": 29.62,
+    "frame_interval_ms_p50": 33.73,
+    "frame_interval_ms_p95": 33.73,
+    "render_cycles_p95": 1039288,
+    "world_faces": 492,
+    "stages": {
+      "visual_render_task": 1021607,
+      "update": 33271,
+      "room": 722914,
+      "player": 197004,
+      "model_instances": 64,
+      "sky": 20400,
+      "far_vista": 6,
+      "present": 130,
+      "ot_wait": 266,
+      "world_flush": 8136
+    },
+    "counts": {
+      "room_surfaces_considered": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "tri_primitives": {
+        "mean": 765.37,
+        "max": 778,
+        "sum": 459221
+      },
+      "model_instance_draws": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "room_submit_primitive_overflows": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "cd_room_chunk_loads": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "visual_deadline_misses": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      }
+    },
+    "gpu_cycles_per_flip": 359320,
+    "gpu_busy_fraction": 0.314,
+    "gpu_textured_tris_per_flip": 627.4,
+    "gpu_textured_quads_per_flip": 138.1,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    }
+  },
+  {
+    "scenario": "e0",
+    "dma": "legacy",
+    "profile_rows": 1200,
+    "render_calls": 600,
+    "bus_start": 2473980122,
+    "bus_end": 3159463006,
+    "seconds": 20.223,
+    "first_poll": 4201,
+    "last_poll": 5399,
+    "display_flips": 599,
+    "display_fps": 29.62,
+    "frame_interval_ms_p50": 33.73,
+    "frame_interval_ms_p95": 33.73,
+    "render_cycles_p95": 1039288,
+    "world_faces": 492,
+    "stages": {
+      "visual_render_task": 1021607,
+      "update": 33271,
+      "room": 722914,
+      "player": 197004,
+      "model_instances": 64,
+      "sky": 20400,
+      "far_vista": 6,
+      "present": 130,
+      "ot_wait": 266,
+      "world_flush": 8136
+    },
+    "counts": {
+      "room_surfaces_considered": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "tri_primitives": {
+        "mean": 765.37,
+        "max": 778,
+        "sum": 459221
+      },
+      "model_instance_draws": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "room_submit_primitive_overflows": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "cd_room_chunk_loads": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "visual_deadline_misses": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      }
+    },
+    "gpu_cycles_per_flip": 358836,
+    "gpu_busy_fraction": 0.314,
+    "gpu_textured_tris_per_flip": 626.4,
+    "gpu_textured_quads_per_flip": 138.0,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    }
+  },
+  {
+    "scenario": "e1",
+    "dma": "fifo",
+    "profile_rows": 1200,
+    "render_calls": 505,
+    "bus_start": 2478671521,
+    "bus_end": 3164032910,
+    "seconds": 20.206,
+    "first_poll": 4205,
+    "last_poll": 5402,
+    "display_flips": 504,
+    "display_fps": 24.94,
+    "frame_interval_ms_p50": 33.73,
+    "frame_interval_ms_p95": 50.6,
+    "render_cycles_p95": 1245096,
+    "world_faces": 492,
+    "stages": {
+      "visual_render_task": 1216416,
+      "update": 50107,
+      "room": 730061,
+      "player": 192908,
+      "model_instances": 182745,
+      "sky": 21016,
+      "far_vista": 7,
+      "present": 134,
+      "ot_wait": 278,
+      "world_flush": 15998
+    },
+    "counts": {
+      "room_surfaces_considered": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "tri_primitives": {
+        "mean": 980.89,
+        "max": 1039,
+        "sum": 495350
+      },
+      "model_instance_draws": {
+        "mean": 1,
+        "max": 1,
+        "sum": 505
+      },
+      "room_submit_primitive_overflows": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "cd_room_chunk_loads": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "visual_deadline_misses": {
+        "mean": 0.19,
+        "max": 1,
+        "sum": 95
+      }
+    },
+    "gpu_cycles_per_flip": 388287,
+    "gpu_busy_fraction": 0.286,
+    "gpu_textured_tris_per_flip": 843.6,
+    "gpu_textured_quads_per_flip": 138.1,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    }
+  },
+  {
+    "scenario": "e1",
+    "dma": "legacy",
+    "profile_rows": 1200,
+    "render_calls": 505,
+    "bus_start": 2476841300,
+    "bus_end": 3161747953,
+    "seconds": 20.206,
+    "first_poll": 4202,
+    "last_poll": 5398,
+    "display_flips": 504,
+    "display_fps": 24.94,
+    "frame_interval_ms_p50": 33.73,
+    "frame_interval_ms_p95": 50.6,
+    "render_cycles_p95": 1244940,
+    "world_faces": 492,
+    "stages": {
+      "visual_render_task": 1216016,
+      "update": 50070,
+      "room": 730052,
+      "player": 192874,
+      "model_instances": 182872,
+      "sky": 20533,
+      "far_vista": 7,
+      "present": 133,
+      "ot_wait": 277,
+      "world_flush": 15994
+    },
+    "counts": {
+      "room_surfaces_considered": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "tri_primitives": {
+        "mean": 980.78,
+        "max": 1037,
+        "sum": 495293
+      },
+      "model_instance_draws": {
+        "mean": 1,
+        "max": 1,
+        "sum": 505
+      },
+      "room_submit_primitive_overflows": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "cd_room_chunk_loads": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "visual_deadline_misses": {
+        "mean": 0.19,
+        "max": 1,
+        "sum": 94
+      }
+    },
+    "gpu_cycles_per_flip": 387707,
+    "gpu_busy_fraction": 0.286,
+    "gpu_textured_tris_per_flip": 841.8,
+    "gpu_textured_quads_per_flip": 138.0,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    }
+  },
+  {
+    "scenario": "e2",
+    "dma": "fifo",
+    "profile_rows": 1200,
+    "render_calls": 400,
+    "bus_start": 2477416702,
+    "bus_end": 3162890825,
+    "seconds": 20.223,
+    "first_poll": 4203,
+    "last_poll": 5400,
+    "display_flips": 399,
+    "display_fps": 19.73,
+    "frame_interval_ms_p50": 50.6,
+    "frame_interval_ms_p95": 50.6,
+    "render_cycles_p95": 1538119,
+    "world_faces": 492,
+    "stages": {
+      "visual_render_task": 1500215,
+      "update": 62260,
+      "room": 723574,
+      "player": 194890,
+      "model_instances": 461328,
+      "sky": 20432,
+      "far_vista": 7,
+      "present": 134,
+      "ot_wait": 262,
+      "world_flush": 23358
+    },
+    "counts": {
+      "room_surfaces_considered": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "tri_primitives": {
+        "mean": 1182.57,
+        "max": 1253,
+        "sum": 473027
+      },
+      "model_instance_draws": {
+        "mean": 2,
+        "max": 2,
+        "sum": 800
+      },
+      "room_submit_primitive_overflows": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "cd_room_chunk_loads": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "visual_deadline_misses": {
+        "mean": 0.5,
+        "max": 1,
+        "sum": 200
+      }
+    },
+    "gpu_cycles_per_flip": 415577,
+    "gpu_busy_fraction": 0.242,
+    "gpu_textured_tris_per_flip": 1046.2,
+    "gpu_textured_quads_per_flip": 138.1,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    }
+  },
+  {
+    "scenario": "e2",
+    "dma": "legacy",
+    "profile_rows": 1200,
+    "render_calls": 399,
+    "bus_start": 2478701883,
+    "bus_end": 3162890433,
+    "seconds": 20.172,
+    "first_poll": 4205,
+    "last_poll": 5399,
+    "display_flips": 398,
+    "display_fps": 19.73,
+    "frame_interval_ms_p50": 50.6,
+    "frame_interval_ms_p95": 50.6,
+    "render_cycles_p95": 1538390,
+    "world_faces": 492,
+    "stages": {
+      "visual_render_task": 1500582,
+      "update": 62217,
+      "room": 723727,
+      "player": 194899,
+      "model_instances": 461491,
+      "sky": 20446,
+      "far_vista": 7,
+      "present": 134,
+      "ot_wait": 282,
+      "world_flush": 23382
+    },
+    "counts": {
+      "room_surfaces_considered": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "tri_primitives": {
+        "mean": 1183.22,
+        "max": 1253,
+        "sum": 472105
+      },
+      "model_instance_draws": {
+        "mean": 2,
+        "max": 2,
+        "sum": 798
+      },
+      "room_submit_primitive_overflows": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "cd_room_chunk_loads": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "visual_deadline_misses": {
+        "mean": 0.5,
+        "max": 1,
+        "sum": 200
+      }
+    },
+    "gpu_cycles_per_flip": 414839,
+    "gpu_busy_fraction": 0.242,
+    "gpu_textured_tris_per_flip": 1044.3,
+    "gpu_textured_quads_per_flip": 138.0,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    }
+  },
+  {
+    "scenario": "outdoor",
+    "dma": "fifo",
+    "profile_rows": 1200,
+    "render_calls": 498,
+    "bus_start": 2476886242,
+    "bus_end": 3162319214,
+    "seconds": 20.223,
+    "first_poll": 4202,
+    "last_poll": 5399,
+    "display_flips": 497,
+    "display_fps": 24.58,
+    "frame_interval_ms_p50": 33.73,
+    "frame_interval_ms_p95": 50.6,
+    "render_cycles_p95": 1351931,
+    "world_faces": 612,
+    "stages": {
+      "visual_render_task": 1206233,
+      "update": 61642,
+      "room": 478663,
+      "player": 196229,
+      "model_instances": 373789,
+      "sky": 58389,
+      "far_vista": 7,
+      "present": 134,
+      "ot_wait": 279,
+      "world_flush": 23350
+    },
+    "counts": {
+      "room_surfaces_considered": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "tri_primitives": {
+        "mean": 1108.97,
+        "max": 1180,
+        "sum": 552269
+      },
+      "model_instance_draws": {
+        "mean": 2,
+        "max": 2,
+        "sum": 996
+      },
+      "room_submit_primitive_overflows": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "cd_room_chunk_loads": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "visual_deadline_misses": {
+        "mean": 0.2,
+        "max": 1,
+        "sum": 102
+      }
+    },
+    "gpu_cycles_per_flip": 388171,
+    "gpu_busy_fraction": 0.282,
+    "gpu_textured_tris_per_flip": 971.9,
+    "gpu_textured_quads_per_flip": 138.1,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    }
+  },
+  {
+    "scenario": "outdoor",
+    "dma": "legacy",
+    "profile_rows": 1200,
+    "render_calls": 516,
+    "bus_start": 2476855993,
+    "bus_end": 3161748067,
+    "seconds": 20.206,
+    "first_poll": 4202,
+    "last_poll": 5400,
+    "display_flips": 515,
+    "display_fps": 25.49,
+    "frame_interval_ms_p50": 33.73,
+    "frame_interval_ms_p95": 50.6,
+    "render_cycles_p95": 1188430,
+    "world_faces": 612,
+    "stages": {
+      "visual_render_task": 1162429,
+      "update": 61703,
+      "room": 478697,
+      "player": 196249,
+      "model_instances": 367713,
+      "sky": 20549,
+      "far_vista": 7,
+      "present": 134,
+      "ot_wait": 282,
+      "world_flush": 23395
+    },
+    "counts": {
+      "room_surfaces_considered": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "tri_primitives": {
+        "mean": 1110.16,
+        "max": 1180,
+        "sum": 572843
+      },
+      "model_instance_draws": {
+        "mean": 2,
+        "max": 2,
+        "sum": 1032
+      },
+      "room_submit_primitive_overflows": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "cd_room_chunk_loads": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "visual_deadline_misses": {
+        "mean": 0.16,
+        "max": 1,
+        "sum": 83
+      }
+    },
+    "gpu_cycles_per_flip": 387719,
+    "gpu_busy_fraction": 0.292,
+    "gpu_textured_tris_per_flip": 971.2,
+    "gpu_textured_quads_per_flip": 138.0,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    }
+  },
+  {
+    "scenario": "outdoor_sealed",
+    "dma": "fifo",
+    "profile_rows": 1200,
+    "render_calls": 530,
+    "bus_start": 2476887762,
+    "bus_end": 3161748112,
+    "seconds": 20.206,
+    "first_poll": 4202,
+    "last_poll": 5399,
+    "display_flips": 530,
+    "display_fps": 26.23,
+    "frame_interval_ms_p50": 33.73,
+    "frame_interval_ms_p95": 50.6,
+    "render_cycles_p95": 1260189,
+    "world_faces": 225,
+    "stages": {
+      "visual_render_task": 1128821,
+      "update": 62900,
+      "room": 407557,
+      "player": 195625,
+      "model_instances": 402494,
+      "sky": 23255,
+      "far_vista": 6,
+      "present": 134,
+      "ot_wait": 281,
+      "world_flush": 23373
+    },
+    "counts": {
+      "room_surfaces_considered": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "tri_primitives": {
+        "mean": 1073.57,
+        "max": 1144,
+        "sum": 568990
+      },
+      "model_instance_draws": {
+        "mean": 2,
+        "max": 2,
+        "sum": 1060
+      },
+      "room_submit_primitive_overflows": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "cd_room_chunk_loads": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "visual_deadline_misses": {
+        "mean": 0.13,
+        "max": 1,
+        "sum": 69
+      }
+    },
+    "gpu_cycles_per_flip": 377950,
+    "gpu_busy_fraction": 0.293,
+    "gpu_textured_tris_per_flip": 934.6,
+    "gpu_textured_quads_per_flip": 138.0,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    }
+  },
+  {
+    "scenario": "outdoor_sealed",
+    "dma": "legacy",
+    "profile_rows": 1200,
+    "render_calls": 548,
+    "bus_start": 2477642788,
+    "bus_end": 3162319327,
+    "seconds": 20.206,
+    "first_poll": 4203,
+    "last_poll": 5401,
+    "display_flips": 548,
+    "display_fps": 27.12,
+    "frame_interval_ms_p50": 33.73,
+    "frame_interval_ms_p95": 50.6,
+    "render_cycles_p95": 1117280,
+    "world_faces": 225,
+    "stages": {
+      "visual_render_task": 1091566,
+      "update": 62908,
+      "room": 407585,
+      "player": 195703,
+      "model_instances": 367948,
+      "sky": 20432,
+      "far_vista": 6,
+      "present": 134,
+      "ot_wait": 283,
+      "world_flush": 23379
+    },
+    "counts": {
+      "room_surfaces_considered": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "tri_primitives": {
+        "mean": 1073.85,
+        "max": 1144,
+        "sum": 588472
+      },
+      "model_instance_draws": {
+        "mean": 2,
+        "max": 2,
+        "sum": 1096
+      },
+      "room_submit_primitive_overflows": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "cd_room_chunk_loads": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "visual_deadline_misses": {
+        "mean": 0.09,
+        "max": 1,
+        "sum": 51
+      }
+    },
+    "gpu_cycles_per_flip": 377991,
+    "gpu_busy_fraction": 0.303,
+    "gpu_textured_tris_per_flip": 934.9,
+    "gpu_textured_quads_per_flip": 138.0,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    }
+  },
+  {
+    "scenario": "patch4k",
+    "dma": "fifo",
+    "profile_rows": 1200,
+    "render_calls": 400,
+    "bus_start": 2477414328,
+    "bus_end": 3162890571,
+    "seconds": 20.223,
+    "first_poll": 4203,
+    "last_poll": 5400,
+    "display_flips": 399,
+    "display_fps": 19.73,
+    "frame_interval_ms_p50": 50.6,
+    "frame_interval_ms_p95": 50.6,
+    "render_cycles_p95": 1538424,
+    "world_faces": 492,
+    "stages": {
+      "visual_render_task": 1500214,
+      "update": 62260,
+      "room": 720168,
+      "player": 194888,
+      "model_instances": 464734,
+      "sky": 20431,
+      "far_vista": 7,
+      "present": 132,
+      "ot_wait": 262,
+      "world_flush": 23358
+    },
+    "counts": {
+      "room_surfaces_considered": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "tri_primitives": {
+        "mean": 1185.57,
+        "max": 1256,
+        "sum": 474228
+      },
+      "model_instance_draws": {
+        "mean": 2,
+        "max": 2,
+        "sum": 800
+      },
+      "room_submit_primitive_overflows": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "cd_room_chunk_loads": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "visual_deadline_misses": {
+        "mean": 0.5,
+        "max": 1,
+        "sum": 200
+      }
+    },
+    "gpu_cycles_per_flip": 416387,
+    "gpu_busy_fraction": 0.243,
+    "gpu_textured_tris_per_flip": 1049.2,
+    "gpu_textured_quads_per_flip": 138.1,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    }
+  },
+  {
+    "scenario": "patch4k",
+    "dma": "legacy",
+    "profile_rows": 1200,
+    "render_calls": 399,
+    "bus_start": 2478698560,
+    "bus_end": 3162890435,
+    "seconds": 20.172,
+    "first_poll": 4205,
+    "last_poll": 5399,
+    "display_flips": 398,
+    "display_fps": 19.73,
+    "frame_interval_ms_p50": 50.6,
+    "frame_interval_ms_p95": 50.6,
+    "render_cycles_p95": 1538656,
+    "world_faces": 492,
+    "stages": {
+      "visual_render_task": 1500588,
+      "update": 62215,
+      "room": 720285,
+      "player": 194901,
+      "model_instances": 464939,
+      "sky": 20442,
+      "far_vista": 7,
+      "present": 133,
+      "ot_wait": 283,
+      "world_flush": 23383
+    },
+    "counts": {
+      "room_surfaces_considered": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "tri_primitives": {
+        "mean": 1186.22,
+        "max": 1256,
+        "sum": 473302
+      },
+      "model_instance_draws": {
+        "mean": 2,
+        "max": 2,
+        "sum": 798
+      },
+      "room_submit_primitive_overflows": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "cd_room_chunk_loads": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "visual_deadline_misses": {
+        "mean": 0.5,
+        "max": 1,
+        "sum": 200
+      }
+    },
+    "gpu_cycles_per_flip": 415649,
+    "gpu_busy_fraction": 0.242,
+    "gpu_textured_tris_per_flip": 1047.3,
+    "gpu_textured_quads_per_flip": 138.0,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    }
+  },
+  {
+    "scenario": "patch4k_scale4",
+    "dma": "fifo",
+    "profile_rows": 1200,
+    "render_calls": 600,
+    "bus_start": 2476265010,
+    "bus_end": 3161747959,
+    "seconds": 20.223,
+    "first_poll": 4201,
+    "last_poll": 5399,
+    "display_flips": 599,
+    "display_fps": 29.62,
+    "frame_interval_ms_p50": 33.73,
+    "frame_interval_ms_p95": 33.73,
+    "render_cycles_p95": 931829,
+    "world_faces": 136,
+    "stages": {
+      "visual_render_task": 914730,
+      "update": 62370,
+      "room": 231094,
+      "player": 194900,
+      "model_instances": 368163,
+      "sky": 20429,
+      "far_vista": 7,
+      "present": 133,
+      "ot_wait": 260,
+      "world_flush": 23370
+    },
+    "counts": {
+      "room_surfaces_considered": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "tri_primitives": {
+        "mean": 876.89,
+        "max": 947,
+        "sum": 526134
+      },
+      "model_instance_draws": {
+        "mean": 2,
+        "max": 2,
+        "sum": 1200
+      },
+      "room_submit_primitive_overflows": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "cd_room_chunk_loads": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "visual_deadline_misses": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      }
+    },
+    "gpu_cycles_per_flip": 357577,
+    "gpu_busy_fraction": 0.313,
+    "gpu_textured_tris_per_flip": 754.2,
+    "gpu_textured_quads_per_flip": 123.1,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    }
+  },
+  {
+    "scenario": "patch4k_scale4",
+    "dma": "legacy",
+    "profile_rows": 1200,
+    "render_calls": 600,
+    "bus_start": 2476265012,
+    "bus_end": 3161747950,
+    "seconds": 20.223,
+    "first_poll": 4201,
+    "last_poll": 5400,
+    "display_flips": 599,
+    "display_fps": 29.62,
+    "frame_interval_ms_p50": 33.73,
+    "frame_interval_ms_p95": 33.73,
+    "render_cycles_p95": 930268,
+    "world_faces": 136,
+    "stages": {
+      "visual_render_task": 914714,
+      "update": 62371,
+      "room": 231093,
+      "player": 194900,
+      "model_instances": 368148,
+      "sky": 20429,
+      "far_vista": 7,
+      "present": 133,
+      "ot_wait": 261,
+      "world_flush": 23370
+    },
+    "counts": {
+      "room_surfaces_considered": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "tri_primitives": {
+        "mean": 876.89,
+        "max": 947,
+        "sum": 526134
+      },
+      "model_instance_draws": {
+        "mean": 2,
+        "max": 2,
+        "sum": 1200
+      },
+      "room_submit_primitive_overflows": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "cd_room_chunk_loads": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "visual_deadline_misses": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      }
+    },
+    "gpu_cycles_per_flip": 357121,
+    "gpu_busy_fraction": 0.312,
+    "gpu_textured_tris_per_flip": 752.9,
+    "gpu_textured_quads_per_flip": 123.0,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    }
+  },
+  {
+    "scenario": "scale4",
+    "dma": "fifo",
+    "profile_rows": 1200,
+    "render_calls": 413,
+    "bus_start": 2477766235,
+    "bus_end": 3162319218,
+    "seconds": 20.189,
+    "first_poll": 4203,
+    "last_poll": 5399,
+    "display_flips": 412,
+    "display_fps": 20.41,
+    "frame_interval_ms_p50": 50.6,
+    "frame_interval_ms_p95": 50.6,
+    "render_cycles_p95": 1532982,
+    "world_faces": 492,
+    "stages": {
+      "visual_render_task": 1450846,
+      "update": 62232,
+      "room": 723460,
+      "player": 194932,
+      "model_instances": 411622,
+      "sky": 20779,
+      "far_vista": 7,
+      "present": 133,
+      "ot_wait": 270,
+      "world_flush": 23329
+    },
+    "counts": {
+      "room_surfaces_considered": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "tri_primitives": {
+        "mean": 1181.68,
+        "max": 1253,
+        "sum": 488032
+      },
+      "model_instance_draws": {
+        "mean": 2,
+        "max": 2,
+        "sum": 826
+      },
+      "room_submit_primitive_overflows": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "cd_room_chunk_loads": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "visual_deadline_misses": {
+        "mean": 0.45,
+        "max": 1,
+        "sum": 186
+      }
+    },
+    "gpu_cycles_per_flip": 415430,
+    "gpu_busy_fraction": 0.25,
+    "gpu_textured_tris_per_flip": 1045.2,
+    "gpu_textured_quads_per_flip": 138.1,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    }
+  },
+  {
+    "scenario": "scale4",
+    "dma": "legacy",
+    "profile_rows": 1200,
+    "render_calls": 414,
+    "bus_start": 2478002201,
+    "bus_end": 3162890427,
+    "seconds": 20.206,
+    "first_poll": 4204,
+    "last_poll": 5400,
+    "display_flips": 413,
+    "display_fps": 20.44,
+    "frame_interval_ms_p50": 50.6,
+    "frame_interval_ms_p95": 50.6,
+    "render_cycles_p95": 1534297,
+    "world_faces": 492,
+    "stages": {
+      "visual_render_task": 1447415,
+      "update": 62242,
+      "room": 723598,
+      "player": 194936,
+      "model_instances": 408261,
+      "sky": 20554,
+      "far_vista": 7,
+      "present": 134,
+      "ot_wait": 280,
+      "world_flush": 23337
+    },
+    "counts": {
+      "room_surfaces_considered": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "tri_primitives": {
+        "mean": 1181.88,
+        "max": 1249,
+        "sum": 489298
+      },
+      "model_instance_draws": {
+        "mean": 2,
+        "max": 2,
+        "sum": 828
+      },
+      "room_submit_primitive_overflows": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "cd_room_chunk_loads": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "visual_deadline_misses": {
+        "mean": 0.45,
+        "max": 1,
+        "sum": 185
+      }
+    },
+    "gpu_cycles_per_flip": 414658,
+    "gpu_busy_fraction": 0.25,
+    "gpu_textured_tris_per_flip": 1043.0,
+    "gpu_textured_quads_per_flip": 138.0,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    }
+  },
+  {
+    "scenario": "small2",
+    "dma": "fifo",
+    "profile_rows": 1200,
+    "render_calls": 600,
+    "bus_start": 2476265018,
+    "bus_end": 3161747956,
+    "seconds": 20.223,
+    "first_poll": 4201,
+    "last_poll": 5399,
+    "display_flips": 599,
+    "display_fps": 29.62,
+    "frame_interval_ms_p50": 33.73,
+    "frame_interval_ms_p95": 33.73,
+    "render_cycles_p95": 977927,
+    "world_faces": 112,
+    "stages": {
+      "visual_render_task": 954074,
+      "update": 62371,
+      "room": 270474,
+      "player": 194903,
+      "model_instances": 368123,
+      "sky": 20429,
+      "far_vista": 7,
+      "present": 133,
+      "ot_wait": 260,
+      "world_flush": 23370
+    },
+    "counts": {
+      "room_surfaces_considered": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "tri_primitives": {
+        "mean": 994.89,
+        "max": 1065,
+        "sum": 596934
+      },
+      "model_instance_draws": {
+        "mean": 2,
+        "max": 2,
+        "sum": 1200
+      },
+      "room_submit_primitive_overflows": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "cd_room_chunk_loads": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "visual_deadline_misses": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      }
+    },
+    "gpu_cycles_per_flip": 380193,
+    "gpu_busy_fraction": 0.333,
+    "gpu_textured_tris_per_flip": 852.3,
+    "gpu_textured_quads_per_flip": 143.1,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    }
+  },
+  {
+    "scenario": "small2",
+    "dma": "legacy",
+    "profile_rows": 1200,
+    "render_calls": 600,
+    "bus_start": 2476265018,
+    "bus_end": 3161747956,
+    "seconds": 20.223,
+    "first_poll": 4201,
+    "last_poll": 5399,
+    "display_flips": 599,
+    "display_fps": 29.62,
+    "frame_interval_ms_p50": 33.73,
+    "frame_interval_ms_p95": 33.73,
+    "render_cycles_p95": 977927,
+    "world_faces": 112,
+    "stages": {
+      "visual_render_task": 954074,
+      "update": 62371,
+      "room": 270474,
+      "player": 194903,
+      "model_instances": 368123,
+      "sky": 20429,
+      "far_vista": 7,
+      "present": 133,
+      "ot_wait": 260,
+      "world_flush": 23370
+    },
+    "counts": {
+      "room_surfaces_considered": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "tri_primitives": {
+        "mean": 994.89,
+        "max": 1065,
+        "sum": 596934
+      },
+      "model_instance_draws": {
+        "mean": 2,
+        "max": 2,
+        "sum": 1200
+      },
+      "room_submit_primitive_overflows": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "cd_room_chunk_loads": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "visual_deadline_misses": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      }
+    },
+    "gpu_cycles_per_flip": 379700,
+    "gpu_busy_fraction": 0.332,
+    "gpu_textured_tris_per_flip": 850.9,
+    "gpu_textured_quads_per_flip": 143.0,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    }
+  },
+  {
+    "scenario": "vista16",
+    "dma": "fifo",
+    "profile_rows": 1200,
+    "render_calls": 498,
+    "bus_start": 2476886242,
+    "bus_end": 3162319214,
+    "seconds": 20.223,
+    "first_poll": 4202,
+    "last_poll": 5399,
+    "display_flips": 497,
+    "display_fps": 24.58,
+    "frame_interval_ms_p50": 33.73,
+    "frame_interval_ms_p95": 50.6,
+    "render_cycles_p95": 1351931,
+    "world_faces": 612,
+    "stages": {
+      "visual_render_task": 1206233,
+      "update": 61642,
+      "room": 478663,
+      "player": 196229,
+      "model_instances": 373789,
+      "sky": 58389,
+      "far_vista": 7,
+      "present": 134,
+      "ot_wait": 279,
+      "world_flush": 23350
+    },
+    "counts": {
+      "room_surfaces_considered": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "tri_primitives": {
+        "mean": 1108.97,
+        "max": 1180,
+        "sum": 552269
+      },
+      "model_instance_draws": {
+        "mean": 2,
+        "max": 2,
+        "sum": 996
+      },
+      "room_submit_primitive_overflows": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "cd_room_chunk_loads": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "visual_deadline_misses": {
+        "mean": 0.2,
+        "max": 1,
+        "sum": 102
+      }
+    },
+    "gpu_cycles_per_flip": 388171,
+    "gpu_busy_fraction": 0.282,
+    "gpu_textured_tris_per_flip": 971.9,
+    "gpu_textured_quads_per_flip": 138.1,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    }
+  },
+  {
+    "scenario": "vista16",
+    "dma": "legacy",
+    "profile_rows": 1200,
+    "render_calls": 516,
+    "bus_start": 2476855993,
+    "bus_end": 3161748067,
+    "seconds": 20.206,
+    "first_poll": 4202,
+    "last_poll": 5400,
+    "display_flips": 515,
+    "display_fps": 25.49,
+    "frame_interval_ms_p50": 33.73,
+    "frame_interval_ms_p95": 50.6,
+    "render_cycles_p95": 1188430,
+    "world_faces": 612,
+    "stages": {
+      "visual_render_task": 1162429,
+      "update": 61703,
+      "room": 478697,
+      "player": 196249,
+      "model_instances": 367713,
+      "sky": 20549,
+      "far_vista": 7,
+      "present": 134,
+      "ot_wait": 282,
+      "world_flush": 23395
+    },
+    "counts": {
+      "room_surfaces_considered": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "tri_primitives": {
+        "mean": 1110.16,
+        "max": 1180,
+        "sum": 572843
+      },
+      "model_instance_draws": {
+        "mean": 2,
+        "max": 2,
+        "sum": 1032
+      },
+      "room_submit_primitive_overflows": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "cd_room_chunk_loads": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "visual_deadline_misses": {
+        "mean": 0.16,
+        "max": 1,
+        "sum": 83
+      }
+    },
+    "gpu_cycles_per_flip": 387719,
+    "gpu_busy_fraction": 0.292,
+    "gpu_textured_tris_per_flip": 971.2,
+    "gpu_textured_quads_per_flip": 138.0,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    }
+  },
+  {
+    "scenario": "vista8",
+    "dma": "fifo",
+    "profile_rows": 1200,
+    "render_calls": 498,
+    "bus_start": 2476886242,
+    "bus_end": 3162319214,
+    "seconds": 20.223,
+    "first_poll": 4202,
+    "last_poll": 5399,
+    "display_flips": 497,
+    "display_fps": 24.58,
+    "frame_interval_ms_p50": 33.73,
+    "frame_interval_ms_p95": 50.6,
+    "render_cycles_p95": 1351931,
+    "world_faces": 612,
+    "stages": {
+      "visual_render_task": 1206233,
+      "update": 61642,
+      "room": 478663,
+      "player": 196229,
+      "model_instances": 373789,
+      "sky": 58389,
+      "far_vista": 7,
+      "present": 134,
+      "ot_wait": 279,
+      "world_flush": 23350
+    },
+    "counts": {
+      "room_surfaces_considered": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "tri_primitives": {
+        "mean": 1108.97,
+        "max": 1180,
+        "sum": 552269
+      },
+      "model_instance_draws": {
+        "mean": 2,
+        "max": 2,
+        "sum": 996
+      },
+      "room_submit_primitive_overflows": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "cd_room_chunk_loads": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "visual_deadline_misses": {
+        "mean": 0.2,
+        "max": 1,
+        "sum": 102
+      }
+    },
+    "gpu_cycles_per_flip": 388171,
+    "gpu_busy_fraction": 0.282,
+    "gpu_textured_tris_per_flip": 971.9,
+    "gpu_textured_quads_per_flip": 138.1,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    }
+  },
+  {
+    "scenario": "vista8",
+    "dma": "legacy",
+    "profile_rows": 1200,
+    "render_calls": 516,
+    "bus_start": 2476855993,
+    "bus_end": 3161748067,
+    "seconds": 20.206,
+    "first_poll": 4202,
+    "last_poll": 5400,
+    "display_flips": 515,
+    "display_fps": 25.49,
+    "frame_interval_ms_p50": 33.73,
+    "frame_interval_ms_p95": 50.6,
+    "render_cycles_p95": 1188430,
+    "world_faces": 612,
+    "stages": {
+      "visual_render_task": 1162429,
+      "update": 61703,
+      "room": 478697,
+      "player": 196249,
+      "model_instances": 367713,
+      "sky": 20549,
+      "far_vista": 7,
+      "present": 134,
+      "ot_wait": 282,
+      "world_flush": 23395
+    },
+    "counts": {
+      "room_surfaces_considered": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "tri_primitives": {
+        "mean": 1110.16,
+        "max": 1180,
+        "sum": 572843
+      },
+      "model_instance_draws": {
+        "mean": 2,
+        "max": 2,
+        "sum": 1032
+      },
+      "room_submit_primitive_overflows": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "cd_room_chunk_loads": {
+        "mean": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "visual_deadline_misses": {
+        "mean": 0.16,
+        "max": 1,
+        "sum": 83
+      }
+    },
+    "gpu_cycles_per_flip": 387719,
+    "gpu_busy_fraction": 0.292,
+    "gpu_textured_tris_per_flip": 971.2,
+    "gpu_textured_quads_per_flip": 138.0,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    }
+  }
+]

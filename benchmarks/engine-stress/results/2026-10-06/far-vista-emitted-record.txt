@@ -1,0 +1,2 @@
+Excerpt from vista16/level_manifest.cooked.rs, measured build:
+far_vista: LevelFarVistaRecord { texture_assets: &[], radius: 1125, height: 256, vertical_offset: -32, segments: 16, rotation_degrees: 0, tint_rgb: [91, 103, 115], flags: 0 }

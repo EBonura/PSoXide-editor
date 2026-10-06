@@ -1,0 +1,31 @@
+# Audit of scene 0: "Main"
+
+## Geometry
+
+6 brushes, 36 faces
+degenerate (enclose no volume): none
+beyond the 131072-unit extent limit: none
+coplanar face overlaps: none
+grid 64: every authored coordinate is aligned
+
+Note: this finds faces sharing a PLANE, which z-fight. Solids that merely interpenetrate are legal here (BrushContents::precedence resolves them, and the shipped level relies on it), so a pillar passing through a stair is a look-at-it decision, not an error. Check a plan_view for those.
+
+## Sealing
+
+sealed: no path from the interior to the void
+(sealing check took 0.0s)
+
+## Cook and draw cost
+
+warning: Character 'Aletha' has no turn clip
+
+492 world faces, 984 base triangles, 1149 all-face packet slots, 1 non-solid leaves
+
+Heaviest leaves. `base packet slots` is the figure to watch: it is what one frame has to push from a camera standing in that leaf.
+  leaf 1: 1149 packet slots, 492 visible faces across 1 visible leaves, near authored (0, 3072, 6144)
+
+cooked world spans authored [-12288, 0, -8192]..[12288, 6144, 20480]
+
+Worst sightline is leaf 1 at 1149 packet slots. If that number climbed after an edit, the edit opened a sightline; break it with geometry rather than by deleting detail.
+
+(cook took 0.1s)

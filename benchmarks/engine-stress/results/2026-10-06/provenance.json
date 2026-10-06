@@ -1,0 +1,497 @@
+{
+  "e0": {
+    "features": "cd-stream-bench emulator-telemetry",
+    "project_sha256": "10677a0ef1ce85bf20236d9f09bfe313a6125ad00d3ed14cc17991cb9c0a2a17",
+    "frontend_sha256": "3725dee5e91ed4aeebd826bef8c841ed0b5bd70c4f69cc596f4d1ad0b28d7bca",
+    "editor_head": "7d100449e9721d6e31c29201245e732764c07770",
+    "editor_diff": "diff --git a/engine/examples/editor-playtest/Cargo.toml b/engine/examples/editor-playtest/Cargo.toml\nindex d273f486..33a48af3 100644\n--- a/engine/examples/editor-playtest/Cargo.toml\n+++ b/engine/examples/editor-playtest/Cargo.toml\n@@ -76,6 +76,9 @@ default = [\n     # Fixed 3x3 one-level TR subdivision lattice. The Cortex v1 A/B reduced\n     # matched room-surface work by 15.5% with bit-identical leaf packets.\n     \"tr-subdivision-lattice\",\n+    # VBlank-kicked presentation: +26% fps with one enemy on screen, +1% on\n+    # top of the world-placement rule with two (stress harness, 2026-10-03).\n+    \"present-queue\",\n ]\n cd-stream-bench = [\"dep:psx-io\", \"psx-game-runtime/cd-stream-bench\"]\n cd-stream-benchmark = [\"cd-stream-bench\", \"psx-game-runtime/cd-stream-benchmark\"]\n",
+    "components": {
+      "schema": 1,
+      "components": {
+        "sdk": {
+          "repository": "EBonura/PSoXide",
+          "revision": "942bc0267c7af55e9c8b0a0e1e9607fd6712f911",
+          "paths": [
+            "sdk",
+            "crates",
+            "tools/mkisopsx",
+            "tools/psoxide-link",
+            "tools/psoxide-pgo",
+            "tools/fmv_test_movie.py",
+            "tools/hazard_scan.py",
+            "tools/hazard_patch.py",
+            "tools/stack_guard.py",
+            "tools/guest_symbol_gate.sh",
+            "tools/check_mfc0.py",
+            "tools/sdk-examples.mk"
+          ]
+        },
+        "emulator": {
+          "repository": "EBonura/PSoXide-emulator",
+          "revision": "9eff8c8f81c0525b4059777c81f49f344fec2261",
+          "paths": [
+            "emu/crates/emulator-core",
+            "emu/crates/psoxide-debug-ui",
+            "emu/crates/psoxide-settings",
+            "emu/crates/psoxide-validation",
+            "emu/crates/psx-gpu-render"
+          ]
+        }
+      }
+    },
+    "disc_files": {
+      "cortex_ignition_tech_demo_0_4b.bin": "a007b9cc5809cd6b1565de8c1a20ca97f32af3e228c933b3e050c66907e87b5c"
+    },
+    "guest_exe_sha256": "6932e2e907ae45d49c78da9be4590b9bc2b1ff17be22b6e5a6bbbf38c3fa186d"
+  },
+  "e1": {
+    "features": "cd-stream-bench emulator-telemetry",
+    "project_sha256": "c3099d01135e6fd64f502c47f9ad756e82d57b470638f0ea75a02b2d4dc4eb43",
+    "frontend_sha256": "3725dee5e91ed4aeebd826bef8c841ed0b5bd70c4f69cc596f4d1ad0b28d7bca",
+    "editor_head": "7d100449e9721d6e31c29201245e732764c07770",
+    "editor_diff": "diff --git a/engine/examples/editor-playtest/Cargo.toml b/engine/examples/editor-playtest/Cargo.toml\nindex d273f486..33a48af3 100644\n--- a/engine/examples/editor-playtest/Cargo.toml\n+++ b/engine/examples/editor-playtest/Cargo.toml\n@@ -76,6 +76,9 @@ default = [\n     # Fixed 3x3 one-level TR subdivision lattice. The Cortex v1 A/B reduced\n     # matched room-surface work by 15.5% with bit-identical leaf packets.\n     \"tr-subdivision-lattice\",\n+    # VBlank-kicked presentation: +26% fps with one enemy on screen, +1% on\n+    # top of the world-placement rule with two (stress harness, 2026-10-03).\n+    \"present-queue\",\n ]\n cd-stream-bench = [\"dep:psx-io\", \"psx-game-runtime/cd-stream-bench\"]\n cd-stream-benchmark = [\"cd-stream-bench\", \"psx-game-runtime/cd-stream-benchmark\"]\n",
+    "components": {
+      "schema": 1,
+      "components": {
+        "sdk": {
+          "repository": "EBonura/PSoXide",
+          "revision": "942bc0267c7af55e9c8b0a0e1e9607fd6712f911",
+          "paths": [
+            "sdk",
+            "crates",
+            "tools/mkisopsx",
+            "tools/psoxide-link",
+            "tools/psoxide-pgo",
+            "tools/fmv_test_movie.py",
+            "tools/hazard_scan.py",
+            "tools/hazard_patch.py",
+            "tools/stack_guard.py",
+            "tools/guest_symbol_gate.sh",
+            "tools/check_mfc0.py",
+            "tools/sdk-examples.mk"
+          ]
+        },
+        "emulator": {
+          "repository": "EBonura/PSoXide-emulator",
+          "revision": "9eff8c8f81c0525b4059777c81f49f344fec2261",
+          "paths": [
+            "emu/crates/emulator-core",
+            "emu/crates/psoxide-debug-ui",
+            "emu/crates/psoxide-settings",
+            "emu/crates/psoxide-validation",
+            "emu/crates/psx-gpu-render"
+          ]
+        }
+      }
+    },
+    "disc_files": {
+      "cortex_ignition_tech_demo_0_4b.bin": "d6e740b66069495b3f443862cf7890782ded3184204950b48b4b045de814b556"
+    },
+    "guest_exe_sha256": "6e7a941f6a4df840ecaebf8c06931da93d4cb1c22906c6c563f330be10badc87"
+  },
+  "e2": {
+    "features": "cd-stream-bench emulator-telemetry",
+    "project_sha256": "45a351a70ebad2438cdc21f674e647c7f1cfa94ba5abf0d12665352cd0a65e71",
+    "frontend_sha256": "3725dee5e91ed4aeebd826bef8c841ed0b5bd70c4f69cc596f4d1ad0b28d7bca",
+    "editor_head": "7d100449e9721d6e31c29201245e732764c07770",
+    "editor_diff": "diff --git a/engine/examples/editor-playtest/Cargo.toml b/engine/examples/editor-playtest/Cargo.toml\nindex d273f486..33a48af3 100644\n--- a/engine/examples/editor-playtest/Cargo.toml\n+++ b/engine/examples/editor-playtest/Cargo.toml\n@@ -76,6 +76,9 @@ default = [\n     # Fixed 3x3 one-level TR subdivision lattice. The Cortex v1 A/B reduced\n     # matched room-surface work by 15.5% with bit-identical leaf packets.\n     \"tr-subdivision-lattice\",\n+    # VBlank-kicked presentation: +26% fps with one enemy on screen, +1% on\n+    # top of the world-placement rule with two (stress harness, 2026-10-03).\n+    \"present-queue\",\n ]\n cd-stream-bench = [\"dep:psx-io\", \"psx-game-runtime/cd-stream-bench\"]\n cd-stream-benchmark = [\"cd-stream-bench\", \"psx-game-runtime/cd-stream-benchmark\"]\n",
+    "components": {
+      "schema": 1,
+      "components": {
+        "sdk": {
+          "repository": "EBonura/PSoXide",
+          "revision": "942bc0267c7af55e9c8b0a0e1e9607fd6712f911",
+          "paths": [
+            "sdk",
+            "crates",
+            "tools/mkisopsx",
+            "tools/psoxide-link",
+            "tools/psoxide-pgo",
+            "tools/fmv_test_movie.py",
+            "tools/hazard_scan.py",
+            "tools/hazard_patch.py",
+            "tools/stack_guard.py",
+            "tools/guest_symbol_gate.sh",
+            "tools/check_mfc0.py",
+            "tools/sdk-examples.mk"
+          ]
+        },
+        "emulator": {
+          "repository": "EBonura/PSoXide-emulator",
+          "revision": "9eff8c8f81c0525b4059777c81f49f344fec2261",
+          "paths": [
+            "emu/crates/emulator-core",
+            "emu/crates/psoxide-debug-ui",
+            "emu/crates/psoxide-settings",
+            "emu/crates/psoxide-validation",
+            "emu/crates/psx-gpu-render"
+          ]
+        }
+      }
+    },
+    "disc_files": {
+      "cortex_ignition_tech_demo_0_4b.bin": "5d52947bee40773c163a41c93e95aa693f4ec872ba4b74da6e9440055b8aed3e"
+    },
+    "guest_exe_sha256": "89b13bd4cc6c38b49afb2ce6e470b4a569fa6342fdf8fc9fd0dff3a8d72951f3"
+  },
+  "outdoor": {
+    "features": "cd-stream-bench emulator-telemetry",
+    "project_sha256": "e2623a494fab6a8ec4c56e58227b59f2413a637d405356d1e809bb131792ed43",
+    "frontend_sha256": "3725dee5e91ed4aeebd826bef8c841ed0b5bd70c4f69cc596f4d1ad0b28d7bca",
+    "editor_head": "7d100449e9721d6e31c29201245e732764c07770",
+    "editor_diff": "diff --git a/engine/examples/editor-playtest/Cargo.toml b/engine/examples/editor-playtest/Cargo.toml\nindex d273f486..33a48af3 100644\n--- a/engine/examples/editor-playtest/Cargo.toml\n+++ b/engine/examples/editor-playtest/Cargo.toml\n@@ -76,6 +76,9 @@ default = [\n     # Fixed 3x3 one-level TR subdivision lattice. The Cortex v1 A/B reduced\n     # matched room-surface work by 15.5% with bit-identical leaf packets.\n     \"tr-subdivision-lattice\",\n+    # VBlank-kicked presentation: +26% fps with one enemy on screen, +1% on\n+    # top of the world-placement rule with two (stress harness, 2026-10-03).\n+    \"present-queue\",\n ]\n cd-stream-bench = [\"dep:psx-io\", \"psx-game-runtime/cd-stream-bench\"]\n cd-stream-benchmark = [\"cd-stream-bench\", \"psx-game-runtime/cd-stream-benchmark\"]\n",
+    "components": {
+      "schema": 1,
+      "components": {
+        "sdk": {
+          "repository": "EBonura/PSoXide",
+          "revision": "942bc0267c7af55e9c8b0a0e1e9607fd6712f911",
+          "paths": [
+            "sdk",
+            "crates",
+            "tools/mkisopsx",
+            "tools/psoxide-link",
+            "tools/psoxide-pgo",
+            "tools/fmv_test_movie.py",
+            "tools/hazard_scan.py",
+            "tools/hazard_patch.py",
+            "tools/stack_guard.py",
+            "tools/guest_symbol_gate.sh",
+            "tools/check_mfc0.py",
+            "tools/sdk-examples.mk"
+          ]
+        },
+        "emulator": {
+          "repository": "EBonura/PSoXide-emulator",
+          "revision": "9eff8c8f81c0525b4059777c81f49f344fec2261",
+          "paths": [
+            "emu/crates/emulator-core",
+            "emu/crates/psoxide-debug-ui",
+            "emu/crates/psoxide-settings",
+            "emu/crates/psoxide-validation",
+            "emu/crates/psx-gpu-render"
+          ]
+        }
+      }
+    },
+    "disc_files": {
+      "cortex_ignition_tech_demo_0_4b.bin": "996a94177a0eda7784c1b6df56f28a4c84e27f1820ba5892b99ae0ef8fe83ee4"
+    },
+    "guest_exe_sha256": "e76fd6fdc3796aad837d43c54585a259110ce0108840de8eb98ca45b6bde1b16"
+  },
+  "outdoor_sealed": {
+    "features": "cd-stream-bench emulator-telemetry",
+    "project_sha256": "c5878f0a46aa33aaa0bb193df09165ff7092c32a08f228ad03e4cdf0f437b542",
+    "frontend_sha256": "3725dee5e91ed4aeebd826bef8c841ed0b5bd70c4f69cc596f4d1ad0b28d7bca",
+    "editor_head": "7d100449e9721d6e31c29201245e732764c07770",
+    "editor_diff": "diff --git a/engine/examples/editor-playtest/Cargo.toml b/engine/examples/editor-playtest/Cargo.toml\nindex d273f486..33a48af3 100644\n--- a/engine/examples/editor-playtest/Cargo.toml\n+++ b/engine/examples/editor-playtest/Cargo.toml\n@@ -76,6 +76,9 @@ default = [\n     # Fixed 3x3 one-level TR subdivision lattice. The Cortex v1 A/B reduced\n     # matched room-surface work by 15.5% with bit-identical leaf packets.\n     \"tr-subdivision-lattice\",\n+    # VBlank-kicked presentation: +26% fps with one enemy on screen, +1% on\n+    # top of the world-placement rule with two (stress harness, 2026-10-03).\n+    \"present-queue\",\n ]\n cd-stream-bench = [\"dep:psx-io\", \"psx-game-runtime/cd-stream-bench\"]\n cd-stream-benchmark = [\"cd-stream-bench\", \"psx-game-runtime/cd-stream-benchmark\"]\n",
+    "components": {
+      "schema": 1,
+      "components": {
+        "sdk": {
+          "repository": "EBonura/PSoXide",
+          "revision": "942bc0267c7af55e9c8b0a0e1e9607fd6712f911",
+          "paths": [
+            "sdk",
+            "crates",
+            "tools/mkisopsx",
+            "tools/psoxide-link",
+            "tools/psoxide-pgo",
+            "tools/fmv_test_movie.py",
+            "tools/hazard_scan.py",
+            "tools/hazard_patch.py",
+            "tools/stack_guard.py",
+            "tools/guest_symbol_gate.sh",
+            "tools/check_mfc0.py",
+            "tools/sdk-examples.mk"
+          ]
+        },
+        "emulator": {
+          "repository": "EBonura/PSoXide-emulator",
+          "revision": "9eff8c8f81c0525b4059777c81f49f344fec2261",
+          "paths": [
+            "emu/crates/emulator-core",
+            "emu/crates/psoxide-debug-ui",
+            "emu/crates/psoxide-settings",
+            "emu/crates/psoxide-validation",
+            "emu/crates/psx-gpu-render"
+          ]
+        }
+      }
+    },
+    "disc_files": {
+      "cortex_ignition_tech_demo_0_4b.bin": "c72a37bec97983a016e75b8c8998f42d473605014dfdae2edaabfb963586c6ff"
+    },
+    "guest_exe_sha256": "d34b4630e2cd6ab1b874998b31f93cc7523da9d024c25198a102bd1186bc65f1"
+  },
+  "patch4k": {
+    "features": "cd-stream-bench emulator-telemetry",
+    "project_sha256": "c93563ca029231f85b50e674d3b4c72ae874a419fc6c444046b10d2ff417f9dc",
+    "frontend_sha256": "3725dee5e91ed4aeebd826bef8c841ed0b5bd70c4f69cc596f4d1ad0b28d7bca",
+    "editor_head": "7d100449e9721d6e31c29201245e732764c07770",
+    "editor_diff": "diff --git a/engine/examples/editor-playtest/Cargo.toml b/engine/examples/editor-playtest/Cargo.toml\nindex d273f486..33a48af3 100644\n--- a/engine/examples/editor-playtest/Cargo.toml\n+++ b/engine/examples/editor-playtest/Cargo.toml\n@@ -76,6 +76,9 @@ default = [\n     # Fixed 3x3 one-level TR subdivision lattice. The Cortex v1 A/B reduced\n     # matched room-surface work by 15.5% with bit-identical leaf packets.\n     \"tr-subdivision-lattice\",\n+    # VBlank-kicked presentation: +26% fps with one enemy on screen, +1% on\n+    # top of the world-placement rule with two (stress harness, 2026-10-03).\n+    \"present-queue\",\n ]\n cd-stream-bench = [\"dep:psx-io\", \"psx-game-runtime/cd-stream-bench\"]\n cd-stream-benchmark = [\"cd-stream-bench\", \"psx-game-runtime/cd-stream-benchmark\"]\n",
+    "components": {
+      "schema": 1,
+      "components": {
+        "sdk": {
+          "repository": "EBonura/PSoXide",
+          "revision": "942bc0267c7af55e9c8b0a0e1e9607fd6712f911",
+          "paths": [
+            "sdk",
+            "crates",
+            "tools/mkisopsx",
+            "tools/psoxide-link",
+            "tools/psoxide-pgo",
+            "tools/fmv_test_movie.py",
+            "tools/hazard_scan.py",
+            "tools/hazard_patch.py",
+            "tools/stack_guard.py",
+            "tools/guest_symbol_gate.sh",
+            "tools/check_mfc0.py",
+            "tools/sdk-examples.mk"
+          ]
+        },
+        "emulator": {
+          "repository": "EBonura/PSoXide-emulator",
+          "revision": "9eff8c8f81c0525b4059777c81f49f344fec2261",
+          "paths": [
+            "emu/crates/emulator-core",
+            "emu/crates/psoxide-debug-ui",
+            "emu/crates/psoxide-settings",
+            "emu/crates/psoxide-validation",
+            "emu/crates/psx-gpu-render"
+          ]
+        }
+      }
+    },
+    "disc_files": {
+      "cortex_ignition_tech_demo_0_4b.bin": "1a29562a45e6eabab687370d904b4e66eeb920a7bebef80bbd9ed5df3b84241e"
+    },
+    "guest_exe_sha256": "8a0c4939ed0fce55fe79213bb757e6fc78946b61e3e9bcf0f84baaab042715c4"
+  },
+  "patch4k_scale4": {
+    "features": "cd-stream-bench emulator-telemetry",
+    "project_sha256": "6531e5dc97d1113cf5ee70da7f27c4856a0d4d62d700cc3d0f5ab78d907479f2",
+    "frontend_sha256": "3725dee5e91ed4aeebd826bef8c841ed0b5bd70c4f69cc596f4d1ad0b28d7bca",
+    "editor_head": "7d100449e9721d6e31c29201245e732764c07770",
+    "editor_diff": "diff --git a/engine/examples/editor-playtest/Cargo.toml b/engine/examples/editor-playtest/Cargo.toml\nindex d273f486..33a48af3 100644\n--- a/engine/examples/editor-playtest/Cargo.toml\n+++ b/engine/examples/editor-playtest/Cargo.toml\n@@ -76,6 +76,9 @@ default = [\n     # Fixed 3x3 one-level TR subdivision lattice. The Cortex v1 A/B reduced\n     # matched room-surface work by 15.5% with bit-identical leaf packets.\n     \"tr-subdivision-lattice\",\n+    # VBlank-kicked presentation: +26% fps with one enemy on screen, +1% on\n+    # top of the world-placement rule with two (stress harness, 2026-10-03).\n+    \"present-queue\",\n ]\n cd-stream-bench = [\"dep:psx-io\", \"psx-game-runtime/cd-stream-bench\"]\n cd-stream-benchmark = [\"cd-stream-bench\", \"psx-game-runtime/cd-stream-benchmark\"]\n",
+    "components": {
+      "schema": 1,
+      "components": {
+        "sdk": {
+          "repository": "EBonura/PSoXide",
+          "revision": "942bc0267c7af55e9c8b0a0e1e9607fd6712f911",
+          "paths": [
+            "sdk",
+            "crates",
+            "tools/mkisopsx",
+            "tools/psoxide-link",
+            "tools/psoxide-pgo",
+            "tools/fmv_test_movie.py",
+            "tools/hazard_scan.py",
+            "tools/hazard_patch.py",
+            "tools/stack_guard.py",
+            "tools/guest_symbol_gate.sh",
+            "tools/check_mfc0.py",
+            "tools/sdk-examples.mk"
+          ]
+        },
+        "emulator": {
+          "repository": "EBonura/PSoXide-emulator",
+          "revision": "9eff8c8f81c0525b4059777c81f49f344fec2261",
+          "paths": [
+            "emu/crates/emulator-core",
+            "emu/crates/psoxide-debug-ui",
+            "emu/crates/psoxide-settings",
+            "emu/crates/psoxide-validation",
+            "emu/crates/psx-gpu-render"
+          ]
+        }
+      }
+    },
+    "disc_files": {
+      "cortex_ignition_tech_demo_0_4b.bin": "7f78240c2370c5821c04b2cc9cd7b96616bc968674fd3535670fa8797ccf714e"
+    },
+    "guest_exe_sha256": "8c1f42ba53f1566a4eb03a7993d5758579061fe4cf51e733f8e78d7bad87e9bf"
+  },
+  "scale4": {
+    "features": "cd-stream-bench emulator-telemetry",
+    "project_sha256": "289064a58c99cfa25ce5e3a0544edc735bd54ff1b08c0626a429176b0d55994c",
+    "frontend_sha256": "3725dee5e91ed4aeebd826bef8c841ed0b5bd70c4f69cc596f4d1ad0b28d7bca",
+    "editor_head": "7d100449e9721d6e31c29201245e732764c07770",
+    "editor_diff": "diff --git a/engine/examples/editor-playtest/Cargo.toml b/engine/examples/editor-playtest/Cargo.toml\nindex d273f486..33a48af3 100644\n--- a/engine/examples/editor-playtest/Cargo.toml\n+++ b/engine/examples/editor-playtest/Cargo.toml\n@@ -76,6 +76,9 @@ default = [\n     # Fixed 3x3 one-level TR subdivision lattice. The Cortex v1 A/B reduced\n     # matched room-surface work by 15.5% with bit-identical leaf packets.\n     \"tr-subdivision-lattice\",\n+    # VBlank-kicked presentation: +26% fps with one enemy on screen, +1% on\n+    # top of the world-placement rule with two (stress harness, 2026-10-03).\n+    \"present-queue\",\n ]\n cd-stream-bench = [\"dep:psx-io\", \"psx-game-runtime/cd-stream-bench\"]\n cd-stream-benchmark = [\"cd-stream-bench\", \"psx-game-runtime/cd-stream-benchmark\"]\n",
+    "components": {
+      "schema": 1,
+      "components": {
+        "sdk": {
+          "repository": "EBonura/PSoXide",
+          "revision": "942bc0267c7af55e9c8b0a0e1e9607fd6712f911",
+          "paths": [
+            "sdk",
+            "crates",
+            "tools/mkisopsx",
+            "tools/psoxide-link",
+            "tools/psoxide-pgo",
+            "tools/fmv_test_movie.py",
+            "tools/hazard_scan.py",
+            "tools/hazard_patch.py",
+            "tools/stack_guard.py",
+            "tools/guest_symbol_gate.sh",
+            "tools/check_mfc0.py",
+            "tools/sdk-examples.mk"
+          ]
+        },
+        "emulator": {
+          "repository": "EBonura/PSoXide-emulator",
+          "revision": "9eff8c8f81c0525b4059777c81f49f344fec2261",
+          "paths": [
+            "emu/crates/emulator-core",
+            "emu/crates/psoxide-debug-ui",
+            "emu/crates/psoxide-settings",
+            "emu/crates/psoxide-validation",
+            "emu/crates/psx-gpu-render"
+          ]
+        }
+      }
+    },
+    "disc_files": {
+      "cortex_ignition_tech_demo_0_4b.bin": "db9d1dd2b5cc4434ce993becdeb4a00bec5a4279aa5ab90a88c2a104a9a7f271"
+    },
+    "guest_exe_sha256": "9d39d182ad20b3d3fc0705e8f23751bde168f9452ebbe20e4468455816e55dda"
+  },
+  "small2": {
+    "features": "cd-stream-bench emulator-telemetry",
+    "project_sha256": "6cdb5cd02a79dfb6fa5a662db2d1bf8aa9265174a79e4ba241f947519cd2f6c5",
+    "frontend_sha256": "3725dee5e91ed4aeebd826bef8c841ed0b5bd70c4f69cc596f4d1ad0b28d7bca",
+    "editor_head": "7d100449e9721d6e31c29201245e732764c07770",
+    "editor_diff": "diff --git a/engine/examples/editor-playtest/Cargo.toml b/engine/examples/editor-playtest/Cargo.toml\nindex d273f486..33a48af3 100644\n--- a/engine/examples/editor-playtest/Cargo.toml\n+++ b/engine/examples/editor-playtest/Cargo.toml\n@@ -76,6 +76,9 @@ default = [\n     # Fixed 3x3 one-level TR subdivision lattice. The Cortex v1 A/B reduced\n     # matched room-surface work by 15.5% with bit-identical leaf packets.\n     \"tr-subdivision-lattice\",\n+    # VBlank-kicked presentation: +26% fps with one enemy on screen, +1% on\n+    # top of the world-placement rule with two (stress harness, 2026-10-03).\n+    \"present-queue\",\n ]\n cd-stream-bench = [\"dep:psx-io\", \"psx-game-runtime/cd-stream-bench\"]\n cd-stream-benchmark = [\"cd-stream-bench\", \"psx-game-runtime/cd-stream-benchmark\"]\n",
+    "components": {
+      "schema": 1,
+      "components": {
+        "sdk": {
+          "repository": "EBonura/PSoXide",
+          "revision": "942bc0267c7af55e9c8b0a0e1e9607fd6712f911",
+          "paths": [
+            "sdk",
+            "crates",
+            "tools/mkisopsx",
+            "tools/psoxide-link",
+            "tools/psoxide-pgo",
+            "tools/fmv_test_movie.py",
+            "tools/hazard_scan.py",
+            "tools/hazard_patch.py",
+            "tools/stack_guard.py",
+            "tools/guest_symbol_gate.sh",
+            "tools/check_mfc0.py",
+            "tools/sdk-examples.mk"
+          ]
+        },
+        "emulator": {
+          "repository": "EBonura/PSoXide-emulator",
+          "revision": "9eff8c8f81c0525b4059777c81f49f344fec2261",
+          "paths": [
+            "emu/crates/emulator-core",
+            "emu/crates/psoxide-debug-ui",
+            "emu/crates/psoxide-settings",
+            "emu/crates/psoxide-validation",
+            "emu/crates/psx-gpu-render"
+          ]
+        }
+      }
+    },
+    "disc_files": {
+      "cortex_ignition_tech_demo_0_4b.bin": "6a4e08e2a52ac3d0d617ccef386406a15db2fe9983fffaf104de9382ac9fd259"
+    },
+    "guest_exe_sha256": "b5558e7a1a572368974905c2cf30b565f1c87c582d5e0fc563ef945fe9a2d787"
+  },
+  "vista16": {
+    "features": "cd-stream-bench emulator-telemetry",
+    "project_sha256": "ce47ed357c54741dc0abe07d3a1e69d1f71a191c177e2032ca5902bdfc4e8cbd",
+    "frontend_sha256": "3725dee5e91ed4aeebd826bef8c841ed0b5bd70c4f69cc596f4d1ad0b28d7bca",
+    "editor_head": "7d100449e9721d6e31c29201245e732764c07770",
+    "editor_diff": "diff --git a/engine/examples/editor-playtest/Cargo.toml b/engine/examples/editor-playtest/Cargo.toml\nindex d273f486..33a48af3 100644\n--- a/engine/examples/editor-playtest/Cargo.toml\n+++ b/engine/examples/editor-playtest/Cargo.toml\n@@ -76,6 +76,9 @@ default = [\n     # Fixed 3x3 one-level TR subdivision lattice. The Cortex v1 A/B reduced\n     # matched room-surface work by 15.5% with bit-identical leaf packets.\n     \"tr-subdivision-lattice\",\n+    # VBlank-kicked presentation: +26% fps with one enemy on screen, +1% on\n+    # top of the world-placement rule with two (stress harness, 2026-10-03).\n+    \"present-queue\",\n ]\n cd-stream-bench = [\"dep:psx-io\", \"psx-game-runtime/cd-stream-bench\"]\n cd-stream-benchmark = [\"cd-stream-bench\", \"psx-game-runtime/cd-stream-benchmark\"]\n",
+    "components": {
+      "schema": 1,
+      "components": {
+        "sdk": {
+          "repository": "EBonura/PSoXide",
+          "revision": "942bc0267c7af55e9c8b0a0e1e9607fd6712f911",
+          "paths": [
+            "sdk",
+            "crates",
+            "tools/mkisopsx",
+            "tools/psoxide-link",
+            "tools/psoxide-pgo",
+            "tools/fmv_test_movie.py",
+            "tools/hazard_scan.py",
+            "tools/hazard_patch.py",
+            "tools/stack_guard.py",
+            "tools/guest_symbol_gate.sh",
+            "tools/check_mfc0.py",
+            "tools/sdk-examples.mk"
+          ]
+        },
+        "emulator": {
+          "repository": "EBonura/PSoXide-emulator",
+          "revision": "9eff8c8f81c0525b4059777c81f49f344fec2261",
+          "paths": [
+            "emu/crates/emulator-core",
+            "emu/crates/psoxide-debug-ui",
+            "emu/crates/psoxide-settings",
+            "emu/crates/psoxide-validation",
+            "emu/crates/psx-gpu-render"
+          ]
+        }
+      }
+    },
+    "disc_files": {
+      "cortex_ignition_tech_demo_0_4b.bin": "cb1f6f4ed7e694bf348e8b222124f13933d7be03a2cff149371a56b63d2207e0"
+    },
+    "guest_exe_sha256": "aed43ad3eb47fb134dc404f3dda99e4c78e5fefa4ee9f08c92abaffd6b38552f"
+  },
+  "vista8": {
+    "features": "cd-stream-bench emulator-telemetry",
+    "project_sha256": "f337c2718270255a63d0035ac02414da447e774ac93b1b480aad1cf4ab29ee54",
+    "frontend_sha256": "3725dee5e91ed4aeebd826bef8c841ed0b5bd70c4f69cc596f4d1ad0b28d7bca",
+    "editor_head": "7d100449e9721d6e31c29201245e732764c07770",
+    "editor_diff": "diff --git a/engine/examples/editor-playtest/Cargo.toml b/engine/examples/editor-playtest/Cargo.toml\nindex d273f486..33a48af3 100644\n--- a/engine/examples/editor-playtest/Cargo.toml\n+++ b/engine/examples/editor-playtest/Cargo.toml\n@@ -76,6 +76,9 @@ default = [\n     # Fixed 3x3 one-level TR subdivision lattice. The Cortex v1 A/B reduced\n     # matched room-surface work by 15.5% with bit-identical leaf packets.\n     \"tr-subdivision-lattice\",\n+    # VBlank-kicked presentation: +26% fps with one enemy on screen, +1% on\n+    # top of the world-placement rule with two (stress harness, 2026-10-03).\n+    \"present-queue\",\n ]\n cd-stream-bench = [\"dep:psx-io\", \"psx-game-runtime/cd-stream-bench\"]\n cd-stream-benchmark = [\"cd-stream-bench\", \"psx-game-runtime/cd-stream-benchmark\"]\n",
+    "components": {
+      "schema": 1,
+      "components": {
+        "sdk": {
+          "repository": "EBonura/PSoXide",
+          "revision": "942bc0267c7af55e9c8b0a0e1e9607fd6712f911",
+          "paths": [
+            "sdk",
+            "crates",
+            "tools/mkisopsx",
+            "tools/psoxide-link",
+            "tools/psoxide-pgo",
+            "tools/fmv_test_movie.py",
+            "tools/hazard_scan.py",
+            "tools/hazard_patch.py",
+            "tools/stack_guard.py",
+            "tools/guest_symbol_gate.sh",
+            "tools/check_mfc0.py",
+            "tools/sdk-examples.mk"
+          ]
+        },
+        "emulator": {
+          "repository": "EBonura/PSoXide-emulator",
+          "revision": "9eff8c8f81c0525b4059777c81f49f344fec2261",
+          "paths": [
+            "emu/crates/emulator-core",
+            "emu/crates/psoxide-debug-ui",
+            "emu/crates/psoxide-settings",
+            "emu/crates/psoxide-validation",
+            "emu/crates/psx-gpu-render"
+          ]
+        }
+      }
+    },
+    "disc_files": {
+      "cortex_ignition_tech_demo_0_4b.bin": "549c7fc858860a7cff7fa65dbc497b4f76c3e46f0a64f90ffca5a02b97a78cdd"
+    },
+    "guest_exe_sha256": "22edbacab7acb1db601aa704af1d5e308ddf9cd485abdeebfb19d551c63d8759"
+  }
+}
