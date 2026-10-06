@@ -1,0 +1,120 @@
+{
+  "date": "2026-10-06",
+  "baseline_commit": "43604766",
+  "root_cause": "Model GP0(E2)=0xE2080210 leaks through the shared ordering table into page-local BSP GT3/GT4 packets without E2. Grid V=64 becomes V=192, sampling the reflection atlas with the grid palette.",
+  "fix": "Prefix each independently sorted page-local BSP polygon with GP0(E2)=0xE2000000 in its DMA node; reserve one extra word per emitted polygon.",
+  "tape": {
+    "file": "texture-state-user.pxtape",
+    "sha256": "e25deefe6047f0652e95d153e004f6ed9a21ea8490e0577269399877e3802349",
+    "polls": 3131,
+    "starting_poll": 12,
+    "stop_at_poll": 3143
+  },
+  "host_profile": {
+    "file": "texture-state-host-profile.csv",
+    "host_samples": 3165,
+    "note": "Aggregate host timings, not per-frame guest rendering telemetry or guest fps."
+  },
+  "measurement": {
+    "poll_window": [
+      400,
+      3120
+    ],
+    "features": "cd-stream-bench, no emulator-telemetry",
+    "metric": "host-observed guest display flips"
+  },
+  "runs": {
+    "baseline": {
+      "first_poll": 400,
+      "last_poll": 3120,
+      "display_intervals": 1204,
+      "display_fps": 26.264,
+      "interval_ms_p95": 50.599,
+      "interval_ms_max": 101.198,
+      "intervals_over_two_vblanks": 259,
+      "cadence_pass": false,
+      "telemetry_available": false,
+      "primitive_overflows": null,
+      "measured_pass": null
+    },
+    "window-fix": {
+      "first_poll": 400,
+      "last_poll": 3120,
+      "display_intervals": 1202,
+      "display_fps": 26.22,
+      "interval_ms_p95": 50.599,
+      "interval_ms_max": 101.197,
+      "intervals_over_two_vblanks": 270,
+      "cadence_pass": false,
+      "telemetry_available": false,
+      "primitive_overflows": null,
+      "measured_pass": null
+    },
+    "baseline-fifo": {
+      "first_poll": 401,
+      "last_poll": 3119,
+      "display_intervals": 1202,
+      "display_fps": 26.22,
+      "interval_ms_p95": 50.599,
+      "interval_ms_max": 101.197,
+      "intervals_over_two_vblanks": 265,
+      "cadence_pass": false,
+      "telemetry_available": false,
+      "primitive_overflows": null,
+      "measured_pass": null
+    },
+    "window-fix-fifo": {
+      "first_poll": 401,
+      "last_poll": 3119,
+      "display_intervals": 1200,
+      "display_fps": 26.177,
+      "interval_ms_p95": 50.599,
+      "interval_ms_max": 101.197,
+      "intervals_over_two_vblanks": 275,
+      "cadence_pass": false,
+      "telemetry_available": false,
+      "primitive_overflows": null,
+      "measured_pass": null
+    }
+  },
+  "hashes": {
+    "baseline_disc_sha256": "9fdffad3d44570392b8f506fe704e1ec789af131c5c6e7e17db677d64b6cef4e",
+    "fixed_disc_sha256": "8c15587c7ae005f172e62c8d2980e50c2c27f4487efe783107210736211b356e",
+    "fixed_guest_sha256": "101429b45bf341e68e0a435074a058f6b28dac48873950c2d6496db0ef16dace",
+    "project_sha256": "db8c9480bde8b137e2dc24a09c694260a9f7488ad5da3e41f211e740159016be"
+  },
+  "checks": {
+    "bsp_unit_tests_passed": 162,
+    "engine_unit_tests_passed": 451,
+    "load_delay_hazards_remaining": 0,
+    "scratchpad_stack_guard": "passed, mixed batch 280/304 bytes",
+    "full_replay_completed_both_dma_modes": true,
+    "visual_review": "All default replay captures every 100 ticks; strict FIFO captures every 500 ticks; exact poll-920 CPU and host hardware renderer capture. Reported world holes and missing grids resolved.",
+    "physical_console": "not tested",
+    "primitive_overflows": null
+  },
+  "packet_proof": {
+    "poll": 920,
+    "baseline_draw_index": 271928,
+    "fixed_draw_index": 331658,
+    "polygon_xy": [
+      [
+        184,
+        222
+      ],
+      [
+        149,
+        252
+      ],
+      [
+        139,
+        227
+      ]
+    ],
+    "baseline_active_window": "0xE2080210",
+    "fixed_active_window": "0xE2000000",
+    "polygon_command_and_uv_words_identical": true,
+    "oversized_polygons_in_probe_frame": 0
+  },
+  "raw_evidence_directory": "build/graybox-reach/graphics-repro"
+}
