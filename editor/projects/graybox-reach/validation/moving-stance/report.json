@@ -1,0 +1,37 @@
+{
+  "project": "Graybox Reach",
+  "result": "No movement restriction reproduced: both walk and Circle-held run accept Triangle and show body/scarf stance burst while locomotion continues.",
+  "code_changed": false,
+  "cooldown_ticks": 300,
+  "cooldown_seconds_ntsc": 5,
+  "button_mask_run": 8192,
+  "button_mask_stance": 4096,
+  "walk_samples": [
+    850,
+    1040
+  ],
+  "walk_swap_sample": 900,
+  "run_samples": [
+    1250,
+    1440
+  ],
+  "run_swap_sample": 1300,
+  "tape_start_poll": 12,
+  "stop_poll": 1712,
+  "dma_fifo": true,
+  "saved_bin_sha256": "95847aedf2201e61817d5aaa9132ed18c5f843bcd8da4dd7ec9549bcdce418db",
+  "tape_sha256": "c84b7d90e6ba10c9dfc10fbfba9f71f1acd3b85212281abc113bba339f2d32d0",
+  "video": "walking-running-stance-1080p.mp4",
+  "date": "2026-10-06",
+  "tape": "walk-run.pxtape",
+  "video_details": {
+    "width": 1920,
+    "height": 1080,
+    "duration_seconds": 7,
+    "fps": 30,
+    "source": "Native 320x240 PS1 display enlarged nearest-neighbor 4x; walking and running excerpts joined."
+  },
+  "replay_command": "PSOXIDE_EXPERIMENTAL_DMA_FIFO=1 target/release/frontend launch --path editor/projects/graybox-reach/baked/graybox_reach.cue --embedded-playtest --input-tape editor/projects/graybox-reach/validation/moving-stance/walk-run.pxtape --stop-at-poll=1712 --steps=6900000000 --route-log <route.csv> --route-screenshot-dir <shots> --route-screenshot-interval=2 --dump-display <final.ppm>",
+  "video_sha256": "23cc11fac07eceab942192a5751fd1d5cf3270c859fbc29fd751cb26d607ee1c",
+  "build_note": "Validation of the saved disc identified by saved_bin_sha256. This commit documents existing behavior and changes no runtime code; rebuilding with other ongoing work can change the disc identity."
+}
