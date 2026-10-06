@@ -5,6 +5,69 @@ retired Graybox Highlands experiment. Graybox Valley remains available as the
 smaller comparison. Shared character, animation and UI assets resolve through
 `../default`; keep that project alongside this one.
 
+## Dash follow-up, 2026-10-06
+
+The second pass caches the fixed wire edges and batches their packets, skips
+invisible body submission on the capture frame, projects departing fragments
+on the GTE with CPU clipping fallbacks, and prepares reconstruction math once
+per frame on a guarded scratchpad stack. Effect geometry, fragment count,
+colors, animation and recovery timing remain intact. GTE projection can differ
+slightly in fixed-point rounding from the previous CPU projection.
+
+The saved user tape was compared against the previous reflection optimization
+using **identical frozen reduced-enemy assets on both sides**:
+
+| Window (starting poll; 96 polls) | Previous | Follow-up |
+| --- | ---: | ---: |
+| Heavy dash, 1688 | 20.184 fps | 22.076 fps |
+| Heavy dash, 1791 | 20.596 fps | 22.951 fps |
+| Outdoor dash, 729 | 27.461 fps | 29.333 fps |
+| Later dash, 2525 | 27.122 fps | 29.645 fps |
+| Gameplay, polls 400–3120 | 26.962 fps | 27.376 fps |
+
+The two heavy windows contain **11 → 1 intervals longer than 50.6 ms**.
+Their strict-FIFO counterparts improve from 20.184/20.815 to 21.912/22.556 fps,
+with no intervals above 50.6 ms. Both full replays complete and pass visual
+review. **Busy rooms still do not sustain 30 fps.** Diagnostic attribution
+puts player rendering during the effect at approximately 12 ms, down from
+20–24 ms; world and enemy drawing still leave total rendering near 39 ms.
+Diagnostic timings are separate from the uninstrumented acceptance results.
+
+866 unit tests pass, including line-packet/depth equivalence, every reconstruction
+age, clipping/overflow fallback, and GTE projection/saturation cases. MIPS
+load-delay and scratchpad guards pass. The edge cache adds 2,072 bytes of BSS;
+text grows by 7,016 bytes over the second-pass control. Physical-console timing
+is unverified. See [replay evidence](validation/dash-optimization-followup.json)
+and [visual comparison](validation/dash-optimization-followup.png). Open this
+project and use **Rebuild & Play** to test the changes.
+
+## First dash optimization, 2026-10-06
+
+Dash reconstruction disabled triangle splitting and consequently bypassed the
+fused reflection renderer. It now uses that renderer when projection proves
+the whole model is in front of the camera and within hardware limits. Unsafe
+bounds retain the original general path. The scatter, wireframe, reflection
+texture, recovery timing and gameplay are preserved.
+
+On the saved user recording, fixed 96-poll windows around the two heaviest
+dashes improve from **17.400 to 19.763 fps** and **18.099 to 20.401 fps**.
+Their longest displayed interval falls from **101.197 to 67.465 ms**. An outdoor
+dash window improves from 23.092 to 27.461 fps. Across polls 400 to 3120, mean
+display cadence improves from 26.220 to 26.766 fps. Strict DMA FIFO confirms
+the gain: 26.177 to 26.678 fps over that same window. Heavy dashes still dip
+below 30 fps; this is an improvement rather than a locked-cadence result.
+
+All 861 engine, BSP and runtime unit tests pass. The regression compares the
+actual packet words, depth slots and semantic counters against the old unsplit
+renderer. Both complete DMA-mode replays pass visual review; the last default
+checkpoint is byte-identical. PS1 load-delay and scratchpad checks pass, static
+RAM is unchanged, and code grows by 228 bytes. Hardware timing and primitive
+overflow telemetry are unverified. See [full evidence](validation/dash-optimization.json)
+and [dash captures](validation/dash-optimization-comparison.png). Use **Rebuild & Play**
+to replace any already-running game with the optimized version.
+These measurements use the original enemy assets; the separate enemy-reduction
+work that arrived afterward is outside this dash-only comparison.
+
 ## World texture-state fix, 2026-10-06
 
 The user's recorded Play run reproduced black triangular gaps near the camera
