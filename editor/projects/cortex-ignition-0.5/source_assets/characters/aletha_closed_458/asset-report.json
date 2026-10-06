@@ -1,0 +1,20 @@
+{
+  "texture": {
+    "width": 128,
+    "height": 128,
+    "bpp": 4,
+    "colors": 16,
+    "pixel_bytes": 8192,
+    "clut_bytes": 32,
+    "asset_bytes": 8252
+  },
+  "geometry": {
+    "vertices": 235,
+    "triangles": 458,
+    "joints": 26,
+    "vertex_and_index_data_unchanged": true
+  },
+  "stance_tint": false,
+  "model_sha256": "1e6b9dfbdcea77da434d0c2608f65dc2c6ab4552507b0e307187cd72595d5774",
+  "texture_sha256": "7bd699688174997c9f04c4489230b4b9072874e6912f8c3b3a1c6ca1108babb3"
+}
