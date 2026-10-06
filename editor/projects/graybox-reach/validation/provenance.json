@@ -1,0 +1,22 @@
+{
+  "date": "2026-10-06",
+  "repository_head": "dbce3f606955c34cea4968c68e97453eeec0c3d6",
+  "working_tree_modified": true,
+  "guest_features": [
+    "cd-stream-bench"
+  ],
+  "guest_exe_sha256": "ec7a38ad7002d69d7d378b1c8d983f95bfdcf506fd423f2f53030652f458c52f",
+  "hashes": {
+    "editor/projects/graybox-reach/project.ron": "a997d5c1b8bd6d1185d7d42e441aebe96488c390ccd602f61ca0a6474204468b",
+    "editor/projects/graybox-reach/baked/graybox_reach.bin": "3d95ed9aca4ec332c1beb456eaea81d1183f2a0330cb4e094713068f12f58a64",
+    "editor/projects/graybox-reach/baked/graybox_reach.cue": "02ba94347504bad1b81e848fa07d5c0f862f159a2caadc56492395af3c9cc9d9",
+    "target/release/frontend": "3725dee5e91ed4aeebd826bef8c841ed0b5bd70c4f69cc596f4d1ad0b28d7bca",
+    "editor/projects/graybox-reach/validation/main-orbit.pxtape": "7db23066f9f66b9ad05c0000d65443f9100feb7d6dddb981e45aa04fc2f3a634",
+    "editor/projects/graybox-reach/validation/loop-orbit.pxtape": "6572e7d220e7cdc23ae1330a776fac0f0a6907f302014032e502df43f9713528"
+  },
+  "normal_play_run_directories": [
+    "build/graybox-reach/screen-orbit",
+    "build/graybox-reach/screen-loop"
+  ],
+  "validation": "Final rebuild produced the same guest EXE after the editor-only overview camera was adjusted."
+}

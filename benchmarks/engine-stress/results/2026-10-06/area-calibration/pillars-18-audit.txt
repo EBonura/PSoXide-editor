@@ -1,0 +1,42 @@
+# Audit of scene 0: "Main"
+
+## Geometry
+
+24 brushes, 144 faces
+degenerate (enclose no volume): none
+beyond the 131072-unit extent limit: none
+coplanar face overlaps: none
+grid 64: every authored coordinate is aligned
+
+Note: this finds faces sharing a PLANE, which z-fight. Solids that merely interpenetrate are legal here (BrushContents::precedence resolves them, and the shipped level relies on it), so a pillar passing through a stair is a look-at-it decision, not an error. Check a plan_view for those.
+
+## Sealing
+
+sealed: no path from the interior to the void
+(sealing check took 0.0s)
+
+## Cook and draw cost
+
+warning: Character 'Aletha' has no turn clip
+
+180 world faces, 358 base triangles, 358 all-face packet slots, 62 non-solid leaves
+
+Heaviest leaves. Base packet slots describe the PVS candidate set before frustum/backface culling, clipping and subdivision, not actual submitted packets.
+  leaf 1: 358 packet slots, 180 visible faces across 62 visible leaves, near authored (0, 4096, 0)
+  leaf 2: 358 packet slots, 180 visible faces across 62 visible leaves, near authored (0, 4096, 0)
+  leaf 3: 358 packet slots, 180 visible faces across 62 visible leaves, near authored (0, 4096, 0)
+  leaf 4: 358 packet slots, 180 visible faces across 62 visible leaves, near authored (0, 4096, 0)
+  leaf 5: 358 packet slots, 180 visible faces across 62 visible leaves, near authored (0, 5632, 0)
+  leaf 6: 358 packet slots, 180 visible faces across 62 visible leaves, near authored (0, 4096, 0)
+  leaf 7: 358 packet slots, 180 visible faces across 62 visible leaves, near authored (0, 4096, 0)
+  leaf 8: 358 packet slots, 180 visible faces across 62 visible leaves, near authored (0, 4096, 0)
+
+30 fps authoring profile psx-30-two-custodians-2026-10-06: at most 100 PVS faces AND 200 base world triangles per camera leaf; reserve for Aletha + up to 2 Custodians. 62/62 leaves over budget.
+Heaviest leaf 1: 180 faces (-80 remaining), 358 triangles (-158 remaining).
+Use `area_budget` with named camera samples for per-area limits and evidence. PVS is a candidate set before frustum/backface culling and subdivision; within budget is NOT a runtime pass. Replay the complete route and combat, require two-vblank display cadence and zero packet overflows.
+
+cooked world spans authored [-8192, 0, -8192]..[8192, 8192, 8192]
+
+Worst sightline is leaf 1 at 358 packet slots. If that number climbed after an edit, the edit opened a sightline; break it with geometry rather than by deleting detail.
+
+(cook took 0.1s)

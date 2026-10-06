@@ -1,0 +1,31 @@
+{
+  "source_project_sha256": "1c00f45e02fbe320d7607cf9e2dd9dcd5a72d12a444b72f64009434693b6783f",
+  "frontend_sha256": "3725dee5e91ed4aeebd826bef8c841ed0b5bd70c4f69cc596f4d1ad0b28d7bca",
+  "tape_polls": 3600,
+  "retained_disc_note": "The project baked disc was an older instrumented build, not the current editor Play build. Comparison below uses two freshly built project copies.",
+  "retained_instrumented_disc_files": {
+    "graybox_valley.cue": "df60e28056b237bccfd84807279e3f4d1697469b42cb20b4f96c11774746396b",
+    "graybox_valley.bin": "dfdd705c47b8f38735e3a172fe38aa5525a68c866a157db6d95a421de089c9bd"
+  },
+  "variants": {
+    "normal": {
+      "features": "cd-stream-bench",
+      "project_sha256": "5b16bb9187f28a5abcb2cca3c4333a10be2914b5adf801bc7317724c4b4189eb",
+      "guest_exe_sha256": "914da7e11741e6950817e0bf0d913f2cbbdb91ba4019705e2bb7b65165d3be89",
+      "disc_files": {
+        "graybox_valley.bin": "6e37e83e4e96990bb98e1a8c18c084ef6be632465e3a4b504e9cd282a49a1851"
+      }
+    },
+    "instrumented": {
+      "features": "cd-stream-bench emulator-telemetry",
+      "project_sha256": "5b16bb9187f28a5abcb2cca3c4333a10be2914b5adf801bc7317724c4b4189eb",
+      "guest_exe_sha256": "f0276c9d0f379338385ba04ccb0e5b5baf240c1d9847883261c0a399ba76fd84",
+      "disc_files": {
+        "graybox_valley.bin": "878477a9fbdfa020cb896a34bf6830d7cb7fbeb547fa4a2c3eb463185b436334"
+      }
+    }
+  },
+  "input_tape_sha256": "0555b14395051c4bd3d267e5914c98459497744af61afa2acfc209e0e72612e8",
+  "raw_logs": "/Users/ebonura/Desktop/repos/PSoXide-editor/build/valley-budget-recheck",
+  "editor_play_features_confirmed_by_log": "cd-stream-bench"
+}

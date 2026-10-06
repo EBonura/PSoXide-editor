@@ -1,0 +1,220 @@
+{
+  "project": "Graybox Reach",
+  "date": "2026-10-06",
+  "authored_through": "psxed-mcp",
+  "profile": "normal Play / cd-stream-bench without emulator-telemetry",
+  "dma_fifo": 0,
+  "source_sha256": "db8c9480bde8b137e2dc24a09c694260a9f7488ad5da3e41f211e740159016be",
+  "disc_sha256": "9fdffad3d44570392b8f506fe704e1ec789af131c5c6e7e17db677d64b6cef4e",
+  "guest_exe_sha256": "8add0262e141ca393f7351d1975313e8ad85fc1392e72aeb351f48745e670843",
+  "resources_preserved_byte_for_byte": true,
+  "brushes": 89,
+  "cooked_faces": 1051,
+  "non_solid_leaves": 92,
+  "authored_playable_bounds": [
+    [
+      -32768,
+      0,
+      -16384
+    ],
+    [
+      24576,
+      12288,
+      114688
+    ]
+  ],
+  "baseline_fps": {
+    "main": 27.83,
+    "side": 29.412
+  },
+  "initial_expansion_fps": {
+    "main": 23.762,
+    "side": 29.101
+  },
+  "final": {
+    "main": {
+      "first_poll": 651,
+      "last_poll": 4229,
+      "display_intervals": 1636,
+      "display_fps": 27.117,
+      "interval_ms_p95": 50.599,
+      "interval_ms_max": 50.599,
+      "intervals_over_two_vblanks": 319,
+      "cadence_pass": false,
+      "telemetry_available": false,
+      "primitive_overflows": null,
+      "measured_pass": null
+    },
+    "side": {
+      "first_poll": 651,
+      "last_poll": 4849,
+      "display_intervals": 2073,
+      "display_fps": 29.285,
+      "interval_ms_p95": 33.733,
+      "interval_ms_max": 50.599,
+      "intervals_over_two_vblanks": 55,
+      "cadence_pass": false,
+      "telemetry_available": false,
+      "primitive_overflows": null,
+      "measured_pass": null
+    },
+    "court": {
+      "first_poll": 650,
+      "last_poll": 2980,
+      "display_intervals": 1164,
+      "display_fps": 29.645,
+      "interval_ms_p95": 33.733,
+      "interval_ms_max": 33.733,
+      "intervals_over_two_vblanks": 0,
+      "cadence_pass": true,
+      "telemetry_available": false,
+      "primitive_overflows": null,
+      "measured_pass": null,
+      "traversal": {
+        "first_poll": 650,
+        "last_poll": 1550,
+        "display_intervals": 449,
+        "display_fps": 29.645,
+        "interval_ms_p95": 33.733,
+        "interval_ms_max": 33.733,
+        "intervals_over_two_vblanks": 0,
+        "cadence_pass": true,
+        "telemetry_available": false,
+        "primitive_overflows": null,
+        "measured_pass": null
+      },
+      "camera_sweep": {
+        "first_poll": 1850,
+        "last_poll": 2980,
+        "display_intervals": 564,
+        "display_fps": 29.645,
+        "interval_ms_p95": 33.733,
+        "interval_ms_max": 33.733,
+        "intervals_over_two_vblanks": 0,
+        "cadence_pass": true,
+        "telemetry_available": false,
+        "primitive_overflows": null,
+        "measured_pass": null
+      }
+    },
+    "return": {
+      "first_poll": 651,
+      "last_poll": 2980,
+      "display_intervals": 1164,
+      "display_fps": 29.645,
+      "interval_ms_p95": 33.733,
+      "interval_ms_max": 50.599,
+      "intervals_over_two_vblanks": 30,
+      "cadence_pass": false,
+      "telemetry_available": false,
+      "primitive_overflows": null,
+      "measured_pass": null,
+      "traversal": {
+        "first_poll": 651,
+        "last_poll": 1550,
+        "display_intervals": 449,
+        "display_fps": 29.645,
+        "interval_ms_p95": 33.733,
+        "interval_ms_max": 33.733,
+        "intervals_over_two_vblanks": 0,
+        "cadence_pass": true,
+        "telemetry_available": false,
+        "primitive_overflows": null,
+        "measured_pass": null
+      },
+      "camera_sweep": {
+        "first_poll": 1850,
+        "last_poll": 2980,
+        "display_intervals": 564,
+        "display_fps": 29.671,
+        "interval_ms_p95": 33.733,
+        "interval_ms_max": 50.599,
+        "intervals_over_two_vblanks": 28,
+        "cadence_pass": false,
+        "telemetry_available": false,
+        "primitive_overflows": null,
+        "measured_pass": null
+      }
+    },
+    "gate": {
+      "first_poll": 651,
+      "last_poll": 1779,
+      "display_intervals": 520,
+      "display_fps": 27.357,
+      "interval_ms_p95": 50.599,
+      "interval_ms_max": 50.599,
+      "intervals_over_two_vblanks": 99,
+      "cadence_pass": false,
+      "telemetry_available": false,
+      "primitive_overflows": null,
+      "measured_pass": null
+    }
+  },
+  "area_test_setup": {
+    "court": {
+      "spawn": [
+        18432,
+        0,
+        81920
+      ],
+      "polls": 3000,
+      "segments": [
+        {
+          "first": 650,
+          "last": 1550,
+          "description": "forward traversal"
+        },
+        {
+          "first": 1850,
+          "last": 2980,
+          "description": "stationary camera sweep"
+        }
+      ]
+    },
+    "return": {
+      "spawn": [
+        -20480,
+        2048,
+        53248
+      ],
+      "polls": 3000,
+      "segments": [
+        {
+          "first": 650,
+          "last": 1550,
+          "description": "forward traversal"
+        },
+        {
+          "first": 1850,
+          "last": 2980,
+          "description": "stationary camera sweep"
+        }
+      ]
+    },
+    "gate": {
+      "spawn": [
+        8192,
+        0,
+        65536
+      ],
+      "polls": 1800,
+      "segments": [
+        {
+          "first": 650,
+          "last": 1780,
+          "description": "stationary camera sweep"
+        }
+      ]
+    }
+  },
+  "caveats": [
+    "Per-area PVS counts are candidate geometry, not actual submitted work or an FPS prediction.",
+    "Old main and side routes replay the saved game spawn. New area checks use otherwise identical temporary project copies with only player spawn and asset path rebasing changed.",
+    "The entire connected expansion loop is collision-walked, not end-to-end gameplay-replayed.",
+    "New areas contain no additional enemies; two existing northern-basin enemies remain. No sustained combat acceptance or physical-console validation.",
+    "The new court held every measured display interval at the nominal 30 fps cadence; the return averaged the same rate but included 50.599 ms intervals. Gate and original main route remain below target.",
+    "Normal guests expose no primitive-overflow telemetry; missing counters remain unknown."
+  ],
+  "raw_evidence": "/Users/ebonura/Desktop/repos/PSoXide-editor/build/graybox-reach/expansion",
+  "collision_validation": "Both original routes and the complete expansion loop in both directions pass with radius 188, height 1024 and leg 128."
+}

@@ -1,0 +1,9 @@
+REACHED the end of the path at [6144, 0, 46080] after 8 leg(s).
+  leg 0: reached at [14336, 0, -12288]
+  leg 1: reached at [14336, 64, -8192]
+  leg 2: reached at [14336, 2048, 4096]
+  leg 3: reached at [20480, 2048, 4096]
+  leg 4: reached at [20480, 2048, 32768]
+  leg 5: reached at [14336, 2048, 32768]
+  leg 6: reached at [14336, 0, 46080]
+  leg 7: reached at [6144, 0, 46080]

@@ -1,0 +1,786 @@
+{
+  "areas": [
+    {
+      "assumed_enemies": null,
+      "faces_remaining": null,
+      "max_base_triangles": 1018,
+      "max_pvs_faces": 516,
+      "name": "Arrival basin",
+      "samples": [
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              0,
+              6144,
+              -4096
+            ],
+            "base_packet_slots": 1183,
+            "base_triangles": 1018,
+            "faces_remaining": null,
+            "leaf": 74,
+            "pvs_faces": 516,
+            "sky_aperture_faces": 2,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            0,
+            1536,
+            -12288
+          ]
+        },
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              0,
+              6144,
+              -4096
+            ],
+            "base_packet_slots": 1183,
+            "base_triangles": 1018,
+            "faces_remaining": null,
+            "leaf": 74,
+            "pvs_faces": 516,
+            "sky_aperture_faces": 2,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            -6144,
+            1536,
+            -4096
+          ]
+        },
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              0,
+              6144,
+              -4096
+            ],
+            "base_packet_slots": 927,
+            "base_triangles": 762,
+            "faces_remaining": null,
+            "leaf": 77,
+            "pvs_faces": 385,
+            "sky_aperture_faces": 1,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            4096,
+            1536,
+            4096
+          ]
+        }
+      ],
+      "status": "runtime_measurement_required",
+      "triangles_remaining": null
+    },
+    {
+      "assumed_enemies": null,
+      "faces_remaining": null,
+      "max_base_triangles": 1209,
+      "max_pvs_faces": 613,
+      "name": "Gatehouse and great hall",
+      "samples": [
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              0,
+              2048,
+              10240
+            ],
+            "base_packet_slots": 1145,
+            "base_triangles": 980,
+            "faces_remaining": null,
+            "leaf": 87,
+            "pvs_faces": 497,
+            "sky_aperture_faces": 2,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            0,
+            1536,
+            10240
+          ]
+        },
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              1024,
+              3072,
+              18432
+            ],
+            "base_packet_slots": 1374,
+            "base_triangles": 1209,
+            "faces_remaining": null,
+            "leaf": 41,
+            "pvs_faces": 613,
+            "sky_aperture_faces": 2,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            0,
+            1536,
+            18432
+          ]
+        },
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              6144,
+              3072,
+              22528
+            ],
+            "base_packet_slots": 1252,
+            "base_triangles": 1087,
+            "faces_remaining": null,
+            "leaf": 52,
+            "pvs_faces": 551,
+            "sky_aperture_faces": 2,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            6144,
+            1536,
+            23552
+          ]
+        }
+      ],
+      "status": "runtime_measurement_required",
+      "triangles_remaining": null
+    },
+    {
+      "assumed_enemies": 2,
+      "faces_remaining": null,
+      "max_base_triangles": 1135,
+      "max_pvs_faces": 575,
+      "name": "Northern reach",
+      "samples": [
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              0,
+              6144,
+              45056
+            ],
+            "base_packet_slots": 1252,
+            "base_triangles": 1087,
+            "faces_remaining": null,
+            "leaf": 21,
+            "pvs_faces": 551,
+            "sky_aperture_faces": 2,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            4096,
+            1536,
+            30720
+          ]
+        },
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              0,
+              6144,
+              45056
+            ],
+            "base_packet_slots": 1300,
+            "base_triangles": 1135,
+            "faces_remaining": null,
+            "leaf": 25,
+            "pvs_faces": 575,
+            "sky_aperture_faces": 2,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            6144,
+            1536,
+            36864
+          ]
+        },
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              0,
+              6144,
+              45056
+            ],
+            "base_packet_slots": 1300,
+            "base_triangles": 1135,
+            "faces_remaining": null,
+            "leaf": 25,
+            "pvs_faces": 575,
+            "sky_aperture_faces": 2,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            6144,
+            1536,
+            51200
+          ]
+        },
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              0,
+              6144,
+              45056
+            ],
+            "base_packet_slots": 1113,
+            "base_triangles": 948,
+            "faces_remaining": null,
+            "leaf": 31,
+            "pvs_faces": 479,
+            "sky_aperture_faces": 1,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            -10240,
+            3584,
+            45056
+          ]
+        }
+      ],
+      "status": "runtime_measurement_required",
+      "triangles_remaining": null
+    },
+    {
+      "assumed_enemies": null,
+      "faces_remaining": null,
+      "max_base_triangles": 1054,
+      "max_pvs_faces": 534,
+      "name": "Raised east loop",
+      "samples": [
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              0,
+              6144,
+              -4096
+            ],
+            "base_packet_slots": 927,
+            "base_triangles": 762,
+            "faces_remaining": null,
+            "leaf": 83,
+            "pvs_faces": 385,
+            "sky_aperture_faces": 1,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            14336,
+            3584,
+            4096
+          ]
+        },
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              20480,
+              4096,
+              16384
+            ],
+            "base_packet_slots": 978,
+            "base_triangles": 813,
+            "faces_remaining": null,
+            "leaf": 59,
+            "pvs_faces": 414,
+            "sky_aperture_faces": 2,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            20480,
+            3584,
+            18432
+          ]
+        },
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              0,
+              7168,
+              45056
+            ],
+            "base_packet_slots": 1219,
+            "base_triangles": 1054,
+            "faces_remaining": null,
+            "leaf": 23,
+            "pvs_faces": 534,
+            "sky_aperture_faces": 2,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            14336,
+            3584,
+            32768
+          ]
+        }
+      ],
+      "status": "runtime_measurement_required",
+      "triangles_remaining": null
+    },
+    {
+      "assumed_enemies": 0,
+      "faces_remaining": null,
+      "max_base_triangles": 1246,
+      "max_pvs_faces": 631,
+      "name": "Bent northern gate",
+      "samples": [
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              8192,
+              2048,
+              65536
+            ],
+            "base_packet_slots": 1215,
+            "base_triangles": 1050,
+            "faces_remaining": null,
+            "leaf": 39,
+            "pvs_faces": 531,
+            "sky_aperture_faces": 2,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            8192,
+            1536,
+            65536
+          ]
+        },
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              12288,
+              2048,
+              71680
+            ],
+            "base_packet_slots": 1411,
+            "base_triangles": 1246,
+            "faces_remaining": null,
+            "leaf": 38,
+            "pvs_faces": 631,
+            "sky_aperture_faces": 3,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            8192,
+            1536,
+            71680
+          ]
+        },
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              18432,
+              2048,
+              79872
+            ],
+            "base_packet_slots": 754,
+            "base_triangles": 589,
+            "faces_remaining": null,
+            "leaf": 40,
+            "pvs_faces": 297,
+            "sky_aperture_faces": 1,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            18432,
+            1536,
+            81920
+          ]
+        }
+      ],
+      "status": "runtime_measurement_required",
+      "triangles_remaining": null
+    },
+    {
+      "assumed_enemies": 0,
+      "faces_remaining": null,
+      "max_base_triangles": 557,
+      "max_pvs_faces": 281,
+      "name": "Far court",
+      "samples": [
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              4096,
+              6144,
+              100352
+            ],
+            "base_packet_slots": 722,
+            "base_triangles": 557,
+            "faces_remaining": null,
+            "leaf": 13,
+            "pvs_faces": 281,
+            "sky_aperture_faces": 1,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            16384,
+            1536,
+            90112
+          ]
+        },
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              4096,
+              6144,
+              100352
+            ],
+            "base_packet_slots": 722,
+            "base_triangles": 557,
+            "faces_remaining": null,
+            "leaf": 14,
+            "pvs_faces": 281,
+            "sky_aperture_faces": 1,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            8192,
+            1536,
+            100352
+          ]
+        },
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              4096,
+              6144,
+              100352
+            ],
+            "base_packet_slots": 722,
+            "base_triangles": 557,
+            "faces_remaining": null,
+            "leaf": 4,
+            "pvs_faces": 281,
+            "sky_aperture_faces": 1,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            4096,
+            1536,
+            110592
+          ]
+        },
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              4096,
+              6144,
+              100352
+            ],
+            "base_packet_slots": 690,
+            "base_triangles": 525,
+            "faces_remaining": null,
+            "leaf": 11,
+            "pvs_faces": 265,
+            "sky_aperture_faces": 1,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            -10240,
+            3584,
+            98304
+          ]
+        }
+      ],
+      "status": "runtime_measurement_required",
+      "triangles_remaining": null
+    },
+    {
+      "assumed_enemies": 0,
+      "faces_remaining": null,
+      "max_base_triangles": 967,
+      "max_pvs_faces": 489,
+      "name": "Covered western return",
+      "samples": [
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              -20480,
+              4096,
+              59392
+            ],
+            "base_packet_slots": 1083,
+            "base_triangles": 918,
+            "faces_remaining": null,
+            "leaf": 89,
+            "pvs_faces": 464,
+            "sky_aperture_faces": 1,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            -20480,
+            3584,
+            53248
+          ]
+        },
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              -20480,
+              4096,
+              59392
+            ],
+            "base_packet_slots": 1083,
+            "base_triangles": 918,
+            "faces_remaining": null,
+            "leaf": 89,
+            "pvs_faces": 464,
+            "sky_aperture_faces": 1,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            -20480,
+            3584,
+            65536
+          ]
+        },
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              -24576,
+              5120,
+              75776
+            ],
+            "base_packet_slots": 691,
+            "base_triangles": 526,
+            "faces_remaining": null,
+            "leaf": 88,
+            "pvs_faces": 266,
+            "sky_aperture_faces": 1,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            -24576,
+            3584,
+            75776
+          ]
+        },
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              -28672,
+              4096,
+              94208
+            ],
+            "base_packet_slots": 1132,
+            "base_triangles": 967,
+            "faces_remaining": null,
+            "leaf": 17,
+            "pvs_faces": 489,
+            "sky_aperture_faces": 2,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            -28672,
+            3584,
+            90112
+          ]
+        },
+        {
+          "cost": {
+            "approximate_surface_anchor": [
+              -18432,
+              4096,
+              98304
+            ],
+            "base_packet_slots": 804,
+            "base_triangles": 639,
+            "faces_remaining": null,
+            "leaf": 18,
+            "pvs_faces": 322,
+            "sky_aperture_faces": 1,
+            "status": "runtime_measurement_required",
+            "triangles_remaining": null
+          },
+          "position": [
+            -20480,
+            3584,
+            98304
+          ]
+        }
+      ],
+      "status": "runtime_measurement_required",
+      "triangles_remaining": null
+    }
+  ],
+  "cook_mode": "Release",
+  "cook_warnings": [
+    "Character 'Aletha' has no turn clip"
+  ],
+  "heaviest_leaves": [
+    {
+      "approximate_surface_anchor": [
+        12288,
+        2048,
+        71680
+      ],
+      "base_packet_slots": 1411,
+      "base_triangles": 1246,
+      "faces_remaining": null,
+      "leaf": 38,
+      "pvs_faces": 631,
+      "sky_aperture_faces": 3,
+      "status": "runtime_measurement_required",
+      "triangles_remaining": null
+    },
+    {
+      "approximate_surface_anchor": [
+        1024,
+        3072,
+        18432
+      ],
+      "base_packet_slots": 1374,
+      "base_triangles": 1209,
+      "faces_remaining": null,
+      "leaf": 41,
+      "pvs_faces": 613,
+      "sky_aperture_faces": 2,
+      "status": "runtime_measurement_required",
+      "triangles_remaining": null
+    },
+    {
+      "approximate_surface_anchor": [
+        1024,
+        3072,
+        22528
+      ],
+      "base_packet_slots": 1374,
+      "base_triangles": 1209,
+      "faces_remaining": null,
+      "leaf": 42,
+      "pvs_faces": 613,
+      "sky_aperture_faces": 2,
+      "status": "runtime_measurement_required",
+      "triangles_remaining": null
+    },
+    {
+      "approximate_surface_anchor": [
+        0,
+        6144,
+        45056
+      ],
+      "base_packet_slots": 1300,
+      "base_triangles": 1135,
+      "faces_remaining": null,
+      "leaf": 25,
+      "pvs_faces": 575,
+      "sky_aperture_faces": 2,
+      "status": "runtime_measurement_required",
+      "triangles_remaining": null
+    },
+    {
+      "approximate_surface_anchor": [
+        0,
+        6144,
+        45056
+      ],
+      "base_packet_slots": 1300,
+      "base_triangles": 1135,
+      "faces_remaining": null,
+      "leaf": 26,
+      "pvs_faces": 575,
+      "sky_aperture_faces": 2,
+      "status": "runtime_measurement_required",
+      "triangles_remaining": null
+    },
+    {
+      "approximate_surface_anchor": [
+        4096,
+        2048,
+        26624
+      ],
+      "base_packet_slots": 1258,
+      "base_triangles": 1093,
+      "faces_remaining": null,
+      "leaf": 53,
+      "pvs_faces": 554,
+      "sky_aperture_faces": 2,
+      "status": "runtime_measurement_required",
+      "triangles_remaining": null
+    },
+    {
+      "approximate_surface_anchor": [
+        0,
+        6144,
+        45056
+      ],
+      "base_packet_slots": 1252,
+      "base_triangles": 1087,
+      "faces_remaining": null,
+      "leaf": 20,
+      "pvs_faces": 551,
+      "sky_aperture_faces": 2,
+      "status": "runtime_measurement_required",
+      "triangles_remaining": null
+    },
+    {
+      "approximate_surface_anchor": [
+        0,
+        6144,
+        45056
+      ],
+      "base_packet_slots": 1252,
+      "base_triangles": 1087,
+      "faces_remaining": null,
+      "leaf": 21,
+      "pvs_faces": 551,
+      "sky_aperture_faces": 2,
+      "status": "runtime_measurement_required",
+      "triangles_remaining": null
+    }
+  ],
+  "limits": null,
+  "meaning": "PVS includes potential geometry in adjacent areas before frustum/backface culling. Base triangles exclude sky and runtime subdivision. Null remaining budgets mean no explicit project budget was supplied, not zero headroom. Supplied budgets are authoring constraints, not calibrated FPS limits.",
+  "next_action": "Measure representative views in normal Play. Do not shrink the level or remove actors solely because PVS counts exceed the withdrawn reference fixture.",
+  "performance_evidence": "benchmarks/engine-stress/valley-recheck.md",
+  "profile": "pxbsp-area-costs-v2",
+  "profile_status": "no_universal_fps_ceiling_calibrated",
+  "runtime_acceptance": "Use the normal Play guest, without emulator-telemetry, and host route/display logs on representative traversal and combat. Record build flags, DMA mode and camera/input tape. Profile a separate instrumented build to diagnose costs and quantify its overhead; missing guest counters remain unknown.",
+  "schema_version": 2,
+  "sealing": {
+    "leak_path": [],
+    "sealed": true
+  },
+  "sky_modes": [
+    "Cube"
+  ],
+  "staged_geometry": true,
+  "withdrawn_default": {
+    "base_world_triangles": 240,
+    "enemies": 1,
+    "pvs_faces": 120,
+    "reason": "Not validated for normal Play. Derived from instrumented fixtures and PVS upper bounds rather than actual per-view submitted work; do not restrict levels or enemy counts using it."
+  },
+  "world": {
+    "above_authored_geometry_budget_leaves": null,
+    "non_solid_leaves": 92,
+    "status": "runtime_measurement_required",
+    "total_faces": 1051,
+    "unreadable_pvs_leaves": 0
+  }
+}

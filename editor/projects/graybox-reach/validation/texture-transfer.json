@@ -1,0 +1,25 @@
+{
+  "source_project": "Cortex Ignition 0.5",
+  "source_material": "Aletha Crystal",
+  "texture": "assets/textures/aletha_mirror_128_4bit.psxt",
+  "texture_sha256": "7bd699688174997c9f04c4489230b4b9072874e6912f8c3b3a1c6ca1108babb3",
+  "source_project_sha256": "f3d58549c7be6d4a927d0c3c716aa40c283bb6671bc0b1377835bdf22e608d7b",
+  "previous_model_sha256": "6e8a6862a029fccede0e83a0eadf3584b9bac8d378d9f42015ded7cba662b987",
+  "adapted_model_sha256": "5b18208741146823a6018adc9789385d613374882db9c7b41bfeadd28f597114",
+  "target_project_sha256": "4a04f946edcb873a3ccffd2748eefc331f48752f3afa80ef675d9e9f784f52e0",
+  "changes": [
+    "Copy material 25 from source, including mirror texture and reflection settings",
+    "Copy texture unchanged into Reach",
+    "Encode normal/joint/gradient data in a local copy of the existing Reach mesh; geometry and skinning unchanged"
+  ],
+  "animations_and_other_project_content_unchanged": true,
+  "validation": {
+    "mcp_full_audit": "passed; existing missing Aletha turn-clip warning",
+    "cooked_faces_with_preserved_reflection_metadata": 506,
+    "normal_play_replay_polls": 2569,
+    "asset_load_failures": false,
+    "generated_manifest_sha256": "bc8ee95a049b678c2aa873eaf294ed89f781e489d28a19b5ae33665f494ef328",
+    "disc_sha256": "41a2de17eb0f76aeaecf27b706b969dc4226623a0c86d0ef6c7ca9e857e72a71",
+    "capture": "build/graybox-reach/texture-transfer/aletha-v05-in-reach.png"
+  }
+}

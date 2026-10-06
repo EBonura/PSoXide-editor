@@ -18,14 +18,16 @@ python3 benchmarks/engine-stress/analyse.py > build/engine-stress/results.md
 
 `PSOXIDE_STRESS_OUTPUT` overrides the output directory (default `build/engine-stress`).
 Set it on both commands. The runner copies the four frozen RON baselines in `fixtures/`
-into new `editor/projects/stress-20261006-*` projects, linking their assets to
+into new `<output>/<scenario>/project` directories, linking their assets to
 `editor/projects/default/assets`. These are the original measured inputs, not regenerated
 from a potentially changed default scene. Project creation refuses to overwrite a directory.
 
 An existing output manifest selects replay of its retained disc. Replay refuses a changed
-frontend or disc hash. Choose fresh project names in the runner for a different baseline;
-an output-directory change alone does not rename the generated projects. Existing local
-October 6 projects can be replayed using their original output manifests. No asset bytes,
+frontend or disc hash. Choose a fresh output directory for a different baseline.
+Generated projects stay outside the editor's project picker. Older local tests were
+moved to `editor/archive/local-tests/2026-10-06/`; replay resolves a missing original
+disc path there and still verifies the recorded hashes. Their original output manifests
+remain valid. No asset bytes,
 built executables, discs or generated CSVs are committed here.
 
 Builds run sequentially because they share the canonical MIPS stage. Do not run another
@@ -71,3 +73,12 @@ source revision/diff, component pins, binary/disc hashes, launch arguments and r
 These stationary emulator measurements do not establish combat, traversal, streaming or
 console performance. Coarser patches require a moving-camera check for interpolation,
 clipping and cracks before changing production defaults.
+
+## Area authoring budgets
+
+See [area-budget.md](area-budget.md) for the controlled outdoor sweep, the `area_budget` MCP tool, and the distinction between the geometry ceiling and actor/camera runtime limits. Generated calibration projects stay under `build/area-calibration`, outside the editor picker.
+
+**Correction:** the initial automatic 120-face / one-enemy profile is withdrawn.
+[Valley normal Play recheck](valley-recheck.md) is the current interpretation.
+The `area_budget` tool measures costs and optionally compares caller-provided budgets;
+it does not infer a universal FPS ceiling.

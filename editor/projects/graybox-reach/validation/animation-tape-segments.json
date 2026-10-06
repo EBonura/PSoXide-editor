@@ -1,0 +1,97 @@
+[
+  {
+    "name": "load and idle",
+    "first_poll": 0,
+    "last_poll": 599
+  },
+  {
+    "name": "walk start 1",
+    "first_poll": 600,
+    "last_poll": 754
+  },
+  {
+    "name": "walk stop 1",
+    "first_poll": 755,
+    "last_poll": 854
+  },
+  {
+    "name": "walk start 2",
+    "first_poll": 855,
+    "last_poll": 1042
+  },
+  {
+    "name": "walk stop 2",
+    "first_poll": 1043,
+    "last_poll": 1142
+  },
+  {
+    "name": "walk start 3",
+    "first_poll": 1143,
+    "last_poll": 1359
+  },
+  {
+    "name": "walk stop 3",
+    "first_poll": 1360,
+    "last_poll": 1459
+  },
+  {
+    "name": "walk start 4",
+    "first_poll": 1460,
+    "last_poll": 1581
+  },
+  {
+    "name": "walk stop 4",
+    "first_poll": 1582,
+    "last_poll": 1681
+  },
+  {
+    "name": "light attack",
+    "first_poll": 1682,
+    "last_poll": 1682
+  },
+  {
+    "name": "recover",
+    "first_poll": 1683,
+    "last_poll": 1717
+  },
+  {
+    "name": "combo followup",
+    "first_poll": 1718,
+    "last_poll": 1718
+  },
+  {
+    "name": "recover",
+    "first_poll": 1719,
+    "last_poll": 1878
+  },
+  {
+    "name": "backward walk",
+    "first_poll": 1879,
+    "last_poll": 2038
+  },
+  {
+    "name": "idle",
+    "first_poll": 2039,
+    "last_poll": 2128
+  },
+  {
+    "name": "left strafe",
+    "first_poll": 2129,
+    "last_poll": 2258
+  },
+  {
+    "name": "idle",
+    "first_poll": 2259,
+    "last_poll": 2348
+  },
+  {
+    "name": "right strafe",
+    "first_poll": 2349,
+    "last_poll": 2478
+  },
+  {
+    "name": "idle",
+    "first_poll": 2479,
+    "last_poll": 2568
+  }
+]

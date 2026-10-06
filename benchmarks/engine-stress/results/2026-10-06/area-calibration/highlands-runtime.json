@@ -1,0 +1,182 @@
+{
+  "profile": "psx-30-custodian-area-2026-10-06",
+  "strict_locked_30_pass": false,
+  "project_sha256": "86034ea8d50053419d121fe33a4453ac435d4beb322c5ed738f508fa6e6de8ea",
+  "frontend_sha256": "3725dee5e91ed4aeebd826bef8c841ed0b5bd70c4f69cc596f4d1ad0b28d7bca",
+  "mcp_sha256": "014814b54b16a0bf722be04d98ac0662d8f2b7fe2fafac4eeaeb225b2e4d8a86",
+  "disc_files": {
+    "graybox_highlands.bin": "d12c00d1385f8d28274683337010b7c48c78787329cd63ee7b3db89e95d39555"
+  },
+  "tapes": {
+    "traverse.pxtape": "87e1a8108edd6dfe4b7eb65a8f2c44873e446fa4e83327acf562cbfee5a52729",
+    "orbit-attacks.pxtape": "465f13b371c25fb1b52dbb8c212c713bfd2a893b0944040ad7b53c1e44f2a877"
+  },
+  "features": "cd-stream-bench emulator-telemetry",
+  "dma_fifo": true,
+  "raw_logs": "/Users/ebonura/Desktop/repos/PSoXide-editor/build/graybox-highlands-budget",
+  "measurements": {
+    "final_traversal": {
+      "first_poll": 600,
+      "last_poll": 5699,
+      "render_samples": 2549,
+      "display_intervals": 2549,
+      "display_fps": 29.639,
+      "interval_ms_p95": 33.733,
+      "interval_ms_max": 50.599,
+      "intervals_over_two_vblanks": 32,
+      "primitive_overflows": 0,
+      "render_cycles_p95": 747219,
+      "mean_cycles": {
+        "visual_render_task": 548579,
+        "room": 143063,
+        "player": 174995,
+        "model_instances": 118247,
+        "update": 83364
+      },
+      "max_actor_draws": 1,
+      "measured_pass": false,
+      "camera_position_telemetry_available": false,
+      "camera_ranges": {
+        "camera_x_biased": [
+          1000000,
+          1000000
+        ],
+        "camera_y_biased": [
+          1000000,
+          1000000
+        ],
+        "camera_z_biased": [
+          1000000,
+          1000000
+        ],
+        "player_view_yaw_q12": [
+          2048,
+          2048
+        ]
+      }
+    },
+    "final_orbit_attacks": {
+      "first_poll": 2671,
+      "last_poll": 3679,
+      "render_samples": 502,
+      "display_intervals": 502,
+      "display_fps": 29.527,
+      "interval_ms_p95": 33.733,
+      "interval_ms_max": 50.599,
+      "intervals_over_two_vblanks": 18,
+      "primitive_overflows": 0,
+      "render_cycles_p95": 1135921,
+      "mean_cycles": {
+        "visual_render_task": 863539,
+        "room": 116694,
+        "player": 217732,
+        "model_instances": 265731,
+        "update": 63086
+      },
+      "max_actor_draws": 1,
+      "measured_pass": false,
+      "camera_position_telemetry_available": false,
+      "camera_ranges": {
+        "camera_x_biased": [
+          1000000,
+          1000000
+        ],
+        "camera_y_biased": [
+          1000000,
+          1000000
+        ],
+        "camera_z_biased": [
+          1000000,
+          1000000
+        ],
+        "player_view_yaw_q12": [
+          0,
+          4094
+        ]
+      }
+    },
+    "two_enemies_orbit_attacks": {
+      "first_poll": 2671,
+      "last_poll": 3680,
+      "render_samples": 412,
+      "display_intervals": 413,
+      "display_fps": 24.268,
+      "interval_ms_p95": 50.599,
+      "interval_ms_max": 67.466,
+      "intervals_over_two_vblanks": 171,
+      "primitive_overflows": 0,
+      "render_cycles_p95": 1567692,
+      "mean_cycles": {
+        "visual_render_task": 1195699,
+        "room": 166281,
+        "player": 203215,
+        "model_instances": 557657,
+        "update": 72136
+      },
+      "max_actor_draws": 2,
+      "measured_pass": false,
+      "camera_position_telemetry_available": false,
+      "camera_ranges": {
+        "camera_x_biased": [
+          1000000,
+          1000000
+        ],
+        "camera_y_biased": [
+          1000000,
+          1000000
+        ],
+        "camera_z_biased": [
+          1000000,
+          1000000
+        ],
+        "player_view_yaw_q12": [
+          12,
+          4084
+        ]
+      }
+    },
+    "one_enemy_large_court_orbit_attacks": {
+      "first_poll": 2671,
+      "last_poll": 3679,
+      "render_samples": 495,
+      "display_intervals": 496,
+      "display_fps": 29.174,
+      "interval_ms_p95": 50.598,
+      "interval_ms_max": 50.599,
+      "intervals_over_two_vblanks": 26,
+      "primitive_overflows": 0,
+      "render_cycles_p95": 1167859,
+      "mean_cycles": {
+        "visual_render_task": 907720,
+        "room": 167077,
+        "player": 216960,
+        "model_instances": 261084,
+        "update": 66435
+      },
+      "max_actor_draws": 1,
+      "measured_pass": false,
+      "camera_position_telemetry_available": false,
+      "camera_ranges": {
+        "camera_x_biased": [
+          1000000,
+          1000000
+        ],
+        "camera_y_biased": [
+          1000000,
+          1000000
+        ],
+        "camera_z_biased": [
+          1000000,
+          1000000
+        ],
+        "player_view_yaw_q12": [
+          7,
+          4089
+        ]
+      }
+    }
+  },
+  "limitation": "Nominal 30 fps averages and p95 cadence, but some three-vblank frames remain. No locked-30 or hardware certification. Two animated Custodian meshes failed the orbit/attack test. Enemy AI is not exercised by these model fixtures. BSP camera XYZ counters are unavailable; route waypoints are collision-validated and captures retained.",
+  "authoring_limits_withdrawn": true,
+  "correction": "Instrumented diagnostic results; no universal 120-face or one-enemy limit follows. See benchmarks/engine-stress/valley-recheck.md for normal Play comparison."
+}

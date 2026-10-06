@@ -1,0 +1,17 @@
+# Plan view: top (floor plan, cut along Y)
+
+slice Y = 2560
+28 of 52 solid brushes intersect this slice
+image 1000x1000 px at 84.6 units/px
+plotted: X rightwards -36864..45056, Z downwards -18432..63488
+span 81920 x 81920 units = 80.0 x 80.0 player heights
+
+key: grid lines every 1024 (major every 8192); the bar bottom-left is 1024 units; the red disc is the player, radius 188
+
+candidate floor levels (Y, footprint area) - section at one of these +512:
+  Y 12544: 1879048192 sq units across 2 brushes
+  Y 12288: 1369702400 sq units across 13 brushes
+  Y 2048: 1211105280 sq units across 11 brushes
+  Y 4096: 293601280 sq units across 6 brushes
+  Y 6144: 143654912 sq units across 9 brushes
+  Y 1024: 33554432 sq units across 2 brushes

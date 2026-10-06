@@ -1,7 +1,7 @@
 *
 !.gitignore
 
-# Everything here is ignored by default. Only two projects are tracked, and a
+# Everything here is ignored by default. Only named fixtures are tracked, and a
 # new project stays local unless it is added below on purpose.
 #
 #   default             the shipped Cortex Ignition build (formerly
@@ -10,6 +10,8 @@
 #                       psxed-project and its starter assets seed every new
 #                       project, so the build needs it on disk.
 #   quake-e1m1-geometry brush/workspace test fixture
+#   graybox-valley      outdoor traversal fixture using the Picotron grid
+#   graybox-reach   large mixed outdoor/interior traversal fixture
 #
 # Superseded level projects (0.2, 0.3, 0.4, null-choir-texture-kit, mantis,
 # tech-demo) and in-progress ones (cortex-ignition-0.5) are local-only, same
@@ -18,6 +20,10 @@
 !default/**
 !quake-e1m1-geometry/
 !quake-e1m1-geometry/**
+!graybox-valley/
+!graybox-valley/**
+!graybox-reach/
+!graybox-reach/**
 # The per-user editor view file inside a tracked project stays local.
 **/.psxed-view.ron
 

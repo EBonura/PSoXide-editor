@@ -1,0 +1,134 @@
+{
+  "source_commit": "52ee63d58db753e63d97ee3bc21b2da02be09538",
+  "source_branch": "wip/walk-transitions-v4",
+  "source_project": "Cortex Ignition v0.4b / editor/projects/default",
+  "files": {
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/BEATS.md": "3bba164fa007c385472783297d174691c583e6dd5e06ac82160fdc90f0363cc2",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/README.md": "09b509c1c10dec002d43564ebf5d515bdd44d63de91b50f7b87a9a249e842e78",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/approval.json": "87504aa5298eb8c0da24712f80a6fb1e63c7fd6f74ab3534fa74119e9ab50390",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/audit.py": "bc5e7e66a3d7473a0bff86f254f8463c9a5d40dcffbc1b6f4b80913e188f426f",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/author.py": "281fcdf85634fc065b88b85c70ac39c387a49487f5db026dd4760bfc82a81f73",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/bake-validation.json": "f9ee50e748bee8c3830cd5e54a6757751db76c601c30196853fbfbb50322a572",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/bake.py": "f756a9383df17247e5c8e34cdc55fd46b10984ebdb71d33a547996c93e258119",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/decode_clip.py": "c6a7418d5fa8b6a87e0def9559eae76079a1dd624217ee50407068f64cc2e321",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/encode.py": "909e6b7e95ad4a97cca9b1d0b8d6db707619a43419431c585c536577a4d54ade",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/new_A.blend": "cf7afd357773f824c0002d0fb791fd68462be96d277a3dfd16d462f4cce63d45",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/new_B.blend": "989be33e979f63cad3f60413af7ddd342058efebf67f2536dfc916857442bb99",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/reference/clip_02_gen_walk_fwd.psxanim": "dd1fafdf9edd21790dd480db33ce3c88f938ba5e26a379180bdee990bcb9dbf5",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/reference/clip_03_gen_walk_fwd_windup.psxanim": "05edc3546af245d6de11a5e4418de7fb8657c35c0889dbc2b9262c1c12ea82a6",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/reference/clip_04_gen_walk_fwd_winddown.psxanim": "82acdaee30adfa91754b631101b3b05fe4a9fb3728421a3c58e8c3d6e5feaa93",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/reference/clip_05_gen_walk_fwd_winddown_mirror.psxanim": "df208f78133404ff90b3de151125751997e9da3a7befcddf986bb4a271db7e71",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/reference/clip_21_aletha_idle.psxanim": "44e9b48835dbd76e4b440b349476ffddbcd233d3f524db91cd2f8a708896aaf9",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/reference/mesh.psxmdl": "05aba976c527c2e76a710581d117f8e6b5b4b56312b868760c2e0faa137fffae",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/render.py": "30d1d3cd0be3d5183f0df27eb0a8e939d11b9ee24bf84de7bd4824d3d9db9aea",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/runtime-validation.json": "56a70147a89b5d4e5015bbd181a3031c96743df1917e80fceb2011307ea6c36c",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/timing-validation.json": "a6c5650ba69f8814774700193c1d0c16bad83c4ff6aec76e1025d859a154ab7c",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/validation.json": "de89ba89567f3ee6491227555e6a09421d2cec89c4d3500bc8089c372ae9c42e",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/walk_fwd_winddown.blend": "1c3b14b6bbee8e6de25dfd31a773a1e7045728233a9ba5cf2c56898d6c3e810d",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/walk_fwd_winddown.glb": "4d908f15e1039499cc4ec6c85acf4254160bc55b31a105a40b8ee812fd3e34b3",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/walk_fwd_winddown_mirror.blend": "ab40500e5402d587ec14e973d502ed54bd871cf613c0ac174cfb40a733b5fcd5",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/walk_fwd_winddown_mirror.glb": "77bef1b6df3f17f98638aaf12c09186fc24dcfc1891a59fdfe17d605c8370610",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/walk_fwd_windup.blend": "54dc76db322be0d9ee5263cac750c7a3177e1d1036b64dab8d14c981a3f8c557",
+    "source_assets/animations/player/cybernetic_walk_transitions_review_v4/walk_fwd_windup.glb": "5b8034579b743628ff2326dd84e3df3d42aae095f5e62d3c951cb7e73e53bb24",
+    "assets/animations/gen/walk_fwd_windup.psxanim": "ed8d298a4980403f802049da038d2e08a85f1fdbbe44e175c02c2e93fd5e7904",
+    "assets/animations/gen/walk_fwd_winddown.psxanim": "7f55451aa42dba3da3d13479c3d11f29bc2653d604a0f73fc43c58b322a3c3b2",
+    "assets/animations/gen/walk_fwd_winddown_mirror.psxanim": "55648fffb2c433fe6fd7b9c2e3b55ad96e119551dc03d0ff7f4c2cda3b2f99cb"
+  },
+  "already_present": {
+    "walk_fwd": {
+      "sha256": "76a05a422980a8770fb9b005b4c79553f4d96b3b2b322a937a61a8bfcfa273c6",
+      "path": "../default/assets/animations/gen/walk_fwd.psxanim"
+    },
+    "walk_bwd": {
+      "sha256": "2dbdbc05e1aac370c85f67225e7e1ea8da702bca320352be740633f8a35e919b",
+      "path": "../default/assets/animations/gen/walk_bwd.psxanim"
+    },
+    "walk_lft": {
+      "sha256": "2225f16a718b9fe48b73f12501d890d5992610344e76b5883e0e9110cca82d4b",
+      "path": "../default/assets/animations/gen/walk_lft.psxanim"
+    },
+    "walk_rgt": {
+      "sha256": "d608f7d6ee8c7c335d72d895992b813e31ceac06b5db27b15d7d35f18e52a8e2",
+      "path": "../default/assets/animations/gen/walk_rgt.psxanim"
+    },
+    "light_attack": {
+      "sha256": "70be1682f8a26333c46d205327b9b42ab10fb96c709cdb51808e17436c6234a9",
+      "path": "../default/assets/animations/gen/light_attack.psxanim"
+    },
+    "light_attack_followup": {
+      "sha256": "327414638443832dba0b8ca901ad04bc1f7afe3443c130a054ee7144f7319c07",
+      "path": "../default/assets/animations/gen/light_attack_followup.psxanim"
+    },
+    "heavy_attack": {
+      "sha256": "e62827d8daaa87cc309be56361afbd070cd3e66200dbf46daa432929de691605",
+      "path": "../default/assets/animations/gen/heavy_attack.psxanim"
+    },
+    "run_fwd": {
+      "sha256": "2138326d072091972a2b8b81658fbccfb6096566d255099bbe34a590548cefd3",
+      "path": "../default/assets/animations/gen/run_fwd.psxanim"
+    }
+  },
+  "rebake_dependencies": {
+    "source_assets/animations/player/cybernetic_walk/walk_fwd.blend": "4bec73ccbba4b9a0146f3b84910e0da3db9961313058d1a79044cd388a2da818",
+    "assets/animations/gen/walk_fwd.psxanim": "76a05a422980a8770fb9b005b4c79553f4d96b3b2b322a937a61a8bfcfa273c6"
+  },
+  "target_project": "Graybox Reach",
+  "target_project_sha256": "98f530cecfe46e978f58f97325009c3b44b4042250fc660147a02a73f0297ecd",
+  "validation": {
+    "date": "2026-10-06",
+    "runtime_tests": {
+      "passed": 83,
+      "failed": 0
+    },
+    "project_tests": {
+      "passed": 463,
+      "failed": 2,
+      "failures": [
+        "light_enemy_look_idle_is_installed_in_every_enemy_project",
+        "light_enemy_turn_and_alert_are_installed_in_every_enemy_project"
+      ],
+      "reason": "Both reference assets in the already-deleted quake-e1m1-geometry project."
+    },
+    "cooked_samples": {
+      "gen_walk_fwd_windup": 22,
+      "gen_walk_fwd_winddown": 30,
+      "gen_walk_fwd_winddown_mirror": 30
+    },
+    "cooked_sample_rate_hz": 30,
+    "preserved_rotations": true,
+    "preserved_terminal_sentinels": true,
+    "startup_walk_seam": {
+      "identical_joint_translations": true,
+      "max_rotation_coefficient_error_q12": 1
+    },
+    "scene_and_unrelated_resources_unchanged": true,
+    "mcp_full_audit": "passed; existing missing Aletha turn-clip warning",
+    "normal_play_features": "cd-stream-bench plus default guest features, no emulator-telemetry",
+    "emulator_dma_fifo": 0,
+    "start_stop_replay_polls": 2569,
+    "main_route_replay_polls": 4250,
+    "final_replays_asset_failures": false,
+    "main_route_performance": {
+      "first_poll": 651,
+      "last_poll": 4229,
+      "display_intervals": 1724,
+      "display_fps": 28.568,
+      "interval_ms_p95": 50.599,
+      "interval_ms_max": 50.6,
+      "intervals_over_two_vblanks": 136,
+      "cadence_pass": false,
+      "telemetry_available": false,
+      "primitive_overflows": null,
+      "measured_pass": null
+    },
+    "previous_main_route_display_fps": 28.585,
+    "hardware_validation": false,
+    "initial_build_failure": "Another project cook overlapped the first build, producing mismatched executable/disc assets and checksum failure. Rebuilt with matching manifest inputs; both final replays succeeded.",
+    "matching_generated_manifest_sha256": "e4584f93ed765d750d6879550c64c85f5b715259bf2eed27abec8f245c9b657b",
+    "disc_files": {
+      "graybox_reach.bin": "c99c2ae960ac556639c321886053153bc533029cd3fbc899a5f151c41f3ec7c7",
+      "graybox_reach.cue": "6519fb55468ea9618d00d0aea30e79cec9413795fdac0e641c8e8122feff0326"
+    },
+    "raw_evidence_directory": "build/graybox-reach/animation-transfer"
+  }
+}

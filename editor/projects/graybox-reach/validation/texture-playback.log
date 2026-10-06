@@ -1,0 +1,4 @@
+[cli] loaded poll-bound input tape editor/projects/graybox-reach/validation/animation-start-stop.pxtape (2569 polls, starting at poll 0)
+[cli] mounted cue-backed disc editor/projects/graybox-reach/baked/graybox_reach.cue
+tick=670920641  cycles=1517165683  pc=0x800c7978  stopped-at=670920641
+route-ticks=2655  port1-polls=2569

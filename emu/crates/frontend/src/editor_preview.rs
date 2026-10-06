@@ -40,6 +40,7 @@ use psxed_ui::ViewportCameraState;
 mod backdrop;
 mod bsp_support;
 mod camera;
+mod depth;
 mod overlays;
 mod particles;
 mod poi;
@@ -49,6 +50,7 @@ mod props;
 use backdrop::*;
 use bsp_support::*;
 use camera::*;
+use depth::*;
 use overlays::*;
 use particles::*;
 use poi::*;
@@ -143,6 +145,8 @@ const EDITOR_PREVIEW_SELECTED_STROKE_WIDTH: f32 = 3.0;
 #[repr(C, align(16777216))]
 struct PreviewScratch {
     ot: OrderingTable<OT_DEPTH>,
+    depth_range: psx_engine::DepthRange,
+    gte_depth_shift: u32,
     projected_sky_packets: PrimitivePacketScratch<PROJECTED_SKY_PACKET_SLOTS>,
     sky_quads: [QuadGouraud; SKY_QUAD_CAP],
     far_vista_quads: [QuadFlat; FAR_VISTA_QUAD_CAP],
@@ -227,6 +231,11 @@ fn new_preview_scratch() -> Box<PreviewScratch> {
     // 24-bit OT links from the OT's address window.
     unsafe {
         std::ptr::addr_of_mut!((*ptr).ot).write(OrderingTable::new());
+        std::ptr::addr_of_mut!((*ptr).depth_range).write(psx_engine::DepthRange::new(
+            4,
+            (PREVIEW_GEOMETRY_SLOT_MAX as i32) << 2,
+        ));
+        std::ptr::addr_of_mut!((*ptr).gte_depth_shift).write(0);
         std::ptr::addr_of_mut!((*ptr).projected_sky_packets).write(PrimitivePacketScratch::ZERO);
         std::ptr::addr_of_mut!((*ptr).sky_quads).write([EMPTY_SKY_QUAD; SKY_QUAD_CAP]);
         std::ptr::addr_of_mut!((*ptr).far_vista_quads)
@@ -385,6 +394,9 @@ pub fn build_phase1_frame_reusing(
     scratch.ot.clear();
 
     let world_camera = setup_gte_for_camera(camera);
+    scratch.depth_range =
+        preview_scene_depth_range(project, world_camera, hidden_scene_nodes, entity_bounds);
+    scratch.gte_depth_shift = view_anchor().1;
     let resolved_sky = project
         .active_scene()
         .world_sky_for_node(preview_context_node)
@@ -1171,7 +1183,7 @@ fn emit_uv_polygon(
     }
     let clipped = clip_preview_brush_polygon(camera.projection, &clip_vertices[..verts.len()]);
     let clipped = clipped.as_slice();
-    let surface_slot = clipped_surface_depth_slot(clipped);
+    let surface_slot = clipped_surface_depth_slot(clipped, scratch.depth_range);
     let Some(anchor) = clipped
         .first()
         .and_then(|vertex| vertex.projected(camera.projection))
@@ -2026,6 +2038,7 @@ fn draw_preview_model_instances(
             camera,
             tick,
             instance,
+            scratch.depth_range,
             &mut scratch.model_vertices,
             &mut scratch.model_faces,
             &mut scratch.model_parts,
@@ -2046,6 +2059,7 @@ fn submit_preview_model_instance(
     camera: &psx_engine::WorldCamera,
     tick: u32,
     instance: &PreviewModelInstance<'_>,
+    depth_range: psx_engine::DepthRange,
     projected_vertices: &mut [psx_engine::ProjectedVertex],
     face_pool: &mut [psx_engine::TexturedModelRenderFace],
     part_pool: &mut [psx_asset::ModelPart],
@@ -2069,6 +2083,7 @@ fn submit_preview_model_instance(
         material,
         instance.face_sidedness,
         instance.texture_split_max_edge,
+        depth_range,
     )
     .with_model_uv_mapping(preview_model_uv_mapping(instance.crystal_roughness));
     let Some((geometry, faces)) = predecode_preview_model_geometry_faces(
@@ -2245,6 +2260,7 @@ fn preview_model_surface_options(
     material: TextureMaterial,
     face_sidedness: psxed_project::MaterialFaceSidedness,
     texture_split_max_edge: u16,
+    depth_range: psx_engine::DepthRange,
 ) -> psx_engine::WorldSurfaceOptions {
     let cull_mode = match face_sidedness {
         psxed_project::MaterialFaceSidedness::Front => psx_engine::CullMode::Back,
@@ -2253,10 +2269,7 @@ fn preview_model_surface_options(
     };
     psx_engine::WorldSurfaceOptions::new(
         psx_engine::DepthBand::new(PREVIEW_GEOMETRY_SLOT_MIN, PREVIEW_GEOMETRY_SLOT_MAX),
-        psx_engine::DepthRange::new(
-            (PREVIEW_GEOMETRY_SLOT_MIN as i32) << 2,
-            (PREVIEW_GEOMETRY_SLOT_MAX as i32) << 2,
-        ),
+        depth_range,
     )
     .with_depth_policy(psx_engine::DepthPolicy::Average)
     .with_cull_mode(cull_mode)

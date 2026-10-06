@@ -240,8 +240,8 @@ pub fn audit(
                 );
             }
             out.push_str(
-                "\nHeaviest leaves. `base packet slots` is the figure to watch: it is what \
-                 one frame has to push from a camera standing in that leaf.\n",
+                "\nHeaviest leaves. Base packet slots describe the PVS candidate set before \
+                 frustum/backface culling, clipping and subdivision, not actual submitted packets.\n",
             );
             for leaf in report.heaviest_leaves(8) {
                 let anchor = leaf.authored_surface_anchor.map_or_else(
@@ -257,6 +257,7 @@ pub fn audit(
                     leaf.visible_leaf_count
                 );
             }
+            out.push_str(&crate::performance::audit_summary(&report));
             // Did the audited brushes actually reach the cook? Leaf bounds
             // give the cooked world's real extent, and geometry outside it
             // was discarded. This is the trap that cost a whole section
@@ -313,9 +314,10 @@ pub fn audit(
             if let Some(worst) = report.worst_leaf() {
                 let _ = writeln!(
                     out,
-                    "\nWorst sightline is leaf {} at {} packet slots. If that number climbed \
-                     after an edit, the edit opened a sightline; break it with geometry \
-                     rather than by deleting detail.",
+                    "\nLargest PVS candidate set is leaf {} at {} base packet slots. This describes \
+                     potential geometry before view culling, clipping and subdivision, not a measured sightline or FPS limit. \
+                     Compare named samples with area_budget, then verify layout changes using \
+                     the same normal Play replay; authored limits alone cannot establish 30 fps.",
                     worst.leaf_index, worst.base_packet_slots
                 );
             }

@@ -1,0 +1,368 @@
+[
+  {
+    "first_poll": 301,
+    "last_poll": 580,
+    "display_intervals": 119,
+    "display_fps": 25.198,
+    "interval_ms_p95": 50.599,
+    "interval_ms_max": 50.599,
+    "intervals_over_two_vblanks": 42,
+    "cadence_pass": false,
+    "telemetry_available": false,
+    "primitive_overflows": null,
+    "measured_pass": null,
+    "build": "normal",
+    "fifo": 0,
+    "window": "idle"
+  },
+  {
+    "first_poll": 651,
+    "last_poll": 2900,
+    "display_intervals": 1048,
+    "display_fps": 27.653,
+    "interval_ms_p95": 50.599,
+    "interval_ms_max": 50.599,
+    "intervals_over_two_vblanks": 152,
+    "cadence_pass": false,
+    "telemetry_available": false,
+    "primitive_overflows": null,
+    "measured_pass": null,
+    "build": "normal",
+    "fifo": 0,
+    "window": "traverse"
+  },
+  {
+    "first_poll": 3100,
+    "last_poll": 3550,
+    "display_intervals": 224,
+    "display_fps": 29.645,
+    "interval_ms_p95": 33.733,
+    "interval_ms_max": 33.733,
+    "intervals_over_two_vblanks": 0,
+    "cadence_pass": true,
+    "telemetry_available": false,
+    "primitive_overflows": null,
+    "measured_pass": null,
+    "build": "normal",
+    "fifo": 0,
+    "window": "north_idle"
+  },
+  {
+    "first_poll": 300,
+    "last_poll": 580,
+    "display_intervals": 114,
+    "display_fps": 24.14,
+    "interval_ms_p95": 50.599,
+    "interval_ms_max": 50.599,
+    "intervals_over_two_vblanks": 52,
+    "cadence_pass": false,
+    "telemetry_available": false,
+    "primitive_overflows": null,
+    "measured_pass": null,
+    "build": "normal",
+    "fifo": 1,
+    "window": "idle"
+  },
+  {
+    "first_poll": 650,
+    "last_poll": 2899,
+    "display_intervals": 1010,
+    "display_fps": 26.638,
+    "interval_ms_p95": 50.599,
+    "interval_ms_max": 50.599,
+    "intervals_over_two_vblanks": 228,
+    "cadence_pass": false,
+    "telemetry_available": false,
+    "primitive_overflows": null,
+    "measured_pass": null,
+    "build": "normal",
+    "fifo": 1,
+    "window": "traverse"
+  },
+  {
+    "first_poll": 3101,
+    "last_poll": 3549,
+    "display_intervals": 224,
+    "display_fps": 29.645,
+    "interval_ms_p95": 33.733,
+    "interval_ms_max": 33.733,
+    "intervals_over_two_vblanks": 0,
+    "cadence_pass": true,
+    "telemetry_available": false,
+    "primitive_overflows": null,
+    "measured_pass": null,
+    "build": "normal",
+    "fifo": 1,
+    "window": "north_idle"
+  },
+  {
+    "first_poll": 301,
+    "last_poll": 578,
+    "display_intervals": 118,
+    "display_fps": 25.166,
+    "interval_ms_p95": 50.599,
+    "interval_ms_max": 50.599,
+    "intervals_over_two_vblanks": 42,
+    "cadence_pass": false,
+    "telemetry_available": true,
+    "primitive_overflows": 0,
+    "measured_pass": false,
+    "render_samples": 117,
+    "render_cycles_p95": 1174509,
+    "mean_cycles": {
+      "visual_render_task": 1168516,
+      "room": 536424,
+      "player": 201817,
+      "model_instances": 338925,
+      "update": 64747
+    },
+    "max_actor_draws": 2,
+    "camera_position_telemetry_available": false,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    },
+    "build": "instrumented",
+    "fifo": 0,
+    "window": "idle"
+  },
+  {
+    "first_poll": 652,
+    "last_poll": 2900,
+    "display_intervals": 1046,
+    "display_fps": 27.612,
+    "interval_ms_p95": 50.599,
+    "interval_ms_max": 50.599,
+    "intervals_over_two_vblanks": 156,
+    "cadence_pass": false,
+    "telemetry_available": true,
+    "primitive_overflows": 0,
+    "measured_pass": false,
+    "render_samples": 1046,
+    "render_cycles_p95": 1137832,
+    "mean_cycles": {
+      "visual_render_task": 957727,
+      "room": 330842,
+      "player": 193811,
+      "model_instances": 334693,
+      "update": 102825
+    },
+    "max_actor_draws": 2,
+    "camera_position_telemetry_available": false,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    },
+    "build": "instrumented",
+    "fifo": 0,
+    "window": "traverse"
+  },
+  {
+    "first_poll": 3100,
+    "last_poll": 3550,
+    "display_intervals": 224,
+    "display_fps": 29.645,
+    "interval_ms_p95": 33.733,
+    "interval_ms_max": 33.733,
+    "intervals_over_two_vblanks": 0,
+    "cadence_pass": true,
+    "telemetry_available": true,
+    "primitive_overflows": 0,
+    "measured_pass": true,
+    "render_samples": 225,
+    "render_cycles_p95": 718733,
+    "mean_cycles": {
+      "visual_render_task": 696274,
+      "room": 210443,
+      "player": 197211,
+      "model_instances": 193529,
+      "update": 72984
+    },
+    "max_actor_draws": 1,
+    "camera_position_telemetry_available": false,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    },
+    "build": "instrumented",
+    "fifo": 0,
+    "window": "north_idle"
+  },
+  {
+    "first_poll": 301,
+    "last_poll": 579,
+    "display_intervals": 111,
+    "display_fps": 23.673,
+    "interval_ms_p95": 50.599,
+    "interval_ms_max": 50.599,
+    "intervals_over_two_vblanks": 56,
+    "cadence_pass": false,
+    "telemetry_available": true,
+    "primitive_overflows": 0,
+    "measured_pass": false,
+    "render_samples": 110,
+    "render_cycles_p95": 1315852,
+    "mean_cycles": {
+      "visual_render_task": 1242411,
+      "room": 536428,
+      "player": 201720,
+      "model_instances": 339046,
+      "update": 64806
+    },
+    "max_actor_draws": 2,
+    "camera_position_telemetry_available": false,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    },
+    "build": "instrumented",
+    "fifo": 1,
+    "window": "idle"
+  },
+  {
+    "first_poll": 650,
+    "last_poll": 2899,
+    "display_intervals": 1002,
+    "display_fps": 26.427,
+    "interval_ms_p95": 50.599,
+    "interval_ms_max": 50.599,
+    "intervals_over_two_vblanks": 244,
+    "cadence_pass": false,
+    "telemetry_available": true,
+    "primitive_overflows": 0,
+    "measured_pass": false,
+    "render_samples": 1002,
+    "render_cycles_p95": 1289584,
+    "mean_cycles": {
+      "visual_render_task": 1037492,
+      "room": 330101,
+      "player": 193678,
+      "model_instances": 333106,
+      "update": 102516
+    },
+    "max_actor_draws": 2,
+    "camera_position_telemetry_available": false,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    },
+    "build": "instrumented",
+    "fifo": 1,
+    "window": "traverse"
+  },
+  {
+    "first_poll": 3101,
+    "last_poll": 3549,
+    "display_intervals": 224,
+    "display_fps": 29.645,
+    "interval_ms_p95": 33.733,
+    "interval_ms_max": 33.733,
+    "intervals_over_two_vblanks": 0,
+    "cadence_pass": true,
+    "telemetry_available": true,
+    "primitive_overflows": 0,
+    "measured_pass": true,
+    "render_samples": 223,
+    "render_cycles_p95": 1005641,
+    "mean_cycles": {
+      "visual_render_task": 993471,
+      "room": 210645,
+      "player": 197210,
+      "model_instances": 193575,
+      "update": 72921
+    },
+    "max_actor_draws": 1,
+    "camera_position_telemetry_available": false,
+    "camera_ranges": {
+      "camera_x_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_y_biased": [
+        1000000,
+        1000000
+      ],
+      "camera_z_biased": [
+        1000000,
+        1000000
+      ],
+      "player_view_yaw_q12": [
+        2048,
+        2048
+      ]
+    },
+    "build": "instrumented",
+    "fifo": 1,
+    "window": "north_idle"
+  }
+]

@@ -1,0 +1,42 @@
+# Audit of scene 0: "Main"
+
+## Geometry
+
+89 brushes, 534 faces
+degenerate (enclose no volume): none
+beyond the 131072-unit extent limit: none
+coplanar face overlaps: none
+grid 64: every authored coordinate is aligned
+
+Note: this finds faces sharing a PLANE, which z-fight. Solids that merely interpenetrate are legal here (BrushContents::precedence resolves them, and the shipped level relies on it), so a pillar passing through a stair is a look-at-it decision, not an error. Check a plan_view for those.
+
+## Sealing
+
+sealed: no path from the interior to the void
+(sealing check took 0.0s)
+
+## Cook and draw cost
+
+warning: Character 'Aletha' has no turn clip
+
+1051 world faces, 2079 base triangles, 2244 all-face packet slots, 92 non-solid leaves
+
+Heaviest leaves. Base packet slots describe the PVS candidate set before frustum/backface culling, clipping and subdivision, not actual submitted packets.
+  leaf 38: 1411 packet slots, 631 visible faces across 47 visible leaves, near authored (12288, 2048, 71680)
+  leaf 41: 1374 packet slots, 613 visible faces across 57 visible leaves, near authored (1024, 3072, 18432)
+  leaf 42: 1374 packet slots, 613 visible faces across 57 visible leaves, near authored (1024, 3072, 22528)
+  leaf 25: 1300 packet slots, 575 visible faces across 50 visible leaves, near authored (0, 6144, 45056)
+  leaf 26: 1300 packet slots, 575 visible faces across 50 visible leaves, near authored (0, 6144, 45056)
+  leaf 53: 1258 packet slots, 554 visible faces across 51 visible leaves, near authored (4096, 2048, 26624)
+  leaf 20: 1252 packet slots, 551 visible faces across 47 visible leaves, near authored (0, 6144, 45056)
+  leaf 21: 1252 packet slots, 551 visible faces across 47 visible leaves, near authored (0, 6144, 45056)
+
+Frame-rate budget: UNCALIBRATED. The former 120-face / 240-triangle / one-enemy default has been withdrawn. It extrapolated instrumented, camera-specific fixtures into a general Play limit.
+Heaviest PVS: 631 candidate faces, 1246 base triangles. These are not actual submitted geometry or a prediction of FPS.
+Use area_budget for named samples and optional explicit project budgets. Establish performance with a normal Play build and host display-cadence logs; use instrumented builds only for diagnosis and measure their overhead separately.
+
+cooked world spans authored [-32768, 0, -16384]..[24576, 12288, 114688]
+
+Largest PVS candidate set is leaf 38 at 1411 base packet slots. This describes potential geometry before view culling, clipping and subdivision, not a measured sightline or FPS limit. Compare named samples with area_budget, then verify layout changes using the same normal Play replay; authored limits alone cannot establish 30 fps.
+
+(cook took 0.1s)

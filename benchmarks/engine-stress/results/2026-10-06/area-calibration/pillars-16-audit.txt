@@ -1,0 +1,38 @@
+# Audit of scene 0: "Main"
+
+## Geometry
+
+22 brushes, 132 faces
+degenerate (enclose no volume): none
+beyond the 131072-unit extent limit: none
+coplanar face overlaps: none
+grid 64: every authored coordinate is aligned
+
+Note: this finds faces sharing a PLANE, which z-fight. Solids that merely interpenetrate are legal here (BrushContents::precedence resolves them, and the shipped level relies on it), so a pillar passing through a stair is a look-at-it decision, not an error. Check a plan_view for those.
+
+## Sealing
+
+sealed: no path from the interior to the void
+(sealing check took 0.0s)
+
+## Cook and draw cost
+
+warning: Character 'Aletha' has no turn clip
+
+161 world faces, 320 base triangles, 320 all-face packet slots, 56 non-solid leaves
+
+Heaviest leaves. `base packet slots` is the figure to watch: it is what one frame has to push from a camera standing in that leaf.
+  leaf 1: 320 packet slots, 161 visible faces across 56 visible leaves, near authored (0, 4096, 0)
+  leaf 2: 320 packet slots, 161 visible faces across 56 visible leaves, near authored (0, 4096, 0)
+  leaf 3: 320 packet slots, 161 visible faces across 56 visible leaves, near authored (0, 4096, 0)
+  leaf 4: 320 packet slots, 161 visible faces across 56 visible leaves, near authored (0, 4096, 0)
+  leaf 5: 320 packet slots, 161 visible faces across 56 visible leaves, near authored (0, 5632, 0)
+  leaf 6: 320 packet slots, 161 visible faces across 56 visible leaves, near authored (0, 4096, 0)
+  leaf 7: 320 packet slots, 161 visible faces across 56 visible leaves, near authored (0, 4096, 0)
+  leaf 8: 320 packet slots, 161 visible faces across 56 visible leaves, near authored (0, 4096, 0)
+
+cooked world spans authored [-8192, 0, -8192]..[8192, 8192, 8192]
+
+Worst sightline is leaf 1 at 320 packet slots. If that number climbed after an edit, the edit opened a sightline; break it with geometry rather than by deleting detail.
+
+(cook took 0.1s)
