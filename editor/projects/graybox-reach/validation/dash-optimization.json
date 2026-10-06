@@ -1,0 +1,534 @@
+{
+  "date": "2026-10-06",
+  "baseline_commit": "da18c47bea444d277e82d9e134b14d0b8072f6c1",
+  "decision": "accept",
+  "change": "Allow non-splitting facet-reflection models to use the fused walker only when projection proves the whole model in front, unclamped and hardware-extent-safe, with average depth and supported culling. Preserve the general fallback for unsafe bounds.",
+  "profile_evidence": {
+    "route_window": [
+      660,
+      720
+    ],
+    "baseline_instruction_samples": 3529,
+    "baseline_general_uv_samples": 282,
+    "baseline_general_face_submit_samples": 167,
+    "optimized_instruction_samples": 3779,
+    "optimized_general_uv_samples": 0,
+    "optimized_general_face_submit_samples": 0,
+    "note": "Instruction-weighted samples, not cycle percentages. Improved cadence renders more frames in the same window."
+  },
+  "identities": {
+    "baseline": {
+      "disc_sha256": "8c15587c7ae005f172e62c8d2980e50c2c27f4487efe783107210736211b356e",
+      "exe_sha256": "101429b45bf341e68e0a435074a058f6b28dac48873950c2d6496db0ef16dace",
+      "map_sha256": "e9e2f4423e964d486bee9618f9e21522cbd858e05aa8e7c66cedc381bc6d2d97"
+    },
+    "v1": {
+      "disc_sha256": "b88c23608a5c11745db3edea0962ac542aab81de8d10094afd58a5f26cc8c497",
+      "exe_sha256": "59e289492b5f44b15c07429913a789f865912b6ae82432576263630c31d2d219",
+      "map_sha256": "6d2b7f267e58cae1743c7b599374ad0b14ba239a2966d05fa68e60c5e6896314"
+    }
+  },
+  "frontend_sha256": "2bfb9c28857b2e62d46124d44a56a79aca63263ddff6394d4c2e82cfe9b6c635",
+  "tape": {
+    "file": "texture-state-user.pxtape",
+    "sha256": "e25deefe6047f0652e95d153e004f6ed9a21ea8490e0577269399877e3802349",
+    "start_poll": 12,
+    "samples": 3131
+  },
+  "project_sha256": "db8c9480bde8b137e2dc24a09c694260a9f7488ad5da3e41f211e740159016be",
+  "build": "EDITOR_PLAYTEST_FEATURES=cd-stream-bench PSOXIDE_GUEST_STAGE_ROOT=/tmp/psoxide-reach-graphics target/release/frontend build-project-disc --project editor/projects/graybox-reach",
+  "replay": "PSOXIDE_EXPERIMENTAL_DMA_FIFO=<0|1> target/release/frontend launch --path <frozen-run>/graybox_reach.cue --embedded-playtest --input-tape editor/projects/graybox-reach/validation/texture-state-user.pxtape --stop-at-poll=3143 --steps=6900000000 --route-log <output>/route.csv",
+  "metric_definition": "overall excludes boot: polls 400..3120. dash_windows are fixed 96-poll windows following Circle rising edges, including travel/reconstruction and surrounding gameplay; a button edge alone does not prove the motor accepted a dash. Full-run denominators include startup.",
+  "runs": {
+    "baseline": {
+      "overall": {
+        "first_poll": 400,
+        "last_poll": 3120,
+        "display_intervals": 1202,
+        "display_fps": 26.22,
+        "interval_ms_p95": 50.599,
+        "interval_ms_max": 101.197,
+        "intervals_over_two_vblanks": 270,
+        "cadence_pass": false,
+        "telemetry_available": false,
+        "primitive_overflows": null,
+        "measured_pass": null
+      },
+      "dash_windows": {
+        "421": {
+          "fps": 29.645,
+          "max_ms": 33.733,
+          "flips": 48,
+          "over_50ms": 0
+        },
+        "562": {
+          "fps": 21.445,
+          "max_ms": 84.332,
+          "flips": 35,
+          "over_50ms": 9
+        },
+        "659": {
+          "fps": 28.356,
+          "max_ms": 67.465,
+          "flips": 45,
+          "over_50ms": 1
+        },
+        "729": {
+          "fps": 23.092,
+          "max_ms": 67.465,
+          "flips": 38,
+          "over_50ms": 9
+        },
+        "833": {
+          "fps": 29.645,
+          "max_ms": 50.599,
+          "flips": 48,
+          "over_50ms": 0
+        },
+        "1413": {
+          "fps": 24.864,
+          "max_ms": 50.599,
+          "flips": 40,
+          "over_50ms": 0
+        },
+        "1623": {
+          "fps": 21.318,
+          "max_ms": 84.331,
+          "flips": 33,
+          "over_50ms": 3
+        },
+        "1688": {
+          "fps": 17.4,
+          "max_ms": 101.197,
+          "flips": 28,
+          "over_50ms": 9
+        },
+        "1791": {
+          "fps": 18.099,
+          "max_ms": 101.197,
+          "flips": 30,
+          "over_50ms": 8
+        },
+        "1885": {
+          "fps": 27.712,
+          "max_ms": 50.599,
+          "flips": 44,
+          "over_50ms": 0
+        },
+        "2095": {
+          "fps": 29.645,
+          "max_ms": 50.599,
+          "flips": 48,
+          "over_50ms": 0
+        },
+        "2393": {
+          "fps": 29.645,
+          "max_ms": 50.599,
+          "flips": 48,
+          "over_50ms": 0
+        },
+        "2525": {
+          "fps": 23.338,
+          "max_ms": 84.332,
+          "flips": 38,
+          "over_50ms": 8
+        },
+        "2586": {
+          "fps": 27.414,
+          "max_ms": 50.599,
+          "flips": 44,
+          "over_50ms": 0
+        },
+        "2715": {
+          "fps": 29.326,
+          "max_ms": 50.599,
+          "flips": 47,
+          "over_50ms": 0
+        }
+      },
+      "full_run": {
+        "stop_poll": 3142,
+        "route_ticks": 3228,
+        "cold_boot_bus_seconds": 54.45261222718254,
+        "cold_boot_flips": 1287,
+        "cold_boot_fps": 23.63522974123791,
+        "tape_bus_seconds": 52.496125903486394,
+        "tape_flips": 1287,
+        "tape_fps": 24.516094813665617
+      }
+    },
+    "v1": {
+      "overall": {
+        "first_poll": 400,
+        "last_poll": 3120,
+        "display_intervals": 1227,
+        "display_fps": 26.766,
+        "interval_ms_p95": 50.599,
+        "interval_ms_max": 67.465,
+        "intervals_over_two_vblanks": 270,
+        "cadence_pass": false,
+        "telemetry_available": false,
+        "primitive_overflows": null,
+        "measured_pass": null
+      },
+      "dash_windows": {
+        "421": {
+          "fps": 29.645,
+          "max_ms": 33.733,
+          "flips": 48,
+          "over_50ms": 0
+        },
+        "562": {
+          "fps": 24.34,
+          "max_ms": 67.465,
+          "flips": 40,
+          "over_50ms": 1
+        },
+        "659": {
+          "fps": 29.326,
+          "max_ms": 50.599,
+          "flips": 47,
+          "over_50ms": 0
+        },
+        "729": {
+          "fps": 27.461,
+          "max_ms": 50.599,
+          "flips": 45,
+          "over_50ms": 0
+        },
+        "833": {
+          "fps": 29.645,
+          "max_ms": 50.599,
+          "flips": 48,
+          "over_50ms": 0
+        },
+        "1413": {
+          "fps": 24.864,
+          "max_ms": 50.599,
+          "flips": 40,
+          "over_50ms": 0
+        },
+        "1623": {
+          "fps": 21.74,
+          "max_ms": 67.465,
+          "flips": 34,
+          "over_50ms": 2
+        },
+        "1688": {
+          "fps": 19.763,
+          "max_ms": 67.465,
+          "flips": 33,
+          "over_50ms": 7
+        },
+        "1791": {
+          "fps": 20.401,
+          "max_ms": 67.465,
+          "flips": 33,
+          "over_50ms": 6
+        },
+        "1885": {
+          "fps": 27.712,
+          "max_ms": 50.599,
+          "flips": 44,
+          "over_50ms": 0
+        },
+        "2095": {
+          "fps": 29.964,
+          "max_ms": 50.599,
+          "flips": 48,
+          "over_50ms": 0
+        },
+        "2393": {
+          "fps": 29.645,
+          "max_ms": 50.599,
+          "flips": 48,
+          "over_50ms": 0
+        },
+        "2525": {
+          "fps": 27.122,
+          "max_ms": 50.599,
+          "flips": 44,
+          "over_50ms": 0
+        },
+        "2586": {
+          "fps": 27.414,
+          "max_ms": 50.599,
+          "flips": 44,
+          "over_50ms": 0
+        },
+        "2715": {
+          "fps": 29.014,
+          "max_ms": 50.599,
+          "flips": 47,
+          "over_50ms": 0
+        }
+      },
+      "full_run": {
+        "stop_poll": 3142,
+        "route_ticks": 3228,
+        "cold_boot_bus_seconds": 54.452615829317836,
+        "cold_boot_flips": 1312,
+        "cold_boot_fps": 24.094342944193436,
+        "tape_bus_seconds": 52.49612903321051,
+        "tape_flips": 1312,
+        "tape_fps": 24.99231894164982
+      }
+    },
+    "baseline-fifo": {
+      "overall": {
+        "first_poll": 401,
+        "last_poll": 3119,
+        "display_intervals": 1200,
+        "display_fps": 26.177,
+        "interval_ms_p95": 50.599,
+        "interval_ms_max": 101.197,
+        "intervals_over_two_vblanks": 275,
+        "cadence_pass": false,
+        "telemetry_available": false,
+        "primitive_overflows": null,
+        "measured_pass": null
+      },
+      "dash_windows": {
+        "421": {
+          "fps": 29.645,
+          "max_ms": 33.733,
+          "flips": 48,
+          "over_50ms": 0
+        },
+        "562": {
+          "fps": 21.445,
+          "max_ms": 84.332,
+          "flips": 35,
+          "over_50ms": 9
+        },
+        "659": {
+          "fps": 27.792,
+          "max_ms": 67.465,
+          "flips": 46,
+          "over_50ms": 2
+        },
+        "729": {
+          "fps": 23.092,
+          "max_ms": 67.465,
+          "flips": 38,
+          "over_50ms": 9
+        },
+        "833": {
+          "fps": 29.645,
+          "max_ms": 50.599,
+          "flips": 48,
+          "over_50ms": 0
+        },
+        "1413": {
+          "fps": 24.599,
+          "max_ms": 50.599,
+          "flips": 40,
+          "over_50ms": 0
+        },
+        "1623": {
+          "fps": 20.596,
+          "max_ms": 84.331,
+          "flips": 34,
+          "over_50ms": 4
+        },
+        "1688": {
+          "fps": 17.4,
+          "max_ms": 101.197,
+          "flips": 28,
+          "over_50ms": 9
+        },
+        "1791": {
+          "fps": 18.045,
+          "max_ms": 84.332,
+          "flips": 29,
+          "over_50ms": 9
+        },
+        "1885": {
+          "fps": 28.016,
+          "max_ms": 50.599,
+          "flips": 44,
+          "over_50ms": 0
+        },
+        "2095": {
+          "fps": 29.645,
+          "max_ms": 50.599,
+          "flips": 47,
+          "over_50ms": 0
+        },
+        "2393": {
+          "fps": 29.645,
+          "max_ms": 50.599,
+          "flips": 48,
+          "over_50ms": 0
+        },
+        "2525": {
+          "fps": 23.338,
+          "max_ms": 84.332,
+          "flips": 38,
+          "over_50ms": 8
+        },
+        "2586": {
+          "fps": 27.414,
+          "max_ms": 50.599,
+          "flips": 44,
+          "over_50ms": 0
+        },
+        "2715": {
+          "fps": 29.326,
+          "max_ms": 50.599,
+          "flips": 47,
+          "over_50ms": 0
+        }
+      },
+      "full_run": {
+        "stop_poll": 3141,
+        "route_ticks": 3228,
+        "cold_boot_bus_seconds": 54.44416699144936,
+        "cold_boot_flips": 1285,
+        "cold_boot_fps": 23.602161094719545,
+        "tape_bus_seconds": 52.48768066775321,
+        "tape_flips": 1285,
+        "tape_fps": 24.481935258942844
+      }
+    },
+    "v1-fifo": {
+      "overall": {
+        "first_poll": 401,
+        "last_poll": 3119,
+        "display_intervals": 1223,
+        "display_fps": 26.678,
+        "interval_ms_p95": 50.599,
+        "interval_ms_max": 67.466,
+        "intervals_over_two_vblanks": 279,
+        "cadence_pass": false,
+        "telemetry_available": false,
+        "primitive_overflows": null,
+        "measured_pass": null
+      },
+      "dash_windows": {
+        "421": {
+          "fps": 29.645,
+          "max_ms": 33.733,
+          "flips": 48,
+          "over_50ms": 0
+        },
+        "562": {
+          "fps": 24.34,
+          "max_ms": 67.465,
+          "flips": 40,
+          "over_50ms": 1
+        },
+        "659": {
+          "fps": 29.326,
+          "max_ms": 50.599,
+          "flips": 47,
+          "over_50ms": 0
+        },
+        "729": {
+          "fps": 27.461,
+          "max_ms": 50.599,
+          "flips": 45,
+          "over_50ms": 0
+        },
+        "833": {
+          "fps": 29.645,
+          "max_ms": 50.599,
+          "flips": 48,
+          "over_50ms": 0
+        },
+        "1413": {
+          "fps": 24.599,
+          "max_ms": 50.599,
+          "flips": 40,
+          "over_50ms": 0
+        },
+        "1623": {
+          "fps": 21.22,
+          "max_ms": 67.465,
+          "flips": 35,
+          "over_50ms": 3
+        },
+        "1688": {
+          "fps": 19.553,
+          "max_ms": 67.465,
+          "flips": 32,
+          "over_50ms": 8
+        },
+        "1791": {
+          "fps": 20.184,
+          "max_ms": 67.466,
+          "flips": 33,
+          "over_50ms": 6
+        },
+        "1885": {
+          "fps": 27.414,
+          "max_ms": 50.599,
+          "flips": 44,
+          "over_50ms": 0
+        },
+        "2095": {
+          "fps": 29.645,
+          "max_ms": 50.599,
+          "flips": 47,
+          "over_50ms": 0
+        },
+        "2393": {
+          "fps": 29.645,
+          "max_ms": 50.599,
+          "flips": 48,
+          "over_50ms": 0
+        },
+        "2525": {
+          "fps": 27.122,
+          "max_ms": 50.599,
+          "flips": 44,
+          "over_50ms": 0
+        },
+        "2586": {
+          "fps": 27.414,
+          "max_ms": 50.599,
+          "flips": 44,
+          "over_50ms": 0
+        },
+        "2715": {
+          "fps": 29.014,
+          "max_ms": 50.598,
+          "flips": 47,
+          "over_50ms": 0
+        }
+      },
+      "full_run": {
+        "stop_poll": 3141,
+        "route_ticks": 3228,
+        "cold_boot_bus_seconds": 54.44415019132653,
+        "cold_boot_flips": 1308,
+        "cold_boot_fps": 24.024619640557397,
+        "tape_bus_seconds": 52.4876633952192,
+        "tape_flips": 1308,
+        "tape_fps": 24.9201415226104
+      }
+    }
+  },
+  "checks": {
+    "unit_tests": {
+      "psx_bsp": 162,
+      "psx_engine": 451,
+      "psx_game_runtime": 248
+    },
+    "packet_equivalence": "Fused, mapped-batch and original general unsplit paths produce identical packets and OT slots, for back/double-sided culling and roughness 0..3. Submission, culling and drop counts match; dispatch counters differ intentionally.",
+    "load_delay_hazards_remaining": 0,
+    "scratchpad_guard": "passed",
+    "bss_bytes": 582120,
+    "bss_end": "0x8018b1e8",
+    "text_bytes_before": 765016,
+    "text_bytes_after": 765244,
+    "exact_default_snapshots": 86,
+    "default_snapshots_total": 107,
+    "last_default_checkpoint_sha256": "8de37ed5528699ce2a464b4a601d3cc808e61c5c8f9d5a8381fbecf6b108dcfb",
+    "visual_review": "Compared dash scatter, wireframe, reconstruction and normal traversal. Changed-cadence screenshots can show a different presented pose. Last checkpoint is byte-identical to baseline. Strict FIFO contact sheet also reviewed.",
+    "physical_console": "not tested",
+    "primitive_overflows": null
+  },
+  "raw_evidence": "build/graybox-reach/dash-opt",
+  "source_scope_note": "Measurements use the frozen original-enemy project/discs in baseline and v1. Separate enemy-reduction changes arrived in the shared checkout after these builds; they are preserved and are not part of this A/B."
+}
