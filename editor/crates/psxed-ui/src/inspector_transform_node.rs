@@ -775,6 +775,12 @@ pub(crate) fn draw_gameplay_camera_settings(
                 "Right-stick/manual camera orbit turn speed. Higher values orbit faster.",
             );
             ui.separator();
+            changed |= ui.checkbox(&mut camera.accelerated_orbit, "Accelerate held orbit").on_hover_text("Build orbit speed over 0.6 seconds; reversing direction starts gently again.").changed();
+            changed |= ui.checkbox(&mut camera.recenter_preserves_pitch, "Keep pitch on recenter").on_hover_text("Recenter behind the player over 0.3 seconds while keeping the chosen elevation.").changed();
+            changed |= draw_camera_profile_controls(ui, &mut camera.fov_y_degrees, &mut camera.blend_profiles,
+                &mut camera.lock_target_framing, &mut camera.lock_profile,
+                psxed_project::WorldCameraProfile { distance: camera.distance, height: camera.height,
+                    target_height: camera.target_height, fov_y_degrees: 43 });
             ui.weak("Follow smoothing");
             changed |= draw_camera_speed_control(
                 ui,
@@ -782,11 +788,23 @@ pub(crate) fn draw_gameplay_camera_settings(
                 &mut camera.position_lag_shift,
                 "How quickly the camera origin catches up to its desired position.",
             );
+            changed |= draw_camera_vertical_speed_control(
+                ui,
+                "Position vertical",
+                &mut camera.position_vertical_lag_shift,
+                camera.position_lag_shift,
+            );
             changed |= draw_camera_speed_control(
                 ui,
                 "Focus",
                 &mut camera.focus_lag_shift,
                 "How quickly the look-at point follows the player.",
+            );
+            changed |= draw_camera_vertical_speed_control(
+                ui,
+                "Focus vertical",
+                &mut camera.focus_vertical_lag_shift,
+                camera.focus_lag_shift,
             );
             changed |= draw_camera_speed_control(
                 ui,
@@ -802,6 +820,88 @@ pub(crate) fn draw_gameplay_camera_settings(
                 *camera = camera.normalized();
             }
         });
+    changed
+}
+
+pub(super) fn draw_camera_profile_controls(
+    ui: &mut egui::Ui,
+    fov: &mut u8,
+    blend: &mut bool,
+    framing: &mut bool,
+    lock: &mut Option<psxed_project::WorldCameraProfile>,
+    base: psxed_project::WorldCameraProfile,
+) -> bool {
+    let mut changed = false;
+    ui.separator();
+    ui.weak("Camera profiles");
+    let mut lens = *fov != 0;
+    if ui.checkbox(&mut lens, "Custom vertical FOV").changed() {
+        *fov = if lens { 43 } else { 0 };
+        changed = true;
+    }
+    if lens {
+        ui.horizontal(|ui| {
+            ui.label("Field of view");
+            changed |= ui
+                .add(egui::DragValue::new(fov).range(38..=48).suffix("°"))
+                .changed();
+        });
+    }
+    changed |= ui.checkbox(blend, "Blend profile changes").changed();
+    changed |= ui
+        .checkbox(framing, "Follow lock target height")
+        .on_hover_text("Keep the camera aimed above the player and adjust its angle to follow the enemy's height. Replaces Lock rise.")
+        .changed();
+    let mut enabled = lock.is_some();
+    if ui.checkbox(&mut enabled, "Lock-on profile").changed() {
+        *lock = enabled.then_some(base);
+        changed = true;
+    }
+    if let Some(profile) = lock {
+        ui.indent("lock_camera_profile", |ui| {
+            for (label, value, minimum, maximum) in [
+                (
+                    "Distance",
+                    &mut profile.distance,
+                    psxed_project::MIN_WORLD_CAMERA_DISTANCE,
+                    psxed_project::MAX_WORLD_CAMERA_DISTANCE,
+                ),
+                (
+                    "Height",
+                    &mut profile.height,
+                    0,
+                    psxed_project::MAX_WORLD_CAMERA_HEIGHT,
+                ),
+                (
+                    "Focus height",
+                    &mut profile.target_height,
+                    0,
+                    psxed_project::MAX_WORLD_CAMERA_HEIGHT,
+                ),
+            ] {
+                ui.horizontal(|ui| {
+                    ui.label(label);
+                    changed |= ui
+                        .add(
+                            egui::DragValue::new(value)
+                                .speed(16.0)
+                                .range(minimum..=maximum),
+                        )
+                        .changed();
+                });
+            }
+            ui.horizontal(|ui| {
+                ui.label("Field of view");
+                changed |= ui
+                    .add(
+                        egui::DragValue::new(&mut profile.fov_y_degrees)
+                            .range(38..=48)
+                            .suffix("°"),
+                    )
+                    .changed();
+            });
+        });
+    }
     changed
 }
 
@@ -844,6 +944,30 @@ fn draw_camera_speed_control(
         *lag_shift = camera_lag_shift_for_speed_level(speed);
     }
     response.inner
+}
+
+/// Optional vertical follow speed, shared by scene cameras and character presets.
+pub(super) fn draw_camera_vertical_speed_control(
+    ui: &mut egui::Ui,
+    label: &'static str,
+    vertical_shift: &mut Option<u8>,
+    shared_shift: u8,
+) -> bool {
+    let mut independent = vertical_shift.is_some();
+    let mut changed = ui
+        .checkbox(&mut independent, label)
+        .on_hover_text(
+            "Use a separate vertical follow speed. Off follows the shared setting above.",
+        )
+        .changed();
+    if changed {
+        *vertical_shift = independent.then_some(shared_shift);
+    }
+    if let Some(shift) = vertical_shift {
+        changed |= draw_camera_speed_control(ui, "Vertical speed", shift,
+            "Higher values catch up faster. A lower speed softens stairs and height changes; collision clearance still takes priority.");
+    }
+    changed
 }
 
 fn camera_speed_level_for_lag_shift(lag_shift: u8) -> u8 {
@@ -915,16 +1039,24 @@ pub(crate) fn draw_gameplay_camera_start_preview(ui: &mut egui::Ui, camera: Worl
         .height
         .saturating_mul(i32::from(camera.lock_rise_percent))
         / 100;
-    let locked_camera_height = camera.height.saturating_add(lock_height_boost);
+    let locked_distance = camera.lock_profile.map_or(camera.distance, |p| p.distance);
+    let locked_target_height = camera
+        .lock_profile
+        .map_or(camera.target_height, |p| p.target_height);
+    let locked_camera_height = camera
+        .lock_profile
+        .map_or(camera.height, |p| p.height)
+        .saturating_add(lock_height_boost);
     let effective_locked_camera_height = locked_camera_height.max(camera.min_floor_clearance);
     let max_vertical = camera
         .height
         .max(effective_camera_height)
         .max(effective_locked_camera_height)
         .max(camera.target_height)
+        .max(locked_target_height)
         .max(camera.min_floor_clearance)
         .max(512) as f32;
-    let x_scale = (player_x - left) / camera.distance.max(1) as f32;
+    let x_scale = (player_x - left) / camera.distance.max(locked_distance).max(1) as f32;
     let y_scale = (floor_y - top) / max_vertical;
     let camera_x = player_x - camera.distance as f32 * x_scale;
     let desired_camera_y = floor_y - camera.height as f32 * y_scale;
@@ -938,7 +1070,9 @@ pub(crate) fn draw_gameplay_camera_start_preview(ui: &mut egui::Ui, camera: Worl
     let player_root = egui::pos2(player_x, floor_y);
     let target = egui::pos2(player_x, target_y);
     let camera_eye = egui::pos2(camera_x, camera_y);
-    let locked_camera_eye = egui::pos2(camera_x, locked_camera_y);
+    let locked_camera_eye =
+        egui::pos2(player_x - locked_distance as f32 * x_scale, locked_camera_y);
+    let locked_target = egui::pos2(player_x, floor_y - locked_target_height as f32 * y_scale);
     let desired_camera_eye = egui::pos2(camera_x, desired_camera_y);
     let clearance_a = egui::pos2(rect.left() + 12.0, clearance_y);
     let clearance_b = egui::pos2(rect.right() - 12.0, clearance_y);
@@ -972,13 +1106,13 @@ pub(crate) fn draw_gameplay_camera_start_preview(ui: &mut egui::Ui, camera: Worl
         [camera_eye, target],
         egui::Stroke::new(1.0, Color32::from_rgb(125, 145, 170)),
     );
-    if lock_height_boost > 0 {
+    if lock_height_boost > 0 || camera.lock_profile.is_some() {
         painter.line_segment(
             [camera_eye, locked_camera_eye],
             egui::Stroke::new(2.0, Color32::from_rgb(80, 145, 225)),
         );
         painter.line_segment(
-            [locked_camera_eye, target],
+            [locked_camera_eye, locked_target],
             egui::Stroke::new(1.5, Color32::from_rgb(105, 165, 235)),
         );
         painter.circle_filled(locked_camera_eye, 5.0, Color32::from_rgb(105, 165, 235));

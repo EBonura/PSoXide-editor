@@ -728,8 +728,16 @@ fn camera_preview_request_targets_bsp_world_origin() {
                 lock_rise_percent: 15,
                 min_floor_clearance: 64,
                 orbit_speed_level: 5,
+                accelerated_orbit: true,
+                recenter_preserves_pitch: true,
+                fov_y_degrees: 0,
+                blend_profiles: false,
+                lock_target_framing: false,
+                lock_profile: None,
                 position_lag_shift: 2,
+                position_vertical_lag_shift: Some(4),
                 focus_lag_shift: 2,
+                focus_vertical_lag_shift: Some(4),
                 distance_lag_shift: 3,
             },
         },
@@ -930,7 +938,20 @@ fn dropping_player_profile_applies_camera_preset_and_replaces_player_source() {
             camera_lock_rise_percent: 25,
             camera_min_floor_clearance: 110,
             camera_orbit_speed_level: 3,
+            camera_accelerated_orbit: true,
+            camera_recenter_preserves_pitch: true,
+            camera_fov_y_degrees: 43,
+            camera_blend_profiles: true,
+            camera_lock_target_framing: true,
+            camera_lock_profile: Some(psxed_project::WorldCameraProfile {
+                distance: 3900,
+                height: 1900,
+                target_height: 1160,
+                fov_y_degrees: 46,
+            }),
             camera_position_lag_shift: 6,
+            camera_position_vertical_lag_shift: Some(3),
+            camera_focus_vertical_lag_shift: Some(4),
             ..psxed_project::CharacterResource::defaults()
         }),
     );
@@ -1007,6 +1028,14 @@ fn dropping_player_profile_applies_camera_preset_and_replaces_player_source() {
     assert_eq!(camera.lock_rise_percent, 25);
     assert_eq!(camera.min_floor_clearance, 110);
     assert_eq!(camera.position_lag_shift, 6);
+    assert!(camera.accelerated_orbit);
+    assert!(camera.recenter_preserves_pitch);
+    assert_eq!(camera.fov_y_degrees, 43);
+    assert!(camera.blend_profiles);
+    assert!(camera.lock_target_framing);
+    assert_eq!(camera.lock_profile, profile.camera_lock_profile);
+    assert_eq!(camera.position_vertical_lag_shift, Some(3));
+    assert_eq!(camera.focus_vertical_lag_shift, Some(4));
     assert!(children.iter().any(|child| matches!(
         child.kind,
         NodeKind::ModelRenderer {
