@@ -335,6 +335,12 @@ pub(crate) fn draw_character_resource_editor(
                 1,
                 10,
             );
+            changed |= ui.checkbox(&mut character.camera_accelerated_orbit, "Accelerate held orbit").on_hover_text("Build orbit speed over 0.6 seconds; reversing direction starts gently again.").changed();
+            changed |= ui.checkbox(&mut character.camera_recenter_preserves_pitch, "Keep pitch on recenter").on_hover_text("Recenter behind the player over 0.3 seconds while keeping the chosen elevation.").changed();
+            changed |= draw_camera_profile_controls(ui, &mut character.camera_fov_y_degrees, &mut character.camera_blend_profiles,
+                &mut character.camera_lock_target_framing, &mut character.camera_lock_profile,
+                psxed_project::WorldCameraProfile { distance: character.camera_distance, height: character.camera_height,
+                    target_height: character.camera_target_height, fov_y_degrees: 43 });
             changed |= drag_u8(
                 ui,
                 "Position lag",
@@ -342,12 +348,24 @@ pub(crate) fn draw_character_resource_editor(
                 0,
                 12,
             );
+            changed |= draw_camera_vertical_speed_control(
+                ui,
+                "Position vertical",
+                &mut character.camera_position_vertical_lag_shift,
+                character.camera_position_lag_shift,
+            );
             changed |= drag_u8(
                 ui,
                 "Focus lag",
                 &mut character.camera_focus_lag_shift,
                 0,
                 12,
+            );
+            changed |= draw_camera_vertical_speed_control(
+                ui,
+                "Focus vertical",
+                &mut character.camera_focus_vertical_lag_shift,
+                character.camera_focus_lag_shift,
             );
             changed |= drag_u8(
                 ui,
@@ -477,6 +495,7 @@ fn draw_enemy_behavior_fields(
         255,
     );
     changed |= drag_u8(ui, "Circle chance (%)", &mut enemy.circle_chance, 0, 100);
+    changed |= drag_u8(ui, "Circle/retreat speed (%)", &mut enemy.spacing_speed_percent, 1, 100);
 
     ui.separator();
     ui.label(RichText::new("Attack pacing").strong());
@@ -495,7 +514,6 @@ fn draw_enemy_behavior_fields(
         &mut enemy.group_attack_delay_ticks,
         0,
         255,
-    changed |= drag_u8(ui, "Circle/retreat speed (%)", &mut enemy.spacing_speed_percent, 1, 100);
     );
     attack_changed |= drag_u8(ui, "Windup ticks", &mut enemy.windup_ticks, 1, 255);
     attack_changed |= drag_u8(ui, "Recovery ticks", &mut enemy.recovery_ticks, 0, 255);
