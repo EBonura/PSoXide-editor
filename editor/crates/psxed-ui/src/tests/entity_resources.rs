@@ -948,6 +948,7 @@ fn dropping_player_profile_applies_camera_preset_and_replaces_player_source() {
                 height: 1900,
                 target_height: 1160,
                 fov_y_degrees: 46,
+                shoulder_offset: 0,
             }),
             camera_position_lag_shift: 6,
             camera_position_vertical_lag_shift: Some(3),

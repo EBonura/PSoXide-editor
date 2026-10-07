@@ -23,7 +23,10 @@ for ob in sorted(bpy.data.collections['ZENITH IRIS - editable parts'].objects,ke
   normal=(ps[2]-ps[0]).cross(ps[1]-ps[0]).normalized();data=[round(c*127)&255 for c in normal]+[joint]
   drop=max(range(3),key=lambda i:abs(normal[i]));axes=[i for i in range(3) if i!=drop]
   center=sum(ps,Vector())/3;extent=max(abs((v-center)[a]) for v in ps for a in axes) or 1
-  bits=0x8000
+  finish=ob.data.attributes.get('psx_reflection_band')
+  band=finish.data[tri.polygon_index].value if finish else 0
+  assert 0<=band<=4
+  bits=0x8000 | (band<<12)
   for k,v in enumerate(ps):
    q=[max(0,min(3,round(((v-center)[a]/extent+1)*1.5))) for a in axes];bits|=(q[0]|q[1]<<2)<<(k*4)
   data.extend([bits&255,bits>>8]);faces.append(b''.join(struct.pack('<HBB',i,*data[k*2:k*2+2]) for k,i in enumerate(ids)))
@@ -38,5 +41,5 @@ for f in range(120):
  for sign in [0,1,-1]:
   r=Matrix.Rotation(sign*math.tau*f/120,3,'Z');clip+=struct.pack('<9h3i',*[round(r[row][col]*4096) for col in range(3) for row in range(3)],0,0,0)
 (D/'iris-spin.psxanim').write_bytes(clip)
-report={'triangles':len(faces),'vertices':len(verts),'joints':3,'unit':unit,'source':'aletha-crystal-iris.blend','animation':'counter-rotating collars, 120 frames / 30 Hz'}
+report={'triangles':len(faces),'vertices':len(verts),'joints':3,'unit':unit,'source':'aletha-crystal-iris.blend','animation':'counter-rotating collars, 120 frames / 30 Hz','material_strips':{'1':'dark core','2':'jade shell','3':'bright edges','4':'pale muzzle'}}
 (S/'game-export.json').write_text(json.dumps(report,indent=2)+'\n');print('RESULT',json.dumps(report))

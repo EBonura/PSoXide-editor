@@ -4,5 +4,11 @@
   "joints": 3,
   "unit": 3.234808675491916e-05,
   "source": "aletha-crystal-iris.blend",
-  "animation": "counter-rotating collars, 120 frames / 30 Hz"
+  "animation": "counter-rotating collars, 120 frames / 30 Hz",
+  "material_strips": {
+    "1": "dark core",
+    "2": "jade shell",
+    "3": "bright edges",
+    "4": "pale muzzle"
+  }
 }

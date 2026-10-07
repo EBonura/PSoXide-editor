@@ -340,7 +340,9 @@ pub(crate) fn draw_character_resource_editor(
             changed |= draw_camera_profile_controls(ui, &mut character.camera_fov_y_degrees, &mut character.camera_blend_profiles,
                 &mut character.camera_lock_target_framing, &mut character.camera_lock_profile,
                 psxed_project::WorldCameraProfile { distance: character.camera_distance, height: character.camera_height,
-                    target_height: character.camera_target_height, fov_y_degrees: 43 });
+                    target_height: character.camera_target_height, fov_y_degrees: 43,
+                    shoulder_offset: 0,
+                });
             changed |= drag_u8(
                 ui,
                 "Position lag",

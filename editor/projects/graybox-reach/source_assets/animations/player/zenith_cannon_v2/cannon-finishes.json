@@ -1,0 +1,104 @@
+{
+  "Fixed / six-sided core": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    1,
+    4
+  ],
+  "Fixed / recessed muzzle": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+  ],
+  "Fixed / charge lens": [
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4
+  ],
+  "Fixed / wrist collar": [
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    3,
+    3
+  ],
+  "Rotor / rear - counterclockwise / petal 1": [
+    2,
+    2,
+    3,
+    3,
+    3,
+    1
+  ],
+  "Rotor / rear - counterclockwise / petal 2": [
+    2,
+    2,
+    3,
+    3,
+    3,
+    1
+  ],
+  "Rotor / rear - counterclockwise / petal 3": [
+    2,
+    2,
+    3,
+    3,
+    3,
+    1
+  ],
+  "Rotor / front - clockwise / petal 1": [
+    2,
+    2,
+    3,
+    3,
+    3,
+    1
+  ],
+  "Rotor / front - clockwise / petal 2": [
+    2,
+    2,
+    3,
+    3,
+    3,
+    1
+  ],
+  "Rotor / front - clockwise / petal 3": [
+    2,
+    2,
+    3,
+    3,
+    3,
+    1
+  ],
+  "Fixed / supporting-hand saddle": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+  ]
+}

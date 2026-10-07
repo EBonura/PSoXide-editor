@@ -1,0 +1,41 @@
+{
+  "camera_tests": 70,
+  "input_tests": 6,
+  "machine_code_hazards": 0,
+  "original_lock_profile_preserved": true,
+  "normal_disc_sha256": "74c6aae4403d0f35a379c30a368866b6b5fb9b3e49919c0765ec874d9afa49b4",
+  "video": {
+    "file": "camera-transitions.mp4",
+    "source": "Real guest software framebuffer, 320x240 enlarged 3x with nearest filtering; captions added underneath",
+    "duration_seconds": 13.533333,
+    "capture_build": "emulator-telemetry enabled; normal playable disc rebuilt afterwards"
+  },
+  "screenshot": {
+    "file": "locked-aim-final.png",
+    "source": "Normal playable disc, GPU packet replay at 4x internal resolution",
+    "resolution": [
+      1280,
+      960
+    ]
+  },
+  "verified_replay": [
+    "freecam",
+    "free aim",
+    "locked",
+    "locked aim",
+    "manual bounded offset",
+    "return after neutral",
+    "release L2 retains lock",
+    "mid-blend L2 reversal",
+    "R3 unlock/reacquire while L2 remains held"
+  ],
+  "tuning": {
+    "aim_distance": 160,
+    "aim_shoulder_offset": 24,
+    "horizontal_offset_degrees": 6,
+    "vertical_offset_degrees": 4,
+    "neutral_delay_ms": 150,
+    "spring": "monotonic 1/6 return per 60 Hz tick; no return during active input"
+  },
+  "normal_disc_logging": false
+}

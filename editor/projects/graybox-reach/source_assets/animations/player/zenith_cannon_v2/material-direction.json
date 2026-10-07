@@ -1,25 +1,32 @@
 {
-  "selected_design": "B: compact crystal iris with split rotating collars",
-  "ZTH": {
-    "combat": "ranged; hold L2 to aim, R2 fire",
-    "cannon": "sea-green translucent crystal",
-    "scarf": "matching sea-green gradient"
+  "selected": "jade",
+  "opaque": true,
+  "texture_size": [
+    128,
+    128
+  ],
+  "bits_per_pixel": 4,
+  "HRZ": "melee; amber scarf and transition only",
+  "ZTH": "ranged; mint cannon and scarf",
+  "trials": {
+    "pearl": {
+      "label": "A - Pearl crystal",
+      "floor": 10,
+      "ceiling": 31,
+      "white": 13
+    },
+    "jade": {
+      "label": "B - Polished jade",
+      "floor": 4,
+      "ceiling": 31,
+      "white": 23
+    },
+    "satin": {
+      "label": "C - Satin mineral",
+      "floor": 10,
+      "ceiling": 28,
+      "white": 30
+    }
   },
-  "HRZ": {
-    "combat": "melee; R1 light combo, R2 heavy",
-    "cannon": false,
-    "scarf": "amber-orange translucent crystal"
-  },
-  "stance_change": "crystal palette handover; retract cannon entering HRZ",
-  "texture": {
-    "dimensions": [
-      128,
-      128
-    ],
-    "bpp": 4,
-    "palette_entries": 16,
-    "shared_indices": true
-  },
-  "status": "Blender study; not installed in game",
-  "procedural_scarf": "Separate preview proxy; not part of exported character mesh"
+  "cannon_finish": "dark core, jade collars, pale edges and muzzle; four strips in the same 16-colour atlas"
 }
