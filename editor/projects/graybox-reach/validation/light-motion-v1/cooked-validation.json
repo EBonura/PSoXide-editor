@@ -1,0 +1,26 @@
+{
+  "run": {
+    "stored_frames": 21,
+    "sample_hz": 30,
+    "max_planted_sole_spread_engine_units": 0.0,
+    "max_planted_sole_floor_error_engine_units": 0.044921875,
+    "max_contact_drift_engine_units": 0.0390625,
+    "contact_samples": 37
+  },
+  "turn": {
+    "stored_frames": 25,
+    "sample_hz": 30,
+    "max_planted_sole_spread_engine_units": 0.0,
+    "max_planted_sole_floor_error_engine_units": 0.044921875,
+    "max_contact_drift_engine_units": 0.0,
+    "contact_samples": 162
+  },
+  "alert": {
+    "stored_frames": 61,
+    "sample_hz": 30,
+    "max_planted_sole_spread_engine_units": 0.0,
+    "max_planted_sole_floor_error_engine_units": 0.044921875,
+    "max_contact_drift_engine_units": 0.0,
+    "contact_samples": 492
+  }
+}

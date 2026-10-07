@@ -1,0 +1,1618 @@
+{
+  "approach_retreat_ranged_decisions": [
+    330,
+    122,
+    21
+  ],
+  "artifacts": "editor/projects/graybox-reach/validation/combat-duels/seed-7-1791403721516",
+  "completed_by_death": true,
+  "damage_events_player_enemy": [
+    10,
+    20
+  ],
+  "damage_taken_player_enemy_hrz_zth": [
+    [
+      185,
+      133
+    ],
+    [
+      300,
+      300
+    ]
+  ],
+  "decision_columns": [
+    "tick",
+    "intent",
+    "stance_reason",
+    "requested_buttons",
+    "distance"
+  ],
+  "decision_quality": {
+    "completed_stance_visits_without_attack_player_enemy": [
+      6,
+      3
+    ],
+    "enemy_goal_changes": 572,
+    "enemy_goal_changes_per_second": 4.273972602739726,
+    "note": "Initial and unfinished final stance visits excluded; an attack start is not proof of a hit. Goal changes are diagnostic, not a balance score."
+  },
+  "end_tick": 8030,
+  "enemy_attack_entries": 24,
+  "enemy_windups_light_heavy_ranged": [
+    13,
+    11,
+    4
+  ],
+  "energy_end_player_enemy": [
+    52,
+    80
+  ],
+  "energy_min_player_enemy": [
+    0,
+    60
+  ],
+  "flow_event_columns": [
+    "tick",
+    "attacker_0_player_1_enemy",
+    "event_1_shot_interrupt"
+  ],
+  "flow_events": [],
+  "intent_names": [
+    "hold",
+    "approach",
+    "melee",
+    "ranged",
+    "dodge",
+    "swap",
+    "retreat"
+  ],
+  "measurement_note": "Attack starts are sampled animation changes; moving-fire layers may not match those counts. Projectile emission events count successful launches. Logs predating duel:shot have no emission counts. Damage is observed health loss, not raw attack damage; regeneration between samples may offset it. A death is a completion result, not a balance or flow pass.",
+  "outcome": "player_won",
+  "player_accepted_light_heavy_ranged": [
+    8,
+    8,
+    15
+  ],
+  "player_requested_r1_r2": [
+    18,
+    50
+  ],
+  "projectiles_emitted_player_enemy": [
+    14,
+    4
+  ],
+  "ranged_exchange": {
+    "cover_arrivals_player_enemy": [
+      2,
+      2
+    ],
+    "melee_defense_episodes_player_enemy": [
+      23,
+      7
+    ],
+    "melee_punish_windows_player_enemy": [
+      4,
+      4
+    ],
+    "mode_names": [
+      "open",
+      "seek_cover",
+      "covered",
+      "peek",
+      "projectile_evade",
+      "search_cover",
+      "melee_defend",
+      "melee_punish",
+      "stamina_recovery"
+    ],
+    "mode_ticks_player_enemy": [
+      [
+        4284,
+        120,
+        120,
+        48,
+        0,
+        1728,
+        1490,
+        240,
+        0
+      ],
+      [
+        5568,
+        220,
+        84,
+        130,
+        180,
+        1316,
+        322,
+        210,
+        0
+      ]
+    ],
+    "note": "Cover arrival requires occlusion checks. Evasion and punish counts are decisions, not confirmed dodges or hits.",
+    "projectile_evade_attempts_player_enemy": [
+      0,
+      6
+    ],
+    "shots_after_cover_peek_player_enemy": [
+      3,
+      0
+    ]
+  },
+  "sample_columns": [
+    "tick",
+    "player_x",
+    "player_z",
+    "enemy_x",
+    "enemy_z",
+    "player_hrz",
+    "player_zth",
+    "enemy_hrz",
+    "enemy_zth",
+    "player_stance",
+    "enemy_stance",
+    "player_action",
+    "enemy_state",
+    "intent",
+    "stance_reason",
+    "stamina_q12",
+    "enemy_goal_generation",
+    "player_action_start",
+    "enemy_goal",
+    "enemy_stance_reason",
+    "enemy_attack_kind",
+    "player_energy",
+    "enemy_energy"
+  ],
+  "sample_count": 475,
+  "seed": 7,
+  "shot_event_columns": [
+    "tick",
+    "actor_0_player_1_enemy",
+    "energy_after"
+  ],
+  "shot_events": [
+    [
+      172,
+      0,
+      80
+    ],
+    [
+      892,
+      0,
+      80
+    ],
+    [
+      928,
+      0,
+      60
+    ],
+    [
+      1096,
+      0,
+      40
+    ],
+    [
+      1132,
+      0,
+      20
+    ],
+    [
+      1192,
+      1,
+      80
+    ],
+    [
+      1276,
+      0,
+      0
+    ],
+    [
+      2788,
+      0,
+      44
+    ],
+    [
+      3594,
+      1,
+      80
+    ],
+    [
+      3932,
+      1,
+      60
+    ],
+    [
+      4180,
+      0,
+      24
+    ],
+    [
+      4216,
+      0,
+      4
+    ],
+    [
+      6892,
+      0,
+      80
+    ],
+    [
+      6928,
+      0,
+      60
+    ],
+    [
+      7096,
+      0,
+      40
+    ],
+    [
+      7132,
+      0,
+      20
+    ],
+    [
+      7198,
+      1,
+      80
+    ],
+    [
+      7276,
+      0,
+      0
+    ]
+  ],
+  "spatial_flow": {
+    "band_edges_units": [
+      80,
+      192
+    ],
+    "close_far_close_cycles": 7,
+    "longest_close_ticks": 654,
+    "mean_distance_units": 130,
+    "shot_distance_columns": [
+      "tick",
+      "actor",
+      "nearest_sample_distance"
+    ],
+    "shot_distances": [
+      [
+        172,
+        0,
+        245
+      ],
+      [
+        892,
+        0,
+        252
+      ],
+      [
+        928,
+        0,
+        252
+      ],
+      [
+        1096,
+        0,
+        232
+      ],
+      [
+        1132,
+        0,
+        232
+      ],
+      [
+        1192,
+        1,
+        239
+      ],
+      [
+        1276,
+        0,
+        255
+      ],
+      [
+        2788,
+        0,
+        220
+      ],
+      [
+        3594,
+        1,
+        278
+      ],
+      [
+        3932,
+        1,
+        254
+      ],
+      [
+        4180,
+        0,
+        251
+      ],
+      [
+        4216,
+        0,
+        241
+      ],
+      [
+        6892,
+        0,
+        248
+      ],
+      [
+        6928,
+        0,
+        256
+      ],
+      [
+        7096,
+        0,
+        249
+      ],
+      [
+        7132,
+        0,
+        249
+      ],
+      [
+        7198,
+        1,
+        255
+      ],
+      [
+        7276,
+        0,
+        254
+      ]
+    ],
+    "ticks_close_transition_ranged": [
+      3400,
+      2128,
+      2502
+    ]
+  },
+  "stance_reasons": [
+    "distance",
+    "recover_pool",
+    "press_after_shots",
+    "exposed_channel",
+    "forced_break",
+    "rebuild_energy",
+    "melee_to_ranged",
+    "shot_to_melee",
+    "overhead_target",
+    "ranged_phase",
+    "contest_space"
+  ],
+  "stance_switches_player_enemy": [
+    15,
+    12
+  ],
+  "stance_ticks_player_enemy": [
+    [
+      4396,
+      3634
+    ],
+    [
+      4410,
+      3620
+    ]
+  ],
+  "switch_events": [
+    {
+      "actor": "enemy",
+      "from": 0,
+      "reason": 9,
+      "tick": 152,
+      "to": 1
+    },
+    {
+      "actor": "player",
+      "from": 1,
+      "reason": 9,
+      "tick": 336,
+      "to": 0
+    },
+    {
+      "actor": "player",
+      "from": 0,
+      "reason": 6,
+      "tick": 636,
+      "to": 1
+    },
+    {
+      "actor": "player",
+      "from": 1,
+      "reason": 5,
+      "tick": 1284,
+      "to": 0
+    },
+    {
+      "actor": "enemy",
+      "from": 1,
+      "reason": 9,
+      "tick": 1370,
+      "to": 0
+    },
+    {
+      "actor": "enemy",
+      "from": 0,
+      "reason": 6,
+      "tick": 1972,
+      "to": 1
+    },
+    {
+      "actor": "player",
+      "from": 0,
+      "reason": 6,
+      "tick": 2244,
+      "to": 1
+    },
+    {
+      "actor": "enemy",
+      "from": 1,
+      "reason": 10,
+      "tick": 2272,
+      "to": 0
+    },
+    {
+      "actor": "player",
+      "from": 1,
+      "reason": 10,
+      "tick": 2544,
+      "to": 0
+    },
+    {
+      "actor": "player",
+      "from": 0,
+      "reason": 4,
+      "tick": 2620,
+      "to": 1
+    },
+    {
+      "actor": "enemy",
+      "from": 0,
+      "reason": 6,
+      "tick": 2706,
+      "to": 1
+    },
+    {
+      "actor": "enemy",
+      "from": 1,
+      "reason": 10,
+      "tick": 3006,
+      "to": 0
+    },
+    {
+      "actor": "player",
+      "from": 1,
+      "reason": 4,
+      "tick": 3260,
+      "to": 0
+    },
+    {
+      "actor": "enemy",
+      "from": 0,
+      "reason": 6,
+      "tick": 3322,
+      "to": 1
+    },
+    {
+      "actor": "player",
+      "from": 0,
+      "reason": 9,
+      "tick": 3972,
+      "to": 1
+    },
+    {
+      "actor": "player",
+      "from": 1,
+      "reason": 5,
+      "tick": 4272,
+      "to": 0
+    },
+    {
+      "actor": "enemy",
+      "from": 1,
+      "reason": 9,
+      "tick": 4304,
+      "to": 0
+    },
+    {
+      "actor": "player",
+      "from": 0,
+      "reason": 4,
+      "tick": 4396,
+      "to": 1
+    },
+    {
+      "actor": "enemy",
+      "from": 0,
+      "reason": 6,
+      "tick": 4666,
+      "to": 1
+    },
+    {
+      "actor": "enemy",
+      "from": 1,
+      "reason": 10,
+      "tick": 4966,
+      "to": 0
+    },
+    {
+      "actor": "player",
+      "from": 1,
+      "reason": 4,
+      "tick": 5038,
+      "to": 0
+    },
+    {
+      "actor": "player",
+      "from": 0,
+      "reason": 6,
+      "tick": 5844,
+      "to": 1
+    },
+    {
+      "actor": "player",
+      "from": 1,
+      "reason": 10,
+      "tick": 6144,
+      "to": 0
+    },
+    {
+      "actor": "player",
+      "from": 0,
+      "reason": 9,
+      "tick": 6816,
+      "to": 1
+    },
+    {
+      "actor": "enemy",
+      "from": 0,
+      "reason": 9,
+      "tick": 6850,
+      "to": 1
+    },
+    {
+      "actor": "player",
+      "from": 1,
+      "reason": 5,
+      "tick": 7284,
+      "to": 0
+    },
+    {
+      "actor": "enemy",
+      "from": 1,
+      "reason": 9,
+      "tick": 7370,
+      "to": 0
+    }
+  ],
+  "tactic_event_columns": [
+    "tick",
+    "actor_0_player_1_enemy",
+    "mode"
+  ],
+  "tactic_events": [
+    [
+      0,
+      0,
+      5
+    ],
+    [
+      0,
+      1,
+      0
+    ],
+    [
+      24,
+      0,
+      1
+    ],
+    [
+      60,
+      0,
+      2
+    ],
+    [
+      120,
+      0,
+      3
+    ],
+    [
+      144,
+      0,
+      0
+    ],
+    [
+      164,
+      1,
+      5
+    ],
+    [
+      188,
+      1,
+      1
+    ],
+    [
+      272,
+      1,
+      2
+    ],
+    [
+      296,
+      1,
+      3
+    ],
+    [
+      300,
+      0,
+      5
+    ],
+    [
+      336,
+      0,
+      0
+    ],
+    [
+      346,
+      1,
+      0
+    ],
+    [
+      388,
+      1,
+      3
+    ],
+    [
+      408,
+      1,
+      0
+    ],
+    [
+      428,
+      1,
+      5
+    ],
+    [
+      480,
+      0,
+      5
+    ],
+    [
+      572,
+      1,
+      0
+    ],
+    [
+      612,
+      0,
+      0
+    ],
+    [
+      648,
+      0,
+      5
+    ],
+    [
+      672,
+      0,
+      1
+    ],
+    [
+      692,
+      1,
+      1
+    ],
+    [
+      756,
+      0,
+      2
+    ],
+    [
+      764,
+      1,
+      2
+    ],
+    [
+      816,
+      0,
+      3
+    ],
+    [
+      824,
+      1,
+      3
+    ],
+    [
+      840,
+      0,
+      0
+    ],
+    [
+      884,
+      1,
+      0
+    ],
+    [
+      898,
+      1,
+      4
+    ],
+    [
+      928,
+      1,
+      5
+    ],
+    [
+      936,
+      0,
+      5
+    ],
+    [
+      1060,
+      1,
+      0
+    ],
+    [
+      1068,
+      0,
+      0
+    ],
+    [
+      1140,
+      0,
+      5
+    ],
+    [
+      1272,
+      0,
+      0
+    ],
+    [
+      1274,
+      1,
+      5
+    ],
+    [
+      1282,
+      1,
+      4
+    ],
+    [
+      1312,
+      1,
+      5
+    ],
+    [
+      1382,
+      1,
+      6
+    ],
+    [
+      1406,
+      1,
+      0
+    ],
+    [
+      1428,
+      0,
+      6
+    ],
+    [
+      1440,
+      0,
+      0
+    ],
+    [
+      1524,
+      0,
+      6
+    ],
+    [
+      1596,
+      0,
+      0
+    ],
+    [
+      1668,
+      1,
+      6
+    ],
+    [
+      1778,
+      1,
+      0
+    ],
+    [
+      1788,
+      0,
+      6
+    ],
+    [
+      1896,
+      0,
+      0
+    ],
+    [
+      2052,
+      0,
+      7
+    ],
+    [
+      2148,
+      0,
+      0
+    ],
+    [
+      2252,
+      1,
+      5
+    ],
+    [
+      2268,
+      0,
+      5
+    ],
+    [
+      2284,
+      1,
+      0
+    ],
+    [
+      2340,
+      0,
+      0
+    ],
+    [
+      2364,
+      0,
+      5
+    ],
+    [
+      2376,
+      0,
+      0
+    ],
+    [
+      2400,
+      0,
+      6
+    ],
+    [
+      2472,
+      0,
+      0
+    ],
+    [
+      2556,
+      0,
+      6
+    ],
+    [
+      2604,
+      0,
+      0
+    ],
+    [
+      2628,
+      0,
+      5
+    ],
+    [
+      2718,
+      1,
+      5
+    ],
+    [
+      2760,
+      0,
+      0
+    ],
+    [
+      2794,
+      1,
+      4
+    ],
+    [
+      2824,
+      1,
+      5
+    ],
+    [
+      2872,
+      1,
+      0
+    ],
+    [
+      2878,
+      1,
+      5
+    ],
+    [
+      2880,
+      1,
+      0
+    ],
+    [
+      2882,
+      1,
+      5
+    ],
+    [
+      2884,
+      1,
+      0
+    ],
+    [
+      2886,
+      1,
+      5
+    ],
+    [
+      2888,
+      1,
+      0
+    ],
+    [
+      2890,
+      1,
+      5
+    ],
+    [
+      2892,
+      1,
+      0
+    ],
+    [
+      2894,
+      1,
+      5
+    ],
+    [
+      2896,
+      1,
+      0
+    ],
+    [
+      2898,
+      1,
+      5
+    ],
+    [
+      2900,
+      1,
+      0
+    ],
+    [
+      2902,
+      1,
+      5
+    ],
+    [
+      2904,
+      1,
+      0
+    ],
+    [
+      2906,
+      1,
+      5
+    ],
+    [
+      2908,
+      1,
+      0
+    ],
+    [
+      2910,
+      1,
+      5
+    ],
+    [
+      2912,
+      1,
+      0
+    ],
+    [
+      2914,
+      1,
+      5
+    ],
+    [
+      2916,
+      1,
+      0
+    ],
+    [
+      2918,
+      1,
+      5
+    ],
+    [
+      2920,
+      1,
+      0
+    ],
+    [
+      2922,
+      1,
+      5
+    ],
+    [
+      2924,
+      1,
+      0
+    ],
+    [
+      2926,
+      1,
+      5
+    ],
+    [
+      2928,
+      1,
+      0
+    ],
+    [
+      2930,
+      1,
+      5
+    ],
+    [
+      2932,
+      1,
+      0
+    ],
+    [
+      2934,
+      1,
+      5
+    ],
+    [
+      2936,
+      1,
+      0
+    ],
+    [
+      2938,
+      1,
+      5
+    ],
+    [
+      2942,
+      1,
+      0
+    ],
+    [
+      2944,
+      1,
+      5
+    ],
+    [
+      2946,
+      1,
+      0
+    ],
+    [
+      2948,
+      1,
+      5
+    ],
+    [
+      2950,
+      1,
+      0
+    ],
+    [
+      2952,
+      1,
+      5
+    ],
+    [
+      2954,
+      1,
+      0
+    ],
+    [
+      2956,
+      1,
+      5
+    ],
+    [
+      2958,
+      1,
+      0
+    ],
+    [
+      2960,
+      1,
+      5
+    ],
+    [
+      2962,
+      1,
+      0
+    ],
+    [
+      3048,
+      0,
+      6
+    ],
+    [
+      3120,
+      0,
+      0
+    ],
+    [
+      3192,
+      0,
+      6
+    ],
+    [
+      3252,
+      0,
+      5
+    ],
+    [
+      3334,
+      1,
+      5
+    ],
+    [
+      3384,
+      0,
+      0
+    ],
+    [
+      3466,
+      1,
+      0
+    ],
+    [
+      3504,
+      0,
+      5
+    ],
+    [
+      3636,
+      0,
+      0
+    ],
+    [
+      3676,
+      1,
+      5
+    ],
+    [
+      3756,
+      0,
+      5
+    ],
+    [
+      3808,
+      1,
+      0
+    ],
+    [
+      3888,
+      0,
+      0
+    ],
+    [
+      4008,
+      0,
+      5
+    ],
+    [
+      4014,
+      1,
+      5
+    ],
+    [
+      4122,
+      1,
+      1
+    ],
+    [
+      4140,
+      0,
+      0
+    ],
+    [
+      4186,
+      1,
+      4
+    ],
+    [
+      4216,
+      1,
+      5
+    ],
+    [
+      4316,
+      1,
+      0
+    ],
+    [
+      4332,
+      0,
+      6
+    ],
+    [
+      4440,
+      0,
+      0
+    ],
+    [
+      4548,
+      0,
+      6
+    ],
+    [
+      4620,
+      0,
+      0
+    ],
+    [
+      4678,
+      1,
+      5
+    ],
+    [
+      4682,
+      1,
+      0
+    ],
+    [
+      4724,
+      1,
+      5
+    ],
+    [
+      4742,
+      1,
+      0
+    ],
+    [
+      4750,
+      1,
+      5
+    ],
+    [
+      4752,
+      1,
+      0
+    ],
+    [
+      4754,
+      1,
+      5
+    ],
+    [
+      4756,
+      1,
+      0
+    ],
+    [
+      5004,
+      0,
+      6
+    ],
+    [
+      5076,
+      0,
+      0
+    ],
+    [
+      5148,
+      0,
+      6
+    ],
+    [
+      5256,
+      0,
+      0
+    ],
+    [
+      5294,
+      1,
+      6
+    ],
+    [
+      5318,
+      1,
+      0
+    ],
+    [
+      5340,
+      0,
+      6
+    ],
+    [
+      5352,
+      0,
+      0
+    ],
+    [
+      5448,
+      0,
+      6
+    ],
+    [
+      5520,
+      0,
+      7
+    ],
+    [
+      5534,
+      1,
+      7
+    ],
+    [
+      5544,
+      0,
+      0
+    ],
+    [
+      5558,
+      1,
+      0
+    ],
+    [
+      5592,
+      0,
+      6
+    ],
+    [
+      5640,
+      0,
+      0
+    ],
+    [
+      5736,
+      0,
+      6
+    ],
+    [
+      5784,
+      0,
+      0
+    ],
+    [
+      5822,
+      1,
+      7
+    ],
+    [
+      5846,
+      1,
+      0
+    ],
+    [
+      5856,
+      0,
+      5
+    ],
+    [
+      5916,
+      0,
+      0
+    ],
+    [
+      5928,
+      0,
+      5
+    ],
+    [
+      5976,
+      0,
+      0
+    ],
+    [
+      6000,
+      0,
+      6
+    ],
+    [
+      6108,
+      0,
+      0
+    ],
+    [
+      6204,
+      0,
+      6
+    ],
+    [
+      6276,
+      0,
+      0
+    ],
+    [
+      6338,
+      1,
+      6
+    ],
+    [
+      6362,
+      1,
+      0
+    ],
+    [
+      6384,
+      0,
+      7
+    ],
+    [
+      6480,
+      0,
+      6
+    ],
+    [
+      6552,
+      0,
+      7
+    ],
+    [
+      6568,
+      1,
+      7
+    ],
+    [
+      6576,
+      0,
+      0
+    ],
+    [
+      6578,
+      1,
+      0
+    ],
+    [
+      6618,
+      1,
+      6
+    ],
+    [
+      6710,
+      1,
+      7
+    ],
+    [
+      6720,
+      0,
+      6
+    ],
+    [
+      6756,
+      0,
+      5
+    ],
+    [
+      6862,
+      1,
+      5
+    ],
+    [
+      6888,
+      0,
+      0
+    ],
+    [
+      6898,
+      1,
+      4
+    ],
+    [
+      6928,
+      1,
+      5
+    ],
+    [
+      6936,
+      0,
+      5
+    ],
+    [
+      7060,
+      1,
+      0
+    ],
+    [
+      7068,
+      0,
+      0
+    ],
+    [
+      7140,
+      0,
+      5
+    ],
+    [
+      7272,
+      0,
+      0
+    ],
+    [
+      7280,
+      1,
+      5
+    ],
+    [
+      7282,
+      1,
+      4
+    ],
+    [
+      7312,
+      1,
+      5
+    ],
+    [
+      7382,
+      1,
+      0
+    ],
+    [
+      7404,
+      0,
+      6
+    ],
+    [
+      7440,
+      0,
+      0
+    ],
+    [
+      7524,
+      0,
+      6
+    ],
+    [
+      7596,
+      0,
+      0
+    ],
+    [
+      7676,
+      1,
+      6
+    ],
+    [
+      7700,
+      1,
+      0
+    ],
+    [
+      7812,
+      0,
+      6
+    ],
+    [
+      7920,
+      0,
+      0
+    ],
+    [
+      7984,
+      1,
+      6
+    ],
+    [
+      8008,
+      1,
+      0
+    ],
+    [
+      8028,
+      0,
+      6
+    ]
+  ],
+  "warnings": []
+}

@@ -1,0 +1,32 @@
+{
+  "run": {
+    "frames": 20,
+    "loop": true,
+    "speed": 360.0,
+    "sample_hz": 30,
+    "duration_seconds": 0.6666666666666666,
+    "pelvis_drop_model_units": 1435.111193599605,
+    "max_leg_extension": 0.9686820964713827,
+    "stored_frames": 21
+  },
+  "turn": {
+    "frames": 24,
+    "loop": true,
+    "speed": 0.0,
+    "sample_hz": 30,
+    "duration_seconds": 0.8,
+    "pelvis_drop_model_units": 0.0,
+    "max_leg_extension": 0.827645256332452,
+    "stored_frames": 25
+  },
+  "alert": {
+    "frames": 60,
+    "loop": false,
+    "speed": 0.0,
+    "sample_hz": 30,
+    "duration_seconds": 2.0,
+    "pelvis_drop_model_units": 0.0,
+    "max_leg_extension": 0.8382533679085791,
+    "stored_frames": 61
+  }
+}

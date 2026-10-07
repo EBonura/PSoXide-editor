@@ -1,0 +1,20 @@
+{
+  "hit": {
+    "stored_frames": 29,
+    "duration_seconds": 0.9,
+    "max_leg_extension": 0.8435098814139418,
+    "mean_planted_knee_flexion_degrees": 74.70939828524794,
+    "max_planted_sole_spread_engine_units": 0.0,
+    "max_planted_sole_floor_error_engine_units": 0.0,
+    "max_contact_drift_engine_units": 0.0,
+    "lowest_vertex_above_floor_engine_units": 0.0,
+    "leg_overlap_quarter_frames": [],
+    "max_frame_vertex_rms_step_engine_units": 4.423071789722624,
+    "loop_seam_over_largest_step": null,
+    "rear_foot_motion_engine_units": 0.0,
+    "max_arm_extension": 0.8991364497317396,
+    "elbow_bend_min_degrees": 52.25789037602159,
+    "elbow_bend_max_degrees": 74.240867919015,
+    "wrist_max_offset_from_rest_degrees": 0.0
+  }
+}

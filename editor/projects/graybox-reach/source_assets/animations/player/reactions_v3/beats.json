@@ -1,0 +1,21 @@
+{
+  "poise": {
+    "fps": 30,
+    "end": 62,
+    "beats": {
+      "strike": 1,
+      "recoil": 5,
+      "legs_fail": 10,
+      "knee_contact": 19,
+      "stunned": 27,
+      "push_up": 38,
+      "stand": 49,
+      "ready": 62
+    }
+  },
+  "hit": {
+    "source": "reactions_v2/poise",
+    "unchanged": true,
+    "seconds": 1.3333333333333333
+  }
+}

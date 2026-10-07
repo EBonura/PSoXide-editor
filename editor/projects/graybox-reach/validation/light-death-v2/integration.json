@@ -1,0 +1,72 @@
+{
+  "project": "Graybox Reach",
+  "action": "Death",
+  "resource": 91,
+  "direction": "backward",
+  "authoring": "Authored failed backstep then offline constrained-body dynamics. Joint anchors reprojected; rest pose cleaned. No runtime physics.",
+  "motion_seconds": 1.8666666666666667,
+  "clip_seconds": 2.8,
+  "source_sha256": "79aa8344f3cc996cb43fbd55cf63716ff14b51eb6d7b1fadc336346c93f85b50",
+  "disc_sha256": "3b72fdaf00ae1ba0eb2bfa4b3a35094d31d7365a05c5ccce8987171ffb7d8361",
+  "previous_assets_unchanged": true,
+  "build": "passed",
+  "editor_mcp_status": "passed",
+  "gameplay": {
+    "status": "completed",
+    "polls": 3000,
+    "scope": "Smoke replay, not exhaustive death-trigger coverage."
+  },
+  "preview": "validation/light-death-v2/death-backwards-1080p.mp4",
+  "source_validation": {
+    "stored_frames": 86,
+    "duration_seconds": 2.8,
+    "minimum_floor_clearance_engine_units": -0.008863598108291626,
+    "initial_foot_motion_engine_units": 0.0,
+    "corpse_motion_after_frame56_engine_units": 0.0,
+    "max_wrist_relative_rotation_degrees": 0.0,
+    "leg_overlap_quarter_frames": [],
+    "max_frame_vertex_rms_step_engine_units": 5.750283752226431,
+    "largest_step_frame": 1,
+    "corpse_height_engine_units": 33.67697402834892,
+    "final_lowest_vertices_joints": [
+      12,
+      13,
+      11,
+      12,
+      11,
+      13,
+      11,
+      12,
+      12,
+      12,
+      12,
+      21
+    ]
+  },
+  "cooked_validation": {
+    "clip": "clip_08_light_enemy_death.psxanim",
+    "stored_frames": 86,
+    "sample_hz": 30,
+    "duration_seconds": 2.8,
+    "minimum_floor_clearance_engine_units": -0.044921875,
+    "initial_foot_drift_engine_units": 0.0,
+    "corpse_motion_after_frame56_engine_units": 0.0,
+    "fractional_samples": 340
+  },
+  "rig_validation": {
+    "death": {
+      "evaluated_mesh_max_error_blender_units": 0.0002045201013417901,
+      "samples_checked": 86
+    }
+  },
+  "roundtrip_validation": {
+    "stored_frames": 86,
+    "roundtrip_max_vertex_error_engine_units": 0.027861766812096924,
+    "start_differs_from_corpse": true,
+    "corpse_still_from_frame": 56,
+    "final_unique_frame": 84,
+    "sample_hz": 30,
+    "runtime_speed_q8": 256,
+    "final_frame_at_tick": 168
+  }
+}

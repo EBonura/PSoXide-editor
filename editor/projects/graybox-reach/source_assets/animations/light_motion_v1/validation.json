@@ -1,0 +1,46 @@
+{
+  "run": {
+    "stored_frames": 21,
+    "duration_seconds": 0.6666666666666666,
+    "max_leg_extension": 0.9686684830150931,
+    "mean_planted_knee_flexion_degrees": 76.22950992864966,
+    "max_planted_sole_spread_engine_units": 0.0,
+    "max_planted_sole_floor_error_engine_units": 0.0,
+    "max_contact_drift_engine_units": 0.000244140625,
+    "lowest_vertex_above_floor_engine_units": -0.11290061263477558,
+    "leg_overlap_quarter_frames": [],
+    "max_frame_vertex_rms_step_engine_units": 5.686780994971851,
+    "loop_seam_over_largest_step": 0.4603724226204482
+  },
+  "turn": {
+    "stored_frames": 25,
+    "duration_seconds": 0.8,
+    "max_leg_extension": 0.8277008698461702,
+    "mean_planted_knee_flexion_degrees": 72.97880068496914,
+    "max_planted_sole_spread_engine_units": 0.0,
+    "max_planted_sole_floor_error_engine_units": 0.0,
+    "max_contact_drift_engine_units": 0.0,
+    "lowest_vertex_above_floor_engine_units": 0.0,
+    "leg_overlap_quarter_frames": [],
+    "max_frame_vertex_rms_step_engine_units": 1.1681537454636048,
+    "loop_seam_over_largest_step": 0.32717135023758903
+  },
+  "alert": {
+    "stored_frames": 61,
+    "duration_seconds": 2.0,
+    "max_leg_extension": 0.8382713502911218,
+    "mean_planted_knee_flexion_degrees": 73.25184105651044,
+    "max_planted_sole_spread_engine_units": 0.0,
+    "max_planted_sole_floor_error_engine_units": 0.0,
+    "max_contact_drift_engine_units": 0.0,
+    "lowest_vertex_above_floor_engine_units": 0.0,
+    "leg_overlap_quarter_frames": [],
+    "max_frame_vertex_rms_step_engine_units": 6.790159584682371,
+    "loop_seam_over_largest_step": null,
+    "rear_foot_motion_engine_units": 0.0,
+    "pointing_forward_dot_min": 0.9877289418617075,
+    "pointing_wrist_rise_engine_units": 28.50433595542563,
+    "pointing_hold_drift_engine_units": 0.0,
+    "max_pointing_arm_extension": 0.950132865886304
+  }
+}

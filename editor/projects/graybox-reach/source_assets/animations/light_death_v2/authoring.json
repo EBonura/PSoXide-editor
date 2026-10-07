@@ -1,0 +1,15 @@
+{
+  "death": {
+    "frames": 84,
+    "stored_frames": 86,
+    "sample_hz": 30,
+    "playback_speed_q8": 256,
+    "duration_seconds": 2.8,
+    "loop": false,
+    "speed": 0.0,
+    "still_from_frame": 56,
+    "physics_release_frame": 19,
+    "tail_max_vertex_speed_engine_units_per_frame": 0.4555752481532532,
+    "maximum_floor_correction_engine_units": 1.1830343785868056
+  }
+}

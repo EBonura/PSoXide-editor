@@ -5,8 +5,13 @@
   "period_seconds": 0.8,
   "stance_fraction": 0.56,
   "foot_clearance_model_units": 1100.0,
-  "extra_pelvis_lowering_model_units": 27.385380170013377,
-  "max_leg_extension": 0.9549999971279451,
+  "extra_pelvis_lowering_model_units": 1968.0804441487799,
+  "max_leg_extension": 0.9750000082837014,
+  "target_leg_extension_limit": 0.975,
+  "sole_fore_aft_centers": [
+    2469.4710438400507,
+    3213.522625245154
+  ],
   "world_speed_per_second": 1680,
   "visual_scale_q8": 417,
   "hip_impact_keys": [

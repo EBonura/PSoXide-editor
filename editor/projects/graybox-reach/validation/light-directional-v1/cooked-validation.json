@@ -1,18 +1,18 @@
 {
   "walk_backward": {
-    "cooked_bytes": 7412,
-    "max_planted_foot_drift_engine_units": 0.04296875,
-    "floor_range_engine_units": 0.043836116790771484
+    "cooked_bytes": 7104,
+    "max_planted_foot_drift_engine_units": 0.0234375,
+    "floor_range_engine_units": 0.044921875
   },
   "strafe_left": {
-    "cooked_bytes": 5936,
-    "max_planted_foot_drift_engine_units": 0.04296875,
-    "floor_range_engine_units": 0.043836116790771484
+    "cooked_bytes": 5696,
+    "max_planted_foot_drift_engine_units": 0.0234375,
+    "floor_range_engine_units": 0.044921875
   },
   "strafe_right": {
-    "cooked_bytes": 5984,
-    "max_planted_foot_drift_engine_units": 0.001953125,
-    "floor_range_engine_units": 0.043836116790771484
+    "cooked_bytes": 5744,
+    "max_planted_foot_drift_engine_units": 0.0234375,
+    "floor_range_engine_units": 0.044921875
   },
   "roundtrip_max_vertex_difference_model_units": 7.324368748464032,
   "limit": "Includes actual cooked vertex and pose quantization, compression and float matrix interpolation. GTE integer arithmetic, obstacle clipping and curved circling add error."

@@ -1,0 +1,135 @@
+{
+  "project": "Graybox Reach",
+  "installed": {
+    "run": {
+      "resource_id": 34,
+      "sha256": "e7a7d7e9db97c3a6e5af48b1099b468623598712568d839af0d41579a90059f0",
+      "bytes": 11108
+    },
+    "turn": {
+      "resource_id": 64,
+      "sha256": "3e1979aaef221f522eeeacbb5c2c616668ede9c20bc868164dc147bc9d12becc",
+      "bytes": 13220
+    },
+    "alert": {
+      "resource_id": 65,
+      "sha256": "4b0d17caf76fa258e5cf58c08af7115b249439bc5ca19732e62d9ee13b6c23b4",
+      "bytes": 32228
+    }
+  },
+  "source_validation": {
+    "run": {
+      "stored_frames": 21,
+      "duration_seconds": 0.6666666666666666,
+      "max_leg_extension": 0.9686684830150931,
+      "mean_planted_knee_flexion_degrees": 76.22950992864966,
+      "max_planted_sole_spread_engine_units": 0.0,
+      "max_planted_sole_floor_error_engine_units": 0.0,
+      "max_contact_drift_engine_units": 0.000244140625,
+      "lowest_vertex_above_floor_engine_units": -0.11290061263477558,
+      "leg_overlap_quarter_frames": [],
+      "max_frame_vertex_rms_step_engine_units": 5.686780994971851,
+      "loop_seam_over_largest_step": 0.4603724226204482
+    },
+    "turn": {
+      "stored_frames": 25,
+      "duration_seconds": 0.8,
+      "max_leg_extension": 0.8277008698461702,
+      "mean_planted_knee_flexion_degrees": 72.97880068496914,
+      "max_planted_sole_spread_engine_units": 0.0,
+      "max_planted_sole_floor_error_engine_units": 0.0,
+      "max_contact_drift_engine_units": 0.0,
+      "lowest_vertex_above_floor_engine_units": 0.0,
+      "leg_overlap_quarter_frames": [],
+      "max_frame_vertex_rms_step_engine_units": 1.1681537454636048,
+      "loop_seam_over_largest_step": 0.32717135023758903
+    },
+    "alert": {
+      "stored_frames": 61,
+      "duration_seconds": 2.0,
+      "max_leg_extension": 0.8382713502911218,
+      "mean_planted_knee_flexion_degrees": 73.25184105651044,
+      "max_planted_sole_spread_engine_units": 0.0,
+      "max_planted_sole_floor_error_engine_units": 0.0,
+      "max_contact_drift_engine_units": 0.0,
+      "lowest_vertex_above_floor_engine_units": 0.0,
+      "leg_overlap_quarter_frames": [],
+      "max_frame_vertex_rms_step_engine_units": 6.790159584682371,
+      "loop_seam_over_largest_step": null,
+      "rear_foot_motion_engine_units": 0.0,
+      "pointing_forward_dot_min": 0.9877289418617075,
+      "pointing_wrist_rise_engine_units": 28.50433595542563,
+      "pointing_hold_drift_engine_units": 0.0,
+      "max_pointing_arm_extension": 0.950132865886304
+    }
+  },
+  "cooked_validation": {
+    "run": {
+      "stored_frames": 21,
+      "sample_hz": 30,
+      "max_planted_sole_spread_engine_units": 0.0,
+      "max_planted_sole_floor_error_engine_units": 0.044921875,
+      "max_contact_drift_engine_units": 0.0390625,
+      "contact_samples": 37
+    },
+    "turn": {
+      "stored_frames": 25,
+      "sample_hz": 30,
+      "max_planted_sole_spread_engine_units": 0.0,
+      "max_planted_sole_floor_error_engine_units": 0.044921875,
+      "max_contact_drift_engine_units": 0.0,
+      "contact_samples": 162
+    },
+    "alert": {
+      "stored_frames": 61,
+      "sample_hz": 30,
+      "max_planted_sole_spread_engine_units": 0.0,
+      "max_planted_sole_floor_error_engine_units": 0.044921875,
+      "max_contact_drift_engine_units": 0.0,
+      "contact_samples": 492
+    }
+  },
+  "rig_validation": {
+    "run": {
+      "evaluated_mesh_max_error_blender_units": 5.04483516261953e-05,
+      "samples_checked": 21
+    },
+    "turn": {
+      "evaluated_mesh_max_error_blender_units": 0.0002983821495666505,
+      "samples_checked": 25
+    },
+    "alert": {
+      "evaluated_mesh_max_error_blender_units": 0.0002954679737359912,
+      "samples_checked": 61
+    }
+  },
+  "roundtrip_validation": {
+    "run": {
+      "roundtrip_max_vertex_error_engine_units": 0.020943427946788475,
+      "frames": 21
+    },
+    "turn": {
+      "roundtrip_max_vertex_error_engine_units": 0.02731180888048158,
+      "frames": 25
+    },
+    "alert": {
+      "roundtrip_max_vertex_error_engine_units": 0.02778108865956485,
+      "frames": 61
+    }
+  },
+  "disc_sha256": "319bff3e62f86432d3dfabc257e287c324d5ab817a6872e103c54f7177cd26b9",
+  "mcp": "Rebuilt psxed-mcp to read existing RangedAim schema additions; status succeeds, no staged edits.",
+  "limitations": [
+    "Turn is an in-place replant cycle; runtime controls actor yaw, with no per-foot world-space IK.",
+    "Not tested on original PlayStation hardware.",
+    "Run rigid shin fin extends 0.113 engine units below the sole plane at one contact; planted soles themselves remain flat."
+  ],
+  "previous_gameplay": {
+    "requested_stop_poll": 800,
+    "completed_polls": 801,
+    "log": "build/graybox-reach/light-motion-v1/alert-step-gameplay.log"
+  },
+  "revision": "Single-foot step-and-point: lead foot advances and returns; rear foot remains fixed throughout. Same body motion and two-second timing.",
+  "reaction_ticks": 120,
+  "validation_scope": "Rebuilt disc, source and cooked contact checks, Blender rig and export roundtrip. Gameplay replay retained from prior two-foot revision."
+}

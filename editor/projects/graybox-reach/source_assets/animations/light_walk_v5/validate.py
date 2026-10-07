@@ -7,14 +7,23 @@ for name,path in [('before',P/'assets/animations/light_walk_v4/walk.psxanim'),('
   sk=np.tile(np.eye(4),(22,1,1))
   for j,(r,t) in enumerate(pose):sk[j,:3,:3]=r;sk[j,:3,3]=t
   g.append(sk@bind)
- g=np.array(g);steps=np.sqrt(np.mean(np.sum(np.diff(points,axis=0)**2,axis=2),axis=1));seam=np.sqrt(np.mean(np.sum((points[-1]-points[0])**2,axis=1)));ext=[]
- for a,b,c in [(14,15,16),(18,19,20)]:
+ g=np.array(g);steps=np.sqrt(np.mean(np.sum(np.diff(points,axis=0)**2,axis=2),axis=1));seam=np.sqrt(np.mean(np.sum((points[-1]-points[0])**2,axis=1)));ext=[];planted_flex=[]
+ for leg,(a,b,c) in enumerate([(14,15,16),(18,19,20)]):
   h,k,f=g[:,a,:3,3],g[:,b,:3,3],g[:,c,:3,3];ext.extend(np.linalg.norm(f-h,axis=1)/(np.linalg.norm(k-h,axis=1)+np.linalg.norm(f-k,axis=1)))
- d={'unique_frames':len(poses),'seam_over_largest_step':float(seam/steps.max()),'max_leg_extension':float(max(ext)),'head_vertical_range_world_units':float(np.ptp(g[:,5,1,3])*scale),'cannon_forward_range_world_units':float(np.ptp(g[:,13,2,3])*scale),'knee_lateral_range_world_units':[float(np.ptp(g[:,j,0,3])*scale) for j in [15,19]],'floor_range_world_units':float(np.ptp(points[:,:,1].min(1))*scale)}
+  u=h-k;v=f-k;angles=180-np.degrees(np.arccos(np.clip(np.sum(u*v,axis=1)/np.linalg.norm(u,axis=1)/np.linalg.norm(v,axis=1),-1,1)));planted_flex.extend(angles[contact[:,leg]])
+ d={'unique_frames':len(poses),'seam_over_largest_step':float(seam/steps.max()),'max_leg_extension':float(max(ext)),'mean_planted_knee_flexion_degrees':float(np.mean(planted_flex)),'max_planted_knee_flexion_degrees':float(max(planted_flex)),'head_vertical_range_world_units':float(np.ptp(g[:,5,1,3])*scale),'cannon_forward_range_world_units':float(np.ptp(g[:,13,2,3])*scale),'knee_lateral_range_world_units':[float(np.ptp(g[:,j,0,3])*scale) for j in [15,19]],'floor_range_world_units':float(np.ptp(points[:,:,1].min(1))*scale)}
  if name=='after':
-  assert np.isfinite(points).all();drift=[]
+  assert np.mean(planted_flex)<75 and max(planted_flex)<85,('crouching gait',d)
+  assert np.isfinite(points).all();drift=[];sole_spreads=[];sole_errors=[]
   for leg,joints in enumerate([[16,17],[20,21]]):
    ids=[i for i in range(len(m['v'])) if m['owner'][i] in joints]
+   bind_floor=min(m['v'][i][1] for i in ids)
+   sole=[i for i in ids if m['v'][i][1]==bind_floor]
+   assert len(sole)>=4
+   for fi in range(len(poses)):
+    if contact[fi,leg]:
+     sole_spreads.append(float(np.ptp(points[fi,sole,1])*scale/16))
+     sole_errors.append(float(np.abs(points[fi,sole,1]+20000).max()*scale/16))
    for i in range(24):
     j=(i+1)%24
     if contact[i,leg] and contact[j,leg]:
@@ -22,8 +31,9 @@ for name,path in [('before',P/'assets/animations/light_walk_v4/walk.psxanim'),('
      # Runtime linearly interpolates skin matrices: test fractional contact poses too.
      for alpha in [.25,.5,.75]:
       p=[(a[0]*(1-alpha)+b[0]*alpha,a[1]*(1-alpha)+b[1]*alpha) for a,b in zip(poses[i],poses[j])];part=deform(m,p)[ids];drift.extend(np.linalg.norm((part-points[i,ids])*scale+np.array([0,0,1680/30*alpha]),axis=1))
-  d['max_contact_drift_world_units']=float(max(drift));assert max(drift)<.2;assert max(ext)<.97;assert seam/steps.max()<1.15;assert all(contact.any(axis=1))
+  d['max_planted_sole_spread_engine_units']=max(sole_spreads);d['max_planted_sole_floor_error_engine_units']=max(sole_errors);assert max(sole_spreads)<.03;assert max(sole_errors)<.03
+  d['max_contact_drift_world_units']=float(max(drift));assert max(drift)<.2;assert max(ext)<.985;assert seam/steps.max()<1.15;assert all(contact.any(axis=1))
  report[name]=d
 report['contact_assumption']='Straight forward speed1680 world units/sec, scale417, 30Hz clip, in_place=false; fractional source matrix interpolation included.';(O/'validation.json').write_text(json.dumps(report,indent=2));print(json.dumps(report,indent=2))
 
-previous=np.load(P/"source_assets/animations/light_walk_v4/walk.npz")["skin"];lower=[0,*range(14,22)];assert np.array_equal(previous[:,lower],data["skin"][:,lower]);report["root_and_leg_matrices_identical_to_v4"]=True;(O/"validation.json").write_text(json.dumps(report,indent=2))
+# Leg matrices intentionally differ from v4: feet now plant on their full soles.

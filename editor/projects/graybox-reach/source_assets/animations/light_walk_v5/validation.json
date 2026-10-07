@@ -3,6 +3,8 @@
     "unique_frames": 24,
     "seam_over_largest_step": 0.615342900656856,
     "max_leg_extension": 0.9550006872216339,
+    "mean_planted_knee_flexion_degrees": 69.2919950770934,
+    "max_planted_knee_flexion_degrees": 88.12348031285349,
     "head_vertical_range_world_units": 67.05706697446294,
     "cannon_forward_range_world_units": 116.6960426151054,
     "knee_lateral_range_world_units": [
@@ -13,22 +15,20 @@
   },
   "after": {
     "unique_frames": 24,
-    "seam_over_largest_step": 0.6234343865938194,
-    "max_leg_extension": 0.9550006872216339,
+    "seam_over_largest_step": 0.6317073637228873,
+    "max_leg_extension": 0.9749725426694283,
+    "mean_planted_knee_flexion_degrees": 64.1780997801832,
+    "max_planted_knee_flexion_degrees": 77.65458047112256,
     "head_vertical_range_world_units": 70.02906283910852,
     "cannon_forward_range_world_units": 123.45125883247238,
     "knee_lateral_range_world_units": [
-      99.67786698439158,
-      93.12539626122452
+      99.68211117270403,
+      86.88059993041679
     ],
-    "floor_range_world_units": 0.032320499420166016,
+    "floor_range_world_units": 2.1568104482163903,
+    "max_planted_sole_spread_engine_units": 0.0,
+    "max_planted_sole_floor_error_engine_units": 0.0,
     "max_contact_drift_world_units": 0.02734375
   },
-  "contact_assumption": "Straight forward speed1680 world units/sec, scale417, 30Hz clip, in_place=false; fractional source matrix interpolation included.",
-  "root_and_leg_matrices_identical_to_v4": true,
-  "preview_loop_ms": 800,
-  "blender_rig_max_position_error": 0.00029643178651308545,
-  "runtime_sha256": "1310b12585f72d34336ade35e19ccf36208031eb454ed5c9327a0de625443bc9",
-  "project_disc_build": "passed",
-  "head_change_reverted_byte_identical": true
+  "contact_assumption": "Straight forward speed1680 world units/sec, scale417, 30Hz clip, in_place=false; fractional source matrix interpolation included."
 }

@@ -1,0 +1,1415 @@
+{
+  "status": "playable prototype, emulator verified",
+  "project": "Graybox Reach",
+  "tests": {
+    "runtime_passed": 336,
+    "guest_passed": 85,
+    "guest_excluded": [
+      "only_initial_world_pages_lock_controls_through_the_closing_animation"
+    ],
+    "mcp_passed": 22
+  },
+  "duels": [
+    {
+      "approach_retreat_ranged_decisions": [
+        55,
+        1,
+        44
+      ],
+      "artifacts": "editor/projects/graybox-reach/validation/combat-duels/seed-1-1791398050599",
+      "completed_by_death": true,
+      "damage_events_player_enemy": [
+        5,
+        20
+      ],
+      "damage_taken_player_enemy_hrz_zth": [
+        [
+          73,
+          88
+        ],
+        [
+          300,
+          300
+        ]
+      ],
+      "decision_columns": [
+        "tick",
+        "intent",
+        "stance_reason",
+        "requested_buttons",
+        "distance"
+      ],
+      "end_tick": 2213,
+      "enemy_attack_entries": 9,
+      "enemy_windups_light_heavy_ranged": [
+        2,
+        4,
+        4
+      ],
+      "energy_end_player_enemy": [
+        20,
+        80
+      ],
+      "energy_min_player_enemy": [
+        0,
+        80
+      ],
+      "flow_event_columns": [
+        "tick",
+        "attacker_0_player_1_enemy",
+        "event_1_shot_interrupt"
+      ],
+      "flow_events": [
+        [
+          1273,
+          1,
+          1
+        ]
+      ],
+      "intent_names": [
+        "hold",
+        "approach",
+        "melee",
+        "ranged",
+        "dodge",
+        "swap",
+        "retreat"
+      ],
+      "measurement_note": "Attack starts are sampled animation changes; moving-fire layers may not match those counts. Projectile emission events count successful launches. Logs predating duel:shot have no emission counts. Damage is observed health loss, not raw attack damage; regeneration between samples may offset it. A death is a completion result, not a balance or flow pass.",
+      "outcome": "player_won",
+      "player_accepted_light_heavy_ranged": [
+        6,
+        5,
+        20
+      ],
+      "player_requested_r1_r2": [
+        34,
+        84
+      ],
+      "projectiles_emitted_player_enemy": [
+        11,
+        3
+      ],
+      "sample_columns": [
+        "tick",
+        "player_x",
+        "player_z",
+        "enemy_x",
+        "enemy_z",
+        "player_hrz",
+        "player_zth",
+        "enemy_hrz",
+        "enemy_zth",
+        "player_stance",
+        "enemy_stance",
+        "player_action",
+        "enemy_state",
+        "intent",
+        "stance_reason",
+        "stamina_q12",
+        "enemy_goal_generation",
+        "player_action_start",
+        "enemy_goal",
+        "enemy_stance_reason",
+        "enemy_attack_kind",
+        "player_energy",
+        "enemy_energy"
+      ],
+      "sample_count": 159,
+      "seed": 1,
+      "shot_event_columns": [
+        "tick",
+        "actor_0_player_1_enemy",
+        "energy_after"
+      ],
+      "shot_events": [
+        [
+          124,
+          0,
+          80
+        ],
+        [
+          160,
+          0,
+          60
+        ],
+        [
+          196,
+          0,
+          40
+        ],
+        [
+          232,
+          0,
+          20
+        ],
+        [
+          240,
+          1,
+          80
+        ],
+        [
+          268,
+          0,
+          0
+        ],
+        [
+          976,
+          0,
+          44
+        ],
+        [
+          1012,
+          0,
+          24
+        ],
+        [
+          1151,
+          0,
+          4
+        ],
+        [
+          1270,
+          1,
+          80
+        ],
+        [
+          2140,
+          0,
+          60
+        ],
+        [
+          2170,
+          1,
+          80
+        ],
+        [
+          2176,
+          0,
+          40
+        ],
+        [
+          2212,
+          0,
+          20
+        ]
+      ],
+      "stance_reasons": [
+        "distance",
+        "recover_pool",
+        "press_after_shots",
+        "exposed_channel",
+        "forced_break",
+        "rebuild_energy",
+        "melee_to_ranged",
+        "shot_to_melee",
+        "overhead_target"
+      ],
+      "stance_switches_player_enemy": [
+        4,
+        5
+      ],
+      "stance_ticks_player_enemy": [
+        [
+          1464,
+          749
+        ],
+        [
+          1334,
+          879
+        ]
+      ],
+      "switch_events": [
+        {
+          "actor": "enemy",
+          "from": 0,
+          "reason": 0,
+          "tick": 120,
+          "to": 1
+        },
+        {
+          "actor": "player",
+          "from": 1,
+          "reason": 5,
+          "tick": 300,
+          "to": 0
+        },
+        {
+          "actor": "enemy",
+          "from": 1,
+          "reason": 2,
+          "tick": 472,
+          "to": 0
+        },
+        {
+          "actor": "player",
+          "from": 0,
+          "reason": 6,
+          "tick": 900,
+          "to": 1
+        },
+        {
+          "actor": "enemy",
+          "from": 0,
+          "reason": 6,
+          "tick": 1108,
+          "to": 1
+        },
+        {
+          "actor": "player",
+          "from": 1,
+          "reason": 5,
+          "tick": 1200,
+          "to": 0
+        },
+        {
+          "actor": "enemy",
+          "from": 1,
+          "reason": 7,
+          "tick": 1416,
+          "to": 0
+        },
+        {
+          "actor": "enemy",
+          "from": 0,
+          "reason": 6,
+          "tick": 1994,
+          "to": 1
+        },
+        {
+          "actor": "player",
+          "from": 0,
+          "reason": 6,
+          "tick": 2064,
+          "to": 1
+        }
+      ],
+      "warnings": [],
+      "source_report": "editor/projects/graybox-reach/validation/combat-duels/seed-1-1791398050599/report.json",
+      "energy_gain_samples_player_enemy": [
+        9,
+        2
+      ],
+      "build_exe_sha256": "85a0117dcd00e2b7feca53aa476864b581278a6c0799c94e410902f2f998df14"
+    },
+    {
+      "approach_retreat_ranged_decisions": [
+        101,
+        2,
+        49
+      ],
+      "artifacts": "editor/projects/graybox-reach/validation/combat-duels/seed-3-1791397867287",
+      "completed_by_death": true,
+      "damage_events_player_enemy": [
+        4,
+        19
+      ],
+      "damage_taken_player_enemy_hrz_zth": [
+        [
+          0,
+          120
+        ],
+        [
+          300,
+          300
+        ]
+      ],
+      "decision_columns": [
+        "tick",
+        "intent",
+        "stance_reason",
+        "requested_buttons",
+        "distance"
+      ],
+      "end_tick": 2521,
+      "enemy_attack_entries": 9,
+      "enemy_windups_light_heavy_ranged": [
+        3,
+        3,
+        4
+      ],
+      "energy_end_player_enemy": [
+        40,
+        72
+      ],
+      "energy_min_player_enemy": [
+        0,
+        60
+      ],
+      "flow_event_columns": [
+        "tick",
+        "attacker_0_player_1_enemy",
+        "event_1_shot_interrupt"
+      ],
+      "flow_events": [],
+      "intent_names": [
+        "hold",
+        "approach",
+        "melee",
+        "ranged",
+        "dodge",
+        "swap",
+        "retreat"
+      ],
+      "measurement_note": "Attack starts are sampled animation changes; moving-fire layers may not match those counts. Projectile emission events count successful launches. Logs predating duel:shot have no emission counts. Damage is observed health loss, not raw attack damage; regeneration between samples may offset it. A death is a completion result, not a balance or flow pass.",
+      "outcome": "player_won",
+      "player_accepted_light_heavy_ranged": [
+        5,
+        4,
+        19
+      ],
+      "player_requested_r1_r2": [
+        18,
+        79
+      ],
+      "projectiles_emitted_player_enemy": [
+        10,
+        3
+      ],
+      "sample_columns": [
+        "tick",
+        "player_x",
+        "player_z",
+        "enemy_x",
+        "enemy_z",
+        "player_hrz",
+        "player_zth",
+        "enemy_hrz",
+        "enemy_zth",
+        "player_stance",
+        "enemy_stance",
+        "player_action",
+        "enemy_state",
+        "intent",
+        "stance_reason",
+        "stamina_q12",
+        "enemy_goal_generation",
+        "player_action_start",
+        "enemy_goal",
+        "enemy_stance_reason",
+        "enemy_attack_kind",
+        "player_energy",
+        "enemy_energy"
+      ],
+      "sample_count": 183,
+      "seed": 3,
+      "shot_event_columns": [
+        "tick",
+        "actor_0_player_1_enemy",
+        "energy_after"
+      ],
+      "shot_events": [
+        [
+          124,
+          0,
+          80
+        ],
+        [
+          160,
+          0,
+          60
+        ],
+        [
+          196,
+          0,
+          40
+        ],
+        [
+          232,
+          0,
+          20
+        ],
+        [
+          240,
+          1,
+          80
+        ],
+        [
+          268,
+          0,
+          0
+        ],
+        [
+          1168,
+          1,
+          60
+        ],
+        [
+          1648,
+          0,
+          76
+        ],
+        [
+          1684,
+          0,
+          56
+        ],
+        [
+          1817,
+          0,
+          36
+        ],
+        [
+          1946,
+          1,
+          60
+        ],
+        [
+          2416,
+          0,
+          60
+        ],
+        [
+          2519,
+          0,
+          40
+        ]
+      ],
+      "stance_reasons": [
+        "distance",
+        "recover_pool",
+        "press_after_shots",
+        "exposed_channel",
+        "forced_break",
+        "rebuild_energy",
+        "melee_to_ranged",
+        "shot_to_melee",
+        "overhead_target"
+      ],
+      "stance_switches_player_enemy": [
+        4,
+        6
+      ],
+      "stance_ticks_player_enemy": [
+        [
+          1608,
+          913
+        ],
+        [
+          1387,
+          1134
+        ]
+      ],
+      "switch_events": [
+        {
+          "actor": "enemy",
+          "from": 0,
+          "reason": 0,
+          "tick": 120,
+          "to": 1
+        },
+        {
+          "actor": "player",
+          "from": 1,
+          "reason": 5,
+          "tick": 300,
+          "to": 0
+        },
+        {
+          "actor": "enemy",
+          "from": 1,
+          "reason": 2,
+          "tick": 472,
+          "to": 0
+        },
+        {
+          "actor": "enemy",
+          "from": 0,
+          "reason": 0,
+          "tick": 870,
+          "to": 1
+        },
+        {
+          "actor": "enemy",
+          "from": 1,
+          "reason": 0,
+          "tick": 1350,
+          "to": 0
+        },
+        {
+          "actor": "player",
+          "from": 0,
+          "reason": 6,
+          "tick": 1572,
+          "to": 1
+        },
+        {
+          "actor": "enemy",
+          "from": 0,
+          "reason": 6,
+          "tick": 1774,
+          "to": 1
+        },
+        {
+          "actor": "player",
+          "from": 1,
+          "reason": 2,
+          "tick": 1992,
+          "to": 0
+        },
+        {
+          "actor": "enemy",
+          "from": 1,
+          "reason": 0,
+          "tick": 2076,
+          "to": 0
+        },
+        {
+          "actor": "player",
+          "from": 0,
+          "reason": 6,
+          "tick": 2328,
+          "to": 1
+        }
+      ],
+      "warnings": [
+        "Not every vitality channel took observed damage."
+      ],
+      "source_report": "editor/projects/graybox-reach/validation/combat-duels/seed-3-1791397867287/report.json",
+      "energy_gain_samples_player_enemy": [
+        9,
+        2
+      ],
+      "build_exe_sha256": "6a8356f0b67f464a7d4936ddb1695bafed3ccb19147eb16760bb749e65465dd5"
+    },
+    {
+      "approach_retreat_ranged_decisions": [
+        62,
+        1,
+        46
+      ],
+      "artifacts": "editor/projects/graybox-reach/validation/combat-duels/seed-7-1791397867287",
+      "completed_by_death": true,
+      "damage_events_player_enemy": [
+        4,
+        20
+      ],
+      "damage_taken_player_enemy_hrz_zth": [
+        [
+          32,
+          88
+        ],
+        [
+          300,
+          300
+        ]
+      ],
+      "decision_columns": [
+        "tick",
+        "intent",
+        "stance_reason",
+        "requested_buttons",
+        "distance"
+      ],
+      "end_tick": 2250,
+      "enemy_attack_entries": 9,
+      "enemy_windups_light_heavy_ranged": [
+        3,
+        4,
+        5
+      ],
+      "energy_end_player_enemy": [
+        20,
+        92
+      ],
+      "energy_min_player_enemy": [
+        0,
+        72
+      ],
+      "flow_event_columns": [
+        "tick",
+        "attacker_0_player_1_enemy",
+        "event_1_shot_interrupt"
+      ],
+      "flow_events": [],
+      "intent_names": [
+        "hold",
+        "approach",
+        "melee",
+        "ranged",
+        "dodge",
+        "swap",
+        "retreat"
+      ],
+      "measurement_note": "Attack starts are sampled animation changes; moving-fire layers may not match those counts. Projectile emission events count successful launches. Logs predating duel:shot have no emission counts. Damage is observed health loss, not raw attack damage; regeneration between samples may offset it. A death is a completion result, not a balance or flow pass.",
+      "outcome": "player_won",
+      "player_accepted_light_heavy_ranged": [
+        6,
+        5,
+        20
+      ],
+      "player_requested_r1_r2": [
+        29,
+        80
+      ],
+      "projectiles_emitted_player_enemy": [
+        11,
+        2
+      ],
+      "sample_columns": [
+        "tick",
+        "player_x",
+        "player_z",
+        "enemy_x",
+        "enemy_z",
+        "player_hrz",
+        "player_zth",
+        "enemy_hrz",
+        "enemy_zth",
+        "player_stance",
+        "enemy_stance",
+        "player_action",
+        "enemy_state",
+        "intent",
+        "stance_reason",
+        "stamina_q12",
+        "enemy_goal_generation",
+        "player_action_start",
+        "enemy_goal",
+        "enemy_stance_reason",
+        "enemy_attack_kind",
+        "player_energy",
+        "enemy_energy"
+      ],
+      "sample_count": 176,
+      "seed": 7,
+      "shot_event_columns": [
+        "tick",
+        "actor_0_player_1_enemy",
+        "energy_after"
+      ],
+      "shot_events": [
+        [
+          124,
+          0,
+          80
+        ],
+        [
+          160,
+          0,
+          60
+        ],
+        [
+          196,
+          0,
+          40
+        ],
+        [
+          232,
+          0,
+          20
+        ],
+        [
+          240,
+          1,
+          80
+        ],
+        [
+          268,
+          0,
+          0
+        ],
+        [
+          1264,
+          0,
+          68
+        ],
+        [
+          1300,
+          0,
+          48
+        ],
+        [
+          1314,
+          1,
+          72
+        ],
+        [
+          1336,
+          0,
+          28
+        ],
+        [
+          1372,
+          0,
+          8
+        ],
+        [
+          2092,
+          0,
+          40
+        ],
+        [
+          2249,
+          0,
+          20
+        ]
+      ],
+      "stance_reasons": [
+        "distance",
+        "recover_pool",
+        "press_after_shots",
+        "exposed_channel",
+        "forced_break",
+        "rebuild_energy",
+        "melee_to_ranged",
+        "shot_to_melee",
+        "overhead_target"
+      ],
+      "stance_switches_player_enemy": [
+        4,
+        5
+      ],
+      "stance_ticks_player_enemy": [
+        [
+          1368,
+          882
+        ],
+        [
+          1328,
+          922
+        ]
+      ],
+      "switch_events": [
+        {
+          "actor": "enemy",
+          "from": 0,
+          "reason": 0,
+          "tick": 120,
+          "to": 1
+        },
+        {
+          "actor": "player",
+          "from": 1,
+          "reason": 5,
+          "tick": 300,
+          "to": 0
+        },
+        {
+          "actor": "enemy",
+          "from": 1,
+          "reason": 2,
+          "tick": 472,
+          "to": 0
+        },
+        {
+          "actor": "enemy",
+          "from": 0,
+          "reason": 6,
+          "tick": 892,
+          "to": 1
+        },
+        {
+          "actor": "player",
+          "from": 0,
+          "reason": 6,
+          "tick": 1188,
+          "to": 1
+        },
+        {
+          "actor": "enemy",
+          "from": 1,
+          "reason": 2,
+          "tick": 1418,
+          "to": 0
+        },
+        {
+          "actor": "player",
+          "from": 1,
+          "reason": 5,
+          "tick": 1536,
+          "to": 0
+        },
+        {
+          "actor": "player",
+          "from": 0,
+          "reason": 6,
+          "tick": 2016,
+          "to": 1
+        },
+        {
+          "actor": "enemy",
+          "from": 0,
+          "reason": 6,
+          "tick": 2206,
+          "to": 1
+        }
+      ],
+      "warnings": [],
+      "source_report": "editor/projects/graybox-reach/validation/combat-duels/seed-7-1791397867287/report.json",
+      "energy_gain_samples_player_enemy": [
+        9,
+        2
+      ],
+      "build_exe_sha256": "6a8356f0b67f464a7d4936ddb1695bafed3ccb19147eb16760bb749e65465dd5"
+    },
+    {
+      "approach_retreat_ranged_decisions": [
+        47,
+        2,
+        44
+      ],
+      "artifacts": "editor/projects/graybox-reach/validation/combat-duels/seed-11-1791398050617",
+      "completed_by_death": true,
+      "damage_events_player_enemy": [
+        4,
+        19
+      ],
+      "damage_taken_player_enemy_hrz_zth": [
+        [
+          25,
+          84
+        ],
+        [
+          300,
+          300
+        ]
+      ],
+      "decision_columns": [
+        "tick",
+        "intent",
+        "stance_reason",
+        "requested_buttons",
+        "distance"
+      ],
+      "end_tick": 1781,
+      "enemy_attack_entries": 7,
+      "enemy_windups_light_heavy_ranged": [
+        2,
+        2,
+        4
+      ],
+      "energy_end_player_enemy": [
+        8,
+        84
+      ],
+      "energy_min_player_enemy": [
+        0,
+        72
+      ],
+      "flow_event_columns": [
+        "tick",
+        "attacker_0_player_1_enemy",
+        "event_1_shot_interrupt"
+      ],
+      "flow_events": [],
+      "intent_names": [
+        "hold",
+        "approach",
+        "melee",
+        "ranged",
+        "dodge",
+        "swap",
+        "retreat"
+      ],
+      "measurement_note": "Attack starts are sampled animation changes; moving-fire layers may not match those counts. Projectile emission events count successful launches. Logs predating duel:shot have no emission counts. Damage is observed health loss, not raw attack damage; regeneration between samples may offset it. A death is a completion result, not a balance or flow pass.",
+      "outcome": "player_won",
+      "player_accepted_light_heavy_ranged": [
+        4,
+        4,
+        19
+      ],
+      "player_requested_r1_r2": [
+        20,
+        70
+      ],
+      "projectiles_emitted_player_enemy": [
+        11,
+        2
+      ],
+      "sample_columns": [
+        "tick",
+        "player_x",
+        "player_z",
+        "enemy_x",
+        "enemy_z",
+        "player_hrz",
+        "player_zth",
+        "enemy_hrz",
+        "enemy_zth",
+        "player_stance",
+        "enemy_stance",
+        "player_action",
+        "enemy_state",
+        "intent",
+        "stance_reason",
+        "stamina_q12",
+        "enemy_goal_generation",
+        "player_action_start",
+        "enemy_goal",
+        "enemy_stance_reason",
+        "enemy_attack_kind",
+        "player_energy",
+        "enemy_energy"
+      ],
+      "sample_count": 141,
+      "seed": 11,
+      "shot_event_columns": [
+        "tick",
+        "actor_0_player_1_enemy",
+        "energy_after"
+      ],
+      "shot_events": [
+        [
+          124,
+          0,
+          80
+        ],
+        [
+          160,
+          0,
+          60
+        ],
+        [
+          196,
+          0,
+          40
+        ],
+        [
+          232,
+          0,
+          20
+        ],
+        [
+          240,
+          1,
+          80
+        ],
+        [
+          268,
+          0,
+          0
+        ],
+        [
+          844,
+          0,
+          44
+        ],
+        [
+          937,
+          0,
+          24
+        ],
+        [
+          964,
+          0,
+          4
+        ],
+        [
+          1098,
+          1,
+          72
+        ],
+        [
+          1648,
+          0,
+          48
+        ],
+        [
+          1747,
+          0,
+          28
+        ],
+        [
+          1780,
+          0,
+          8
+        ]
+      ],
+      "stance_reasons": [
+        "distance",
+        "recover_pool",
+        "press_after_shots",
+        "exposed_channel",
+        "forced_break",
+        "rebuild_energy",
+        "melee_to_ranged",
+        "shot_to_melee",
+        "overhead_target"
+      ],
+      "stance_switches_player_enemy": [
+        4,
+        5
+      ],
+      "stance_ticks_player_enemy": [
+        [
+          960,
+          821
+        ],
+        [
+          846,
+          935
+        ]
+      ],
+      "switch_events": [
+        {
+          "actor": "enemy",
+          "from": 0,
+          "reason": 0,
+          "tick": 120,
+          "to": 1
+        },
+        {
+          "actor": "player",
+          "from": 1,
+          "reason": 5,
+          "tick": 300,
+          "to": 0
+        },
+        {
+          "actor": "enemy",
+          "from": 1,
+          "reason": 2,
+          "tick": 626,
+          "to": 0
+        },
+        {
+          "actor": "player",
+          "from": 0,
+          "reason": 6,
+          "tick": 768,
+          "to": 1
+        },
+        {
+          "actor": "enemy",
+          "from": 0,
+          "reason": 6,
+          "tick": 928,
+          "to": 1
+        },
+        {
+          "actor": "player",
+          "from": 1,
+          "reason": 5,
+          "tick": 1080,
+          "to": 0
+        },
+        {
+          "actor": "enemy",
+          "from": 1,
+          "reason": 2,
+          "tick": 1314,
+          "to": 0
+        },
+        {
+          "actor": "player",
+          "from": 0,
+          "reason": 6,
+          "tick": 1572,
+          "to": 1
+        },
+        {
+          "actor": "enemy",
+          "from": 0,
+          "reason": 6,
+          "tick": 1738,
+          "to": 1
+        }
+      ],
+      "warnings": [],
+      "source_report": "editor/projects/graybox-reach/validation/combat-duels/seed-11-1791398050617/report.json",
+      "energy_gain_samples_player_enemy": [
+        8,
+        2
+      ],
+      "build_exe_sha256": "85a0117dcd00e2b7feca53aa476864b581278a6c0799c94e410902f2f998df14"
+    },
+    {
+      "approach_retreat_ranged_decisions": [
+        53,
+        1,
+        36
+      ],
+      "artifacts": "editor/projects/graybox-reach/validation/combat-duels/seed-23-1791398050609",
+      "completed_by_death": true,
+      "damage_events_player_enemy": [
+        3,
+        18
+      ],
+      "damage_taken_player_enemy_hrz_zth": [
+        [
+          25,
+          52
+        ],
+        [
+          300,
+          300
+        ]
+      ],
+      "decision_columns": [
+        "tick",
+        "intent",
+        "stance_reason",
+        "requested_buttons",
+        "distance"
+      ],
+      "end_tick": 1866,
+      "enemy_attack_entries": 7,
+      "enemy_windups_light_heavy_ranged": [
+        2,
+        3,
+        4
+      ],
+      "energy_end_player_enemy": [
+        36,
+        72
+      ],
+      "energy_min_player_enemy": [
+        0,
+        72
+      ],
+      "flow_event_columns": [
+        "tick",
+        "attacker_0_player_1_enemy",
+        "event_1_shot_interrupt"
+      ],
+      "flow_events": [],
+      "intent_names": [
+        "hold",
+        "approach",
+        "melee",
+        "ranged",
+        "dodge",
+        "swap",
+        "retreat"
+      ],
+      "measurement_note": "Attack starts are sampled animation changes; moving-fire layers may not match those counts. Projectile emission events count successful launches. Logs predating duel:shot have no emission counts. Damage is observed health loss, not raw attack damage; regeneration between samples may offset it. A death is a completion result, not a balance or flow pass.",
+      "outcome": "player_won",
+      "player_accepted_light_heavy_ranged": [
+        4,
+        5,
+        17
+      ],
+      "player_requested_r1_r2": [
+        29,
+        59
+      ],
+      "projectiles_emitted_player_enemy": [
+        10,
+        2
+      ],
+      "sample_columns": [
+        "tick",
+        "player_x",
+        "player_z",
+        "enemy_x",
+        "enemy_z",
+        "player_hrz",
+        "player_zth",
+        "enemy_hrz",
+        "enemy_zth",
+        "player_stance",
+        "enemy_stance",
+        "player_action",
+        "enemy_state",
+        "intent",
+        "stance_reason",
+        "stamina_q12",
+        "enemy_goal_generation",
+        "player_action_start",
+        "enemy_goal",
+        "enemy_stance_reason",
+        "enemy_attack_kind",
+        "player_energy",
+        "enemy_energy"
+      ],
+      "sample_count": 140,
+      "seed": 23,
+      "shot_event_columns": [
+        "tick",
+        "actor_0_player_1_enemy",
+        "energy_after"
+      ],
+      "shot_events": [
+        [
+          124,
+          0,
+          80
+        ],
+        [
+          160,
+          0,
+          60
+        ],
+        [
+          196,
+          0,
+          40
+        ],
+        [
+          232,
+          0,
+          20
+        ],
+        [
+          240,
+          1,
+          80
+        ],
+        [
+          268,
+          0,
+          0
+        ],
+        [
+          988,
+          0,
+          52
+        ],
+        [
+          1024,
+          0,
+          32
+        ],
+        [
+          1131,
+          0,
+          12
+        ],
+        [
+          1494,
+          1,
+          72
+        ],
+        [
+          1828,
+          0,
+          56
+        ],
+        [
+          1864,
+          0,
+          36
+        ]
+      ],
+      "stance_reasons": [
+        "distance",
+        "recover_pool",
+        "press_after_shots",
+        "exposed_channel",
+        "forced_break",
+        "rebuild_energy",
+        "melee_to_ranged",
+        "shot_to_melee",
+        "overhead_target"
+      ],
+      "stance_switches_player_enemy": [
+        4,
+        4
+      ],
+      "stance_ticks_player_enemy": [
+        [
+          1152,
+          714
+        ],
+        [
+          986,
+          880
+        ]
+      ],
+      "switch_events": [
+        {
+          "actor": "enemy",
+          "from": 0,
+          "reason": 0,
+          "tick": 120,
+          "to": 1
+        },
+        {
+          "actor": "player",
+          "from": 1,
+          "reason": 5,
+          "tick": 300,
+          "to": 0
+        },
+        {
+          "actor": "enemy",
+          "from": 1,
+          "reason": 2,
+          "tick": 474,
+          "to": 0
+        },
+        {
+          "actor": "player",
+          "from": 0,
+          "reason": 6,
+          "tick": 912,
+          "to": 1
+        },
+        {
+          "actor": "enemy",
+          "from": 0,
+          "reason": 6,
+          "tick": 1122,
+          "to": 1
+        },
+        {
+          "actor": "player",
+          "from": 1,
+          "reason": 5,
+          "tick": 1212,
+          "to": 0
+        },
+        {
+          "actor": "enemy",
+          "from": 1,
+          "reason": 2,
+          "tick": 1648,
+          "to": 0
+        },
+        {
+          "actor": "player",
+          "from": 0,
+          "reason": 6,
+          "tick": 1752,
+          "to": 1
+        }
+      ],
+      "warnings": [],
+      "source_report": "editor/projects/graybox-reach/validation/combat-duels/seed-23-1791398050609/report.json",
+      "energy_gain_samples_player_enemy": [
+        8,
+        1
+      ],
+      "build_exe_sha256": "85a0117dcd00e2b7feca53aa476864b581278a6c0799c94e410902f2f998df14"
+    }
+  ],
+  "baseline_damage_taken_player_seed_1_3": [
+    45,
+    77
+  ],
+  "tuned_damage_taken_player_seed_1_3": [
+    161,
+    120
+  ],
+  "measurement": "Observed health reductions can be offset by regeneration. All five distinct seeds favoured the player. Seed 3 did not exercise damage to both player pools. Seeds 3/7 preceded low-energy HUD colour and the empty-cannon group-slot guard; final seed 1 reproduced its earlier result.",
+  "air": {
+    "input": "air.csv",
+    "evidence": [
+      "air-960.png",
+      "air-1080.png",
+      "air-1200.png",
+      "air-1320.png"
+    ],
+    "observed": [
+      "attached shooting drains Energy",
+      "quiet attachment recharges Energy",
+      "timer expires and player drops",
+      "enemy closes and lands a post-drop hit"
+    ]
+  },
+  "final_build": {
+    "features": [
+      "cd-stream-bench"
+    ],
+    "exe_sha256": "85a0117dcd00e2b7feca53aa476864b581278a6c0799c94e410902f2f998df14",
+    "disc_sha256": "c57e49d981cd586a4e6e2829ce6515a1b7b6218b6b7abc4708b016fdb03bfc2d",
+    "hazards": 0,
+    "hazard_limit": "No link map supplied; indirect jump verification is incomplete."
+  },
+  "limits": [
+    "No real-console performance measurement",
+    "Current rig-specific attack leg layers",
+    "Five seeds are not a combat balance certification"
+  ]
+}

@@ -868,6 +868,7 @@ pub(crate) fn entity_bound_kind_and_size(
         | NodeKind::PhysicsBody { .. }
         | NodeKind::Interactable { .. }
         | NodeKind::PointOfInterest { .. } => None,
+        NodeKind::HookPoint => Some((EntityBoundKind::SpawnPoint, [512.0, 1536.0, 512.0])),
         NodeKind::VitalityCircle { axis, radius, .. } => Some((
             match axis {
                 psxed_project::VitalityCircleAxis::Horizon => {

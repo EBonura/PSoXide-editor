@@ -1,0 +1,23 @@
+{
+  "poise": {
+    "fps": 30,
+    "end": 24,
+    "beats": {
+      "impact": 3,
+      "collapse": 7,
+      "brace": 11,
+      "recover": 18,
+      "ready": 24
+    }
+  },
+  "hit": {
+    "fps": 30,
+    "end": 18,
+    "beats": {
+      "impact": 3,
+      "recoil": 5,
+      "recover": 11,
+      "ready": 18
+    }
+  }
+}

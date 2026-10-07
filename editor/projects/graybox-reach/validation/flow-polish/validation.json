@@ -1,0 +1,140 @@
+{
+  "build": {
+    "guest_sha256": "ab32728500d14998f952a9b97f4a03875550cc060c0582d1e33c50f3b784c365",
+    "disc_sha256": "227c35a3913120b7ed4598d1324f96577c3ea5254390c6264c2e1733691edcb1"
+  },
+  "runs": [
+    {
+      "seed": 1,
+      "outcome": "player_won",
+      "seconds": 49.65,
+      "band_percent": [
+        57.8,
+        19.3,
+        22.9
+      ],
+      "cycles": 4,
+      "longest_close_seconds": 8.6,
+      "decision_quality": {
+        "completed_stance_visits_without_attack_player_enemy": [
+          0,
+          0
+        ],
+        "enemy_goal_changes": 267,
+        "enemy_goal_changes_per_second": 5.377643504531722,
+        "note": "Initial and unfinished final stance visits excluded; an attack start is not proof of a hit. Goal changes are diagnostic, not a balance score."
+      },
+      "damage": [
+        [
+          100,
+          72
+        ],
+        [
+          300,
+          300
+        ]
+      ],
+      "enemy_attacks": [
+        7,
+        5,
+        3
+      ],
+      "warnings": []
+    },
+    {
+      "seed": 7,
+      "outcome": "player_won",
+      "seconds": 37.68,
+      "band_percent": [
+        52.5,
+        19.7,
+        27.7
+      ],
+      "cycles": 4,
+      "longest_close_seconds": 7.766666666666667,
+      "decision_quality": {
+        "completed_stance_visits_without_attack_player_enemy": [
+          0,
+          1
+        ],
+        "enemy_goal_changes": 59,
+        "enemy_goal_changes_per_second": 1.5656789031402034,
+        "note": "Initial and unfinished final stance visits excluded; an attack start is not proof of a hit. Goal changes are diagnostic, not a balance score."
+      },
+      "damage": [
+        [
+          25,
+          20
+        ],
+        [
+          300,
+          300
+        ]
+      ],
+      "enemy_attacks": [
+        3,
+        1,
+        3
+      ],
+      "warnings": []
+    },
+    {
+      "seed": 23,
+      "outcome": "player_won",
+      "seconds": 46.25,
+      "band_percent": [
+        47.2,
+        21.2,
+        31.6
+      ],
+      "cycles": 6,
+      "longest_close_seconds": 7.666666666666667,
+      "decision_quality": {
+        "completed_stance_visits_without_attack_player_enemy": [
+          0,
+          1
+        ],
+        "enemy_goal_changes": 166,
+        "enemy_goal_changes_per_second": 3.5891891891891894,
+        "note": "Initial and unfinished final stance visits excluded; an attack start is not proof of a hit. Goal changes are diagnostic, not a balance score."
+      },
+      "damage": [
+        [
+          25,
+          40
+        ],
+        [
+          300,
+          300
+        ]
+      ],
+      "enemy_attacks": [
+        2,
+        4,
+        4
+      ],
+      "warnings": []
+    }
+  ],
+  "tests": {
+    "runtime": 342,
+    "guest": 85,
+    "mcp": 26,
+    "excluded_guest_test": "only_initial_world_pages_lock_controls_through_the_closing_animation"
+  },
+  "video": {
+    "path": "combat-flow.mp4",
+    "width": 1280,
+    "height": 1032,
+    "duration": 54.533333,
+    "capture_fps": 30,
+    "decode_errors": 0
+  },
+  "limitations": [
+    "Distance coverage and decision diagnostics are not a combat balance score.",
+    "The player still won all three runs.",
+    "Longer melee exchanges remain: seeds 1 and 7 spend 53\u201358% close and 23\u201328% ranged.",
+    "Local collision probes are not pathfinding or a camera-visibility guarantee.",
+    "Headless evidence does not validate PS1 hardware performance."
+  ]
+}

@@ -3,31 +3,37 @@
     "frames": 20,
     "sample_hz": 15,
     "bytes": 11108,
-    "max_contact_drift_engine_units": 0.001953125,
-    "floor_range_engine_units": 0.002020031213760376,
-    "max_leg_extension": 0.9393659273636823,
-    "loop_seam_over_largest_step": 0.5649254197726582,
-    "largest_vertex_step_engine_units": 11.538417406691678
+    "max_contact_drift_engine_units": 0.0018310546875,
+    "max_planted_sole_height_spread": 0.0,
+    "max_planted_sole_floor_error": 0.0,
+    "floor_range_engine_units": 0.0,
+    "max_leg_extension": 0.9417738103110674,
+    "loop_seam_over_largest_step": 0.7681840674333685,
+    "largest_vertex_step_engine_units": 5.553630033404319
   },
   "strafe_left": {
     "frames": 16,
     "sample_hz": 15,
     "bytes": 8996,
-    "max_contact_drift_engine_units": 0.001953125,
-    "floor_range_engine_units": 0.002020031213760376,
-    "max_leg_extension": 0.9449532739697938,
-    "loop_seam_over_largest_step": 0.5910826869827627,
-    "largest_vertex_step_engine_units": 11.126657067357588
+    "max_contact_drift_engine_units": 0.0018310546875,
+    "max_planted_sole_height_spread": 0.0,
+    "max_planted_sole_floor_error": 0.0,
+    "floor_range_engine_units": 0.0,
+    "max_leg_extension": 0.9439995204038202,
+    "loop_seam_over_largest_step": 0.646289596220707,
+    "largest_vertex_step_engine_units": 5.458774772864771
   },
   "strafe_right": {
     "frames": 16,
     "sample_hz": 15,
     "bytes": 8996,
-    "max_contact_drift_engine_units": 0.001953125,
-    "floor_range_engine_units": 0.002020031213760376,
-    "max_leg_extension": 0.9447806751508352,
-    "loop_seam_over_largest_step": 0.5220619999733304,
-    "largest_vertex_step_engine_units": 11.292551953155181
+    "max_contact_drift_engine_units": 0.0018310546875,
+    "max_planted_sole_height_spread": 0.0,
+    "max_planted_sole_floor_error": 0.0,
+    "floor_range_engine_units": 0.0,
+    "max_leg_extension": 0.9430330649447747,
+    "loop_seam_over_largest_step": 0.5243009378274897,
+    "largest_vertex_step_engine_units": 5.6095097886298655
   },
   "limits": "Straight steady movement; no runtime foot IK. Engine integer skinning, collision-clipped motion, orbit turning and radial correction add error beyond these source checks."
 }

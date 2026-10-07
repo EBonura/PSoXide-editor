@@ -16,11 +16,11 @@ from mathutils import Matrix, Vector
 OUT = Path(__file__).resolve().parent
 PROJECT = OUT.parents[2]
 HZ = 15
-# Walk speed cooks to 2 units/tick; spacing_speed_percent=50 gives 1 unit/tick.
+# Walk speed cooks to 2 units/tick; spacing_speed_percent=25 gives 0.5 units/tick.
 # Cooking divides vertex/pose positions by 16 but retains the model scale.
 # Q12 113 * instance 417/256 rounds to 184.
 SCALE = 184 / 4096 / 16
-SPEED = 1 * 60
+SPEED = .5 * 60
 DUTY = .58
 FLOOR = -20000.
 SPECS = {
@@ -41,10 +41,12 @@ bind, parents = rig['bind'], rig['parents']
 inverse_bind = np.linalg.inv(bind)
 mesh_data = model(PROJECT/'assets/models/light_body_v1/light.psxmdl')
 source = np.load(PROJECT/'source_assets/animations/light_walk_v5/walk.npz')['skin'] @ bind
-plant_source = np.load(PROJECT/'source_assets/animations/light_walk_v1/rig.npz')['globals']
 legs = []
-for side, hip, knee, ankle, toe, frame in [(1,14,15,16,17,10), (-1,18,19,20,21,21)]:
-    g = plant_source[frame]
+# The bind pose has authored, horizontal sole polygons on both feet. A walk
+# frame can be mid toe-off even when its lowest vertex touches the ground;
+# reusing that orientation made the entire directional cycle tiptoe.
+for side, hip, knee, ankle, toe in [(1,14,15,16,17), (-1,18,19,20,21)]:
+    g = bind.copy()
     p = deform(mesh_data, [(a[:3,:3], a[:3,3]) for a in g @ inverse_bind])
     indices = [i for i in range(len(p)) if mesh_data['owner'][i] in [ankle,toe]]
     sole = np.array([p[indices,0].mean(), p[indices,1].min(), p[indices,2].mean()])
@@ -153,7 +155,7 @@ def main():
         np.savez(OUT/f'{name}.npz',skin=frames,bind=bind,parents=parents,contact=contacts,direction=spec['direction'])
         result[name] = dict(spec,sample_hz=HZ,stored_frames=len(frames)+1,period_seconds=len(frames)/HZ,
                            duty=DUTY,start_phase_frames=start_phase,pelvis_lowering=drop,max_leg_extension=max(extensions),translation_shift=shift)
-    result['calibration'] = {'cooked_speed_per_tick':1,'ticks_per_second':60,'visual_scale_q12':184,'cook_position_divisor':16,
+    result['calibration'] = {'cooked_speed_per_tick':.5,'ticks_per_second':60,'visual_scale_q12':184,'cook_position_divisor':16,
                              'visual_scale_q8':417,'authored_walk_speed':28,'model_q12_before_cook':113,
                              'assumption':'Steady straight travel. Circling radius correction and turning can introduce contact slip.'}
     (OUT/'authoring.json').write_text(json.dumps(result,indent=2)+'\n')

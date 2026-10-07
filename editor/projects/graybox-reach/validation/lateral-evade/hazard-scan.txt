@@ -1,0 +1,1 @@
+0 hazards in /tmp/psoxide-encounter-flow/stage/build/examples/mipsel-sony-psx/release/editor-playtest.exe

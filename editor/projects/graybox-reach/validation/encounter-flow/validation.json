@@ -1,0 +1,264 @@
+{
+  "runs": [
+    {
+      "seed": 1,
+      "outcome": "player_won",
+      "end_tick": 6317,
+      "ranged_exchange": {
+        "cover_arrivals_player_enemy": [
+          3,
+          2
+        ],
+        "melee_defense_episodes_player_enemy": [
+          12,
+          5
+        ],
+        "melee_punish_windows_player_enemy": [
+          6,
+          2
+        ],
+        "mode_names": [
+          "open",
+          "seek_cover",
+          "covered",
+          "peek",
+          "projectile_evade",
+          "search_cover",
+          "melee_defend",
+          "melee_punish",
+          "stamina_recovery"
+        ],
+        "mode_ticks_player_enemy": [
+          [
+            3072,
+            156,
+            180,
+            72,
+            0,
+            1860,
+            725,
+            252,
+            0
+          ],
+          [
+            4365,
+            312,
+            84,
+            130,
+            96,
+            1094,
+            120,
+            116,
+            0
+          ]
+        ],
+        "note": "Cover arrival requires occlusion checks. Evasion and punish counts are decisions, not confirmed dodges or hits.",
+        "projectile_evade_attempts_player_enemy": [
+          0,
+          4
+        ],
+        "shots_after_cover_peek_player_enemy": [
+          5,
+          1
+        ]
+      },
+      "projectiles_emitted_player_enemy": [
+        11,
+        2
+      ],
+      "damage_taken_player_enemy_hrz_zth": [
+        [
+          64,
+          112
+        ],
+        [
+          300,
+          300
+        ]
+      ],
+      "warnings": []
+    },
+    {
+      "seed": 7,
+      "outcome": "player_won",
+      "end_tick": 5312,
+      "ranged_exchange": {
+        "cover_arrivals_player_enemy": [
+          3,
+          3
+        ],
+        "melee_defense_episodes_player_enemy": [
+          9,
+          7
+        ],
+        "melee_punish_windows_player_enemy": [
+          3,
+          3
+        ],
+        "mode_names": [
+          "open",
+          "seek_cover",
+          "covered",
+          "peek",
+          "projectile_evade",
+          "search_cover",
+          "melee_defend",
+          "melee_punish",
+          "stamina_recovery"
+        ],
+        "mode_ticks_player_enemy": [
+          [
+            3108,
+            228,
+            180,
+            72,
+            0,
+            984,
+            600,
+            140,
+            0
+          ],
+          [
+            3658,
+            240,
+            120,
+            166,
+            72,
+            704,
+            156,
+            196,
+            0
+          ]
+        ],
+        "note": "Cover arrival requires occlusion checks. Evasion and punish counts are decisions, not confirmed dodges or hits.",
+        "projectile_evade_attempts_player_enemy": [
+          0,
+          3
+        ],
+        "shots_after_cover_peek_player_enemy": [
+          5,
+          1
+        ]
+      },
+      "projectiles_emitted_player_enemy": [
+        10,
+        2
+      ],
+      "damage_taken_player_enemy_hrz_zth": [
+        [
+          32,
+          128
+        ],
+        [
+          300,
+          300
+        ]
+      ],
+      "warnings": []
+    },
+    {
+      "seed": 23,
+      "outcome": "player_won",
+      "end_tick": 5844,
+      "ranged_exchange": {
+        "cover_arrivals_player_enemy": [
+          5,
+          3
+        ],
+        "melee_defense_episodes_player_enemy": [
+          12,
+          4
+        ],
+        "melee_punish_windows_player_enemy": [
+          3,
+          3
+        ],
+        "mode_names": [
+          "open",
+          "seek_cover",
+          "covered",
+          "peek",
+          "projectile_evade",
+          "search_cover",
+          "melee_defend",
+          "melee_punish",
+          "stamina_recovery"
+        ],
+        "mode_ticks_player_enemy": [
+          [
+            3072,
+            312,
+            300,
+            180,
+            0,
+            1020,
+            756,
+            204,
+            0
+          ],
+          [
+            3864,
+            288,
+            144,
+            202,
+            72,
+            998,
+            96,
+            180,
+            0
+          ]
+        ],
+        "note": "Cover arrival requires occlusion checks. Evasion and punish counts are decisions, not confirmed dodges or hits.",
+        "projectile_evade_attempts_player_enemy": [
+          0,
+          3
+        ],
+        "shots_after_cover_peek_player_enemy": [
+          7,
+          1
+        ]
+      },
+      "projectiles_emitted_player_enemy": [
+        9,
+        1
+      ],
+      "damage_taken_player_enemy_hrz_zth": [
+        [
+          112,
+          80
+        ],
+        [
+          300,
+          300
+        ]
+      ],
+      "warnings": []
+    }
+  ],
+  "tests": {
+    "runtime_unit": 348,
+    "runtime_integration": 5,
+    "guest": 85,
+    "guest_excluded": "only_initial_world_pages_lock_controls_through_the_closing_animation (pre-existing)",
+    "mcp_full": 27,
+    "mcp_report_final": 7,
+    "mips_load_delay_hazards": 0
+  },
+  "guest_features": "cd-stream-bench",
+  "hardware_verified": false,
+  "video_note": "Native 320x240 display captures, nearest-neighbour 4x. 30 fps container is not a measured 30 fps claim.",
+  "source_matches_tested_stage_after_rustfmt": {
+    "engine/crates/psx-game-runtime/src/combat_flow.rs": true,
+    "engine/crates/psx-game-runtime/src/ranged_tactics.rs": true,
+    "engine/crates/psx-game-runtime/src/entities/flow.rs": true,
+    "engine/examples/editor-playtest/src/duel.rs": true,
+    "engine/examples/editor-playtest/src/model_rendering.rs": true
+  },
+  "disc_sha256": "49b5a1c354bef95eb9c14a93a0a2099388ea6398cb6b562b5bba67e7485c6aaf",
+  "video": {
+    "width": 1280,
+    "height": 1032,
+    "seconds": 107,
+    "decode_errors": 0
+  }
+}

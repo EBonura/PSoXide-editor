@@ -1,0 +1,17 @@
+{
+  "strike": {
+    "stored_frames": 50,
+    "duration_seconds": 1.6,
+    "max_leg_extension": 0.9219527894677807,
+    "mean_planted_knee_flexion_degrees": 78.02499391263224,
+    "max_planted_sole_spread_engine_units": 0.0,
+    "max_planted_sole_floor_error_engine_units": 0.0,
+    "max_contact_drift_engine_units": 0.0,
+    "lowest_vertex_above_floor_engine_units": 0.0,
+    "leg_overlap_quarter_frames": [],
+    "max_frame_vertex_rms_step_engine_units": 36.14040276295809,
+    "loop_seam_over_largest_step": null,
+    "rear_foot_motion_engine_units": 0.0,
+    "max_arm_extension": 0.9650025219667441
+  }
+}

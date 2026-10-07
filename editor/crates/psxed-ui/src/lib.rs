@@ -93,7 +93,7 @@ use psxed_project::{
     MAX_UI_FONT_SCALE, MAX_UI_LETTER_SPACING, MAX_WORLD_CAMERA_DISTANCE, MAX_WORLD_CAMERA_HEIGHT,
     MAX_WORLD_CAMERA_MIN_FLOOR_CLEARANCE, MAX_WORLD_DRAW_DISTANCE, MAX_WORLD_GRAVITY_PER_TICK,
     MIN_PHYSICS_WEIGHT_Q8, MIN_UI_FONT_SCALE, MIN_UI_LETTER_SPACING, MIN_WORLD_CAMERA_DISTANCE,
-    MIN_WORLD_DRAW_DISTANCE, MIN_WORLD_GRAVITY_PER_TICK, MODEL_SCALE_ONE_Q8, PHYSICS_WEIGHT_ONE_Q8,
+    MIN_WORLD_DRAW_DISTANCE, MODEL_SCALE_ONE_Q8, PHYSICS_WEIGHT_ONE_Q8,
     SKYBOX_COLUMNS_MAX, SKYBOX_COLUMNS_MIN, SKYBOX_ROWS_MAX, SKYBOX_ROWS_MIN,
     SKY_MOUNTAIN_HEIGHT_PERCENT_MAX,
 };
@@ -2858,10 +2858,12 @@ enum PlaceKind {
     PointOfInterest,
     /// Ground-anchored dual-vitality field.
     VitalityCircle,
+    /// Elevated teleport landing.
+    HookPoint,
 }
 
 impl PlaceKind {
-    const ALL: [Self; 14] = [
+    const ALL: [Self; 15] = [
         Self::PlayerSpawn,
         Self::SpawnMarker,
         Self::ModelInstance,
@@ -2876,6 +2878,7 @@ impl PlaceKind {
         Self::Destructible,
         Self::PointOfInterest,
         Self::VitalityCircle,
+        Self::HookPoint,
     ];
 
     const fn label(self) -> &'static str {
@@ -2894,6 +2897,7 @@ impl PlaceKind {
             Self::Destructible => "Destructible",
             Self::PointOfInterest => "Point of Interest",
             Self::VitalityCircle => "Vitality Circle",
+            Self::HookPoint => "Hook Point",
         }
     }
 
@@ -2912,6 +2916,7 @@ impl PlaceKind {
             Self::Destructible => icons::BOX,
             Self::PointOfInterest => icons::FOCUS,
             Self::VitalityCircle => icons::BLEND,
+            Self::HookPoint => icons::MAP_PIN,
         }
     }
 }

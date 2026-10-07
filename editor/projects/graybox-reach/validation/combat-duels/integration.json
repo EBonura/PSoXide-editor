@@ -1,0 +1,83 @@
+{
+  "created_utc": "2026-10-07T16:22:56.919135+00:00",
+  "project": "Graybox Reach",
+  "control": "Select + L2 starts a reset duel; after releasing the chord, any physical button takes over",
+  "runtime_tests_passed": 322,
+  "guest_tests_passed": 85,
+  "guest_test_excluded": "only_initial_world_pages_lock_controls_through_the_closing_animation assumes a welcome message absent from Graybox Reach",
+  "mcp_tests_passed": 3,
+  "runs": [
+    {
+      "seed": 1,
+      "outcome": "player_won",
+      "end_tick": 2005,
+      "stance_switches_player_enemy": [
+        3,
+        3
+      ],
+      "player_accepted_light_heavy_ranged": [
+        7,
+        5,
+        4
+      ],
+      "enemy_windups_light_heavy_ranged": [
+        2,
+        2,
+        2
+      ],
+      "damage_taken_player_enemy_hrz_zth": [
+        [
+          0,
+          24
+        ],
+        [
+          300,
+          300
+        ]
+      ],
+      "warnings": [
+        "Not every vitality channel took observed damage."
+      ],
+      "path": "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/validation/combat-duels/seed-1-1791390011910/report.json"
+    },
+    {
+      "seed": 3,
+      "outcome": "player_won",
+      "end_tick": 1790,
+      "stance_switches_player_enemy": [
+        3,
+        3
+      ],
+      "player_accepted_light_heavy_ranged": [
+        4,
+        5,
+        5
+      ],
+      "enemy_windups_light_heavy_ranged": [
+        2,
+        1,
+        4
+      ],
+      "damage_taken_player_enemy_hrz_zth": [
+        [
+          30,
+          32
+        ],
+        [
+          300,
+          300
+        ]
+      ],
+      "warnings": [],
+      "path": "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/validation/combat-duels/seed-3-1791390011558/report.json"
+    }
+  ],
+  "replay_identical_event_lines": 286,
+  "manual_takeover_tick": 500,
+  "exe_sha256": "2c15cdab28e79a469015a12ba0a742cd47df47d7eacfe414da62edaf15a49504",
+  "disc_bin_sha256": "d2ddf62093a638ab39bfa893521c315815516b309079c5628337e4f9cc26d9f7",
+  "normal_play_features": "cd-stream-bench plus existing defaults; emulator-telemetry disabled",
+  "hardware_performance_measured": false,
+  "balance_finding": "Both final runs are player wins. Seed 1 took damage only in Zenith; seed 3 took damage in both pools. Completion does not establish balanced combat.",
+  "scope": "Stance and attack selection are shared. NPC steering and player controller adaptation remain separate. Damage totals are observed health loss, not exact raw hit/miss attribution."
+}
