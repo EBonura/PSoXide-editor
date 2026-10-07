@@ -1,0 +1,16 @@
+{
+  "fps": 30,
+  "fall": {
+    "release": 0,
+    "arms_release": 3,
+    "settled_fall": 7,
+    "held_end": 7
+  },
+  "landing": {
+    "contact": 0,
+    "compression": 3,
+    "rebound": 7,
+    "settle": 12
+  },
+  "root_motion": "Physics owns vertical translation; authored clips provide body articulation only"
+}

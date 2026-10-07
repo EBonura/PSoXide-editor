@@ -1,0 +1,8 @@
+{
+  "frames": 36,
+  "hz": 50,
+  "bytes": 28100,
+  "flight_straight_leg_ratio_min": 0.9984202147071203,
+  "source": "hook_launch_v1 anticipation; authored extended flight pose",
+  "extension_complete_frame": 12
+}
