@@ -1,0 +1,48 @@
+{
+  "game_installed": true,
+  "project": "Graybox Reach",
+  "cannon": {
+    "triangles": 176,
+    "vertices": 110,
+    "joints": 3,
+    "stance": "ZTH only",
+    "rotation_frames": 120,
+    "rotation_hz": 30
+  },
+  "textures": {
+    "size": [
+      128,
+      128
+    ],
+    "bits_per_pixel": 4,
+    "colours": 16,
+    "blending": "native PS1 average on dark/mid texels; opaque highlights"
+  },
+  "HRZ": "Melee; amber scarf and stance assembly",
+  "runtime_tests_passed": 290,
+  "physical_console_tested": false,
+  "sha256": {
+    "project.ron": "668053898b086c6fb95b9a0aff9cca0b30a42289df9a3d1c0988d535e8e410fd",
+    "assets/models/zenith_projector/projector.psxmdl": "3515d09631a853e03676d01e77e7a22b854eaf177caf14fa2421bfd4582c5350",
+    "assets/models/zenith_projector/iris-crystal.psxt": "b85648f91df51138c788e625a00f7de375b32df59677d515fd6264c6158a7b35",
+    "assets/models/zenith_projector/iris-spin.psxanim": "3596ba5a959ea3a84bf98d4953d604c0f1aa88b385d9ab125bda64a091728b90",
+    "baked/graybox_reach.bin": "88d9e03d40d36ae2365e330127864aca76ed35e244555008adf929b0cf12197f"
+  },
+  "video": {
+    "path": "crystal-gameplay.mp4",
+    "duration": 26,
+    "native_resolution": [
+      320,
+      240
+    ],
+    "display_resolution": [
+      960,
+      720
+    ],
+    "scale": "nearest neighbour",
+    "start_seconds_in_native_capture": 6,
+    "stance_switch_seconds": 19.113790656887755
+  },
+  "checkpoint_runtime_tests_passed": 288,
+  "capture_workspace_note": "Capture and disc hashes describe the reviewed workspace. Separate music, enemy-animation and dash edits present during capture are excluded from this scoped checkpoint."
+}

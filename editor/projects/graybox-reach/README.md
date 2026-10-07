@@ -345,3 +345,60 @@ PSOXIDE_EXPERIMENTAL_DMA_FIFO=0 target/release/frontend launch \
   --route-log build/graybox-reach/replay/route.csv
 python3 benchmarks/engine-stress/measure_route.py build/graybox-reach/replay 650 4230
 ```
+
+
+## HRZ melee / ZTH crystal cannon checkpoint, 2026-10-07
+
+Graybox Reach now binds HRZ to R1 light combos and R2 heavy melee. In ZTH,
+hold L2 to ready the right-hand cannon and press R2 for each shot. R3 lock-on
+does not replace L2. Free aim follows the camera centre. Triangle still changes
+stance; Circle evades and cancels aim. Shots use the existing opposing-stance
+damage rules, without a firearm parry or a melee-to-ammo replenishment loop.
+Enemy stance presentation is unchanged.
+
+The 176-triangle crystal iris cannon encloses the right hand; the left hand
+braces underneath. Two three-petal collars counter-rotate around a fixed core.
+Its 128x128, 4-bit gradient atlas uses native PS1 average blending for dark and
+middle tones while keeping near-white highlights opaque. The procedural scarf
+and stance fragments share crystal gradients in mint ZTH and amber HRZ.
+HRZ remains melee and never displays an orange cannon.
+
+Six aiming clips and their Blender source live in
+`assets/animations/zenith_ranged_v1/` and
+`source_assets/animations/player/zenith_ranged_v1/`. The selected iris study,
+stance preview, texture generators and exporter live in
+`source_assets/animations/player/zenith_cannon_v2/`. To regenerate the current
+cannon, run `texture.py`, run `export_game.py` in headless Blender 4.4 with
+`--factory-startup --python-exit-code 1`, then run `cook_texture.py` with Python.
+The existing project binds its three-joint skeleton and looping collar clip.
+The older v1 `install.py` is a historical prototype installer and overwrites
+the iris mesh; do not run it to rebuild this checkpoint.
+
+Aimed forward/backward/sideways walking uses baked full-body clips with the
+ready upper body and the original lower-body motion. Firing has its own event
+clock and samples the live hand socket, so it neither stops movement nor resets
+the gait. Standing shots have recoil; additive moving recoil, vertical upper-body
+aim, and a visible hand-to-cannon transformation remain animation polish work.
+The current cannon appears when aiming and retracts when L2 is released.
+
+Validation: 288 tests against the staged runtime snapshot, four input-buffer/readiness tests, and two Graybox
+cook tests passed. The diagnostic controller replay recorded ten shots and ten
+hits, no shots from locked R2 without L2, all four aimed gaits, and five shots
+with uninterrupted movement. A separate free-aim/cancel tape also ran. The
+ordinary guest was rebuilt, hazard-patched, stack-checked and replayed through
+2,400 controller polls. These are emulator checks; console validation is pending.
+
+The recorded 34-second encounter is
+`validation/zenith-ranged/video/arm-cannon-gameplay.mp4`; the control tapes,
+logs and validation JSON are in `validation/zenith-ranged/`. With a diagnostic
+disc built using `EDITOR_PLAYTEST_FEATURES='cd-stream-bench emulator-telemetry'`,
+`tools/zenith_ranged/record_video.py --disc <cue>` repeats the recording, and
+`tools/zenith_ranged/verify_capture.py` checks its control/movement evidence.
+Normal Play uses `baked/graybox_reach.cue` built without emulator telemetry.
+
+The current 26-second gameplay review is
+`validation/zenith-cannon-v2/in-game/crystal-gameplay.mp4`.
+Its delivery manifest records the asset/disc hashes, native resolution and
+capture timing. The full replay tape and recording script remain available.
+This is an iteration checkpoint: collar readability, the material response at
+native resolution, and the hand transformation still need visual polish.

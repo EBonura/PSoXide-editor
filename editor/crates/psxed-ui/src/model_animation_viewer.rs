@@ -674,7 +674,7 @@ fn moveset_visual_fallbacks(
         A::VertLightAttack | A::VertHeavyAttack | A::VertComboAttack => {
             [Some(A::Idle), None, None, None]
         }
-        A::RangedAttack => [Some(A::Idle), None, None, None],
+        A::RangedAttack | A::RangedAim | A::RangedWalk | A::RangedBackward | A::RangedLeft | A::RangedRight => [Some(A::Idle), None, None, None],
     }
 }
 
