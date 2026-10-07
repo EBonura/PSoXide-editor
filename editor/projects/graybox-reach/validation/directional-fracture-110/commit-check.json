@@ -1,0 +1,7 @@
+{
+  "validation": "Isolated export of staged engine sources, with unchanged SDK dependencies",
+  "command": "cargo test -p psx-game-runtime --lib",
+  "passed": 298,
+  "failed": 0,
+  "note": "Earlier build and replay receipts were captured in the shared working tree; this check excludes unrelated concurrent changes."
+}

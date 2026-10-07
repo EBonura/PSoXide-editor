@@ -1,0 +1,2 @@
+warning: no --map: 82 of 97 register jumps resolve to a jump table from their own block and none is proven; pass the link map (--map game.map)
+0 hazards in build/examples/mipsel-sony-psx/release/editor-playtest.exe
