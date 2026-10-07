@@ -1,0 +1,67 @@
+{
+  "blender": "4.4.3",
+  "texture": "iris-gradient-128-4bit.png",
+  "palette_entries": 16,
+  "parts": {
+    "Fixed / six-sided core": 32,
+    "Fixed / recessed muzzle": 20,
+    "Fixed / charge lens": 20,
+    "Fixed / wrist collar": 20,
+    "Rotor / rear - counterclockwise / petal 1": 12,
+    "Rotor / rear - counterclockwise / petal 2": 12,
+    "Rotor / rear - counterclockwise / petal 3": 12,
+    "Rotor / front - clockwise / petal 1": 12,
+    "Rotor / front - clockwise / petal 2": 12,
+    "Rotor / front - clockwise / petal 3": 12,
+    "Fixed / supporting-hand saddle": 12
+  },
+  "frames": [
+    1,
+    120
+  ],
+  "fps": 30,
+  "beats": [
+    [
+      1,
+      "DORMANT"
+    ],
+    [
+      13,
+      "UNFOLD"
+    ],
+    [
+      31,
+      "READY"
+    ],
+    [
+      47,
+      "ANTICIPATE"
+    ],
+    [
+      53,
+      "SHOT"
+    ],
+    [
+      61,
+      "SETTLE"
+    ],
+    [
+      73,
+      "SHOT 2"
+    ],
+    [
+      83,
+      "SETTLE"
+    ],
+    [
+      97,
+      "COAST"
+    ],
+    [
+      121,
+      "DORMANT"
+    ]
+  ],
+  "game_installed": false,
+  "triangles": 176
+}

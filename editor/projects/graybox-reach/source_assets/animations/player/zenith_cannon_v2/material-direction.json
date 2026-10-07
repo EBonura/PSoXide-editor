@@ -1,0 +1,25 @@
+{
+  "selected_design": "B: compact crystal iris with split rotating collars",
+  "ZTH": {
+    "combat": "ranged; hold L2 to aim, R2 fire",
+    "cannon": "sea-green translucent crystal",
+    "scarf": "matching sea-green gradient"
+  },
+  "HRZ": {
+    "combat": "melee; R1 light combo, R2 heavy",
+    "cannon": false,
+    "scarf": "amber-orange translucent crystal"
+  },
+  "stance_change": "crystal palette handover; retract cannon entering HRZ",
+  "texture": {
+    "dimensions": [
+      128,
+      128
+    ],
+    "bpp": 4,
+    "palette_entries": 16,
+    "shared_indices": true
+  },
+  "status": "Blender study; not installed in game",
+  "procedural_scarf": "Separate preview proxy; not part of exported character mesh"
+}

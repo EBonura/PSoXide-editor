@@ -1,0 +1,44 @@
+{
+  "aim": {
+    "frames": 2,
+    "hz": 30,
+    "bytes": 1580,
+    "source": "../default/assets/animations/aletha_delivered/aletha_idle.psxanim",
+    "lower_body_preserved": true
+  },
+  "walk": {
+    "frames": 43,
+    "hz": 22,
+    "bytes": 33560,
+    "source": "../default/assets/animations/gen/walk_fwd.psxanim",
+    "lower_body_preserved": true
+  },
+  "backward": {
+    "frames": 43,
+    "hz": 22,
+    "bytes": 33560,
+    "source": "../default/assets/animations/gen/walk_bwd.psxanim",
+    "lower_body_preserved": true
+  },
+  "left": {
+    "frames": 31,
+    "hz": 22,
+    "bytes": 24200,
+    "source": "../default/assets/animations/gen/walk_lft.psxanim",
+    "lower_body_preserved": true
+  },
+  "right": {
+    "frames": 31,
+    "hz": 22,
+    "bytes": 24200,
+    "source": "../default/assets/animations/gen/walk_rgt.psxanim",
+    "lower_body_preserved": true
+  },
+  "fire": {
+    "frames": 14,
+    "hz": 30,
+    "bytes": 10940,
+    "source": "../default/assets/animations/aletha_delivered/aletha_idle.psxanim",
+    "lower_body_preserved": true
+  }
+}

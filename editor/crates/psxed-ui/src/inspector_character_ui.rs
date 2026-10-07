@@ -3057,6 +3057,15 @@ pub(crate) fn draw_weapon_resource_editor(
 ) -> bool {
     let mut changed = false;
 
+    ui.horizontal(|ui| {
+        ui.label("Weapon class");
+        changed |= ui.selectable_value(&mut weapon.class, psxed_project::WeaponClass::Melee, "Melee").changed();
+        changed |= ui.selectable_value(&mut weapon.class, psxed_project::WeaponClass::Ranged, "Ranged").changed();
+    });
+    if weapon.class == psxed_project::WeaponClass::Ranged {
+        ui.weak("Author shot damage and release timing on the character's Ranged Attack projectile emitter.");
+    }
+
     egui::CollapsingHeader::new(icons::label(icons::BOX, "Visual Model"))
         .default_open(true)
         .show(ui, |ui| {
@@ -3087,6 +3096,7 @@ pub(crate) fn draw_weapon_resource_editor(
             changed |= q12_rotation_editor(ui, "Rotation", &mut weapon.grip.rotation_q12);
         });
 
+    if weapon.class == psxed_project::WeaponClass::Melee {
     egui::CollapsingHeader::new(icons::label(icons::SCAN, "Melee Arc"))
         .default_open(true)
         .show(ui, |ui| {
@@ -3114,6 +3124,8 @@ pub(crate) fn draw_weapon_resource_editor(
             ui.weak("Hit volumes are local to the weapon grip and use integer engine units.");
             changed |= weapon_hitbox_list_editor(ui, &mut weapon.hitboxes);
         });
+
+    }
 
     egui::CollapsingHeader::new(icons::label(icons::WAYPOINT, "Attachment Lab"))
         .default_open(true)

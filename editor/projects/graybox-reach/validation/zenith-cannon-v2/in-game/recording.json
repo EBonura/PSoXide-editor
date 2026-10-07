@@ -1,0 +1,25 @@
+{
+  "frames": 2038,
+  "first_route_tick": 450,
+  "last_route_tick": 2487,
+  "encoded_fps": 59.28965431523888,
+  "actual_fps": 59.290127873192155,
+  "audio_start_seconds": 7.589809884023054,
+  "chapters": [
+    {
+      "title": "ZTH: lock-on still requires held L2",
+      "poll": 450,
+      "seconds": 1.5010941928854875
+    },
+    {
+      "title": "L2 + R2: fire while walking",
+      "poll": 970,
+      "seconds": 10.288391469434996
+    },
+    {
+      "title": "HRZ: R1 combo / R2 heavy",
+      "poll": 1850,
+      "seconds": 25.113790656887755
+    }
+  ]
+}

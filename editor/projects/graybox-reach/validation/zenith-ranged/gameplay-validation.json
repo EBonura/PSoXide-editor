@@ -1,0 +1,22 @@
+{
+  "shots": 10,
+  "releases": 10,
+  "hits": 10,
+  "locked_R2_without_L2_fires": 0,
+  "all_four_aimed_walk_actions_seen": true,
+  "verified_moving_shots": 5,
+  "minimum_enemy_zenith_hp": 85,
+  "actions_seen": {
+    "0": 82,
+    "36": 31,
+    "33": 7,
+    "40": 19,
+    "39": 17,
+    "38": 10,
+    "37": 1,
+    "4": 4,
+    "6": 6,
+    "34": 7,
+    "7": 1
+  }
+}

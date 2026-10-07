@@ -1,0 +1,19 @@
+{
+  "study_only": true,
+  "game_installed": false,
+  "HRZ": "melee; cannon fully retracted",
+  "ZTH": "ranged; green cannon",
+  "scarf": "procedural proxy; excluded from character mesh",
+  "texture_size": [
+    128,
+    128
+  ],
+  "palette_entries_each": 16,
+  "frames": 150,
+  "fps": 30,
+  "cannon_scale_in_HRZ": [
+    0.0,
+    0.0,
+    0.0
+  ]
+}
