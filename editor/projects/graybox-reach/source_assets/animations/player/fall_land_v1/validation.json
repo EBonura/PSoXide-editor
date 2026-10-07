@@ -1,0 +1,12 @@
+{
+  "fall": {
+    "frames": 8,
+    "bytes": 6260,
+    "foot_drift_m": 0.3306392729282379
+  },
+  "land": {
+    "frames": 13,
+    "bytes": 10160,
+    "foot_drift_m": 4.470348358154297e-08
+  }
+}

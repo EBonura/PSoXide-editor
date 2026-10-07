@@ -1,0 +1,21 @@
+{
+  "approved_nonfoot_joint_samples_bit_identical": true,
+  "foot_contacts_world": {
+    "Left": [
+      0.1681380420923233,
+      0.1453029364347458,
+      0.4876764416694641
+    ],
+    "Right": [
+      -0.13813798129558563,
+      0.09730298072099686,
+      0.32767659425735474
+    ]
+  },
+  "perch_frames": 50,
+  "bone_count": 26,
+  "changed_bones": [
+    "LeftFoot",
+    "RightFoot"
+  ]
+}

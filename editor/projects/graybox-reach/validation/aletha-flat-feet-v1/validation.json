@@ -1,0 +1,102 @@
+{
+  "scope": "Global flat-foot geometry for Aletha in Graybox Reach",
+  "geometry": {
+    "aletha_closed_458": {
+      "vertices_changed": 24,
+      "faces_reshaped": 52,
+      "triangles": 458,
+      "sha256": "cdc4800f407ea9e5711c50fde41bd9302cb06ff9f20d7d917c0a2436e070c325",
+      "weights_indices_and_header_unchanged": true
+    },
+    "aletha_mirror_458": {
+      "vertices_changed": 24,
+      "faces_reshaped": 52,
+      "triangles": 458,
+      "sha256": "61f339df5c1d720fe40139367c7ebad3625f5418caf8ee67025c2beed2d70ed0",
+      "weights_indices_and_header_unchanged": true
+    },
+    "glb_position_corners_updated": 126
+  },
+  "perch": {
+    "approved_nonfoot_joint_samples_bit_identical": true,
+    "foot_contacts_world": {
+      "Left": [
+        0.1681380420923233,
+        0.1453029364347458,
+        0.4876764416694641
+      ],
+      "Right": [
+        -0.13813798129558563,
+        0.09730298072099686,
+        0.32767659425735474
+      ]
+    },
+    "perch_frames": 50,
+    "bone_count": 26,
+    "changed_bones": [
+      "LeftFoot",
+      "RightFoot"
+    ]
+  },
+  "contacts": {
+    "pelvis_turn_degrees": 25,
+    "support_arm_width_correction": [
+      1.15,
+      1.25
+    ],
+    "feet_plane_alignment_error_degrees": [
+      0.0,
+      0.0
+    ],
+    "sole_plane_clearance_m": [
+      [
+        -0.0010000064969062777,
+        -0.0010000035166740362,
+        -0.0010000109672546331,
+        -0.0010000169277191162,
+        -0.0010000169277191162,
+        -0.001000025868415827
+      ],
+      [
+        -0.0009999990463256808,
+        -0.0009999990463256808,
+        -0.0009999886155128423,
+        -0.0009999945759773254,
+        -0.0009999811649322454,
+        -0.0009999811649322454
+      ]
+    ],
+    "shoulder_world": {
+      "Left": [
+        0.02262287214398384,
+        0.3095257878303528,
+        1.4588459730148315
+      ],
+      "Right": [
+        -0.11665321886539459,
+        0.04925351217389107,
+        1.3792065382003784
+      ]
+    },
+    "body_turn_degrees": 67,
+    "max_shoe_penetration_m": [
+      -0.0010000035166740362,
+      -0.0009999811649322454
+    ],
+    "toe_minus_heel_height_m": [
+      -0.2004775106906891,
+      -0.2004775106906891
+    ],
+    "contacts": "left hand and both feet fixed throughout aim lattice",
+    "approved_torso_max_matrix_error": 0.0
+  },
+  "fall_release_matches_perch": true,
+  "gameplay_replay": "passed to poll 1013, grapple and return to ground captured",
+  "hazards": 0,
+  "exe_sha256": "bbde5ce35ed432d6f7564b55e56a13cf7cec7666918a6988896d10a2d9344375",
+  "disc_sha256": "4e8a240cfdfcdb91d60d528623bda75420df77344ee05647a61263ab677796f5",
+  "limits": [
+    "Real console not tested.",
+    "Historic animation study blend files are not all regenerated; runtime animations share the updated model."
+  ]
+}

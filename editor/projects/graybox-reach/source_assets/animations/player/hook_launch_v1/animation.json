@@ -1,0 +1,13 @@
+{
+  "source": "Universal Animation Library Standard / Jump_Start",
+  "source_frames": [
+    0,
+    10
+  ],
+  "source_fps": 30,
+  "playback_hz": 50,
+  "frames": 11,
+  "bytes": 8600,
+  "joints": 26,
+  "purpose": "crouched anticipation to raised-knee takeoff; hold final pose during flight"
+}

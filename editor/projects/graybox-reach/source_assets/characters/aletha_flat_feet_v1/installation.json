@@ -1,0 +1,17 @@
+{
+  "aletha_closed_458": {
+    "vertices_changed": 24,
+    "faces_reshaped": 52,
+    "triangles": 458,
+    "sha256": "cdc4800f407ea9e5711c50fde41bd9302cb06ff9f20d7d917c0a2436e070c325",
+    "weights_indices_and_header_unchanged": true
+  },
+  "aletha_mirror_458": {
+    "vertices_changed": 24,
+    "faces_reshaped": 52,
+    "triangles": 458,
+    "sha256": "61f339df5c1d720fe40139367c7ebad3625f5418caf8ee67025c2beed2d70ed0",
+    "weights_indices_and_header_unchanged": true
+  },
+  "glb_position_corners_updated": 126
+}

@@ -1,0 +1,82 @@
+{
+  "scope": "Refined compact perch, fractional gravity, authored fall and landing",
+  "gravity": {
+    "engine_units_per_tick_squared": 0.125,
+    "fixed_tick_hz": 60,
+    "perch_root_height": 127,
+    "ticks_until_contact": 45,
+    "seconds_until_contact": 0.75,
+    "live_samples": 45,
+    "telemetry_source": "Earlier instrumented build, before the lower-body refinement; current video uses the normal build",
+    "height_curve": "127 - floor(n*(n+1)/16), clamped at floor",
+    "step_down_snap": "grounded bodies only; airborne horizontal motion also avoids ground snapping"
+  },
+  "pose": {
+    "pelvis_turn_degrees": 25,
+    "support_arm_width_correction": [
+      1.15,
+      1.25
+    ],
+    "feet_plane_alignment_error_degrees": [
+      0.0,
+      0.0
+    ],
+    "sole_plane_clearance_m": [
+      [
+        -0.0010499507188796997,
+        -0.0009492188692092896,
+        -0.0009722203016281072,
+        -0.001028764247894276
+      ],
+      [
+        -0.0010500565171241705,
+        -0.0009493172168731634,
+        -0.000972339510917658,
+        -0.0010288849472999545
+      ]
+    ],
+    "shoulder_world": {
+      "Left": [
+        0.004093727096915245,
+        0.33371591567993164,
+        1.3792065382003784
+      ],
+      "Right": [
+        -0.11665321886539459,
+        0.04925351217389107,
+        1.3792065382003784
+      ]
+    },
+    "body_turn_degrees": 67,
+    "contacts": "left hand and both feet fixed throughout aim lattice",
+    "approved_torso_max_matrix_error": 1.1920928955078125e-07
+  },
+  "animations": {
+    "fall": {
+      "frames": 8,
+      "bytes": 6260,
+      "foot_drift_m": 0.33063915371894836
+    },
+    "land": {
+      "frames": 13,
+      "bytes": 10160,
+      "foot_drift_m": 4.470348358154297e-08
+    }
+  },
+  "tests": {
+    "engine_passed": 487,
+    "runtime_passed": 336,
+    "editor_fractional_gravity_passed": 1,
+    "ui_check": "pass",
+    "hazards": 0
+  },
+  "build_sha256": "3f06f5e7dfd77f593aca5976e456c51a03fcb904b20306b9ce4fda534598153a",
+  "disc_sha256": "aacee16ed721f38fb3a67ee796f361433caa1ffb93a2d153ba1055df111645a9",
+  "limits": [
+    "Real console not tested; hazard scan has no link map.",
+    "Instrumented build exceeds RAM; final pose video uses the normal build.",
+    "Arch stone remains a procedural blockout.",
+    "The old no-floor/no-room motor fallback is retained; this validates drops onto supporting geometry."
+  ],
+  "video": "Real emulator frames at 60 fps, then a clearly labeled half-speed replay; nearest-neighbor enlargement."
+}
