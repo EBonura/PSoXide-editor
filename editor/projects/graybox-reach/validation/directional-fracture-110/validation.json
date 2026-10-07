@@ -1,0 +1,26 @@
+{
+  "project": "graybox-reach",
+  "build_features": [
+    "cd-stream-bench"
+  ],
+  "exe_sha256": "9d2dc099aa5ab3036af04c3a936a490717493533e75e02d872585fc644fd80ab",
+  "runtime_tests_passed": 301,
+  "mips_hazards": 0,
+  "tuning": {
+    "baseline": "original directional-fracture, before bold pass",
+    "size_percent": 110,
+    "scaling": "signed pixel offsets rounded to nearest",
+    "chips": [
+      5,
+      7
+    ],
+    "tears": [
+      2,
+      3
+    ],
+    "brightness_and_lifetimes": "original baseline restored",
+    "max_packets": 13
+  },
+  "video_seconds": 4.833333333333333,
+  "verification": "Native 320x240 emulator replay, 3x nearest presentation; silent."
+}

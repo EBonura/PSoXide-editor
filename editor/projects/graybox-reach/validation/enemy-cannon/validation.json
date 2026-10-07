@@ -1,0 +1,61 @@
+{
+  "project": "graybox-reach",
+  "build_features": [
+    "cd-stream-bench"
+  ],
+  "exe_sha256": "7763a63cdfe80b52ef8205384c8471c6f9045983853b706c917214dbcb373f3d",
+  "runtime_tests_passed": 298,
+  "mips_hazards": 0,
+  "calibration_replays": {
+    "before": {
+      "shots": 3,
+      "player_hits": 0,
+      "release_ticks": [
+        665,
+        913,
+        1639
+      ],
+      "hit_ticks": []
+    },
+    "after": {
+      "shots": 3,
+      "player_hits": 3,
+      "release_ticks": [
+        665,
+        913,
+        1639
+      ],
+      "hit_ticks": [
+        670,
+        918,
+        1641
+      ]
+    },
+    "dodge": {
+      "shots": 1,
+      "player_hits": 0,
+      "release_ticks": [
+        665
+      ],
+      "hit_ticks": []
+    }
+  },
+  "fixes": [
+    "Capture a world aim point along the limited body bearing at upper-body height; converge from the animated muzzle",
+    "Accumulate signed Q12 velocity fractions rather than losing shallow components every tick",
+    "Keep authored aim cutoff and straight flight; no retargeting after release"
+  ],
+  "effects": [
+    "cold blue charge",
+    "independent muzzle burst",
+    "bright bolt and four trail ghosts",
+    "actor and world impact rings/fragments"
+  ],
+  "video": {
+    "fps": 60,
+    "seconds": 9.65,
+    "scale": "native 320x240 enlarged 3x nearest",
+    "audio": false
+  },
+  "verification": "Deterministic emulator replays; not tested on physical PlayStation."
+}
