@@ -780,7 +780,9 @@ pub(crate) fn draw_gameplay_camera_settings(
             changed |= draw_camera_profile_controls(ui, &mut camera.fov_y_degrees, &mut camera.blend_profiles,
                 &mut camera.lock_target_framing, &mut camera.lock_profile,
                 psxed_project::WorldCameraProfile { distance: camera.distance, height: camera.height,
-                    target_height: camera.target_height, fov_y_degrees: 43 });
+                    target_height: camera.target_height, fov_y_degrees: 43,
+                    shoulder_offset: 0,
+                });
             ui.weak("Follow smoothing");
             changed |= draw_camera_speed_control(
                 ui,
@@ -877,6 +879,12 @@ pub(super) fn draw_camera_profile_controls(
                     &mut profile.target_height,
                     0,
                     psxed_project::MAX_WORLD_CAMERA_HEIGHT,
+                ),
+                (
+                    "Shoulder offset (right +)",
+                    &mut profile.shoulder_offset,
+                    -psxed_project::MAX_WORLD_CAMERA_DISTANCE,
+                    psxed_project::MAX_WORLD_CAMERA_DISTANCE,
                 ),
             ] {
                 ui.horizontal(|ui| {
