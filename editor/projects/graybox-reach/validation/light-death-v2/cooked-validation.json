@@ -1,0 +1,10 @@
+{
+  "clip": "clip_08_light_enemy_death.psxanim",
+  "stored_frames": 86,
+  "sample_hz": 30,
+  "duration_seconds": 2.8,
+  "minimum_floor_clearance_engine_units": -0.044921875,
+  "initial_foot_drift_engine_units": 0.0,
+  "corpse_motion_after_frame56_engine_units": 0.0,
+  "fractional_samples": 340
+}

@@ -1,0 +1,82 @@
+{
+  "project": "Graybox Reach",
+  "action": "Stun",
+  "clip_resource": 108,
+  "source_sha256": "6c0e1a508503ba6b6fd957a2ebfc4ee5099812505c6f4b1edde4ee151b0153c3",
+  "disc_sha256": "87dd49e48ab52583f4c057a47dd88a7b0af5a89e4bdbea2fddb262d489cdb49b",
+  "playback": {
+    "sample_hz": 30,
+    "stored_frames": 44,
+    "runtime_speed_q8": 256,
+    "final_frame": 42,
+    "ready_at_tick": 84,
+    "stagger_window_ticks": 85,
+    "legacy_unconfigured_stagger_window_ticks": 32,
+    "gameplay_timing_unchanged": false
+  },
+  "approved_assets_unchanged": true,
+  "gameplay": {
+    "status": "completed",
+    "log": "build/graybox-reach/light-reaction-v1/slower-gameplay.log",
+    "completed_polls": 3000
+  },
+  "preview": "validation/light-reaction-v1/stun-recovery-slower-1080p.mp4",
+  "remaining_old_animations": [
+    "HitReact",
+    "Death",
+    "Charged Shot"
+  ],
+  "limits": [
+    "No original PlayStation hardware test.",
+    "Smoke replay is not exhaustive combat coverage."
+  ],
+  "source_validation": {
+    "stun": {
+      "stored_frames": 44,
+      "duration_seconds": 1.4,
+      "max_leg_extension": 0.8551568885767504,
+      "mean_planted_knee_flexion_degrees": 82.06338874847077,
+      "max_planted_sole_spread_engine_units": 0.0,
+      "max_planted_sole_floor_error_engine_units": 0.0,
+      "max_contact_drift_engine_units": 0.0,
+      "lowest_vertex_above_floor_engine_units": 0.0,
+      "leg_overlap_quarter_frames": [],
+      "max_frame_vertex_rms_step_engine_units": 7.888949780000302,
+      "loop_seam_over_largest_step": null,
+      "rear_foot_motion_engine_units": 0.0,
+      "max_arm_extension": 0.839677090540556,
+      "elbow_bend_min_degrees": 66.25119610113825,
+      "elbow_bend_max_degrees": 89.2302442927725,
+      "wrist_max_offset_from_rest_degrees": 0.0
+    }
+  },
+  "cooked_validation": {
+    "stun": {
+      "stored_frames": 44,
+      "sample_hz": 30,
+      "max_planted_sole_spread_engine_units": 0.0,
+      "max_planted_sole_floor_error_engine_units": 0.044921875,
+      "max_contact_drift_engine_units": 0.0,
+      "contact_samples": 337
+    }
+  },
+  "rig_validation": {
+    "stun": {
+      "evaluated_mesh_max_error_blender_units": 0.0002940377476551491,
+      "samples_checked": 44
+    }
+  },
+  "roundtrip_validation": {
+    "frames": 44,
+    "roundtrip_max_vertex_error_engine_units": 0.02731180888048158,
+    "start_equals_ready_pose": true,
+    "runtime_phase_step_q12": 2048,
+    "ready_at_tick": 84,
+    "stagger_window_ticks": 85
+  },
+  "tests": {
+    "host_stagger_timing": "passed",
+    "runtime_entity_tests": 67,
+    "runtime_entity_tests_failed": 0
+  }
+}

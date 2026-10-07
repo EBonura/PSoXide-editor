@@ -1,0 +1,44 @@
+{
+  "created_utc": "2026-10-07T15:51:05.252261+00:00",
+  "project": "Graybox Reach",
+  "animation_set": 61,
+  "authored_window_count": 17,
+  "cook_valid": true,
+  "runtime_tests": {
+    "passed": 316,
+    "failed": 0
+  },
+  "cook_contract_test": {
+    "passed": 1,
+    "invalid_cases": 6
+  },
+  "mcp_atomic_edit_test": {
+    "passed": 1
+  },
+  "gameplay_replays": {
+    "passed": 9,
+    "evidence": "replay-verification.json",
+    "diagnostic_exe_sha256": "67561ee54f999c6ad8302f88ed0ac81dc95467735ac107f96d07b788cc9a082f",
+    "scope": "Nine replays precede the final movement-permission condition fix for motor-owned recovery; final normal-disc replay covers the final build."
+  },
+  "broader_guest_host_suite": {
+    "passed": 85,
+    "failed": 1,
+    "failure": "only_initial_world_pages_lock_controls_through_the_closing_animation",
+    "cause": "Test assumes WORLD_MESSAGE is Some; Graybox Reach has no welcome message."
+  },
+  "shipping_disc": {
+    "cue": "baked/graybox_reach.cue",
+    "features": "cd-stream-bench",
+    "emulator_telemetry": false,
+    "exe_sha256": "92c1fb22832f80e9813a7aff57cbf2fb0848554112827df70ec93831d57d4f9c",
+    "smoke_stop_poll": 810,
+    "observed_port1_polls": 811,
+    "screenshot": "final-smoke.png"
+  },
+  "editor_and_mcp_release_build": "passed",
+  "training_reset_controls_enabled": true,
+  "temporary_fixture_removed": true,
+  "hardware_performance_measured": false,
+  "documentation": "docs/cortex/combat-timing.md"
+}

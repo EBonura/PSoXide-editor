@@ -649,7 +649,7 @@ fn moveset_visual_fallbacks(
         A::LightAttackFollowup | A::LightAttackFinisher => [None, None, None, None],
         A::HeavyAttack => [Some(A::LightAttack), Some(A::Idle), None, None],
         A::ComboAttack => [Some(A::LightAttack), Some(A::Idle), None, None],
-        A::Block | A::HitReact | A::Death | A::Intro => [Some(A::Idle), None, None, None],
+        A::Block | A::HitReact | A::Death | A::Intro | A::HookLaunch | A::ArchPerch | A::Fall | A::Land => [Some(A::Idle), None, None, None],
         A::WalkBackward | A::StrafeLeft | A::StrafeRight => {
             [Some(A::Walk), Some(A::Idle), None, None]
         }
@@ -1014,6 +1014,9 @@ pub(crate) fn draw_model_animation_viewer_toolbar(
         if store_timeline_action_options(project, context, state.selected_action, options) {
             action = Some(AnimationViewerAction::ProjectChanged);
         }
+    }
+    if draw_combat_window_controls(ui, project, state.selected_character, state.selected_action) {
+        action = Some(AnimationViewerAction::ProjectChanged);
     }
     if draw_action_chain_controls(ui, project, state.selected_character, state.selected_action) {
         action = Some(AnimationViewerAction::ProjectChanged);
@@ -8211,6 +8214,38 @@ fn effective_radius(state: &ModelAnimationViewerState, model: Option<&LoadedMode
             .unwrap_or(1536)
     }
     .clamp(640, 8192)
+}
+
+/// Shared source-frame timing beside the animation viewer's existing hitbox controls.
+fn draw_combat_window_controls(ui: &mut egui::Ui, project: &mut ProjectDocument,
+    character: Option<ResourceId>, action: CharacterAnimationAction) -> bool {
+    let Some(set_id) = character_animation_set_id(project, character) else { return false; };
+    let Some(resource) = project.resource_mut(set_id) else { return false; };
+    let ResourceData::AnimationSet(set) = &mut resource.data else { return false; };
+    let mut changed = false;
+    ui.collapsing("Player combat timing", |ui| {
+        ui.label("Permissions and protection apply when this character is controlled by the player.");
+        ui.label("Source frames: start included, end excluded. Unchecked inherits existing behavior.");
+        ui.label("Buffer remembers a press; permission consumes it. Equal endpoints disable a channel.");
+        for kind in psxed_project::CombatWindowKind::ALL {
+            let index = set.combat_windows.iter().position(|w| w.action == action && w.kind == kind);
+            let mut enabled = index.is_some();
+            ui.horizontal(|ui| {
+                if ui.checkbox(&mut enabled, format!("{kind:?}")).changed() {
+                    changed = true;
+                    if let Some(index) = index { set.combat_windows.remove(index); }
+                    else { set.combat_windows.push(psxed_project::AnimationCombatWindow { action, kind, start: 0, end: 0 }); }
+                }
+                if let Some(w) = set.combat_windows.iter_mut().find(|w| w.action == action && w.kind == kind) {
+                    ui.label("Start"); changed |= ui.add(egui::DragValue::new(&mut w.start)).changed();
+                    ui.label("End"); changed |= ui.add(egui::DragValue::new(&mut w.end)).changed();
+                    if w.start > w.end { ui.colored_label(egui::Color32::YELLOW, "Start must be <= end"); }
+                }
+            });
+        }
+        ui.label("Hitbox/projectile damage and action push retain their existing authored tracks; combat_timeline in MCP reports them together.");
+    });
+    changed
 }
 
 /// Chain controls sit beside the action timeline; values use source clip frames.

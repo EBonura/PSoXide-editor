@@ -1,0 +1,12 @@
+{
+  "death": {
+    "frames": 66,
+    "stored_frames": 68,
+    "sample_hz": 30,
+    "playback_speed_q8": 256,
+    "duration_seconds": 2.2,
+    "loop": false,
+    "speed": 0.0,
+    "still_from_frame": 58
+  }
+}

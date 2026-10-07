@@ -13,8 +13,8 @@
     "period_seconds": 1.3333333333333333,
     "duty": 0.58,
     "start_phase_frames": 0,
-    "pelvis_lowering": 1172.8006497062688,
-    "max_leg_extension": 0.9394028235614412,
+    "pelvis_lowering": 2755.3411135027654,
+    "max_leg_extension": 0.9417779656919955,
     "translation_shift": 0
   },
   "strafe_left": {
@@ -31,8 +31,8 @@
     "period_seconds": 1.0666666666666667,
     "duty": 0.58,
     "start_phase_frames": 8,
-    "pelvis_lowering": 773.3754529199596,
-    "max_leg_extension": 0.9443572047730912,
+    "pelvis_lowering": 1041.8414348025417,
+    "max_leg_extension": 0.9439729581539565,
     "translation_shift": 0
   },
   "strafe_right": {
@@ -49,12 +49,12 @@
     "period_seconds": 1.0666666666666667,
     "duty": 0.58,
     "start_phase_frames": 8,
-    "pelvis_lowering": 368.81147629255975,
-    "max_leg_extension": 0.9441126651579894,
+    "pelvis_lowering": 1214.0140276792608,
+    "max_leg_extension": 0.9429860375599733,
     "translation_shift": 0
   },
   "calibration": {
-    "cooked_speed_per_tick": 1,
+    "cooked_speed_per_tick": 0.5,
     "ticks_per_second": 60,
     "visual_scale_q12": 184,
     "cook_position_divisor": 16,

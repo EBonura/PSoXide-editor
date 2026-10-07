@@ -1,0 +1,14 @@
+{
+  "strike": {
+    "frames": 48,
+    "stored_frames": 50,
+    "sample_hz": 30,
+    "duration_seconds": 1.6,
+    "loop": false,
+    "speed": 0.0,
+    "active_start_frame": 20,
+    "active_end_frame": 25,
+    "pelvis_drop_model_units": 0.0,
+    "max_leg_extension": 0.8711732798918269
+  }
+}

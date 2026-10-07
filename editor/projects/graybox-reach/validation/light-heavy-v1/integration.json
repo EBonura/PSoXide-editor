@@ -1,0 +1,161 @@
+{
+  "project": "Graybox Reach",
+  "action": "HeavyAttack",
+  "clip_resource": 139,
+  "source_sha256": "05866a191f13d84cfde849875a190c50b103a4b1c0e3b423b3a0d082549cb026",
+  "disc_sha256": "39eda307f59ed65aa68ab64f6fc33954028d343ef20390055dc95785fc0b4358",
+  "playback": {
+    "sample_hz": 30,
+    "stored_frames": 68,
+    "speed_q8": 256,
+    "start_frame": 0,
+    "end_frame": 66,
+    "hit_start_frame": 32,
+    "hit_end_frame": 37,
+    "windup_ticks": 16,
+    "committed_attack_ticks": 92,
+    "recovery_ticks": 24,
+    "damage": 48,
+    "poise_damage": 75
+  },
+  "approved_light_preserved": true,
+  "gameplay": {
+    "status": "completed chain revision smoke replay",
+    "completed_polls": 3000,
+    "log": "build/graybox-reach/light-heavy-v1/chain-gameplay.log"
+  },
+  "preview": "validation/light-heavy-v1/heavy-connected-arm-1080p.mp4",
+  "limits": [
+    "No original PlayStation hardware test.",
+    "Smoke replay does not verify every hit/miss angle."
+  ],
+  "source_validation": {
+    "heavy": {
+      "stored_frames": 68,
+      "duration_seconds": 2.2,
+      "max_leg_extension": 0.92712468359109,
+      "mean_planted_knee_flexion_degrees": 78.66657196894738,
+      "max_planted_sole_spread_engine_units": 0.0,
+      "max_planted_sole_floor_error_engine_units": 0.0,
+      "max_contact_drift_engine_units": 0.0,
+      "lowest_vertex_above_floor_engine_units": 0.0,
+      "leg_overlap_quarter_frames": [],
+      "max_frame_vertex_rms_step_engine_units": 21.266440738700762,
+      "loop_seam_over_largest_step": null,
+      "rear_foot_motion_engine_units": 0.0,
+      "max_arm_extension": 0.965142031151384,
+      "elbow_bend_min_degrees": 42.02534440522216,
+      "elbow_bend_max_degrees": 117.96997328710789,
+      "wrist_max_offset_from_rest_degrees": 11.76507058108488
+    }
+  },
+  "cooked_validation": {
+    "heavy": {
+      "stored_frames": 68,
+      "sample_hz": 30,
+      "max_planted_sole_spread_engine_units": 0.0,
+      "max_planted_sole_floor_error_engine_units": 0.044921875,
+      "max_contact_drift_engine_units": 0.0,
+      "contact_samples": 552
+    }
+  },
+  "rig_validation": {
+    "heavy": {
+      "evaluated_mesh_max_error_blender_units": 0.0002979126546312053,
+      "samples_checked": 68
+    }
+  },
+  "roundtrip_validation": {
+    "frames": 68,
+    "roundtrip_max_vertex_error_engine_units": 0.02931621222696942,
+    "active_capsule_endpoints_engine_units": [
+      [
+        [
+          20.125060319900513,
+          47.87417221069336,
+          2.268817216157913
+        ],
+        [
+          1.797370582818985,
+          76.68452021479607,
+          -4.159868031740189
+        ]
+      ],
+      [
+        [
+          37.05099302530289,
+          41.65375512838364,
+          28.12727379798889
+        ],
+        [
+          44.480449855327606,
+          75.37466877698898,
+          24.25988531112671
+        ]
+      ],
+      [
+        [
+          35.1037021279335,
+          16.160460144281387,
+          57.50384059548378
+        ],
+        [
+          56.64573448896408,
+          35.09030905365944,
+          77.12065982818604
+        ]
+      ],
+      [
+        [
+          12.280787646770477,
+          -11.559848994016647,
+          68.81410571932793
+        ],
+        [
+          19.7356878221035,
+          -19.84589844942093,
+          101.72083231806755
+        ]
+      ],
+      [
+        [
+          -8.43041142821312,
+          -23.64496847987175,
+          61.336414217948914
+        ],
+        [
+          -18.845220774412155,
+          -46.73904490470886,
+          85.11746096611023
+        ]
+      ],
+      [
+        [
+          -11.42502510547638,
+          -23.156763195991516,
+          61.06978723406792
+        ],
+        [
+          -24.367206752300262,
+          -47.32794123888016,
+          82.40827283263206
+        ]
+      ]
+    ],
+    "active_start_frame": 32,
+    "active_end_frame": 37
+  },
+  "revision": "Connected shoulder/elbow/wrist chain in the chest frame; bent-arm load, hinged elbow unfolding and modest wrist cock. Replaces independent world-space forearm/claw aiming.",
+  "arm_chain_validation": {
+    "elbow_bend_min_degrees": 42.00130778045544,
+    "elbow_bend_max_degrees": 118.000789527793,
+    "shoulder_largest_local_step_degrees": 32.66761239668316,
+    "shoulder_peak_step_frame": 34,
+    "elbow_largest_local_step_degrees": 19.863013897636442,
+    "elbow_peak_step_frame": 35,
+    "wrist_largest_local_step_degrees": 3.946488394753039,
+    "wrist_peak_step_frame": 37,
+    "wrist_max_offset_from_rest_degrees": 11.726841936028576
+  },
+  "subsequent_model_alignment": "validation/claw-alignment/integration.json"
+}

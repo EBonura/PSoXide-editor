@@ -1,0 +1,23 @@
+{
+  "unit_tests_passed": 352,
+  "integration_tests_passed": 5,
+  "ps1_instruction_hazards": 0,
+  "normal_play_build": "cd-stream-bench",
+  "same_disc_for_both_runs": true,
+  "runs": [
+    {
+      "seed": 1,
+      "outcome": "player_won",
+      "end_tick": 7202,
+      "enemy_evade_attempts": 4
+    },
+    {
+      "seed": 7,
+      "outcome": "player_won",
+      "end_tick": 8030,
+      "enemy_evade_attempts": 6
+    }
+  ],
+  "visual_check": "First two enemy evades inspected: lateral movement and planted recovery. 9.33-second native replay clip upscaled nearest-neighbor. Both live runs completed by death.",
+  "limits": "Attempts are not confirmed misses. Reuses strafe clips; no dedicated authored dodge pose. Emulator checks do not establish hardware frame rate."
+}

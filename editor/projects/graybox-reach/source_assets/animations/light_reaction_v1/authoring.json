@@ -1,0 +1,14 @@
+{
+  "stun": {
+    "frames": 42,
+    "stored_frames": 44,
+    "sample_hz": 30,
+    "playback_speed_q8": 256,
+    "duration_seconds": 1.4,
+    "source_duration_seconds": 1.4,
+    "loop": false,
+    "speed": 0.0,
+    "pelvis_drop_model_units": 0.0,
+    "max_leg_extension": 0.8551416733752623
+  }
+}

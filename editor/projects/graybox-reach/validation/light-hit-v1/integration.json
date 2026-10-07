@@ -1,0 +1,58 @@
+{
+  "project": "Graybox Reach",
+  "action": "HitReact",
+  "resource": 92,
+  "duration_seconds": 0.9,
+  "sample_hz": 30,
+  "stored_frames": 29,
+  "source_sha256": "890a898884e001ada30451461c2943ff1d4edf3d7c53e331640943031e26f545",
+  "disc_sha256": "b86e052706570cc2015fd37ac925e9e11c25e0b9eefd4214ca0eaf3d7482a474",
+  "previous_assets_unchanged": true,
+  "build": "passed",
+  "editor_mcp_status": "passed",
+  "preview": "validation/light-hit-v1/hit-reaction-1080p.mp4",
+  "runtime_scope": "Bound and cooked as HitReact. Enemy runtime triggers Stun on poise break; separate ordinary-hit playback is not wired. No combat behavior changed.",
+  "source_validation": {
+    "hit": {
+      "stored_frames": 29,
+      "duration_seconds": 0.9,
+      "max_leg_extension": 0.8435098814139418,
+      "mean_planted_knee_flexion_degrees": 74.70939828524794,
+      "max_planted_sole_spread_engine_units": 0.0,
+      "max_planted_sole_floor_error_engine_units": 0.0,
+      "max_contact_drift_engine_units": 0.0,
+      "lowest_vertex_above_floor_engine_units": 0.0,
+      "leg_overlap_quarter_frames": [],
+      "max_frame_vertex_rms_step_engine_units": 4.423071789722624,
+      "loop_seam_over_largest_step": null,
+      "rear_foot_motion_engine_units": 0.0,
+      "max_arm_extension": 0.8991364497317396,
+      "elbow_bend_min_degrees": 52.25789037602159,
+      "elbow_bend_max_degrees": 74.240867919015,
+      "wrist_max_offset_from_rest_degrees": 0.0
+    }
+  },
+  "cooked_validation": {
+    "hit": {
+      "stored_frames": 29,
+      "sample_hz": 30,
+      "max_planted_sole_spread_engine_units": 0.0,
+      "max_planted_sole_floor_error_engine_units": 0.044921875,
+      "max_contact_drift_engine_units": 0.0,
+      "contact_samples": 280
+    }
+  },
+  "rig_validation": {
+    "hit": {
+      "evaluated_mesh_max_error_blender_units": 0.00029548817941556785,
+      "samples_checked": 29
+    }
+  },
+  "roundtrip_validation": {
+    "frames": 29,
+    "roundtrip_max_vertex_error_engine_units": 0.02731180888048158,
+    "start_equals_ready_pose": true,
+    "duration_seconds": 0.9,
+    "runtime_trigger": "not implemented for ordinary hits"
+  }
+}

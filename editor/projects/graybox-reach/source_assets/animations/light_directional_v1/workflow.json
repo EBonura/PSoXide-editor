@@ -11,7 +11,7 @@
     "strafe_right": "16 unique frames + loop endpoint; 15 Hz, 1.07s cycle"
   },
   "poses": [
-    "Collected stance and double support at entry for the sidesteps.",
+    "Narrow collected stance and double support at entry for the sidesteps; 6000-unit half-stance and forward-facing knees.",
     "Leading foot reaches outward while the trailing foot supports; trailing foot follows without crossing.",
     "Torso remains aimed toward the target, retaining v5 torso twist and separate cannon/claw inertia.",
     "Retreat uses low backward steps, with soft knees and a forward-looking head."
@@ -20,14 +20,17 @@
     "regenerate": "Blender --background --factory-startup --python-exit-code 1 -P author.py",
     "save_and_render": "Blender --background --factory-startup --python-exit-code 1 -P save_blends.py",
     "validate": "Blender bundled python3.13 validate.py",
-    "export_manual_edits": "Blender --background --factory-startup --python-exit-code 1 -P export_blend.py -- strafe_left [optional output.psxanim]"
+    "export_manual_edits": "Blender --background --factory-startup --python-exit-code 1 -P export_blend.py -- strafe_left [optional output.psxanim]",
+    "validate_spacing": "Blender --background --factory-startup --python-exit-code 1 -P validate_spacing.py"
   },
   "editing": "Each .blend contains the 22-bone rig, original mesh weights, packed texture and one looping action. Save manual edits before regeneration. Regeneration replaces these snapshots. Export then copy the PSXA into assets/animations/light_directional_v1.",
-  "calibration": "The light enemy walk speed cooks to 2 units/tick; spacing_speed_percent=50 selects 1 unit/tick for circling and retreat. Clips run at 15 Hz with the same poses/strides. Source model scale113 and instance scale417 produce Q12 184; cooking divides positions by16. The distance-driven gait clock uses this spacing speed as its nominal rate.",
+  "calibration": "The light enemy walk speed cooks to 2 units/tick; spacing_speed_percent=25 selects 0.5 units/tick for circling and retreat. A Q8 remainder preserves sub-unit travel at 60 Hz and batched updates. Clips remain at 15 Hz with shorter strides. Source model scale113 and instance scale417 produce Q12 184; cooking divides positions by16. The distance-driven gait clock uses this fractional spacing speed as its nominal rate.",
   "limits": "Contact checks assume straight constant-speed movement. Orbit rotation, radius correction and collisions can still introduce foot slip.",
   "source_hashes": {
-    "strafe_right.npz": "d411a72836a929bc6da0f3a9cdcfe7b8a26b13120ad6eddb9cfd41bbda5e4137",
-    "walk_backward.npz": "3b9b21973bb4f76f2287d68cee8aa82958a0385852adc170fe86e07de96ee303",
-    "strafe_left.npz": "289379a9ef053d682560ed0dfdaf0b6ff90ac81ac3f729598142090fc742511a"
-  }
+    "strafe_right.npz": "b0408c6a5ac584411a30ada7adf48ab4bc7b6fb69bd37e89068512e69102fbdd",
+    "walk_backward.npz": "0f2afa020515deffa613619e04a2efba548ccd5d25244214be7ffa28edc6f094",
+    "strafe_left.npz": "3808d51ac115ef299806b940b3ce310c88dd57f9ff2118ed9e5f3de3ce827793"
+  },
+  "cooking": "The three directional clips set preserve_samples=true to retain contact timing and equal left/right cadence.",
+  "foot_orientation": "Both foot chains use their bind-pose orientation, where the authored heel/toe sole vertices are coplanar and horizontal. IK solves the knees to the grounded ankle targets. The older sampled walk poses were pitched onto the toes; a minimum-height contact check alone did not detect that."
 }

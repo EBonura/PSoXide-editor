@@ -1,0 +1,73 @@
+{
+  "project": "Graybox Reach",
+  "action": "Death",
+  "resource": 91,
+  "duration_seconds": 2.2,
+  "sample_hz": 30,
+  "stored_frames": 68,
+  "source_sha256": "4e6df00e43cd79d032ee81bcd0d054bd1bc31d50d4220d180c507adcc81bfac1",
+  "disc_sha256": "4a36fe818402dcc0f62a7babb04b0894113965d71a579861262c9310fd3ef098",
+  "previous_assets_unchanged": true,
+  "build": "passed",
+  "editor_mcp_status": "passed",
+  "preview": "validation/light-death-v1/death-collapse-1080p.mp4",
+  "gameplay": {
+    "status": "completed",
+    "completed_polls": 3000,
+    "log": "build/graybox-reach/light-death-v1/gameplay.log",
+    "scope": "Smoke replay, not exhaustive death-trigger coverage."
+  },
+  "runtime_scope": "Existing Dead state uses the new one-shot and holds its corpse pose. Approved Stun and ordinary-hit behavior unchanged.",
+  "source_validation": {
+    "stored_frames": 68,
+    "duration_seconds": 2.2,
+    "minimum_floor_clearance_engine_units": -0.01016184687614441,
+    "max_planted_foot_drift_engine_units": 0.0,
+    "corpse_motion_after_frame58_engine_units": 0.0,
+    "max_wrist_relative_rotation_degrees": 0.0,
+    "leg_overlap_quarter_frames": [],
+    "max_frame_vertex_rms_step_engine_units": 8.389128528254638,
+    "largest_step_frame": 37,
+    "corpse_height_engine_units": 29.258694171905518,
+    "final_lowest_vertices_joints": [
+      5,
+      13,
+      9,
+      5,
+      9,
+      5,
+      9,
+      5,
+      9,
+      5,
+      9,
+      9
+    ]
+  },
+  "cooked_validation": {
+    "clip": "clip_08_light_enemy_death.psxanim",
+    "stored_frames": 68,
+    "sample_hz": 30,
+    "duration_seconds": 2.2,
+    "minimum_floor_clearance_engine_units": -0.05663490295410156,
+    "planted_foot_drift_engine_units": 0.0,
+    "corpse_motion_after_frame58_engine_units": 0.0,
+    "fractional_samples": 268
+  },
+  "rig_validation": {
+    "death": {
+      "evaluated_mesh_max_error_blender_units": 0.00030356577705189066,
+      "samples_checked": 68
+    }
+  },
+  "roundtrip_validation": {
+    "stored_frames": 68,
+    "roundtrip_max_vertex_error_engine_units": 0.027734451280041327,
+    "start_differs_from_corpse": true,
+    "corpse_still_from_frame": 58,
+    "final_unique_frame": 66,
+    "sample_hz": 30,
+    "runtime_speed_q8": 256,
+    "final_frame_at_tick": 132
+  }
+}

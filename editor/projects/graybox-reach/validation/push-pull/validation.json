@@ -1,0 +1,135 @@
+{
+  "disc_guest_sha256": "9d521bad1e23c3ae60354d1df3450a6c2c53e21e9c149e028fe009fcb24da530",
+  "bands_units": [
+    80,
+    192
+  ],
+  "runs": [
+    {
+      "run": "baseline-seed-1",
+      "outcome": "player_won",
+      "seconds": 36.88,
+      "distance_percent": [
+        74.7,
+        19.9,
+        5.4
+      ],
+      "cycles": 0,
+      "mean_distance": 74,
+      "longest_close_seconds": 19.133333333333333,
+      "damage": [
+        [
+          73,
+          88
+        ],
+        [
+          300,
+          300
+        ]
+      ],
+      "shots": [
+        11,
+        3
+      ],
+      "enemy_attacks": [
+        2,
+        4,
+        4
+      ],
+      "warnings": [
+        "Spatial push/pull coverage is weak: inspect distance bands and completed close-far-close cycles."
+      ]
+    },
+    {
+      "run": "seed-1",
+      "outcome": "player_won",
+      "seconds": 42.73,
+      "distance_percent": [
+        38.2,
+        24.3,
+        37.5
+      ],
+      "cycles": 2,
+      "mean_distance": 136,
+      "longest_close_seconds": 5.4,
+      "damage": [
+        [
+          25,
+          40
+        ],
+        [
+          300,
+          300
+        ]
+      ],
+      "shots": [
+        11,
+        3
+      ],
+      "enemy_attacks": [
+        1,
+        2,
+        3
+      ],
+      "warnings": []
+    },
+    {
+      "run": "seed-7",
+      "outcome": "player_won",
+      "seconds": 40.45,
+      "distance_percent": [
+        40.5,
+        14.9,
+        44.6
+      ],
+      "cycles": 2,
+      "mean_distance": 141,
+      "longest_close_seconds": 6.0,
+      "damage": [
+        [
+          57,
+          40
+        ],
+        [
+          300,
+          300
+        ]
+      ],
+      "shots": [
+        11,
+        3
+      ],
+      "enemy_attacks": [
+        3,
+        3,
+        3
+      ],
+      "warnings": []
+    }
+  ],
+  "tests": {
+    "runtime": 341,
+    "mcp": 25,
+    "guest": 85,
+    "guest_excluded": [
+      "only_initial_world_pages_lock_controls_through_the_closing_animation"
+    ]
+  },
+  "limitations": [
+    "Headless emulator evidence, not PS1 hardware performance validation.",
+    "Two final seeds validate flow coverage, not combat balance.",
+    "The chase still produces some wall-obstructed camera framing."
+  ],
+  "guest_provenance": "Dedicated build stage and successful disc build immediately before replays; shared output was rebuilt by concurrent work later.",
+  "video": {
+    "path": "push-pull.mp4",
+    "resolution": [
+      1280,
+      1032
+    ],
+    "seconds": 45.033333,
+    "capture_fps": 30,
+    "note": "Native 320x240 pixels enlarged 4x; frame capture rate is not a performance claim.",
+    "decode_errors": 0
+  }
+}

@@ -1,0 +1,146 @@
+{
+  "project": "Graybox Reach",
+  "clip_resource": 141,
+  "action": "LightAttack",
+  "source_sha256": "932fe7b074a36211c9b02544722933c1f449f62f6850efa654e51a8ac2ff88e1",
+  "disc_sha256": "5b42ad1fb17ce8019b577495a91c4bcfabac1340f6f7b4687a5f81ab8edcf4f7",
+  "playback": {
+    "sample_hz": 30,
+    "speed_q8": 256,
+    "start_frame": 0,
+    "end_frame": 48,
+    "hit_start_frame": 20,
+    "hit_end_frame": 25,
+    "windup_ticks": 16,
+    "committed_attack_ticks": 56,
+    "recovery_ticks": 24
+  },
+  "source_validation": {
+    "strike": {
+      "stored_frames": 50,
+      "duration_seconds": 1.6,
+      "max_leg_extension": 0.9219527894677807,
+      "mean_planted_knee_flexion_degrees": 78.02499391263224,
+      "max_planted_sole_spread_engine_units": 0.0,
+      "max_planted_sole_floor_error_engine_units": 0.0,
+      "max_contact_drift_engine_units": 0.0,
+      "lowest_vertex_above_floor_engine_units": 0.0,
+      "leg_overlap_quarter_frames": [],
+      "max_frame_vertex_rms_step_engine_units": 35.5894950683573,
+      "loop_seam_over_largest_step": null,
+      "rear_foot_motion_engine_units": 0.0,
+      "max_arm_extension": 0.9650025219667441
+    }
+  },
+  "cooked_validation": {
+    "strike": {
+      "stored_frames": 50,
+      "sample_hz": 30,
+      "max_planted_sole_spread_engine_units": 0.0,
+      "max_planted_sole_floor_error_engine_units": 0.044921875,
+      "max_contact_drift_engine_units": 0.0,
+      "contact_samples": 397
+    }
+  },
+  "rig_validation": {
+    "strike": {
+      "evaluated_mesh_max_error_blender_units": 0.00030312299427414453,
+      "samples_checked": 50
+    }
+  },
+  "roundtrip_validation": {
+    "frames": 50,
+    "roundtrip_max_vertex_error_engine_units": 0.03050220857217752,
+    "active_capsule_endpoints_engine_units": [
+      [
+        [
+          29.71632069349289,
+          45.03857412934303,
+          -21.780914932489395
+        ],
+        [
+          14.246766746044159,
+          61.74637088179588,
+          -48.021485060453415
+        ]
+      ],
+      [
+        [
+          53.3713139295578,
+          35.38871160149574,
+          18.869718194007874
+        ],
+        [
+          74.34511157870293,
+          46.5922646522522,
+          -6.454891502857208
+        ]
+      ],
+      [
+        [
+          19.55765500664711,
+          7.311044067144394,
+          73.83552357554436
+        ],
+        [
+          42.75350481271744,
+          -0.33892175555229187,
+          98.54101186990738
+        ]
+      ],
+      [
+        [
+          -19.900005400180817,
+          -9.611123442649841,
+          64.13026133179665
+        ],
+        [
+          -24.691835433244705,
+          -28.125397711992264,
+          93.12719386816025
+        ]
+      ],
+      [
+        [
+          -27.279124587774277,
+          -12.91491362452507,
+          48.53468608856201
+        ],
+        [
+          -43.206658750772476,
+          -32.455402821302414,
+          72.43446844816208
+        ]
+      ],
+      [
+        [
+          -28.44307315349579,
+          -13.426303684711456,
+          48.060511350631714
+        ],
+        [
+          -46.29582044482231,
+          -33.74705547094345,
+          69.85697716474533
+        ]
+      ]
+    ],
+    "active_start_frame": 20,
+    "active_end_frame": 25
+  },
+  "gameplay": {
+    "status": "completed v2 replay",
+    "completed_polls": 3000,
+    "log": "build/graybox-reach/light-attack-v2/gameplay.log"
+  },
+  "approved_motion_assets": "Run, turn and single-step alert unchanged.",
+  "integration_note": "Charged Cannon shares AnimationSet60. Its existing combo capsules now use HeavyAttack; its existing single-strike capsule uses LightAttack20-25. Capsule geometry, damage and poise preserved.",
+  "limits": [
+    "No original PlayStation hardware test.",
+    "Gameplay smoke replay, not exhaustive hit/miss testing from all approach angles."
+  ],
+  "revision": "v2: stronger planted-leg drive and longer step; shoulder recoil; increased torso follow-through; shoulder, elbow and claw recover in sequence with delayed wrist settle.",
+  "preview": "validation/light-attack-v2/claw-v1-v2-comparison-1080p.mp4",
+  "approved_baseline_preserved": true,
+  "subsequent_model_alignment": "validation/claw-alignment/integration.json"
+}

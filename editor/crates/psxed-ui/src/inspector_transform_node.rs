@@ -78,7 +78,7 @@ pub(crate) fn node_transform_inspector(kind: &NodeKind) -> NodeTransformInspecto
         | NodeKind::Section { .. }
         | NodeKind::WaterVolume { .. }
         | NodeKind::Portal { .. } => NodeTransformInspector::Hidden,
-        NodeKind::PointLight { .. }
+        NodeKind::HookPoint | NodeKind::PointLight { .. }
         | NodeKind::ParticleEmitter { .. }
         | NodeKind::VitalityCircle { .. }
         | NodeKind::Logic { .. }
@@ -141,21 +141,19 @@ pub(crate) fn draw_world_settings(
     egui::CollapsingHeader::new(icons::label(icons::WAYPOINT, "Physics"))
         .default_open(true)
         .show(ui, |ui| {
+            let mut gravity = physics.gravity_per_tick_q8
+                .map_or(physics.gravity_per_tick as f32, |value| value as f32 / 256.0);
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Gravity").color(STUDIO_TEXT_WEAK));
-                if ui
-                    .add(
-                        egui::DragValue::new(&mut physics.gravity_per_tick)
-                            .speed(8.0)
-                            .range(MIN_WORLD_GRAVITY_PER_TICK..=MAX_WORLD_GRAVITY_PER_TICK),
-                    )
-                    .on_hover_text("Downward acceleration in engine units per 60 Hz tick squared.")
-                    .changed()
-                {
-                    *physics = physics.normalized();
-                    changed = true;
+                if ui.add(egui::DragValue::new(&mut gravity).speed(0.125)
+                    .range(0.0..=MAX_WORLD_GRAVITY_PER_TICK as f32))
+                    .on_hover_text("Downward acceleration in authoring world units per 60 Hz tick squared. Fractional values are preserved at runtime.")
+                    .changed() {
+                    physics.gravity_per_tick_q8=Some((gravity*256.0).round() as i32);
+                    *physics=physics.normalized();
+                    changed=true;
                 }
-                ui.label(RichText::new("units/tick^2").color(STUDIO_TEXT_WEAK));
+                ui.label(RichText::new("units/tick²").color(STUDIO_TEXT_WEAK));
             });
         });
     egui::CollapsingHeader::new(icons::label(icons::SUN, "Sky"))
@@ -2291,6 +2289,7 @@ pub(crate) fn draw_node_kind_editor(
     } = ctx;
     let mut changed = false;
     match kind {
+        NodeKind::HookPoint => { ui.weak("Place at the centre of an elevated, clear landing. In Zenith, hold L2 and aim at the hook; R2 traverses to it using the dash effect."); }
         NodeKind::Node | NodeKind::Node3D => {
             ui.weak("Organisational transform node");
         }

@@ -1,0 +1,26 @@
+{
+  "stored_frames": 86,
+  "duration_seconds": 2.8,
+  "minimum_floor_clearance_engine_units": -0.008863598108291626,
+  "initial_foot_motion_engine_units": 0.0,
+  "corpse_motion_after_frame56_engine_units": 0.0,
+  "max_wrist_relative_rotation_degrees": 0.0,
+  "leg_overlap_quarter_frames": [],
+  "max_frame_vertex_rms_step_engine_units": 5.750283752226431,
+  "largest_step_frame": 1,
+  "corpse_height_engine_units": 33.67697402834892,
+  "final_lowest_vertices_joints": [
+    12,
+    13,
+    11,
+    12,
+    11,
+    13,
+    11,
+    12,
+    12,
+    12,
+    12,
+    21
+  ]
+}

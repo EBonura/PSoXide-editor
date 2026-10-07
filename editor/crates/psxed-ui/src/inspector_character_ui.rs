@@ -452,6 +452,8 @@ fn draw_enemy_behavior_fields(
     let mut changed = false;
 
     ui.separator();
+    changed |= ui.checkbox(&mut enemy.tactical, "Tactical behaviour").changed();
+    changed |= ui.checkbox(&mut enemy.training, "Encounter test controls").changed();
     ui.label(RichText::new("Awareness & patrol").strong());
     changed |= drag_u16(ui, "Aggro radius", &mut enemy.aggro_radius, 1, 32767);
     changed |= drag_u8(ui, "Reaction ticks", &mut enemy.reaction_ticks, 0, 255);
@@ -470,8 +472,6 @@ fn draw_enemy_behavior_fields(
     changed |= drag_i32(ui, "X", &mut enemy.patrol_offset[0], -32767, 32767);
     changed |= drag_i32(ui, "Y", &mut enemy.patrol_offset[1], -32767, 32767);
     changed |= drag_i32(ui, "Z", &mut enemy.patrol_offset[2], -32767, 32767);
-    changed |= ui.checkbox(&mut enemy.tactical, "Tactical behaviour").changed();
-    changed |= ui.checkbox(&mut enemy.training, "Encounter test controls").changed();
 
     ui.separator();
     ui.label(RichText::new("Spacing & intent").strong());

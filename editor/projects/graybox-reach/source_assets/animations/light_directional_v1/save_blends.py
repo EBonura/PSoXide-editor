@@ -57,7 +57,7 @@ def main():
         for label,f in [(('Following contact' if name.startswith('strafe') else 'Lead contact'),1),('Compression',3),(('Lead contact' if name.startswith('strafe') else 'Following contact'),(len(frames)-1)//2+1),('Compression',(len(frames)-1)//2+3)]:
             scene.timeline_markers.new(label,frame=f)
         rig['runtime_frames']=len(frames)
-        rig['export_note']='15 Hz directional stalking cycle. Export includes duplicate endpoint. Runtime speed 1 unit/tick; visual Q12 scale184; position cook divisor16.'
+        rig['export_note']='15 Hz directional stalking cycle. Export includes duplicate endpoint. Runtime speed 0.5 units/tick; visual Q12 scale184; position cook divisor16.'
         rig['directional_clip']=name
         rig.hide_set(False)
         err=0.

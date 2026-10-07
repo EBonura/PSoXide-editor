@@ -1,0 +1,38 @@
+{
+  "project": "Graybox Reach",
+  "player_poise": 60,
+  "hit_resource": 87,
+  "stun_resource": 54,
+  "animation_set": 61,
+  "speed_q8": 256,
+  "recovery_lock_ticks_at_60_hz": {
+    "hit": 81,
+    "poise": 125
+  },
+  "runtime_asset_sha256": {
+    "hit": "49a2da5bfc57117d6e9f2c8d36e4cf93c1f88d67a64c1617a38698edbf5866a0",
+    "poise": "108aff1ca7fa5799accd42fd671876c6e82ac922efdba5f4103d118e48e85d45"
+  },
+  "runtime_tests_passed": 310,
+  "runtime_tests_failed": 0,
+  "project_sha256_at_validation": "4054f69b78367b62d3c8a4549ec87a98266219c6b083d5fdfea58e6d9493ae64",
+  "training_mode": false,
+  "normal_build_features": [
+    "cd-stream-bench"
+  ],
+  "normal_build_completed": true,
+  "psx_exe_sha256": "cbb0249fe13d750b4c0e51eea248efae4d6ea3f2f93d2c2c0b62544436d39b87",
+  "combat_validation": [
+    "hit-runtime-replay.json",
+    "poise-runtime-replay.json"
+  ],
+  "temporary_fixture_removed": true,
+  "bloodborne_reference": "/Users/ebonura/Desktop/repos/bb-decomp/docs/movement-cortex-contracts-2026-10-05.md",
+  "bloodborne_scope": "input buffering and authored transition permissions; 60 poise is user-selected Cortex tuning",
+  "shipping_smoke": {
+    "exit_code": 0,
+    "port1_polls": 901,
+    "route_ticks": 988,
+    "display_reviewed": true
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "joint": 9,
+  "changed_vertices": 58,
+  "rotation_degrees": 27.417428077171575,
+  "pivot": [
+    17670.666015625,
+    12229.85546875,
+    57.40869140625
+  ],
+  "rotation": [
+    [
+      0.8878576589228889,
+      0.4352321637564641,
+      0.14896010914874303
+    ],
+    [
+      -0.43180925398025355,
+      0.9002335853164715,
+      -0.0563625510651666
+    ],
+    [
+      -0.15859742600689933,
+      -0.014203664685896986,
+      0.9872594938985843
+    ]
+  ],
+  "unaligned_sha256": "359ef2d5af442c7261b32edbd6354ffff7261370dc340b38338f6038bbd87f82",
+  "aligned_sha256": "80924baf0548b381fcdd2e5372a9f036835044d993824fa14c79aa381cd01e36",
+  "unchanged": "All animation keys, skeleton, weights, topology, UVs, texture, non-claw geometry and part flags."
+}

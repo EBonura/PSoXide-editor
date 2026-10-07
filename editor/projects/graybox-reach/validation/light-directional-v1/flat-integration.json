@@ -1,0 +1,18 @@
+{
+  "project": "Graybox Reach",
+  "date": "2026-10-07",
+  "change": "Corrected planted ankle/toe orientations for both strafes and backward walk using the flat sole planes of the bind pose.",
+  "preserved": "Narrow stance, stride lengths, movement speeds and cycle durations.",
+  "validation": [
+    "Source planted-sole height spread and floor error are zero.",
+    "Cooked planted-sole height spread is zero, floor error <=0.044922 engine units from position quantization.",
+    "Planted contact drift <=0.023438 cooked engine units.",
+    "No leg intersections in the lateral quarter-frame checks; no overextended knees.",
+    "Editable Blender rig evaluation and export roundtrip passed.",
+    "Normal project disc built and replayed to 3000 polls."
+  ],
+  "disc_sha256": "52efaa2b5484c1db898689ecf90eb7edc3101590200cc523f05e3771e92c48e1",
+  "replay": "[cli] loaded poll-bound input tape editor/projects/graybox-reach/validation/light-directional-v1/extended-observe.csv (3000 polls, starting at poll 0)\n[cli] mounted cue-backed disc editor/projects/graybox-reach/baked/graybox_reach.cue\ncombat music:on\ncombat music:on\ntick=813646337  cycles=1763582800  pc=0x8002d84c  stopped-at=813646337\nroute-ticks=3086  port1-polls=3000\n[cli] CPU display \u2192 build/graybox-reach/light-directional-v1/flat-gameplay/final.ppm (320x240)\n",
+  "preview": "directional-cycles-flat-feet-1080p.mp4",
+  "limits": "Foot contact calibrated for straight steady movement; collision-constrained and curved motion can still introduce sliding. Original hardware not tested."
+}

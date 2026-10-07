@@ -1274,6 +1274,7 @@ impl EditorWorkspace {
                     enabled: true,
                 },
             ),
+            PlaceKind::HookPoint => ("Hook Point".to_string(), NodeKind::HookPoint),
             PlaceKind::VitalityCircle => (
                 "Horizon Vitality Circle".to_string(),
                 NodeKind::VitalityCircle {

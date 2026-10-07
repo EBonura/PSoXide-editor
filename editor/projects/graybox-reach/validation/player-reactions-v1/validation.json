@@ -1,0 +1,30 @@
+{
+  "poise": {
+    "stored_poses": 50,
+    "hz": 60,
+    "duration": 0.8,
+    "max_export_matrix_error": 0.00014045368880033493,
+    "subframe_floor_penetration_m": 0.00029575408552773297,
+    "foot_travel_m": {
+      "Left": 0.18027783930301666,
+      "Right": 0.0003175034071318805
+    },
+    "end_pose_max_vertex_error_m": 0.0,
+    "max_vertex_excursion_m": 0.3861510753631592,
+    "sampled_poses": 193
+  },
+  "hit": {
+    "stored_poses": 38,
+    "hz": 60,
+    "duration": 0.6,
+    "max_export_matrix_error": 0.00014090538024902344,
+    "subframe_floor_penetration_m": 0.00015551286924164742,
+    "foot_travel_m": {
+      "Left": 4.9816746468422934e-05,
+      "Right": 0.0001632156054256484
+    },
+    "end_pose_max_vertex_error_m": 0.0,
+    "max_vertex_excursion_m": 0.18481014668941498,
+    "sampled_poses": 145
+  }
+}

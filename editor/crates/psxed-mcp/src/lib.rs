@@ -11,6 +11,7 @@
 //! question directly instead, by sectioning the authored brush solids.
 
 pub mod audit;
+pub mod combat;
 pub mod performance;
 pub mod edit;
 pub mod inspect;
@@ -737,3 +738,5 @@ mod tests {
         assert!(!contains(&cube, [150.0, 50.0, 50.0]));
     }
 }
+
+pub mod duel;

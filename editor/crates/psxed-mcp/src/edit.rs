@@ -90,6 +90,28 @@ impl Workspace {
         self.log.push(entry);
     }
 
+    /// Replace one set's timing tracks atomically after full cook validation.
+    pub fn set_combat_windows(&mut self, set_id: u64, windows_ron: &str) -> Result<String, String> {
+        self.document()?;
+        let windows: Vec<psxed_project::AnimationCombatWindow> = ron::from_str(windows_ron).map_err(|e| format!("combat window RON: {e}"))?;
+        let mut candidate = self.doc.clone();
+        let id = candidate.resources.iter().find(|r| r.id.raw() == set_id).ok_or("unknown animation set")?.id;
+        let resource = candidate.resource_mut(id).ok_or("unknown animation set")?;
+        let ResourceData::AnimationSet(set) = &mut resource.data else { return Err("resource is not an Animation Set".into()); };
+        set.combat_windows = windows;
+        let (package, report) = psxed_project::playtest::build_package(&candidate, self.root());
+        if !report.is_ok() { return Err(format!("combat timing rejected: {:?}", report.errors)); }
+        let player_resource = package.as_ref().and_then(|p| p.player_controller.as_ref()
+            .and_then(|controller| p.characters.get(usize::from(controller.character)))).map(|c|c.source_resource);
+        let player_uses_set = player_resource.and_then(|id| candidate.resource(id)).is_some_and(|r|
+            matches!(&r.data, ResourceData::Character(c) if c.animation_set == Some(id)));
+        if !player_uses_set { return Err("Combat permissions currently require the active player's Animation Set; NPC timing is not yet supported".into()); }
+        let text = format!("updated combat windows for Animation Set {set_id}; cook validation passed");
+        self.doc = candidate;
+        self.record(text.clone());
+        Ok(text)
+    }
+
     /// Write to disk, refusing if the file moved underneath.
     pub fn save(&mut self) -> Result<String, String> {
         if !self.dirty {

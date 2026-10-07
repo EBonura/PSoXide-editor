@@ -1,0 +1,23 @@
+{
+  "project": "Graybox Reach",
+  "date": "2026-10-07",
+  "change": "Forward walk uses flat bind-pose ankle/toe orientation, matching the directional foot correction.",
+  "preserved": "24 unique samples at 30 Hz (0.8 s loop), step travel/contact timing, torso rotations, upper-body translation pattern and arm lag. Constant pelvis height offset recalculated for grounded soles.",
+  "validation": [
+    "Flat source soles and cooked sole spread zero; cooked floor error <=0.044922 engine units.",
+    "Blender rig evaluated against runtime skinning for all 25 poses.",
+    "No leg intersections across 96 quarter-frame samples.",
+    "Normal game disc built and replayed to 3000 polls."
+  ],
+  "blender_export_roundtrip_max_vertex_error_model_units": 14.20025142393365,
+  "blender_export_roundtrip_max_vertex_error_engine_units": 0.039868869964657466,
+  "upper_body_rotation_preserved": true,
+  "upper_body_constant_translation_offset": [
+    0.0,
+    -5461.8457491494955,
+    0.0
+  ],
+  "disc_sha256": "e764d360c7d1b75fb3dbc063aa2a78bdfc356198a207a910b41fc2e0bffcff5e",
+  "preview": "walk-flat-feet-1080p.mp4",
+  "limits": "Existing authored walk-speed calibration retained; no new original-hardware test."
+}

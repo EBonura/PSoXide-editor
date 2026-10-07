@@ -1,0 +1,14 @@
+{
+  "hit": {
+    "frames": 27,
+    "stored_frames": 29,
+    "sample_hz": 30,
+    "playback_speed_q8": 256,
+    "duration_seconds": 0.9,
+    "source_duration_seconds": 0.9,
+    "loop": false,
+    "speed": 0.0,
+    "pelvis_drop_model_units": 0.0,
+    "max_leg_extension": 0.8435302874849527
+  }
+}
