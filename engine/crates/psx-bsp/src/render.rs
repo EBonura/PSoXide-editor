@@ -29,7 +29,7 @@ use crate::pxbsp::{
 };
 use crate::pxbsp_resident::{FaceRef, PxbspResidentMap};
 use crate::{
-    CompactPlane, Vec3I16, Vec3I32, FACE_BACKSIDE, FACE_BAKED_LIGHT, FACE_BAKED_UV,
+    CompactPlane, FaceBounds, Vec3I16, Vec3I32, FACE_BACKSIDE, FACE_BAKED_LIGHT, FACE_BAKED_UV,
     FACE_PAGE_LOCAL_UV, FACE_TWO_SIDED,
 };
 
@@ -993,6 +993,32 @@ impl FrustumPlanes {
         plane!(3);
         plane!(4);
         Some(residual)
+    }
+
+    /// [`Self::cull_aabb`] for one face's own bounds.
+    ///
+    /// `None` when the face is wholly outside a plane in `mask`: every vertex
+    /// then fails that plane beyond its rounding band, so the exact vertex
+    /// scan would have rejected the face too. Otherwise the residual mask,
+    /// with every plane the face's bounds prove cleared: the scan then has
+    /// nothing left to test for them (an empty residual is a face wholly
+    /// inside the frustum, near plane included, so it needs neither a scan
+    /// nor a near clip).
+    #[inline(always)]
+    fn cull_face_bounds(&self, bounds: &FaceBounds, mask: u8) -> Option<u8> {
+        self.cull_aabb(
+            Vec3I16 {
+                x: bounds.mins[0],
+                y: bounds.mins[1],
+                z: bounds.mins[2],
+            },
+            Vec3I16 {
+                x: bounds.maxs[0],
+                y: bounds.maxs[1],
+                z: bounds.maxs[2],
+            },
+            mask,
+        )
     }
 
     /// [`Self::aabb_outside`] for a box in `i32` world units, computed on
@@ -2637,6 +2663,10 @@ impl Renderer {
         // cook's node bounds are proven to enclose their faces) lets the draw
         // loop skip the exact per-face clip entirely.
         let inherit_clip = self.pxbsp_node_bounds_enclose_faces;
+        // PXBSP v7 carries each face's own bounds. They never change what is
+        // drawn: a face is dropped only when the exact vertex scan would
+        // reject it (see `FrustumPlanes::cull_face_bounds`).
+        let face_bounds = map.face_bounds();
         // The node boxes below test their support corners on the GTE.
         #[cfg(target_arch = "mips")]
         load_gte_clip_planes(&frustum.planes);
@@ -2695,6 +2725,8 @@ impl Renderer {
             // Faces only ever see the five clip planes; the far bit stays in
             // the walk.
             let face_mask = mask & PXBSP_CLIP_ALL_PLANES;
+            // Bounds only help a face that still has a plane to prove.
+            let test_faces = if face_mask != 0 { face_bounds } else { None };
 
             let plane = planes
                 .get(node.plane as usize)
@@ -2722,6 +2754,18 @@ impl Renderer {
                         // count at load; the three tables are face-sized.
                         if unsafe { packed_face_state_unchecked(&self.pxbsp_face_state, face) } != 0
                         {
+                            let mut face_clip = face_mask;
+                            if let Some(bounds) = test_faces {
+                                // `validate_references` checked one record
+                                // per face.
+                                match frustum.cull_face_bounds(
+                                    unsafe { bounds.get_unchecked(face) },
+                                    face_mask,
+                                ) {
+                                    Some(residual) => face_clip = residual,
+                                    None => continue,
+                                }
+                            }
                             unsafe {
                                 set_packed_face_state_unchecked(
                                     &mut self.frame_pxbsp_face_state,
@@ -2729,7 +2773,7 @@ impl Renderer {
                                     PXBSP_FRAME_FALLBACK,
                                 );
                                 *self.frame_pxbsp_face_clip_mask.get_unchecked_mut(face) =
-                                    face_mask;
+                                    face_clip;
                             }
                         }
                     }
@@ -2741,6 +2785,15 @@ impl Renderer {
             for face in start..end {
                 // The node's face range was validated at load.
                 if unsafe { packed_face_state_unchecked(&self.pxbsp_face_state, face) } != 0 {
+                    let mut face_clip = face_mask;
+                    if let Some(bounds) = test_faces {
+                        match frustum
+                            .cull_face_bounds(unsafe { bounds.get_unchecked(face) }, face_mask)
+                        {
+                            Some(residual) => face_clip = residual,
+                            None => continue,
+                        }
+                    }
                     let authored_front = behind
                         == (unsafe { map.face_ref_unchecked(face) }.flags() & FACE_BACKSIDE != 0);
                     unsafe {
@@ -2753,7 +2806,7 @@ impl Renderer {
                                 PXBSP_FRAME_NODE_BACK
                             },
                         );
-                        *self.frame_pxbsp_face_clip_mask.get_unchecked_mut(face) = face_mask;
+                        *self.frame_pxbsp_face_clip_mask.get_unchecked_mut(face) = face_clip;
                     }
                 }
             }
@@ -4529,6 +4582,96 @@ mod frustum_tests {
         assert!(
             kept_by_band * 50 < compared,
             "{kept_by_band} of {compared} rejections were withheld by the error band"
+        );
+    }
+
+    #[test]
+    fn face_bounds_cull_never_changes_the_vertex_scan_answer() {
+        // The contract of `cull_face_bounds`: `None` only where the exact
+        // vertex scan rejects too, and otherwise a residual mask under which
+        // the scan answers exactly what it answers under the original mask
+        // (rejection and near-clip flag alike).
+        let mut state = 0x7a3c_91d5u32;
+        let mut rejected = 0usize;
+        let mut cleared = 0usize;
+        let mut narrowed = 0usize;
+        let mut untouched = 0usize;
+        for (origin, yaw, pitch) in [
+            ([37, 70, 273], 1024i16, 100i16),
+            ([-400, 20, 90], -700, -30),
+            ([0, 0, 0], 0, 0),
+        ] {
+            let (planes, _) = planes_for(origin, yaw, pitch);
+            for _ in 0..4000 {
+                let mut axis = || (lcg(&mut state) % 900) as i16 - 450;
+                let anchor = [
+                    origin[0] as i16 + axis(),
+                    origin[1] as i16 + axis(),
+                    origin[2] as i16 + axis(),
+                ];
+                let count = 3 + (lcg(&mut state) % 5) as usize;
+                let extent = 4 + (lcg(&mut state) % 300) as i16;
+                let mut polygon = [[0i16; 3]; 8];
+                for slot in polygon.iter_mut().take(count) {
+                    let mut spread = || (lcg(&mut state) % (2 * extent as u32 + 1)) as i16 - extent;
+                    *slot = [
+                        anchor[0] + spread(),
+                        anchor[1] + spread(),
+                        anchor[2] + spread(),
+                    ];
+                }
+                let polygon = &polygon[..count];
+                let mut mins = [i16::MAX; 3];
+                let mut maxs = [i16::MIN; 3];
+                for p in polygon {
+                    for a in 0..3 {
+                        mins[a] = mins[a].min(p[a]);
+                        maxs[a] = maxs[a].max(p[a]);
+                    }
+                }
+                let bounds = FaceBounds { mins, maxs };
+                for mask in 0..32u8 {
+                    let scan = |clip_mask: u8| {
+                        FrustumPlanes::cull_polygon(
+                            &planes.planes,
+                            planes.side_error,
+                            clip_mask,
+                            polygon.len(),
+                            |i| polygon[i],
+                        )
+                    };
+                    match planes.cull_face_bounds(&bounds, mask) {
+                        None => {
+                            assert_eq!(
+                                scan(mask),
+                                None,
+                                "bounds rejected a kept face, mask {mask:#x}, {polygon:?}"
+                            );
+                            rejected += 1;
+                        }
+                        Some(residual) => {
+                            assert_eq!(residual & !mask, 0, "residual gained planes");
+                            assert_eq!(
+                                scan(residual),
+                                scan(mask),
+                                "residual {residual:#x} changed the scan under mask {mask:#x} on {polygon:?}"
+                            );
+                            if mask != 0 && residual == 0 {
+                                cleared += 1;
+                            } else if residual != mask {
+                                narrowed += 1;
+                            } else {
+                                untouched += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // The sweep must exercise every outcome, or it proves nothing.
+        assert!(
+            rejected > 1000 && cleared > 1000 && narrowed > 100 && untouched > 1000,
+            "rejected {rejected}, cleared {cleared}, narrowed {narrowed}, untouched {untouched}"
         );
     }
 

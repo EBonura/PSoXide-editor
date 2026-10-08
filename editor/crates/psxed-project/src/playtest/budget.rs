@@ -689,12 +689,14 @@ fn cooked_bsp_packets(package: &PlaytestPackage) -> usize {
 #[cfg(test)]
 fn pxbsp_face_packets(version: PxbspVersion, bytes: &[u8]) -> Option<usize> {
     match version {
-        PxbspVersion::V4 | PxbspVersion::V5 | PxbspVersion::V6 => RecordSlice::<Face>::new(bytes)?
-            .iter()
-            .try_fold(0usize, |total, face| {
-                let vertex_count = usize::try_from(face.vertex_count).ok()?;
-                total.checked_add(vertex_count.saturating_sub(2))
-            }),
+        PxbspVersion::V4 | PxbspVersion::V5 | PxbspVersion::V6 | PxbspVersion::V7 => {
+            RecordSlice::<Face>::new(bytes)?
+                .iter()
+                .try_fold(0usize, |total, face| {
+                    let vertex_count = usize::try_from(face.vertex_count).ok()?;
+                    total.checked_add(vertex_count.saturating_sub(2))
+                })
+        }
         PxbspVersion::V1 => {
             let mut faces = bytes.chunks_exact(14);
             if !faces.remainder().is_empty() {
@@ -1263,7 +1265,7 @@ mod tests {
         let package = package.expect("cooked PXBSP package");
         let world = &package.world_geometry;
         let index = PxbspIndex::read(&mut SliceReader::new(&world.bytes)).expect("PXBSP index");
-        assert_eq!(index.version(), PxbspVersion::V6);
+        assert_eq!(index.version(), PxbspVersion::V7);
         let faces = index.lump(PxbspLumpKind::Faces);
         assert_eq!(faces.len % Face::SIZE as u32, 0);
         let face_bytes = &world.bytes[faces.offset as usize..faces.end() as usize];

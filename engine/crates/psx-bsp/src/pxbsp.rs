@@ -20,8 +20,13 @@ pub const PXBSP_VERSION_V5: u16 = 5;
 /// PXBSP v6 additionally stores Quake-style native 12-byte plane records with
 /// an aligned distance and cached sign bits.
 pub const PXBSP_VERSION_V6: u16 = 6;
+/// PXBSP v7 is v6 plus one 12-byte [`FaceBounds`] record per face, carried in
+/// the lump slot v6 reserved for sound data (which no cooker ever filled). The
+/// renderer rejects or narrows a face against the view frustum from its
+/// bounds, before touching a single vertex.
+pub const PXBSP_VERSION_V7: u16 = 7;
 /// Current cooker/runtime PXBSP contract.
-pub const PXBSP_VERSION: u16 = PXBSP_VERSION_V6;
+pub const PXBSP_VERSION: u16 = PXBSP_VERSION_V7;
 pub const PXBSP_HEADER_BYTES: u32 = 8;
 pub const PXBSP_DIRECTORY_ENTRY_BYTES: u32 = 12;
 pub const PXBSP_LUMP_COUNT: usize = 16;
@@ -35,6 +40,7 @@ pub enum PxbspVersion {
     V4,
     V5,
     V6,
+    V7,
 }
 
 impl PxbspVersion {
@@ -44,6 +50,7 @@ impl PxbspVersion {
             Self::V4 => PXBSP_VERSION_V4,
             Self::V5 => PXBSP_VERSION_V5,
             Self::V6 => PXBSP_VERSION_V6,
+            Self::V7 => PXBSP_VERSION_V7,
         }
     }
 
@@ -53,6 +60,7 @@ impl PxbspVersion {
             PXBSP_VERSION_V4 => Some(Self::V4),
             PXBSP_VERSION_V5 => Some(Self::V5),
             PXBSP_VERSION_V6 => Some(Self::V6),
+            PXBSP_VERSION_V7 => Some(Self::V7),
             _ => None,
         }
     }
@@ -103,6 +111,12 @@ pub enum PxbspLumpKind {
 }
 
 impl PxbspLumpKind {
+    /// Per-face bounds, from PXBSP v7. They occupy the lump slot v6 and
+    /// earlier reserved for sound data, which no PXBSP cooker has ever
+    /// written; the directory layout is unchanged, so every older reader
+    /// still parses a v7 directory (and rejects it by version).
+    pub const FACE_BOUNDS: Self = Self::SoundData;
+
     pub const ALL: [Self; PXBSP_LUMP_COUNT] = [
         Self::TextureData,
         Self::SoundData,
@@ -127,33 +141,39 @@ impl PxbspLumpKind {
             Self::Vertices => Some(12),
             Self::Planes => Some(match version {
                 PxbspVersion::V1 | PxbspVersion::V4 | PxbspVersion::V5 => 14,
-                PxbspVersion::V6 => crate::CompactPlane::SIZE as u32,
+                PxbspVersion::V6 | PxbspVersion::V7 => crate::CompactPlane::SIZE as u32,
             }),
             Self::Materials => Some(PxbspMaterial::SIZE as u32),
             Self::Faces => Some(match version {
                 PxbspVersion::V1 => 14,
-                PxbspVersion::V4 | PxbspVersion::V5 | PxbspVersion::V6 => 10,
+                PxbspVersion::V4 | PxbspVersion::V5 | PxbspVersion::V6 | PxbspVersion::V7 => 10,
             }),
             Self::MarkSurfaces => Some(2),
             Self::Leaves => Some(match version {
                 PxbspVersion::V1 => 26,
-                PxbspVersion::V4 | PxbspVersion::V5 | PxbspVersion::V6 => crate::Leaf::SIZE as u32,
+                PxbspVersion::V4 | PxbspVersion::V5 | PxbspVersion::V6 | PxbspVersion::V7 => {
+                    crate::Leaf::SIZE as u32
+                }
             }),
             Self::Nodes => Some(match version {
                 PxbspVersion::V1 => 34,
                 PxbspVersion::V4 => 6,
-                PxbspVersion::V5 | PxbspVersion::V6 => crate::Node::SIZE as u32,
+                PxbspVersion::V5 | PxbspVersion::V6 | PxbspVersion::V7 => crate::Node::SIZE as u32,
             }),
             Self::ClipNodes => Some(6),
             Self::Models => Some(match version {
                 PxbspVersion::V1 => 32,
-                PxbspVersion::V4 | PxbspVersion::V5 | PxbspVersion::V6 => {
+                PxbspVersion::V4 | PxbspVersion::V5 | PxbspVersion::V6 | PxbspVersion::V7 => {
                     crate::BrushModel::SIZE as u32
                 }
             }),
             Self::Strings => Some(1),
+            // The slot v6 reserved for sound data holds face bounds from v7.
+            Self::SoundData => match version {
+                PxbspVersion::V7 => Some(crate::FaceBounds::SIZE as u32),
+                _ => None,
+            },
             Self::TextureData
-            | Self::SoundData
             | Self::ModelData
             | Self::Visibility
             | Self::Entities
@@ -930,7 +950,7 @@ mod tests {
         let bytes = valid_file();
         let index = PxbspIndex::read(&mut SliceReader::new(&bytes)).expect("index");
         assert_eq!(index.file_len(), bytes.len() as u32);
-        assert_eq!(index.version(), PxbspVersion::V6);
+        assert_eq!(index.version(), PxbspVersion::V7);
         assert_eq!(index.lump(PxbspLumpKind::Vertices).len, 12);
         assert_eq!(
             index.lump(PxbspLumpKind::Nodes).len,
@@ -948,10 +968,10 @@ mod tests {
     #[test]
     fn rejects_unknown_version_and_lump_count() {
         let mut bytes = valid_file();
-        bytes[4..6].copy_from_slice(&7u16.to_le_bytes());
+        bytes[4..6].copy_from_slice(&(PXBSP_VERSION_V7 + 1).to_le_bytes());
         assert!(matches!(
             PxbspIndex::read(&mut SliceReader::new(&bytes)),
-            Err(PxbspError::BadVersion { found: 7 })
+            Err(PxbspError::BadVersion { found: 8 })
         ));
         bytes[4..6].copy_from_slice(&PXBSP_VERSION_V3.to_le_bytes());
         assert!(matches!(
@@ -966,6 +986,23 @@ mod tests {
             PxbspIndex::read(&mut SliceReader::new(&bytes)),
             Err(PxbspError::BadLumpCount { found: 15 })
         ));
+    }
+
+    #[test]
+    fn face_bounds_slot_is_typed_from_version_seven_only() {
+        assert_eq!(PxbspLumpKind::FACE_BOUNDS, PxbspLumpKind::SoundData);
+        assert_eq!(
+            PxbspLumpKind::FACE_BOUNDS.record_size(PxbspVersion::V7),
+            Some(crate::FaceBounds::SIZE as u32)
+        );
+        for version in [
+            PxbspVersion::V1,
+            PxbspVersion::V4,
+            PxbspVersion::V5,
+            PxbspVersion::V6,
+        ] {
+            assert_eq!(PxbspLumpKind::SoundData.record_size(version), None);
+        }
     }
 
     #[test]
