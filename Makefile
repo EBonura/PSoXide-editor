@@ -564,7 +564,7 @@ HWTEST_SUITE := $(shell sed -n 's/^const SUITE_VERSION: &str = "HWTEST v\(.*\)";
 HWTEST_BASELINE := docs/hardware-refs/px8-emulator-v$(HWTEST_SUITE).txt
 # The run completes well inside this; the rest is the capture pages being on
 # show, which is where the silence check listens.
-HWTEST_STEPS := 2500000000
+HWTEST_STEPS := 8000000000
 
 # Always run a source-built emulator: `cargo run` guarantees that. Side-loads
 # the EXE (the HLE entry path the guest's TTY output depends on) while mounting
