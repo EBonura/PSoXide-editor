@@ -12,10 +12,10 @@
 
 pub mod audit;
 pub mod combat;
-pub mod performance;
 pub mod edit;
 pub mod inspect;
 pub mod nodes;
+pub mod performance;
 pub mod play;
 pub mod shot;
 

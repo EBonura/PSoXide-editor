@@ -649,7 +649,14 @@ fn moveset_visual_fallbacks(
         A::LightAttackFollowup | A::LightAttackFinisher => [None, None, None, None],
         A::HeavyAttack => [Some(A::LightAttack), Some(A::Idle), None, None],
         A::ComboAttack => [Some(A::LightAttack), Some(A::Idle), None, None],
-        A::Block | A::HitReact | A::Death | A::Intro | A::HookLaunch | A::ArchPerch | A::Fall | A::Land => [Some(A::Idle), None, None, None],
+        A::Block
+        | A::HitReact
+        | A::Death
+        | A::Intro
+        | A::HookLaunch
+        | A::ArchPerch
+        | A::Fall
+        | A::Land => [Some(A::Idle), None, None, None],
         A::WalkBackward | A::StrafeLeft | A::StrafeRight => {
             [Some(A::Walk), Some(A::Idle), None, None]
         }
@@ -674,7 +681,12 @@ fn moveset_visual_fallbacks(
         A::VertLightAttack | A::VertHeavyAttack | A::VertComboAttack => {
             [Some(A::Idle), None, None, None]
         }
-        A::RangedAttack | A::RangedAim | A::RangedWalk | A::RangedBackward | A::RangedLeft | A::RangedRight => [Some(A::Idle), None, None, None],
+        A::RangedAttack
+        | A::RangedAim
+        | A::RangedWalk
+        | A::RangedBackward
+        | A::RangedLeft
+        | A::RangedRight => [Some(A::Idle), None, None, None],
     }
 }
 
@@ -8217,11 +8229,21 @@ fn effective_radius(state: &ModelAnimationViewerState, model: Option<&LoadedMode
 }
 
 /// Shared source-frame timing beside the animation viewer's existing hitbox controls.
-fn draw_combat_window_controls(ui: &mut egui::Ui, project: &mut ProjectDocument,
-    character: Option<ResourceId>, action: CharacterAnimationAction) -> bool {
-    let Some(set_id) = character_animation_set_id(project, character) else { return false; };
-    let Some(resource) = project.resource_mut(set_id) else { return false; };
-    let ResourceData::AnimationSet(set) = &mut resource.data else { return false; };
+fn draw_combat_window_controls(
+    ui: &mut egui::Ui,
+    project: &mut ProjectDocument,
+    character: Option<ResourceId>,
+    action: CharacterAnimationAction,
+) -> bool {
+    let Some(set_id) = character_animation_set_id(project, character) else {
+        return false;
+    };
+    let Some(resource) = project.resource_mut(set_id) else {
+        return false;
+    };
+    let ResourceData::AnimationSet(set) = &mut resource.data else {
+        return false;
+    };
     let mut changed = false;
     ui.collapsing("Player combat timing", |ui| {
         ui.label("Permissions and protection apply when this character is controlled by the player.");
