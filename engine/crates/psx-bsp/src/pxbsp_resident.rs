@@ -55,6 +55,10 @@ pub enum PxbspMapLoadError<E> {
     BadBrushModel(usize),
     MissingWorldModel,
     BadEntity(usize),
+    /// The container carries a non-empty StreamingIndex; load it with
+    /// `load_streamed`.
+    #[cfg(feature = "streaming")]
+    StreamedWorldUnsupported,
 }
 
 impl<E: fmt::Display> fmt::Display for PxbspMapLoadError<E> {
@@ -96,6 +100,10 @@ impl<E: fmt::Display> fmt::Display for PxbspMapLoadError<E> {
             }
             Self::MissingWorldModel => output.write_str("PXBSP does not contain a world model"),
             Self::BadEntity(index) => write!(output, "entity {index} has an invalid leaf"),
+            #[cfg(feature = "streaming")]
+            Self::StreamedWorldUnsupported => {
+                output.write_str("streamed world must be loaded with load_streamed")
+            }
         }
     }
 }
@@ -109,7 +117,14 @@ pub struct PxbspResidentMap {
     ranges: [LumpRange; PXBSP_LUMP_COUNT],
     source_ranges: [LumpRange; PXBSP_LUMP_COUNT],
     source_file_len: u32,
+    /// Slot bookkeeping when the map was loaded as a streamed world.
+    #[cfg(feature = "streaming")]
+    stream: Option<alloc::boxed::Box<stream::StreamState>>,
 }
+
+#[cfg(feature = "streaming")]
+#[path = "pxbsp_stream.rs"]
+pub mod stream;
 
 /// Backing bytes for a validated resident map.
 ///
@@ -137,6 +152,8 @@ impl PxbspResidentMap {
             ranges: [LumpRange::EMPTY; PXBSP_LUMP_COUNT],
             source_ranges: [LumpRange::EMPTY; PXBSP_LUMP_COUNT],
             source_file_len: 0,
+            #[cfg(feature = "streaming")]
+            stream: None,
         }
     }
 
@@ -156,6 +173,10 @@ impl PxbspResidentMap {
                 found: index.version().wire(),
             });
         }
+        #[cfg(feature = "streaming")]
+        if index.lump(PxbspLumpKind::StreamingIndex).len != 0 {
+            return Err(PxbspMapLoadError::StreamedWorldUnsupported);
+        }
         let mut map = Self {
             map_id: None,
             generation: 0,
@@ -163,6 +184,8 @@ impl PxbspResidentMap {
             ranges: [LumpRange::EMPTY; PXBSP_LUMP_COUNT],
             source_ranges: [LumpRange::EMPTY; PXBSP_LUMP_COUNT],
             source_file_len: index.file_len(),
+            #[cfg(feature = "streaming")]
+            stream: None,
         };
         for kind in PxbspLumpKind::ALL {
             let range = index.lump(kind);
@@ -186,6 +209,10 @@ impl PxbspResidentMap {
     ) -> Result<(), PxbspMapLoadError<R::Error>> {
         self.prepare_owned_load();
         let index = PxbspIndex::read(reader).map_err(PxbspMapLoadError::Index)?;
+        #[cfg(feature = "streaming")]
+        if index.lump(PxbspLumpKind::StreamingIndex).len != 0 {
+            return Err(PxbspMapLoadError::StreamedWorldUnsupported);
+        }
 
         let total = RESIDENT_LUMPS.iter().try_fold(0usize, |total, &kind| {
             total
@@ -452,6 +479,10 @@ impl PxbspResidentMap {
         if leaf_index == 0 {
             return None;
         }
+        #[cfg(feature = "streaming")]
+        if self.stream.is_some() {
+            return self.streamed_leaf_visibility_dense(leaf_index, output);
+        }
         let leaf = self.leaves().get(leaf_index)?;
         let offset = usize::try_from(leaf.visibility_offset).ok()?;
         let visible_leaves = usize::try_from(self.world_visible_leaves()?).ok()?;
@@ -660,6 +691,10 @@ impl PxbspResidentMap {
 
     fn clear_loaded_state(&mut self) {
         self.map_id = None;
+        #[cfg(feature = "streaming")]
+        {
+            self.stream = None;
+        }
         match &mut self.storage {
             PxbspResidentStorage::Owned(bytes) => bytes.clear(),
             PxbspResidentStorage::Static(_) => self.storage = PxbspResidentStorage::Static(&[]),
@@ -678,6 +713,10 @@ impl PxbspResidentMap {
             }
         }
         self.map_id = None;
+        #[cfg(feature = "streaming")]
+        {
+            self.stream = None;
+        }
         self.ranges = [LumpRange::EMPTY; PXBSP_LUMP_COUNT];
         self.source_ranges = [LumpRange::EMPTY; PXBSP_LUMP_COUNT];
         self.source_file_len = 0;
