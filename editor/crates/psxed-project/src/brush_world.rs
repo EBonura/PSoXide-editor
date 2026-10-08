@@ -1399,7 +1399,27 @@ fn compile_model_topology(
     Vec<CompiledPortal>,
     BrushWorldLeakDiagnostic,
 ) {
-    let mut bsp = build_surface_bsp(topology_surfaces);
+    compile_model_topology_from_bsp(
+        build_surface_bsp(topology_surfaces),
+        brushes,
+        occupant_points,
+        log_result,
+    )
+}
+
+/// The portal, classification and outside-fill half of
+/// [`compile_model_topology`], for a surface BSP the caller already built (the
+/// streamed cook builds one BSP per cell under forced cut planes).
+fn compile_model_topology_from_bsp(
+    mut bsp: CompiledSurfaceBsp,
+    brushes: &[Brush],
+    occupant_points: &[[f64; 3]],
+    log_result: bool,
+) -> (
+    CompiledSurfaceBsp,
+    Vec<CompiledPortal>,
+    BrushWorldLeakDiagnostic,
+) {
     let portals = portalize_surface_bsp(&bsp);
     classify_bsp_leaves(&mut bsp, &portals, brushes);
     let mut leak_diagnostic = BrushWorldLeakDiagnostic::default();
@@ -2055,6 +2075,20 @@ fn page_local_texture_dims(
     source_dims: &std::collections::HashMap<Option<ResourceId>, [u16; 2]>,
     project_root: &Path,
 ) -> std::collections::HashMap<Option<ResourceId>, [u16; 2]> {
+    let mut geometries = vec![world];
+    geometries.extend(submodels.iter().map(|submodel| &submodel.geometry));
+    page_local_texture_dims_for(project, slots, &geometries, source_dims, project_root)
+}
+
+/// [`page_local_texture_dims`] over any set of packed geometries sharing one
+/// material slot table (a streamed world has one per region).
+fn page_local_texture_dims_for(
+    project: &ProjectDocument,
+    slots: &[Option<ResourceId>],
+    geometries: &[&PackedBspGeometry],
+    source_dims: &std::collections::HashMap<Option<ResourceId>, [u16; 2]>,
+    project_root: &Path,
+) -> std::collections::HashMap<Option<ResourceId>, [u16; 2]> {
     let mut output = source_dims.clone();
     let mut candidates = Vec::new();
     for (order, &material) in slots.iter().enumerate() {
@@ -2090,9 +2124,8 @@ fn page_local_texture_dims(
             continue;
         }
         let mut requirements = Vec::new();
-        collect_face_uv_requirements(world, material, &mut requirements);
-        for submodel in submodels {
-            collect_face_uv_requirements(&submodel.geometry, material, &mut requirements);
+        for geometry in geometries {
+            collect_face_uv_requirements(geometry, material, &mut requirements);
         }
         let Some((target, face_gain, extra_bytes)) =
             best_page_local_promotion(source, &requirements)
@@ -2591,6 +2624,9 @@ pub(crate) fn partition_front_end(
         uv_window,
     })
 }
+
+#[path = "brush_world_stream.rs"]
+pub mod stream_cook;
 
 #[cfg(test)]
 mod tests {

@@ -221,12 +221,30 @@ pub(crate) fn clip_surfaces(
     source_bounds: &[Aabb],
     bounds: &Aabb,
 ) -> Vec<CompiledSurface> {
+    clip_surfaces_indexed(source, source_bounds, bounds, false)
+        .into_iter()
+        .map(|(_, piece)| piece)
+        .collect()
+}
+
+/// [`clip_surfaces`] that also returns each piece's index in `source`.
+///
+/// With `share_liquid_boundary`, a non-solid surface lying exactly on a cell
+/// face belongs to both neighbours instead of the one its normal points into:
+/// water is drawn from either side, so each cell needs its own copy.
+pub(crate) fn clip_surfaces_indexed(
+    source: &[CompiledSurface],
+    source_bounds: &[Aabb],
+    bounds: &Aabb,
+    share_liquid_boundary: bool,
+) -> Vec<(usize, CompiledSurface)> {
     let mut out = Vec::new();
-    for (surface, aabb) in source.iter().zip(source_bounds) {
+    for (index, (surface, aabb)) in source.iter().zip(source_bounds).enumerate() {
         if !aabb.overlaps(bounds) {
             continue;
         }
-        if !owns_coplanar(surface, bounds) {
+        if !(share_liquid_boundary && !surface.contents.is_solid()) && !owns_coplanar(surface, bounds)
+        {
             continue;
         }
         let vertices = if aabb.min.iter().zip(&bounds.min).all(|(a, b)| a >= b)
@@ -239,7 +257,7 @@ pub(crate) fn clip_surfaces(
         if let Some(vertices) = vertices {
             let mut piece = surface.clone();
             piece.vertices = vertices;
-            out.push(piece);
+            out.push((index, piece));
         }
     }
     out
