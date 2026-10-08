@@ -13,8 +13,8 @@ use psx_level::LevelWorldPackEntryRecord;
 use super::{Poll, Request, RequestState, Run, Stage, SubmitError, Ticket, Transport};
 use crate::cd_stream::{
     read_chunk_banded_with, read_chunk_blocking_with, read_chunks_contiguous_with, CdController,
-    UiChunkPlan, WorldChunkDestination, WorldRoomSlotsReadJob, FNV_OFFSET, FNV_PRIME,
-    ROOM_CHUNK_STATUS_OK, SECTOR_BYTES, SECTOR_WORDS, STATUS_CD_ERROR,
+    RegionRead, RegionReadProgress, UiChunkPlan, WorldChunkDestination, WorldRoomSlotsReadJob,
+    FNV_OFFSET, FNV_PRIME, ROOM_CHUNK_STATUS_OK, SECTOR_BYTES, SECTOR_WORDS, STATUS_CD_ERROR,
 };
 
 /// One word of the fake disc.
@@ -696,4 +696,116 @@ fn music_takes_an_idle_drive_and_gives_it_back_to_data() {
     }
     assert!(rig.engine.release_audio_lease());
     drain(&mut rig, &mut run, &mut stage, 8000, 4);
+}
+
+#[test]
+fn a_region_read_hands_the_sink_every_sector_in_place_and_in_order() {
+    // One interrupt per foreground call: a pump that keeps up with the drive.
+    let mut rig = Rig::new(1);
+    let mut cd = CdController::zeroed();
+    let mut read = RegionRead::new();
+    read.start(5000, 9);
+    let mut seen = Vec::new();
+    let mut sink = |bytes: &[u8]| {
+        let lba = 5000 + seen.len() as u32;
+        assert_eq!(bytes.len(), SECTOR_BYTES);
+        for (i, byte) in bytes.iter().enumerate() {
+            assert_eq!(*byte, disc_byte(lba, i), "sector {lba} byte {i}");
+        }
+        seen.push(lba);
+        Ok(())
+    };
+    let mut pumps = 0;
+    // A small budget per pump, staying with the drive: a loading screen.
+    while read.poll_with(&mut rig, &mut cd, 3, true, &mut sink) == RegionReadProgress::Reading {
+        pumps += 1;
+        assert!(pumps < 10_000, "region read never finished");
+    }
+    assert_eq!(read.landed(), 9);
+    assert_eq!(rig.setlocs(), [5000], "one seek for the whole region");
+}
+
+#[test]
+fn a_region_read_that_never_waits_is_still_exact_but_may_reseek() {
+    let mut rig = Rig::new(2);
+    let mut cd = CdController::zeroed();
+    let mut read = RegionRead::new();
+    read.start(5200, 9);
+    let mut next = 5200u32;
+    let mut sink = |bytes: &[u8]| {
+        assert!((0..16).all(|i| bytes[i] == disc_byte(next, i)));
+        next += 1;
+        Ok(())
+    };
+    let mut pumps = 0;
+    // The way a gameplay frame pumps: a few sectors, never waiting. The
+    // two-window ring only holds two sectors, so a foreground that comes back
+    // late costs a seek (never a sector).
+    while read.poll_with(&mut rig, &mut cd, 3, false, &mut sink) == RegionReadProgress::Reading {
+        pumps += 1;
+        assert!(pumps < 10_000, "region read never finished");
+    }
+    assert_eq!(next, 5209);
+    assert_eq!(rig.setlocs()[0], 5200);
+}
+
+#[test]
+fn a_region_read_stops_when_the_sink_refuses() {
+    let mut rig = Rig::new(3);
+    let mut cd = CdController::zeroed();
+    let mut read = RegionRead::new();
+    read.start(7000, 6);
+    let mut taken = 0;
+    let mut sink = |_: &[u8]| {
+        taken += 1;
+        if taken == 3 {
+            Err(404)
+        } else {
+            Ok(())
+        }
+    };
+    let progress = loop {
+        match read.poll_with(&mut rig, &mut cd, 8, true, &mut sink) {
+            RegionReadProgress::Reading => {}
+            other => break other,
+        }
+    };
+    assert_eq!(progress, RegionReadProgress::Failed(404));
+    assert_eq!(read.landed(), 2, "the refused sector is not counted");
+    // A fresh read works after the failure.
+    read.start(7100, 2);
+    let mut count = 0;
+    let mut sink = |_: &[u8]| {
+        count += 1;
+        Ok(())
+    };
+    while read.poll_with(&mut rig, &mut cd, 8, true, &mut sink) == RegionReadProgress::Reading {}
+    assert_eq!(count, 2);
+}
+
+#[test]
+fn a_region_read_survives_a_drive_error_and_stays_exact() {
+    let mut rig = Rig::new(1);
+    rig.engine.hw_mut().error_at.push(8003);
+    let mut cd = CdController::zeroed();
+    let mut read = RegionRead::new();
+    read.start(8000, 6);
+    let mut lbas = Vec::new();
+    let mut sink = |bytes: &[u8]| {
+        let lba = 8000 + lbas.len() as u32;
+        assert_eq!(
+            bytes[..8],
+            (0..8).map(|i| disc_byte(lba, i)).collect::<Vec<_>>()[..]
+        );
+        lbas.push(lba);
+        Ok(())
+    };
+    let progress = loop {
+        match read.poll_with(&mut rig, &mut cd, 2, true, &mut sink) {
+            RegionReadProgress::Reading => {}
+            other => break other,
+        }
+    };
+    assert_eq!(progress, RegionReadProgress::Done);
+    assert_eq!(lbas.len(), 6);
 }

@@ -2606,6 +2606,7 @@ pub(crate) fn partition_front_end(
         mode: BrushWorldCookMode::Draft,
         ambient: [0; 3],
         texture_asset_base: 0,
+        collision_hulls: CollisionHullStrategy::default(),
     };
     let texture_dims = brush_texture_dims(project, scene, &options);
     let uv_window_skip = sky_aperture_materials(project);

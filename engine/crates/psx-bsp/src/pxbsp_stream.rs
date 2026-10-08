@@ -84,12 +84,39 @@ use crate::pxbsp::PXBSP_MAX_VISIBILITY_BYTES;
 
 /// 32-bit FNV-1a, the checksum of region payloads.
 pub fn fnv1a32(bytes: &[u8]) -> u32 {
-    let mut hash = 0x811c_9dc5u32;
-    for &byte in bytes {
-        hash ^= u32::from(byte);
-        hash = hash.wrapping_mul(0x0100_0193);
+    let mut hash = Fnv32::new();
+    hash.update(bytes);
+    hash.finish()
+}
+
+/// Incremental 32-bit FNV-1a: feed a payload in slices across frames and
+/// compare [`Fnv32::finish`] with [`RegionEntry::fnv`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Fnv32(u32);
+
+impl Fnv32 {
+    pub const fn new() -> Self {
+        Self(0x811c_9dc5)
     }
-    hash
+
+    pub fn update(&mut self, bytes: &[u8]) {
+        let mut hash = self.0;
+        for &byte in bytes {
+            hash ^= u32::from(byte);
+            hash = hash.wrapping_mul(0x0100_0193);
+        }
+        self.0 = hash;
+    }
+
+    pub const fn finish(self) -> u32 {
+        self.0
+    }
+}
+
+impl Default for Fnv32 {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// Why a streamed container, index, payload or install request was refused.
@@ -409,6 +436,7 @@ impl StreamingIndex {
 // ---- region payload -------------------------------------------------------
 
 /// Section placement shared by the encoder and the parser.
+#[derive(Clone, Copy, Debug)]
 struct RegionLayout {
     /// (start, len) of planes, vertices, faces, marks, leaves, nodes,
     /// clipnodes and visibility, relative to the payload start.
@@ -527,47 +555,26 @@ pub struct RegionView<'a> {
     pub vis: &'a [u8],
     pub render_root: i16,
     pub clip_roots: [i16; 2],
+    head: RegionHead,
 }
 
 impl<'a> RegionView<'a> {
     /// Parse the header, check the layout and the body checksum.
     pub fn parse(bytes: &'a [u8]) -> Result<Self, StreamError> {
-        let bad = StreamError::BadRegion;
-        if bytes.len() < REGION_HEADER_BYTES {
-            return Err(StreamError::ShortPayload);
-        }
-        let u16_at = |at: usize| u16::from_le_bytes([bytes[at], bytes[at + 1]]);
-        let u32_at = |at: usize| u32::from_le_bytes(bytes[at..at + 4].try_into().unwrap());
-        if u32_at(0) != REGION_MAGIC {
-            return Err(bad("bad magic"));
-        }
-        if u16_at(4) != REGION_VERSION || u16_at(6) != 0 {
-            return Err(bad("unsupported version or flags"));
-        }
-        let mut counts = [0usize; 7];
-        for (i, count) in counts.iter_mut().enumerate() {
-            *count = u16_at(12 + i * 2) as usize;
-        }
-        if u16_at(26) != 0 || bytes[48..REGION_HEADER_BYTES].iter().any(|&b| b != 0) {
-            return Err(bad("reserved header bytes are set"));
-        }
-        let vis_len = u32_at(28) as usize;
-        let layout = region_layout(&counts, vis_len);
+        let head = parse_head(bytes)?;
+        let layout = &head.layout;
         if bytes.len() < layout.end {
             return Err(StreamError::ShortPayload);
         }
-        if u32_at(40) as usize != layout.end - REGION_HEADER_BYTES {
-            return Err(bad("body length does not match the counts"));
-        }
-        if fnv1a32(&bytes[REGION_HEADER_BYTES..layout.end]) != u32_at(44) {
+        if fnv1a32(&bytes[REGION_HEADER_BYTES..layout.end]) != head.body_fnv {
             return Err(StreamError::BadChecksum);
         }
         let section =
             |i: usize| &bytes[layout.sections[i].0..layout.sections[i].0 + layout.sections[i].1];
         Ok(Self {
-            id: u16_at(8),
-            vis_count: u16_at(10),
-            counts,
+            id: head.id,
+            vis_count: head.vis_count,
+            counts: head.counts,
             planes: section(0),
             vertices: section(1),
             faces: section(2),
@@ -576,10 +583,63 @@ impl<'a> RegionView<'a> {
             nodes: section(5),
             clip_nodes: section(6),
             vis: section(7),
-            render_root: u16_at(32) as i16,
-            clip_roots: [u16_at(34) as i16, u16_at(36) as i16],
+            render_root: head.render_root,
+            clip_roots: head.clip_roots,
+            head,
         })
     }
+}
+
+/// The decoded 64 byte region header: everything an install needs to place
+/// and check the records that follow, before any of them has arrived.
+#[derive(Clone, Copy, Debug)]
+struct RegionHead {
+    id: u16,
+    vis_count: u16,
+    counts: [usize; 7],
+    vis_len: usize,
+    layout: RegionLayout,
+    render_root: i16,
+    clip_roots: [i16; 2],
+    body_fnv: u32,
+}
+
+/// Decode and check a region header (`bytes` holds at least the 64 bytes).
+fn parse_head(bytes: &[u8]) -> Result<RegionHead, StreamError> {
+    let bad = StreamError::BadRegion;
+    if bytes.len() < REGION_HEADER_BYTES {
+        return Err(StreamError::ShortPayload);
+    }
+    let u16_at = |at: usize| u16::from_le_bytes([bytes[at], bytes[at + 1]]);
+    let u32_at = |at: usize| u32::from_le_bytes(bytes[at..at + 4].try_into().unwrap());
+    if u32_at(0) != REGION_MAGIC {
+        return Err(bad("bad magic"));
+    }
+    if u16_at(4) != REGION_VERSION || u16_at(6) != 0 {
+        return Err(bad("unsupported version or flags"));
+    }
+    let mut counts = [0usize; 7];
+    for (i, count) in counts.iter_mut().enumerate() {
+        *count = u16_at(12 + i * 2) as usize;
+    }
+    if u16_at(26) != 0 || bytes[48..REGION_HEADER_BYTES].iter().any(|&b| b != 0) {
+        return Err(bad("reserved header bytes are set"));
+    }
+    let vis_len = u32_at(28) as usize;
+    let layout = region_layout(&counts, vis_len);
+    if u32_at(40) as usize != layout.end - REGION_HEADER_BYTES {
+        return Err(bad("body length does not match the counts"));
+    }
+    Ok(RegionHead {
+        id: u16_at(8),
+        vis_count: u16_at(10),
+        counts,
+        vis_len,
+        layout,
+        render_root: u16_at(32) as i16,
+        clip_roots: [u16_at(34) as i16, u16_at(36) as i16],
+        body_fnv: u32_at(44),
+    })
 }
 
 /// Reads region payloads out of a region pack through the engine's `ReadAt`
@@ -655,6 +715,19 @@ pub struct StreamState {
 impl StreamState {
     pub fn index(&self) -> &StreamingIndex {
         &self.index
+    }
+
+    /// Bytes one slot adds to the resident image (every lump's slot capacity).
+    pub fn slot_bytes(&self) -> usize {
+        let caps = &self.index.caps;
+        caps.planes as usize * PLANE_BYTES
+            + caps.vertices as usize * VERTEX_BYTES
+            + caps.faces as usize * FACE_BYTES
+            + caps.marks as usize * MARK_BYTES
+            + caps.leaves as usize * LEAF_BYTES
+            + caps.nodes as usize * NODE_BYTES
+            + caps.clip_nodes as usize * CLIPNODE_BYTES
+            + caps.vis_bytes as usize
     }
 
     pub fn slot_count(&self) -> usize {
@@ -750,7 +823,7 @@ const fn leaf_number(child: i16) -> usize {
 }
 
 /// The bases a slot adds to region-local indices.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct Bases {
     planes: usize,
     vertices: usize,
@@ -803,13 +876,10 @@ impl Bases {
     }
 }
 
-/// Check every reference of `view` against its own tables.
-fn validate_region(
-    view: &RegionView<'_>,
-    caps: &SlotCaps,
-    materials: usize,
-) -> Result<(), StreamError> {
-    let [planes, vertices, faces, marks, leaves, nodes, clip_nodes] = view.counts;
+/// Counts against the slot caps, the roots and the PVS row width: the checks
+/// that need no record.
+fn check_head(head: &RegionHead, caps: &SlotCaps) -> Result<(), StreamError> {
+    let [planes, vertices, faces, marks, leaves, nodes, clip_nodes] = head.counts;
     let refuse = StreamError::BadReference;
     if planes > caps.planes as usize {
         return Err(StreamError::ExceedsSlot("planes"));
@@ -832,79 +902,19 @@ fn validate_region(
     if clip_nodes > caps.clip_nodes as usize {
         return Err(StreamError::ExceedsSlot("clipnodes"));
     }
-    if view.vis.len() > caps.vis_bytes as usize {
+    if head.vis_len > caps.vis_bytes as usize {
         return Err(StreamError::ExceedsSlot("visibility"));
     }
-    for face in view.faces.chunks_exact(FACE_BYTES) {
-        let plane = rd16(face, 0) as usize;
-        let first = rd16(face, 2) as usize;
-        let texture = rd16(face, 4) as usize;
-        let count = face[7] as usize;
-        if plane >= planes || count < 3 || first + count > vertices || texture >= materials {
-            return Err(refuse("face"));
-        }
-        if face[8] > 64 || face[9] > 64 {
-            return Err(refuse("face light style"));
-        }
-    }
-    for mark in view.marks.chunks_exact(MARK_BYTES) {
-        if rd16(mark, 0) as usize >= faces {
-            return Err(refuse("mark surface"));
-        }
-    }
-    for leaf in view.leaves.chunks_exact(LEAF_BYTES) {
-        let contents = leaf[0] as i8;
-        if !(-6..=-1).contains(&contents) || contents == -2 {
-            return Err(refuse("leaf contents"));
-        }
-        let first = rd16(leaf, 8) as usize;
-        let count = rd16(leaf, 2) as usize;
-        let vis = i32::from_le_bytes(leaf[4..8].try_into().unwrap());
-        if first + count > marks || vis < -1 || (vis >= 0 && vis as usize >= view.vis.len()) {
-            return Err(refuse("leaf"));
-        }
-    }
-    let row_bytes = view.vis_count as usize * caps.leaves as usize / 8;
-    for node in view.nodes.chunks_exact(NODE_BYTES) {
-        let plane = rd16(node, 0) as usize;
-        let first = rd16(node, 12) as usize;
-        let count = rd16(node, 14) as usize;
-        if plane >= planes || first + count > faces {
-            return Err(refuse("node"));
-        }
-        for side in 0..2 {
-            let child = rd16(node, 2 + side * 2) as i16;
-            let good = if child >= 0 {
-                (child as usize) < nodes
-            } else {
-                leaf_number(child) <= leaves
-            };
-            if !good {
-                return Err(refuse("node child"));
-            }
-        }
-    }
-    for node in view.clip_nodes.chunks_exact(CLIPNODE_BYTES) {
-        let plane = rd16(node, 0) as i16;
-        if plane < 0 || plane as usize >= planes {
-            return Err(refuse("clipnode plane"));
-        }
-        for side in 0..2 {
-            let child = rd16(node, 2 + side * 2) as i16;
-            if child >= 0 && child as usize >= clip_nodes {
-                return Err(refuse("clipnode child"));
-            }
-        }
-    }
-    let root_ok = if view.render_root >= 0 {
-        (view.render_root as usize) < nodes
+    let row_bytes = head.vis_count as usize * caps.leaves as usize / 8;
+    let root_ok = if head.render_root >= 0 {
+        (head.render_root as usize) < nodes
     } else {
-        leaf_number(view.render_root) <= leaves
+        leaf_number(head.render_root) <= leaves
     };
     if !root_ok {
         return Err(refuse("render root"));
     }
-    for root in view.clip_roots {
+    for root in head.clip_roots {
         if root >= 0 && root as usize >= clip_nodes {
             return Err(refuse("clip root"));
         }
@@ -914,6 +924,356 @@ fn validate_region(
     }
     // A row needs `row_bytes` once decompressed; the run-length stream is
     // checked when it is decoded, but an offset must at least be in range.
+    Ok(())
+}
+
+/// The tables of a region payload, in payload order.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Table {
+    Planes,
+    Vertices,
+    Faces,
+    Marks,
+    Leaves,
+    Nodes,
+    Clip,
+    Vis,
+}
+
+impl Table {
+    const ALL: [Self; 8] = [
+        Self::Planes,
+        Self::Vertices,
+        Self::Faces,
+        Self::Marks,
+        Self::Leaves,
+        Self::Nodes,
+        Self::Clip,
+        Self::Vis,
+    ];
+
+    /// Bytes per record; the bulk tables (planes, vertices, visibility) are
+    /// copied unchanged, so they count in single bytes.
+    const fn record_bytes(self) -> usize {
+        match self {
+            Self::Faces => FACE_BYTES,
+            Self::Marks => MARK_BYTES,
+            Self::Leaves => LEAF_BYTES,
+            Self::Nodes => NODE_BYTES,
+            Self::Clip => CLIPNODE_BYTES,
+            Self::Planes | Self::Vertices | Self::Vis => 1,
+        }
+    }
+}
+
+/// What a record is checked against: the region's own counts.
+#[derive(Clone, Copy)]
+struct CheckCtx {
+    planes: usize,
+    vertices: usize,
+    faces: usize,
+    marks: usize,
+    leaves: usize,
+    nodes: usize,
+    clip_nodes: usize,
+    vis_len: usize,
+    materials: usize,
+}
+
+impl CheckCtx {
+    fn new(head: &RegionHead, materials: usize) -> Self {
+        let [planes, vertices, faces, marks, leaves, nodes, clip_nodes] = head.counts;
+        Self {
+            planes,
+            vertices,
+            faces,
+            marks,
+            leaves,
+            nodes,
+            clip_nodes,
+            vis_len: head.vis_len,
+            materials,
+        }
+    }
+}
+
+/// Check one record against the region's own tables. Returns the material
+/// bit (materials below 32) a face uses.
+fn check_record(table: Table, record: &[u8], ctx: &CheckCtx) -> Result<u32, StreamError> {
+    let refuse = StreamError::BadReference;
+    match table {
+        Table::Faces => {
+            let plane = rd16(record, 0) as usize;
+            let first = rd16(record, 2) as usize;
+            let texture = rd16(record, 4) as usize;
+            let count = record[7] as usize;
+            if plane >= ctx.planes
+                || count < 3
+                || first + count > ctx.vertices
+                || texture >= ctx.materials
+            {
+                return Err(refuse("face"));
+            }
+            if record[8] > 64 || record[9] > 64 {
+                return Err(refuse("face light style"));
+            }
+            return Ok(if texture < 32 { 1 << texture } else { 0 });
+        }
+        Table::Marks => {
+            if rd16(record, 0) as usize >= ctx.faces {
+                return Err(refuse("mark surface"));
+            }
+        }
+        Table::Leaves => {
+            let contents = record[0] as i8;
+            if !(-6..=-1).contains(&contents) || contents == -2 {
+                return Err(refuse("leaf contents"));
+            }
+            let first = rd16(record, 8) as usize;
+            let count = rd16(record, 2) as usize;
+            let vis = i32::from_le_bytes(record[4..8].try_into().unwrap());
+            if first + count > ctx.marks || vis < -1 || (vis >= 0 && vis as usize >= ctx.vis_len) {
+                return Err(refuse("leaf"));
+            }
+        }
+        Table::Nodes => {
+            let plane = rd16(record, 0) as usize;
+            let first = rd16(record, 12) as usize;
+            let count = rd16(record, 14) as usize;
+            if plane >= ctx.planes || first + count > ctx.faces {
+                return Err(refuse("node"));
+            }
+            for side in 0..2 {
+                let child = rd16(record, 2 + side * 2) as i16;
+                let good = if child >= 0 {
+                    (child as usize) < ctx.nodes
+                } else {
+                    leaf_number(child) <= ctx.leaves
+                };
+                if !good {
+                    return Err(refuse("node child"));
+                }
+            }
+        }
+        Table::Clip => {
+            let plane = rd16(record, 0) as i16;
+            if plane < 0 || plane as usize >= ctx.planes {
+                return Err(refuse("clipnode plane"));
+            }
+            for side in 0..2 {
+                let child = rd16(record, 2 + side * 2) as i16;
+                if child >= 0 && child as usize >= ctx.clip_nodes {
+                    return Err(refuse("clipnode child"));
+                }
+            }
+        }
+        Table::Planes | Table::Vertices | Table::Vis => {}
+    }
+    Ok(0)
+}
+
+/// Write record `index` of `table` into the slot, adding the slot bases to
+/// every index it holds.
+fn put_record(
+    storage: &mut [u8],
+    ranges: &[LumpRange; PXBSP_LUMP_COUNT],
+    bases: &Bases,
+    table: Table,
+    index: usize,
+    record: &[u8],
+) {
+    let at = |kind: PxbspLumpKind, base: usize, size: usize| {
+        ranges[kind as usize].offset as usize + (base + index) * size
+    };
+    match table {
+        Table::Faces => {
+            let out =
+                &mut storage[at(PxbspLumpKind::Faces, bases.faces, FACE_BYTES)..][..FACE_BYTES];
+            out.copy_from_slice(record);
+            wr16(out, 0, rd16(record, 0) + bases.planes as u16);
+            wr16(out, 2, rd16(record, 2) + bases.vertices as u16);
+        }
+        Table::Marks => {
+            let to = at(PxbspLumpKind::MarkSurfaces, bases.marks, MARK_BYTES);
+            wr16(storage, to, rd16(record, 0) + bases.faces as u16);
+        }
+        Table::Leaves => {
+            let out =
+                &mut storage[at(PxbspLumpKind::Leaves, bases.leaf, LEAF_BYTES)..][..LEAF_BYTES];
+            out.copy_from_slice(record);
+            wr16(out, 8, rd16(record, 8) + bases.marks as u16);
+            let vis = i32::from_le_bytes(record[4..8].try_into().unwrap());
+            if vis >= 0 {
+                out[4..8].copy_from_slice(&(vis + bases.vis as i32).to_le_bytes());
+            }
+        }
+        Table::Nodes => {
+            let out =
+                &mut storage[at(PxbspLumpKind::Nodes, bases.nodes, NODE_BYTES)..][..NODE_BYTES];
+            out.copy_from_slice(record);
+            wr16(out, 0, rd16(record, 0) + bases.planes as u16);
+            for side in 0..2 {
+                let child = bases.render_child(rd16(record, 2 + side * 2) as i16);
+                wr16(out, 2 + side * 2, child as u16);
+            }
+            wr16(out, 12, rd16(record, 12) + bases.faces as u16);
+        }
+        Table::Clip => {
+            let out = &mut storage
+                [at(PxbspLumpKind::ClipNodes, bases.clip_nodes, CLIPNODE_BYTES)..]
+                [..CLIPNODE_BYTES];
+            wr16(out, 0, rd16(record, 0) + bases.planes as u16);
+            for side in 0..2 {
+                let child = bases.clip_child(rd16(record, 2 + side * 2) as i16);
+                wr16(out, 2 + side * 2, child as u16);
+            }
+        }
+        Table::Planes | Table::Vertices | Table::Vis => {}
+    }
+}
+
+/// Copy `bytes` of a bulk table (planes, vertices, visibility), starting at
+/// byte `offset` of the table, into the slot unchanged.
+fn put_bytes(
+    storage: &mut [u8],
+    ranges: &[LumpRange; PXBSP_LUMP_COUNT],
+    bases: &Bases,
+    table: Table,
+    offset: usize,
+    bytes: &[u8],
+) {
+    let base = match table {
+        Table::Planes => {
+            ranges[PxbspLumpKind::Planes as usize].offset as usize + bases.planes * PLANE_BYTES
+        }
+        Table::Vertices => {
+            ranges[PxbspLumpKind::Vertices as usize].offset as usize + bases.vertices * VERTEX_BYTES
+        }
+        Table::Vis => ranges[PxbspLumpKind::Visibility as usize].offset as usize + bases.vis,
+        _ => return,
+    };
+    storage[base + offset..base + offset + bytes.len()].copy_from_slice(bytes);
+}
+
+/// Where a streamed install stands after an [`PxbspResidentMap::install_feed`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum InstallProgress {
+    /// More of the payload is expected.
+    Working,
+    /// The whole payload arrived, checked out and sits relocated in the slot;
+    /// only the link is left.
+    Staged,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum InstallPhase {
+    Receiving,
+    Staged,
+    Done,
+}
+
+/// A region install in flight, fed the payload in order and in any chunking.
+///
+/// The install keeps no copy of the payload: each record is checked against
+/// the region's header and written into the slot, relocated, as soon as its
+/// bytes arrive. A partial record waits in a 16 byte carry. The slot is
+/// invisible to every traversal until [`PxbspResidentMap::link_region`].
+#[derive(Clone, Debug)]
+pub struct RegionInstall {
+    region: u16,
+    slot: u16,
+    entry: RegionEntry,
+    bases: Bases,
+    caps: SlotCaps,
+    materials_total: usize,
+    header: [u8; REGION_HEADER_BYTES],
+    header_len: usize,
+    head: Option<RegionHead>,
+    /// Payload bytes consumed so far.
+    pos: usize,
+    carry: [u8; NODE_BYTES],
+    carry_len: usize,
+    fnv: Fnv32,
+    materials: u32,
+    phase: InstallPhase,
+}
+
+impl RegionInstall {
+    pub const fn region(&self) -> u16 {
+        self.region
+    }
+
+    pub const fn slot(&self) -> u16 {
+        self.slot
+    }
+
+    /// Payload bytes fed so far.
+    pub const fn fed_bytes(&self) -> usize {
+        self.pos
+    }
+
+    /// Whether the whole payload is in and checked, so only
+    /// [`PxbspResidentMap::link_region`] is left.
+    pub const fn is_staged(&self) -> bool {
+        matches!(self.phase, InstallPhase::Staged)
+    }
+
+    /// Bit `m` is set when a face of the region uses material `m`, for
+    /// materials below 32. Final once the install is staged.
+    pub const fn materials(&self) -> u32 {
+        self.materials
+    }
+}
+
+/// Feed `bytes` of table `table` (starting `offset` bytes into it) to the
+/// install: check and relocate every record they complete.
+fn consume_table(
+    job: &mut RegionInstall,
+    storage: &mut [u8],
+    ranges: &[LumpRange; PXBSP_LUMP_COUNT],
+    ctx: &CheckCtx,
+    table: Table,
+    offset: usize,
+    bytes: &[u8],
+) -> Result<(), StreamError> {
+    let size = table.record_bytes();
+    if size == 1 {
+        put_bytes(storage, ranges, &job.bases, table, offset, bytes);
+        return Ok(());
+    }
+    let mut bytes = bytes;
+    let mut offset = offset;
+    if job.carry_len > 0 {
+        let take = (size - job.carry_len).min(bytes.len());
+        job.carry[job.carry_len..job.carry_len + take].copy_from_slice(&bytes[..take]);
+        job.carry_len += take;
+        bytes = &bytes[take..];
+        offset += take;
+        if job.carry_len == size {
+            let record = job.carry;
+            job.materials |= check_record(table, &record[..size], ctx)?;
+            put_record(
+                storage,
+                ranges,
+                &job.bases,
+                table,
+                (offset - size) / size,
+                &record[..size],
+            );
+            job.carry_len = 0;
+        }
+    }
+    let whole = bytes.len() / size * size;
+    let first = offset / size;
+    for (k, record) in bytes[..whole].chunks_exact(size).enumerate() {
+        job.materials |= check_record(table, record, ctx)?;
+        put_record(storage, ranges, &job.bases, table, first + k, record);
+    }
+    let rest = &bytes[whole..];
+    if !rest.is_empty() {
+        job.carry[..rest.len()].copy_from_slice(rest);
+        job.carry_len = rest.len();
+    }
     Ok(())
 }
 
@@ -939,6 +1299,29 @@ impl PxbspResidentMap {
         map_id: u32,
         reader: &mut R,
         slots: u16,
+    ) -> Result<(), StreamLoadError<R::Error>> {
+        self.load_streamed_inner(map_id, reader, slots, false)
+    }
+
+    /// [`Self::load_streamed`] for a map made with `with_capacity(0)` (no
+    /// preallocated capacity): the image is allocated once, at exactly the
+    /// size the container and `slots` call for. The guest uses this so the
+    /// heap holds the pool and nothing more.
+    pub fn load_streamed_exact<R: ReadAt>(
+        &mut self,
+        map_id: u32,
+        reader: &mut R,
+        slots: u16,
+    ) -> Result<(), StreamLoadError<R::Error>> {
+        self.load_streamed_inner(map_id, reader, slots, true)
+    }
+
+    fn load_streamed_inner<R: ReadAt>(
+        &mut self,
+        map_id: u32,
+        reader: &mut R,
+        slots: u16,
+        exact: bool,
     ) -> Result<(), StreamLoadError<R::Error>> {
         self.prepare_owned_load();
         self.stream = None;
@@ -1038,20 +1421,30 @@ impl PxbspResidentMap {
                 capacity: self.storage_capacity(),
             }));
         };
-        if total > self.storage_capacity() {
-            return Err(StreamLoadError::Map(PxbspMapLoadError::TooLarge {
-                required: total,
-                capacity: self.storage_capacity(),
-            }));
+        if exact {
+            // Word storage: the vertex lump is read in place, so the image
+            // must start four-byte aligned, which a byte vector on the bump
+            // heap does not promise.
+            self.storage = PxbspResidentStorage::Words {
+                words: alloc::vec![0u32; total.div_ceil(4)],
+                len: total,
+            };
+        } else {
+            if total > self.storage_capacity() {
+                return Err(StreamLoadError::Map(PxbspMapLoadError::TooLarge {
+                    required: total,
+                    capacity: self.storage_capacity(),
+                }));
+            }
+            self.owned_bytes_mut().resize(total, 0);
         }
-        self.owned_bytes_mut().resize(total, 0);
         let mut destination = 0usize;
         for kind in RESIDENT_LUMPS {
             destination = align_up_4(destination);
             let source = index.lump(kind);
             let end = destination + source.len as usize;
             if let Err(error) =
-                reader.read_exact_at(source.offset, &mut self.owned_bytes_mut()[destination..end])
+                reader.read_exact_at(source.offset, &mut self.owned_slice_mut()[destination..end])
             {
                 self.clear_loaded_state();
                 return Err(StreamLoadError::Map(PxbspMapLoadError::Read(error)));
@@ -1072,7 +1465,7 @@ impl PxbspResidentMap {
         let regions = sindex.regions.len();
         {
             let leaves =
-                &mut self.owned_bytes_mut()[leaf_range.offset as usize..leaf_range.end() as usize];
+                &mut self.owned_slice_mut()[leaf_range.offset as usize..leaf_range.end() as usize];
             let mut bad = None;
             for leaf in 0..leaf_range.len as usize / LEAF_BYTES {
                 let record = &mut leaves[leaf * LEAF_BYTES..][..LEAF_BYTES];
@@ -1100,7 +1493,7 @@ impl PxbspResidentMap {
         if models.len as usize >= 32 {
             let bits = (rpad + slots_n * caps.leaves as usize) as i16;
             let at = models.offset as usize + 26;
-            wr16(self.owned_bytes_mut(), at, bits as u16);
+            wr16(self.owned_slice_mut(), at, bits as u16);
         }
         if let Err(error) = self.validate_references() {
             self.clear_loaded_state();
@@ -1123,114 +1516,201 @@ impl PxbspResidentMap {
         Ok(())
     }
 
-    /// Install `payload` (a region's whole blob) into `slot`: validate every
-    /// reference, copy the tables with the slot bases added, then link the
-    /// subtree into the three top trees. Nothing is allocated, and the map is
-    /// unchanged when an error is returned.
+    /// Install `payload` (a region's whole blob) into `slot`: verify its
+    /// checksum, validate every reference, copy the tables with the slot
+    /// bases added, then link the subtree into the three top trees. Nothing
+    /// is allocated, and the map is unchanged when an error is returned.
+    ///
+    /// A caller that cannot hold a whole payload, or must spread the work
+    /// over frames, uses [`Self::begin_install`] and [`Self::install_feed`].
     pub fn install_region(
         &mut self,
         region: u16,
         slot: u16,
         payload: &[u8],
     ) -> Result<(), StreamError> {
-        let (caps, entry, bases) = {
+        // Check everything first so a refusal writes nothing.
+        let view = RegionView::parse(payload)?;
+        let (caps, materials) = {
             let state = self.stream.as_deref().ok_or(StreamError::NotStreamed)?;
-            let entry = *state
-                .index
-                .regions
-                .get(region as usize)
-                .ok_or(StreamError::RegionOutOfRange)?;
-            if slot >= state.slots {
-                return Err(StreamError::SlotOutOfRange);
+            (state.index.caps, self.materials().len())
+        };
+        check_head(&view.head, &caps)?;
+        let ctx = CheckCtx::new(&view.head, materials);
+        for table in Table::ALL {
+            let (bytes, size) = match table {
+                Table::Faces => (view.faces, FACE_BYTES),
+                Table::Marks => (view.marks, MARK_BYTES),
+                Table::Leaves => (view.leaves, LEAF_BYTES),
+                Table::Nodes => (view.nodes, NODE_BYTES),
+                Table::Clip => (view.clip_nodes, CLIPNODE_BYTES),
+                _ => continue,
+            };
+            for record in bytes.chunks_exact(size) {
+                check_record(table, record, &ctx)?;
             }
-            if state.slot_of_region[region as usize] != NO_SLOT {
+        }
+        let mut job = self.begin_install(region, slot)?;
+        if self.install_feed(&mut job, payload)? != InstallProgress::Staged {
+            return Err(StreamError::ShortPayload);
+        }
+        self.link_region(&mut job)
+    }
+
+    /// Start installing `region` into `slot` from a stream of payload bytes.
+    ///
+    /// Feed the payload, in order and in chunks of any size, to
+    /// [`Self::install_feed`]; each record is checked against the header and
+    /// written, relocated, into the slot as its bytes arrive, so no landing
+    /// buffer is needed. Only one install may be in flight per slot, and the
+    /// slot must stay unused by anything else until [`Self::link_region`]
+    /// returns or the job is dropped.
+    pub fn begin_install(&self, region: u16, slot: u16) -> Result<RegionInstall, StreamError> {
+        let state = self.stream.as_deref().ok_or(StreamError::NotStreamed)?;
+        let entry = *state
+            .index
+            .regions
+            .get(region as usize)
+            .ok_or(StreamError::RegionOutOfRange)?;
+        if slot >= state.slots {
+            return Err(StreamError::SlotOutOfRange);
+        }
+        if state.slot_of_region[region as usize] != NO_SLOT {
+            return Err(StreamError::AlreadyInstalled);
+        }
+        if state.region_of_slot[slot as usize] != NO_SLOT {
+            return Err(StreamError::SlotBusy);
+        }
+        Ok(RegionInstall {
+            region,
+            slot,
+            entry,
+            bases: state.bases(slot as usize),
+            caps: state.index.caps,
+            materials_total: self.materials().len(),
+            header: [0; REGION_HEADER_BYTES],
+            header_len: 0,
+            head: None,
+            pos: 0,
+            carry: [0; NODE_BYTES],
+            carry_len: 0,
+            fnv: Fnv32::new(),
+            materials: 0,
+            phase: InstallPhase::Receiving,
+        })
+    }
+
+    /// Feed the next payload bytes to an install in flight.
+    ///
+    /// Bytes past the payload's end (the sector padding of the last read) are
+    /// ignored, so a caller can hand over whole sectors. Returns
+    /// [`InstallProgress::Staged`] once the payload is complete, its checksum
+    /// matches the directory ([`RegionEntry::fnv`]) and every table sits
+    /// relocated in the slot; [`Self::link_region`] then makes it visible.
+    ///
+    /// A refused payload leaves the slot with partial, unreachable records
+    /// and the map consistent; drop the job and start again.
+    pub fn install_feed(
+        &mut self,
+        job: &mut RegionInstall,
+        bytes: &[u8],
+    ) -> Result<InstallProgress, StreamError> {
+        if self.stream.is_none() {
+            return Err(StreamError::NotStreamed);
+        }
+        if job.phase != InstallPhase::Receiving {
+            return Ok(if job.phase == InstallPhase::Staged {
+                InstallProgress::Staged
+            } else {
+                InstallProgress::Working
+            });
+        }
+        let total = job.entry.payload_bytes as usize;
+        let mut bytes = &bytes[..bytes.len().min(total - job.pos)];
+        job.fnv.update(bytes);
+        let ranges = self.ranges;
+        let storage = self.owned_slice_mut();
+        while !bytes.is_empty() {
+            let Some(head) = job.head else {
+                let take = (REGION_HEADER_BYTES - job.header_len).min(bytes.len());
+                job.header[job.header_len..job.header_len + take].copy_from_slice(&bytes[..take]);
+                job.header_len += take;
+                job.pos += take;
+                bytes = &bytes[take..];
+                if job.header_len == REGION_HEADER_BYTES {
+                    let head = parse_head(&job.header)?;
+                    if head.id != job.region || head.vis_count != job.entry.vis_count {
+                        return Err(StreamError::BadRegion(
+                            "payload does not belong to this region",
+                        ));
+                    }
+                    if head.layout.end != total {
+                        return Err(StreamError::BadRegion(
+                            "payload length does not match the directory",
+                        ));
+                    }
+                    check_head(&head, &job.caps)?;
+                    job.head = Some(head);
+                }
+                continue;
+            };
+            let ctx = CheckCtx::new(&head, job.materials_total);
+            // The section holding `pos`, or the gap before the next one.
+            let mut step = bytes.len();
+            for (table, &(start, len)) in Table::ALL.iter().zip(&head.layout.sections) {
+                if job.pos < start {
+                    step = (start - job.pos).min(bytes.len());
+                    break;
+                }
+                if job.pos < start + len {
+                    step = (start + len - job.pos).min(bytes.len());
+                    let offset = job.pos - start;
+                    consume_table(job, storage, &ranges, &ctx, *table, offset, &bytes[..step])?;
+                    break;
+                }
+            }
+            job.pos += step;
+            bytes = &bytes[step..];
+        }
+        if job.pos == total {
+            if job.fnv.finish() != job.entry.fnv {
+                return Err(StreamError::BadChecksum);
+            }
+            job.phase = InstallPhase::Staged;
+            return Ok(InstallProgress::Staged);
+        }
+        Ok(InstallProgress::Working)
+    }
+
+    /// Link a staged region into the three top trees (one halfword each) and
+    /// record its slot. The only step that makes the region visible.
+    pub fn link_region(&mut self, job: &mut RegionInstall) -> Result<(), StreamError> {
+        if job.phase != InstallPhase::Staged {
+            return Err(StreamError::BadRegion("install is not staged"));
+        }
+        let head = job.head.expect("a staged install has its header");
+        {
+            let state = self.stream.as_deref().ok_or(StreamError::NotStreamed)?;
+            if state.slot_of_region[job.region as usize] != NO_SLOT {
                 return Err(StreamError::AlreadyInstalled);
             }
-            if state.region_of_slot[slot as usize] != NO_SLOT {
+            if state.region_of_slot[job.slot as usize] != NO_SLOT {
                 return Err(StreamError::SlotBusy);
             }
-            (state.index.caps, entry, state.bases(slot as usize))
-        };
-        let view = RegionView::parse(payload)?;
-        if view.id != region || view.vis_count != entry.vis_count {
-            return Err(StreamError::BadRegion(
-                "payload does not belong to this region",
-            ));
         }
-        validate_region(&view, &caps, self.materials().len())?;
-
         let ranges = self.ranges;
-        let storage = self.owned_bytes_mut().as_mut_slice();
-        let dst = |kind: PxbspLumpKind, base: usize, record: usize| {
-            ranges[kind as usize].offset as usize + base * record
-        };
-        // Planes and vertices need no rewriting.
-        let at = dst(PxbspLumpKind::Planes, bases.planes, PLANE_BYTES);
-        storage[at..at + view.planes.len()].copy_from_slice(view.planes);
-        let at = dst(PxbspLumpKind::Vertices, bases.vertices, VERTEX_BYTES);
-        storage[at..at + view.vertices.len()].copy_from_slice(view.vertices);
-        let at = dst(PxbspLumpKind::Visibility, 0, 1) + bases.vis;
-        storage[at..at + view.vis.len()].copy_from_slice(view.vis);
-
-        let at = dst(PxbspLumpKind::Faces, bases.faces, FACE_BYTES);
-        for (i, face) in view.faces.chunks_exact(FACE_BYTES).enumerate() {
-            let out = &mut storage[at + i * FACE_BYTES..][..FACE_BYTES];
-            out.copy_from_slice(face);
-            wr16(out, 0, rd16(face, 0) + bases.planes as u16);
-            wr16(out, 2, rd16(face, 2) + bases.vertices as u16);
-        }
-        let at = dst(PxbspLumpKind::MarkSurfaces, bases.marks, MARK_BYTES);
-        for (i, mark) in view.marks.chunks_exact(MARK_BYTES).enumerate() {
-            wr16(
-                storage,
-                at + i * MARK_BYTES,
-                rd16(mark, 0) + bases.faces as u16,
-            );
-        }
-        let at = dst(PxbspLumpKind::Leaves, bases.leaf, LEAF_BYTES);
-        let _ = at;
-        let leaf_at = dst(PxbspLumpKind::Leaves, 0, LEAF_BYTES) + bases.leaf * LEAF_BYTES;
-        for (i, leaf) in view.leaves.chunks_exact(LEAF_BYTES).enumerate() {
-            let out = &mut storage[leaf_at + i * LEAF_BYTES..][..LEAF_BYTES];
-            out.copy_from_slice(leaf);
-            wr16(out, 8, rd16(leaf, 8) + bases.marks as u16);
-            let vis = i32::from_le_bytes(leaf[4..8].try_into().unwrap());
-            if vis >= 0 {
-                out[4..8].copy_from_slice(&(vis + bases.vis as i32).to_le_bytes());
-            }
-        }
-        let at = dst(PxbspLumpKind::Nodes, bases.nodes, NODE_BYTES);
-        for (i, node) in view.nodes.chunks_exact(NODE_BYTES).enumerate() {
-            let out = &mut storage[at + i * NODE_BYTES..][..NODE_BYTES];
-            out.copy_from_slice(node);
-            wr16(out, 0, rd16(node, 0) + bases.planes as u16);
-            for side in 0..2 {
-                let child = bases.render_child(rd16(node, 2 + side * 2) as i16);
-                wr16(out, 2 + side * 2, child as u16);
-            }
-            wr16(out, 12, rd16(node, 12) + bases.faces as u16);
-        }
-        let at = dst(PxbspLumpKind::ClipNodes, bases.clip_nodes, CLIPNODE_BYTES);
-        for (i, node) in view.clip_nodes.chunks_exact(CLIPNODE_BYTES).enumerate() {
-            let out = &mut storage[at + i * CLIPNODE_BYTES..][..CLIPNODE_BYTES];
-            wr16(out, 0, rd16(node, 0) + bases.planes as u16);
-            for side in 0..2 {
-                let child = bases.clip_child(rd16(node, 2 + side * 2) as i16);
-                wr16(out, 2 + side * 2, child as u16);
-            }
-        }
-
-        // Link: one halfword in each top tree.
-        let node_at = dst(PxbspLumpKind::Nodes, 0, NODE_BYTES);
-        let clip_at = dst(PxbspLumpKind::ClipNodes, 0, CLIPNODE_BYTES);
-        let render = bases.render_child(view.render_root);
+        let storage = self.owned_slice_mut();
+        let node_at = ranges[PxbspLumpKind::Nodes as usize].offset as usize;
+        let clip_at = ranges[PxbspLumpKind::ClipNodes as usize].offset as usize;
+        let entry = job.entry;
+        let render = job.bases.render_child(head.render_root);
         wr16(
             storage,
             node_at + entry.parents[0] as usize * NODE_BYTES + 2 + entry.side(0) * 2,
             render as u16,
         );
         for hull in 0..2 {
-            let child = bases.clip_child(view.clip_roots[hull]);
+            let child = job.bases.clip_child(head.clip_roots[hull]);
             wr16(
                 storage,
                 clip_at
@@ -1240,12 +1720,12 @@ impl PxbspResidentMap {
                 child as u16,
             );
         }
-
         let state = self.stream.as_deref_mut().expect("checked above");
-        state.slot_of_region[region as usize] = slot;
-        state.region_of_slot[slot as usize] = region;
-        state.slot_counts[slot as usize] = view.counts;
+        state.slot_of_region[job.region as usize] = job.slot;
+        state.region_of_slot[job.slot as usize] = job.region;
+        state.slot_counts[job.slot as usize] = head.counts;
         self.generation = self.generation.wrapping_add(1);
+        job.phase = InstallPhase::Done;
         Ok(())
     }
 
@@ -1265,7 +1745,7 @@ impl PxbspResidentMap {
             )
         };
         let ranges = self.ranges;
-        let storage = self.owned_bytes_mut().as_mut_slice();
+        let storage = self.owned_slice_mut();
         let node_at = ranges[PxbspLumpKind::Nodes as usize].offset as usize;
         let clip_at = ranges[PxbspLumpKind::ClipNodes as usize].offset as usize;
         let stub = (-1i32 - (region as i32 + 1)) as i16;
@@ -2008,6 +2488,142 @@ mod tests {
     }
 
     #[test]
+    fn streamed_installs_build_the_same_image_as_the_one_shot_install() {
+        let w = world(4);
+        let mut whole = load(&w, 3);
+        for (region, slot) in [(2u16, 1u16), (0, 2), (3, 0)] {
+            whole
+                .install_region(region, slot, &w.payloads[region as usize])
+                .unwrap();
+        }
+        // Chunk sizes that split every record and the header.
+        for chunk in [1usize, 5, 7, 13, 64, 1000, 4096] {
+            let mut streamed = load(&w, 3);
+            let mut feeds = 0usize;
+            for (region, slot) in [(2u16, 1u16), (0, 2), (3, 0)] {
+                let payload = &w.payloads[region as usize];
+                let mut job = streamed.begin_install(region, slot).unwrap();
+                let mut progress = InstallProgress::Working;
+                for piece in payload.chunks(chunk) {
+                    assert_eq!(progress, InstallProgress::Working);
+                    progress = streamed.install_feed(&mut job, piece).unwrap();
+                    feeds += 1;
+                    // Staging writes only slot bytes; nothing is linked yet.
+                    if progress == InstallProgress::Working {
+                        assert_eq!(streamed.streaming().unwrap().slot_of(region), None);
+                    }
+                }
+                assert_eq!(progress, InstallProgress::Staged, "chunk {chunk}");
+                assert!(job.is_staged());
+                assert_eq!(job.fed_bytes(), payload.len());
+                assert_eq!(job.materials(), 1, "both faces use material 0");
+                assert_eq!(
+                    streamed.unresident_region_at(at(i32::from(region) * 100 + 10)),
+                    Some(region),
+                    "still a wall before the link"
+                );
+                streamed.link_region(&mut job).unwrap();
+                assert_eq!(
+                    streamed.link_region(&mut job),
+                    Err(StreamError::BadRegion("install is not staged"))
+                );
+            }
+            streamed.check_integrity().expect("integrity");
+            assert_eq!(
+                streamed.owned_slice_mut(),
+                whole.owned_slice_mut(),
+                "chunk {chunk}"
+            );
+            if chunk == 1 {
+                assert!(feeds > 100, "a one byte chunk really slices ({feeds})");
+            }
+        }
+    }
+
+    #[test]
+    fn sector_padding_after_the_payload_is_ignored() {
+        let w = world(3);
+        let mut map = load(&w, 2);
+        let mut job = map.begin_install(1, 0).unwrap();
+        let sectors = w.payloads[1].len().div_ceil(SECTOR_BYTES as usize);
+        let at = w.index.regions[1].sector_start as usize * SECTOR_BYTES as usize;
+        let padded = &w.pack[at..at + sectors * SECTOR_BYTES as usize];
+        assert_eq!(
+            map.install_feed(&mut job, padded).unwrap(),
+            InstallProgress::Staged
+        );
+        assert_eq!(job.fed_bytes(), w.payloads[1].len());
+        map.link_region(&mut job).unwrap();
+        map.check_integrity().unwrap();
+    }
+
+    #[test]
+    fn a_refused_streamed_install_never_links() {
+        let w = world(3);
+        let mut map = load(&w, 2);
+        // A dangling mark is refused as the record arrives.
+        let mut build = region(1, 3).0;
+        build.marks[0] = 9;
+        let payload = build.encode();
+        let mut job = map.begin_install(1, 0).unwrap();
+        let mut result = Ok(InstallProgress::Working);
+        for piece in payload.chunks(3) {
+            result = map.install_feed(&mut job, piece);
+            if result.is_err() {
+                break;
+            }
+        }
+        assert_eq!(result, Err(StreamError::BadReference("mark surface")));
+        assert_eq!(
+            map.link_region(&mut job),
+            Err(StreamError::BadRegion("install is not staged"))
+        );
+        map.check_integrity().unwrap();
+        assert_eq!(map.streaming().unwrap().slot_of(1), None);
+        // A flipped byte passes every record check and fails the checksum at
+        // the end, still unlinked.
+        let mut bad = w.payloads[1].clone();
+        let flip = bad.len() - 5;
+        bad[flip] ^= 0x01;
+        let mut job = map.begin_install(1, 0).unwrap();
+        assert_eq!(
+            map.install_feed(&mut job, &bad),
+            Err(StreamError::BadChecksum)
+        );
+        map.check_integrity().unwrap();
+        assert_eq!(map.streaming().unwrap().slot_of(1), None);
+        // The slot is still free for the good payload.
+        map.install_region(1, 0, &w.payloads[1]).unwrap();
+        map.check_integrity().unwrap();
+    }
+
+    #[test]
+    fn exact_loading_allocates_the_image_and_nothing_more() {
+        let w = world(4);
+        let reference = load(&w, 3);
+        let mut exact = PxbspResidentMap::with_capacity(0);
+        exact
+            .load_streamed_exact(1, &mut SliceReader::new(&w.container), 3)
+            .expect("exact load");
+        let bytes = exact.owned_slice_mut().len();
+        assert_eq!(bytes, reference.storage_bytes().len());
+        assert_eq!(exact.storage_capacity(), bytes.div_ceil(4) * 4);
+        assert_eq!(exact.storage_bytes().as_ptr() as usize & 3, 0);
+        exact.install_region(1, 2, &w.payloads[1]).unwrap();
+        exact.check_integrity().unwrap();
+    }
+
+    #[test]
+    fn incremental_fnv_matches_the_one_shot_hash() {
+        let bytes: Vec<u8> = (0..5000u32).map(|i| (i * 31 + 7) as u8).collect();
+        let mut hash = Fnv32::new();
+        for chunk in bytes.chunks(333) {
+            hash.update(chunk);
+        }
+        assert_eq!(hash.finish(), fnv1a32(&bytes));
+    }
+
+    #[test]
     fn dense_visibility_follows_the_slots_not_the_regions() {
         let w = world(4);
         let mut map = load(&w, 3);
@@ -2045,7 +2661,7 @@ mod tests {
     fn refused_installs_leave_the_map_untouched() {
         let w = world(3);
         let mut map = load(&w, 2);
-        let before = map.owned_bytes_mut().clone();
+        let before = map.owned_slice_mut().to_vec();
         // Wrong region for the payload.
         assert!(map.install_region(1, 0, &w.payloads[0]).is_err());
         // Flipped body byte: checksum.
@@ -2064,8 +2680,8 @@ mod tests {
             Err(StreamError::BadReference("mark surface"))
         );
         assert_eq!(
-            *map.owned_bytes_mut(),
-            before,
+            map.owned_slice_mut(),
+            &before[..],
             "refused installs write nothing"
         );
         // Out of range slot, double install, busy slot.
