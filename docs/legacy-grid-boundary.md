@@ -1,5 +1,11 @@
 # Retired grid-world boundary audit
 
+> **EXECUTED (2026-10-08).** The grid world was deleted entirely on branch
+> `chore/remove-grid-world`: runtime, cooker tables, project model, editor
+> authoring. Loading a project that still holds Section/Room/Map, Water Volume
+> or Portal nodes now fails with `ProjectIoError::LegacyGridWorld` instead of
+> being cooked into an error. Everything below is history.
+
 > **RETIRED (2026-08-25).** The owner closed the compatibility window. New and
 > existing editor authoring is BSP-only; the grid starter, grid cooker, editor
 > tools, and preview path have been removed. The remainder of this file is a
@@ -212,7 +218,7 @@ are in tests: `editor/crates/psxed-ui/src/tests/project_workspace.rs:1127,1183`)
 | # | Grid-only path | BSP equivalent | Classification |
 |---|---|---|---|
 | P1 | `NodeKind::Section`/`Water`/`Portal` node kinds and `WorldGrid` payload inside `scenes` (`scene_types.rs`, `world_types.rs:757`) | `Scene.brushes` | compatibility-only (load forever within the window; never write new ones after freeze) |
-| P2 | Grid-only World-node settings (A11) and `runtime_*` grid render knobs (`document_types.rs:339-350`: `runtime_depth_sort_mode`, `runtime_texture_split_mode`, `runtime_room_draw_order_mode`, `runtime_texture_split_max_edge`, all documented against cooked rooms) | `bsp_cook_mode` (`document_types.rs:335-338`) | compatibility-only |
+| P2 | Grid-only World-node settings (A11). The `runtime_*` grid render knobs (`runtime_depth_sort_mode`, `runtime_texture_split_mode`, `runtime_room_draw_order_mode`, `runtime_texture_split_max_edge`) are removed from `ProjectDocument`; old files carrying them still load and drop them on save | `bsp_cook_mode` (`document_types.rs:335-338`) | compatibility-only |
 | P3 | `ProjectDocument::starter()` deserializes the embedded GRID default project (`document_types.rs:412-424`; `DEFAULT_PROJECT_RON` = `editor/projects/default/project.ron`, `lib.rs:64`); used by the starter character catalogue sync (`editor/crates/psxed-ui/src/starter_catalogue.rs:112`) and as the fixture for most cook tests (section 6) | New Project uses `new_project_template_dir()` = `editor/archive/fixtures/brush-first-playable` (`lib.rs:315-323`) | compatibility-only; `default_project_dir` doc comment already states the intended status: "retained as the compatibility/fallback project while existing grid content remains supported" (`lib.rs:308-313`). If grid retires fully, the starter-catalogue resource source must move off the grid project |
 
 ### 2.4 Runtime: static world render (guest)

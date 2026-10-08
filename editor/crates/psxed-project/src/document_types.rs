@@ -267,158 +267,6 @@ impl EditorViewState {
     }
 }
 
-/// Runtime depth sorting policy for cooked cached room geometry.
-///
-/// This affects embedded play and generated runtime manifests. The editor
-/// preview remains the reference view, but the PS1 path needs explicit
-/// tradeoffs between stable ordering and per-triangle work.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub enum RuntimeDepthSortMode {
-    /// Use the legacy fixed cell depth key for every cached surface.
-    FixedCell,
-    /// Use per-triangle depth for sloped/high-span horizontal surfaces.
-    Hybrid,
-    /// Like hybrid, but also sorts high-depth-span walls per triangle.
-    #[default]
-    HybridWalls,
-    /// Use per-triangle projected depth for every cached surface.
-    PerTriangle,
-}
-
-impl RuntimeDepthSortMode {
-    pub const ALL: [Self; 4] = [
-        Self::Hybrid,
-        Self::HybridWalls,
-        Self::PerTriangle,
-        Self::FixedCell,
-    ];
-
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::FixedCell => "Fixed cell",
-            Self::Hybrid => "Hybrid",
-            Self::HybridWalls => "Hybrid + walls",
-            Self::PerTriangle => "Per triangle",
-        }
-    }
-
-    pub const fn description(self) -> &'static str {
-        match self {
-            Self::FixedCell => "Fast legacy ordering. Can show overlap errors on ramps.",
-            Self::Hybrid => "Uses per-triangle depth only where sloped floors need it.",
-            Self::HybridWalls => {
-                "Also sorts high-depth-span walls per triangle for ramp/wall conflicts."
-            }
-            Self::PerTriangle => "Most precise cached-room ordering. Costs more sort work.",
-        }
-    }
-
-    pub const fn manifest_value(self) -> u8 {
-        match self {
-            Self::FixedCell => 0,
-            Self::Hybrid => 1,
-            Self::HybridWalls => 2,
-            Self::PerTriangle => 3,
-        }
-    }
-}
-
-/// Default projected edge threshold for runtime room subdivision.
-///
-/// `0` keeps the fixed adaptive depth-band schedule without additional
-/// projected-edge refinement. Lower positive values split more aggressively.
-pub const DEFAULT_RUNTIME_TEXTURE_SPLIT_MAX_EDGE: u16 = 0;
-
-pub(crate) const fn default_runtime_texture_split_max_edge() -> u16 {
-    DEFAULT_RUNTIME_TEXTURE_SPLIT_MAX_EDGE
-}
-
-/// Scope for runtime room triangle subdivision.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub enum RuntimeTextureSplitMode {
-    /// Apply depth-band subdivision and optional edge refinement everywhere.
-    #[default]
-    All,
-    /// Apply the edge threshold only to surfaces using per-triangle depth.
-    DepthSorted,
-    /// Apply the edge threshold only to sloped/high-depth-span surfaces.
-    Risky,
-}
-
-impl RuntimeTextureSplitMode {
-    pub const ALL: [Self; 3] = [Self::All, Self::DepthSorted, Self::Risky];
-
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::All => "All surfaces",
-            Self::DepthSorted => "Depth sorted",
-            Self::Risky => "Risky only",
-        }
-    }
-
-    pub const fn description(self) -> &'static str {
-        match self {
-            Self::All => "adaptive depth-band subdivision applies to every cached room surface.",
-            Self::DepthSorted => {
-                "Only surfaces using per-triangle depth receive depth-band subdivision."
-            }
-            Self::Risky => {
-                "Only sloped or high-depth-span surfaces receive depth-band subdivision."
-            }
-        }
-    }
-
-    pub const fn manifest_value(self) -> u8 {
-        match self {
-            Self::All => 0,
-            Self::DepthSorted => 1,
-            Self::Risky => 2,
-        }
-    }
-}
-
-/// Runtime draw ordering for active room chunks.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub enum RuntimeRoomDrawOrderMode {
-    /// Sort active visible rooms by their camera-space center depth.
-    #[default]
-    Distance,
-    /// Draw rooms in portal traversal order.
-    Portal,
-    /// Draw active slots in runtime slot order.
-    Slot,
-}
-
-impl RuntimeRoomDrawOrderMode {
-    pub const ALL: [Self; 3] = [Self::Distance, Self::Portal, Self::Slot];
-
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Distance => "Distance",
-            Self::Portal => "Portal order",
-            Self::Slot => "Slot order",
-        }
-    }
-
-    pub const fn description(self) -> &'static str {
-        match self {
-            Self::Distance => "Current behavior. Sort active rooms by camera-space center depth.",
-            Self::Portal => {
-                "Draw rooms in portal traversal order, closer to adaptive-style visibility."
-            }
-            Self::Slot => "Stable runtime slot order for debugging streaming/order interactions.",
-        }
-    }
-
-    pub const fn manifest_value(self) -> u8 {
-        match self {
-            Self::Distance => 0,
-            Self::Portal => 1,
-            Self::Slot => 2,
-        }
-    }
-}
-
 /// One editor project document.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ProjectDocument {
@@ -442,6 +290,13 @@ pub struct ProjectDocument {
     /// in the project keeps GUI and CLI cooks on one deterministic policy.
     #[serde(default)]
     pub bsp_cook_mode: crate::brush_world::BrushWorldCookMode,
+    /// Build the body-hull collision trees as solid-leaf hull BSPs
+    /// (`brush_region_hulls`) instead of per-brush plane chains. The output
+    /// format is identical; the tree is far shallower on dense geometry.
+    /// On by default; a project can write `collision_hull_bsp: false` to fall
+    /// back to the chain compiler.
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub collision_hull_bsp: bool,
     /// Worst-case joint rotation error, in whole degrees, that the cook may
     /// introduce by resampling animation clips to a lower rate. `0` disables
     /// resampling and cooks every clip at its authored rate.
@@ -462,18 +317,6 @@ pub struct ProjectDocument {
     /// their quiet stretch is part of the cycle.
     #[serde(default, skip_serializing_if = "is_zero_u8")]
     pub animation_trim_still_percent: u8,
-    /// Cooked playtest cached-room depth sorting mode.
-    #[serde(default)]
-    pub runtime_depth_sort_mode: RuntimeDepthSortMode,
-    /// Runtime room triangle subdivision scope.
-    #[serde(default)]
-    pub runtime_texture_split_mode: RuntimeTextureSplitMode,
-    /// Runtime active-room draw ordering policy.
-    #[serde(default)]
-    pub runtime_room_draw_order_mode: RuntimeRoomDrawOrderMode,
-    /// Optional projected-edge refinement layered over depth-band subdivision.
-    #[serde(default = "default_runtime_texture_split_max_edge")]
-    pub runtime_texture_split_max_edge: u16,
     /// Open scenes. The first scene is the active scene for now.
     pub scenes: Vec<Scene>,
     /// Authored screen-space UI scenes. The first scene is the HUD for now.
@@ -521,6 +364,14 @@ fn is_zero_u8(value: &u8) -> bool {
     *value == 0
 }
 
+fn default_true() -> bool {
+    true
+}
+
+fn is_true(value: &bool) -> bool {
+    *value
+}
+
 impl ProjectDocument {
     /// Create an empty project with one scene.
     pub fn new(name: impl Into<String>) -> Self {
@@ -535,10 +386,7 @@ impl ProjectDocument {
             animation_error_budget_degrees: 0,
             animation_trim_still_percent: 0,
             bsp_cook_mode: crate::brush_world::BrushWorldCookMode::default(),
-            runtime_depth_sort_mode: RuntimeDepthSortMode::default(),
-            runtime_texture_split_mode: RuntimeTextureSplitMode::default(),
-            runtime_room_draw_order_mode: RuntimeRoomDrawOrderMode::default(),
-            runtime_texture_split_max_edge: DEFAULT_RUNTIME_TEXTURE_SPLIT_MAX_EDGE,
+            collision_hull_bsp: true,
             scenes: vec![Scene::new("Main")],
             ui_scenes,
             scene_states,
@@ -1263,6 +1111,10 @@ impl ProjectDocument {
         let mut project: Self = match ron::from_str(source) {
             Ok(project) => project,
             Err(first_error) => {
+                let nodes = legacy_grid_node_count(source);
+                if nodes > 0 {
+                    return Err(ProjectIoError::LegacyGridWorld { nodes });
+                }
                 let migrated = migrate_legacy_project_ron(source);
                 if migrated == source {
                     return Err(ProjectIoError::Parse(first_error));
@@ -1504,7 +1356,6 @@ impl ProjectDocument {
                         far_vista,
                         camera,
                         culling,
-                        streaming,
                         physics,
                         world_message,
                     } => {
@@ -1536,7 +1387,6 @@ impl ProjectDocument {
                         far_vista.segments = far_vista.segments.clamp(3, 16);
                         *camera = camera.normalized();
                         *culling = culling.normalized();
-                        *streaming = streaming.normalized();
                         *physics = physics.normalized();
                         if let Some(message) = world_message {
                             normalize_message_pages(&mut message.pages);
@@ -1578,20 +1428,6 @@ impl ProjectDocument {
                     sector_size,
                     false,
                 );
-            }
-            let orphan_rooms: Vec<NodeId> = scene
-                .nodes()
-                .iter()
-                .filter(|node| matches!(node.kind, NodeKind::Section { .. }))
-                .filter(|node| scene.world_sector_size_for_node(node.id).is_none())
-                .map(|node| node.id)
-                .collect();
-            for room_id in orphan_rooms {
-                if let Some(node) = scene.node_mut(room_id) {
-                    if let NodeKind::Section { grid } = &mut node.kind {
-                        grid.rescale_sector_size(grid.sector_size);
-                    }
-                }
             }
         }
     }
@@ -1783,8 +1619,6 @@ pub(crate) fn clear_resource_data_references(data: &mut ResourceData, id: Resour
 
 pub(crate) fn node_kind_reference_count(kind: &NodeKind, id: ResourceId) -> usize {
     match kind {
-        NodeKind::Section { grid } => grid_resource_reference_count(grid, id),
-        NodeKind::WaterVolume { material, .. } => option_resource_reference_count(*material, id),
         NodeKind::MeshInstance { mesh, material, .. } => {
             option_resource_reference_count(*mesh, id)
                 + option_resource_reference_count(*material, id)
@@ -1833,8 +1667,7 @@ pub(crate) fn node_kind_reference_count(kind: &NodeKind, id: ResourceId) -> usiz
         | NodeKind::Logic { .. }
         | NodeKind::Destructible { .. }
         | NodeKind::PointLight { .. }
-        | NodeKind::VitalityCircle { .. }
-        | NodeKind::Portal { .. } => 0,
+        | NodeKind::VitalityCircle { .. } => 0,
     }
 }
 
@@ -1863,8 +1696,6 @@ pub(crate) fn clear_far_vista_resource_references(
 
 pub(crate) fn clear_node_kind_references(kind: &mut NodeKind, id: ResourceId) -> usize {
     match kind {
-        NodeKind::Section { grid } => clear_grid_resource_references(grid, id),
-        NodeKind::WaterVolume { material, .. } => clear_option_resource(material, id),
         NodeKind::MeshInstance { mesh, material, .. } => {
             clear_option_resource(mesh, id) + clear_option_resource(material, id)
         }
@@ -1922,51 +1753,8 @@ pub(crate) fn clear_node_kind_references(kind: &mut NodeKind, id: ResourceId) ->
         | NodeKind::Logic { .. }
         | NodeKind::Destructible { .. }
         | NodeKind::PointLight { .. }
-        | NodeKind::VitalityCircle { .. }
-        | NodeKind::Portal { .. } => 0,
+        | NodeKind::VitalityCircle { .. } => 0,
     }
-}
-
-pub(crate) fn grid_resource_reference_count(grid: &WorldGrid, id: ResourceId) -> usize {
-    let mut count = 0;
-    for sector in grid.sectors.iter().flatten() {
-        if let Some(face) = &sector.floor {
-            count += option_resource_reference_count(face.material, id);
-        }
-        if let Some(face) = &sector.ceiling {
-            count += option_resource_reference_count(face.material, id);
-        }
-        for direction in GridDirection::ALL {
-            for wall in sector.walls.get(direction) {
-                count += option_resource_reference_count(wall.material, id);
-            }
-        }
-    }
-    for floor in &grid.floors_above {
-        count += grid_resource_reference_count(floor, id);
-    }
-    count
-}
-
-pub(crate) fn clear_grid_resource_references(grid: &mut WorldGrid, id: ResourceId) -> usize {
-    let mut count = 0;
-    for sector in grid.sectors.iter_mut().flatten() {
-        if let Some(face) = &mut sector.floor {
-            count += clear_option_resource(&mut face.material, id);
-        }
-        if let Some(face) = &mut sector.ceiling {
-            count += clear_option_resource(&mut face.material, id);
-        }
-        for direction in GridDirection::ALL {
-            for wall in sector.walls.get_mut(direction) {
-                count += clear_option_resource(&mut wall.material, id);
-            }
-        }
-    }
-    for floor in &mut grid.floors_above {
-        count += clear_grid_resource_references(floor, id);
-    }
-    count
 }
 
 pub(crate) fn option_resource_reference_count(value: Option<ResourceId>, id: ResourceId) -> usize {
@@ -1980,6 +1768,17 @@ pub(crate) fn clear_option_resource(value: &mut Option<ResourceId>, id: Resource
     } else {
         0
     }
+}
+
+/// Number of removed grid-world scene nodes in a project's RON text.
+///
+/// The variants no longer exist, so serde reports an opaque unknown-variant
+/// error; scanning the text names the real cause.
+fn legacy_grid_node_count(source: &str) -> usize {
+    ["Section(", "Room(", "Map(", "WaterVolume(", "Portal("]
+        .iter()
+        .map(|variant| source.matches(&format!("kind: {variant}")).count())
+        .sum()
 }
 
 pub(crate) fn migrate_legacy_project_ron(source: &str) -> String {
@@ -2009,13 +1808,6 @@ pub(crate) fn apply_world_sector_size_to_descendants(
             continue;
         };
         match &mut node.kind {
-            NodeKind::Section { grid } => {
-                if rescale {
-                    grid.rescale_sector_size(sector_size);
-                } else {
-                    grid.normalize_stacked_sector_size(sector_size);
-                }
-            }
             NodeKind::Collider { shape, .. } if rescale => {
                 rescale_collider_shape(shape, old_sector_size, sector_size);
             }

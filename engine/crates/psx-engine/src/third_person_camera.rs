@@ -2,7 +2,7 @@
 //!
 //! The controller is designed for PS1-scale rooms: no heap, no dynamic
 //! dispatch, bounded ray work, integer math, and collision probes that
-//! read the cooked grid room through [`RoomCollision`]. It supplies the
+//! read a [`CollisionTraceProvider`]. It supplies the
 //! common action-camera pieces a game wants on top of [`WorldCamera`]:
 //! manual orbit cooldown, optional automatic re-alignment, camera lag,
 //! lock-on facing, and a spring-arm collision solve that shortens the
@@ -14,36 +14,51 @@ use framing::lock_pitch_goal;
 use profile::ProfileBlend;
 pub use profile::ThirdPersonCameraProfile;
 
-use crate::floor_sample::{height_at_local, triangle_heights_to_quad};
 use crate::{
     collision_query::{
         trace_collision, CollisionQueryError, CollisionTraceProvider, CollisionTraceQuery,
         COLLISION_FRACTION_ONE_Q12,
     },
     fixed::div_q12_i32,
-    Angle, CharacterCollisionRoom, RoomCollision, RoomPoint, WorldCamera, WorldProjection, Q12,
+    Angle, RoomPoint, WorldCamera, WorldProjection, Q12,
 };
 use psx_math::int32::{abs_i16, abs_i32, isqrt_i32, mul_q12_i32};
 
-const RAY_STEPS_MAX: i32 = 8;
-const RAY_STEPS_MIN: i32 = 3;
-const RAY_NEIGHBORHOOD_CELLS: usize = 9;
-const MAX_RAY_CHECKED_CELLS: usize = RAY_STEPS_MAX as usize * RAY_NEIGHBORHOOD_CELLS;
-const CHECKED_CAMERA_CELL_BITS: usize = 512;
-const CHECKED_CAMERA_CELL_WORDS: usize = CHECKED_CAMERA_CELL_BITS / 32;
-const MAX_CAMERA_COLLISION_ROOMS: usize = 4;
 const MAX_CAMERA_CATCHUP_VBLANKS: u16 = 4;
 const TRACE_CAMERA_FLOOR_PROBE_DOWN: i32 = 32_767;
 const TRACE_CAMERA_FLOOR_PROBE_LIFT: i32 = 1;
-
-// Mirrors psxed_format::world::direction::* without adding a direct
-// psxed-format dependency just for byte constants.
-const DIR_NORTH: u8 = 0;
-const DIR_EAST: u8 = 1;
-const DIR_SOUTH: u8 = 2;
-const DIR_WEST: u8 = 3;
-const DIR_NORTH_WEST_SOUTH_EAST: u8 = 4;
-const DIR_NORTH_EAST_SOUTH_WEST: u8 = 5;
+/// Highest total pitch the lift may reach: 50 degrees, in Q0.12 turn units
+/// (4096 = one turn). Above it a steeper view only shrinks her into a map
+/// marker, so past the cap the boom is allowed to stay short, down to
+/// `min_distance`, and the view to be partly occluded. Bloodborne's own
+/// ordinary orbit runs to +70 but its wall response never lifts; 50 keeps the
+/// horizon in frame and sits at the top of the 45-50 range Manny asked for.
+const LIFT_PITCH_CAP_Q12: i16 = 568;
+/// Blocked sight checks in a row before the sight lift starts to rise
+/// (about 0.2 s of sustained occlusion at 60 Hz). A pillar passing is shorter.
+const SIGHT_PATIENCE_CHECKS: u8 = 12;
+/// Sight lift raised per blocked check once patient, in Q0.12 turn units:
+/// half a degree a tick, so a sustained block reaches 25 degrees in 1.3 s.
+const LIFT_SIGHT_RAISE_Q12: i16 = 6;
+/// Sight lift given back per clear check once the line has stayed clear for
+/// `SIGHT_HOLD_CHECKS`. Held until then so the lift does not hunt around the
+/// pitch that just cleared the line.
+const LIFT_SIGHT_LOWER_Q12: i16 = 4;
+const SIGHT_HOLD_CHECKS: u8 = 30;
+/// Squeeze and sight checks run every Nth tick when nothing is constraining the arm.
+const LIFT_IDLE_CHECK_PERIOD: u8 = 4;
+/// Furthest the escape steering may turn the eye away from the stick yaw:
+/// 30 degrees, a deliberate flick of the stick and no more.
+const SLIDE_MAX_Q12: i32 = 341;
+/// Escape follow alpha per 60 Hz tick, from Bloodborne's wall-escape
+/// coefficient .25 per 30 Hz update: 1 - (1 - .25)^(30/60) in Q12.
+const SLIDE_ESCAPE_ALPHA_Q12: i32 = 549;
+/// Return alpha per 60 Hz tick from the ordinary coefficient .1 per 30 Hz
+/// update: 1 - (1 - .1)^(30/60) in Q12.
+const SLIDE_RETURN_ALPHA_Q12: i32 = 210;
+/// Final safety margin as a fraction of the arm (Bloodborne: .1) in Q12; the
+/// configured `collision_margin` is its cap (Bloodborne .3 on a 4 unit boom).
+const MARGIN_RATIO_Q12: i32 = 410;
 
 /// Tunables for [`ThirdPersonCameraState`].
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -290,6 +305,22 @@ pub struct ThirdPersonCameraState {
     /// The orbit was swung off a wall by [`clear_orbit_yaw`]; lock-on and
     /// recentering hold that yaw until the direction they steer to is clear.
     clear_orbit_hold: bool,
+    /// Pitch added to the orbit while collision squeezes the boom, so the
+    /// camera rises over the player instead of moving into her.
+    lift_pitch_q12: i16,
+    /// Lift the squeeze alone asks for, from the wall run at the lift cap.
+    lift_wall_q12: i16,
+    /// Lift a blocked sight line to the player has accumulated.
+    lift_sight_q12: i16,
+    lift_check_phase: u8,
+    /// Sight checks blocked in a row; the sight lift waits for patience.
+    lift_sight_blocked: u8,
+    /// Clear sight checks in a row; the sight lift is held until this is long.
+    lift_sight_clear: u8,
+    /// Yaw the escape steering has turned the eye away from the stick yaw.
+    slide_yaw_q12: i16,
+    /// Yaw offset the escape steering currently asks for, before easing.
+    slide_goal_q12: i16,
 }
 
 impl ThirdPersonCameraState {
@@ -319,11 +350,16 @@ impl ThirdPersonCameraState {
             last_pull_in: false,
             last_rotated: false,
             solve_phase: 0,
-            cached_solve: CollisionSolve {
-                distance: 0,
-                pull_in: false,
-            },
+            cached_solve: CollisionSolve::plain(0, false),
             clear_orbit_hold: false,
+            lift_pitch_q12: 0,
+            lift_wall_q12: 0,
+            lift_sight_q12: 0,
+            lift_check_phase: 0,
+            lift_sight_blocked: 0,
+            lift_sight_clear: 0,
+            slide_yaw_q12: 0,
+            slide_goal_q12: 0,
         }
     }
 
@@ -377,14 +413,19 @@ impl ThirdPersonCameraState {
         self.recenter_remaining = 0;
         self.collision_release_delay = 0;
         self.clear_orbit_hold = false;
+        self.lift_pitch_q12 = 0;
+        self.lift_wall_q12 = 0;
+        self.lift_sight_q12 = 0;
+        self.lift_check_phase = 0;
+        self.lift_sight_blocked = 0;
+        self.lift_sight_clear = 0;
+        self.slide_yaw_q12 = 0;
+        self.slide_goal_q12 = 0;
         self.initialized = true;
         self.last_pull_in = false;
         self.last_rotated = false;
         self.solve_phase = 0;
-        self.cached_solve = CollisionSolve {
-            distance: self.distance,
-            pull_in: false,
-        };
+        self.cached_solve = CollisionSolve::plain(self.distance, false);
     }
 
     /// Re-express the camera in a different room-local coordinate
@@ -405,16 +446,16 @@ impl ThirdPersonCameraState {
         self.base_position_y = self.base_position_y.saturating_add(delta.y);
     }
 
-    /// Advance the controller by one display tick and build a render camera.
+    /// Advance the controller by one display tick in open space (no
+    /// collision) and build a render camera.
     pub fn update(
         &mut self,
         projection: WorldProjection,
-        collision: Option<RoomCollision<'_, '_>>,
         target: ThirdPersonCameraTarget,
         input: ThirdPersonCameraInput,
         config: ThirdPersonCameraConfig,
     ) -> ThirdPersonCameraFrame {
-        self.update_vblanks(projection, collision, target, input, config, 1)
+        self.update_vblanks(projection, target, input, config, 1)
     }
 
     /// Advance the controller by elapsed display ticks and build a render camera.
@@ -425,15 +466,12 @@ impl ThirdPersonCameraState {
     pub fn update_vblanks(
         &mut self,
         projection: WorldProjection,
-        collision: Option<RoomCollision<'_, '_>>,
         target: ThirdPersonCameraTarget,
         input: ThirdPersonCameraInput,
         config: ThirdPersonCameraConfig,
         delta_vblanks: u16,
     ) -> ThirdPersonCameraFrame {
-        let mut collision = GridCameraCollision {
-            collision: CameraCollision::Single(collision),
-        };
+        let mut collision = OpenCameraCollision;
         match self.update_vblanks_with_backend(
             projection,
             &mut collision,
@@ -443,39 +481,7 @@ impl ThirdPersonCameraState {
             delta_vblanks,
         ) {
             Ok(frame) => frame,
-            Err(_) => unreachable!("grid camera collision queries are infallible"),
-        }
-    }
-
-    /// Advance the controller against a fixed active-room collision set.
-    ///
-    /// Chunked levels keep the player, camera, and focus in the current room's
-    /// local coordinate space. Nearby chunks are supplied with offsets into
-    /// that same space, mirroring the character motor's multi-room collision
-    /// path so the spring arm can cross loaded chunk boundaries and still hit
-    /// walls.
-    pub fn update_vblanks_with_collision_rooms(
-        &mut self,
-        projection: WorldProjection,
-        collision_rooms: &[CharacterCollisionRoom<'_>],
-        target: ThirdPersonCameraTarget,
-        input: ThirdPersonCameraInput,
-        config: ThirdPersonCameraConfig,
-        delta_vblanks: u16,
-    ) -> ThirdPersonCameraFrame {
-        let mut collision = GridCameraCollision {
-            collision: CameraCollision::Rooms(collision_rooms),
-        };
-        match self.update_vblanks_with_backend(
-            projection,
-            &mut collision,
-            target,
-            input,
-            config,
-            delta_vblanks,
-        ) {
-            Ok(frame) => frame,
-            Err(_) => unreachable!("grid camera collision queries are infallible"),
+            Err(_) => unreachable!("open-space camera collision queries are infallible"),
         }
     }
 
@@ -760,10 +766,15 @@ impl ThirdPersonCameraState {
         let error = i32::from(offset_goal) - i32::from(self.lock_pitch_offset_q12);
         let step = error * 669 / 4096;
         self.lock_pitch_offset_q12 += if step == 0 { error.signum() } else { step } as i16;
-        let orbit_pitch = self
+        let pitch_base = self
             .pitch_q12
             .saturating_add(self.lock_pitch_offset_q12)
             .clamp(config.pitch_min_q12, config.pitch_max_q12);
+        let lift_ceiling = lift_pitch_ceiling(config).max(pitch_base);
+        self.advance_escape(collision, target, config, pitch_base, lift_ceiling)?;
+        let orbit_pitch = pitch_base
+            .saturating_add(self.lift_pitch_q12)
+            .min(lift_ceiling);
 
         // Legacy framing retains its authored height lift. Angular framing
         // already accounts for elevation, so adding that lift would count twice.
@@ -794,7 +805,11 @@ impl ThirdPersonCameraState {
             || input.pitch_delta_q12 != 0
             || input.recenter
             || self.recenter_active
-            || target.lock_target.is_some();
+            || target.lock_target.is_some()
+            || self.lift_pitch_q12 != 0
+            || self.lift_wall_q12 != 0
+            || self.lift_sight_q12 != 0
+            || self.slide_yaw_q12 != 0;
         self.solve_phase = self.solve_phase.saturating_add(1);
         if self.solve_phase >= config.collision_solve_interval.max(1) {
             self.solve_phase = 0;
@@ -803,7 +818,7 @@ impl ThirdPersonCameraState {
         let collision_solve = if solve_now {
             let mut solve = collision.solve(
                 self.focus,
-                self.yaw,
+                self.eye_yaw(),
                 orbit_pitch,
                 locked_camera_y_goal,
                 config,
@@ -881,7 +896,10 @@ impl ThirdPersonCameraState {
         } else if collision_solve.distance < self.distance {
             self.distance = collision_solve.distance;
             self.collision_release_delay = config.collision_release_delay_frames;
-        } else if self.collision_release_delay != 0 {
+        } else if self.collision_release_delay != 0 && self.lift_pitch_q12 == 0 {
+            // The hold keeps a boom shortened by passing geometry from
+            // pumping. A lift is the response to that geometry and its own
+            // easing smooths the return, so it does not wait.
             self.collision_release_delay -= 1;
         } else {
             self.distance = approach_i32_shift(
@@ -907,11 +925,15 @@ impl ThirdPersonCameraState {
         let desired_base_position = camera_position_at_height(
             self.focus,
             self.distance,
-            self.yaw,
+            self.eye_yaw(),
             orbit_pitch,
             base_camera_y_goal,
         );
-        if collision_solve.pull_in || swung {
+        // A held lift places the eye on its own arm. Position lag would leave it
+        // below the lifted ray, where the segment check sees the low obstacle
+        // the lift clears and clamps the arm, flickering it tick to tick; the
+        // lift's own easing already smooths the move.
+        if collision_solve.pull_in || swung || self.lift_pitch_q12 != 0 || self.slide_yaw_q12 != 0 {
             self.position.x = desired_base_position.x;
             self.position.z = desired_base_position.z;
             self.base_position_y = base_camera_y_goal;
@@ -962,11 +984,198 @@ impl ThirdPersonCameraState {
                 endpoint_clamped = true;
             }
         }
+        self.check_sight_to_player(collision, target, config, pitch_base, lift_ceiling)?;
         self.frame_pitch_q12 =
             orbit_pitch.saturating_add(lock_pitch_offset_q12(config, self.lock_height_offset));
 
         self.last_pull_in = collision_solve.pull_in || endpoint_clamped;
         self.last_rotated = false;
+        Ok(())
+    }
+
+    /// True when the boom is constrained, or an escape or lift is still held
+    /// or easing, so the squeeze and sight checks have work to do. Otherwise
+    /// they run on a slow period: open ground pays for one extra trace every
+    /// few ticks.
+    fn escape_checks_due(&self, config: ThirdPersonCameraConfig) -> bool {
+        self.last_pull_in
+            || self.distance < config.distance
+            || self.lift_pitch_q12 != 0
+            || self.lift_wall_q12 != 0
+            || self.lift_sight_q12 != 0
+            || self.lift_sight_blocked != 0
+            || self.slide_yaw_q12 != 0
+            || self.lift_check_phase == 0
+    }
+
+    /// The orbit yaw the eye is solved and placed at: the stick yaw plus the
+    /// escape steering's offset.
+    fn eye_yaw(&self) -> Angle {
+        self.yaw.add_signed_q12(self.slide_yaw_q12)
+    }
+
+    /// Wall escape, then lift. When collision squeezes the boom under a
+    /// comfortable length the camera first steers sideways along the wall
+    /// (Bloodborne's escape steering), turning the eye away from the stick yaw
+    /// by the least offset that leaves a comfortable arm, up to `SLIDE_MAX_Q12`,
+    /// on whichever side opens. The offset eases in at the escape coefficient
+    /// and back out at the ordinary one; the stick yaw itself is untouched, so
+    /// the stick always turns the camera. Only what the escape cannot clear is
+    /// lifted: the orbit pitch rises toward `LIFT_PITCH_CAP_Q12`, from a probe
+    /// at the cap that reads the horizontal run the wall leaves, or by a
+    /// raise-hold-release regulator over a low obstacle. The eased results feed
+    /// the ordinary yaw and pitch of the next solve, so the regular spring-arm
+    /// solve still shortens the boom first and nothing here can push the eye
+    /// through geometry. Lock-on keeps its own framing and gets neither.
+    fn advance_escape<C: CameraCollisionBackend>(
+        &mut self,
+        collision: &mut C,
+        target: ThirdPersonCameraTarget,
+        config: ThirdPersonCameraConfig,
+        pitch_base: i16,
+        ceiling: i16,
+    ) -> Result<(), CollisionQueryError> {
+        // The arm the previous solve settled on, at the previous yaw and lift.
+        let prior = self.cached_solve;
+        let room = i32::from(ceiling.saturating_sub(pitch_base)).max(0);
+        let comfort = lift_comfort_distance(config);
+        if target.lock_target.is_some() {
+            self.lift_wall_q12 = 0;
+            self.lift_sight_q12 = 0;
+            self.lift_sight_blocked = 0;
+            self.lift_sight_clear = 0;
+            self.slide_goal_q12 = 0;
+            self.slide_yaw_q12 = 0;
+        } else if prior.distance < clear_orbit_distance(config) || self.escape_checks_due(config) {
+            // Escape: measure the arm at the stick yaw and the base pitch.
+            let y_base = camera_height_goal(target.player, pitch_base, config);
+            let at_stick = collision.solve(self.focus, self.yaw, pitch_base, y_base, config)?;
+            let mut slid = at_stick;
+            let mut offset = 0i32;
+            if at_stick.pull_in && at_stick.distance < comfort {
+                let wanted =
+                    slide_offset_q12(self.yaw, at_stick, pitch_base, config, self.slide_yaw_q12);
+                if wanted != 0 {
+                    // Wing query: try the steered side, and if it opens nothing
+                    // the opposite one.
+                    for sign in [1i32, -1] {
+                        let candidate = wanted * sign;
+                        let yaw = self.yaw.add_signed_q12(candidate as i16);
+                        let probe = collision.solve(self.focus, yaw, pitch_base, y_base, config)?;
+                        if probe.distance > slid.distance {
+                            slid = probe;
+                            offset = candidate;
+                            break;
+                        }
+                    }
+                }
+            }
+            self.slide_goal_q12 = offset as i16;
+            // Lift what the escape could not clear.
+            let slid_yaw = self.yaw.add_signed_q12(self.slide_goal_q12);
+            self.lift_wall_q12 = if slid.distance >= comfort {
+                0
+            } else {
+                let y = camera_height_goal(target.player, ceiling, config);
+                let (probe, run) = lift_probe(collision, self.focus, slid_yaw, ceiling, y, config)?;
+                if probe.pull_in {
+                    // Geometry reaches the cap ray too (a wall): the horizontal
+                    // run it leaves fixes the pitch at which a comfortable boom
+                    // fits. A lift that does not lengthen the boom is not worth
+                    // its pitch: a low ceiling shortens the cap probe, and
+                    // raising into it would only squeeze the arm further.
+                    if probe.distance > slid.distance && run < comfort {
+                        let rise = isqrt_i32(comfort * comfort - run * run);
+                        let wanted = i32::from(pitch_from_vertical_distance(rise, run.max(1)));
+                        (wanted - i32::from(pitch_base)).clamp(0, room) as i16
+                    } else {
+                        0
+                    }
+                } else if prior.distance < comfort {
+                    // The cap ray is clear: something low squeezes the boom and
+                    // any pitch above its top clears it. Raise until the arm is
+                    // comfortable, then hold.
+                    room as i16
+                } else {
+                    self.lift_pitch_q12.min(room as i16)
+                }
+            };
+        } else {
+            self.slide_goal_q12 = 0;
+        }
+        self.lift_check_phase = (self.lift_check_phase + 1) % LIFT_IDLE_CHECK_PERIOD;
+
+        // Escape steering: Bloodborne's faster escape follow going in, the
+        // ordinary one coming back.
+        if target.lock_target.is_none() {
+            let error = i32::from(self.slide_goal_q12) - i32::from(self.slide_yaw_q12);
+            let alpha =
+                if i32::from(self.slide_goal_q12).abs() > i32::from(self.slide_yaw_q12).abs() {
+                    SLIDE_ESCAPE_ALPHA_Q12
+                } else {
+                    SLIDE_RETURN_ALPHA_Q12
+                };
+            let step = (error * alpha) >> 12;
+            self.slide_yaw_q12 += (if step == 0 { error.signum() } else { step }) as i16;
+        }
+
+        let goal = i32::from(self.lift_wall_q12.max(self.lift_sight_q12)).min(room);
+        let goal = if target.lock_target.is_some() {
+            0
+        } else {
+            goal
+        };
+        // The lock-on pitch chase (1-sqrt(1-.3) in Q12) while the player is in
+        // view; three times as fast once the boom is under twice `min_distance`,
+        // so the view clears before she is lost.
+        let error = goal - i32::from(self.lift_pitch_q12);
+        let response = if self.distance < clear_orbit_trigger(config, true) {
+            2048
+        } else {
+            669
+        };
+        let step = error * response / 4096;
+        self.lift_pitch_q12 += (if step == 0 { error.signum() } else { step }) as i16;
+        Ok(())
+    }
+
+    /// Line of sight from the eye to the player's torso. A pillar or ledge
+    /// that stays between them raises the sight lift slowly, after a patience
+    /// of several checks so a pillar passing costs nothing, and it is given
+    /// back once the line is clear.
+    fn check_sight_to_player<C: CameraCollisionBackend>(
+        &mut self,
+        collision: &mut C,
+        target: ThirdPersonCameraTarget,
+        config: ThirdPersonCameraConfig,
+        pitch_base: i16,
+        ceiling: i16,
+    ) -> Result<(), CollisionQueryError> {
+        if target.lock_target.is_some() || !self.escape_checks_due(config) {
+            return Ok(());
+        }
+        let anchor = player_focus(
+            target.player,
+            (config.target_height / 2)
+                .max(config.min_floor_clearance)
+                .min(config.target_height),
+        );
+        let room = i32::from(ceiling.saturating_sub(pitch_base)).max(0);
+        let mut sight = i32::from(self.lift_sight_q12);
+        if collision.sight_clear(self.position, anchor, config)? {
+            self.lift_sight_blocked = 0;
+            self.lift_sight_clear = self.lift_sight_clear.saturating_add(1).min(u8::MAX - 1);
+            if self.lift_sight_clear > SIGHT_HOLD_CHECKS {
+                sight = (sight - i32::from(LIFT_SIGHT_LOWER_Q12)).max(0);
+            }
+        } else {
+            self.lift_sight_clear = 0;
+            self.lift_sight_blocked = self.lift_sight_blocked.saturating_add(1).min(u8::MAX - 1);
+            if self.lift_sight_blocked > SIGHT_PATIENCE_CHECKS {
+                sight = (sight + i32::from(LIFT_SIGHT_RAISE_Q12)).min(room);
+            }
+        }
+        self.lift_sight_q12 = sight as i16;
         Ok(())
     }
 
@@ -1024,11 +1233,133 @@ impl ThirdPersonCameraState {
         self.focus
     }
 
+    /// Pitch the lift-over currently adds to the orbit, in Q0.12 turn units.
+    pub const fn lift_pitch_q12(&self) -> i16 {
+        self.lift_pitch_q12
+    }
+
+    /// Yaw the escape steering has turned the eye away from the stick yaw.
+    pub const fn slide_yaw_q12(&self) -> i16 {
+        self.slide_yaw_q12
+    }
+
+    /// Yaw offset the escape steering currently asks for, before easing.
+    pub const fn escape_goal_q12(&self) -> i16 {
+        self.slide_goal_q12
+    }
+
+    /// The lift each cause currently asks for (squeeze, sight line), in Q0.12
+    /// turn units, before easing. For diagnostics.
+    pub const fn lift_goals_q12(&self) -> (i16, i16) {
+        (self.lift_wall_q12, self.lift_sight_q12)
+    }
+
+    /// True when the last update shortened the arm or clamped the eye to geometry.
+    pub const fn collision_pull_in(&self) -> bool {
+        self.last_pull_in
+    }
+
     /// Current arm length after collision. Under the config's
     /// `min_distance` the eye is inside the player's body.
     pub const fn distance(&self) -> i32 {
         self.distance
     }
+}
+
+/// Probe the arm at the lift cap along `yaw`: the solve, and the horizontal
+/// run it leaves (`i32::MAX` when clear), in the units the boom is measured in.
+fn lift_probe<C: CameraCollisionBackend>(
+    collision: &mut C,
+    focus: RoomPoint,
+    yaw: Angle,
+    ceiling: i16,
+    camera_y: i32,
+    config: ThirdPersonCameraConfig,
+) -> Result<(CollisionSolve, i32), CollisionQueryError> {
+    let probe = collision.solve(focus, yaw, ceiling, camera_y, config)?;
+    let desired = camera_position_at_height(focus, config.distance, yaw, ceiling, camera_y);
+    let dx = desired.x.saturating_sub(focus.x);
+    let dz = desired.z.saturating_sub(focus.z);
+    let horizontal = isqrt_i32(dx.saturating_mul(dx).saturating_add(dz.saturating_mul(dz)));
+    // An unobstructed probe leaves unlimited run.
+    let run = if probe.pull_in {
+        probe.distance.saturating_mul(horizontal) / config.distance.max(1)
+    } else {
+        i32::MAX
+    };
+    Ok((probe, run))
+}
+
+/// Boom length the lift-over aims for when collision squeezes the arm: the
+/// same body-clearing length the wall escape settles on, twice `min_distance`.
+fn lift_comfort_distance(config: ThirdPersonCameraConfig) -> i32 {
+    clear_orbit_trigger(config, true)
+}
+
+/// Highest pitch the lift reaches. The authored orbit limit is higher, but
+/// the lift alone never goes past the cap (a stick pitch above it is kept).
+fn lift_pitch_ceiling(_config: ThirdPersonCameraConfig) -> i16 {
+    LIFT_PITCH_CAP_Q12
+}
+
+/// Signed yaw offset, in Q0.12 turn units, that turns the eye away from a wall
+/// it is squeezed against until a comfortable boom fits, bounded by
+/// `SLIDE_MAX_Q12`; zero when the eye heads away from the plane or the plane is
+/// not a wall. `hit` is the solve at the stick yaw, whose trace normal and
+/// focus-to-plane gap give the geometry. The eye of boom length `comfort`
+/// toward the wall may reach `gap - margin` along the normal, which fixes the
+/// angle to the wall's tangent it has to open to; the sign picks the nearest
+/// tangent, kept while the eye is almost square to the wall so it does not
+/// chatter.
+fn slide_offset_q12(
+    stick_yaw: Angle,
+    hit: CollisionSolve,
+    pitch_q12: i16,
+    config: ThirdPersonCameraConfig,
+    held_slide_q12: i16,
+) -> i32 {
+    let nx = i32::from(hit.normal_q12[0]);
+    let nz = i32::from(hit.normal_q12[2]);
+    let horizontal = isqrt_i32(nx * nx + nz * nz);
+    if horizontal < 2048 {
+        // A floor or ceiling: nothing to slide along.
+        return 0;
+    }
+    let sin = stick_yaw.sin().raw();
+    let cos = stick_yaw.cos().raw();
+    // The eye heads toward the wall when its direction opposes the normal.
+    let toward = -((sin * nx + cos * nz) / horizontal);
+    if toward <= 0 {
+        return 0;
+    }
+    let comfort = lift_comfort_distance(config);
+    let margin = ((comfort * MARGIN_RATIO_Q12) >> 12).min(config.collision_margin);
+    let cos_pitch = signed_q12_angle(pitch_q12).cos().raw().max(1);
+    let reach = (hit.gap - margin).max(0);
+    let allowed = ((reach * 4096 / comfort.max(1)) * 4096 / cos_pitch).min(toward);
+    let to_angle = |sine: i32| {
+        let sine = sine.clamp(0, 4095);
+        i32::from(pitch_from_vertical_distance(
+            sine,
+            isqrt_i32(4096 * 4096 - sine * sine),
+        ))
+    };
+    let magnitude = (to_angle(toward.min(4095)) - to_angle(allowed)).clamp(0, SLIDE_MAX_Q12);
+    if magnitude == 0 {
+        return 0;
+    }
+    // Tangent (-nz, nx): which side the eye direction already leans to.
+    let along = (sin * -nz + cos * nx) / horizontal;
+    let rotates = (cos * -nz - sin * nx) / horizontal; // d(direction)/d(yaw) . tangent
+    let mut sign = if (along >= 0) == (rotates >= 0) {
+        1
+    } else {
+        -1
+    };
+    if held_slide_q12 != 0 && along.abs() < 820 {
+        sign = i32::from(held_slide_q12.signum());
+    }
+    sign * magnitude
 }
 
 /// Orbit step tried when the arm collapses inside the player (1/16 turn).
@@ -1110,26 +1441,21 @@ fn clear_orbit_yaw<C: CameraCollisionBackend>(
 struct CollisionSolve {
     distance: i32,
     pull_in: bool,
+    /// Contact-plane normal of the hit, Q12; zero when the arm was clear.
+    normal_q12: [i16; 3],
+    /// Perpendicular distance from the focus to the contact plane.
+    gap: i32,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-struct CameraRay {
-    from: RoomPoint,
-    to: RoomPoint,
-    dx: i32,
-    dy: i32,
-    dz: i32,
-    distance: i32,
-    sector_size: i32,
-    room_width: i32,
-    room_depth: i32,
-    vertical_margin: i32,
-}
-
-#[derive(Copy, Clone, Debug)]
-enum CameraCollision<'room, 'room_ref, 'rooms> {
-    Single(Option<RoomCollision<'room, 'room_ref>>),
-    Rooms(&'rooms [CharacterCollisionRoom<'room>]),
+impl CollisionSolve {
+    const fn plain(distance: i32, pull_in: bool) -> Self {
+        Self {
+            distance,
+            pull_in,
+            normal_q12: [0; 3],
+            gap: 0,
+        }
+    }
 }
 
 trait CameraCollisionBackend {
@@ -1154,64 +1480,50 @@ trait CameraCollisionBackend {
         position: RoomPoint,
         min_floor_clearance: i32,
     ) -> Result<RoomPoint, CollisionQueryError>;
+
+    /// True when nothing solid lies between two points. No margin.
+    fn sight_clear(
+        &mut self,
+        from: RoomPoint,
+        to: RoomPoint,
+        config: ThirdPersonCameraConfig,
+    ) -> Result<bool, CollisionQueryError> {
+        let mut config = config;
+        config.collision_margin = 0;
+        Ok(self.constrain_segment(from, to, config)? == to)
+    }
 }
 
-struct GridCameraCollision<'room, 'room_ref, 'rooms> {
-    collision: CameraCollision<'room, 'room_ref, 'rooms>,
-}
+/// Free-space backend: nothing blocks the boom and there is no floor.
+struct OpenCameraCollision;
 
-impl CameraCollisionBackend for GridCameraCollision<'_, '_, '_> {
+impl CameraCollisionBackend for OpenCameraCollision {
     fn constrain_segment(
         &mut self,
-        start: RoomPoint,
+        _start: RoomPoint,
         end: RoomPoint,
-        mut config: ThirdPersonCameraConfig,
+        _config: ThirdPersonCameraConfig,
     ) -> Result<RoomPoint, CollisionQueryError> {
-        let span = segment_span(start, end);
-        if span == 0 {
-            return Ok(end);
-        }
-        config.distance = span;
-        let clear = match self.collision {
-            CameraCollision::Single(Some(room)) => {
-                probe_clear_distance(room, start, end, span, config)
-            }
-            CameraCollision::Single(None) => span,
-            CameraCollision::Rooms(rooms) => {
-                probe_clear_distance_rooms(rooms, start, end, span, config)
-            }
-        };
-        Ok(lerp_clear_segment(start, end, clear, span))
+        Ok(end)
     }
 
     fn solve(
         &mut self,
-        focus: RoomPoint,
-        yaw: Angle,
-        pitch_q12: i16,
-        camera_y: i32,
+        _focus: RoomPoint,
+        _yaw: Angle,
+        _pitch_q12: i16,
+        _camera_y: i32,
         config: ThirdPersonCameraConfig,
     ) -> Result<CollisionSolve, CollisionQueryError> {
-        Ok(solve_camera_collision_context(
-            self.collision,
-            focus,
-            yaw,
-            pitch_q12,
-            camera_y,
-            config,
-        ))
+        Ok(CollisionSolve::plain(config.distance, false))
     }
 
     fn clamp_to_floor(
         &mut self,
         position: RoomPoint,
-        min_floor_clearance: i32,
+        _min_floor_clearance: i32,
     ) -> Result<RoomPoint, CollisionQueryError> {
-        Ok(clamp_camera_to_floor_context(
-            self.collision,
-            position,
-            min_floor_clearance,
-        ))
+        Ok(position)
     }
 }
 
@@ -1237,9 +1549,18 @@ impl<P: CollisionTraceProvider + ?Sized> CameraCollisionBackend for TraceCameraC
         if !trace.hit() {
             return Ok(end);
         }
-        let clear = mul_q12_i32(span, trace.fraction_q12)
-            .saturating_sub(config.collision_margin)
-            .max(0);
+        let hit = mul_q12_i32(span, trace.fraction_q12);
+        let backoff = margin_backoff(
+            trace.normal_q12,
+            [
+                end.x.saturating_sub(start.x),
+                end.y.saturating_sub(start.y),
+                end.z.saturating_sub(start.z),
+            ],
+            hit,
+            config.collision_margin,
+        );
+        let clear = hit.saturating_sub(backoff).max(0);
         Ok(lerp_clear_segment(start, end, clear, span))
     }
 
@@ -1261,49 +1582,20 @@ impl<P: CollisionTraceProvider + ?Sized> CameraCollisionBackend for TraceCameraC
     ) -> Result<RoomPoint, CollisionQueryError> {
         clamp_camera_to_floor_trace(self.provider, position, min_floor_clearance)
     }
-}
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-struct CheckedCameraCells {
-    bitset: [u32; CHECKED_CAMERA_CELL_WORDS],
-    cells: [u32; MAX_RAY_CHECKED_CELLS],
-    len: usize,
-}
-
-impl CheckedCameraCells {
-    const EMPTY_CELL: u32 = u32::MAX;
-
-    const fn new() -> Self {
-        Self {
-            bitset: [0; CHECKED_CAMERA_CELL_WORDS],
-            cells: [Self::EMPTY_CELL; MAX_RAY_CHECKED_CELLS],
-            len: 0,
+    fn sight_clear(
+        &mut self,
+        from: RoomPoint,
+        to: RoomPoint,
+        _config: ThirdPersonCameraConfig,
+    ) -> Result<bool, CollisionQueryError> {
+        if segment_span(from, to) == 0 {
+            return Ok(true);
         }
-    }
-
-    fn visit(&mut self, key: u32) -> bool {
-        let word = (key / 32) as usize;
-        if word < self.bitset.len() {
-            let mask = 1u32 << (key & 31);
-            if self.bitset[word] & mask != 0 {
-                return false;
-            }
-            self.bitset[word] |= mask;
-            return true;
-        }
-
-        let mut i = 0;
-        while i < self.len {
-            if self.cells[i] == key {
-                return false;
-            }
-            i += 1;
-        }
-        if self.len < self.cells.len() {
-            self.cells[self.len] = key;
-            self.len += 1;
-        }
-        true
+        let trace = trace_collision(self.provider, CollisionTraceQuery::point(from, to))?;
+        // A start inside solid is the eye in geometry, not an occluder to
+        // lift over; the arm solve owns that case.
+        Ok(trace.start_solid || trace.all_solid || !trace.hit())
     }
 }
 
@@ -1426,6 +1718,43 @@ fn clamp_camera_to_floor_trace<P: CollisionTraceProvider + ?Sized>(
     }
 }
 
+/// How far to back a traced arm off its hit, so the eye ends clear of the
+/// contact plane by a margin that grows with the arm. Bloodborne's final safety
+/// stage shortens the boom by 10% up to a cap; here the margin is that fraction
+/// of the final arm, measured perpendicular to the plane (along the ray a
+/// grazing arm left the eye 2 units off the wall under a fixed 12 margin), with
+/// `margin_cap` as the cap. `hit` is the arm at contact in the units the
+/// segment is measured in, `delta` the segment. A trace that reports no plane
+/// keeps a fixed along-ray margin.
+fn margin_backoff(normal_q12: [i16; 3], delta: [i32; 3], hit: i32, margin_cap: i32) -> i32 {
+    if margin_cap <= 0 {
+        return 0;
+    }
+    let dot = abs_i32(
+        i32::from(normal_q12[0]) * delta[0]
+            + i32::from(normal_q12[1]) * delta[1]
+            + i32::from(normal_q12[2]) * delta[2],
+    );
+    let length = isqrt_i32(
+        delta[0]
+            .saturating_mul(delta[0])
+            .saturating_add(delta[1].saturating_mul(delta[1]))
+            .saturating_add(delta[2].saturating_mul(delta[2])),
+    );
+    if dot == 0 || length == 0 {
+        return margin_cap;
+    }
+    // Sine of the angle between the segment and the plane, Q12.
+    let sin = (dot / length).clamp(1, 4096);
+    let proportional = hit.saturating_mul(sin) / (sin + MARGIN_RATIO_Q12);
+    let arm = if (proportional.saturating_mul(MARGIN_RATIO_Q12) >> 12) <= margin_cap {
+        proportional
+    } else {
+        hit.saturating_sub(margin_cap.saturating_mul(4096) / sin)
+    };
+    hit.saturating_sub(arm.max(0)).max(0)
+}
+
 fn solve_camera_collision_trace<P: CollisionTraceProvider + ?Sized>(
     provider: &mut P,
     focus: RoomPoint,
@@ -1437,10 +1766,7 @@ fn solve_camera_collision_trace<P: CollisionTraceProvider + ?Sized>(
     let desired = camera_position_at_height(focus, config.distance, yaw, pitch_q12, camera_y);
     let trace = trace_collision(provider, CollisionTraceQuery::point(focus, desired))?;
     if !trace.hit() && !trace.all_solid {
-        return Ok(CollisionSolve {
-            distance: config.distance,
-            pull_in: false,
-        });
+        return Ok(CollisionSolve::plain(config.distance, false));
     }
     let fraction = trace.fraction_q12.clamp(0, COLLISION_FRACTION_ONE_Q12);
     let clear = if trace.start_solid || trace.all_solid {
@@ -1448,595 +1774,39 @@ fn solve_camera_collision_trace<P: CollisionTraceProvider + ?Sized>(
     } else {
         mul_q12_i32(config.distance.max(1), fraction)
     };
-    let distance = clear
-        .saturating_sub(config.collision_margin)
-        .clamp(0, config.distance);
+    let backoff = margin_backoff(
+        trace.normal_q12,
+        [
+            desired.x.saturating_sub(focus.x),
+            desired.y.saturating_sub(focus.y),
+            desired.z.saturating_sub(focus.z),
+        ],
+        clear,
+        config.collision_margin,
+    );
+    let distance = clear.saturating_sub(backoff).clamp(0, config.distance);
+    let pull_in = distance < config.distance;
+    let gap = if pull_in {
+        let d = [
+            trace.end.x.saturating_sub(focus.x),
+            trace.end.y.saturating_sub(focus.y),
+            trace.end.z.saturating_sub(focus.z),
+        ];
+        abs_i32(
+            (i32::from(trace.normal_q12[0]) * d[0]
+                + i32::from(trace.normal_q12[1]) * d[1]
+                + i32::from(trace.normal_q12[2]) * d[2])
+                >> 12,
+        )
+    } else {
+        0
+    };
     Ok(CollisionSolve {
         distance,
-        pull_in: distance < config.distance,
+        pull_in,
+        normal_q12: if pull_in { trace.normal_q12 } else { [0; 3] },
+        gap,
     })
-}
-
-fn clamp_camera_to_floor(
-    collision: Option<RoomCollision<'_, '_>>,
-    position: RoomPoint,
-    min_floor_clearance: i32,
-) -> RoomPoint {
-    let Some(room) = collision else {
-        return position;
-    };
-    if min_floor_clearance <= 0 {
-        return position;
-    }
-    let Some(floor_y) = floor_height_at(room, position.x, position.z) else {
-        return position;
-    };
-    let Some(min_y) = floor_y.checked_add(min_floor_clearance) else {
-        return position;
-    };
-    if position.y < min_y {
-        RoomPoint::new(position.x, min_y, position.z)
-    } else {
-        position
-    }
-}
-
-fn clamp_camera_to_floor_context(
-    collision: CameraCollision<'_, '_, '_>,
-    position: RoomPoint,
-    min_floor_clearance: i32,
-) -> RoomPoint {
-    match collision {
-        CameraCollision::Single(room) => clamp_camera_to_floor(room, position, min_floor_clearance),
-        CameraCollision::Rooms(rooms) => {
-            clamp_camera_to_floor_rooms(rooms, position, min_floor_clearance)
-        }
-    }
-}
-
-fn clamp_camera_to_floor_rooms(
-    rooms: &[CharacterCollisionRoom<'_>],
-    position: RoomPoint,
-    min_floor_clearance: i32,
-) -> RoomPoint {
-    if min_floor_clearance <= 0 {
-        return position;
-    }
-    let Some(floor_y) = floor_height_at_rooms(rooms, position) else {
-        return position;
-    };
-    let Some(min_y) = floor_y.checked_add(min_floor_clearance) else {
-        return position;
-    };
-    if position.y < min_y {
-        RoomPoint::new(position.x, min_y, position.z)
-    } else {
-        position
-    }
-}
-
-fn floor_height_at_rooms(rooms: &[CharacterCollisionRoom<'_>], point: RoomPoint) -> Option<i32> {
-    let mut i = 0usize;
-    while i < rooms.len() && i < MAX_CAMERA_COLLISION_ROOMS {
-        let entry = rooms[i];
-        if let Some(room) = entry.room {
-            let local = collision_room_local_point(entry, point);
-            if let Some(height) = floor_height_at(room.collision(), local.x, local.z) {
-                return Some(height);
-            }
-        }
-        i += 1;
-    }
-    None
-}
-
-fn collision_room_local_point(entry: CharacterCollisionRoom<'_>, point: RoomPoint) -> RoomPoint {
-    RoomPoint::new(
-        point.x.saturating_sub(entry.offset_x),
-        point.y,
-        point.z.saturating_sub(entry.offset_z),
-    )
-}
-
-fn floor_height_at(room: RoomCollision<'_, '_>, x: i32, z: i32) -> Option<i32> {
-    let s = room.sector_size();
-    if s <= 0 || x < 0 || z < 0 {
-        return None;
-    }
-    let sx = x / s;
-    let sz = z / s;
-    if sx < 0 || sz < 0 || sx >= room.width() as i32 || sz >= room.depth() as i32 {
-        return None;
-    }
-    let local_x = (x - sx * s).clamp(0, s);
-    let local_z = (z - sz * s).clamp(0, s);
-    let sector = room.sector_floor_collision(sx as u16, sz as u16, local_x, local_z, s)?;
-    let heights = triangle_heights_to_quad(
-        sector.floor_heights(),
-        sector.split(),
-        sector.triangle(),
-        sector.triangle_heights(),
-    );
-    Some(height_at_local(
-        heights,
-        sector.split(),
-        local_x,
-        local_z,
-        s,
-    ))
-}
-
-fn solve_camera_collision(
-    collision: Option<RoomCollision<'_, '_>>,
-    focus: RoomPoint,
-    yaw: Angle,
-    pitch_q12: i16,
-    camera_y: i32,
-    config: ThirdPersonCameraConfig,
-) -> CollisionSolve {
-    let Some(room) = collision else {
-        return CollisionSolve {
-            distance: config.distance,
-            pull_in: false,
-        };
-    };
-
-    let desired = camera_position_at_height(focus, config.distance, yaw, pitch_q12, camera_y);
-    let clear = probe_clear_distance(room, focus, desired, config.distance, config);
-    let distance = clear.clamp(0, config.distance);
-    CollisionSolve {
-        distance,
-        pull_in: distance < config.distance,
-    }
-}
-
-fn solve_camera_collision_context(
-    collision: CameraCollision<'_, '_, '_>,
-    focus: RoomPoint,
-    yaw: Angle,
-    pitch_q12: i16,
-    camera_y: i32,
-    config: ThirdPersonCameraConfig,
-) -> CollisionSolve {
-    match collision {
-        CameraCollision::Single(room) => {
-            solve_camera_collision(room, focus, yaw, pitch_q12, camera_y, config)
-        }
-        CameraCollision::Rooms(rooms) => {
-            solve_camera_collision_rooms(rooms, focus, yaw, pitch_q12, camera_y, config)
-        }
-    }
-}
-
-fn solve_camera_collision_rooms(
-    rooms: &[CharacterCollisionRoom<'_>],
-    focus: RoomPoint,
-    yaw: Angle,
-    pitch_q12: i16,
-    camera_y: i32,
-    config: ThirdPersonCameraConfig,
-) -> CollisionSolve {
-    if rooms.is_empty() {
-        return CollisionSolve {
-            distance: config.distance,
-            pull_in: false,
-        };
-    }
-
-    let desired = camera_position_at_height(focus, config.distance, yaw, pitch_q12, camera_y);
-    let clear = probe_clear_distance_rooms(rooms, focus, desired, config.distance, config);
-    let distance = clear.clamp(0, config.distance);
-    CollisionSolve {
-        distance,
-        pull_in: distance < config.distance,
-    }
-}
-
-fn probe_clear_distance(
-    room: RoomCollision<'_, '_>,
-    from: RoomPoint,
-    to: RoomPoint,
-    max_distance: i32,
-    config: ThirdPersonCameraConfig,
-) -> i32 {
-    let max_distance = max_distance.max(1);
-    let sector = room.sector_size().max(1);
-    let ray = CameraRay {
-        from,
-        to,
-        dx: to.x.saturating_sub(from.x),
-        dy: to.y.saturating_sub(from.y),
-        dz: to.z.saturating_sub(from.z),
-        distance: max_distance,
-        sector_size: sector,
-        room_width: room.width() as i32,
-        room_depth: room.depth() as i32,
-        vertical_margin: config.collision_margin,
-    };
-    let mut steps = (max_distance / (sector / 4).max(1)).clamp(RAY_STEPS_MIN, RAY_STEPS_MAX);
-    if steps <= 0 {
-        steps = RAY_STEPS_MIN;
-    }
-
-    let mut nearest = max_distance;
-    let mut last_clear_distance = 0;
-    let mut checked_cells = CheckedCameraCells::new();
-    let mut i = 1;
-    while i <= steps {
-        let sample = lerp_vertex(from, to, i, steps);
-        if point_outside_camera_space(room, sample, sector, ray.room_width, ray.room_depth) {
-            nearest = last_clear_distance.min(nearest);
-            break;
-        }
-        if let Some(hit) = nearest_wall_hit_around(room, sample, ray, &mut checked_cells) {
-            nearest = hit.min(nearest);
-            break;
-        }
-        last_clear_distance = (max_distance.saturating_mul(i)) / steps;
-        i += 1;
-    }
-
-    if last_clear_distance == max_distance {
-        max_distance
-    } else {
-        nearest
-            .saturating_sub(config.collision_margin)
-            .clamp(0, config.distance)
-    }
-}
-
-fn probe_clear_distance_rooms(
-    rooms: &[CharacterCollisionRoom<'_>],
-    from: RoomPoint,
-    to: RoomPoint,
-    max_distance: i32,
-    config: ThirdPersonCameraConfig,
-) -> i32 {
-    let Some(sector) = first_collision_room_sector_size(rooms) else {
-        return config.distance;
-    };
-    let max_distance = max_distance.max(1);
-    let mut steps = (max_distance / (sector / 4).max(1)).clamp(RAY_STEPS_MIN, RAY_STEPS_MAX);
-    if steps <= 0 {
-        steps = RAY_STEPS_MIN;
-    }
-
-    let mut nearest = max_distance;
-    let mut last_clear_distance = 0;
-    let mut checked_cells = [const { CheckedCameraCells::new() }; MAX_CAMERA_COLLISION_ROOMS];
-    let mut i = 1;
-    while i <= steps {
-        let sample = lerp_vertex(from, to, i, steps);
-        if point_outside_camera_rooms(rooms, sample) {
-            nearest = last_clear_distance.min(nearest);
-            break;
-        }
-        if let Some(hit) = nearest_wall_hit_around_rooms(
-            rooms,
-            from,
-            to,
-            max_distance,
-            sample,
-            config,
-            &mut checked_cells,
-        ) {
-            nearest = hit.min(nearest);
-            break;
-        }
-        last_clear_distance = (max_distance.saturating_mul(i)) / steps;
-        i += 1;
-    }
-
-    if last_clear_distance == max_distance {
-        max_distance
-    } else {
-        nearest
-            .saturating_sub(config.collision_margin)
-            .clamp(0, config.distance)
-    }
-}
-
-fn first_collision_room_sector_size(rooms: &[CharacterCollisionRoom<'_>]) -> Option<i32> {
-    let mut i = 0usize;
-    while i < rooms.len() && i < MAX_CAMERA_COLLISION_ROOMS {
-        if let Some(room) = rooms[i].room {
-            return Some(room.collision().sector_size().max(1));
-        }
-        i += 1;
-    }
-    None
-}
-
-fn point_outside_camera_space(
-    room: RoomCollision<'_, '_>,
-    point: RoomPoint,
-    sector_size: i32,
-    room_width: i32,
-    room_depth: i32,
-) -> bool {
-    if point.x < 0 || point.z < 0 {
-        return true;
-    }
-    let sx = point.x / sector_size;
-    let sz = point.z / sector_size;
-    if sx < 0 || sz < 0 || sx >= room_width || sz >= room_depth {
-        return true;
-    }
-    match room.sector_probe(sx as u16, sz as u16) {
-        Some(sector) => !sector.has_floor(),
-        None => true,
-    }
-}
-
-fn point_outside_camera_rooms(rooms: &[CharacterCollisionRoom<'_>], point: RoomPoint) -> bool {
-    let mut i = 0usize;
-    while i < rooms.len() && i < MAX_CAMERA_COLLISION_ROOMS {
-        let entry = rooms[i];
-        if let Some(room) = entry.room {
-            let collision = room.collision();
-            let local = collision_room_local_point(entry, point);
-            if !point_outside_camera_space(
-                collision,
-                local,
-                collision.sector_size().max(1),
-                collision.width() as i32,
-                collision.depth() as i32,
-            ) {
-                return false;
-            }
-        }
-        i += 1;
-    }
-    true
-}
-
-fn nearest_wall_hit_around(
-    room: RoomCollision<'_, '_>,
-    sample: RoomPoint,
-    ray: CameraRay,
-    checked_cells: &mut CheckedCameraCells,
-) -> Option<i32> {
-    if sample.x < 0 || sample.z < 0 {
-        return None;
-    }
-    let sx = sample.x / ray.sector_size;
-    let sz = sample.z / ray.sector_size;
-    let mut nearest: Option<i32> = None;
-    let mut ox = -1;
-    while ox <= 1 {
-        let mut oz = -1;
-        while oz <= 1 {
-            let cx = sx + ox;
-            let cz = sz + oz;
-            if cx >= 0 && cz >= 0 && cx < ray.room_width && cz < ray.room_depth {
-                let key = (cx as u32)
-                    .saturating_mul(ray.room_depth as u32)
-                    .saturating_add(cz as u32);
-                if !checked_cells.visit(key) {
-                    oz += 1;
-                    continue;
-                }
-                if let Some(sector) = room.sector_probe(cx as u16, cz as u16) {
-                    let mut i = 0;
-                    while i < sector.wall_count() {
-                        if let Some(wall) = room.sector_probe_wall(sector, i) {
-                            if wall.solid() {
-                                if let Some(hit) = segment_wall_hit_distance(
-                                    ray,
-                                    cx,
-                                    cz,
-                                    wall.direction(),
-                                    wall.heights(),
-                                ) {
-                                    nearest = Some(match nearest {
-                                        Some(prev) => prev.min(hit),
-                                        None => hit,
-                                    });
-                                }
-                            }
-                        }
-                        i += 1;
-                    }
-                }
-            }
-            oz += 1;
-        }
-        ox += 1;
-    }
-    nearest
-}
-
-fn nearest_wall_hit_around_rooms(
-    rooms: &[CharacterCollisionRoom<'_>],
-    from: RoomPoint,
-    to: RoomPoint,
-    max_distance: i32,
-    sample: RoomPoint,
-    config: ThirdPersonCameraConfig,
-    checked_cells: &mut [CheckedCameraCells; MAX_CAMERA_COLLISION_ROOMS],
-) -> Option<i32> {
-    let mut nearest: Option<i32> = None;
-    let mut i = 0usize;
-    while i < rooms.len() && i < MAX_CAMERA_COLLISION_ROOMS {
-        let entry = rooms[i];
-        if let Some(room) = entry.room {
-            let collision = room.collision();
-            let local_from = collision_room_local_point(entry, from);
-            let local_to = collision_room_local_point(entry, to);
-            let local_sample = collision_room_local_point(entry, sample);
-            let ray = CameraRay {
-                from: local_from,
-                to: local_to,
-                dx: local_to.x.saturating_sub(local_from.x),
-                dy: local_to.y.saturating_sub(local_from.y),
-                dz: local_to.z.saturating_sub(local_from.z),
-                distance: max_distance,
-                sector_size: collision.sector_size().max(1),
-                room_width: collision.width() as i32,
-                room_depth: collision.depth() as i32,
-                vertical_margin: config.collision_margin,
-            };
-            if let Some(hit) =
-                nearest_wall_hit_around(collision, local_sample, ray, &mut checked_cells[i])
-            {
-                nearest = Some(match nearest {
-                    Some(prev) => prev.min(hit),
-                    None => hit,
-                });
-            }
-        }
-        i += 1;
-    }
-    nearest
-}
-
-fn segment_wall_hit_distance(
-    ray: CameraRay,
-    sx: i32,
-    sz: i32,
-    direction: u8,
-    heights: [i32; 4],
-) -> Option<i32> {
-    if ray.distance <= 0 {
-        return None;
-    }
-    let sector_size = ray.sector_size;
-    let x0 = sx.saturating_mul(sector_size);
-    let x1 = x0.saturating_add(sector_size);
-    let z0 = sz.saturating_mul(sector_size);
-    let z1 = z0.saturating_add(sector_size);
-    let diagonal_axis_q12 = match direction {
-        DIR_NORTH_WEST_SOUTH_EAST => {
-            intersect_segment_q12(ray.from.x, ray.from.z, ray.dx, ray.dz, x0, z0, x1, z1)
-        }
-        DIR_NORTH_EAST_SOUTH_WEST => {
-            intersect_segment_q12(ray.from.x, ray.from.z, ray.dx, ray.dz, x1, z0, x0, z1)
-        }
-        _ => None,
-    };
-    let t_q12 = match direction {
-        DIR_NORTH => intersect_horizontal_q12(ray.from.z, ray.dz, z0),
-        DIR_SOUTH => intersect_horizontal_q12(ray.from.z, ray.dz, z1),
-        DIR_EAST => intersect_vertical_q12(ray.from.x, ray.dx, x1),
-        DIR_WEST => intersect_vertical_q12(ray.from.x, ray.dx, x0),
-        DIR_NORTH_WEST_SOUTH_EAST | DIR_NORTH_EAST_SOUTH_WEST => diagonal_axis_q12.map(|(t, _)| t),
-        _ => None,
-    }?;
-    if !(0..=Q12::SCALE).contains(&t_q12) {
-        return None;
-    }
-    let t = Q12::from_raw(t_q12);
-    let x_at = ray.from.x.saturating_add(t.mul_i32(ray.dx));
-    let y_at = ray.from.y.saturating_add(t.mul_i32(ray.dy));
-    let z_at = ray.from.z.saturating_add(t.mul_i32(ray.dz));
-    let wall_axis_q12 = match direction {
-        DIR_NORTH | DIR_SOUTH => {
-            if x_at < x0 || x_at > x1 {
-                return None;
-            }
-            (x_at.saturating_sub(x0))
-                .saturating_mul(Q12::SCALE)
-                .checked_div(sector_size.max(1))?
-        }
-        DIR_EAST | DIR_WEST => {
-            if z_at < z0 || z_at > z1 {
-                return None;
-            }
-            (z_at.saturating_sub(z0))
-                .saturating_mul(Q12::SCALE)
-                .checked_div(sector_size.max(1))?
-        }
-        DIR_NORTH_WEST_SOUTH_EAST | DIR_NORTH_EAST_SOUTH_WEST => diagonal_axis_q12?.1,
-        _ => return None,
-    };
-    let axis = Q12::from_raw(wall_axis_q12.clamp(0, Q12::SCALE));
-    let (bottom, top) = match direction {
-        DIR_NORTH | DIR_EAST | DIR_NORTH_WEST_SOUTH_EAST | DIR_NORTH_EAST_SOUTH_WEST => (
-            lerp_i32(heights[0], heights[1], axis),
-            lerp_i32(heights[3], heights[2], axis),
-        ),
-        DIR_SOUTH | DIR_WEST => (
-            lerp_i32(heights[1], heights[0], axis),
-            lerp_i32(heights[2], heights[3], axis),
-        ),
-        _ => return None,
-    };
-    let min_y = bottom.min(top).saturating_sub(ray.vertical_margin);
-    let max_y = bottom.max(top).saturating_add(ray.vertical_margin);
-    if y_at < min_y || y_at > max_y {
-        return None;
-    }
-    Some(t.mul_i32(ray.distance))
-}
-
-fn intersect_segment_q12(
-    from_x: i32,
-    from_z: i32,
-    dx: i32,
-    dz: i32,
-    ax: i32,
-    az: i32,
-    bx: i32,
-    bz: i32,
-) -> Option<(i32, i32)> {
-    let sx = bx.saturating_sub(ax);
-    let sz = bz.saturating_sub(az);
-    let qx = ax.saturating_sub(from_x);
-    let qz = az.saturating_sub(from_z);
-    let denom = cross_i32(dx, dz, sx, sz);
-    if denom == 0 {
-        return None;
-    }
-    let t_num = cross_i32(qx, qz, sx, sz);
-    let u_num = cross_i32(qx, qz, dx, dz);
-    let t_q12 = div_q12_signed(t_num, denom)?;
-    let u_q12 = div_q12_signed(u_num, denom)?;
-    if !(0..=Q12::SCALE).contains(&t_q12) || !(0..=Q12::SCALE).contains(&u_q12) {
-        return None;
-    }
-    Some((t_q12, u_q12))
-}
-
-fn cross_i32(ax: i32, az: i32, bx: i32, bz: i32) -> i32 {
-    ax.saturating_mul(bz).saturating_sub(az.saturating_mul(bx))
-}
-
-fn div_q12_signed(num: i32, denom: i32) -> Option<i32> {
-    if denom == 0 {
-        None
-    } else {
-        Some(div_q12_i32(num, denom))
-    }
-}
-
-fn intersect_horizontal_q12(from_z: i32, dz: i32, wall_z: i32) -> Option<i32> {
-    if dz == 0 {
-        return None;
-    }
-    let delta = wall_z.saturating_sub(from_z);
-    if !delta_within_segment(delta, dz) {
-        return None;
-    }
-    delta.saturating_mul(Q12::SCALE).checked_div(dz)
-}
-
-fn intersect_vertical_q12(from_x: i32, dx: i32, wall_x: i32) -> Option<i32> {
-    if dx == 0 {
-        return None;
-    }
-    let delta = wall_x.saturating_sub(from_x);
-    if !delta_within_segment(delta, dx) {
-        return None;
-    }
-    delta.saturating_mul(Q12::SCALE).checked_div(dx)
-}
-
-fn delta_within_segment(delta: i32, axis_delta: i32) -> bool {
-    if axis_delta > 0 {
-        delta >= 0 && delta <= axis_delta
-    } else {
-        delta <= 0 && delta >= axis_delta
-    }
 }
 
 fn camera_position(focus: RoomPoint, distance: i32, yaw: Angle, pitch_q12: i16) -> RoomPoint {
@@ -2154,10 +1924,6 @@ fn signed_q12_angle(q12: i16) -> Angle {
     Angle::from_q12(((q12 as i32) & 0x0FFF) as u16)
 }
 
-fn lerp_i32(a: i32, b: i32, t: Q12) -> i32 {
-    a.saturating_add(t.mul_i32(b.saturating_sub(a)))
-}
-
 fn yaw_to_point(from: RoomPoint, to: RoomPoint) -> Angle {
     let dx = to.x.saturating_sub(from.x);
     let dz = to.z.saturating_sub(from.z);
@@ -2234,8 +2000,9 @@ fn lerp_vertex(from: RoomPoint, to: RoomPoint, num: i32, den: i32) -> RoomPoint 
 
 #[cfg(test)]
 mod tests {
+    extern crate std;
     use super::*;
-    use crate::{CharacterBlockerTraceProvider, CharacterCollisionAabb, RuntimeRoom};
+    use crate::{CharacterBlockerTraceProvider, CharacterCollisionAabb};
 
     struct ClearTraceProvider;
 
@@ -2447,10 +2214,7 @@ mod tests {
             } else {
                 self.side_distance
             };
-            Ok(CollisionSolve {
-                distance,
-                pull_in: distance < config.distance,
-            })
+            Ok(CollisionSolve::plain(distance, distance < config.distance))
         }
     }
 
@@ -2576,7 +2340,8 @@ mod tests {
             .expect("trace camera update");
         assert!(frame.collision_pull_in);
         assert_eq!(frame.distance, 690);
-        assert_eq!(provider.calls, 1);
+        // The spring-arm solve, the lift probe and the sight check.
+        assert_eq!(provider.calls, 3);
     }
 
     #[test]
@@ -3010,56 +2775,6 @@ mod tests {
         assert_eq!(camera, before);
     }
 
-    fn test_ray(
-        from: RoomPoint,
-        to: RoomPoint,
-        distance: i32,
-        sector_size: i32,
-        vertical_margin: i32,
-    ) -> CameraRay {
-        CameraRay {
-            from,
-            to,
-            dx: to.x.saturating_sub(from.x),
-            dy: to.y.saturating_sub(from.y),
-            dz: to.z.saturating_sub(from.z),
-            distance,
-            sector_size,
-            room_width: 1,
-            room_depth: 1,
-            vertical_margin,
-        }
-    }
-
-    fn flat_floor_world() -> [u8; 92] {
-        floor_world_with_heights([0, 0, 0, 0])
-    }
-
-    fn floor_world_with_heights(heights: [i32; 4]) -> [u8; 92] {
-        const ASSET_HEADER: usize = 12;
-        const WORLD_HEADER: usize = 20;
-        const SECTOR_RECORD: usize = 60;
-        const SECTOR0: usize = ASSET_HEADER + WORLD_HEADER;
-        let payload_len = (WORLD_HEADER + SECTOR_RECORD) as u32;
-        let mut buf = [0u8; 92];
-        buf[0..4].copy_from_slice(b"PSXW");
-        buf[4..6].copy_from_slice(&3u16.to_le_bytes());
-        buf[8..12].copy_from_slice(&payload_len.to_le_bytes());
-        buf[12..14].copy_from_slice(&1u16.to_le_bytes());
-        buf[14..16].copy_from_slice(&1u16.to_le_bytes());
-        buf[16..20].copy_from_slice(&1024i32.to_le_bytes());
-        buf[20..22].copy_from_slice(&1u16.to_le_bytes());
-        buf[22..24].copy_from_slice(&1u16.to_le_bytes());
-
-        buf[SECTOR0] = 1 | 4;
-        buf[SECTOR0 + 4..SECTOR0 + 6].copy_from_slice(&0u16.to_le_bytes());
-        for (index, height) in heights.iter().enumerate() {
-            let start = SECTOR0 + 12 + index * 4;
-            buf[start..start + 4].copy_from_slice(&height.to_le_bytes());
-        }
-        buf
-    }
-
     #[test]
     fn yaw_to_point_matches_cardinal_axes() {
         let origin = RoomPoint::ZERO;
@@ -3085,108 +2800,6 @@ mod tests {
             Angle::from_q12(20).approach_q12(Angle::from_q12(4000), 16),
             Angle::from_q12(4)
         );
-    }
-
-    #[test]
-    fn segment_wall_hit_finds_cardinal_crossing() {
-        let from = RoomPoint::new(512, 0, 512);
-        let to = RoomPoint::new(1536, 0, 512);
-        let heights = [-512, -512, 512, 512];
-        let ray = test_ray(from, to, 1024, 1024, 0);
-        assert_eq!(
-            segment_wall_hit_distance(ray, 0, 0, DIR_EAST, heights),
-            Some(512)
-        );
-        assert_eq!(
-            segment_wall_hit_distance(ray, 0, 0, DIR_NORTH, heights),
-            None
-        );
-    }
-
-    #[test]
-    fn segment_wall_hit_finds_diagonal_crossing() {
-        let from = RoomPoint::new(512, 0, 0);
-        let to = RoomPoint::new(512, 0, 1024);
-        let heights = [-512, -512, 512, 512];
-        let ray = test_ray(from, to, 1024, 1024, 0);
-
-        assert_eq!(
-            segment_wall_hit_distance(ray, 0, 0, DIR_NORTH_WEST_SOUTH_EAST, heights),
-            Some(512)
-        );
-        assert_eq!(
-            segment_wall_hit_distance(ray, 0, 0, DIR_NORTH_EAST_SOUTH_WEST, heights),
-            Some(512)
-        );
-    }
-
-    #[test]
-    fn segment_wall_hit_ignores_camera_ray_above_wall() {
-        let from = RoomPoint::new(512, 900, 512);
-        let to = RoomPoint::new(1536, 900, 512);
-        let heights = [0, 0, 512, 512];
-        let ray = test_ray(from, to, 1024, 1024, 0);
-
-        assert_eq!(
-            segment_wall_hit_distance(ray, 0, 0, DIR_EAST, heights),
-            None
-        );
-    }
-
-    #[test]
-    fn movement_does_not_auto_align_by_default() {
-        let mut camera = ThirdPersonCameraState::new(Angle::HALF);
-        let config = ThirdPersonCameraConfig::character(1400, 700, 0);
-        let target = ThirdPersonCameraTarget {
-            player: RoomPoint::ZERO,
-            player_yaw: Angle::ZERO,
-            moving: true,
-            lock_target: None,
-        };
-        camera.snap_to_player_with_yaw(target, config, Angle::HALF.add_signed_q12(128));
-
-        let frame = camera.update(
-            WorldProjection::new(160, 120, 320, 64),
-            None,
-            target,
-            ThirdPersonCameraInput::default(),
-            config,
-        );
-        assert_eq!(frame.yaw, Angle::HALF.add_signed_q12(128));
-    }
-
-    #[test]
-    fn manual_input_sets_cooldown_and_prevents_configured_auto_align() {
-        let mut camera = ThirdPersonCameraState::new(Angle::HALF);
-        let mut config = ThirdPersonCameraConfig::character(1400, 700, 0);
-        config.auto_align_when_moving = true;
-        let target = ThirdPersonCameraTarget {
-            player: RoomPoint::ZERO,
-            player_yaw: Angle::ZERO,
-            moving: true,
-            lock_target: None,
-        };
-        let frame = camera.update(
-            WorldProjection::new(160, 120, 320, 64),
-            None,
-            target,
-            ThirdPersonCameraInput {
-                yaw_delta_q12: 128,
-                pitch_delta_q12: 0,
-                recenter: false,
-            },
-            config,
-        );
-        assert_eq!(frame.yaw, Angle::HALF.add_signed_q12(128));
-        assert_eq!(frame.pitch_q12, default_pitch_q12(config));
-        let frame = camera.update(
-            WorldProjection::new(160, 120, 320, 64),
-            None,
-            target,
-            ThirdPersonCameraInput::default(),
-            config,
-        );
-        assert_eq!(frame.yaw, Angle::HALF.add_signed_q12(128));
     }
 
     #[test]
@@ -3275,9 +2888,9 @@ mod tests {
             ThirdPersonCameraInput::default(),
         ] {
             for _ in 0..12 {
-                grouped.update_vblanks(projection, None, target, input, config, 4);
+                grouped.update_vblanks(projection, target, input, config, 4);
                 for _ in 0..4 {
-                    single.update(projection, None, target, input, config);
+                    single.update(projection, target, input, config);
                 }
                 assert_eq!(grouped, single);
             }
@@ -3286,7 +2899,6 @@ mod tests {
         let pitch = single.pitch_q12;
         single.update(
             projection,
-            None,
             target,
             ThirdPersonCameraInput::default(),
             config,
@@ -3294,7 +2906,6 @@ mod tests {
         assert_eq!((single.yaw(), single.pitch_q12), (yaw, pitch));
         grouped.update_vblanks(
             projection,
-            None,
             target,
             ThirdPersonCameraInput {
                 recenter: true,
@@ -3306,7 +2917,6 @@ mod tests {
         for i in 0..4 {
             single.update(
                 projection,
-                None,
                 target,
                 ThirdPersonCameraInput {
                     recenter: i == 0,
@@ -3315,6 +2925,9 @@ mod tests {
                 config,
             );
         }
+        // The idle-check scheduler counts ticks, and `single` took one more
+        // above; it is not camera state.
+        single.lift_check_phase = grouped.lift_check_phase;
         assert_eq!(grouped, single);
     }
 
@@ -3335,7 +2948,6 @@ mod tests {
                 camera.snap_to_player_with_yaw(target, config, initial_yaw);
                 camera.update(
                     projection,
-                    None,
                     target,
                     ThirdPersonCameraInput {
                         pitch_delta_q12: pitch_delta,
@@ -3347,7 +2959,6 @@ mod tests {
                 for tick in 0..18 {
                     camera.update(
                         projection,
-                        None,
                         target,
                         ThirdPersonCameraInput {
                             recenter: tick == 0,
@@ -3364,7 +2975,6 @@ mod tests {
                 for tick in 0..18 {
                     camera.update(
                         projection,
-                        None,
                         target,
                         ThirdPersonCameraInput {
                             recenter: tick == 0,
@@ -3394,7 +3004,6 @@ mod tests {
         let mut camera = ThirdPersonCameraState::new(Angle::HALF);
         camera.update(
             projection,
-            None,
             target,
             ThirdPersonCameraInput {
                 yaw_delta_q12: 1024,
@@ -3406,7 +3015,6 @@ mod tests {
         for _ in 0..120 {
             camera.update(
                 projection,
-                None,
                 target,
                 ThirdPersonCameraInput::default(),
                 config,
@@ -3418,7 +3026,6 @@ mod tests {
             let before = camera.yaw();
             camera.update(
                 projection,
-                None,
                 target,
                 ThirdPersonCameraInput::default(),
                 config,
@@ -3445,7 +3052,6 @@ mod tests {
 
         let frame = camera.update(
             WorldProjection::new(160, 120, 320, 64),
-            None,
             target,
             ThirdPersonCameraInput {
                 yaw_delta_q12: 0,
@@ -3460,7 +3066,6 @@ mod tests {
         for _ in 0..32 {
             camera.update(
                 WorldProjection::new(160, 120, 320, 64),
-                None,
                 target,
                 ThirdPersonCameraInput::default(),
                 config,
@@ -3471,7 +3076,6 @@ mod tests {
         camera.recenter_active = true;
         camera.update(
             WorldProjection::new(160, 120, 320, 64),
-            None,
             target,
             ThirdPersonCameraInput {
                 yaw_delta_q12: 20,
@@ -3525,7 +3129,6 @@ mod tests {
         for _ in 0..300 {
             let frame = state.update(
                 projection,
-                None,
                 target,
                 ThirdPersonCameraInput::default(),
                 config,
@@ -3558,7 +3161,6 @@ mod tests {
         for _ in 0..500 {
             state.update(
                 projection,
-                None,
                 target,
                 ThirdPersonCameraInput::default(),
                 config,
@@ -3666,7 +3268,6 @@ mod tests {
         for _ in 0..120 {
             state.update(
                 projection,
-                None,
                 target,
                 ThirdPersonCameraInput::default(),
                 config,
@@ -3686,7 +3287,6 @@ mod tests {
         for _ in 0..30 {
             let frame = state.update(
                 projection,
-                None,
                 target,
                 ThirdPersonCameraInput::default(),
                 config,
@@ -3729,7 +3329,6 @@ mod tests {
             for _ in 0..500 {
                 camera.update(
                     projection,
-                    None,
                     target,
                     ThirdPersonCameraInput::default(),
                     config,
@@ -3761,7 +3360,6 @@ mod tests {
             for _ in 0..200 {
                 camera.update(
                     projection,
-                    None,
                     target,
                     ThirdPersonCameraInput::default(),
                     config,
@@ -3789,7 +3387,6 @@ mod tests {
         for _ in 0..200 {
             camera.update(
                 projection,
-                None,
                 target,
                 ThirdPersonCameraInput::default(),
                 config,
@@ -3800,7 +3397,6 @@ mod tests {
         for _ in 0..200 {
             camera.update(
                 projection,
-                None,
                 target,
                 ThirdPersonCameraInput::default(),
                 config,
@@ -3833,7 +3429,6 @@ mod tests {
         for _ in 0..200 {
             camera.update(
                 projection,
-                None,
                 target,
                 ThirdPersonCameraInput::default(),
                 config,
@@ -3858,7 +3453,6 @@ mod tests {
         let mut camera = ThirdPersonCameraState::new(Angle::HALF);
         camera.update(
             projection,
-            None,
             target,
             ThirdPersonCameraInput {
                 pitch_delta_q12: 120,
@@ -3871,7 +3465,6 @@ mod tests {
         for _ in 0..200 {
             camera.update(
                 projection,
-                None,
                 target,
                 ThirdPersonCameraInput::default(),
                 config,
@@ -3887,7 +3480,6 @@ mod tests {
         for _ in 0..200 {
             camera.update(
                 projection,
-                None,
                 target,
                 ThirdPersonCameraInput::default(),
                 config,
@@ -3918,7 +3510,6 @@ mod tests {
             for _ in 0..4 {
                 one.update(
                     projection,
-                    None,
                     target,
                     ThirdPersonCameraInput::default(),
                     config,
@@ -3926,7 +3517,6 @@ mod tests {
             }
             batch.update_vblanks(
                 projection,
-                None,
                 target,
                 ThirdPersonCameraInput::default(),
                 config,
@@ -3946,7 +3536,6 @@ mod tests {
         let mut target = trace_target();
         camera.update(
             projection,
-            None,
             target,
             ThirdPersonCameraInput::default(),
             config,
@@ -3990,174 +3579,6 @@ mod tests {
     }
 
     #[test]
-    fn camera_floor_clearance_lifts_low_camera_position() {
-        let bytes = flat_floor_world();
-        let room = RuntimeRoom::from_bytes(&bytes).expect("test room parses");
-        let mut camera = ThirdPersonCameraState::new(Angle::ZERO);
-        let mut config = ThirdPersonCameraConfig::character(384, 0, 0);
-        config.min_floor_clearance = 64;
-        config.pitch_min_q12 = 0;
-        config.pitch_max_q12 = 0;
-        let target = ThirdPersonCameraTarget {
-            player: RoomPoint::new(512, 0, 640),
-            player_yaw: Angle::ZERO,
-            moving: false,
-            lock_target: None,
-        };
-
-        let frame = camera.update(
-            WorldProjection::new(160, 120, 320, 64),
-            Some(room.collision()),
-            target,
-            ThirdPersonCameraInput::default(),
-            config,
-        );
-
-        assert_eq!(frame.camera.position.y, 64);
-    }
-
-    #[test]
-    fn camera_floor_clearance_ignores_saturated_floor_height() {
-        let bytes = floor_world_with_heights([i32::MAX; 4]);
-        let room = RuntimeRoom::from_bytes(&bytes).expect("test room parses");
-        let mut camera = ThirdPersonCameraState::new(Angle::ZERO);
-        let mut config = ThirdPersonCameraConfig::character(384, 0, 0);
-        config.min_floor_clearance = 64;
-        config.pitch_min_q12 = 0;
-        config.pitch_max_q12 = 0;
-        let target = ThirdPersonCameraTarget {
-            player: RoomPoint::new(512, 0, 640),
-            player_yaw: Angle::ZERO,
-            moving: false,
-            lock_target: None,
-        };
-
-        let frame = camera.update(
-            WorldProjection::new(160, 120, 320, 64),
-            Some(room.collision()),
-            target,
-            ThirdPersonCameraInput::default(),
-            config,
-        );
-
-        assert_eq!(frame.camera.position.y, 0);
-    }
-
-    #[test]
-    fn camera_collision_stops_at_last_clear_sample_before_void() {
-        let bytes = flat_floor_world();
-        let room = RuntimeRoom::from_bytes(&bytes).expect("test room parses");
-        let mut config = ThirdPersonCameraConfig::character(1536, 0, 0);
-        config.min_distance = 0;
-        config.collision_margin = 0;
-        let from = RoomPoint::new(512, 0, 512);
-        let to = RoomPoint::new(512, 0, 2048);
-
-        let clear = probe_clear_distance(room.collision(), from, to, 1536, config);
-
-        assert_eq!(clear, 256);
-    }
-
-    #[test]
-    fn camera_collision_rooms_cross_active_chunk_boundary() {
-        let bytes = flat_floor_world();
-        let room = RuntimeRoom::from_bytes(&bytes).expect("test room parses");
-        let rooms = [
-            CharacterCollisionRoom::new(room, 0, 0),
-            CharacterCollisionRoom::new(room, 0, 1024),
-        ];
-        let mut config = ThirdPersonCameraConfig::character(1280, 0, 0);
-        config.min_distance = 0;
-        config.collision_margin = 0;
-        let from = RoomPoint::new(512, 0, 512);
-        let to = RoomPoint::new(512, 0, 1792);
-
-        assert_eq!(
-            probe_clear_distance(room.collision(), from, to, 1280, config),
-            256
-        );
-        assert_eq!(
-            probe_clear_distance_rooms(&rooms, from, to, 1280, config),
-            1280
-        );
-    }
-
-    #[test]
-    fn explicit_start_yaw_does_not_follow_player_yaw() {
-        let mut camera = ThirdPersonCameraState::new(Angle::ZERO);
-        let config = ThirdPersonCameraConfig::character(1400, 700, 0);
-        let target = ThirdPersonCameraTarget {
-            player: RoomPoint::ZERO,
-            player_yaw: Angle::QUARTER,
-            moving: false,
-            lock_target: None,
-        };
-
-        camera.snap_to_player_with_yaw(target, config, Angle::HALF);
-
-        assert_eq!(camera.yaw(), Angle::HALF);
-    }
-
-    #[test]
-    fn lock_on_biases_focus_toward_target_without_losing_player_anchor() {
-        let mut camera = ThirdPersonCameraState::new(Angle::HALF);
-        let mut config = ThirdPersonCameraConfig::character(1400, 700, 400);
-        config.focus_lag_shift = 0;
-        let mut target = ThirdPersonCameraTarget {
-            player: RoomPoint::new(128, 32, -64),
-            player_yaw: Angle::ZERO,
-            moving: false,
-            lock_target: None,
-        };
-        camera.snap_to_player(target, config);
-
-        target.lock_target = Some(RoomPoint::new(4096, 1024, 4096));
-        let frame = camera.update(
-            WorldProjection::new(160, 120, 320, 64),
-            None,
-            target,
-            ThirdPersonCameraInput::default(),
-            config,
-        );
-
-        let player = player_focus(target.player, config.target_height);
-        assert_eq!(
-            frame.focus,
-            camera_focus_goal(target, config, config.distance)
-        );
-        assert_ne!(frame.focus, player);
-        assert!(frame.focus.x > player.x);
-        assert_eq!(frame.focus.y, player.y);
-        assert!(frame.focus.z > player.z);
-    }
-
-    #[test]
-    fn shortened_arm_keeps_locked_player_behind_focus() {
-        let mut camera = ThirdPersonCameraState::new(Angle::HALF);
-        let mut config = ThirdPersonCameraConfig::character(2000, 1000, 850);
-        config.focus_lag_shift = 0;
-        let target = ThirdPersonCameraTarget {
-            player: RoomPoint::ZERO,
-            player_yaw: Angle::ZERO,
-            moving: false,
-            lock_target: Some(RoomPoint::new(0, 0, 4000)),
-        };
-        camera.snap_to_player(target, config);
-        camera.distance = 240;
-        camera.collision_release_delay = 8;
-        let frame = camera.update(
-            WorldProjection::new(160, 120, 320, 64),
-            None,
-            target,
-            ThirdPersonCameraInput::default(),
-            config,
-        );
-        assert!(frame.focus.z > target.player.z);
-        assert!(frame.focus.z - target.player.z < frame.distance / 2);
-        assert_eq!(frame.focus.y, config.target_height);
-    }
-
-    #[test]
     fn lock_on_height_converges_to_authored_world_offset() {
         let mut camera = ThirdPersonCameraState::new(Angle::HALF);
         let mut config = ThirdPersonCameraConfig::character(1400, 700, 400);
@@ -4176,7 +3597,6 @@ mod tests {
         target.lock_target = Some(RoomPoint::new(128, 32, 2048));
         let locked = camera.update(
             projection,
-            None,
             target,
             ThirdPersonCameraInput::default(),
             config,
@@ -4196,7 +3616,6 @@ mod tests {
         for _ in 0..256 {
             converged = camera.update(
                 projection,
-                None,
                 target,
                 ThirdPersonCameraInput::default(),
                 config,
@@ -4222,7 +3641,6 @@ mod tests {
         for _ in 0..256 {
             camera.update(
                 projection,
-                None,
                 target,
                 ThirdPersonCameraInput::default(),
                 config,
@@ -4234,7 +3652,6 @@ mod tests {
         for _ in 0..256 {
             frame = camera.update(
                 projection,
-                None,
                 target,
                 ThirdPersonCameraInput::default(),
                 config,
@@ -4263,8 +3680,8 @@ mod tests {
             let initial = ordinary.current_frame(projection);
             target.player = RoomPoint::new(256, height_delta, 256);
             let input = ThirdPersonCameraInput::default();
-            let a = ordinary.update(projection, None, target, input, shared);
-            let b = softened.update(projection, None, target, input, split);
+            let a = ordinary.update(projection, target, input, shared);
+            let b = softened.update(projection, target, input, split);
             assert_eq!((b.focus.x, b.focus.z), (a.focus.x, a.focus.z));
             assert!((b.focus.y - initial.focus.y).abs() < (a.focus.y - initial.focus.y).abs());
             assert!(
@@ -4272,7 +3689,7 @@ mod tests {
                     < (a.camera.position.y - initial.camera.position.y).abs()
             );
             for _ in 0..512 {
-                softened.update(projection, None, target, input, split);
+                softened.update(projection, target, input, split);
             }
             assert_eq!(softened.focus.y, target.player.y + split.target_height);
             assert_eq!(softened.position.y, target.player.y + split.height);
@@ -4292,7 +3709,6 @@ mod tests {
             target.player.y += delta;
             let frame = camera.update(
                 projection,
-                None,
                 target,
                 ThirdPersonCameraInput::default(),
                 config,
@@ -4318,8 +3734,8 @@ mod tests {
             pitch_delta_q12: 64,
             recenter: false,
         };
-        let a = ordinary.update(projection, None, target, input, shared);
-        let b = softened.update(projection, None, target, input, split);
+        let a = ordinary.update(projection, target, input, shared);
+        let b = softened.update(projection, target, input, split);
         assert_eq!(b.focus, a.focus);
         assert_eq!(b.yaw, a.yaw);
         assert_eq!(
@@ -4359,13 +3775,11 @@ mod tests {
                     target.player.x += 32;
                     let input = ThirdPersonCameraInput::default();
                     for _ in 0..steps {
-                        stepped.update(projection, None, target, input, config);
+                        stepped.update(projection, target, input, config);
                     }
-                    let frame =
-                        batched.update_vblanks(projection, None, target, input, config, steps);
+                    let frame = batched.update_vblanks(projection, target, input, config, steps);
                     let explicit = explicit_shared.update_vblanks(
                         projection,
-                        None,
                         target,
                         input,
                         explicit_config,
@@ -4423,7 +3837,6 @@ mod tests {
             target.player.z -= 64;
             let frame = camera.update(
                 projection,
-                None,
                 target,
                 ThirdPersonCameraInput::default(),
                 config,
@@ -4431,49 +3844,6 @@ mod tests {
             assert_eq!(frame.camera.position.z - frame.focus.z, offset);
             assert!((frame.focus.z - target.player.z).abs() < 256);
         }
-    }
-
-    #[test]
-    fn collision_shortening_keeps_lock_height_on_the_arm() {
-        let bytes = flat_floor_world();
-        let room = RuntimeRoom::from_bytes(&bytes).expect("test room parses");
-        let projection = WorldProjection::new(160, 120, 320, 64);
-        let mut camera = ThirdPersonCameraState::new(Angle::HALF);
-        let mut config = ThirdPersonCameraConfig::character(1536, 700, 400);
-        config.min_distance = 128;
-        config.collision_margin = 0;
-        config.focus_lag_shift = 0;
-        let target = ThirdPersonCameraTarget {
-            player: RoomPoint::new(512, 0, 512),
-            player_yaw: Angle::ZERO,
-            moving: false,
-            lock_target: Some(RoomPoint::new(512, 0, 900)),
-        };
-        camera.snap_to_player(target, config);
-
-        let mut frame = camera.current_frame(projection);
-        for _ in 0..256 {
-            frame = camera.update(
-                projection,
-                Some(room.collision()),
-                target,
-                ThirdPersonCameraInput::default(),
-                config,
-            );
-        }
-
-        assert!(frame.distance < config.distance);
-        // The shortened arm slides the camera toward the focus (spring arm),
-        // so both base height and lock lift scale with its distance.
-        let focus_y = frame.focus.y;
-        let slid_base = focus_y
-            + ((target.player.y + config.height - focus_y) as i64 * frame.distance as i64
-                / config.distance as i64) as i32;
-        assert!(frame.camera.position.y < target.player.y + config.height);
-        assert_eq!(
-            frame.camera.position.y,
-            slid_base + config.lock_height_boost * frame.distance / config.distance
-        );
     }
 
     #[test]
@@ -4492,7 +3862,6 @@ mod tests {
         camera.snap_to_player(target, config);
         let unlocked = camera.update(
             projection,
-            None,
             target,
             ThirdPersonCameraInput {
                 yaw_delta_q12: 0,
@@ -4507,7 +3876,6 @@ mod tests {
         for _ in 0..256 {
             locked = camera.update(
                 projection,
-                None,
                 target,
                 ThirdPersonCameraInput::default(),
                 config,
@@ -4554,7 +3922,6 @@ mod tests {
         for _ in 0..180 {
             frame = camera.update(
                 projection,
-                None,
                 target,
                 ThirdPersonCameraInput::default(),
                 config,
@@ -4578,7 +3945,6 @@ mod tests {
         };
         camera.update(
             projection,
-            None,
             target,
             ThirdPersonCameraInput::default(),
             config,
@@ -4588,7 +3954,6 @@ mod tests {
             target.lock_target = Some(point);
             let frame = camera.update(
                 projection,
-                None,
                 target,
                 ThirdPersonCameraInput::default(),
                 config,
@@ -4612,7 +3977,6 @@ mod tests {
 
         let frame = camera.update(
             WorldProjection::new(160, 120, 320, 64),
-            None,
             target,
             ThirdPersonCameraInput::default(),
             config,
@@ -4639,9 +4003,9 @@ mod tests {
 
         stepped.snap_to_player_with_yaw(target, config, Angle::ZERO);
         caught_up.snap_to_player_with_yaw(target, config, Angle::ZERO);
-        let _ = stepped.update(projection, None, target, input, config);
-        let expected = stepped.update(projection, None, target, input, config);
-        let actual = caught_up.update_vblanks(projection, None, target, input, config, 2);
+        let _ = stepped.update(projection, target, input, config);
+        let expected = stepped.update(projection, target, input, config);
+        let actual = caught_up.update_vblanks(projection, target, input, config, 2);
 
         assert_eq!(actual, expected);
         assert_eq!(caught_up.yaw(), stepped.yaw());
@@ -4650,52 +4014,83 @@ mod tests {
     }
 
     #[test]
-    fn solve_throttle_matches_per_tick_solve_in_static_scene() {
-        // With the player parked and no manual input, the sweep inputs
-        // are identical every tick once easing converges, so a reused
-        // solve equals a fresh one and the throttled camera must track
-        // the per-tick camera exactly.
-        let bytes = flat_floor_world();
-        let room = RuntimeRoom::from_bytes(&bytes).expect("test room parses");
-        let rooms = [CharacterCollisionRoom::new(room, 0, 0)];
-        let projection = WorldProjection::new(160, 120, 320, 64);
-        let mut per_tick_config = ThirdPersonCameraConfig::character(1400, 700, 0);
-        per_tick_config.min_distance = 0;
-        let mut throttled_config = per_tick_config;
-        throttled_config.collision_solve_interval = 2;
+    fn explicit_start_yaw_does_not_follow_player_yaw() {
+        let mut camera = ThirdPersonCameraState::new(Angle::ZERO);
+        let config = ThirdPersonCameraConfig::character(1400, 700, 0);
         let target = ThirdPersonCameraTarget {
-            player: RoomPoint::new(512, 0, 512),
+            player: RoomPoint::ZERO,
+            player_yaw: Angle::QUARTER,
+            moving: false,
+            lock_target: None,
+        };
+
+        camera.snap_to_player_with_yaw(target, config, Angle::HALF);
+
+        assert_eq!(camera.yaw(), Angle::HALF);
+    }
+
+    #[test]
+    fn lock_on_biases_focus_toward_target_without_losing_player_anchor() {
+        let mut camera = ThirdPersonCameraState::new(Angle::HALF);
+        let mut config = ThirdPersonCameraConfig::character(1400, 700, 400);
+        config.focus_lag_shift = 0;
+        let mut target = ThirdPersonCameraTarget {
+            player: RoomPoint::new(128, 32, -64),
             player_yaw: Angle::ZERO,
             moving: false,
             lock_target: None,
         };
-        let input = ThirdPersonCameraInput::default();
-        let mut per_tick = ThirdPersonCameraState::new(Angle::ZERO);
-        let mut throttled = ThirdPersonCameraState::new(Angle::ZERO);
-        per_tick.snap_to_player(target, per_tick_config);
-        throttled.snap_to_player(target, throttled_config);
+        camera.snap_to_player(target, config);
 
-        for _ in 0..8 {
-            let expected = per_tick.update_vblanks_with_collision_rooms(
-                projection,
-                &rooms,
-                target,
-                input,
-                per_tick_config,
-                1,
-            );
-            let actual = throttled.update_vblanks_with_collision_rooms(
-                projection,
-                &rooms,
-                target,
-                input,
-                throttled_config,
-                1,
-            );
-            assert_eq!(actual.camera.position, expected.camera.position);
-            assert_eq!(actual.distance, expected.distance);
-            assert_eq!(actual.focus, expected.focus);
-        }
+        target.lock_target = Some(RoomPoint::new(4096, 1024, 4096));
+        let frame = camera.update(
+            WorldProjection::new(160, 120, 320, 64),
+            target,
+            ThirdPersonCameraInput::default(),
+            config,
+        );
+
+        let player = player_focus(target.player, config.target_height);
+        assert_eq!(
+            frame.focus,
+            camera_focus_goal(target, config, config.distance)
+        );
+        assert_ne!(frame.focus, player);
+        assert!(frame.focus.x > player.x);
+        assert_eq!(frame.focus.y, player.y);
+        assert!(frame.focus.z > player.z);
+    }
+
+    #[test]
+    fn manual_input_sets_cooldown_and_prevents_configured_auto_align() {
+        let mut camera = ThirdPersonCameraState::new(Angle::HALF);
+        let mut config = ThirdPersonCameraConfig::character(1400, 700, 0);
+        config.auto_align_when_moving = true;
+        let target = ThirdPersonCameraTarget {
+            player: RoomPoint::ZERO,
+            player_yaw: Angle::ZERO,
+            moving: true,
+            lock_target: None,
+        };
+        let frame = camera.update(
+            WorldProjection::new(160, 120, 320, 64),
+            target,
+            ThirdPersonCameraInput {
+                yaw_delta_q12: 128,
+                pitch_delta_q12: 0,
+                recenter: false,
+            },
+            config,
+        );
+        assert_eq!(frame.yaw, Angle::HALF.add_signed_q12(128));
+        assert_eq!(frame.pitch_q12, default_pitch_q12(config));
+        let frame = camera.update(
+            WorldProjection::new(160, 120, 320, 64),
+            target,
+            ThirdPersonCameraInput::default(),
+            config,
+        );
+        assert_eq!(frame.yaw, Angle::HALF.add_signed_q12(128));
     }
 
     #[test]
@@ -4713,7 +4108,6 @@ mod tests {
 
         let frame = camera.update(
             WorldProjection::new(160, 120, 320, 64),
-            None,
             target,
             ThirdPersonCameraInput {
                 yaw_delta_q12: 0,
@@ -4724,5 +4118,604 @@ mod tests {
         );
 
         assert_eq!(frame.pitch_q12, 96);
+    }
+
+    #[test]
+    fn movement_does_not_auto_align_by_default() {
+        let mut camera = ThirdPersonCameraState::new(Angle::HALF);
+        let config = ThirdPersonCameraConfig::character(1400, 700, 0);
+        let target = ThirdPersonCameraTarget {
+            player: RoomPoint::ZERO,
+            player_yaw: Angle::ZERO,
+            moving: true,
+            lock_target: None,
+        };
+        camera.snap_to_player_with_yaw(target, config, Angle::HALF.add_signed_q12(128));
+
+        let frame = camera.update(
+            WorldProjection::new(160, 120, 320, 64),
+            target,
+            ThirdPersonCameraInput::default(),
+            config,
+        );
+        assert_eq!(frame.yaw, Angle::HALF.add_signed_q12(128));
+    }
+
+    #[test]
+    fn shortened_arm_keeps_locked_player_behind_focus() {
+        let mut camera = ThirdPersonCameraState::new(Angle::HALF);
+        let mut config = ThirdPersonCameraConfig::character(2000, 1000, 850);
+        config.focus_lag_shift = 0;
+        let target = ThirdPersonCameraTarget {
+            player: RoomPoint::ZERO,
+            player_yaw: Angle::ZERO,
+            moving: false,
+            lock_target: Some(RoomPoint::new(0, 0, 4000)),
+        };
+        camera.snap_to_player(target, config);
+        camera.distance = 240;
+        camera.collision_release_delay = 8;
+        let frame = camera.update(
+            WorldProjection::new(160, 120, 320, 64),
+            target,
+            ThirdPersonCameraInput::default(),
+            config,
+        );
+        assert!(frame.focus.z > target.player.z);
+        assert!(frame.focus.z - target.player.z < frame.distance / 2);
+        assert_eq!(frame.focus.y, config.target_height);
+    }
+
+    /// Solid axis-aligned boxes, traced as points with the slab method.
+    struct BoxWorld {
+        boxes: &'static [([i32; 3], [i32; 3])],
+    }
+
+    impl CollisionTraceProvider for BoxWorld {
+        fn trace_into(
+            &mut self,
+            query: CollisionTraceQuery,
+            output: &mut crate::CollisionTrace,
+        ) -> bool {
+            let start = [query.start.x, query.start.y, query.start.z];
+            let end = [query.end.x, query.end.y, query.end.z];
+            let mut trace = crate::CollisionTrace::unobstructed(query.end);
+            let mut best = 4096i64;
+            for (lo, hi) in self.boxes {
+                let mut enter = 0i64;
+                let mut exit = 4096i64;
+                let mut normal = [0i16; 3];
+                let mut inside = true;
+                let mut ok = true;
+                for a in 0..3 {
+                    let d = (end[a] - start[a]) as i64;
+                    let (s, l, h) = (start[a], lo[a], hi[a]);
+                    if s < l || s > h {
+                        inside = false;
+                    }
+                    if d == 0 {
+                        if s < l || s > h {
+                            ok = false;
+                        }
+                        continue;
+                    }
+                    let t1 = (l - s) as i64 * 4096 / d;
+                    let t2 = (h - s) as i64 * 4096 / d;
+                    let (near, far, n) = if t1 < t2 {
+                        (t1, t2, -1i16)
+                    } else {
+                        (t2, t1, 1i16)
+                    };
+                    if near > enter {
+                        enter = near;
+                        normal = [0; 3];
+                        normal[a] = n * 4096;
+                    }
+                    exit = exit.min(far);
+                }
+                if !ok || enter > exit {
+                    continue;
+                }
+                if inside {
+                    trace.start_solid = true;
+                    trace.fraction_q12 = 0;
+                    trace.end = query.start;
+                    *output = trace;
+                    return true;
+                }
+                if enter < best && enter >= 0 {
+                    best = enter;
+                    trace.fraction_q12 = enter as i32;
+                    trace.normal_q12 = normal;
+                    trace.end = RoomPoint::new(
+                        query.start.x + ((end[0] - start[0]) as i64 * enter / 4096) as i32,
+                        query.start.y + ((end[1] - start[1]) as i64 * enter / 4096) as i32,
+                        query.start.z + ((end[2] - start[2]) as i64 * enter / 4096) as i32,
+                    );
+                }
+            }
+            *output = trace;
+            true
+        }
+    }
+
+    fn graybox_camera_config() -> ThirdPersonCameraConfig {
+        let mut config = ThirdPersonCameraConfig::character(208, 144, 80);
+        config.min_floor_clearance = 7;
+        config.collision_margin = 16;
+        config.pitch_min_q12 = -455;
+        config.pitch_max_q12 = 796;
+        config.recenter_preserves_pitch = true;
+        config.fov_y_degrees = 43;
+        config.blend_profiles = true;
+        config.lock_target_framing = true;
+        config.lock_profile = Some(ThirdPersonCameraProfile {
+            distance: 208,
+            height: 144,
+            target_height: 80,
+            fov_y_degrees: 43,
+            shoulder_offset: 0,
+        });
+        config.accelerated_orbit_speed = Some(5);
+        config.manual_cooldown_frames = 120;
+        config.manual_release_frames = 60;
+        config.position_lag_shift = 2;
+        config.position_vertical_lag_shift = Some(3);
+        config.focus_lag_shift = 2;
+        config.focus_vertical_lag_shift = Some(4);
+        config.distance_lag_shift = 3;
+        config.collision_solve_interval = 2;
+        config
+    }
+
+    /// The authored Graybox Reach camera, in runtime units.
+    fn free_camera_world() -> (ThirdPersonCameraConfig, ThirdPersonCameraTarget) {
+        (
+            graybox_camera_config(),
+            ThirdPersonCameraTarget {
+                player: RoomPoint::ZERO,
+                player_yaw: Angle::ZERO,
+                moving: false,
+                lock_target: None,
+            },
+        )
+    }
+
+    /// A flat floor, and a wall `PINNED_GAP` units behind (-z) the player.
+    static PINNED_WORLD: [([i32; 3], [i32; 3]); 2] = [
+        ([-100_000, -1_000, -100_000], [100_000, 0, 100_000]),
+        ([-100_000, -1_000, -100_000], [100_000, 2_000, -PINNED_GAP]),
+    ];
+    static OPEN_WORLD: [([i32; 3], [i32; 3]); 1] = [PINNED_WORLD[0]];
+    /// The enclosure wall the replay tape walks Aletha into: 13 units from
+    /// her centre.
+    const PINNED_GAP: i32 = 13;
+
+    /// Run `ticks` camera updates holding the stick at full right, returning
+    /// every frame.
+    fn sweep_right(
+        camera: &mut ThirdPersonCameraState,
+        world: &'static [([i32; 3], [i32; 3])],
+        ticks: usize,
+    ) -> std::vec::Vec<ThirdPersonCameraFrame> {
+        let (config, target) = free_camera_world();
+        let step = accelerated_orbit_step_q12(5, false);
+        let mut world = BoxWorld { boxes: world };
+        let mut frames = std::vec::Vec::new();
+        for _ in 0..ticks {
+            frames.push(
+                camera
+                    .update_vblanks_with_trace_provider(
+                        WorldProjection::new(160, 120, 320, 64),
+                        &mut world,
+                        target,
+                        ThirdPersonCameraInput {
+                            yaw_delta_q12: step,
+                            ..ThirdPersonCameraInput::default()
+                        },
+                        config,
+                        1,
+                    )
+                    .unwrap(),
+            );
+        }
+        frames
+    }
+
+    #[test]
+    fn manual_orbit_is_unrestricted_with_room_for_the_arm() {
+        let (config, target) = free_camera_world();
+        let mut camera = ThirdPersonCameraState::new(Angle::ZERO);
+        camera.snap_to_player_with_yaw(target, config, Angle::ZERO);
+        let frames = sweep_right(&mut camera, &OPEN_WORLD, 100);
+        // Full-stick orbit turns through more than a whole turn of yaw in
+        // 100 ticks, with the boom never shortened.
+        assert!(frames.iter().all(|frame| frame.distance == config.distance));
+        let mut travelled = 0i32;
+        for pair in frames.windows(2) {
+            travelled += i32::from(pair[0].yaw.shortest_delta_q12(pair[1].yaw)).abs();
+        }
+        assert!(travelled > 4096, "orbit travelled {travelled}");
+    }
+
+    fn inside_any(boxes: &[([i32; 3], [i32; 3])], p: RoomPoint) -> bool {
+        boxes.iter().any(|(lo, hi)| {
+            p.x > lo[0] && p.x < hi[0] && p.y > lo[1] && p.y < hi[1] && p.z > lo[2] && p.z < hi[2]
+        })
+    }
+
+    fn step_camera(
+        camera: &mut ThirdPersonCameraState,
+        world: &'static [([i32; 3], [i32; 3])],
+        target: ThirdPersonCameraTarget,
+        yaw_delta_q12: i16,
+    ) -> ThirdPersonCameraFrame {
+        let (config, _) = free_camera_world();
+        camera
+            .update_vblanks_with_trace_provider(
+                WorldProjection::new(160, 120, 320, 64),
+                &mut BoxWorld { boxes: world },
+                target,
+                ThirdPersonCameraInput {
+                    yaw_delta_q12,
+                    ..ThirdPersonCameraInput::default()
+                },
+                config,
+                1,
+            )
+            .unwrap()
+    }
+
+    #[test]
+    fn open_ground_pays_no_lift_and_locked_camera_gets_none() {
+        let (config, target) = free_camera_world();
+        let mut camera = ThirdPersonCameraState::new(Angle::ZERO);
+        camera.snap_to_player_with_yaw(target, config, Angle::ZERO);
+        for _ in 0..60 {
+            step_camera(&mut camera, &OPEN_WORLD, target, 0);
+        }
+        assert_eq!(camera.lift_pitch_q12(), 0);
+        // Locked on an enemy beyond the wall: lock-on framing is untouched.
+        let locked = ThirdPersonCameraTarget {
+            lock_target: Some(RoomPoint::new(0, 0, 400)),
+            ..target
+        };
+        let mut camera = ThirdPersonCameraState::new(Angle::ZERO);
+        camera.snap_to_player_with_yaw(locked, config, Angle::ZERO);
+        for _ in 0..60 {
+            step_camera(&mut camera, &PINNED_WORLD, locked, 0);
+        }
+        assert_eq!(camera.lift_pitch_q12(), 0);
+    }
+
+    #[test]
+    fn low_obstacle_beside_the_player_is_lifted_over_and_released() {
+        // The wall behind her stops at knee height, under the camera cap ray:
+        // the pitch needed is whatever clears its top, found by raising until
+        // the boom is comfortable, held, then given back.
+        static LOW_WORLD: [([i32; 3], [i32; 3]); 2] = [
+            ([-100_000, -1_000, -100_000], [100_000, 0, 100_000]),
+            ([-100_000, -1_000, -100_000], [100_000, 60, -PINNED_GAP]),
+        ];
+        let (config, target) = free_camera_world();
+        let mut camera = ThirdPersonCameraState::new(Angle::ZERO);
+        camera.snap_to_player_with_yaw(target, config, Angle::ZERO);
+        let step = accelerated_orbit_step_q12(5, false);
+        let mut peak = 0;
+        for tick in 0..100 {
+            let frame = step_camera(&mut camera, &LOW_WORLD, target, step);
+            let eye = camera.position();
+            assert!(
+                !inside_any(&LOW_WORLD, eye),
+                "tick {tick}: eye in geometry {eye:?}"
+            );
+            assert!(
+                frame.distance >= config.min_distance,
+                "tick {tick}: arm {}",
+                frame.distance
+            );
+            peak = peak.max(camera.lift_pitch_q12());
+        }
+        assert!(peak > 0, "no lift over a low obstacle");
+        for _ in 0..200 {
+            step_camera(&mut camera, &LOW_WORLD, target, 0);
+        }
+        assert_eq!(camera.lift_pitch_q12(), 0);
+    }
+
+    /// Run `ticks` ticks of full-right stick (then idle to 130), collecting
+    /// what the escape and lift did.
+    struct SweepStats {
+        hidden: usize,
+        min_arm: i32,
+        peak_lift: i16,
+        peak_slide: i16,
+        first_slide: Option<usize>,
+        first_lift: Option<usize>,
+        worst_jump_after_contact: i32,
+    }
+
+    fn sweep_stats(world: &'static [([i32; 3], [i32; 3])], wall_z: i32) -> SweepStats {
+        let (config, target) = free_camera_world();
+        let mut camera = ThirdPersonCameraState::new(Angle::ZERO);
+        camera.snap_to_player_with_yaw(target, config, Angle::ZERO);
+        let step = accelerated_orbit_step_q12(5, false);
+        let mut stats = SweepStats {
+            hidden: 0,
+            min_arm: i32::MAX,
+            peak_lift: 0,
+            peak_slide: 0,
+            first_slide: None,
+            first_lift: None,
+            worst_jump_after_contact: 0,
+        };
+        let mut previous_eye = camera.position();
+        let mut previous_yaw = camera.yaw();
+        let mut contact = false;
+        for tick in 0..130 {
+            let moving = tick < 100;
+            let frame = step_camera(&mut camera, world, target, if moving { step } else { 0 });
+            // The stick always turns the camera.
+            if moving {
+                assert_ne!(frame.yaw, previous_yaw, "tick {tick}: orbit refused");
+            }
+            previous_yaw = frame.yaw;
+            let eye = camera.position();
+            assert!(
+                !inside_any(world, eye),
+                "tick {tick}: eye in geometry {eye:?}"
+            );
+            assert!(
+                eye.z >= wall_z,
+                "tick {tick}: eye {} behind the wall",
+                eye.z
+            );
+            let jump = (eye.x - previous_eye.x)
+                .abs()
+                .max((eye.y - previous_eye.y).abs())
+                .max((eye.z - previous_eye.z).abs());
+            if frame.collision_pull_in && !contact {
+                // The spring arm still cuts in to the first contact.
+                contact = true;
+            } else if contact {
+                stats.worst_jump_after_contact = stats.worst_jump_after_contact.max(jump);
+            }
+            previous_eye = eye;
+            if frame.distance < config.min_distance {
+                stats.hidden += 1;
+            }
+            stats.min_arm = stats.min_arm.min(frame.distance);
+            stats.peak_lift = stats.peak_lift.max(camera.lift_pitch_q12());
+            stats.peak_slide = stats.peak_slide.max(camera.slide_yaw_q12().abs());
+            if stats.first_slide.is_none() && camera.slide_yaw_q12() != 0 {
+                stats.first_slide = Some(tick);
+            }
+            if stats.first_lift.is_none() && camera.lift_pitch_q12() != 0 {
+                stats.first_lift = Some(tick);
+            }
+        }
+        // Everything is given back once the orbit is past the wall.
+        assert_eq!(camera.lift_pitch_q12(), 0, "lift held after the wall");
+        assert!(
+            camera.slide_yaw_q12().abs() < 32,
+            "slide held after the wall"
+        );
+        stats
+    }
+
+    static WALL_30: [([i32; 3], [i32; 3]); 2] = [
+        ([-100_000, -1_000, -100_000], [100_000, 0, 100_000]),
+        ([-100_000, -1_000, -100_000], [100_000, 2_000, -30]),
+    ];
+    static WALL_45: [([i32; 3], [i32; 3]); 2] = [
+        ([-100_000, -1_000, -100_000], [100_000, 0, 100_000]),
+        ([-100_000, -1_000, -100_000], [100_000, 2_000, -45]),
+    ];
+
+    #[test]
+    fn full_stick_orbit_slides_along_a_wall_before_it_lifts() {
+        // A player 30 and 45 units from a wall, stick at full right for 100
+        // ticks. The boom never falls under min_distance, the eye steers
+        // sideways along the wall first and any lift follows it, nothing
+        // refuses the stick, and both are given back after the wall.
+        for (world, wall_z, lift_cap) in [(&WALL_30, -30, 420), (&WALL_45, -45, 200)] {
+            let stats = sweep_stats(world, wall_z);
+            assert_eq!(stats.hidden, 0, "{stats_min}", stats_min = stats.min_arm);
+            assert!(stats.peak_slide > 100, "peak slide {}", stats.peak_slide);
+            assert!(i32::from(stats.peak_slide) <= SLIDE_MAX_Q12);
+            let (slide, lift) = (
+                stats.first_slide.unwrap(),
+                stats.first_lift.unwrap_or(usize::MAX),
+            );
+            assert!(slide <= lift, "lift at {lift} before the slide at {slide}");
+            assert!(
+                stats.peak_lift < lift_cap,
+                "peak lift {} against a wall with room",
+                stats.peak_lift
+            );
+            assert!(stats.peak_lift <= LIFT_PITCH_CAP_Q12 - 205);
+            assert!(
+                stats.worst_jump_after_contact <= 30,
+                "{}",
+                stats.worst_jump_after_contact
+            );
+        }
+    }
+
+    #[test]
+    fn player_flush_against_a_wall_hides_for_far_fewer_ticks() {
+        // 13 units from the wall (the replay tape's pinned player): no view of
+        // her exists across the middle of the wall side within the 50 degree
+        // lift cap and the slide bound, so she is hidden there as a last
+        // resort, but for about half the 35 ticks the unrestricted orbit hid
+        // her, and the boom never collapses to the player's centre.
+        let stats = sweep_stats(&PINNED_WORLD, -PINNED_GAP);
+        assert!(stats.hidden <= 24, "hidden {}", stats.hidden);
+        assert!(stats.min_arm >= 12, "min arm {}", stats.min_arm);
+        assert!(stats.first_slide.unwrap() <= stats.first_lift.unwrap());
+        assert!(stats.peak_lift <= LIFT_PITCH_CAP_Q12 - 205);
+    }
+
+    #[test]
+    fn walking_backwards_into_a_wall_escapes_and_lifts_instead_of_hiding_her() {
+        // Camera behind her (+z); the wall is behind the camera. She backs
+        // toward it two units a tick until pinned 13 units from it. With
+        // room (30+ units) the boom never falls under min_distance; once
+        // flush it falls no lower than the flush orbit does.
+        static WALK_WORLD: [([i32; 3], [i32; 3]); 2] = [
+            ([-100_000, -1_000, -100_000], [100_000, 0, 100_000]),
+            ([-100_000, -1_000, 300], [100_000, 2_000, 100_000]),
+        ];
+        let (config, mut target) = free_camera_world();
+        let mut camera = ThirdPersonCameraState::new(Angle::ZERO);
+        camera.snap_to_player_with_yaw(target, config, Angle::ZERO);
+        let mut peak_lift = 0;
+        let mut min_flush_arm = i32::MAX;
+        for tick in 0..170 {
+            if target.player.z < 300 - PINNED_GAP {
+                target.player.z += 2;
+            }
+            target.moving = true;
+            let frame = step_camera(&mut camera, &WALK_WORLD, target, 0);
+            let eye = camera.position();
+            assert!(
+                !inside_any(&WALK_WORLD, eye),
+                "tick {tick}: eye in the wall {eye:?}"
+            );
+            let gap = 300 - target.player.z;
+            if gap >= 30 {
+                assert!(
+                    frame.distance >= config.min_distance,
+                    "tick {tick}: arm {} with {gap} units to the wall",
+                    frame.distance
+                );
+            } else {
+                min_flush_arm = min_flush_arm.min(frame.distance);
+            }
+            peak_lift = peak_lift.max(camera.lift_pitch_q12());
+        }
+        assert!(target.player.z >= 300 - PINNED_GAP - 2);
+        assert!(peak_lift > 100, "peak lift {peak_lift}");
+        assert!(peak_lift <= LIFT_PITCH_CAP_Q12 - 205);
+        assert!(min_flush_arm >= 15, "flush arm {min_flush_arm}");
+    }
+
+    #[test]
+    fn sustained_pillar_occlusion_lifts_slowly_and_within_the_cap() {
+        // A knee-high wall section: the line to her head clears its top, the
+        // line to her torso does not. The sight line, not the look-at point,
+        // sees it. Nothing happens for the patience period, then the lift
+        // rises at most 0.5 degree a tick until she is in view.
+        static PILLAR_WORLD: [([i32; 3], [i32; 3]); 2] = [
+            ([-100_000, -1_000, -100_000], [100_000, 0, 100_000]),
+            ([-40, 0, 60], [40, 90, 70]),
+        ];
+        let (config, target) = free_camera_world();
+        let mut camera = ThirdPersonCameraState::new(Angle::ZERO);
+        camera.snap_to_player_with_yaw(target, config, Angle::ZERO);
+        let torso = RoomPoint::new(0, config.target_height / 2, 0);
+        let blocked = |eye: RoomPoint| {
+            let mut world = BoxWorld {
+                boxes: &PILLAR_WORLD,
+            };
+            let mut trace = crate::CollisionTrace::unobstructed(torso);
+            world.trace_into(CollisionTraceQuery::point(eye, torso), &mut trace);
+            trace.hit()
+        };
+        assert!(blocked(camera.position()), "scene needs an occluded torso");
+        let mut sight_ticks = 0;
+        let mut previous = 0;
+        for tick in 0..140 {
+            let frame = step_camera(&mut camera, &PILLAR_WORLD, target, 0);
+            assert!(frame.distance >= config.min_distance);
+            if tick < SIGHT_PATIENCE_CHECKS as usize {
+                assert_eq!(
+                    camera.lift_pitch_q12(),
+                    0,
+                    "tick {tick}: lifted inside the patience"
+                );
+            }
+            let lift = camera.lift_pitch_q12();
+            assert!(
+                i32::from(lift - previous).abs() <= 8,
+                "tick {tick}: lift {previous} to {lift}"
+            );
+            assert!(lift <= LIFT_PITCH_CAP_Q12 - 205);
+            previous = lift;
+            if !blocked(camera.position()) {
+                sight_ticks += 1;
+            }
+        }
+        assert!(camera.lift_pitch_q12() > 0);
+        assert!(sight_ticks > 60, "in view for {sight_ticks} of 140 ticks");
+    }
+
+    #[test]
+    fn brief_pillar_occlusion_costs_no_lift() {
+        static PILLAR_WORLD: [([i32; 3], [i32; 3]); 2] = [
+            ([-100_000, -1_000, -100_000], [100_000, 0, 100_000]),
+            ([-40, 0, 60], [40, 90, 70]),
+        ];
+        let (config, target) = free_camera_world();
+        let mut camera = ThirdPersonCameraState::new(Angle::ZERO);
+        camera.snap_to_player_with_yaw(target, config, Angle::ZERO);
+        // Occluded for a few ticks, then the pillar is behind us.
+        for _ in 0..(SIGHT_PATIENCE_CHECKS as usize - 2) {
+            step_camera(&mut camera, &PILLAR_WORLD, target, 0);
+        }
+        for _ in 0..80 {
+            step_camera(&mut camera, &OPEN_WORLD, target, 0);
+            assert_eq!(camera.lift_pitch_q12(), 0);
+        }
+    }
+
+    #[test]
+    fn wall_margin_is_perpendicular_and_scales_with_the_arm() {
+        // A ray 6 degrees off a wall 13 units away. The margin is a tenth of
+        // the arm, perpendicular to the plane (capped by the configured 16):
+        // the eye keeps about 6 units from the plane, where a fixed 12 along
+        // the ray left it about 1.
+        let (config, _) = free_camera_world();
+        let mut world = BoxWorld {
+            boxes: &PINNED_WORLD,
+        };
+        let focus = RoomPoint::new(0, 80, 0);
+        // yaw 1024 is +x; a few q12 units toward -z gives the grazing ray.
+        let yaw = Angle::from_q12(1024 + 68);
+        let solve = solve_camera_collision_trace(&mut world, focus, yaw, 0, 80, config).unwrap();
+        assert!(solve.pull_in);
+        let eye = camera_position_at_height(focus, solve.distance, yaw, 0, 80);
+        let gap = eye.z + PINNED_GAP;
+        assert!(
+            (5..=8).contains(&gap),
+            "eye {gap} units from the wall plane"
+        );
+        // The solve reports the wall it met.
+        assert!(
+            (PINNED_GAP - 1..=PINNED_GAP).contains(&solve.gap),
+            "gap {}",
+            solve.gap
+        );
+        assert!(solve.normal_q12[2] > 4000);
+    }
+
+    #[test]
+    fn lift_and_slide_are_released_when_the_wall_is_far() {
+        let (config, target) = free_camera_world();
+        let mut camera = ThirdPersonCameraState::new(Angle::ZERO);
+        camera.snap_to_player_with_yaw(target, config, Angle::ZERO);
+        let step = accelerated_orbit_step_q12(5, false);
+        for _ in 0..100 {
+            step_camera(&mut camera, &PINNED_WORLD, target, step);
+        }
+        for _ in 0..200 {
+            step_camera(&mut camera, &PINNED_WORLD, target, 0);
+        }
+        assert_eq!(camera.lift_pitch_q12(), 0);
+        assert_eq!(camera.slide_yaw_q12(), 0);
+        assert_eq!(
+            step_camera(&mut camera, &PINNED_WORLD, target, 0).distance,
+            config.distance
+        );
     }
 }

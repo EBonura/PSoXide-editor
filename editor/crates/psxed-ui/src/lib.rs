@@ -3,7 +3,6 @@
 //! The frontend owns the window/Menu. This crate owns the editor panels and
 //! the in-memory authoring document they manipulate.
 
-mod geometry;
 mod gizmo;
 mod history;
 mod icons;
@@ -43,8 +42,6 @@ use editor_helpers::*;
 mod animation_catalogue;
 use animation_catalogue::*;
 mod workspace;
-pub use geometry::face_corner_world;
-use geometry::*;
 use ui_preview::*;
 use viewport2d::*;
 
@@ -70,31 +67,27 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use egui::{
     Align2, Color32, ColorImage, FontId, Pos2, Rect, RichText, Sense, Stroke, StrokeKind, Vec2,
 };
-use psxed_project::portal_rooms::{
-    plan_portal_rooms, portal_seam_edges_for_node, PortalEdge, PortalRoomConfig,
-};
 use psxed_project::spatial::{euler_degrees_to_matrix, rotate_euler_degrees, RotationSpace};
 use psxed_project::{
     default_model_collision_radius_for_height, default_ui_font_scale, default_ui_letter_spacing,
     snap_height, ui_font_scale_f32_to_q8, ui_font_scale_q8_to_f32, BootTarget,
     CharacterControllerSettings, ColliderShape, EditorCameraMode, EditorCameraState,
     EditorVisibilityState, EditorWorkspaceState, EditorWorkspaceView, FarVistaSettings,
-    GeneratedMaterialTexture, GridCellBounds, GridDirection, GridHorizontalFace, GridSector,
-    GridSplit, GridTriangleMaterialOverride, GridUvRotation, GridUvTransform, GridVerticalFace,
-    InteractableKind, MaterialAnimationMode, MaterialFaceSidedness, MaterialResource,
-    MaterialTextureMode, NodeId, NodeKind, NodeRow, OptionId, OptionKind, ParticleEmitterSettings,
-    PhysicsBodySettings, ProjectDocument, PsxBlendMode, Resource, ResourceData, ResourceId, Scene,
-    SceneNode, SceneStateId, SceneWorldLayer, SkyMode, SkySettings, SkyVisibility,
-    TransitionMaskShape, TransitionMaterialTexture, UiAction, UiAnchor, UiFontChoice, UiGradient,
-    UiGradientDirection, UiImageEffect, UiNode, UiNodeId, UiNodeKind, UiNodeRow, UiRect, UiScene,
-    UiSceneId, UiSfxBindings, UiSfxCue, UiShapeStyle, UiTextAlign, UiValueBinding,
-    WorldCameraSettings, WorldCullingSettings, WorldGrid, WorldPhysicsSettings,
-    AUTO_PAINT_BLEND_PREFIX, DEFAULT_WORLD_SECTOR_SIZE, HEIGHT_QUANTUM, MAX_PHYSICS_WEIGHT_Q8,
-    MAX_UI_FONT_SCALE, MAX_UI_LETTER_SPACING, MAX_WORLD_CAMERA_DISTANCE, MAX_WORLD_CAMERA_HEIGHT,
-    MAX_WORLD_CAMERA_MIN_FLOOR_CLEARANCE, MAX_WORLD_DRAW_DISTANCE, MAX_WORLD_GRAVITY_PER_TICK,
-    MIN_PHYSICS_WEIGHT_Q8, MIN_UI_FONT_SCALE, MIN_UI_LETTER_SPACING, MIN_WORLD_CAMERA_DISTANCE,
-    MIN_WORLD_DRAW_DISTANCE, MODEL_SCALE_ONE_Q8, PHYSICS_WEIGHT_ONE_Q8, SKYBOX_COLUMNS_MAX,
-    SKYBOX_COLUMNS_MIN, SKYBOX_ROWS_MAX, SKYBOX_ROWS_MIN, SKY_MOUNTAIN_HEIGHT_PERCENT_MAX,
+    GeneratedMaterialTexture, InteractableKind, MaterialAnimationMode, MaterialFaceSidedness,
+    MaterialResource, MaterialTextureMode, NodeId, NodeKind, NodeRow, OptionId, OptionKind,
+    ParticleEmitterSettings, PhysicsBodySettings, ProjectDocument, PsxBlendMode, Resource,
+    ResourceData, ResourceId, Scene, SceneNode, SceneStateId, SceneWorldLayer, SkyMode,
+    SkySettings, SkyVisibility, TransitionMaskShape, TransitionMaterialTexture, UiAction, UiAnchor,
+    UiFontChoice, UiGradient, UiGradientDirection, UiImageEffect, UiNode, UiNodeId, UiNodeKind,
+    UiNodeRow, UiRect, UiScene, UiSceneId, UiSfxBindings, UiSfxCue, UiShapeStyle, UiTextAlign,
+    UiValueBinding, UvRotation, UvTransform, WorldCameraSettings, WorldCullingSettings,
+    WorldPhysicsSettings, AUTO_PAINT_BLEND_PREFIX, DEFAULT_WORLD_SECTOR_SIZE, HEIGHT_QUANTUM,
+    MAX_PHYSICS_WEIGHT_Q8, MAX_UI_FONT_SCALE, MAX_UI_LETTER_SPACING, MAX_WORLD_CAMERA_DISTANCE,
+    MAX_WORLD_CAMERA_HEIGHT, MAX_WORLD_CAMERA_MIN_FLOOR_CLEARANCE, MAX_WORLD_DRAW_DISTANCE,
+    MAX_WORLD_GRAVITY_PER_TICK, MIN_PHYSICS_WEIGHT_Q8, MIN_UI_FONT_SCALE, MIN_UI_LETTER_SPACING,
+    MIN_WORLD_CAMERA_DISTANCE, MIN_WORLD_DRAW_DISTANCE, MODEL_SCALE_ONE_Q8, PHYSICS_WEIGHT_ONE_Q8,
+    SKYBOX_COLUMNS_MAX, SKYBOX_COLUMNS_MIN, SKYBOX_ROWS_MAX, SKYBOX_ROWS_MIN,
+    SKY_MOUNTAIN_HEIGHT_PERCENT_MAX,
 };
 
 const RESIZABLE_DOCK_MIN_WIDTH: f32 = 48.0;
@@ -109,7 +102,6 @@ const EDITOR_OUTLINE_STROKE_WIDTH: f32 = 1.25;
 const EDITOR_SELECTED_OUTLINE_STROKE_WIDTH: f32 = 3.0;
 const EDITOR_OUTLINE_ACCENT: Color32 = Color32::from_rgb(165, 238, 255);
 const EDITOR_OUTLINE_GOLD: Color32 = Color32::from_rgb(255, 238, 150);
-const PORTAL_PINK: Color32 = Color32::from_rgb(255, 72, 214);
 const GIZMO_AXIS_PICK_RADIUS: f32 = 10.0;
 const GIZMO_ROTATION_PICK_RADIUS: f32 = 12.0;
 /// Screen-space forgiveness for selecting BSP brushes and projected brush
@@ -556,7 +548,6 @@ enum ShortcutGroup {
     Workspace,
     Tool,
     Transform,
-    Selection,
     Visibility,
     Camera,
     Viewport,
@@ -624,9 +615,6 @@ pub struct EditorWorkspace {
     /// rather than a bag of mutually-exclusive `Option`s. See
     /// [`Interaction`].
     interaction: Interaction,
-    /// Selection mode the Select tool picks at: a whole face,
-    /// one of its edges, or one of its corners.
-    selection_mode: SelectionMode,
     /// Transform gizmo mode for selected scene nodes in the 3D
     /// viewport. Move keeps the existing axis handles; Rotate edits
     /// yaw; Scale edits size data for node kinds that support it.
@@ -636,15 +624,6 @@ pub struct EditorWorkspace {
     gizmo_space: GizmoSpace,
     /// Transform mode for pointer drags in the 2D UI canvas.
     ui_transform_mode: UiTransformMode,
-    /// Whether vertex edits move every coincident face-corner, or
-    /// only the selected face's own corner data.
-    vertex_connectivity: VertexConnectivity,
-    /// Red authoring-error overlays populated when cook/playtest
-    /// validation can map a failure back to concrete grid faces.
-    validation_issue_primitives: Vec<Selection>,
-    /// Room-level validation failures that don't have a finer face
-    /// target, such as budget or dimension errors.
-    validation_issue_rooms: HashSet<NodeId>,
     /// Every hard error from the last failed cook, each with the authoring
     /// object it blames. The auto-focus only ever jumps to the first
     /// focusable error; this list lets the author pick any row.
@@ -654,11 +633,6 @@ pub struct EditorWorkspace {
     /// open until the author dismisses it or edits geometry.
     brush_overlap_report: Option<Vec<psxed_project::brush_overlap::BrushFaceOverlap>>,
     terrain_editor: Option<workspace::terrain::TerrainEditor>,
-    /// Floating duplicate placement created by Cmd+D. While active,
-    /// `project` contains the preview copy, but `base_project`
-    /// lets Escape cancel without dirtying the document and lets
-    /// click commit one clean undo step.
-    floating_geometry: Option<FloatingGeometryPlacement>,
     /// Project-portable Room-workspace clipboard. Unlike Duplicate, this owns
     /// material names rather than trusting project-local resource ids, so it
     /// deliberately survives switching or creating projects.
@@ -683,12 +657,6 @@ pub struct EditorWorkspace {
     /// List position of the screen state currently selected in the scene
     /// arranger embedded in the UI workspace.
     active_scene_state_index: usize,
-    /// Active floor being authored in the Room workspace. Floor 0 is the
-    /// base grid; floor `i` reads/writes `grid.floors_above[i - 1]` via
-    /// [`WorldGrid::floor`] / [`WorldGrid::floor_mut`]. Clamped per-room
-    /// against `grid.floor_count()` at every access. View state, like
-    /// `active_ui_scene_index`; not serialized with the project.
-    active_floor: usize,
     /// When on, the UI canvas runs an in-editor navigation preview: arrow
     /// keys move focus through the scene's focusable controls via the shared
     /// `psx_level::next_focus` (the same resolver the runtime uses), Enter
@@ -1190,7 +1158,6 @@ struct PsxtStats {
 struct PackageSummary {
     assets: usize,
     textures: usize,
-    materials: usize,
     models: usize,
     characters: usize,
     lights: usize,
@@ -1198,27 +1165,6 @@ struct PackageSummary {
     /// Display name of the player's resolved Character, or
     /// `None` when no player controller was emitted.
     player_character: Option<String>,
-}
-
-/// Three-mode selection switch -- Blender-style. `Face` keeps
-/// the existing whole-face semantics; `Edge` and `Vertex` pick
-/// finer primitives via local-UV math on the picked face.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum SelectionMode {
-    #[default]
-    Face,
-    Edge,
-    Vertex,
-}
-
-impl SelectionMode {
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Face => "Face",
-            Self::Edge => "Edge",
-            Self::Vertex => "Vertex",
-        }
-    }
 }
 
 /// One selectable sub-element of a brush. Faces are stable authored
@@ -1270,16 +1216,6 @@ impl BrushEditMode {
             Self::Edge => "Drag an edge handle to reshape",
             Self::Vertex => "Drag a vertex handle to reshape",
             Self::Clip => "Click 2-3 points; Enter cuts, X flips the kept side, Esc clears",
-        }
-    }
-
-    const fn selection_mode(self) -> Option<SelectionMode> {
-        match self {
-            Self::Move => None,
-            Self::Face => Some(SelectionMode::Face),
-            Self::Edge => Some(SelectionMode::Edge),
-            Self::Vertex => Some(SelectionMode::Vertex),
-            Self::Clip => None,
         }
     }
 }
@@ -1433,85 +1369,14 @@ impl UiTransformMode {
     }
 }
 
-/// Vertex propagation behavior for primitive height edits.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-enum VertexConnectivity {
-    /// Move every face-corner currently sharing the same physical
-    /// vertex. Existing project behavior.
-    #[default]
-    Welded,
-}
-
-/// In-flight drag-translate stroke. Captured at drag-start
-/// over a primitive in Select mode and applied every frame the
-/// pointer moves until release.
-#[derive(Debug, Clone)]
-struct PrimitiveDrag {
-    /// Primitives being dragged. Usually one entry, or the current
-    /// multi-selection when the drag starts on an already-selected
-    /// primitive.
-    targets: Vec<Selection>,
-    /// Physical vertices to translate. Each entry carries the owning
-    /// room plus every coincident face-corner so one drag can span
-    /// multiple selected faces/edges/vertices.
-    vertices: Vec<DragVertex>,
-    /// Total mouse-Y travel since drag-start, in screen pixels.
-    /// Sign-flipped at apply time (screen +Y is down, world +Y
-    /// is up). Stored as `f32` because egui hands per-frame
-    /// deltas that way.
-    accumulated_pixel_dy: f32,
-    /// Whether `push_undo` has fired for this stroke. Lazy:
-    /// only fires the first time `accumulated_pixel_dy` causes
-    /// a non-zero quantum delta, so a press-without-drag (a
-    /// pure click) leaves the undo stack alone.
-    snapshot_pushed: bool,
-}
-
-#[derive(Debug, Clone)]
-struct DragVertex {
-    room: NodeId,
-    vertex: PhysicalVertex,
-    /// Pre-drag Y. Apply step is `snap(pre_y + total_delta_world)`
-    /// so every frame is derived from the original geometry.
-    pre_drag_y: i32,
-}
-
-#[derive(Debug, Clone)]
-struct PrimitiveGridDrag {
-    base_project: ProjectDocument,
-    base_dirty: bool,
-    room: NodeId,
-    targets: Vec<Selection>,
-    source_origin: [i32; 2],
-    start_cell: [i32; 2],
-    current_delta: [i32; 2],
-    cells: Vec<GeometryClipboardCell>,
-}
-
 #[derive(Debug, Clone, Copy)]
 enum Viewport3dPointerTarget {
-    PrimitiveGizmo(PrimitiveGizmoAxis),
     NodeGizmo(NodeGizmoHandle),
     Entity(EntityBoundHit),
-    Brush {
-        brush: usize,
-        face: usize,
-    },
-    Surface {
-        face: FaceRef,
-        hit: [f32; 3],
-        selection: Selection,
-    },
+    Brush { brush: usize, face: usize },
 }
 
 impl Viewport3dPointerTarget {
-    fn primitive_axis(self) -> Option<PrimitiveGizmoAxis> {
-        match self {
-            Self::PrimitiveGizmo(axis) => Some(axis),
-            _ => None,
-        }
-    }
-
     fn node_handle(self) -> Option<NodeGizmoHandle> {
         match self {
             Self::NodeGizmo(handle) => Some(handle),
@@ -1522,20 +1387,6 @@ impl Viewport3dPointerTarget {
     fn entity_hit(self) -> Option<EntityBoundHit> {
         match self {
             Self::Entity(hit) => Some(hit),
-            _ => None,
-        }
-    }
-
-    fn face_hit(self) -> Option<(FaceRef, [f32; 3])> {
-        match self {
-            Self::Surface { face, hit, .. } => Some((face, hit)),
-            _ => None,
-        }
-    }
-
-    fn primitive_selection(self) -> Option<Selection> {
-        match self {
-            Self::Surface { selection, .. } => Some(selection),
             _ => None,
         }
     }
@@ -1576,29 +1427,6 @@ struct NodeRotationGizmoScreenRing {
     axis: PrimitiveGizmoAxis,
     center: Pos2,
     points: Vec<Pos2>,
-}
-
-#[derive(Debug, Clone)]
-struct PrimitiveGizmoDrag {
-    axis: PrimitiveGizmoAxis,
-    start_pointer: Pos2,
-    screen_axis: Vec2,
-    targets: Vec<Selection>,
-    y_vertices: Vec<DragVertex>,
-    grid: Option<PrimitiveGizmoGridDrag>,
-    current_steps: i32,
-    snapshot_pushed: bool,
-}
-
-#[derive(Debug, Clone)]
-struct PrimitiveGizmoGridDrag {
-    base_project: ProjectDocument,
-    base_dirty: bool,
-    room: NodeId,
-    targets: Vec<Selection>,
-    source_origin: [i32; 2],
-    current_delta: [i32; 2],
-    cells: Vec<GeometryClipboardCell>,
 }
 
 #[derive(Debug, Clone)]
@@ -1675,23 +1503,6 @@ struct NodeGizmoTarget {
 }
 
 #[derive(Debug, Clone)]
-struct GeometryClipboard {
-    mode: GeometryClipboardMode,
-    source_room: NodeId,
-    source_origin: [i32; 2],
-    next_paste_origin: [i32; 2],
-    width: i32,
-    height: i32,
-    cells: Vec<GeometryClipboardCell>,
-    /// Floors stacked above `cells`, base floor first above the active one.
-    /// Always empty for Duplicate, which works one floor at a time; only a
-    /// multi-floor prefab fills it.
-    extra_floors: Vec<GeometryClipboardFloor>,
-    /// Lights the piece carries. Empty for Duplicate.
-    lights: Vec<GeometryClipboardLight>,
-}
-
-#[derive(Debug, Clone)]
 enum PortableGeometryClipboard {
     Brushes(BrushGeometryClipboard),
 }
@@ -1734,84 +1545,13 @@ struct UiNodeClipboard {
     nodes: Vec<UiNode>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum GeometryClipboardMode {
-    ReplaceCells,
-    MergePrimitives,
-}
-
-#[derive(Debug, Clone)]
-struct GeometryClipboardCell {
-    offset: [i32; 2],
-    sector: Option<GridSector>,
-}
-
-#[derive(Debug, Clone)]
-struct GeometryClipboardFloor {
-    relative_elevation: i32,
-    cells: Vec<GeometryClipboardCell>,
-}
-
-#[derive(Debug, Clone)]
-struct GeometryClipboardLight {
-    cell: [i32; 2],
-    height_sectors: f32,
-    color: [u8; 3],
-    intensity: f32,
-    radius: f32,
-}
-
-#[derive(Debug, Clone)]
-struct FloatingGeometryPlacement {
-    base_project: ProjectDocument,
-    base_dirty: bool,
-    mode: GeometryClipboardMode,
-    room: NodeId,
-    origin: [i32; 2],
-    width: i32,
-    height: i32,
-    rotation_quarters: u8,
-    flip_x: bool,
-    flip_z: bool,
-    /// First grid cell observed under the pointer after duplication begins.
-    /// Capturing it without moving prevents the command's own frame from
-    /// teleporting the adjacent preview to a stale mouse position.
-    pointer_anchor_origin: Option<[i32; 2]>,
-    /// Preview origin paired with `pointer_anchor_origin`. Pointer motion is
-    /// applied as a delta from this nearby starting placement, never as an
-    /// absolute snap to wherever the mouse happened to be when Duplicate ran.
-    pointer_anchor_placement_origin: [i32; 2],
-    /// The geometry authored by the latest preview pass. Keeping this on the
-    /// placement makes the duplicate's selection durable across the click
-    /// frame that commits it instead of relying on transient UI selection.
-    selected_cells: Vec<(u16, u16)>,
-    selected_primitives: Vec<Selection>,
-    cells: Vec<GeometryClipboardCell>,
-    /// Upper floors of a multi-floor prefab. Empty for Duplicate.
-    extra_floors: Vec<GeometryClipboardFloor>,
-    /// Lights the piece carries, materialised as child nodes on commit.
-    lights: Vec<GeometryClipboardLight>,
-    /// Walls the latest preview pass dropped for landing on an edge a
-    /// neighbour already claimed. Reported once on commit rather than every
-    /// preview frame, which would fight the rotate / flip status messages.
-    seam_walls_stripped: usize,
-    /// World units added to every authored height in the placement. Heights
-    /// are absolute, so this is the only way to land a ground-level piece on
-    /// a terrace without re-authoring every face.
-    elevation_offset: i32,
-}
-
 #[derive(Debug, Clone)]
 struct ViewportBoxSelect {
     start: Pos2,
     current: Pos2,
-    room: Option<NodeId>,
     additive: bool,
-    base_sectors: HashSet<SectorSelection>,
-    /// BSP-first scenes marquee brushes instead of the compatibility grid.
     /// The base selection makes additive dragging stable while the marquee
     /// grows and shrinks across frames.
-    brushes: bool,
     base_brushes: Vec<usize>,
     base_primary_brush: Option<usize>,
     /// Face/Edge/Vertex marquee selection is scoped to the active brush,
@@ -1833,10 +1573,7 @@ impl ViewportBoxSelect {
 struct Viewport3dBoxSelect {
     start: Pos2,
     current: Pos2,
-    room: Option<NodeId>,
     additive: bool,
-    base_primitives: Vec<Selection>,
-    brushes: bool,
     base_brushes: Vec<usize>,
     base_primary_brush: Option<usize>,
     element_brush: Option<usize>,
@@ -1933,21 +1670,11 @@ struct UiCanvasDrag {
 /// and makes every begin-site self-clearing: assigning a new stroke replaces
 /// whatever was active, so a stroke can no longer leak when its release event
 /// is missed.
-///
-/// Floating-duplicate placement (`floating_geometry`) is deliberately *not*
-/// here: it is a persistent placement *mode* that survives pointer-up and
-/// mutates the document with rollback, not a transient stroke.
 #[derive(Debug, Clone, Default)]
 enum Interaction {
     /// No stroke in flight.
     #[default]
     Idle,
-    /// Per-vertex height drag of selected world geometry (3D viewport).
-    PrimitiveHeight(PrimitiveDrag),
-    /// Grid-snapped X/Z move of selected primitive faces.
-    PrimitiveGrid(PrimitiveGridDrag),
-    /// Axis-gizmo drag of selected world geometry.
-    PrimitiveGizmo(PrimitiveGizmoDrag),
     /// Axis-gizmo drag of selected scene nodes.
     NodeGizmo(NodeGizmoDrag),
     /// Screen-space marquee selection in the 3D viewport.
@@ -1996,9 +1723,6 @@ macro_rules! interaction_accessors {
 }
 
 interaction_accessors! {
-    PrimitiveHeight => primitive_drag, primitive_drag_mut, take_primitive_drag : PrimitiveDrag;
-    PrimitiveGrid => primitive_grid_drag, primitive_grid_drag_mut, take_primitive_grid_drag : PrimitiveGridDrag;
-    PrimitiveGizmo => primitive_gizmo_drag, primitive_gizmo_drag_mut, take_primitive_gizmo_drag : PrimitiveGizmoDrag;
     NodeGizmo => node_gizmo_drag, node_gizmo_drag_mut, take_node_gizmo_drag : NodeGizmoDrag;
     BoxSelect3d => box_select_3d, box_select_3d_mut, take_box_select_3d : Viewport3dBoxSelect;
     BoxSelect2d => box_select_2d, box_select_2d_mut, take_box_select_2d : ViewportBoxSelect;
@@ -2081,49 +1805,19 @@ struct SelectionState {
     selected_resources: HashSet<ResourceId>,
     /// Anchor for Shift-click resource range selection.
     resource_selection_anchor: Option<ResourceId>,
-    /// Highlighted sector cell within the active Room. Tracked so the
-    /// inspector can show per-cell properties without inflating the
-    /// scene-tree node count with a node per sector.
-    selected_sector: Option<(u16, u16)>,
-    /// Multi-cell Room tile selection. Fully qualified with Room id so
-    /// selections survive scene-tree focus changes and can span the
-    /// active Room without pretending each tile is a scene node.
-    selected_sectors: HashSet<SectorSelection>,
-    /// Anchor used by Shift-click tile range selection.
-    sector_selection_anchor: Option<SectorSelection>,
-    /// Primitive under the pointer while the Select tool is active. Updated
-    /// every frame the panel is hovered and the tool is Select; cleared when
-    /// the pointer leaves or another tool takes over. The renderer outlines
-    /// this lightly so the user sees what the next click will pick.
-    hovered_primitive: Option<Selection>,
     /// Brush sub-element handle under the cursor this frame (either
     /// view). Drives the pre-click hover highlight in the overlays.
     hovered_brush_handle: Option<BrushElement>,
-    /// Primitive the user clicked with the Select tool last. Persists across
-    /// frames until the user clicks a different one or switches tools. The
-    /// renderer outlines it more boldly than `hovered_primitive`; the
-    /// inspector reads it to surface per-primitive properties.
-    selected_primitive: Option<Selection>,
-    /// Multi primitive selection for Select mode. `selected_primitive` remains
-    /// the active/inspected item; this list is the editable set used by
-    /// overlay, delete, and drag.
-    selected_primitives: Vec<Selection>,
     /// Hovered entity bound under the cursor (Select tool only). Drives the
     /// entity-bounds highlight overlay and the click→select fast path.
     hovered_entity_node: Option<NodeId>,
 }
 
 impl SelectionState {
-    /// Drop the primitive (face/edge/vertex) selection.
-    fn clear_primitives(&mut self) {
-        self.selected_primitive = None;
-        self.selected_primitives.clear();
-    }
-
     /// Apply a scene-node click with Shift (range) / toggle (Ctrl/Cmd)
     /// modifiers against `visible_order`. Pure selection-state mutation: it
-    /// also clears any resource and primitive selection, but leaves status
-    /// text and sector state to the caller. egui-free so it is unit-testable.
+    /// also clears any resource selection, but leaves status text to the
+    /// caller. egui-free so it is unit-testable.
     fn apply_node_modifiers(&mut self, id: NodeId, shift: bool, toggle: bool, order: &[NodeId]) {
         // Toggling with nothing multi-selected promotes the current primary
         // into the set first, so the click adds a second rather than replacing.
@@ -2144,12 +1838,11 @@ impl SelectionState {
         self.selected_resource = None;
         self.selected_resources.clear();
         self.resource_selection_anchor = None;
-        self.clear_primitives();
     }
 
     /// Resource counterpart to [`Self::apply_node_modifiers`]. Clears any node
-    /// and primitive selection; the caller owns status text, sector state and
-    /// the resource-delete confirmation.
+    /// selection; the caller owns status text and the resource-delete
+    /// confirmation.
     fn apply_resource_modifiers(
         &mut self,
         id: ResourceId,
@@ -2174,21 +1867,7 @@ impl SelectionState {
         self.selected_node = NodeId::ROOT;
         self.selected_nodes.clear();
         self.node_selection_anchor = None;
-        self.clear_primitives();
     }
-}
-
-/// Resolved physical vertex: every face-corner that currently
-/// sits at `world` and therefore moves together when the
-/// vertex's height is dragged.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PhysicalVertex {
-    /// Integer world position. Every member is at exactly this
-    /// `(X, Y, Z)`.
-    pub world: [i32; 3],
-    /// Face-corners that share the position. Always non-empty
-    /// (contains at least the seed).
-    pub members: Vec<FaceCornerRef>,
 }
 
 /// Camera style used by the editor's 3D viewport.
@@ -3294,34 +2973,22 @@ impl EditorWorkspace {
                 selected_resource: None,
                 selected_resources: HashSet::new(),
                 resource_selection_anchor: None,
-                selected_sector: None,
-                selected_sectors: HashSet::new(),
-                sector_selection_anchor: None,
-                hovered_primitive: None,
                 hovered_brush_handle: None,
-                selected_primitive: None,
-                selected_primitives: Vec::new(),
                 hovered_entity_node: None,
             },
             interaction: Interaction::Idle,
-            selection_mode: SelectionMode::default(),
             transform_gizmo_mode: TransformGizmoMode::Move,
             gizmo_space: GizmoSpace::Global,
             ui_transform_mode: UiTransformMode::Move,
-            vertex_connectivity: VertexConnectivity::default(),
-            validation_issue_primitives: Vec::new(),
-            validation_issue_rooms: HashSet::new(),
             last_cook_errors: Vec::new(),
             brush_overlap_report: None,
             terrain_editor: None,
-            floating_geometry: None,
             portable_geometry_clipboard: None,
             clipboard_notice: None,
             renaming: None,
             pending_rename_focus: false,
             active_ui_scene_index: 0,
             active_scene_state_index: 0,
-            active_floor: 0,
             ui_nav_preview: false,
             ui_center_snap: true,
             screen_offset_sim_px: 0,
@@ -3853,9 +3520,6 @@ impl EditorWorkspace {
         // authority boundary. Check once more so the status can report an
         // external edit before this explicit Save replaces it.
         self.poll_project_watch(true);
-        if self.floating_geometry.is_some() {
-            return Err("Place or cancel the duplicate preview before saving".to_string());
-        }
         let trimmed_name = self.project.name.trim().to_string();
         if trimmed_name.is_empty() {
             return Err("Project name cannot be empty".to_string());
@@ -3940,9 +3604,6 @@ impl EditorWorkspace {
     /// rather than failing -- the user can still keep editing the
     /// in-memory state.
     pub fn reload(&mut self) {
-        if self.floating_geometry.is_some() {
-            self.cancel_floating_geometry();
-        }
         match load_project_with_starter_catalogue(&self.project_dir) {
             Ok((project, sync_status, dirty)) => {
                 // Reload is a reopen: in-flight gestures and the undo
@@ -3965,7 +3626,6 @@ impl EditorWorkspace {
                 self.selection.selected_resources.clear();
                 self.selection.resource_selection_anchor = None;
                 self.place_resource = None;
-                self.clear_sector_selection();
                 self.ui_node_clipboard = None;
                 self.resource_renaming = None;
                 self.resource_delete_confirm = None;
@@ -4331,120 +3991,7 @@ impl EditorWorkspace {
         };
         self.replace_node_selection(target);
         self.clear_resource_selection_state();
-        self.clear_primitive_selection_state();
-        self.clear_sector_selection();
         true
-    }
-
-    fn room_bounds_3d(&self, room_id: NodeId) -> Option<([f32; 3], [f32; 3])> {
-        let scene = self.project.active_scene();
-        let room = scene.node(room_id)?;
-        let NodeKind::Section { grid } = &room.kind else {
-            return None;
-        };
-        let footprint = grid.authored_footprint()?;
-        let x0 = grid.cell_world_x(footprint.x) as f32;
-        let x1 = grid.cell_world_x(footprint.end_x()) as f32;
-        let z0 = grid.cell_world_z(footprint.z) as f32;
-        let z1 = grid.cell_world_z(footprint.end_z()) as f32;
-        let mut min_y: f32 = 0.0;
-        let mut max_y = grid.sector_size as f32;
-        for sx in footprint.x..footprint.end_x() {
-            for sz in footprint.z..footprint.end_z() {
-                let Some(sector) = grid.sector(sx, sz) else {
-                    continue;
-                };
-                if !sector.has_geometry() {
-                    continue;
-                }
-                if let Some(face) = &sector.floor {
-                    for y in face.heights {
-                        min_y = min_y.min(y as f32);
-                        max_y = max_y.max(y as f32);
-                    }
-                }
-                if let Some(face) = &sector.ceiling {
-                    for y in face.heights {
-                        min_y = min_y.min(y as f32);
-                        max_y = max_y.max(y as f32);
-                    }
-                }
-                for dir in GridDirection::ALL {
-                    for wall in sector.walls.get(dir) {
-                        for y in wall.heights {
-                            min_y = min_y.min(y as f32);
-                            max_y = max_y.max(y as f32);
-                        }
-                    }
-                }
-            }
-        }
-        Some((
-            [(x0 + x1) * 0.5, (min_y + max_y) * 0.5, (z0 + z1) * 0.5],
-            [
-                (x1 - x0).abs() * 0.5,
-                ((max_y - min_y).abs() * 0.5).max(64.0),
-                (z1 - z0).abs() * 0.5,
-            ],
-        ))
-    }
-
-    fn sector_bounds_3d(&self, room_id: NodeId, sx: u16, sz: u16) -> Option<([f32; 3], [f32; 3])> {
-        let scene = self.project.active_scene();
-        let room = scene.node(room_id)?;
-        let NodeKind::Section { grid } = &room.kind else {
-            return None;
-        };
-        Self::sector_bounds_3d_for_grid(grid, sx, sz)
-    }
-
-    fn sector_bounds_3d_for_grid(
-        grid: &WorldGrid,
-        sx: u16,
-        sz: u16,
-    ) -> Option<([f32; 3], [f32; 3])> {
-        if sx >= grid.width || sz >= grid.depth {
-            return None;
-        }
-        let cell = grid.cell_bounds_world(sx, sz);
-        let mut min_y = 0;
-        let mut max_y = grid.sector_size;
-        if let Some(sector) = grid.sector(sx, sz) {
-            if let Some(face) = &sector.floor {
-                for y in face.heights {
-                    min_y = min_y.min(y);
-                    max_y = max_y.max(y);
-                }
-            }
-            if let Some(face) = &sector.ceiling {
-                for y in face.heights {
-                    min_y = min_y.min(y);
-                    max_y = max_y.max(y);
-                }
-            }
-            for dir in GridDirection::ALL {
-                for wall in sector.walls.get(dir) {
-                    for y in wall.heights {
-                        min_y = min_y.min(y);
-                        max_y = max_y.max(y);
-                    }
-                }
-            }
-        }
-        let min_y = min_y as f32;
-        let max_y = max_y as f32;
-        Some((
-            [
-                (cell.x0 + cell.x1) as f32 * 0.5,
-                (min_y + max_y) * 0.5,
-                (cell.z0 + cell.z1) as f32 * 0.5,
-            ],
-            [
-                (cell.x1 - cell.x0).abs() as f32 * 0.5,
-                ((max_y - min_y).abs() * 0.5).max(64.0),
-                (cell.z1 - cell.z0).abs() as f32 * 0.5,
-            ],
-        ))
     }
 
     /// Cook the active BSP project into the playtest example's
@@ -4475,17 +4022,11 @@ impl EditorWorkspace {
         let (package, report) = psxed_project::playtest::build_package(&project, &self.project_dir);
         let cooked_bsp_leak_path = package
             .as_ref()
-            .and_then(|package| match &package.world_geometry {
-                psxed_project::playtest::PlaytestWorldGeometry::Pxbsp(world) => {
-                    Some(world.leak_path.clone())
-                }
-                psxed_project::playtest::PlaytestWorldGeometry::Grid => None,
-            })
+            .map(|package| package.world_geometry.leak_path.clone())
             .unwrap_or_default();
         let summary = package.as_ref().map(|p| PackageSummary {
             assets: p.assets.len(),
             textures: p.texture_asset_count(),
-            materials: p.materials.len(),
             models: p.models.len(),
             characters: p.characters.len(),
             lights: p.lights.len(),
@@ -4554,7 +4095,7 @@ impl EditorWorkspace {
                     None => ", no player".to_string(),
                 };
                 format!(
-                    " - {} model{}, {} character{}{}, {} light{}, {} asset{}, {} texture{}, {} material{}, {} entit{}",
+                    " - {} model{}, {} character{}{}, {} light{}, {} asset{}, {} texture{}, {} entit{}",
                     s.models,
                     if s.models == 1 { "" } else { "s" },
                     s.characters,
@@ -4566,8 +4107,6 @@ impl EditorWorkspace {
                     if s.assets == 1 { "" } else { "s" },
                     s.textures,
                     if s.textures == 1 { "" } else { "s" },
-                    s.materials,
-                    if s.materials == 1 { "" } else { "s" },
                     s.entities,
                     if s.entities == 1 { "y" } else { "ies" },
                 )

@@ -1461,9 +1461,6 @@ struct PreviewModelInstance<'a> {
     /// Camera-reactive crystal roughness, when the material enables it. The
     /// engine model pass applies the same opaque facet bands the runtime does.
     crystal_roughness: Option<u8>,
-    /// The project's runtime model split threshold, so the preview walks the
-    /// same engine raster path the cooked game does.
-    texture_split_max_edge: u16,
     /// Optional independently blended second texture pass.
     secondary_layer: Option<PreviewModelSecondaryLayer>,
     /// Authored model face-sidedness after material override.
@@ -1671,7 +1668,6 @@ fn resolve_and_draw_model_instances(
                 .map(|material| material.blend_mode)
                 .unwrap_or(BlendMode::Opaque),
             crystal_roughness: material_override.and_then(|material| material.crystal_roughness),
-            texture_split_max_edge: project.runtime_texture_split_max_edge,
             secondary_layer: material_override.and_then(|material| {
                 material.secondary_layer.map(|mut layer| {
                     layer.tint = shade_model_tint(
@@ -2086,7 +2082,7 @@ fn submit_preview_model_instance(
     let options = preview_model_surface_options(
         material,
         instance.face_sidedness,
-        instance.texture_split_max_edge,
+        MODEL_TEXTURE_SPLIT_MAX_EDGE,
         depth_range,
     )
     .with_model_uv_mapping(preview_model_uv_mapping(instance.crystal_roughness));
@@ -2251,9 +2247,15 @@ fn clamp_preview_model_uv(uv: (u8, u8), max_u: u8, max_v: u8) -> (u8, u8) {
     (uv.0.min(max_u), uv.1.min(max_v))
 }
 
+/// Projected edge threshold of the runtime model pass: `0` keeps the packed
+/// model batch. Mirrors `MODEL_TEXTURE_SPLIT_MAX_EDGE` in the editor-playtest
+/// guest, which no project setting overrides.
+const MODEL_TEXTURE_SPLIT_MAX_EDGE: u16 = 0;
+
 /// Model draw options, matching `psx_game_runtime`'s model pass.
 ///
-/// `texture_split_max_edge` is the project's own runtime knob. Splitting has
+/// `texture_split_max_edge` is the projected edge threshold the runtime model
+/// pass uses ([`MODEL_TEXTURE_SPLIT_MAX_EDGE`]). Splitting has
 /// to stay ENABLED for parity even though these meshes never subdivide at the
 /// default edge of zero: `split_textured_triangles && max_edge == 0` is what
 /// selects the engine's packed model batch, and the packed batch is the only
@@ -2632,8 +2634,7 @@ mod tests {
             "Crate",
             NodeKind::BoxProp {
                 materials,
-                uvs: [psxed_project::GridUvTransform::default();
-                    psxed_project::BOX_PROP_FACE_COUNT],
+                uvs: [psxed_project::UvTransform::default(); psxed_project::BOX_PROP_FACE_COUNT],
                 vertices: psxed_project::box_prop_vertices_for_size(512),
                 collision_enabled: true,
                 break_flags: 0,
