@@ -239,6 +239,9 @@ const PLAYER_ANIM_BLEND_GAIT_TICKS: u32 = 10;
 mod duel;
 mod opening_sequence;
 
+/// False only in the `no-perfect-swap` measurement build.
+const PERFECT_SWAPS: bool = !cfg!(feature = "no-perfect-swap");
+
 struct Playtest {
     duel: duel::Duel,
     /// The latest stance swap was a Triangle press, not a forced one. Only a
