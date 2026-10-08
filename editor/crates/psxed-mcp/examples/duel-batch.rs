@@ -2,7 +2,7 @@
 //!
 //! ```text
 //! duel-batch --project editor/projects/graybox-reach --frontend target/release/frontend \
-//!     --seeds 1-20 --parallel 2 --out <dir> [--scenario graybox|heavy] [--polls 11400] \
+//!     --seeds 1-60 --parallel 2 --out <dir> [--scenario graybox|heavy] [--polls 11400] \
 //!     [--skip-build] [--label name]
 //! ```
 use psxed_mcp::duel_batch::{self, BatchOptions, Scenario};
@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 fn usage() -> ! {
     eprintln!(
-        "usage: duel-batch --project <dir> --frontend <bin> --out <dir> [--seeds 1-20] \
+        "usage: duel-batch --project <dir> --frontend <bin> --out <dir> [--seeds 1-60] \
          [--parallel 1|2] [--scenario graybox|heavy] [--polls N] [--skip-build] [--label name]"
     );
     std::process::exit(2);
@@ -19,7 +19,7 @@ fn usage() -> ! {
 fn main() {
     let mut args = std::env::args().skip(1);
     let (mut project, mut frontend, mut out) = (None, None, None);
-    let mut seeds = "1-20".to_string();
+    let mut seeds = duel_batch::DEFAULT_SEEDS.to_string();
     let (mut parallel, mut polls, mut skip_build) = (2usize, 11400u32, false);
     let (mut scenario, mut label) = ("graybox".to_string(), String::new());
     while let Some(flag) = args.next() {

@@ -55,7 +55,7 @@ struct CombatDuelReq {
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 struct CombatDuelBatchReq {
-    /// Seeds to replay, e.g. "1-20" or "3,5,9" (1..255, not 128). Default "1-20".
+    /// Seeds to replay, e.g. "1-20" or "3,5,9" (1..255, not 128). Default "1-60".
     seeds: Option<String>,
     /// Emulators at once: 1 or 2 (default 2, the maximum).
     parallel: Option<u8>,
@@ -1188,8 +1188,12 @@ impl EditorServer {
             Ok(w.root().to_path_buf())
         })?;
         let invalid = |e: String| ErrorData::invalid_params(e, None);
-        let seeds = psxed_mcp::duel_batch::parse_seeds(req.seeds.as_deref().unwrap_or("1-20"))
-            .map_err(invalid)?;
+        let seeds = psxed_mcp::duel_batch::parse_seeds(
+            req.seeds
+                .as_deref()
+                .unwrap_or(psxed_mcp::duel_batch::DEFAULT_SEEDS),
+        )
+        .map_err(invalid)?;
         let scenario =
             psxed_mcp::duel_batch::Scenario::parse(req.scenario.as_deref().unwrap_or("graybox"))
                 .map_err(invalid)?;
