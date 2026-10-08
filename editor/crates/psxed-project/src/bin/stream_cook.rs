@@ -10,8 +10,9 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use psxed_project::brush_region::PartitionParams;
-use psxed_project::brush_world::stream_cook::{cook_project_streamed, CookedWorld};
+use psxed_project::brush_world::stream_cook::{
+    cook_project_streamed, partition_params_from_env, CookedWorld,
+};
 use psxed_project::brush_world::BrushWorldCookMode;
 use psxed_project::ProjectDocument;
 
@@ -45,7 +46,14 @@ fn main() -> ExitCode {
     let root = Path::new(&path)
         .parent()
         .map_or_else(|| PathBuf::from("."), PathBuf::from);
-    match cook_project_streamed(&project, &root, mode, [0; 3], &PartitionParams::default()) {
+    let params = match partition_params_from_env() {
+        Ok(params) => params,
+        Err(error) => {
+            eprintln!("[stream-cook] PSXED_STREAM_PARAMS: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    match cook_project_streamed(&project, &root, mode, [0; 3], &params) {
         Ok(CookedWorld::Whole(world)) => {
             println!(
                 "one region: whole-map cook, {} bytes, empty StreamingIndex",
@@ -69,6 +77,22 @@ fn main() -> ExitCode {
             println!(
                 "slot caps: faces {} vertices {} planes {} marks {} nodes {} clip {} leaves {} vis {} B; widest PVS row {} B of 1024, max |V| {}",
                 c.faces, c.vertices, c.planes, c.marks, c.nodes, c.clip_nodes, c.leaves, c.vis_bytes, s.widest_row_bytes, s.max_vis_count
+            );
+            let slot_bytes = c.faces as usize * 10
+                + c.vertices as usize * 12
+                + c.planes as usize * 12
+                + c.marks as usize * 2
+                + c.nodes as usize * 16
+                + c.clip_nodes as usize * 6
+                + c.leaves as usize * 14
+                + c.vis_bytes as usize;
+            println!(
+                "slot {} B x {} regions = pool {} B; payload sum {} B; largest payload {} B",
+                slot_bytes,
+                s.regions.len(),
+                slot_bytes * s.regions.len(),
+                s.regions.iter().map(|r| r.payload_bytes).sum::<usize>(),
+                s.regions.iter().map(|r| r.payload_bytes).max().unwrap_or(0)
             );
             for r in &s.regions {
                 println!(

@@ -19,6 +19,7 @@ use psx_bsp::render::{configure_projection, load_pxbsp_view, Camera, Renderer};
 use psx_bsp::{SliceReader, Vec3I32};
 
 use super::*;
+use super::{flatten_streamed as flatten, FlatWorld as Flat};
 use crate::brush_region::PartitionParams;
 use crate::stream_world::{generate, load_donor, StreamWorldConfig};
 
@@ -48,202 +49,6 @@ fn lcg(state: &mut u32) -> u32 {
 
 // ---- the flat reference ----------------------------------------------------
 
-fn rd16(bytes: &[u8], at: usize) -> u16 {
-    u16::from_le_bytes([bytes[at], bytes[at + 1]])
-}
-
-fn wr16(bytes: &mut [u8], at: usize, value: u16) {
-    bytes[at..at + 2].copy_from_slice(&value.to_le_bytes());
-}
-
-struct Flat {
-    bytes: Vec<u8>,
-    /// Region and local face of every flat face.
-    face_of: Vec<(usize, usize)>,
-    /// Region and local leaf (1-based) of every flat leaf (index 0 unused).
-    leaf_of: Vec<(usize, usize)>,
-}
-
-fn lump(container: &[u8], index: &PxbspIndex, kind: PxbspLumpKind) -> Vec<u8> {
-    let r = index.lump(kind);
-    container[r.offset as usize..r.end() as usize].to_vec()
-}
-
-fn flatten(world: &StreamedBrushWorld) -> Flat {
-    let debug = &world.debug;
-    let regions = debug.regions.len();
-    let top = &debug.top;
-    let index = PxbspIndex::read(&mut SliceReader::new(&world.container)).unwrap();
-    let mut lumps: [Vec<u8>; PXBSP_LUMP_COUNT] = core::array::from_fn(|_| Vec::new());
-    lumps[PxbspLumpKind::Materials as usize] =
-        lump(&world.container, &index, PxbspLumpKind::Materials);
-    lumps[PxbspLumpKind::Entities as usize] =
-        lump(&world.container, &index, PxbspLumpKind::Entities);
-
-    // Additive bases, region by region.
-    let mut base = vec![[0usize; 8]; regions]; // planes, vertices, faces, marks, nodes, clip, leaf, vis
-    let top_planes = top.planes.len() / 12;
-    let top_nodes = top.nodes.len() / 16;
-    let top_clip = top.clip_nodes.len() / 6;
-    let mut at = [top_planes, 0, 0, 0, top_nodes, top_clip, 1, 0];
-    for (r, b) in debug.regions.iter().enumerate() {
-        base[r] = at;
-        at[0] += b.planes.len() / 12;
-        at[1] += b.vertices.len() / 12;
-        at[2] += b.faces.len() / 10;
-        at[3] += b.marks.len() / 2;
-        at[4] += b.nodes.len() / 16;
-        at[5] += b.clip_nodes.len() / 6;
-        at[6] += b.leaves.len() / 14;
-    }
-
-    // Region child -> flat child.
-    let render_child = |r: usize, c: i16| -> i16 {
-        if c >= 0 {
-            (c as usize + base[r][4]) as i16
-        } else {
-            let l = (-1 - c) as usize;
-            if l == 0 {
-                c
-            } else {
-                (-1 - (base[r][6] + l - 1) as i32) as i16
-            }
-        }
-    };
-    let clip_child = |r: usize, c: i16| -> i16 {
-        if c >= 0 {
-            (c as usize + base[r][5]) as i16
-        } else {
-            c
-        }
-    };
-
-    let mut planes = top.planes.clone();
-    let mut vertices = Vec::new();
-    let mut faces = Vec::new();
-    let mut marks = Vec::new();
-    let mut nodes = top.nodes.clone();
-    let mut clips = top.clip_nodes.clone();
-    let mut leaves = Vec::new();
-    let mut face_of = Vec::new();
-    let mut leaf_of = vec![(0, 0)];
-    // Sentinel leaf.
-    {
-        let mut sentinel = vec![0u8; 14];
-        sentinel[0] = CONTENTS_SOLID as i8 as u8;
-        sentinel[4..8].copy_from_slice(&(-1i32).to_le_bytes());
-        sentinel[13] = 64;
-        leaves.extend(sentinel);
-    }
-    // Dense visibility, interned.
-    let mut vis = Vec::new();
-    let mut interned = std::collections::BTreeMap::<Vec<u8>, i32>::new();
-    for (r, b) in debug.regions.iter().enumerate() {
-        planes.extend_from_slice(&b.planes);
-        vertices.extend_from_slice(&b.vertices);
-        for (local, face) in b.faces.chunks_exact(10).enumerate() {
-            let mut f = face.to_vec();
-            wr16(&mut f, 0, rd16(face, 0) + base[r][0] as u16);
-            wr16(&mut f, 2, rd16(face, 2) + base[r][1] as u16);
-            faces.extend(f);
-            face_of.push((r, local));
-        }
-        for mark in b.marks.chunks_exact(2) {
-            marks.extend_from_slice(&(rd16(mark, 0) + base[r][2] as u16).to_le_bytes());
-        }
-        for node in b.nodes.chunks_exact(16) {
-            let mut n = node.to_vec();
-            wr16(&mut n, 0, rd16(node, 0) + base[r][0] as u16);
-            for side in 0..2 {
-                wr16(
-                    &mut n,
-                    2 + side * 2,
-                    render_child(r, rd16(node, 2 + side * 2) as i16) as u16,
-                );
-            }
-            nodes.extend(n);
-        }
-        for node in b.clip_nodes.chunks_exact(6) {
-            let mut n = node.to_vec();
-            wr16(&mut n, 0, rd16(node, 0) + base[r][0] as u16);
-            for side in 0..2 {
-                wr16(
-                    &mut n,
-                    2 + side * 2,
-                    clip_child(r, rd16(node, 2 + side * 2) as i16) as u16,
-                );
-            }
-            clips.extend(n);
-        }
-        for (k, leaf) in b.leaves.chunks_exact(14).enumerate() {
-            let mut l = leaf.to_vec();
-            wr16(&mut l, 8, rd16(leaf, 8) + base[r][3] as u16);
-            let row = &debug.dense_rows[r][k];
-            let compressed = crate::brush_pack::compress_visibility(row);
-            let offset = *interned.entry(compressed.clone()).or_insert_with(|| {
-                let at = vis.len() as i32;
-                vis.extend_from_slice(&compressed);
-                at
-            });
-            l[4..8].copy_from_slice(&offset.to_le_bytes());
-            leaves.extend(l);
-            leaf_of.push((r, k + 1));
-        }
-    }
-    // Top nodes: a stub child becomes the region's root.
-    for t in 0..top_nodes {
-        for side in 0..2 {
-            let at = t * 16 + 2 + side * 2;
-            let child = rd16(&nodes, at) as i16;
-            if child < 0 {
-                let r = (-child - 2) as usize;
-                let root = render_child(r, debug.regions[r].render_root);
-                wr16(&mut nodes, at, root as u16);
-            }
-        }
-    }
-    // Top clip nodes: patch each region's two links.
-    for (r, entry) in world.index.regions.iter().enumerate() {
-        for hull in 0..2 {
-            let parent = entry.parents[1 + hull] as usize;
-            let side = entry.side(1 + hull);
-            let root = clip_child(r, debug.regions[r].clip_roots[hull]);
-            wr16(&mut clips, parent * 6 + 2 + side * 2, root as u16);
-        }
-    }
-    let n = top_nodes;
-    let mut model = Vec::new();
-    for v in debug
-        .world_bounds
-        .0
-        .into_iter()
-        .chain(debug.world_bounds.1)
-        .chain([0; 3])
-    {
-        model.extend_from_slice(&v.to_le_bytes());
-    }
-    for head in [0i16, 0, 1, 1 + n as i16] {
-        model.extend_from_slice(&head.to_le_bytes());
-    }
-    model.extend_from_slice(&(debug.dense_total as i16).to_le_bytes());
-    model.extend_from_slice(&0u16.to_le_bytes());
-    model.extend_from_slice(&((faces.len() / 10) as u16).to_le_bytes());
-    lumps[PxbspLumpKind::Vertices as usize] = vertices;
-    lumps[PxbspLumpKind::Planes as usize] = planes;
-    lumps[PxbspLumpKind::Faces as usize] = faces;
-    lumps[PxbspLumpKind::MarkSurfaces as usize] = marks;
-    lumps[PxbspLumpKind::Visibility as usize] = vis;
-    lumps[PxbspLumpKind::Leaves as usize] = leaves;
-    lumps[PxbspLumpKind::Nodes as usize] = nodes;
-    lumps[PxbspLumpKind::ClipNodes as usize] = clips;
-    lumps[PxbspLumpKind::Models as usize] = model;
-    Flat {
-        bytes: write_pxbsp(&lumps).expect("flat container"),
-        face_of,
-        leaf_of,
-    }
-}
-
 fn load_flat(flat: &Flat) -> PxbspResidentMap {
     let mut map = PxbspResidentMap::with_capacity(flat.bytes.len() * 2);
     map.load(1, &mut SliceReader::new(&flat.bytes))
@@ -268,6 +73,29 @@ fn install_all(world: &StreamedBrushWorld, map: &mut PxbspResidentMap) {
     }
 }
 
+/// The guest's install: regions in disc order, each into the slot of its own
+/// number, fed one 2 KiB sector at a time straight from the region pack.
+fn install_by_sectors_in_disc_order(world: &StreamedBrushWorld, map: &mut PxbspResidentMap) {
+    let mut order: Vec<u16> = (0..world.index.regions.len() as u16).collect();
+    order.sort_by_key(|&r| world.index.regions[r as usize].sector_start);
+    for region in order {
+        let entry = world.index.regions[region as usize];
+        let mut job = map.begin_install(region, region).expect("begin");
+        let start = entry.sector_start as usize * 2048;
+        let pack = &world.region_pack[start..start + entry.sectors() as usize * 2048];
+        let mut progress = None;
+        for sector in pack.chunks(2048) {
+            progress = Some(map.install_feed(&mut job, sector).expect("feed"));
+        }
+        assert_eq!(
+            progress,
+            Some(psx_bsp::pxbsp_resident::stream::InstallProgress::Staged)
+        );
+        assert_ne!(job.materials(), 0, "a region draws something");
+        map.link_region(&mut job).expect("link");
+    }
+}
+
 // ---- gate (a): streamed == whole ------------------------------------------
 
 struct Sampled {
@@ -279,12 +107,26 @@ struct Sampled {
 }
 
 fn compare_views(world: &StreamedBrushWorld, views: usize, seed: u32) -> Sampled {
+    compare_views_with(world, views, seed, install_all, false)
+}
+
+/// [`compare_views`] with the install strategy under test. With `ordered` the
+/// face lists must also agree in draw order, not just as sets: the renderer
+/// emits packets in that order, so equal order is what makes the frames pixel
+/// identical where two surfaces tie in depth.
+fn compare_views_with(
+    world: &StreamedBrushWorld,
+    views: usize,
+    seed: u32,
+    install: fn(&StreamedBrushWorld, &mut PxbspResidentMap),
+    ordered: bool,
+) -> Sampled {
     configure_projection();
     let flat = flatten(world);
     let flat_map = load_flat(&flat);
     let regions = world.index.regions.len() as u16;
     let mut streamed = load_streamed(world, regions);
-    install_all(world, &mut streamed);
+    install(world, &mut streamed);
     streamed.check_integrity().expect("integrity");
 
     let mut flat_renderer =
@@ -370,6 +212,20 @@ fn compare_views(world: &StreamedBrushWorld, views: usize, seed: u32) -> Sampled
         };
         let mut a: Vec<_> = pvs_flat.iter().map(key_flat).collect();
         let mut b: Vec<_> = pvs_streamed.iter().map(key_streamed).collect();
+        let mut c: Vec<_> = frame_flat.iter().map(key_flat).collect();
+        let mut d: Vec<_> = frame_streamed.iter().map(key_streamed).collect();
+        if ordered {
+            assert_eq!(
+                a, b,
+                "PVS face order differs at {origin:?} angles {:?}",
+                camera.angles
+            );
+            assert_eq!(
+                c, d,
+                "frame face order differs at {origin:?} angles {:?}",
+                camera.angles
+            );
+        }
         a.sort_unstable();
         b.sort_unstable();
         assert_eq!(
@@ -377,8 +233,6 @@ fn compare_views(world: &StreamedBrushWorld, views: usize, seed: u32) -> Sampled
             "PVS face sets differ at {origin:?} angles {:?}",
             camera.angles
         );
-        let mut c: Vec<_> = frame_flat.iter().map(key_flat).collect();
-        let mut d: Vec<_> = frame_streamed.iter().map(key_streamed).collect();
         c.sort_unstable();
         d.sort_unstable();
         assert_eq!(
@@ -420,6 +274,42 @@ fn graybox_reach_streamed_equals_whole_over_sampled_views() {
         sampled.pvs_faces_total,
         sampled.frame_faces_total,
         sampled.source_ids_total
+    );
+    assert!(sampled.frame_faces_total > 0);
+}
+
+#[test]
+fn the_guest_install_draws_in_the_same_order_as_the_whole_map() {
+    let (project, root) = graybox();
+    // The partition the M7 guest build uses: three regions of about 16 sectors.
+    let mut params = PartitionParams::default();
+    params.region_target_bytes = 40_000;
+    params.region_hard_cap_bytes = 80_000;
+    let world = cook(&project, &root, &params);
+    assert_eq!(world.index.regions.len(), 3);
+    let sampled = compare_views_with(
+        &world,
+        300,
+        0x5EED_0007,
+        install_by_sectors_in_disc_order,
+        true,
+    );
+    println!(
+        "guest install: {} views, {} frame faces, pool {} B for {} B of payload",
+        sampled.views,
+        sampled.frame_faces_total,
+        world.index.regions.len() * {
+            let c = world.index.caps;
+            c.faces as usize * 10
+                + c.vertices as usize * 12
+                + c.planes as usize * 12
+                + c.marks as usize * 2
+                + c.nodes as usize * 16
+                + c.clip_nodes as usize * 6
+                + c.leaves as usize * 14
+                + c.vis_bytes as usize
+        },
+        world.payloads.iter().map(Vec::len).sum::<usize>(),
     );
     assert!(sampled.frame_faces_total > 0);
 }
@@ -653,6 +543,7 @@ fn under_budget_projects_cook_byte_identical_to_the_whole_map_path() {
             mode: BrushWorldCookMode::Draft,
             ambient: [0; 3],
             texture_asset_base: 0,
+            collision_hulls: whole_map_hull_strategy(&project),
         },
     )
     .expect("reference cook");

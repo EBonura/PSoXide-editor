@@ -17,7 +17,9 @@
 use psx_engine::telemetry;
 use psx_level::LevelWorldPackEntryRecord;
 
+mod region;
 mod ring;
+pub use self::region::{RegionRead, RegionReadProgress};
 #[cfg(target_arch = "mips")]
 use self::ring::Hardware as Console;
 #[cfg(not(target_arch = "mips"))]
@@ -1279,6 +1281,14 @@ fn read_chunks_contiguous_with<T: Transport>(
     if aborted {
         cd.abort_run(transport);
     }
+}
+
+/// Where chunk `chunk_id` of a pack sits, from its cooked table of contents.
+pub fn world_pack_chunk(
+    toc: &[LevelWorldPackEntryRecord],
+    chunk_id: u32,
+) -> Option<WorldChunkInfo> {
+    world_pack_entry_from_toc(toc, chunk_id)
 }
 
 fn world_pack_entry_from_toc(
