@@ -75,7 +75,7 @@ mod tests {
 
     #[test]
     fn the_flash_fits_inside_the_shortest_freeze_and_fades() {
-        assert!(FLASH_TICKS <= LIGHT_TICKS);
+        const { assert!(FLASH_TICKS <= LIGHT_TICKS) };
         assert_eq!(flash_strength_q8(0), 0);
         assert!(flash_strength_q8(FLASH_TICKS) > flash_strength_q8(1));
     }
