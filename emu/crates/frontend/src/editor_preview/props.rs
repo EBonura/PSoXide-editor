@@ -9,7 +9,7 @@ use psxed_project::prop_surfaces::{
     bake_prop_uv, box_prop_world_surfaces, cylinder_prop_world_surfaces, image_prop_world_quad,
     prop_uv_corners, PropSurface, PROP_FACE_UV_Q8,
 };
-use psxed_project::GridUvTransform;
+use psxed_project::UvTransform;
 
 pub(super) fn walk_props(
     project: &ProjectDocument,
@@ -98,7 +98,7 @@ pub(super) fn walk_props(
                     scratch,
                     &surface,
                     *material,
-                    GridUvTransform::default(),
+                    UvTransform::default(),
                     false,
                 );
             }
@@ -138,7 +138,7 @@ fn emit_prop_surface(
     scratch: &mut PreviewScratch,
     surface: &PropSurface,
     material: Option<ResourceId>,
-    uv: GridUvTransform,
+    uv: UvTransform,
     front_facing_only: bool,
 ) {
     let Some(material) = material else {

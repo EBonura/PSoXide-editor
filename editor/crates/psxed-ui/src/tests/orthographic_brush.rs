@@ -3,7 +3,7 @@ use crate::workspace::tools::BRUSH_CREATE_HEIGHT;
 use psxed_project::brush::Brush;
 
 fn brush_workspace(label: &str) -> EditorWorkspace {
-    let mut workspace = ViewportHarness::floored_room(label, 2).workspace;
+    let mut workspace = ViewportHarness::empty(label).workspace;
     workspace.active_tool = ViewTool::Brush;
     workspace
 }

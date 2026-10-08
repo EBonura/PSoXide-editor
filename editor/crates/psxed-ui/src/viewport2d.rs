@@ -827,49 +827,6 @@ pub(crate) fn draw_light_bulb_marker(
     );
 }
 
-pub(crate) fn portal_edge_editor_segment(
-    grid: &WorldGrid,
-    edge: PortalEdge,
-) -> Option<([f32; 2], [f32; 2])> {
-    portal_edge_editor_segment_for_array(grid, edge.x, edge.z, edge.direction)
-}
-
-pub(crate) fn portal_edge_editor_segment_for_array(
-    grid: &WorldGrid,
-    sx: u16,
-    sz: u16,
-    dir: GridDirection,
-) -> Option<([f32; 2], [f32; 2])> {
-    let wcx = grid.origin[0] + sx as i32;
-    let wcz = grid.origin[1] + sz as i32;
-    portal_edge_editor_segment_for_world_cell(grid, wcx, wcz, dir)
-}
-
-pub(crate) fn portal_edge_editor_segment_for_world_cell(
-    grid: &WorldGrid,
-    wcx: i32,
-    wcz: i32,
-    dir: GridDirection,
-) -> Option<([f32; 2], [f32; 2])> {
-    let world = match dir {
-        GridDirection::North => (
-            [wcx as f32, wcz as f32 + 1.0],
-            [wcx as f32 + 1.0, wcz as f32 + 1.0],
-        ),
-        GridDirection::East => (
-            [wcx as f32 + 1.0, wcz as f32],
-            [wcx as f32 + 1.0, wcz as f32 + 1.0],
-        ),
-        GridDirection::South => ([wcx as f32, wcz as f32], [wcx as f32 + 1.0, wcz as f32]),
-        GridDirection::West => ([wcx as f32, wcz as f32], [wcx as f32, wcz as f32 + 1.0]),
-        GridDirection::NorthWestSouthEast | GridDirection::NorthEastSouthWest => return None,
-    };
-    Some((
-        grid.world_cells_to_editor(world.0),
-        grid.world_cells_to_editor(world.1),
-    ))
-}
-
 pub(crate) fn draw_simple_marker(
     painter: &egui::Painter,
     transform: ViewportTransform,

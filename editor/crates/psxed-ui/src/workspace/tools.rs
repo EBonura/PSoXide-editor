@@ -73,12 +73,8 @@ pub(crate) struct ToolFrame3d {
     pub pointer_hover: Option<egui::Pos2>,
     /// Keyboard modifiers this frame.
     pub modifiers: egui::Modifiers,
-    /// Topmost pick under the pointer (gizmo > entity > surface).
+    /// Topmost pick under the pointer (gizmo > entity > brush).
     pub pointer_target: Option<Viewport3dPointerTarget>,
-    /// Room receiving tool actions when no explicit target owns them.
-    pub hover_room: Option<NodeId>,
-    /// Vertical drag delta this frame (legacy primitive height drags).
-    pub drag_delta_y: f32,
 }
 
 /// One 3D-viewport tool. Default bodies are no-ops so a tool implements
@@ -177,22 +173,16 @@ impl ViewportTool3d for SelectTool {
             return;
         }
         match frame.pointer_target {
-            Some(Viewport3dPointerTarget::PrimitiveGizmo(axis)) => {
-                ws.begin_primitive_gizmo_drag(axis, frame.rect, pointer);
-            }
             Some(Viewport3dPointerTarget::NodeGizmo(handle)) => {
                 ws.begin_node_gizmo_handle_drag(handle, frame.rect, pointer);
             }
             Some(Viewport3dPointerTarget::Entity(_)) => {}
             Some(Viewport3dPointerTarget::Brush { .. }) if additive => {
-                ws.begin_viewport_3d_box_select(pointer, frame.hover_room, frame.modifiers);
+                ws.begin_viewport_3d_box_select(pointer, frame.modifiers);
             }
             Some(Viewport3dPointerTarget::Brush { .. }) => {}
-            Some(Viewport3dPointerTarget::Surface { .. }) => {
-                ws.begin_primitive_pointer_drag(frame.rect, pointer, frame.modifiers);
-            }
             None => {
-                ws.begin_viewport_3d_box_select(pointer, frame.hover_room, frame.modifiers);
+                ws.begin_viewport_3d_box_select(pointer, frame.modifiers);
             }
         }
     }
@@ -209,19 +199,9 @@ impl ViewportTool3d for SelectTool {
             return;
         }
         match ws.interaction {
-            Interaction::PrimitiveGizmo(_) => {
-                if let Some(p) = frame.pointer_interact {
-                    ws.update_primitive_gizmo_drag(p);
-                }
-            }
             Interaction::NodeGizmo(_) => {
                 if let Some(p) = frame.pointer_interact {
                     ws.update_node_gizmo_drag(frame.rect, p, frame.modifiers.shift);
-                }
-            }
-            Interaction::PrimitiveGrid(_) => {
-                if let Some(p) = frame.pointer_interact {
-                    ws.update_primitive_grid_drag(frame.rect, p);
                 }
             }
             Interaction::BoxSelect3d(_) => {
@@ -229,7 +209,7 @@ impl ViewportTool3d for SelectTool {
                     ws.update_viewport_3d_box_select(p, frame.rect);
                 }
             }
-            _ => ws.update_primitive_drag(frame.drag_delta_y),
+            _ => {}
         }
     }
 
@@ -255,11 +235,9 @@ impl ViewportTool3d for SelectTool {
             return;
         }
         match ws.interaction {
-            Interaction::PrimitiveGizmo(_) => ws.end_primitive_gizmo_drag(),
             Interaction::NodeGizmo(_) => ws.end_node_gizmo_drag(),
-            Interaction::PrimitiveGrid(_) => ws.end_primitive_grid_drag(),
             Interaction::BoxSelect3d(_) => ws.end_viewport_3d_box_select(),
-            _ => ws.end_primitive_drag(),
+            _ => {}
         }
     }
 
@@ -353,19 +331,14 @@ impl ViewportTool3d for SelectTool {
                 ws.select_brush_with_group_semantics(brush, Some(face), frame.modifiers, false);
                 ws.status = format!("Selected BSP brush {}", brush + 1);
             }
-            Some(Viewport3dPointerTarget::Surface { .. }) => {
-                ws.commit_face_selection(frame.modifiers);
-            }
             // An additive click that resolves to nothing adds nothing. It
             // must not wipe the multi-selection the user is assembling, so
             // only a plain click on empty space clears.
             None if frame.modifiers.shift || frame.modifiers.command || frame.modifiers.ctrl => {}
             None => {
-                ws.commit_face_selection(frame.modifiers);
+                ws.clear_all_selections();
             }
-            Some(
-                Viewport3dPointerTarget::PrimitiveGizmo(_) | Viewport3dPointerTarget::NodeGizmo(_),
-            ) => {}
+            Some(Viewport3dPointerTarget::NodeGizmo(_)) => {}
         }
     }
 }
@@ -495,8 +468,6 @@ impl EditorWorkspace {
         let (brush, face, _) = hits[depth];
         self.clear_node_selection_state();
         self.clear_resource_selection_state();
-        self.clear_primitive_selection_state();
-        self.clear_sector_selection();
         self.replace_brush_selection(brush, Some(face));
         self.brush_drill = Some((pointer, depth));
         self.status = format!("Drill {}/{}", depth + 1, hits.len());
@@ -887,8 +858,6 @@ impl EditorWorkspace {
             if self.selected_brush != Some(brush) {
                 self.clear_node_selection_state();
                 self.clear_resource_selection_state();
-                self.clear_primitive_selection_state();
-                self.clear_sector_selection();
             }
             return self.apply_brush_face_selection(brush, face, modifiers);
         }
@@ -947,8 +916,6 @@ impl EditorWorkspace {
             if self.selected_brush != Some(brush) {
                 self.clear_node_selection_state();
                 self.clear_resource_selection_state();
-                self.clear_primitive_selection_state();
-                self.clear_sector_selection();
             }
             return self.apply_brush_face_selection(brush, face, modifiers);
         }
@@ -2276,7 +2243,7 @@ impl EditorWorkspace {
         // an implicit duplicate command. Arrows move on the ground plane
         // relative to the camera (Up is away from the camera),
         // PageUp/PageDown move vertically, all by one grid step.
-        if self.selected_brush.is_some() && self.floating_geometry.is_none() {
+        if self.selected_brush.is_some() {
             let step = i32::from(self.snap_units.max(1));
             let (forward, right) = self.camera_ground_axes();
             let delta = ui.input(|input| {
@@ -3215,8 +3182,6 @@ impl EditorWorkspace {
         }
         self.clear_node_selection_state();
         self.clear_resource_selection_state();
-        self.clear_primitive_selection_state();
-        self.clear_sector_selection();
         self.selected_brush = indices.first().copied();
         self.selected_brushes = indices.clone();
         self.selected_brush_face = None;

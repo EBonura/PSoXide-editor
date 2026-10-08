@@ -171,18 +171,6 @@ fn set_gizmo_test_camera(workspace: &mut EditorWorkspace) {
     workspace.camera_rig.free_initialized = true;
 }
 
-fn projected_gizmo_axis(
-    workspace: &EditorWorkspace,
-    viewport: Rect,
-    axis: PrimitiveGizmoAxis,
-) -> PrimitiveGizmoScreenAxis {
-    workspace
-        .primitive_gizmo_screen_axes(viewport)
-        .into_iter()
-        .find(|candidate| candidate.axis == axis)
-        .expect("gizmo axis projects")
-}
-
 fn projected_node_gizmo_axis(
     workspace: &EditorWorkspace,
     viewport: Rect,
@@ -218,62 +206,64 @@ fn screen_plane_center(plane: NodeGizmoScreenPlane) -> Pos2 {
 
 /// Headless driver for the 3D viewport's pointer-resolution path.
 ///
-/// Builds a workspace with one floored room, aims a free-fly camera
-/// at the room from a chosen distance, and runs the *real*
+/// Builds a brush-world workspace, aims a free-fly camera at it from a
+/// chosen distance, and runs the *real*
 /// [`EditorWorkspace::resolve_viewport_3d_pointer_target`] used by
 /// click handling. Interaction bugs that only appear at certain
-/// zooms or angles (gizmo-vs-tile picking, entity-vs-surface
+/// zooms or angles (gizmo-vs-brush picking, entity-vs-surface
 /// priority) become deterministic tests with no live window or GPU.
-/// The floor matters: it guarantees there is always a tile *behind*
-/// the gizmo for a failed pick to wrongly fall through to.
 struct ViewportHarness {
     workspace: EditorWorkspace,
-    room: NodeId,
+    /// Side length of the world square, in sectors, that `world_center`
+    /// and the optional floor brush cover.
+    extent: u16,
     viewport: Rect,
 }
 
 impl ViewportHarness {
-    /// `extent` x `extent` sectors, every cell floored at y=0.
-    fn floored_room(label: &str, extent: u16) -> Self {
-        let mut project = ProjectDocument::new(label);
-        let mut grid = WorldGrid::empty(extent, extent, 1024);
-        for sx in 0..extent {
-            for sz in 0..extent {
-                grid.set_floor(sx, sz, 0, None);
-            }
-        }
-        let room =
-            project
-                .active_scene_mut()
-                .add_node(NodeId::ROOT, "Room", NodeKind::Section { grid });
+    /// A brush-world project with no brushes.
+    fn empty(label: &str) -> Self {
+        Self::with_extent(label, 4)
+    }
+
+    /// `extent` x `extent` sectors covered by one floor brush whose top face
+    /// sits at y=0. The floor guarantees there is always a brush *behind* a
+    /// gizmo for a failed pick to wrongly fall through to.
+    fn floored(label: &str, extent: u16) -> Self {
+        let mut harness = Self::with_extent(label, extent);
+        let size = i32::from(extent) * DEFAULT_WORLD_SECTOR_SIZE;
+        harness.workspace.project.active_scene_mut().brushes.push(
+            psxed_project::brush::Brush::cuboid([0, -64, 0], [size, 0, size]),
+        );
+        harness
+    }
+
+    fn with_extent(label: &str, extent: u16) -> Self {
+        let project = ProjectDocument::new(label);
         let mut workspace = EditorWorkspace::with_project(test_temp_dir(label), project);
         workspace.transform_gizmo_mode = TransformGizmoMode::Move;
         workspace.camera_rig.mode = ViewportCameraMode::Free;
         workspace.camera_rig.free_initialized = true;
         Self {
             workspace,
-            room,
+            extent,
             viewport: Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0)),
         }
     }
 
-    /// World-space centre of the room's floor plane, the natural
-    /// camera target and gizmo pivot for a centred node.
-    fn room_center(&self) -> [f32; 3] {
-        let grid = self.workspace.room_grid_view(self.room).unwrap();
-        let s = grid.sector_size as f32;
-        [
-            grid.width as f32 * 0.5 * s,
-            0.0,
-            grid.depth as f32 * 0.5 * s,
-        ]
+    /// World-space centre of the floor plane, the natural camera target and
+    /// gizmo pivot for a centred node.
+    fn world_center(&self) -> [f32; 3] {
+        let half = f32::from(self.extent) * 0.5 * DEFAULT_WORLD_SECTOR_SIZE as f32;
+        [half, 0.0, half]
     }
 
-    /// Add a point light at the room centre, lifted `lift_sectors`
+    /// Add a point light at the world centre, lifted `lift_sectors`
     /// off the floor. Returns the node so the test can select it.
     fn add_centre_light(&mut self, lift_sectors: f32) -> NodeId {
+        let center = self.world_center();
         let light = self.workspace.project.active_scene_mut().add_node(
-            self.room,
+            NodeId::ROOT,
             "Light",
             NodeKind::PointLight {
                 color: [255, 240, 200],
@@ -282,7 +272,11 @@ impl ViewportHarness {
             },
         );
         if let Some(node) = self.workspace.project.active_scene_mut().node_mut(light) {
-            node.transform.translation = [0.0, lift_sectors, 0.0];
+            node.transform.translation = [
+                center[0],
+                lift_sectors * DEFAULT_WORLD_SECTOR_SIZE as f32,
+                center[2],
+            ];
         }
         light
     }
@@ -327,12 +321,8 @@ impl ViewportHarness {
     /// Resolve what a click at `pointer` would target, through the
     /// same path the live viewport uses.
     fn resolve(&self, pointer: Pos2) -> Option<Viewport3dPointerTarget> {
-        self.workspace.resolve_viewport_3d_pointer_target(
-            self.viewport,
-            pointer,
-            Some(self.room),
-            true,
-        )
+        self.workspace
+            .resolve_viewport_3d_pointer_target(self.viewport, pointer, true)
     }
 
     /// The node-gizmo handle a click at `pointer` would grab, if any.
@@ -380,8 +370,7 @@ impl ViewportHarness {
 
     /// One-character class of what a click at `pointer` resolves to,
     /// for diagnostic maps. Uppercase = node-gizmo plane, lowercase =
-    /// node-gizmo axis, `P` = primitive gizmo, `#` = tile/surface (the
-    /// bug), `.` = nothing.
+    /// node-gizmo axis, `#` = brush surface (the bug), `.` = nothing.
     fn classify(&self, pointer: Pos2) -> char {
         match self.resolve(pointer) {
             Some(Viewport3dPointerTarget::NodeGizmo(NodeGizmoHandle::Plane(p))) => match p {
@@ -395,10 +384,8 @@ impl ViewportHarness {
                 PrimitiveGizmoAxis::Z => 'z',
             },
             Some(Viewport3dPointerTarget::NodeGizmo(NodeGizmoHandle::BoxFace(_))) => 'B',
-            Some(Viewport3dPointerTarget::PrimitiveGizmo(_)) => 'P',
             Some(Viewport3dPointerTarget::Entity(_)) => 'E',
-            Some(Viewport3dPointerTarget::Brush { .. }) => 'B',
-            Some(Viewport3dPointerTarget::Surface { .. }) => '#',
+            Some(Viewport3dPointerTarget::Brush { .. }) => '#',
             None => '.',
         }
     }
@@ -412,16 +399,6 @@ fn assert_pos_approx(actual: Pos2, expected: Pos2) {
 fn assert_size_approx(actual: Vec2, expected: Vec2) {
     assert!((actual.x - expected.x).abs() < 0.001);
     assert!((actual.y - expected.y).abs() < 0.001);
-}
-
-fn test_node_preview_origin(project: &ProjectDocument, room: NodeId, node: NodeId) -> [i32; 3] {
-    let scene = project.active_scene();
-    let room_node = scene.node(room).expect("room exists");
-    let NodeKind::Section { grid } = &room_node.kind else {
-        panic!("expected room");
-    };
-    let node = scene.node(node).expect("node exists");
-    psxed_project::spatial::node_preview_origin(grid, &node.transform)
 }
 
 fn starter_player_entity(scene: &psxed_project::Scene) -> &psxed_project::SceneNode {
@@ -456,43 +433,4 @@ fn resource_search_token(resource: &Resource) -> String {
         .find(|part| !part.is_empty())
         .unwrap_or("")
         .to_string()
-}
-
-fn cell_with_floor(material: Option<psxed_project::ResourceId>) -> psxed_project::GridSector {
-    psxed_project::GridSector {
-        floor: Some(psxed_project::GridHorizontalFace::flat(0, material)),
-        ceiling: None,
-        walls: psxed_project::GridWalls::default(),
-        floor_above: None,
-        floor_below: None,
-    }
-}
-
-fn populated_grid(width: u16, depth: u16) -> WorldGrid {
-    let mut grid = WorldGrid::empty(width, depth, 1024);
-    for sx in 0..width {
-        for sz in 0..depth {
-            if let Some(s) = grid.ensure_sector(sx, sz) {
-                *s = cell_with_floor(None);
-            }
-        }
-    }
-    grid
-}
-
-fn workspace_with_populated_grid(label: &str, width: u16, depth: u16) -> (EditorWorkspace, NodeId) {
-    let mut project = ProjectDocument::new(label);
-    // A grid fixture has to say so: new documents are BSP, and the grid room
-    // topology a BSP project reports is deliberately empty.
-    let room = project.active_scene_mut().add_node(
-        NodeId::ROOT,
-        "Room",
-        NodeKind::Section {
-            grid: populated_grid(width, depth),
-        },
-    );
-    (
-        EditorWorkspace::with_project(test_temp_dir(label), project),
-        room,
-    )
 }
