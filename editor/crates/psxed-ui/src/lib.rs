@@ -1190,7 +1190,6 @@ struct PsxtStats {
 struct PackageSummary {
     assets: usize,
     textures: usize,
-    materials: usize,
     models: usize,
     characters: usize,
     lights: usize,
@@ -4475,17 +4474,11 @@ impl EditorWorkspace {
         let (package, report) = psxed_project::playtest::build_package(&project, &self.project_dir);
         let cooked_bsp_leak_path = package
             .as_ref()
-            .and_then(|package| match &package.world_geometry {
-                psxed_project::playtest::PlaytestWorldGeometry::Pxbsp(world) => {
-                    Some(world.leak_path.clone())
-                }
-                psxed_project::playtest::PlaytestWorldGeometry::Grid => None,
-            })
+            .map(|package| package.world_geometry.leak_path.clone())
             .unwrap_or_default();
         let summary = package.as_ref().map(|p| PackageSummary {
             assets: p.assets.len(),
             textures: p.texture_asset_count(),
-            materials: p.materials.len(),
             models: p.models.len(),
             characters: p.characters.len(),
             lights: p.lights.len(),
@@ -4554,7 +4547,7 @@ impl EditorWorkspace {
                     None => ", no player".to_string(),
                 };
                 format!(
-                    " - {} model{}, {} character{}{}, {} light{}, {} asset{}, {} texture{}, {} material{}, {} entit{}",
+                    " - {} model{}, {} character{}{}, {} light{}, {} asset{}, {} texture{}, {} entit{}",
                     s.models,
                     if s.models == 1 { "" } else { "s" },
                     s.characters,
@@ -4566,8 +4559,6 @@ impl EditorWorkspace {
                     if s.assets == 1 { "" } else { "s" },
                     s.textures,
                     if s.textures == 1 { "" } else { "s" },
-                    s.materials,
-                    if s.materials == 1 { "" } else { "s" },
                     s.entities,
                     if s.entities == 1 { "y" } else { "ies" },
                 )
