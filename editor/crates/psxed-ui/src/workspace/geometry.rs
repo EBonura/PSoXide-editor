@@ -727,7 +727,6 @@ impl EditorWorkspace {
                     let id = self.project.active_scene_mut().add_node(parent, name, kind);
                     if let Some(copy) = self.project.active_scene_mut().node_mut(id) {
                         copy.transform = node.transform;
-                        copy.floor = node.floor;
                     }
                     remap.insert(node.id, id);
                 }
@@ -748,7 +747,6 @@ impl EditorWorkspace {
             );
             if let Some(node) = self.project.active_scene_mut().node_mut(id) {
                 node.transform = source.transform;
-                node.floor = source.floor;
             }
             duplicated.push(id);
         }
