@@ -1157,6 +1157,12 @@ impl Default for CombatStanceConfig {
     }
 }
 
+/// Ticks a swap locks aim, shot and hook (starting point, see
+/// [`CombatStance::swap_committed`]): 0.2 s, the length of the first burst of
+/// the assembly effect, and equal to the perfect-swap window so the lock never
+/// outlasts the moment it rewards.
+pub const SWAP_COMMIT_TICKS: u16 = 12;
+
 /// Why a swap happened, so presentation and cooldown can differ.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum StanceSwap {
@@ -1255,6 +1261,19 @@ impl CombatStance {
     /// predicate to avoid tinting the actor forever after the first swap.
     pub const fn swap_in_progress(self, config: &CombatStanceConfig) -> bool {
         config.swap_duration_ticks > 0 && self.swap_elapsed < config.swap_duration_ticks
+    }
+
+    /// Whether the swap still commits the actor: aiming, shooting and hooking
+    /// stay locked for this many ticks only. The rest of
+    /// `swap_duration_ticks` is presentation (the assembly effect and HUD),
+    /// so a swap that opens a gap can flow straight into a shot.
+    pub const fn swap_committed(self, config: &CombatStanceConfig) -> bool {
+        self.swap_in_progress(config) && self.swap_elapsed < SWAP_COMMIT_TICKS
+    }
+
+    /// Make the next swap available immediately. Used by a perfect swap.
+    pub fn reset_swap_cooldown(&mut self) {
+        self.swap_cooldown = 0;
     }
 
     /// Whether the player may swap right now.
@@ -1622,6 +1641,36 @@ mod stance_tests {
             active_two.regeneration_q12, 0,
             "the other state's sockets are dormant"
         );
+    }
+
+    #[test]
+    fn a_swap_commits_the_actor_for_twelve_ticks_not_the_whole_animation() {
+        let config = CombatStanceConfig {
+            swap_duration_ticks: 72,
+            ..config()
+        };
+        let mut vitality = DualVitality::equal(100);
+        let mut stance = CombatStance::new(VitalityChannelId::One);
+        assert!(!stance.swap_committed(&config), "startup is not a swap");
+        stance.request_swap(&config);
+        for _ in 0..SWAP_COMMIT_TICKS {
+            assert!(stance.swap_committed(&config));
+            stance.tick(&mut vitality, &config, 0);
+        }
+        assert!(!stance.swap_committed(&config));
+        assert!(stance.swap_in_progress(&config), "presentation continues");
+    }
+
+    #[test]
+    fn a_reset_cooldown_allows_an_immediate_swap_back() {
+        let config = config();
+        let mut stance = CombatStance::new(VitalityChannelId::One);
+        stance.request_swap(&config);
+        assert!(!stance.can_swap());
+        stance.reset_swap_cooldown();
+        assert!(stance.can_swap());
+        assert_eq!(stance.request_swap(&config), Some(StanceSwap::Voluntary));
+        assert_eq!(stance.active(), VitalityChannelId::One);
     }
 
     #[test]

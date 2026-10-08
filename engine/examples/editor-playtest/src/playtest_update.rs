@@ -672,6 +672,7 @@ impl Playtest {
         if ctx.just_pressed(button::TRIANGLE) && !circle_locks_stance {
             let config = self.player_stance_config;
             if self.player_stance.request_swap(&config).is_some() {
+                self.swap_voluntary = true;
                 self.attack_buffer.clear();
                 self.authored_attack.clear();
                 self.authored_dodge.clear();
@@ -779,7 +780,7 @@ impl Playtest {
         let interrupted = circle.evade || !self.motor.action().is_idle()
             || self.hazard_death_ticks_remaining != 0
             || (action_locked && !matches!(self.anim_state, PlayerAnim::RangedAttack | PlayerAnim::Land))
-            || self.player_stance.swap_in_progress(&self.player_stance_config);
+            || self.player_stance.swap_committed(&self.player_stance_config);
         self.ranged_ready.tick(ranged && self.player_stance.active() == VitalityChannelId::Two,
             ctx.is_held(button::L2), interrupted);
         self.aim_control.tick(self.ranged_ready.aiming(), self.is_locked(),

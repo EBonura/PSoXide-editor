@@ -3,6 +3,10 @@ use super::*;
 use psx_engine::{AnalogSticks, PadMode, PadState};
 use psx_game_runtime::{combat_policy, entities::GameEntityState};
 
+/// Share of perfect-swap opportunities the bot takes (a modest skill rate,
+/// a starting point for measuring the mechanic, not a model of a player).
+const PERFECT_SWAP_SKILL_PERCENT: u16 = 60;
+
 // All-zero storage is inactive, matching Playtest's zeroed initialization.
 pub(super) struct Duel {
     pub active: bool,
@@ -43,6 +47,8 @@ pub(super) struct Duel {
     avoid_swing: u32,
     /// Tick of the last logged i-frame bolt avoid, plus one.
     avoid_bolt_tick: u32,
+    /// Duel tick of the bot's latest perfect-swap attempt, plus one.
+    attempt_tick: u32,
     /// Player position at the previous decision.
     last_pos: [i32; 2],
     /// Ticks the bot has pushed forward without moving.
@@ -159,6 +165,7 @@ impl Playtest {
                 energy_gained: [0; 2],
                 avoid_swing: 0,
                 avoid_bolt_tick: 0,
+                attempt_tick: 0,
                 last_pos: [0; 2],
                 stuck: 0,
                 sidestep_until: 0,
@@ -276,7 +283,7 @@ impl Playtest {
                 && self.anim_lock_until_tick <= ctx.sim_tick
                 && !self
                     .player_stance
-                    .swap_in_progress(&self.player_stance_config);
+                    .swap_committed(&self.player_stance_config);
             let swapping = visible && wanted != active && free && self.player_stance.can_swap();
             if swapping {
                 buttons |= button::TRIANGLE;
@@ -324,6 +331,43 @@ impl Playtest {
                 }
                 let enemy_state = self.game_entities.state(i);
                 let roll = self.duel.roll();
+                // Perfect-swap attempt at a modest skill rate: read the enemy's tell
+                // and press so the swap's first ticks cover the hit. The attack's
+                // time to contact is the measured Attack-state age at the hit (light
+                // claw 28 ticks, heavy claw 54). A bolt is read from its flight.
+                // Decisions run every 12 ticks, the window's length, so each attack
+                // passes one decision with its contact 1 to 12 ticks away.
+                if !swapping && free && self.player_stance.can_swap() && roll < PERFECT_SWAP_SKILL_PERCENT {
+                    let enemy_state = self.game_entities.state(i);
+                    let kind = self.game_entities.attack_kind(i);
+                    let contact = if enemy_state == GameEntityState::Attack && visible && distance < 120 {
+                        match kind {
+                            0 => 28u16.checked_sub(self.game_entities.state_age(i)),
+                            1 => 54u16.checked_sub(self.game_entities.state_age(i)),
+                            _ => None,
+                        }
+                    } else {
+                        None
+                    };
+                    let bolt = self
+                        .combat_projectiles
+                        .incoming_threat(
+                            psx_game_runtime::projectiles::CombatTeam::Player,
+                            self.room_index,
+                            [p.x, p.y, p.z],
+                            self.character.map_or(12, |c| c.radius),
+                            height,
+                        )
+                        .map(|t| t.ticks_to_contact);
+                    let ticks = contact.or(bolt);
+                    if ticks.is_some_and(|t| (1..=12).contains(&t)) {
+                        buttons |= button::TRIANGLE;
+                        self.duel.intent = 5;
+                        self.duel.attempt_tick = self.duel.tick.wrapping_add(1);
+                        self.duel.event(5, u32::from(ticks.unwrap_or(0)), 0, 0, 0);
+                    }
+                }
+
                 // Observe committed animation states on a 12-tick decision cadence,
                 // never future player inputs or the enemy's random stream.
                 if visible
@@ -363,7 +407,7 @@ impl Playtest {
                     && wanted == active
                     && !self
                         .player_stance
-                        .swap_in_progress(&self.player_stance_config)
+                        .swap_committed(&self.player_stance_config)
                     && ranged_order.is_none_or(|o| o.fire)
                     && !self.duel.escaping
                     && distance <= far
@@ -649,6 +693,19 @@ impl Playtest {
                 &[ctx.sim_tick.as_u32() - self.duel.started, result],
             );
         }
+    }
+
+    /// Log a perfect swap and whether the bot was attempting one.
+    pub(super) fn duel_note_perfect_swap(
+        &self,
+        source: u32,
+        refunded: u32,
+        avoided: u32,
+        staggered: bool,
+    ) {
+        let attempted = self.duel.attempt_tick != 0
+            && self.duel.tick.wrapping_add(1).wrapping_sub(self.duel.attempt_tick) <= 14;
+        self.duel.event(4, source, refunded, avoided, u32::from(staggered) | u32::from(attempted) << 1);
     }
 
     /// Player health summed over both channels.
