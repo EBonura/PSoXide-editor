@@ -25,12 +25,7 @@ impl EditorWorkspace {
                 }
                 false
             }
-            Some(
-                Viewport3dPointerTarget::Surface { .. }
-                | Viewport3dPointerTarget::PrimitiveGizmo(_)
-                | Viewport3dPointerTarget::NodeGizmo(_),
-            )
-            | None => self.close_open_group(),
+            Some(Viewport3dPointerTarget::NodeGizmo(_)) | None => self.close_open_group(),
         }
     }
 
@@ -162,7 +157,7 @@ impl EditorWorkspace {
                 std::array::from_fn(|axis| ((solved.max[axis] - solved.min[axis]) * 0.5) as f32);
             merge_bounds_3d(&mut bounds, center, half);
         }
-        for entity in self.collect_entity_bounds(None) {
+        for entity in self.collect_entity_bounds() {
             if scene.is_descendant_of(entity.node, group) {
                 merge_bounds_3d(&mut bounds, entity.center, entity.half_extents);
             }
@@ -239,15 +234,11 @@ impl EditorWorkspace {
                 self.apply_node_selection_modifiers(group, modifiers, &order);
                 self.clear_brush_selection();
                 self.clear_resource_selection_state();
-                self.clear_primitive_selection_state();
-                self.clear_sector_selection();
                 true
             }
             BrushGroupPick::Brush => {
                 self.clear_node_selection_state();
                 self.clear_resource_selection_state();
-                self.clear_primitive_selection_state();
-                self.clear_sector_selection();
                 if modifiers.shift || modifiers.command || modifiers.ctrl {
                     self.toggle_brush_selection(brush);
                 } else {

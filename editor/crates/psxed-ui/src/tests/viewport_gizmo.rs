@@ -1,212 +1,5 @@
 use super::*;
 
-/// Floor-aware selection: with floor 1 active, geometry reads must
-/// address floor 1, not the floor 0 grid sitting underneath it. The
-/// two floors carry DISTINCT geometry (floor 0 has a floor face at
-/// (0,0); floor 1 has a north wall there and no floor), so reading
-/// the wrong floor is observable. Before the fix, `face_world_corners`
-/// destructured `NodeKind::Section { grid }` directly (always floor 0);
-/// now it routes through `room_grid_view`, which honours `active_floor`.
-#[test]
-fn face_corner_reads_address_the_active_floor() {
-    let mut project = ProjectDocument::new("active-floor-pick");
-    let mut grid = WorldGrid::empty(2, 2, 1024);
-    grid.set_floor(0, 0, 0, None);
-    grid.push_floor();
-    let floor1 = grid.floor_mut(1).expect("floor 1");
-    floor1.add_wall(0, 0, GridDirection::North, 0, 1024, None);
-    let room =
-        project
-            .active_scene_mut()
-            .add_node(NodeId::ROOT, "Room", NodeKind::Section { grid });
-    let mut workspace = EditorWorkspace::with_project(test_temp_dir("active-floor-pick"), project);
-
-    let floor_face = FaceRef {
-        room,
-        sx: 0,
-        sz: 0,
-        kind: FaceKind::Floor,
-    };
-    let wall_face = FaceRef {
-        room,
-        sx: 0,
-        sz: 0,
-        kind: FaceKind::Wall {
-            dir: GridDirection::North,
-            stack: 0,
-        },
-    };
-
-    // Base floor active: floor face present, wall absent.
-    workspace.active_floor = 0;
-    assert!(workspace.face_world_corners(floor_face).is_some());
-    assert!(workspace.face_world_corners(wall_face).is_none());
-
-    // Floor 1 active: the reads must follow the active floor.
-    workspace.active_floor = 1;
-    assert!(
-        workspace.face_world_corners(wall_face).is_some(),
-        "floor 1's wall should be addressable when floor 1 is active"
-    );
-    assert!(
-        workspace.face_world_corners(floor_face).is_none(),
-        "floor 0's floor face must not leak through when floor 1 is active"
-    );
-
-    // Selection-set readers route too: select-all enumerates the
-    // active floor's faces, so on floor 1 it returns the wall, not
-    // floor 0's floor face.
-    let faces = workspace.all_faces_in_room(room);
-    assert!(
-        faces.contains(&wall_face) && !faces.contains(&floor_face),
-        "all_faces_in_room must enumerate the active floor: {faces:?}"
-    );
-}
-
-/// Object selection is floor-tied: an entity on floor 0 and one on
-/// floor 1 must each only be selectable when their floor is active (or
-/// below it), and their pick bounds sit at the floor's drawn Y. This
-/// is the user-reported bug ("selecting on floor 2 hits the room
-/// below") and the payoff of routing selection through the shared
-/// floor_view resolver.
-#[test]
-fn entity_selection_respects_active_floor() {
-    let mut project = ProjectDocument::new("sel-floor");
-    let mut grid = WorldGrid::empty(2, 2, 1024);
-    grid.set_floor(0, 0, 0, None);
-    grid.push_floor();
-    let room =
-        project
-            .active_scene_mut()
-            .add_node(NodeId::ROOT, "Room", NodeKind::Section { grid });
-    let scene = project.active_scene_mut();
-    let ground = scene.add_node(room, "Ground", NodeKind::Entity);
-    scene.node_mut(ground).unwrap().floor = 0;
-    let upper = scene.add_node(room, "Upper", NodeKind::Entity);
-    scene.node_mut(upper).unwrap().floor = 1;
-    let mut workspace = EditorWorkspace::with_project(test_temp_dir("sel-floor"), project);
-
-    let bound_nodes = |ws: &EditorWorkspace| -> Vec<NodeId> {
-        ws.collect_entity_bounds(Some(room))
-            .into_iter()
-            .map(|b| b.node)
-            .collect()
-    };
-
-    // Active floor 0: only the ground entity is selectable; the upper
-    // floor is hidden (above), so its entity is not.
-    workspace.active_floor = 0;
-    let f0 = bound_nodes(&workspace);
-    assert!(f0.contains(&ground), "ground selectable on floor 0: {f0:?}");
-    assert!(
-        !f0.contains(&upper),
-        "upper-floor entity not selectable from floor 0: {f0:?}"
-    );
-
-    // Active floor 1: both are selectable (active + below for Sims
-    // context), and the ground entity's bound is offset below.
-    workspace.active_floor = 1;
-    let bounds = workspace.collect_entity_bounds(Some(room));
-    let nodes: Vec<NodeId> = bounds.iter().map(|b| b.node).collect();
-    assert!(
-        nodes.contains(&ground) && nodes.contains(&upper),
-        "both floors selectable from floor 1: {nodes:?}"
-    );
-    let upper_y = bounds.iter().find(|b| b.node == upper).unwrap().center[1];
-    let ground_y = bounds.iter().find(|b| b.node == ground).unwrap().center[1];
-    assert!(
-            ground_y < upper_y,
-            "ground entity bound sits below the upper one (offset by floor): ground={ground_y} upper={upper_y}"
-        );
-}
-
-/// A stacked floor can be grown independently, giving it a different grid
-/// origin/extent from floor 0. The renderer uses that floor-local grid for a
-/// light bulb gizmo, so its selectable bound must do the same. Cortex2 has
-/// exactly this shape: its Preview Light lives on floor 1 after that floor was
-/// expanded further than the base grid.
-#[test]
-fn point_light_pick_matches_visible_marker_on_independently_grown_floor() {
-    let mut project = ProjectDocument::new("stacked-light-pick");
-    let mut grid = WorldGrid::empty(2, 2, 1024);
-    grid.push_floor();
-    grid.floor_mut(1)
-        .expect("floor 1")
-        .extend_to_include(-3, -2);
-    let room =
-        project
-            .active_scene_mut()
-            .add_node(NodeId::ROOT, "Room", NodeKind::Section { grid });
-    let light = project.active_scene_mut().add_node(
-        room,
-        "Light",
-        NodeKind::PointLight {
-            color: [255, 240, 200],
-            intensity: 1.0,
-            radius: 4.0,
-        },
-    );
-    {
-        let node = project.active_scene_mut().node_mut(light).unwrap();
-        node.floor = 1;
-        node.transform.translation = [-1.5, 0.75, -0.5];
-    }
-
-    let mut workspace = EditorWorkspace::with_project(test_temp_dir("stacked-light-pick"), project);
-    workspace.active_floor = 1;
-    workspace.active_tool = ViewTool::Select;
-
-    let scene = workspace.project.active_scene();
-    let room_node = scene.node(room).unwrap();
-    let NodeKind::Section { grid } = &room_node.kind else {
-        unreachable!("test room is a room");
-    };
-    let light_node = scene.node(light).unwrap();
-    let expected = psxed_project::spatial::node_preview_origin_f32(
-        grid.floor(1).expect("floor 1 grid"),
-        &light_node.transform,
-    );
-    let stale_base_position =
-        psxed_project::spatial::node_preview_origin_f32(grid, &light_node.transform);
-    assert_ne!(
-        expected, stale_base_position,
-        "the test must reproduce a floor-grid placement mismatch"
-    );
-
-    let bound = workspace
-        .collect_entity_bounds(Some(room))
-        .into_iter()
-        .find(|bound| bound.node == light)
-        .expect("visible floor-1 light has a selectable bound");
-    assert_eq!(bound.kind, EntityBoundKind::PointLight);
-    assert_eq!(
-        bound.center, expected,
-        "pick bound follows the visible bulb"
-    );
-
-    let viewport = Rect::from_min_size(Pos2::ZERO, Vec2::new(1200.0, 800.0));
-    workspace.camera_rig.mode = ViewportCameraMode::Free;
-    workspace.camera_rig.free_initialized = true;
-    workspace.camera_rig.free_position = [
-        expected[0].round() as i32 + 2600,
-        expected[1].round() as i32 + 1800,
-        expected[2].round() as i32 - 2600,
-    ];
-    let target = expected.map(|value| value.round() as i32);
-    let (yaw, pitch) =
-        camera_angles_to_look_at(workspace.camera_rig.free_position, target).unwrap();
-    workspace.camera_rig.free_yaw = yaw;
-    workspace.camera_rig.free_pitch = pitch;
-    let pointer =
-        project_world_to_viewport_screen(workspace.viewport_3d_camera(), viewport, expected)
-            .expect("visible bulb projects into the viewport");
-
-    assert!(matches!(
-        workspace.resolve_viewport_3d_pointer_target(viewport, pointer, Some(room), true),
-        Some(Viewport3dPointerTarget::Entity(hit)) if hit.node == light
-    ));
-}
-
 /// Diagnostic (not a strict assertion): print an ASCII map of what a
 /// click resolves to across the gizmo region, at several zoom levels.
 /// Run with `cargo test gizmo_pick_map -- --nocapture` to eyeball
@@ -216,10 +9,10 @@ fn gizmo_pick_map_diagnostic() {
     // Big room so the floor fills the view behind the gizmo at every
     // zoom -- gaps in the handle pick then show as '#' (tile), the way
     // they do in a real level, not '.' (ray missed the small floor).
-    let mut harness = ViewportHarness::floored_room("gizmo-pick-map", 24);
+    let mut harness = ViewportHarness::floored("gizmo-pick-map", 24);
     let light = harness.add_centre_light(0.25);
     harness.select(light);
-    let target = harness.room_center();
+    let target = harness.world_center();
 
     // Sweep camera elevation (degrees above the horizon) at a fixed
     // moderate distance: the flat XZ ground plane foreshortens as the
@@ -308,10 +101,10 @@ fn node_gizmo_no_tile_inside_plane_footprint() {
     // (pivot + the two axis endpoints) and requires every interior
     // point to resolve to a gizmo handle, never a floor Surface.
     // Big room so the floor is always behind the gizmo.
-    let mut harness = ViewportHarness::floored_room("gizmo-footprint", 24);
+    let mut harness = ViewportHarness::floored("gizmo-footprint", 24);
     let light = harness.add_centre_light(0.25);
     harness.select(light);
-    let target = harness.room_center();
+    let target = harness.world_center();
 
     let mut checked = 0;
     for &distance in &[6_000.0, 10_000.0, 16_000.0, 24_000.0] {
@@ -339,7 +132,7 @@ fn node_gizmo_no_tile_inside_plane_footprint() {
                     checked += 1;
                     let resolved = harness.resolve(probe);
                     assert!(
-                        !matches!(resolved, Some(Viewport3dPointerTarget::Surface { .. })),
+                        !matches!(resolved, Some(Viewport3dPointerTarget::Brush { .. })),
                         "dist {distance}, {plane:?} footprint: click at {probe:?} \
                              grabbed the tile ({resolved:?}) instead of a gizmo handle",
                     );
@@ -355,10 +148,10 @@ fn node_gizmo_no_tile_inside_plane_footprint() {
 
 #[test]
 fn node_gizmo_xz_plane_grabbable_across_zoom_out() {
-    let mut harness = ViewportHarness::floored_room("gizmo-zoom-grab", 4);
+    let mut harness = ViewportHarness::floored("gizmo-zoom-grab", 4);
     let light = harness.add_centre_light(0.25);
     harness.select(light);
-    let target = harness.room_center();
+    let target = harness.world_center();
 
     // Regression: the green XZ ground plane must stay grabbable as the
     // camera pulls back. The bug was a click inside the plane quad
@@ -443,10 +236,10 @@ fn node_gizmo_plane_click_never_falls_through_to_tile() {
     // the fix each must resolve to the XZ plane handle. The final
     // assert that the band was non-empty stops this silently becoming a
     // no-op if the projection ever changes.
-    let mut harness = ViewportHarness::floored_room("gizmo-no-tile-fallthrough", 4);
+    let mut harness = ViewportHarness::floored("gizmo-no-tile-fallthrough", 4);
     let light = harness.add_centre_light(0.25);
     harness.select(light);
-    let target = harness.room_center();
+    let target = harness.world_center();
 
     let mut total_band_points = 0;
     for &distance in &[6_000.0, 12_000.0, 20_000.0] {

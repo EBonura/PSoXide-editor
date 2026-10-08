@@ -1836,7 +1836,7 @@ impl ApplicationHandler for Shell {
                     let editor_character_motion = state.editor.character_motion_preview();
                     let editor_root = state.editor.project_root();
                     let editor_selected_bounds = state.editor.selected_bounds_3d();
-                    let editor_entity_bounds = state.editor.collect_entity_bounds(None);
+                    let editor_entity_bounds = state.editor.collect_entity_bounds();
                     let editor_hovered_entity = state.editor.hovered_entity_node();
                     gfx.render_editor_preview(
                         state.editor.project(),

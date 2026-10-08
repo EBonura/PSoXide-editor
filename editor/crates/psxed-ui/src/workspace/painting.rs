@@ -53,20 +53,16 @@ impl EditorWorkspace {
         players.next().is_none().then_some(player)
     }
 
-    /// BSP scenes have no legacy `Section`/Room owner. Their world root is
+    /// BSP scenes have no Room owner. Their world root is
     /// the correct parent for authored point entities because the PXBSP cook
     /// consumes those transforms directly in world units.
     pub(crate) fn bsp_authoring_root(&self) -> Option<NodeId> {
         Some(self.project.active_scene().root)
     }
 
-    /// `true` when Material Paint should address BSP brush faces instead of
-    /// grid cells: a brush scene with no active grid Room. Grid painting is
-    /// untouched, so a project with rooms keeps the cell lane.
+    /// `true` when Material Paint should address BSP brush faces.
     pub(crate) fn bsp_face_paint_active(&self) -> bool {
-        self.active_tool == ViewTool::PaintMaterial
-            && self.active_room_id().is_none()
-            && self.bsp_authoring_root().is_some()
+        self.active_tool == ViewTool::PaintMaterial && self.bsp_authoring_root().is_some()
     }
 
     /// Material Paint against a BSP brush face: assign the picked material to
@@ -75,7 +71,7 @@ impl EditorWorkspace {
     /// One undo step per gesture. `brush_face_paint_stroke` is cleared on the
     /// primary press (see `draw_viewport_3d_body`), so dragging across a whole
     /// wall coalesces into a single snapshot rather than one per face. This is
-    /// deliberately stricter than the grid painter, which snapshots per cell.
+    /// deliberately one snapshot per stroke rather than per face.
     pub(crate) fn paint_bsp_brush_face(&mut self, rect: egui::Rect, pointer: egui::Pos2) {
         let Some((brush, face, _)) = self.pick_brush_face_nearest_for_selection_3d(rect, pointer)
         else {
@@ -347,7 +343,7 @@ impl EditorWorkspace {
         }
         // Same one-unit floor clearance the Place tool applies.
         hit[1] += 1.0;
-        self.drop_resource_at_room_hit(resource_id, root, hit, None);
+        self.drop_resource_at_room_hit(resource_id, root, hit);
     }
 
     pub(crate) fn drop_resource_2d(&mut self, resource_id: ResourceId, editor_world: [f32; 2]) {
@@ -392,7 +388,6 @@ impl EditorWorkspace {
             resource_id,
             root,
             [editor_world[0], surface_y + 1.0, editor_world[1]],
-            None,
         );
     }
 
@@ -401,7 +396,6 @@ impl EditorWorkspace {
         resource_id: ResourceId,
         room_id: NodeId,
         hit_world: [f32; 3],
-        face: Option<FaceRef>,
     ) {
         let Some(resource) = self.project.resource(resource_id).cloned() else {
             self.status = format!("Resource #{} no longer exists", resource_id.raw());
@@ -426,7 +420,6 @@ impl EditorWorkspace {
                 );
                 self.replace_node_selection(node);
                 self.clear_resource_selection_state();
-                self.clear_primitive_selection_state();
                 self.status = format!("Created Prop Entity from model {}", resource.name);
                 self.mark_dirty();
             }
@@ -464,7 +457,6 @@ impl EditorWorkspace {
                 );
                 self.replace_node_selection(node);
                 self.clear_resource_selection_state();
-                self.clear_primitive_selection_state();
                 self.status = if player {
                     format!(
                         "Created Player Character Entity from profile {}",
@@ -495,22 +487,11 @@ impl EditorWorkspace {
                 );
                 self.replace_node_selection(node);
                 self.clear_resource_selection_state();
-                self.selection.selected_primitive = None;
                 self.status = format!("Created Weapon Entity from resource {}", resource.name);
                 self.mark_dirty();
             }
             ResourceData::Material(_) => {
-                let Some(face) = face else {
-                    self.status = "Drop Material onto an existing face".to_string();
-                    return;
-                };
-                if self.assign_face_material(face, Some(resource_id)) {
-                    self.replace_resource_selection(resource_id);
-                    if self.active_tool != ViewTool::PaintMaterial {
-                        self.replace_primitive_selection(Selection::Face(face));
-                    }
-                    self.status = format!("Assigned {} to {}", resource.name, describe_face(face));
-                }
+                self.status = "Drop Material onto an existing face".to_string();
             }
             _ => {
                 self.status = format!(
@@ -552,17 +533,13 @@ impl EditorWorkspace {
     /// The picked point as a node translation, before any snap.
     pub(crate) fn placement_hit_translation(
         &self,
-        room_id: NodeId,
+        _room_id: NodeId,
         hit_world: [f32; 3],
     ) -> [f32; 3] {
-        let editor = self
-            .room_grid_view(room_id)
-            .map(|grid| grid.room_local_to_editor(hit_world))
-            .unwrap_or([hit_world[0], hit_world[2]]);
         // Preserve the picked surface height instead of pinning placed
         // content to the floor. Node translations are world units, so the
-        // hit height is the node height.
-        [editor[0], hit_world[1], editor[1]]
+        // hit is the translation.
+        hit_world
     }
 
     pub(crate) fn create_model_entity_at_room_hit(
@@ -573,16 +550,12 @@ impl EditorWorkspace {
         hit_world: [f32; 3],
     ) -> NodeId {
         let translation = self.placement_translation_for_room_hit(room_id, hit_world);
-        let active_floor = self.active_floor;
         let (visual_scale_q8, default_visual_yaw_q12) =
             default_model_visual_defaults(&self.project, model_id);
         let scene = self.project.active_scene_mut();
         let entity = scene.add_node(room_id, name.to_string(), NodeKind::Entity);
         if let Some(node) = scene.node_mut(entity) {
             node.transform.translation = translation;
-            // Record the placed floor (0 = ground) so the cook binds the
-            // entity to the right runtime room; Y can't select the floor.
-            node.floor = active_floor;
         }
         add_model_renderer_node(
             scene,
@@ -615,16 +588,12 @@ impl EditorWorkspace {
         hit_world: [f32; 3],
     ) -> NodeId {
         let translation = self.placement_translation_for_room_hit(room_id, hit_world);
-        let active_floor = self.active_floor;
         let model_visual_defaults =
             model_id.map(|model_id| default_model_visual_defaults(&self.project, model_id));
         let scene = self.project.active_scene_mut();
         let entity = scene.add_node(room_id, name.to_string(), NodeKind::Entity);
         if let Some(node) = scene.node_mut(entity) {
             node.transform.translation = translation;
-            // Record the placed floor (0 = ground) so the cook binds the
-            // entity to the right runtime room; Y can't select the floor.
-            node.floor = active_floor;
         }
         if let Some(model_id) = model_id {
             let (visual_scale_q8, default_visual_yaw_q12) =
@@ -664,16 +633,12 @@ impl EditorWorkspace {
         hit_world: [f32; 3],
     ) -> NodeId {
         let translation = self.placement_translation_for_room_hit(room_id, hit_world);
-        let active_floor = self.active_floor;
         let model_visual_defaults =
             model_id.map(|model_id| default_model_visual_defaults(&self.project, model_id));
         let scene = self.project.active_scene_mut();
         let entity = scene.add_node(room_id, name.to_string(), NodeKind::Entity);
         if let Some(node) = scene.node_mut(entity) {
             node.transform.translation = translation;
-            // Record the placed floor (0 = ground) so the cook binds the
-            // entity to the right runtime room; Y can't select the floor.
-            node.floor = active_floor;
         }
         if let Some(model_id) = model_id {
             let (visual_scale_q8, default_visual_yaw_q12) =
@@ -876,7 +841,6 @@ impl EditorWorkspace {
     pub(crate) fn reject_duplicate_placement(&mut self, existing: NodeId, label: &str) {
         self.replace_node_selection(existing);
         self.clear_resource_selection_state();
-        self.clear_primitive_selection_state();
         self.status = format!("{label} already exists at this position");
     }
 
@@ -899,77 +863,9 @@ impl EditorWorkspace {
         })
     }
 
-    /// World-space sector size of the named Room, or `None` if the
-    /// node isn't a Room.
-    pub(crate) fn room_sector_size(&self, room_id: NodeId) -> Option<i32> {
-        let node = self.project.active_scene().node(room_id)?;
-        match &node.kind {
-            NodeKind::Section { grid } => Some(grid.sector_size),
-            _ => None,
-        }
-    }
-
-    /// Borrow the named Room's grid for the duration of `&self`,
-    /// or `None` if the node isn't a Room. Avoids the
-    /// `node.kind` matching dance at every cell-coord call site.
-    pub(crate) fn room_grid_view(&self, room_id: NodeId) -> Option<&WorldGrid> {
-        let node = self.project.active_scene().node(room_id)?;
-        match &node.kind {
-            NodeKind::Section { grid } => {
-                // Route every editor read (render overlays, hit-test,
-                // selection, paint preview) to the active floor so the
-                // Room workspace edits the floor the user is on. Floor 0
-                // is the base grid; clamp keeps a room with fewer floors
-                // (or a stale index after switching rooms) valid.
-                let floor = self.active_floor.min(grid.floor_count().saturating_sub(1));
-                grid.floor(floor)
-            }
-            _ => None,
-        }
-    }
-
-    /// The room the floor stepper targets: the active room, else the
-    /// first room in the scene.
-    pub(crate) fn floors_target_room(&self) -> Option<NodeId> {
-        self.active_room_id().or_else(|| {
-            self.project
-                .active_scene()
-                .nodes()
-                .iter()
-                .find(|node| matches!(node.kind, NodeKind::Section { .. }))
-                .map(|node| node.id)
-        })
-    }
-
-    /// Base (floor 0) grid for a room, unrouted by `active_floor`. Use
-    /// this for whole-room queries like the floor count; use
-    /// [`Self::room_grid_view`] for active-floor reads.
-    pub(crate) fn room_base_grid(&self, room_id: NodeId) -> Option<&WorldGrid> {
-        match &self.project.active_scene().node(room_id)?.kind {
-            NodeKind::Section { grid } => Some(grid),
-            _ => None,
-        }
-    }
-
-    /// Active floor's grid for a room, mutable. Routes every floor-aware
-    /// edit (paint, height drag, material, vertex, erase, resize, grow)
-    /// to the floor the user is on. Floor 0 is the base grid; the index
-    /// is clamped against the room's floor count so a stale value after
-    /// switching rooms can't go out of range.
-    pub(crate) fn room_floor_grid_mut(&mut self, room: NodeId) -> Option<&mut WorldGrid> {
-        let active_floor = self.active_floor;
-        match &mut self.project.active_scene_mut().node_mut(room)?.kind {
-            NodeKind::Section { grid } => {
-                let idx = active_floor.min(grid.floor_count().saturating_sub(1));
-                grid.floor_mut(idx)
-            }
-            _ => None,
-        }
-    }
-
     /// Place the active entity kind at a BSP world-space hit.
     pub(crate) fn place_node_at_world_hit(&mut self, room_id: NodeId, hit_world: [f32; 3]) {
-        let sector_size_i = self.room_sector_size(room_id).unwrap_or(1024);
+        let sector_size_i = DEFAULT_WORLD_SECTOR_SIZE;
         let arch_tile_size = self.project.world_sector_size_for_node(room_id);
         let translation = self.placement_hit_translation(room_id, hit_world);
         let kind = self.place_kind;
@@ -982,12 +878,10 @@ impl EditorWorkspace {
         if matches!(kind, PlaceKind::PointOfInterest) {
             let translation = self.snap_placed_translation(&NodeKind::Entity, translation);
             self.push_undo();
-            let active_floor = self.active_floor;
             let scene = self.project.active_scene_mut();
             let entity = scene.add_node(room_id, "Point of Interest", NodeKind::Entity);
             if let Some(node) = scene.node_mut(entity) {
                 node.transform.translation = translation;
-                node.floor = active_floor;
             }
             let component = scene.add_node(
                 entity,
@@ -1008,7 +902,6 @@ impl EditorWorkspace {
             // picking subsequently selects the Entity host for movement.
             self.replace_node_selection(component);
             self.clear_resource_selection_state();
-            self.clear_primitive_selection_state();
             self.status =
                 "Placed Point of Interest — edit Page 1 to replace the default message".to_string();
             self.mark_dirty();
@@ -1057,7 +950,6 @@ impl EditorWorkspace {
                             .create_model_entity_at_room_hit(room_id, model_id, &name, hit_world);
                         self.replace_node_selection(id);
                         self.clear_resource_selection_state();
-                        self.clear_primitive_selection_state();
                         self.status = "Placed Prop".to_string();
                         self.mark_dirty();
                         self.return_to_select_after_place();
@@ -1103,7 +995,6 @@ impl EditorWorkspace {
                     );
                     self.replace_node_selection(id);
                     self.clear_resource_selection_state();
-                    self.clear_primitive_selection_state();
                     self.status = if player {
                         "Placed Player Character".to_string()
                     } else {
@@ -1163,7 +1054,7 @@ impl EditorWorkspace {
                     name,
                     NodeKind::BoxProp {
                         materials: [material_id; psxed_project::BOX_PROP_FACE_COUNT],
-                        uvs: [GridUvTransform::IDENTITY; psxed_project::BOX_PROP_FACE_COUNT],
+                        uvs: [UvTransform::IDENTITY; psxed_project::BOX_PROP_FACE_COUNT],
                         vertices: psxed_project::box_prop_vertices_for_size(size),
                         collision_enabled: true,
                         break_flags: 0,
@@ -1194,8 +1085,7 @@ impl EditorWorkspace {
                     name,
                     NodeKind::CylinderProp {
                         materials: [material_id; psxed_project::CYLINDER_PROP_MATERIAL_COUNT],
-                        uvs: [GridUvTransform::IDENTITY;
-                            psxed_project::CYLINDER_PROP_MATERIAL_COUNT],
+                        uvs: [UvTransform::IDENTITY; psxed_project::CYLINDER_PROP_MATERIAL_COUNT],
                         geometry,
                         collision_enabled: true,
                     },
@@ -1212,7 +1102,7 @@ impl EditorWorkspace {
                     name,
                     NodeKind::ArchProp {
                         materials: [material_id; psxed_project::ARCH_PROP_MATERIAL_COUNT],
-                        uvs: [GridUvTransform::IDENTITY; psxed_project::ARCH_PROP_MATERIAL_COUNT],
+                        uvs: [UvTransform::IDENTITY; psxed_project::ARCH_PROP_MATERIAL_COUNT],
                         geometry: psxed_project::ArchPropGeometry::default(),
                         collision_enabled: false,
                     },
@@ -1289,7 +1179,6 @@ impl EditorWorkspace {
         };
         let translation = self.snap_placed_translation(&node_kind, translation);
         self.push_undo();
-        let active_floor = self.active_floor;
         let id = self
             .project
             .active_scene_mut()
@@ -1307,48 +1196,16 @@ impl EditorWorkspace {
                     arch_tile_size,
                 );
             }
-            // Record the floor this was placed on (0 = ground). The
-            // cook binds the node to this floor's runtime room; Y is
-            // a placement default and can't select the floor.
-            node.floor = active_floor;
         }
         self.replace_node_selection(id);
         self.clear_resource_selection_state();
-        self.clear_primitive_selection_state();
         self.status = format!("Placed {}", kind.label());
         self.mark_dirty();
         self.return_to_select_after_place();
     }
 
-    pub(crate) fn face_material(&self, face: FaceRef) -> Option<ResourceId> {
-        let grid = self.room_grid_view(face.room)?;
-        let sector = grid.sector(face.sx, face.sz)?;
-        match face.kind {
-            FaceKind::Floor => sector.floor.as_ref().and_then(|f| f.material),
-            FaceKind::Ceiling => sector.ceiling.as_ref().and_then(|c| c.material),
-            FaceKind::Wall { dir, stack } => sector
-                .walls
-                .get(dir)
-                .get(stack as usize)
-                .and_then(|w| w.material),
-        }
-    }
-
-    pub(crate) fn triangle_material(&self, triangle: HorizontalTriangleRef) -> Option<ResourceId> {
-        let face = triangle.parent_face();
-        let grid = self.room_grid_view(face.room)?;
-        let sector = grid.sector(face.sx, face.sz)?;
-        let index = triangle.index.idx();
-        match triangle.surface {
-            HorizontalSurfaceKind::Floor => sector.floor.as_ref()?.triangle_material(index),
-            HorizontalSurfaceKind::Ceiling => sector.ceiling.as_ref()?.triangle_material(index),
-        }
-    }
-
     pub(crate) fn material_target_value(&self, target: MaterialTarget) -> Option<ResourceId> {
         match target {
-            MaterialTarget::Face(face) => self.face_material(face),
-            MaterialTarget::Triangle(triangle) => self.triangle_material(triangle),
             MaterialTarget::BrushFace { brush, face } => self
                 .project
                 .active_scene()
@@ -1359,28 +1216,7 @@ impl EditorWorkspace {
         }
     }
 
-    /// Reassign `face`'s material in-place. Marks the project
-    /// dirty if the field actually moved. Used by drag/drop flows
-    /// and by the resource-card click path for single-face edits.
-    pub(crate) fn assign_face_material(
-        &mut self,
-        face: FaceRef,
-        material: Option<ResourceId>,
-    ) -> bool {
-        if self.face_material(face) == material {
-            return false;
-        }
-        self.push_undo();
-        let updated = self.assign_face_material_no_undo(face, material);
-        if updated {
-            self.mark_dirty();
-        }
-        updated
-    }
-
-    /// Reassign every selected face in one undo step. Edges and
-    /// vertices are intentionally ignored here: materials bind to
-    /// actual face surfaces, while those modes edit topology/height.
+    /// Reassign every selected brush face in one undo step.
     pub(crate) fn assign_selected_faces_material(&mut self, material: Option<ResourceId>) -> usize {
         let targets = self.selected_material_targets();
         if targets.is_empty() {
@@ -1527,20 +1363,6 @@ impl EditorWorkspace {
 
     pub(crate) fn selected_material_targets(&self) -> Vec<MaterialTarget> {
         let mut targets = Vec::new();
-        for face in self.selected_sector_faces() {
-            push_unique_material_target(&mut targets, MaterialTarget::Face(face));
-        }
-        for selection in self.selected_primitive_targets() {
-            match selection {
-                Selection::Face(face) => {
-                    push_unique_material_target(&mut targets, MaterialTarget::Face(face));
-                }
-                Selection::Triangle(triangle) => {
-                    push_unique_material_target(&mut targets, MaterialTarget::Triangle(triangle));
-                }
-                Selection::Edge(_) | Selection::Vertex(_) => {}
-            }
-        }
         for target in self.selected_brush_material_targets() {
             push_unique_material_target(&mut targets, target);
         }
@@ -1619,143 +1441,12 @@ impl EditorWorkspace {
             .collect()
     }
 
-    /// Apply only the UV fields changed in the active face inspector to every
-    /// selected face. Keeping this field-wise is important: rotating a batch
-    /// must not also replace offsets, spans, or flips that differ per face.
-    ///
-    /// The inspector transaction owns undo/dirty bookkeeping; this helper is
-    /// deliberately mutation-only so the whole batch remains one undo step.
-    pub(crate) fn apply_selected_face_uv_change_no_undo(
-        &mut self,
-        active: FaceRef,
-        edit: GridUvTransformEdit,
-        authored: GridUvTransform,
-    ) -> (usize, usize) {
-        if !edit.changed() {
-            return (0, 0);
-        }
-
-        let mut targets = self.selected_sector_faces();
-        for selection in self.selected_primitive_targets() {
-            let Selection::Face(face) = selection else {
-                continue;
-            };
-            if !targets.contains(&face) {
-                targets.push(face);
-            }
-        }
-        if !targets.contains(&active) {
-            targets.push(active);
-        }
-
-        let mut affected = 0;
-        let mut updated = 0;
-        for face in targets {
-            let Some(grid) = self.room_floor_grid_mut(face.room) else {
-                continue;
-            };
-            let Some(sector) = grid.sector_mut(face.sx, face.sz) else {
-                continue;
-            };
-            let uv = match face.kind {
-                FaceKind::Floor => sector.floor.as_mut().map(|face| &mut face.uv),
-                FaceKind::Ceiling => sector.ceiling.as_mut().map(|face| &mut face.uv),
-                FaceKind::Wall { dir, stack } => sector
-                    .walls
-                    .get_mut(dir)
-                    .get_mut(stack as usize)
-                    .map(|face| &mut face.uv),
-            };
-            let Some(uv) = uv else {
-                continue;
-            };
-            let before = *uv;
-            edit.apply(uv, authored);
-            affected += 1;
-            updated += usize::from(*uv != before);
-        }
-        (affected, updated)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn selected_face_targets(&self) -> Vec<FaceRef> {
-        let mut faces = Vec::new();
-        for face in self.selected_sector_faces() {
-            if !faces.contains(&face) {
-                faces.push(face);
-            }
-        }
-        for selection in self.selected_primitive_targets() {
-            let face = match selection {
-                Selection::Face(face) => face,
-                Selection::Triangle(triangle) => triangle.parent_face(),
-                Selection::Edge(_) | Selection::Vertex(_) => continue,
-            };
-            if !faces.contains(&face) {
-                faces.push(face);
-            }
-        }
-        faces
-    }
-
-    pub(crate) fn assign_face_material_no_undo(
-        &mut self,
-        face: FaceRef,
-        material: Option<ResourceId>,
-    ) -> bool {
-        if self.face_material(face) == material {
-            return false;
-        }
-        let Some(grid) = self.room_floor_grid_mut(face.room) else {
-            return false;
-        };
-        let sector_size = grid.sector_size;
-        let Some(sector) = grid.sector_mut(face.sx, face.sz) else {
-            return false;
-        };
-        match face.kind {
-            FaceKind::Floor => sector
-                .floor
-                .as_mut()
-                .map(|f| {
-                    f.material = material;
-                })
-                .is_some(),
-            FaceKind::Ceiling => sector
-                .ceiling
-                .as_mut()
-                .map(|c| {
-                    c.material = material;
-                })
-                .is_some(),
-            FaceKind::Wall { dir, stack } => sector
-                .walls
-                .get_mut(dir)
-                .get_mut(stack as usize)
-                .map(|w| {
-                    w.material = material;
-                    // Applying a wall texture gets the same sensible UV
-                    // density as the Inspector's Autotile action. Rotation,
-                    // flips, and offset remain authored; only the span is
-                    // normalized to the wall's world height.
-                    if material.is_some() {
-                        w.autotile_uv(sector_size);
-                    }
-                })
-                .is_some(),
-        }
-    }
-
     pub(crate) fn assign_material_target_no_undo(
         &mut self,
         target: MaterialTarget,
         material: Option<ResourceId>,
     ) -> bool {
         match target {
-            MaterialTarget::Face(face) => self.assign_face_material_no_undo(face, material),
-            MaterialTarget::Triangle(triangle) => {
-                self.assign_triangle_material_no_undo(triangle, material)
-            }
             MaterialTarget::BrushFace { brush, face } => {
                 let Some(face) = self
                     .project
@@ -1773,41 +1464,6 @@ impl EditorWorkspace {
                 true
             }
         }
-    }
-
-    pub(crate) fn assign_triangle_material_no_undo(
-        &mut self,
-        triangle: HorizontalTriangleRef,
-        material: Option<ResourceId>,
-    ) -> bool {
-        if self.triangle_material(triangle) == material {
-            return false;
-        }
-        let Some(grid) = self.room_floor_grid_mut(triangle.room) else {
-            return false;
-        };
-        let Some(sector) = grid.sector_mut(triangle.sx, triangle.sz) else {
-            return false;
-        };
-        let face = match triangle.surface {
-            HorizontalSurfaceKind::Floor => sector.floor.as_mut(),
-            HorizontalSurfaceKind::Ceiling => sector.ceiling.as_mut(),
-        };
-        let Some(face) = face else {
-            return false;
-        };
-        let parent_material = face.material;
-        let override_material = if material == parent_material {
-            None
-        } else {
-            Some(GridTriangleMaterialOverride::from_material(material))
-        };
-        let target = face.triangle_override_mut(triangle.index.idx());
-        if target.material == override_material {
-            return false;
-        }
-        target.material = override_material;
-        true
     }
 }
 
