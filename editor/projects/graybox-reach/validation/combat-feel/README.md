@@ -12,3 +12,7 @@ Notes for reading them:
 - Twenty seeds is a small sample. Win counts move by several runs between variants whose only difference is a poise multiplier, so treat them as noise unless a mechanism explains them.
 - In the heavy scenario the enemy AI barely uses the seed, so several seeds replay the same fight (for example 1 and 11, 2, 13 and 14, 8 and 16 in the baseline). Its effective sample is smaller than 20.
 - Frames were replayed from the `after-b-graybox` seeds with `frontend launch --stop-at-poll`, one run per frame (duel tick + 400 = poll).
+
+## Perfect swap (parry) batches
+
+`before60-graybox` and `after60-graybox`: 60 seeds each on base 39f40cd2 (tree 119c9388), the same tree built with and without the `no-perfect-swap` feature (before = 72-tick swap lock, no perfect window, no bot attempts). `parry-before-after.md` is the comparison. They predate the 2faa980f merge, so they must be re-run on that base before being quoted as final. `check0-*` are 7 heavy and 3 graybox seeds that confirmed the stall and seed-collapse fixes.
