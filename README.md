@@ -1,8 +1,6 @@
 # PSoXide Editor
 
 > **Largely written with agentic coding.** I direct the agents and test their work in two places: PSoXide's emulator, which profiles every cycle, and a real PlayStation, which shows me where the emulator is wrong. Working between them is where the accuracy and the speed come from. [How PSoXide is built](https://ebonura.github.io/PSoXide/how-its-built/)
->
-> **AI-generated content:** code. The repository also holds two placeholder character models, made with an AI 3D-model generator and used by an engine example. In the Cortex Ignition project: most level textures and the sky (made with an image model, then reduced to 64 by 64 PS1 textures) and some animation clips (generated with a motion model, then edited). The 3D art is by Alberto Busicchio and the music by Carmelo Miceli, both credited in the game. The voice and effect recordings come from asset packs on itch.io.
 
 Start with the [PSoXide Demo Disc](https://bonnie-studios.itch.io/psoxide-demo-disc): it includes the Cortex Ignition Tech Demo
 and the other Bonnie Studios PlayStation demos. Standalone downloads are available
