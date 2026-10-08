@@ -124,7 +124,8 @@ impl TerrainEditor {
                 });
                 ui.label("Origin X / Y / Z (world units)");
                 ui.horizontal(|ui| {for n in &mut self.origin {if ui.add(egui::DragValue::new(n).speed(16).range(-120000..=120000)).changed(){*n=(*n/16)*16;}}});
-                ui.horizontal(|ui| {if ui.button("Generate").clicked(){self.regenerate();}if ui.button("New seed").clicked(){self.seed=self.seed.wrapping_add(1);self.regenerate();}});
+                ui.horizontal(|ui| {if ui.button("Generate").clicked(){self.regenerate();}
+                    if ui.button("New seed").clicked(){self.seed=self.seed.wrapping_add(1);self.regenerate();}});
                 ui.weak("Generate replaces the draft. Undo restores your sculpting.");
                 ui.separator();ui.heading("Sculpt");
                 ui.horizontal_wrapped(|ui| {for mode in SculptMode::ALL {ui.selectable_value(&mut self.mode,mode,mode.label());}});
@@ -132,7 +133,8 @@ impl TerrainEditor {
                 ui.add(egui::Slider::new(&mut self.strength,32.0..=2048.0).text("Strength"));
                 ui.horizontal(|ui| {ui.label("Flatten height");ui.add(egui::DragValue::new(&mut self.flatten_y).speed(16).range(-120000.0..=120000.0));});
                 ui.weak("Drag on the map to sculpt. Shift: smooth. Alt: lower. Right-click: sample flatten height.");
-                ui.horizontal(|ui| {if ui.add_enabled(!self.history.is_empty(),egui::Button::new("Undo stroke")).clicked(){self.undo();}if ui.add_enabled(!self.redo.is_empty(),egui::Button::new("Redo")).clicked(){self.redo();}});
+                ui.horizontal(|ui| {if ui.add_enabled(!self.history.is_empty(),egui::Button::new("Undo stroke")).clicked(){self.undo();}
+                    if ui.add_enabled(!self.redo.is_empty(),egui::Button::new("Redo")).clicked(){self.redo();}});
                 ui.separator();ui.label("Group name");ui.text_edit_singleline(&mut self.name);
                 egui::ComboBox::from_id_salt("terrain_material").selected_text(materials.iter().find(|m|Some(m.0)==self.material).map_or("Default",|m|m.1.as_str())).show_ui(ui,|ui| {
                     if ui.selectable_value(&mut self.material,None,"Default").changed(){self.repaint_material=true;}
