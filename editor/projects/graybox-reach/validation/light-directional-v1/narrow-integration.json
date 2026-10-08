@@ -1,0 +1,26 @@
+{
+  "project": "Graybox Reach",
+  "change": "Narrower lateral base stance, forward knee bend, and shorter spacing strides at the established slow cadence.",
+  "max_lateral_ankle_span_before": 28822.8418,
+  "max_lateral_ankle_span_after": 19124.0592,
+  "reduction_percent": 33.65,
+  "step_timing_seconds": {
+    "strafe_left": 1.0666666666666667,
+    "strafe_right": 1.0666666666666667,
+    "walk_backward": 1.3333333333333333
+  },
+  "runtime": "Spacing speed 25% of two-unit walk speed = 0.5 units/tick. Q8 remainder supports 60 Hz and batched updates. Deferred fractional moves preserve the gait; collisions stop it.",
+  "scope": "Circling and retreat use shorter strides; approach/run remain at their existing speeds.",
+  "validation": [
+    "27 tactical runtime tests passed.",
+    "Source and cooked foot-contact/loop checks passed.",
+    "No leg intersections in 64 quarter-frame checks per lateral clip.",
+    "Blender rig evaluation and export roundtrip passed.",
+    "Normal project disc built and replayed to 3000 polls."
+  ],
+  "preserve_samples": true,
+  "normal_disc_sha256": "cc7fdcf643a6b4a676f6160fdbdeab9dc5657f39c34bfec3c040db8cc65a5424",
+  "replay": "[cli] loaded poll-bound input tape editor/projects/graybox-reach/validation/light-directional-v1/extended-observe.csv (3000 polls, starting at poll 0)\n[cli] mounted cue-backed disc editor/projects/graybox-reach/baked/graybox_reach.cue\ncombat music:on\ncombat music:on\ntick=813203841  cycles=1762954412  pc=0x800d922c  stopped-at=813203841\nroute-ticks=3085  port1-polls=3000\n[cli] CPU display \u2192 build/graybox-reach/light-directional-v1/narrow-gameplay/final.ppm (320x240)\n",
+  "preview": "directional-cycles-narrow-1080p.mp4",
+  "limits": "Source collision checks and straight-line contact calibration; integer steering, curved movement and collisions can still introduce sliding. No original-hardware verification."
+}
