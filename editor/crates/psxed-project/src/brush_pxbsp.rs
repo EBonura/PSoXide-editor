@@ -5,12 +5,13 @@ use crate::brush_pack::PackedBspGeometry;
 use crate::ResourceId;
 
 use psx_bsp::pxbsp::{
-    PxbspEntity, PxbspLumpKind, PxbspMaterial, PxbspMaterialError, PXBSP_DIRECTORY_ENTRY_BYTES,
-    PXBSP_ENTITY_TABLE_HEADER_BYTES, PXBSP_HEADER_BYTES, PXBSP_LUMP_COUNT, PXBSP_MAGIC,
-    PXBSP_VERSION,
+    material_flags, PxbspEntity, PxbspLumpKind, PxbspMaterial, PxbspMaterialError,
+    PXBSP_DIRECTORY_ENTRY_BYTES, PXBSP_ENTITY_TABLE_HEADER_BYTES, PXBSP_HEADER_BYTES,
+    PXBSP_LUMP_COUNT, PXBSP_MAGIC, PXBSP_VERSION,
 };
 use psx_bsp::{
-    decode_node_bound_max, decode_node_bound_min, CompactPlane, CookedRecord, Node, Plane,
+    decode_node_bound_max, decode_node_bound_min, CompactPlane, CookedRecord, FaceBounds, Node,
+    Plane,
 };
 use psx_render_contract::CookedDrawSurface;
 
@@ -36,6 +37,8 @@ pub struct PxbspMapPayloads<'a> {
     pub materials: &'a [PxbspMaterial],
     pub entities: &'a [PxbspEntityInput],
     pub texture_data: &'a [u8],
+    /// Must be empty: PXBSP v7 keeps face bounds in the slot that held sound
+    /// data in earlier versions.
     pub sound_data: &'a [u8],
     pub model_data: &'a [u8],
     pub strings: &'a [u8],
@@ -143,9 +146,15 @@ pub fn build_pxbsp_with_submodels(
     let entities = pack_entities(payloads.entities)?;
 
     let max_visible_faces = max_visible_face_chain(&geometry)?;
+    if !payloads.sound_data.is_empty() {
+        return Err(PxbspBuildError::InvalidReference(
+            "sound data (the lump slot holds face bounds)",
+        ));
+    }
+    let face_bounds = pack_face_bounds(&geometry.faces, &geometry.vertices, payloads.materials)?;
     let mut lumps: [Vec<u8>; PXBSP_LUMP_COUNT] = core::array::from_fn(|_| Vec::new());
     lumps[PxbspLumpKind::TextureData as usize].extend_from_slice(payloads.texture_data);
-    lumps[PxbspLumpKind::SoundData as usize].extend_from_slice(payloads.sound_data);
+    lumps[PxbspLumpKind::FACE_BOUNDS as usize] = face_bounds;
     lumps[PxbspLumpKind::ModelData as usize].extend_from_slice(payloads.model_data);
     lumps[PxbspLumpKind::Vertices as usize] = geometry.vertices;
     lumps[PxbspLumpKind::Planes as usize] = pack_runtime_planes(&geometry.planes)?;
@@ -176,6 +185,7 @@ pub fn build_pxbsp_with_submodels(
         PxbspLumpKind::Strings,
         PxbspLumpKind::Entities,
         PxbspLumpKind::StreamingIndex,
+        PxbspLumpKind::FACE_BOUNDS,
     ]
     .into_iter()
     .map(|kind| lumps[kind as usize].len())
@@ -185,6 +195,50 @@ pub fn build_pxbsp_with_submodels(
         resident_bytes,
         max_visible_faces,
     })
+}
+
+/// One [`FaceBounds`] record per face of the merged face table: the tight box
+/// of the face's own vertices. Sky apertures keep the full range, because the
+/// runtime counts them as visible whether or not they are on screen, and so
+/// must never cull one from its bounds.
+fn pack_face_bounds(
+    faces: &[u8],
+    vertices: &[u8],
+    materials: &[PxbspMaterial],
+) -> Result<Vec<u8>, PxbspBuildError> {
+    let mut output = Vec::with_capacity(faces.len() / FACE_BYTES * FaceBounds::SIZE);
+    for face in faces.chunks_exact(FACE_BYTES) {
+        let surface = CookedDrawSurface::decode(face)
+            .ok_or(PxbspBuildError::InvalidReference("face record"))?;
+        let material = materials
+            .get(usize::from(surface.material))
+            .ok_or(PxbspBuildError::InvalidReference("face material"))?;
+        let sky =
+            material.flags & (material_flags::SKY_APERTURE | material_flags::DIRECTIONAL_SKY) != 0;
+        let first = usize::from(surface.first_corner);
+        let count = usize::from(surface.corner_count);
+        let corners = vertices
+            .get(first * VERTEX_BYTES..(first + count) * VERTEX_BYTES)
+            .ok_or(PxbspBuildError::InvalidReference("face vertices"))?;
+        let bounds = if sky || count == 0 {
+            FaceBounds::FULL
+        } else {
+            let mut bounds = FaceBounds {
+                mins: [i16::MAX; 3],
+                maxs: [i16::MIN; 3],
+            };
+            for corner in corners.chunks_exact(VERTEX_BYTES) {
+                for axis in 0..3 {
+                    let value = read_i16(corner, axis * 2);
+                    bounds.mins[axis] = bounds.mins[axis].min(value);
+                    bounds.maxs[axis] = bounds.maxs[axis].max(value);
+                }
+            }
+            bounds
+        };
+        output.extend_from_slice(&bounds.encode());
+    }
+    Ok(output)
 }
 
 /// Compute the exact persistent PVS-chain bound while the cooker still owns
@@ -951,6 +1005,84 @@ mod tests {
     };
 
     #[test]
+    fn corner(position: [i16; 3]) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        pack_vec3_i16(&mut bytes, position);
+        bytes.extend_from_slice(&[0; VERTEX_BYTES - 6]);
+        bytes
+    }
+
+    fn surface(material: u16, first_corner: u16, corner_count: u8) -> [u8; FACE_BYTES] {
+        CookedDrawSurface {
+            material,
+            first_corner,
+            corner_count,
+            ..CookedDrawSurface::default()
+        }
+        .encode()
+    }
+
+    #[test]
+    fn face_bounds_are_tight_and_sky_apertures_stay_unculled() {
+        let mut vertices = Vec::new();
+        for position in [
+            [-5, 7, 100],
+            [20, -3, 90],
+            [4, 11, -8],
+            // The sky face's corners; they must not matter.
+            [0, 0, 0],
+            [1, 1, 1],
+            [2, 2, 2],
+        ] {
+            vertices.extend(corner(position));
+        }
+        let mut faces = Vec::new();
+        faces.extend_from_slice(&surface(0, 0, 3));
+        faces.extend_from_slice(&surface(1, 3, 3));
+        let materials = [
+            PxbspMaterial::default(),
+            PxbspMaterial {
+                flags: material_flags::SKY_APERTURE,
+                ..PxbspMaterial::default()
+            },
+        ];
+        let bounds = pack_face_bounds(&faces, &vertices, &materials).expect("bounds");
+        assert_eq!(bounds.len(), 2 * FaceBounds::SIZE);
+        assert_eq!(
+            bounds[..FaceBounds::SIZE],
+            FaceBounds {
+                mins: [-5, -3, -8],
+                maxs: [20, 11, 100]
+            }
+            .encode()
+        );
+        assert_eq!(bounds[FaceBounds::SIZE..], FaceBounds::FULL.encode());
+        assert_eq!(
+            pack_face_bounds(&surface(2, 0, 3), &vertices, &materials),
+            Err(PxbspBuildError::InvalidReference("face material"))
+        );
+        assert_eq!(
+            pack_face_bounds(&surface(0, 4, 3), &vertices, &materials),
+            Err(PxbspBuildError::InvalidReference("face vertices"))
+        );
+    }
+
+    #[test]
+    fn a_compiled_room_loads_with_one_containing_box_per_face() {
+        let compiled = compiled_room();
+        let mut map = PxbspResidentMap::with_capacity(compiled.bytes.len());
+        map.load(1, &mut SliceReader::new(&compiled.bytes))
+            .expect("resident map validates every face box");
+        let bounds = map.face_bounds().expect("v7 face bounds");
+        assert_eq!(bounds.len(), map.faces().len());
+        assert!(!bounds.is_empty());
+        assert!(
+            bounds.iter().all(|b| *b != FaceBounds::FULL),
+            "the room has no sky aperture"
+        );
+    }
+
+    #[test]
     fn face_vertex_remap_preserves_the_full_u16_wire_domain() {
         assert_eq!(remap_face_vertex(1, 32_768), Ok(32_769));
         assert_eq!(remap_face_vertex(32_767, 32_768), Ok(u16::MAX));
@@ -1036,7 +1168,7 @@ mod tests {
         let mut reader = SliceReader::new(&compiled.bytes);
         let index = PxbspIndex::read(&mut reader).expect("index");
         assert_eq!(index.file_len(), compiled.bytes.len() as u32);
-        assert_eq!(index.version(), PxbspVersion::V6);
+        assert_eq!(index.version(), PxbspVersion::V7);
         assert!(index.lump(PxbspLumpKind::Vertices).len > 0);
         assert_eq!(
             index.lump(PxbspLumpKind::Planes).len as usize % CompactPlane::SIZE,

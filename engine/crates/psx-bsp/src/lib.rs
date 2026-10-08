@@ -907,6 +907,50 @@ impl<'a> RecordSlice<'a, Node> {
     }
 }
 
+/// Inclusive axis-aligned bounds of one face's vertices, in the model-local
+/// `i16` units the vertex lump uses (PXBSP v7 lump
+/// [`PxbspLumpKind::FACE_BOUNDS`](crate::pxbsp::PxbspLumpKind::FACE_BOUNDS)).
+///
+/// A face that must never be culled from its bounds (a sky aperture, whose
+/// stats are counted whether or not it is on screen) carries [`Self::FULL`].
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct FaceBounds {
+    pub mins: [i16; 3],
+    pub maxs: [i16; 3],
+}
+
+const _: [(); 12] = [(); core::mem::size_of::<FaceBounds>()];
+const _: [(); 2] = [(); core::mem::align_of::<FaceBounds>()];
+
+impl FaceBounds {
+    /// Wire size of one record.
+    pub const SIZE: usize = 12;
+
+    /// The whole `i16` cube: no plane can reject it and none can be proven.
+    pub const FULL: Self = Self {
+        mins: [i16::MIN; 3],
+        maxs: [i16::MAX; 3],
+    };
+
+    /// Little-endian wire form.
+    pub fn encode(self) -> [u8; Self::SIZE] {
+        let mut bytes = [0u8; Self::SIZE];
+        for (slot, value) in bytes
+            .chunks_exact_mut(2)
+            .zip(self.mins.into_iter().chain(self.maxs))
+        {
+            slot.copy_from_slice(&value.to_le_bytes());
+        }
+        bytes
+    }
+
+    /// Whether `position` lies inside the box.
+    pub fn contains(&self, position: [i16; 3]) -> bool {
+        (0..3).all(|axis| self.mins[axis] <= position[axis] && position[axis] <= self.maxs[axis])
+    }
+}
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
 pub struct ClipNode {
