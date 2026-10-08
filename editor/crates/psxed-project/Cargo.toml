@@ -36,6 +36,10 @@ name = "pxbsp-draw-cost"
 path = "src/bin/pxbsp_draw_cost.rs"
 
 [[bin]]
+name = "gen-stream-world"
+path = "src/bin/gen_stream_world.rs"
+
+[[bin]]
 name = "stream-report"
 path = "src/bin/stream_report.rs"
 
