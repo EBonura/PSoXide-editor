@@ -446,6 +446,11 @@ impl DeferredGameEntityAttack {
         self.entity as usize
     }
 
+    /// Per-entity swing counter; with [`Self::entity`] it names one swing.
+    pub const fn swing_sequence(self) -> u16 {
+        self.swing_sequence
+    }
+
     /// Exact model clip/phase that body, equipment, and hit geometry use.
     pub const fn clip(self) -> GameEntityClip {
         self.clip

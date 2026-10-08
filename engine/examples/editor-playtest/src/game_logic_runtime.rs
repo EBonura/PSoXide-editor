@@ -533,6 +533,9 @@ impl Playtest {
         let mut hits = 0u16;
         let mut damage_total = 0u16;
         let mut poise_total = 0u16;
+        // Nominal damage and poise by source for duel reports: claw light,
+        // claw heavy, cannon. Never read by gameplay.
+        let mut tally = [[0u16; 2]; 3];
         let mut attack_index = 0usize;
         while attack_index < self.deferred_enemy_attacks.len() {
             let Some(attack) = self.deferred_enemy_attacks.get(attack_index) else {
@@ -635,6 +638,23 @@ impl Playtest {
                 continue;
             }
             if player_invulnerable {
+                if self.duel.active {
+                    let (contact, _) = combat::resolve_authored_actor_contact_swept_pending(
+                        attacker_capsules,
+                        attack.action(),
+                        attacker_pose,
+                        previous_attacker_pose,
+                        player_capsules,
+                        player_pose,
+                        self.game_entities
+                            .deferred_melee_hit_mask(attack)
+                            .unwrap_or(u16::MAX),
+                    );
+                    if matches!(contact, combat::AuthoredActorContact::Hit { .. }) {
+                        let heavy = self.game_entities.attack_kind(attack.entity()) == 1;
+                        self.duel_note_melee_avoid(attack.entity(), attack.swing_sequence(), heavy);
+                    }
+                }
                 continue;
             }
             let (contact, window_mask) = combat::resolve_authored_actor_contact_swept_pending(
@@ -697,6 +717,9 @@ impl Playtest {
                 hits = hits.saturating_add(1);
                 damage_total = damage_total.saturating_add(damage);
                 poise_total = poise_total.saturating_add(poise_damage);
+                let source = usize::from(self.game_entities.attack_kind(attack.entity()) == 1);
+                tally[source][0] = tally[source][0].saturating_add(damage);
+                tally[source][1] = tally[source][1].saturating_add(poise_damage);
             }
         }
         let mut projectile_targets = psx_engine::FixedScratch::<
@@ -741,6 +764,9 @@ impl Playtest {
                     },
                 });
             }
+        }
+        if player_invulnerable && self.duel.active {
+            self.duel_note_bolt_avoid(player_position, player_radius, player_height);
         }
         // Use the primary animated hurtbox for projectile contact. A legacy
         // actor without one retains its body capsule; authoring failures do
@@ -795,7 +821,12 @@ impl Playtest {
                         };
                         let applied = self.game_entities.scaled_stance_damage(index, channel, impact.damage);
                         let opening = self.game_entities.shot_opening(GAME_ENTITIES, index);
+                        let (hp_before, opposite) = (self.duel_enemy_hp(), channel != self.game_entities.stance(index));
                         let outcome = self.game_entities.apply_projectile_hit(GAME_ENTITIES, index, channel, impact.damage, impact.poise_damage);
+                        if self.duel.active && index == self.duel.target {
+                            let flags = u32::from(outcome.staggered) | u32::from(outcome.died) << 1 | u32::from(opposite) << 2 | u32::from(opening) << 3;
+                            self.duel.event(1, 2, hp_before.saturating_sub(self.duel_enemy_hp()), u32::from(impact.poise_damage), flags);
+                        }
                         self.combat_flow.shot_hit(opening && outcome.staggered);
                         if opening && outcome.staggered {
                             telemetry::debug_log("flow:enemy-shot-interrupt");
@@ -823,8 +854,11 @@ impl Playtest {
                 hits = hits.saturating_add(1);
                 let exposed = self.player_shot_opening();
                 projectile_opening_hit |= exposed && self.combat_flow.can_interrupt();
-                poise_total = poise_total.saturating_add(self.combat_flow.shot_poise(
-                    impact.poise_damage, psx_game_runtime::character::PLAYER_POISE, exposed));
+                let bolt_poise = self.combat_flow.shot_poise(
+                    impact.poise_damage, psx_game_runtime::character::PLAYER_POISE, exposed);
+                poise_total = poise_total.saturating_add(bolt_poise);
+                tally[2][0] = tally[2][0].saturating_add(impact.damage);
+                tally[2][1] = tally[2][1].saturating_add(bolt_poise);
                 if exposed && self.combat_flow.can_interrupt() { telemetry::debug_log("flow:player-shot-interrupt"); }
                 match impact.damage_channel {
                     psx_game_runtime::projectiles::ProjectileDamageChannel::Horizon => {
@@ -839,13 +873,21 @@ impl Playtest {
             }
         }
         let gameplay_now = self.gameplay_tick(ctx.sim_tick);
+        // Health actually removed by melee and by bolts this tick, for duel reports.
+        let mut hp_lost = [0u32; 2];
+        let mut player_died = false;
         if damage_total > 0 {
             // Legacy enemy attacks are not axis-authored yet, so Horizon is
             // their deterministic migration channel and excess damage spills
             // into Zenith. Shell reduction is applied before routing; only
             // emptying BOTH pools arms the existing shared death sequence.
+            let hp_before = if self.duel.active { self.duel_player_hp() } else { 0 };
             let died = self.hazard_death_ticks_remaining == 0
                 && self.apply_untyped_player_damage(damage_total);
+            if self.duel.active {
+                hp_lost[0] = hp_before.saturating_sub(self.duel_player_hp());
+                player_died |= died;
+            }
             // Damage taken floats off the player, not off whoever threw
             // it, and it carries the channel it drained -- Horizon here,
             // matching the migration routing above.
@@ -873,8 +915,13 @@ impl Playtest {
             if damage == 0 {
                 continue;
             }
+            let hp_before = if self.duel.active { self.duel_player_hp() } else { 0 };
             let died = self.hazard_death_ticks_remaining == 0
                 && self.apply_typed_player_damage(channel, damage);
+            if self.duel.active {
+                hp_lost[1] += hp_before.saturating_sub(self.duel_player_hp());
+                player_died |= died;
+            }
             // A projectile carries its own channel, so a Choir Needle
             // reads teal on the way in exactly as the bolt did.
             self.damage_numbers.spawn(
@@ -911,7 +958,23 @@ impl Playtest {
                 })
             });
             let armored = self.player_combat_sample(ctx).active(psx_level::CombatWindowKind::Armored).unwrap_or(armored);
+            let active_stance = self.player_stance.active();
             let staggered = self.react_player_to_hit(poise_total, armored, damage_total == 0, ctx);
+            if self.duel.active {
+                // Event flags: 1 player poise break, 2 player died, 4 opposite colour.
+                let broke = u32::from(staggered) | u32::from(player_died) << 1;
+                if damage_total > 0 {
+                    let source = usize::from(tally[1][0] > tally[0][0]);
+                    let opposite = u32::from(active_stance != VitalityChannelId::One) << 2;
+                    self.duel.event(2, source as u32, hp_lost[0], u32::from(tally[source][1]), broke | opposite);
+                }
+                if tally[2][0] > 0 {
+                    let opposite = (zenith_projectile_damage > 0 && active_stance != VitalityChannelId::Two)
+                        || (horizon_projectile_damage > 0 && active_stance != VitalityChannelId::One);
+                    let broke = if damage_total == 0 { broke } else { broke & 2 };
+                    self.duel.event(2, 2, hp_lost[1], u32::from(tally[2][1]), broke | u32::from(opposite) << 2);
+                }
+            }
             if damage_total == 0 && staggered && projectile_opening_hit {
                 if self.duel.active { duel::log_values("duel:flow", &[ctx.sim_tick.as_u32()-self.duel.started_tick(),1,1]); }
                 for impact in projectile_impacts.as_slice() {
@@ -1595,6 +1658,8 @@ impl Playtest {
                 let applied_damage =
                     self.game_entities
                         .scaled_stance_damage(entity, vitality_channel, hit.damage);
+                let hp_before = if self.duel.active { self.duel_enemy_hp() } else { 0 };
+                let opposite = vitality_channel != self.game_entities.stance(entity);
                 let outcome = self.game_entities.apply_stance_hit(
                     GAME_ENTITIES,
                     entity,
@@ -1602,6 +1667,11 @@ impl Playtest {
                     hit.damage,
                     hit.poise_damage,
                 );
+                if self.duel.active && entity == self.duel.target {
+                    let heavy = matches!(self.anim_state, PlayerAnim::HeavyAttack | PlayerAnim::VertHeavyAttack);
+                    let flags = u32::from(outcome.staggered) | u32::from(outcome.died) << 1 | u32::from(opposite) << 2;
+                    self.duel.event(1, u32::from(heavy), hp_before.saturating_sub(self.duel_enemy_hp()), u32::from(hit.poise_damage), flags);
+                }
                 if outcome.connected {
                     if matches!(self.anim_state, PlayerAnim::HeavyAttack | PlayerAnim::VertHeavyAttack) {
                         let p = self.motor.position();
