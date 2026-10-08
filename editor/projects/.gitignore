@@ -21,6 +21,9 @@
 !graybox-valley/**
 !graybox-reach/
 !graybox-reach/**
+# Config for the generated world-streaming stress project (stream-world/ itself
+# is regenerated on demand by gen-stream-world and stays untracked).
+!stream-world.config.ron
 # The per-user editor view file inside a tracked project stays local.
 **/.psxed-view.ron
 
