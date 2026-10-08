@@ -336,22 +336,23 @@ impl Playtest {
                 // Decisions run every 12 ticks, the window's length, so each attack
                 // passes one decision with its contact 1 to 12 ticks away.
                 if PERFECT_SWAPS
-                && !swapping
-                && free
-                && self.player_stance.can_swap()
-                && roll < PERFECT_SWAP_SKILL_PERCENT
-            {
+                    && !swapping
+                    && free
+                    && self.player_stance.can_swap()
+                    && roll < PERFECT_SWAP_SKILL_PERCENT
+                {
                     let enemy_state = self.game_entities.state(i);
                     let kind = self.game_entities.attack_kind(i);
-                    let contact = if enemy_state == GameEntityState::Attack && visible && distance < 120 {
-                        match kind {
-                            0 => 28u16.checked_sub(self.game_entities.state_age(i)),
-                            1 => 54u16.checked_sub(self.game_entities.state_age(i)),
-                            _ => None,
-                        }
-                    } else {
-                        None
-                    };
+                    let contact =
+                        if enemy_state == GameEntityState::Attack && visible && distance < 120 {
+                            match kind {
+                                0 => 28u16.checked_sub(self.game_entities.state_age(i)),
+                                1 => 54u16.checked_sub(self.game_entities.state_age(i)),
+                                _ => None,
+                            }
+                        } else {
+                            None
+                        };
                     let bolt = self
                         .combat_projectiles
                         .incoming_threat(
@@ -707,8 +708,19 @@ impl Playtest {
         staggered: bool,
     ) {
         let attempted = self.duel.attempt_tick != 0
-            && self.duel.tick.wrapping_add(1).wrapping_sub(self.duel.attempt_tick) <= 14;
-        self.duel.event(4, source, refunded, avoided, u32::from(staggered) | u32::from(attempted) << 1);
+            && self
+                .duel
+                .tick
+                .wrapping_add(1)
+                .wrapping_sub(self.duel.attempt_tick)
+                <= 14;
+        self.duel.event(
+            4,
+            source,
+            refunded,
+            avoided,
+            u32::from(staggered) | u32::from(attempted) << 1,
+        );
     }
 
     /// Player health summed over both channels.

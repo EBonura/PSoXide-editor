@@ -654,15 +654,21 @@ impl Playtest {
                             let consumed = if window == 0 {
                                 self.game_entities.connect_deferred_attack(attack)
                             } else {
-                                self.game_entities.connect_deferred_melee_window(attack, window)
+                                self.game_entities
+                                    .connect_deferred_melee_window(attack, window)
                             };
                             if consumed {
-                                let staggered =
-                                    self.game_entities.perfect_stagger(GAME_ENTITIES, attack.entity());
+                                let staggered = self
+                                    .game_entities
+                                    .perfect_stagger(GAME_ENTITIES, attack.entity());
                                 perfect.get_or_insert((u32::from(heavy), damage, staggered));
                             }
                         } else {
-                            self.duel_note_melee_avoid(attack.entity(), attack.swing_sequence(), heavy);
+                            self.duel_note_melee_avoid(
+                                attack.entity(),
+                                attack.swing_sequence(),
+                                heavy,
+                            );
                         }
                     }
                 }
@@ -991,7 +997,11 @@ impl Playtest {
             // their deterministic migration channel and excess damage spills
             // into Zenith. Shell reduction is applied before routing; only
             // emptying BOTH pools arms the existing shared death sequence.
-            let hp_before = if self.duel.active { self.duel_player_hp() } else { 0 };
+            let hp_before = if self.duel.active {
+                self.duel_player_hp()
+            } else {
+                0
+            };
             let died = self.hazard_death_ticks_remaining == 0
                 && if typed_melee {
                     self.apply_typed_player_damage(
@@ -1032,7 +1042,11 @@ impl Playtest {
             if damage == 0 {
                 continue;
             }
-            let hp_before = if self.duel.active { self.duel_player_hp() } else { 0 };
+            let hp_before = if self.duel.active {
+                self.duel_player_hp()
+            } else {
+                0
+            };
             let died = self.hazard_death_ticks_remaining == 0
                 && self.apply_typed_player_damage(channel, damage);
             if self.duel.active {
@@ -1086,13 +1100,27 @@ impl Playtest {
                 if damage_total > 0 {
                     let source = usize::from(tally[1][0] > tally[0][0]);
                     let opposite = u32::from(opposed_melee) << 2;
-                    self.duel.event(2, source as u32, hp_lost[0], u32::from(tally[source][1]), broke | opposite);
+                    self.duel.event(
+                        2,
+                        source as u32,
+                        hp_lost[0],
+                        u32::from(tally[source][1]),
+                        broke | opposite,
+                    );
                 }
                 if tally[2][0] > 0 {
-                    let opposite = (zenith_projectile_damage > 0 && active_stance != VitalityChannelId::Two)
-                        || (horizon_projectile_damage > 0 && active_stance != VitalityChannelId::One);
+                    let opposite = (zenith_projectile_damage > 0
+                        && active_stance != VitalityChannelId::Two)
+                        || (horizon_projectile_damage > 0
+                            && active_stance != VitalityChannelId::One);
                     let broke = if damage_total == 0 { broke } else { broke & 2 };
-                    self.duel.event(2, 2, hp_lost[1], u32::from(tally[2][1]), broke | u32::from(opposite) << 2);
+                    self.duel.event(
+                        2,
+                        2,
+                        hp_lost[1],
+                        u32::from(tally[2][1]),
+                        broke | u32::from(opposite) << 2,
+                    );
                 }
             }
             if damage_total == 0 && staggered && projectile_opening_hit {
@@ -1144,7 +1172,11 @@ impl Playtest {
         self.queue_gameplay_sfx(LevelGameplaySfxEvent::StanceSwapReady);
         let zenith = self.player_stance.active() == VitalityChannelId::Two;
         let _ = self.combat_projectile_impacts.spawn_effect(
-            [position[0], position[1].saturating_add(height / 2), position[2]],
+            [
+                position[0],
+                position[1].saturating_add(height / 2),
+                position[2],
+            ],
             self.room_index,
             24,
             psx_game_runtime::combat_feedback::melee_impact_style(zenith, true, false),
@@ -1819,7 +1851,11 @@ impl Playtest {
                 let applied_damage =
                     self.game_entities
                         .scaled_stance_damage(entity, vitality_channel, hit.damage);
-                let hp_before = if self.duel.active { self.duel_enemy_hp() } else { 0 };
+                let hp_before = if self.duel.active {
+                    self.duel_enemy_hp()
+                } else {
+                    0
+                };
                 let opposite = vitality_channel != self.game_entities.stance(entity);
                 let outcome = self.game_entities.apply_stance_hit(
                     GAME_ENTITIES,
@@ -1829,9 +1865,20 @@ impl Playtest {
                     hit.poise_damage,
                 );
                 if self.duel.active && entity == self.duel.target {
-                    let heavy = matches!(self.anim_state, PlayerAnim::HeavyAttack | PlayerAnim::VertHeavyAttack);
-                    let flags = u32::from(outcome.staggered) | u32::from(outcome.died) << 1 | u32::from(opposite) << 2;
-                    self.duel.event(1, u32::from(heavy), hp_before.saturating_sub(self.duel_enemy_hp()), u32::from(hit.poise_damage), flags);
+                    let heavy = matches!(
+                        self.anim_state,
+                        PlayerAnim::HeavyAttack | PlayerAnim::VertHeavyAttack
+                    );
+                    let flags = u32::from(outcome.staggered)
+                        | u32::from(outcome.died) << 1
+                        | u32::from(opposite) << 2;
+                    self.duel.event(
+                        1,
+                        u32::from(heavy),
+                        hp_before.saturating_sub(self.duel_enemy_hp()),
+                        u32::from(hit.poise_damage),
+                        flags,
+                    );
                 }
                 if outcome.connected {
                     if matches!(
