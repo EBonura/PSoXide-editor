@@ -30,7 +30,7 @@ pub const OPPOSED_POISE_Q12: u32 = 8192;
 /// Poise multiplier (Q12) for an enemy melee hit while the player's active
 /// stance is opposite the claw's colour (Horizon). Measured against the
 /// player's capacity of 60 and a claw light of 50.
-pub const PLAYER_OPPOSED_POISE_Q12: u32 = 8192;
+pub const PLAYER_OPPOSED_POISE_Q12: u32 = 4874;
 
 /// Scale a poise damage value by a Q12 multiplier, saturating at `u16::MAX`.
 pub const fn scale_poise(poise: u16, multiplier_q12: u32) -> u16 {
