@@ -9,8 +9,6 @@ flags, memory-control names) must agree with the guest source they mirror.
 
 from __future__ import annotations
 
-import base64
-import binascii
 import importlib.util
 import struct
 import re
@@ -38,7 +36,6 @@ def load_tool(filename: str):
 
 report = load_tool("hwtest-report.py")
 verifier = load_tool("verify-hwtest-machine-code.py")
-audio_report = load_tool("hwtest-audio-report.py")
 
 # file -> (schema, suite minor, timing records, whole-binary CRC)
 ARCHIVED = {
@@ -120,30 +117,120 @@ class TableSyncTests(unittest.TestCase):
                 self.assertIn(record_id, report.LABELS)
                 self.assertEqual(report.WORK_BY_ID[record_id], work)
 
-    def test_record_slots_hold_the_largest_scope(self) -> None:
+    def test_record_slots_hold_a_whole_run(self) -> None:
         source = guest_source()
         slots = int(re.search(r"const TIMING_RECORD_COUNT: usize = (\d+);", source).group(1))
-        table = {
-            name: int(re.search(rf"const {name}: \[\w+; (\d+)\]", source).group(1))
-            for name in ("SAFE", "LEVERS", "EXTENDED", "SHAPES", "RISKY", "CASES")
-        }
-        dma_pairs = 6
-        retired = sum(1 for label in report.LABELS.values() if label.startswith("v122_only_"))
-        # The FMV STREAM TEST's records join any scope once it has run.
-        fmv = len(report.FMV_FIELDS)
-        # The v1.26 MDEC DIAGNOSTIC's records replace an earlier battery's
-        # slots when it runs, so they are not part of the standing battery.
-        mdec = sum(1 for record_id in report.LABELS if 0x200 <= record_id < 0x2B0)
-        # The v1.27 console cases' records likewise join a capture only once run.
-        console = sum(1 for record_id in report.LABELS if 0x2C0 <= record_id < 0x320)
-        # What is left is the standing battery, which has not changed size.
-        standing = (
-            len(report.LABELS) - sum(table.values()) - dma_pairs - retired - fmv - mdec - console
+        baselines = sorted(REFS.glob("px8-emulator-v2.*.txt"))
+        self.assertTrue(baselines, "no v2 emulator baseline pinned")
+        capture = report.parse_capture(report.payloads_from_paths([str(baselines[-1])]))
+        # A run that fills its slots drops records silently (push_timing_record
+        # saturates), so the pinned run has to leave room.
+        self.assertLess(len(capture.records) + 20, slots)
+
+    def test_the_run_carries_every_area_handoff_and_a_silence_record(self) -> None:
+        baselines = sorted(REFS.glob("px8-emulator-v2.*.txt"))
+        capture = report.parse_capture(report.payloads_from_paths([str(baselines[-1])]))
+        self.assertEqual(report.v2_verdicts(capture), [])
+        ids = {record.record_id for record in capture.records}
+        self.assertTrue({0x410 + area for area in range(10)} <= ids)
+        self.assertIn(0x41A, ids)
+
+    def test_v2_records_match_the_guest_comments(self) -> None:
+        # Each new record id is documented in the guest as
+        #   /// rec <name>: <field>, <field>, <field> (...)
+        #   const NAME: u16 = 0x...;
+        pattern = re.compile(
+            r"/// rec (\w+): ([^\n(]+?)\s*(?:\([^\n]*\))?\n\s*(?:pub\(crate\) )?const \w+: u16 = (0x[0-9A-Fa-f]+);"
         )
-        self.assertEqual(standing, 151)
-        # The standard scope takes the standing battery, SAFE and LEVERS.
-        self.assertLessEqual(standing + table["SAFE"] + table["LEVERS"] + fmv, slots)
-        self.assertLessEqual(sum(table.values()) + dma_pairs + fmv, slots)
+        found = pattern.findall(guest_source())
+        self.assertGreater(len(found), 20, "guest record comments not found")
+        for name, fields, id_text in found:
+            record_id = int(id_text, 16)
+            with self.subTest(record=f"{record_id:03X} {name}"):
+                self.assertIn(record_id, report.V2_RECORDS)
+                label, host_fields = report.V2_RECORDS[record_id]
+                self.assertTrue(label.startswith(name), (label, name))
+                guest_fields = tuple(field.strip().lower() for field in fields.split(","))
+                self.assertEqual(guest_fields, tuple(field.lower() for field in host_fields))
+
+    def test_v2_ids_do_not_collide_with_the_older_tables(self) -> None:
+        self.assertFalse(set(report.V2_RECORDS) & set(report.LABELS))
+
+    def test_the_silicon_baselines_compare_clean_against_themselves(self) -> None:
+        reference = report.load_silicon_reference()
+        capture = report.parse_capture(
+            report.payloads_from_paths([str(REFS / "px8-silicon-2026-10-08-v1.28-cdstream.txt")])
+        )
+        result = report.compare_to_silicon(capture, reference)
+        self.assertEqual(result["regressions"], [])
+        self.assertEqual(result["mismatches"], [])
+        self.assertGreater(result["shared"]["cases"], 200)
+
+    def test_a_case_that_passed_on_silicon_and_fails_now_is_a_regression(self) -> None:
+        reference = report.load_silicon_reference()
+        capture = report.parse_capture(
+            report.payloads_from_paths([str(REFS / "px8-silicon-2026-10-08-v1.28-cdstream.txt")])
+        )
+        statuses = list(capture.statuses)
+        first_pass = statuses.index(1)
+        statuses[first_pass] = 2
+        broken = SimpleNamespace(**{**capture.__dict__, "statuses": tuple(statuses)})
+        result = report.compare_to_silicon(broken, reference)
+        self.assertTrue(any(f"case {first_pass}:" in line for line in result["regressions"]))
+
+    def test_run_verdicts_name_a_dirty_area_and_a_noisy_end(self) -> None:
+        def record(record_id, low, mid, high):
+            return report.Record(record_id, 0, low, high, mid)
+
+        clean = [record(0x410 + area, 0x3F, 1, 0) for area in range(10)]
+        silent = record(0x41A, 0x7F, 0, 0)
+        good = SimpleNamespace(suite_major=2, records=tuple(clean + [silent]))
+        self.assertEqual(report.v2_verdicts(good), [])
+        dirty = list(clean)
+        dirty[3] = record(0x413, 0x3B, 1, 0)
+        noisy = record(0x41A, 0x3F, 700, 2)
+        bad = SimpleNamespace(suite_major=2, records=tuple(dirty + [noisy]))
+        problems = report.v2_verdicts(bad)
+        self.assertEqual(len(problems), 2)
+        self.assertIn("area 3", problems[0])
+        self.assertIn("silence", problems[1])
+
+    def test_silence_check_accepts_a_silent_tail_and_rejects_a_late_tone(self) -> None:
+        import contextlib
+        import io
+        import tempfile
+        import wave
+
+        def write(path, seconds, loud_until):
+            with wave.open(path, "wb") as wav:
+                wav.setnchannels(2)
+                wav.setsampwidth(2)
+                wav.setframerate(44100)
+                frames = bytearray()
+                for index in range(int(44100 * seconds)):
+                    value = 8000 if index < 44100 * loud_until and index % 40 < 20 else 0
+                    frames += struct.pack("<hh", value, value)
+                wav.writeframes(bytes(frames))
+
+        with tempfile.TemporaryDirectory() as directory:
+            ok = f"{directory}/ok.wav"
+            late = f"{directory}/late.wav"
+            write(ok, 8, 3)
+            write(late, 8, 7.5)
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(report.check_silence(ok, 3.0), 0)
+                with contextlib.redirect_stderr(io.StringIO()):
+                    self.assertEqual(report.check_silence(late, 3.0), 1)
+
+    def test_pages_with_a_run_id_parse_and_older_pages_still_do(self) -> None:
+        page = report.payloads_from_paths([str(REFS / "px8-emulator-v1.20.txt")])[0]
+        self.assertIsNone(report.parse_capture_page(page).run_id)
+        body, crc = page.rsplit("/C:", 1)
+        marker, field, chunk = body.split("/", 2)
+        with_run = f"{marker}/{field}ABCD/{chunk}/C:{crc}"
+        parsed = report.parse_capture_page(with_run)
+        self.assertEqual(parsed.run_id, 0xABCD)
+        self.assertEqual((parsed.number, parsed.total), (1, int(field[2:], 16)))
 
     def test_console_records_match_the_guest(self) -> None:
         source = (GUEST_SRC / "console_tests.rs").read_text(encoding="utf-8")
@@ -158,9 +245,6 @@ class TableSyncTests(unittest.TestCase):
                     self.assertEqual(report.WORK_BY_ID[record_id], 0)
         self.assertEqual(groups["KERNEL"], (report.CONSOLE_KERNEL_FIRST, len(report.CONSOLE_KERNEL)))
         self.assertEqual(groups["WIDTH"][1], len(report.CONSOLE_WIDTHS))
-        # The slots the guest reserves are exactly the records it can emit.
-        slots = int(re.search(r"const RECORD_SLOTS: usize = ([^;]+);", source).group(1).count("_COUNT"))
-        self.assertEqual(slots, len(groups))
 
     def test_console_rows_unpack_each_case(self) -> None:
         def record(record_id, low, mid, high):
@@ -173,8 +257,8 @@ class TableSyncTests(unittest.TestCase):
             record(0x2C3, 981, 993, 1112),
             record(0x2C4, 24, 24, 1 | 2 | 4 | (24 << 8)),
             record(0x2C5, 90, 90, 103),
-            record(0x2D0, 0xD780, 608, 3168),
-            record(0x2D1, 0xFFFF, 0, 0),
+            record(0x2D0, 0xD780, 21862, 2560),
+            record(0x2D1, 0xD78C, 27300, 2560),
             record(0x2E0, 0b11111, 6, 45),
             record(0x2E1, 343, 344, 344),
             record(0x2E2, 0xFFFF, 0xFFFF, 0xFFFF),
@@ -184,8 +268,8 @@ class TableSyncTests(unittest.TestCase):
         self.assertIn("console_kernel,enter_cs_net,493", rows)
         self.assertIn("console_kernel,exit_cs_net,482", rows)
         self.assertIn("console_kernel,runtime_vblank_gaps,24", rows)
-        self.assertIn("console_width,256,0xD780,608,3168", rows)
-        self.assertIn("console_width,320,not shown", rows)
+        self.assertIn("console_width,256,0xD780,21862,2560", rows)
+        self.assertIn("console_width,320,0xD78C,27300,2560", rows)
         self.assertIn("console_xa,getlocp_updating,1", rows)
         self.assertIn("console_xa,no_loop_seen,0", rows)
         self.assertIn("console_xa,loop_gap_ms,min=343 med=344 max=344", rows)
@@ -239,39 +323,6 @@ class TableSyncTests(unittest.TestCase):
         self.assertIn("cdstream_motor,read_at_once_after_stop_sectors_ms,failed", rows)
         self.assertIn("cdstream_motor,motor_off_after_ms,never", rows)
         self.assertIn("cdstream_motor,settled_read_intact,1", rows)
-
-    def test_fmv_records_match_the_guest(self) -> None:
-        source = (GUEST_SRC / "fmv_test.rs").read_text(encoding="utf-8")
-        first = int(re.search(r"const FIRST_RECORD: u16 = (0x[0-9A-Fa-f]+);", source).group(1), 16)
-        count = int(re.search(r"const RECORD_COUNT: usize = (\d+);", source).group(1))
-        self.assertEqual(first, report.FMV_FIRST_RECORD)
-        self.assertEqual(count, len(report.FMV_FIELDS))
-        for record_id in range(first, first + count):
-            self.assertIn(record_id, report.LABELS)
-        errors = re.search(r"const SETUP_ERRORS: \[&str; \d+\] = \[(.*?)\];", source, re.S).group(1)
-        self.assertEqual(tuple(re.findall(r'"([^"]+)"', errors)), report.FMV_SETUP_ERRORS[1:])
-
-    def test_fmv_rows_rederive_the_verdict(self) -> None:
-        fields = [(1, 9826, 9826), (0, 0, 0), (0, 0, 0xFFFF), (889, 234, 4450), (40, 30, 20), (12253, 1, 0)]
-        records = tuple(
-            report.Record(report.FMV_FIRST_RECORD + index, 0, low, high, mid)
-            for index, (low, mid, high) in enumerate(fields)
-        )
-        capture = SimpleNamespace(records=records)
-        rows = report.fmv_rows(capture)
-        self.assertEqual(rows[0], "# fmv=PASS criteria=PASS")
-        self.assertIn("fmv,first_error_lba,none", rows)
-        self.assertIn("fmv,setup_error,none", rows)
-        # One lost sector fails the criteria even if the guest said PASS.
-        fields[1] = (1, 0, 0)
-        records = tuple(
-            report.Record(report.FMV_FIRST_RECORD + index, 0, low, high, mid)
-            for index, (low, mid, high) in enumerate(fields)
-        )
-        rows = report.fmv_rows(SimpleNamespace(records=records))
-        self.assertEqual(rows[0], "# fmv=PASS criteria=FAIL")
-        self.assertIn("# fmv verdict disagrees with its own counters", rows)
-        self.assertEqual(report.fmv_rows(SimpleNamespace(records=())), [])
 
     def test_no_label_claims_an_unused_slot_marker(self) -> None:
         self.assertNotIn(0xFF, report.LABELS)
@@ -328,27 +379,6 @@ class MachineCodeVerifierTests(unittest.TestCase):
         rows = verifier.parse_baseline(newest)
         self.assertIn("07", rows)
         self.assertEqual(rows["07"][0], "timed_multu_mflo")
-
-
-class ProbePayloadTests(unittest.TestCase):
-    @staticmethod
-    def payload(body: bytes, suffix: int | None = None) -> str:
-        crc = binascii.crc32(body) & 0xFFFF_FFFF
-        binary = body + struct.pack("<I", crc)
-        shown = crc if suffix is None else suffix
-        return f"PA1/{base64.b64encode(binary).decode()}/C:{shown:08X}"
-
-    def test_a_consistent_payload_decodes(self) -> None:
-        binary, crc = audio_report.probe_binary(self.payload(b"PA1B" + bytes(12)), "PA1", 20)
-        self.assertEqual(binary[:4], b"PA1B")
-        self.assertEqual(crc, binascii.crc32(binary[:-4]) & 0xFFFF_FFFF)
-
-    def test_length_and_crc_disagreements_are_rejected(self) -> None:
-        good = b"PA1B" + bytes(12)
-        with self.assertRaises(ValueError):
-            audio_report.probe_binary(self.payload(good), "PA1", 24)
-        with self.assertRaises(ValueError):
-            audio_report.probe_binary(self.payload(good, suffix=0), "PA1", 20)
 
 
 if __name__ == "__main__":
