@@ -517,3 +517,47 @@ build/graybox-reach/camera-comparison/recalibration-before-after.png and
 recalibrated-*.png, with settings in recalibration.json. Earlier comparison
 artifacts remain as historical evidence. Temporary intermediate screenshots
 are removed after review.
+
+## Wall escape, then lift
+
+A player with her back to a wall (the replay tape walks her into the Graybox
+Terrain sky enclosure, 13 units from her centre) used to lose the camera: a
+full-stick orbit swept the eye through every yaw on the wall side, the boom fell
+under `min_distance` for 35 ticks, the scene hid her and the view was the room
+from inside her head. Walking backwards into a wall squeezed the boom the same
+way. Bloodborne's wall escape steers the camera sideways instead of lifting it
+(reference: `bb-decomp/docs/movement-camera-2026-10-06.md`), so escape is the
+primary response here and the lift is a small aid.
+
+- **Escape steering.** When the boom at the stick yaw is under twice
+  `min_distance` (48), the eye turns away from the stick yaw by the least
+  offset that leaves a boom of 48, up to 30 degrees (`SLIDE_MAX_Q12`). The
+  offset comes from the hit's contact plane: the trace normal gives the wall's
+  tangent and its side (the nearest one, held while the eye is nearly square to
+  the wall), the focus-to-plane gap gives the angle. The steered yaw is checked
+  with a trace and the other side is tried if it opens nothing. The offset
+  eases in at Bloodborne's escape coefficient (.25 per 30 Hz update, 549/4096
+  per 60 Hz tick) and out at the ordinary one (.1, 210/4096). The stick yaw is
+  never changed, so the stick always turns the camera.
+- **Lift, within a 50 degree total pitch cap** (`LIFT_PITCH_CAP_Q12` = 568).
+  Only what escape cannot clear is lifted. One trace at the cap reads the
+  horizontal run the wall leaves on the steered yaw, and the lift is the pitch
+  at which a boom of 48 fits it; a low obstacle (cap ray clear) is raised over,
+  held, then released. Past the cap the boom stays short, down to
+  `min_distance`, and she may be partly occluded; below `min_distance` she is
+  hidden, as a last resort.
+- **Sight line.** The eye to her torso is traced when the boom is constrained,
+  a lift or escape is held, or every fourth tick. A block must last 12 checks
+  before the sight lift rises, and it then rises half a degree per check (6/4096
+  Q12 units) within the same cap. It holds 30 clear checks before lowering.
+- **Margin.** The final safety margin follows Bloodborne: a tenth of the arm,
+  capped (16 units for the 208 arm, from .3 on a 4 unit boom), applied
+  perpendicular to the contact plane rather than along the ray (a fixed 12
+  along the ray left the eye 2 units from a grazing wall).
+- Lock-on gets no escape and no lift.
+
+`camera-pose-log` (a lighter feature than `emulator-telemetry`, which overflows
+Graybox Reach's RAM by 9,292 bytes) prints one `camera-pose` line per camera
+update under `launch --guest-debug-log`: tick, player, eye, focus, yaw, pitch,
+boom, pull-in, stick, lift, the squeeze and sight lift goals, the escape offset
+and goal, and the number of point traces the update spent.
