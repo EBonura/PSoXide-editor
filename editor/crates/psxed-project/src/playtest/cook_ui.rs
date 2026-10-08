@@ -102,6 +102,8 @@ pub(crate) fn cook_ui_nodes(
     // directory is absent the project remains silent; once present, every
     // named cue is validated and cooked through the exact same deduplicating
     // resident sample path as UI audio.
+    let (light_hit_path, light_hit_volume, light_hit_pitch_q12) =
+        light_hit_cue(project_root.join(LIGHT_HIT_WAV).is_file());
     for (path, event, volume, pitch_q12) in [
         (
             "assets/audio/gameplay/combat_start_anomaly.wav",
@@ -152,15 +154,15 @@ pub(crate) fn cook_ui_nodes(
             crate::UI_SFX_PITCH_UNITY_Q12,
         ),
         (
-            // One strong resident impact, pitched up/down for light/heavy,
-            // saves a second SPU allocation in RAM-tight PS1 projects.
-            "assets/audio/gameplay/heavy_hit.wav",
+            light_hit_path,
             psx_level::LevelGameplaySfxEvent::LightHit,
-            96,
-            4_250,
+            light_hit_volume,
+            light_hit_pitch_q12,
         ),
         (
-            "assets/audio/gameplay/heavy_hit.wav",
+            // The heavy impact keeps its lower pitch, so a light and a heavy
+            // blow differ in both sample and weight.
+            HEAVY_HIT_WAV,
             psx_level::LevelGameplaySfxEvent::HeavyHit,
             100,
             3_350,
@@ -1561,6 +1563,20 @@ pub(crate) fn cook_ui_sfx_event(
     }
 }
 
+const LIGHT_HIT_WAV: &str = "assets/audio/gameplay/light_hit.wav";
+const HEAVY_HIT_WAV: &str = "assets/audio/gameplay/heavy_hit.wav";
+
+/// The light-blow cue: its own short impact when the bank has one. A bank
+/// without it falls back to the heavy impact pitched up, which costs no second
+/// resident sample. Returns the source path, voice volume and pitch.
+fn light_hit_cue(bank_has_light_hit: bool) -> (&'static str, u8, u16) {
+    if bank_has_light_hit {
+        (LIGHT_HIT_WAV, 100, crate::UI_SFX_PITCH_UNITY_Q12)
+    } else {
+        (HEAVY_HIT_WAV, 96, 4_250)
+    }
+}
+
 pub(crate) fn cook_ui_sfx_sample_index(
     wav_path: &str,
     project_root: &Path,
@@ -1775,5 +1791,23 @@ mod resident_image_tests {
             0,
             "image nodes must not lose authored visibility while cooking"
         );
+    }
+    #[test]
+    fn light_and_heavy_blows_use_different_samples_when_the_bank_has_both() {
+        let (light_path, _, light_pitch) = light_hit_cue(true);
+        assert_ne!(light_path, HEAVY_HIT_WAV);
+        assert_eq!(light_pitch, crate::UI_SFX_PITCH_UNITY_Q12);
+        let default_bank = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../projects/default")
+            .join(LIGHT_HIT_WAV);
+        assert!(
+            default_bank.is_file(),
+            "the shipped bank carries the light impact"
+        );
+    }
+
+    #[test]
+    fn a_bank_without_the_light_impact_keeps_the_pitched_heavy_fallback() {
+        assert_eq!(light_hit_cue(false), (HEAVY_HIT_WAV, 96, 4_250));
     }
 }
