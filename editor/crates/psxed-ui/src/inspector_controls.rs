@@ -1,7 +1,7 @@
 use super::*;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(crate) struct GridUvTransformEdit {
+pub(crate) struct UvTransformEdit {
     pub(crate) offset: [bool; 2],
     pub(crate) span: [bool; 2],
     pub(crate) rotation: bool,
@@ -9,7 +9,7 @@ pub(crate) struct GridUvTransformEdit {
     pub(crate) flip_v: bool,
 }
 
-impl GridUvTransformEdit {
+impl UvTransformEdit {
     pub(crate) const fn changed(self) -> bool {
         self.offset[0]
             || self.offset[1]
@@ -20,11 +20,7 @@ impl GridUvTransformEdit {
             || self.flip_v
     }
 
-    pub(crate) fn include_value_changes(
-        &mut self,
-        before: GridUvTransform,
-        after: GridUvTransform,
-    ) {
+    pub(crate) fn include_value_changes(&mut self, before: UvTransform, after: UvTransform) {
         for axis in 0..2 {
             self.offset[axis] |= before.offset[axis] != after.offset[axis];
             self.span[axis] |= before.span[axis] != after.span[axis];
@@ -34,7 +30,7 @@ impl GridUvTransformEdit {
         self.flip_v |= before.flip_v != after.flip_v;
     }
 
-    pub(crate) fn apply(self, uv: &mut GridUvTransform, authored: GridUvTransform) {
+    pub(crate) fn apply(self, uv: &mut UvTransform, authored: UvTransform) {
         for axis in 0..2 {
             if self.offset[axis] {
                 uv.offset[axis] = authored.offset[axis];
@@ -65,11 +61,8 @@ impl GridUvTransformEdit {
     }
 }
 
-pub(crate) fn uv_transform_controls(
-    uv: &mut GridUvTransform,
-    ui: &mut egui::Ui,
-) -> GridUvTransformEdit {
-    let mut edit = GridUvTransformEdit::default();
+pub(crate) fn uv_transform_controls(uv: &mut UvTransform, ui: &mut egui::Ui) -> UvTransformEdit {
+    let mut edit = UvTransformEdit::default();
     ui.horizontal(|ui| {
         ui.label("Offset");
         ui.label("U");
@@ -105,14 +98,14 @@ pub(crate) fn uv_transform_controls(
     ui.horizontal(|ui| {
         ui.label("Rotate");
         for (rotation, label) in [
-            (GridUvRotation::Deg0, "0"),
-            (GridUvRotation::Deg45, "45"),
-            (GridUvRotation::Deg90, "90"),
-            (GridUvRotation::Deg135, "135"),
-            (GridUvRotation::Deg180, "180"),
-            (GridUvRotation::Deg225, "225"),
-            (GridUvRotation::Deg270, "270"),
-            (GridUvRotation::Deg315, "315"),
+            (UvRotation::Deg0, "0"),
+            (UvRotation::Deg45, "45"),
+            (UvRotation::Deg90, "90"),
+            (UvRotation::Deg135, "135"),
+            (UvRotation::Deg180, "180"),
+            (UvRotation::Deg225, "225"),
+            (UvRotation::Deg270, "270"),
+            (UvRotation::Deg315, "315"),
         ] {
             edit.rotation |= ui
                 .selectable_value(&mut uv.rotation, rotation, label)
@@ -127,8 +120,8 @@ pub(crate) fn uv_transform_controls(
             .on_hover_text("Reset selected faces' UV offset, span, rotation, and flips.")
             .clicked()
         {
-            *uv = GridUvTransform::IDENTITY;
-            edit = GridUvTransformEdit::all();
+            *uv = UvTransform::IDENTITY;
+            edit = UvTransformEdit::all();
         }
     });
     edit

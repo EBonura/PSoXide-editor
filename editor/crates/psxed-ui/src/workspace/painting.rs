@@ -1163,7 +1163,7 @@ impl EditorWorkspace {
                     name,
                     NodeKind::BoxProp {
                         materials: [material_id; psxed_project::BOX_PROP_FACE_COUNT],
-                        uvs: [GridUvTransform::IDENTITY; psxed_project::BOX_PROP_FACE_COUNT],
+                        uvs: [UvTransform::IDENTITY; psxed_project::BOX_PROP_FACE_COUNT],
                         vertices: psxed_project::box_prop_vertices_for_size(size),
                         collision_enabled: true,
                         break_flags: 0,
@@ -1194,8 +1194,7 @@ impl EditorWorkspace {
                     name,
                     NodeKind::CylinderProp {
                         materials: [material_id; psxed_project::CYLINDER_PROP_MATERIAL_COUNT],
-                        uvs: [GridUvTransform::IDENTITY;
-                            psxed_project::CYLINDER_PROP_MATERIAL_COUNT],
+                        uvs: [UvTransform::IDENTITY; psxed_project::CYLINDER_PROP_MATERIAL_COUNT],
                         geometry,
                         collision_enabled: true,
                     },
@@ -1212,7 +1211,7 @@ impl EditorWorkspace {
                     name,
                     NodeKind::ArchProp {
                         materials: [material_id; psxed_project::ARCH_PROP_MATERIAL_COUNT],
-                        uvs: [GridUvTransform::IDENTITY; psxed_project::ARCH_PROP_MATERIAL_COUNT],
+                        uvs: [UvTransform::IDENTITY; psxed_project::ARCH_PROP_MATERIAL_COUNT],
                         geometry: psxed_project::ArchPropGeometry::default(),
                         collision_enabled: false,
                     },
@@ -1628,8 +1627,8 @@ impl EditorWorkspace {
     pub(crate) fn apply_selected_face_uv_change_no_undo(
         &mut self,
         active: FaceRef,
-        edit: GridUvTransformEdit,
-        authored: GridUvTransform,
+        edit: UvTransformEdit,
+        authored: UvTransform,
     ) -> (usize, usize) {
         if !edit.changed() {
             return (0, 0);

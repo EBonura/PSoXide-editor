@@ -2447,7 +2447,7 @@ impl EditorWorkspace {
     pub(crate) fn triangle_parent_values(
         &self,
         triangle: HorizontalTriangleRef,
-    ) -> Option<(Option<ResourceId>, GridUvTransform, bool)> {
+    ) -> Option<(Option<ResourceId>, UvTransform, bool)> {
         let grid = self.room_grid_view(triangle.room)?;
         let sector = grid.sector(triangle.sx, triangle.sz)?;
         match triangle.surface {
@@ -2717,7 +2717,7 @@ impl EditorWorkspace {
 
         let mut changed = false;
         let mut status_message: Option<String> = None;
-        let mut selected_uv_change: Option<(GridUvTransformEdit, GridUvTransform)> = None;
+        let mut selected_uv_change: Option<(UvTransformEdit, UvTransform)> = None;
         match face.kind {
             FaceKind::Floor => {
                 let Some(face_data) = sector.floor.as_mut() else {
@@ -2742,7 +2742,7 @@ impl EditorWorkspace {
                         changed |= height_row("Height", &mut face_data.heights, ui);
                         changed |= split_row("Split", &mut face_data.split, ui);
                     });
-                let mut uv_edit = GridUvTransformEdit::default();
+                let mut uv_edit = UvTransformEdit::default();
                 egui::CollapsingHeader::new(icons::label(icons::GRID, "UV"))
                     .default_open(false)
                     .show(ui, |ui| {
@@ -2776,7 +2776,7 @@ impl EditorWorkspace {
                         changed |= height_row("Height", &mut face_data.heights, ui);
                         changed |= split_row("Split", &mut face_data.split, ui);
                     });
-                let mut uv_edit = GridUvTransformEdit::default();
+                let mut uv_edit = UvTransformEdit::default();
                 egui::CollapsingHeader::new(icons::label(icons::GRID, "UV"))
                     .default_open(false)
                     .show(ui, |ui| {
@@ -2797,7 +2797,7 @@ impl EditorWorkspace {
                     };
                     let uv_before = wall.uv;
                     let material_before = wall.material;
-                    let mut uv_edit = GridUvTransformEdit::default();
+                    let mut uv_edit = UvTransformEdit::default();
                     egui::CollapsingHeader::new(icons::label(icons::BLEND, "Material"))
                         .default_open(true)
                         .show(ui, |ui| {

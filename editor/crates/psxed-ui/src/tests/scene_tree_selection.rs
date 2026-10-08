@@ -1370,7 +1370,7 @@ fn flip_sector_x_remaps_split_triangles_and_diagonal_walls() {
     face.dropped_corner = Some(Corner::NW);
     face.uv.flip_u = false;
     face.triangle_override_mut(0).heights = Some([100, 110, 120]);
-    face.triangle_override_mut(0).uv = Some(GridUvTransform::IDENTITY);
+    face.triangle_override_mut(0).uv = Some(UvTransform::IDENTITY);
     face.triangle_override_mut(0).walkable = Some(false);
     sector.floor = Some(face);
     sector
@@ -1408,7 +1408,7 @@ fn flip_sector_z_remaps_split_triangles_and_dropped_wall_corners() {
     face.dropped_corner = Some(Corner::SE);
     face.uv.flip_v = false;
     face.triangle_override_mut(1).heights = Some([200, 210, 220]);
-    face.triangle_override_mut(1).uv = Some(GridUvTransform::IDENTITY);
+    face.triangle_override_mut(1).uv = Some(UvTransform::IDENTITY);
     sector.ceiling = Some(face);
     let mut diagonal = GridVerticalFace::with_heights([5, 6, 7, 8], None);
     diagonal.dropped_corner = Some(WallCorner::TR);
