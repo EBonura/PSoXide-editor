@@ -536,6 +536,10 @@ impl Playtest {
         // Nominal damage and poise by source for duel reports: claw light,
         // claw heavy, cannon. Never read by gameplay.
         let mut tally = [[0u16; 2]; 3];
+        // Cortex rules: enemy melee is Horizon-coloured, so it reads the
+        // player's stance like a bolt does. Other projects keep untyped hits.
+        let typed_melee = self.player_has_ranged_weapon();
+        let opposed_melee = typed_melee && self.player_stance.active() != VitalityChannelId::One;
         let mut attack_index = 0usize;
         while attack_index < self.deferred_enemy_attacks.len() {
             let Some(attack) = self.deferred_enemy_attacks.get(attack_index) else {
@@ -687,6 +691,14 @@ impl Playtest {
             };
             let Some((damage, poise_damage)) = damage else {
                 continue;
+            };
+            let poise_damage = if opposed_melee {
+                psx_game_runtime::combat_flow::scale_poise(
+                    poise_damage,
+                    psx_game_runtime::combat_flow::PLAYER_OPPOSED_POISE_Q12,
+                )
+            } else {
+                poise_damage
             };
             // World occlusion is authoritative for BOTH the authored capsule
             // and the legacy arc outcome: a closed door between the frozen
@@ -883,7 +895,14 @@ impl Playtest {
             // emptying BOTH pools arms the existing shared death sequence.
             let hp_before = if self.duel.active { self.duel_player_hp() } else { 0 };
             let died = self.hazard_death_ticks_remaining == 0
-                && self.apply_untyped_player_damage(damage_total);
+                && if typed_melee {
+                    self.apply_typed_player_damage(
+                        psx_game_runtime::projectiles::ProjectileDamageChannel::Horizon,
+                        damage_total,
+                    )
+                } else {
+                    self.apply_untyped_player_damage(damage_total)
+                };
             if self.duel.active {
                 hp_lost[0] = hp_before.saturating_sub(self.duel_player_hp());
                 player_died |= died;
@@ -965,7 +984,7 @@ impl Playtest {
                 let broke = u32::from(staggered) | u32::from(player_died) << 1;
                 if damage_total > 0 {
                     let source = usize::from(tally[1][0] > tally[0][0]);
-                    let opposite = u32::from(active_stance != VitalityChannelId::One) << 2;
+                    let opposite = u32::from(opposed_melee) << 2;
                     self.duel.event(2, source as u32, hp_lost[0], u32::from(tally[source][1]), broke | opposite);
                 }
                 if tally[2][0] > 0 {

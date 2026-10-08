@@ -654,6 +654,7 @@ impl Playtest {
     }
 
     /// Apply an untyped incoming hit as aligned with the active stance.
+    /// Used by projects without a ranged weapon; Cortex enemy melee is typed.
     pub(super) fn apply_untyped_player_damage(&mut self, damage: u16) -> bool {
         let damage = self.vitality_modifiers().incoming_damage(damage);
         // Untyped damage has no colour to compare, so it is treated as aligned

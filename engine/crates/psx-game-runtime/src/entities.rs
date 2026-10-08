@@ -1073,11 +1073,20 @@ impl<const MAX_ENTITIES: usize, const STANCE_BOUND_ATTACKS: bool>
             .min(u32::from(u16::MAX)) as u16
     }
 
-    /// Poise damage for one hit, scaled like [`Self::scaled_stance_damage`]:
-    /// a hit on the guarded channel keeps the same fraction of its authored
-    /// poise as of its authored damage, so a 1-point chip cannot stagger and
-    /// the only way to break an enemy's poise is to match its open channel.
-    /// The exposed channel and zero-damage hits keep their authored poise.
+    /// Poise damage for one hit, scaled like [`Self::scaled_stance_damage`].
+    ///
+    /// Legacy rules: a hit on the guarded channel keeps the same fraction of
+    /// its authored poise as of its authored damage, so a 1-point chip cannot
+    /// stagger and the only way to break an enemy's poise is to match its open
+    /// channel. The exposed channel and zero-damage hits keep their authored
+    /// poise.
+    ///
+    /// Flow rules have no guard chip: a matching hit deals its full 100%
+    /// damage, so it also keeps its authored poise and nothing is subtracted.
+    /// Colour is read the other way round. A hit whose channel is opposite the
+    /// enemy's stance multiplies its poise by [`crate::combat_flow::OPPOSED_POISE_Q12`],
+    /// on top of the 125% damage, so the right stance shows up as stagger.
+    /// Zero-damage hits keep their authored poise.
     pub fn scaled_stance_poise(
         &self,
         index: usize,
@@ -1086,7 +1095,11 @@ impl<const MAX_ENTITIES: usize, const STANCE_BOUND_ATTACKS: bool>
         poise_damage: u16,
     ) -> u16 {
         if self.flow_enabled {
-            return poise_damage;
+            return if damage != 0 && attack != self.stance(index) {
+                crate::combat_flow::scale_poise(poise_damage, crate::combat_flow::OPPOSED_POISE_Q12)
+            } else {
+                poise_damage
+            };
         }
         if damage == 0 || attack != self.stance(index) {
             return poise_damage;
@@ -3046,6 +3059,52 @@ mod tests {
                 .staggered
         );
         assert_eq!(e.state_ticks[0], ticks);
+    }
+    /// Flow mode, capacity 50 (`DUAL_ENEMY`), enemy stance Horizon.
+    fn flow_enemy() -> GameEntities<8> {
+        let mut e = GameEntities::<8>::EMPTY;
+        e.spawn_from_records(&DUAL_ENEMY);
+        e.enable_combat_flow(true);
+        e
+    }
+    #[test]
+    fn a_fresh_enemy_survives_one_light_hit_and_breaks_on_a_combo_or_heavy() {
+        // Light 25 / heavy 50 poise, the Aletha values.
+        let mut e = flow_enemy();
+        assert!(
+            !e.apply_stance_hit(&DUAL_ENEMY, 0, VitalityChannelId::One, 25, 25)
+                .staggered
+        );
+        assert!(
+            e.apply_stance_hit(&DUAL_ENEMY, 0, VitalityChannelId::One, 25, 25)
+                .staggered
+        );
+        let mut e = flow_enemy();
+        assert!(
+            e.apply_stance_hit(&DUAL_ENEMY, 0, VitalityChannelId::One, 38, 50)
+                .staggered
+        );
+    }
+    #[test]
+    fn opposite_colour_adds_poise_and_matching_colour_adds_none() {
+        let e = flow_enemy();
+        assert_eq!(e.scaled_stance_poise(0, VitalityChannelId::One, 25, 25), 25);
+        assert_eq!(e.scaled_stance_poise(0, VitalityChannelId::Two, 25, 25), 50);
+        // Poise-only hits keep their authored value.
+        assert_eq!(e.scaled_stance_poise(0, VitalityChannelId::Two, 0, 25), 25);
+        let mut e = flow_enemy();
+        assert!(
+            e.apply_stance_hit(&DUAL_ENEMY, 0, VitalityChannelId::Two, 25, 25)
+                .staggered
+        );
+    }
+    #[test]
+    fn legacy_mode_poise_is_unchanged_by_the_flow_multiplier() {
+        let mut e = GameEntities::<8>::EMPTY;
+        e.spawn_from_records(&DUAL_ENEMY);
+        // Opposed hit: authored poise. Guarded hit: scaled with the chip.
+        assert_eq!(e.scaled_stance_poise(0, VitalityChannelId::Two, 25, 25), 25);
+        assert!(e.scaled_stance_poise(0, VitalityChannelId::One, 25, 25) <= 3);
     }
     #[test]
     fn prototype_shot_interrupts_late_tell_and_cancels_retained_attack() {

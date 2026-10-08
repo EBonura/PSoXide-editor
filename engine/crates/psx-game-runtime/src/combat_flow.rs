@@ -22,6 +22,25 @@ pub const AIR_TICKS: u16 = 360;
 pub const GROUND_REARM_TICKS: u16 = 120;
 /// Ticks after a poise break reaction ends during which no further break can occur.
 pub const BREAK_GRACE_TICKS: u16 = 60;
+/// Poise multiplier (Q12, 4096 = x1) for a player hit whose colour is opposite
+/// the enemy's current stance. Starting point: x2, so that with an enemy
+/// capacity of 50 an opposite-colour light hit (25 -> 50) breaks poise alone
+/// while a matching one needs a second hit. Flow mode only.
+pub const OPPOSED_POISE_Q12: u32 = 8192;
+/// Poise multiplier (Q12) for an enemy melee hit while the player's active
+/// stance is opposite the claw's colour (Horizon). Measured against the
+/// player's capacity of 60 and a claw light of 50.
+pub const PLAYER_OPPOSED_POISE_Q12: u32 = 8192;
+
+/// Scale a poise damage value by a Q12 multiplier, saturating at `u16::MAX`.
+pub const fn scale_poise(poise: u16, multiplier_q12: u32) -> u16 {
+    let scaled = poise as u32 * multiplier_q12 / 4096;
+    if scaled > u16::MAX as u32 {
+        u16::MAX
+    } else {
+        scaled as u16
+    }
+}
 
 /// Ground sidestep tuning, on the 60 Hz simulation clock.
 /// Sidestep length in runtime units.
@@ -224,6 +243,13 @@ impl CombatFlow {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn poise_scaling_is_exact_at_one_and_saturates() {
+        assert_eq!(scale_poise(25, 4096), 25);
+        assert_eq!(scale_poise(25, OPPOSED_POISE_Q12), 50);
+        assert_eq!(scale_poise(0, OPPOSED_POISE_Q12), 0);
+        assert_eq!(scale_poise(u16::MAX, 8192), u16::MAX);
+    }
     #[test]
     fn failed_escape_commits_to_melee_without_losing_the_ranged_reserve() {
         let mut flow = CombatFlow::FULL;
