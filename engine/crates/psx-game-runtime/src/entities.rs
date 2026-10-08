@@ -3823,7 +3823,7 @@ mod tests {
             }
             let in_band = GameEntityTickInput {
                 player: [1700, 0, 1000],
-                ..near_input(&ACTIVE)
+                ..near_input()
             };
             let mut out = [0u8; 48];
             for (t, slot) in out.iter_mut().enumerate() {
