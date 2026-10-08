@@ -907,23 +907,24 @@ impl<'a> RecordSlice<'a, Node> {
     }
 }
 
-/// Inclusive axis-aligned bounds of one face's vertices, in the model-local
-/// `i16` units the vertex lump uses (PXBSP v7 lump
-/// [`PxbspLumpKind::FACE_BOUNDS`](crate::pxbsp::PxbspLumpKind::FACE_BOUNDS)).
+/// Inclusive axis-aligned bounds of every vertex of every face a leaf marks,
+/// in the model-local `i16` units the vertex lump uses (PXBSP v7 lump
+/// [`PxbspLumpKind::LEAF_BOUNDS`](crate::pxbsp::PxbspLumpKind::LEAF_BOUNDS)).
 ///
-/// A face that must never be culled from its bounds (a sky aperture, whose
-/// stats are counted whether or not it is on screen) carries [`Self::FULL`].
+/// A leaf that must never be culled from its bounds (one marking a sky
+/// aperture, whose stats are counted whether or not it is on screen, or one
+/// marking nothing) carries [`Self::FULL`].
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct FaceBounds {
+pub struct LeafBounds {
     pub mins: [i16; 3],
     pub maxs: [i16; 3],
 }
 
-const _: [(); 12] = [(); core::mem::size_of::<FaceBounds>()];
-const _: [(); 2] = [(); core::mem::align_of::<FaceBounds>()];
+const _: [(); 12] = [(); core::mem::size_of::<LeafBounds>()];
+const _: [(); 2] = [(); core::mem::align_of::<LeafBounds>()];
 
-impl FaceBounds {
+impl LeafBounds {
     /// Wire size of one record.
     pub const SIZE: usize = 12;
 

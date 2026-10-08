@@ -10,8 +10,8 @@ use psx_bsp::pxbsp::{
     PXBSP_LUMP_COUNT, PXBSP_MAGIC, PXBSP_VERSION,
 };
 use psx_bsp::{
-    decode_node_bound_max, decode_node_bound_min, CompactPlane, CookedRecord, FaceBounds, Node,
-    Plane,
+    decode_node_bound_max, decode_node_bound_min, CompactPlane, CookedRecord, Leaf, LeafBounds,
+    Node, Plane,
 };
 use psx_render_contract::CookedDrawSurface;
 
@@ -37,7 +37,7 @@ pub struct PxbspMapPayloads<'a> {
     pub materials: &'a [PxbspMaterial],
     pub entities: &'a [PxbspEntityInput],
     pub texture_data: &'a [u8],
-    /// Must be empty: PXBSP v7 keeps face bounds in the slot that held sound
+    /// Must be empty: PXBSP v7 keeps leaf bounds in the slot that held sound
     /// data in earlier versions.
     pub sound_data: &'a [u8],
     pub model_data: &'a [u8],
@@ -148,13 +148,13 @@ pub fn build_pxbsp_with_submodels(
     let max_visible_faces = max_visible_face_chain(&geometry)?;
     if !payloads.sound_data.is_empty() {
         return Err(PxbspBuildError::InvalidReference(
-            "sound data (the lump slot holds face bounds)",
+            "sound data (the lump slot holds leaf bounds)",
         ));
     }
-    let face_bounds = pack_face_bounds(&geometry.faces, &geometry.vertices, payloads.materials)?;
+    let leaf_bounds = pack_leaf_bounds(&geometry.faces, &geometry.vertices, payloads.materials)?;
     let mut lumps: [Vec<u8>; PXBSP_LUMP_COUNT] = core::array::from_fn(|_| Vec::new());
     lumps[PxbspLumpKind::TextureData as usize].extend_from_slice(payloads.texture_data);
-    lumps[PxbspLumpKind::FACE_BOUNDS as usize] = face_bounds;
+    lumps[PxbspLumpKind::LEAF_BOUNDS as usize] = leaf_bounds;
     lumps[PxbspLumpKind::ModelData as usize].extend_from_slice(payloads.model_data);
     lumps[PxbspLumpKind::Vertices as usize] = geometry.vertices;
     lumps[PxbspLumpKind::Planes as usize] = pack_runtime_planes(&geometry.planes)?;
@@ -185,7 +185,7 @@ pub fn build_pxbsp_with_submodels(
         PxbspLumpKind::Strings,
         PxbspLumpKind::Entities,
         PxbspLumpKind::StreamingIndex,
-        PxbspLumpKind::FACE_BOUNDS,
+        PxbspLumpKind::LEAF_BOUNDS,
     ]
     .into_iter()
     .map(|kind| lumps[kind as usize].len())
@@ -197,36 +197,52 @@ pub fn build_pxbsp_with_submodels(
     })
 }
 
-/// One [`FaceBounds`] record per face of the merged face table: the tight box
-/// of the face's own vertices. Sky apertures keep the full range, because the
-/// runtime counts them as visible whether or not they are on screen, and so
-/// must never cull one from its bounds.
-fn pack_face_bounds(
-    faces: &[u8],
-    vertices: &[u8],
+/// One [`LeafBounds`] record per leaf of the merged leaf table: the tight box
+/// of every vertex of every face the leaf marks. A leaf that marks a sky
+/// aperture keeps the full range, because the runtime counts an aperture as
+/// visible whether or not it is on screen and so must never cull one from its
+/// bounds; so does a leaf that marks nothing.
+fn pack_leaf_bounds(
+    geometry: &PackedBspGeometry,
     materials: &[PxbspMaterial],
 ) -> Result<Vec<u8>, PxbspBuildError> {
-    let mut output = Vec::with_capacity(faces.len() / FACE_BYTES * FaceBounds::SIZE);
-    for face in faces.chunks_exact(FACE_BYTES) {
-        let surface = CookedDrawSurface::decode(face)
+    let mut output = Vec::with_capacity(geometry.leaves.len() / LEAF_BYTES * LeafBounds::SIZE);
+    for leaf in geometry.leaves.chunks_exact(LEAF_BYTES) {
+        let leaf = Leaf::decode(leaf);
+        let first = usize::from(leaf.first_mark_surface);
+        let end = first + usize::from(leaf.mark_surface_count);
+        let marks = geometry
+            .mark_surfaces
+            .get(first * MARK_SURFACE_BYTES..end * MARK_SURFACE_BYTES)
+            .ok_or(PxbspBuildError::InvalidReference("leaf marks"))?;
+        let mut bounds = LeafBounds {
+            mins: [i16::MAX; 3],
+            maxs: [i16::MIN; 3],
+        };
+        let mut unculled = marks.is_empty();
+        for mark in marks.chunks_exact(MARK_SURFACE_BYTES) {
+            let face = usize::from(read_u16(mark, 0));
+            let surface = CookedDrawSurface::decode(
+                geometry
+                    .faces
+                    .get(face * FACE_BYTES..(face + 1) * FACE_BYTES)
+                    .ok_or(PxbspBuildError::InvalidReference("leaf mark face"))?,
+            )
             .ok_or(PxbspBuildError::InvalidReference("face record"))?;
-        let material = materials
-            .get(usize::from(surface.material))
-            .ok_or(PxbspBuildError::InvalidReference("face material"))?;
-        let sky =
-            material.flags & (material_flags::SKY_APERTURE | material_flags::DIRECTIONAL_SKY) != 0;
-        let first = usize::from(surface.first_corner);
-        let count = usize::from(surface.corner_count);
-        let corners = vertices
-            .get(first * VERTEX_BYTES..(first + count) * VERTEX_BYTES)
-            .ok_or(PxbspBuildError::InvalidReference("face vertices"))?;
-        let bounds = if sky || count == 0 {
-            FaceBounds::FULL
-        } else {
-            let mut bounds = FaceBounds {
-                mins: [i16::MAX; 3],
-                maxs: [i16::MIN; 3],
-            };
+            let material = materials
+                .get(usize::from(surface.material))
+                .ok_or(PxbspBuildError::InvalidReference("face material"))?;
+            unculled |= material.flags
+                & (material_flags::SKY_APERTURE | material_flags::DIRECTIONAL_SKY)
+                != 0;
+            let first_corner = usize::from(surface.first_corner);
+            let corners = geometry
+                .vertices
+                .get(
+                    first_corner * VERTEX_BYTES
+                        ..(first_corner + usize::from(surface.corner_count)) * VERTEX_BYTES,
+                )
+                .ok_or(PxbspBuildError::InvalidReference("face vertices"))?;
             for corner in corners.chunks_exact(VERTEX_BYTES) {
                 for axis in 0..3 {
                     let value = read_i16(corner, axis * 2);
@@ -234,8 +250,10 @@ fn pack_face_bounds(
                     bounds.maxs[axis] = bounds.maxs[axis].max(value);
                 }
             }
-            bounds
-        };
+        }
+        if unculled || (0..3).any(|axis| bounds.mins[axis] > bounds.maxs[axis]) {
+            bounds = LeafBounds::FULL;
+        }
         output.extend_from_slice(&bounds.encode());
     }
     Ok(output)
@@ -1022,13 +1040,25 @@ mod tests {
         .encode()
     }
 
+    fn leaf_record(first_mark: u16, mark_count: u16) -> Vec<u8> {
+        let mut bytes = vec![0u8; LEAF_BYTES];
+        bytes[0] = (-1i8) as u8;
+        bytes[2..4].copy_from_slice(&mark_count.to_le_bytes());
+        bytes[4..8].copy_from_slice(&(-1i32).to_le_bytes());
+        bytes[8..10].copy_from_slice(&first_mark.to_le_bytes());
+        bytes
+    }
+
     #[test]
-    fn face_bounds_are_tight_and_sky_apertures_stay_unculled() {
+    fn leaf_bounds_are_tight_and_sky_and_empty_leaves_stay_unculled() {
         let mut vertices = Vec::new();
         for position in [
             [-5, 7, 100],
             [20, -3, 90],
             [4, 11, -8],
+            [30, 2, 2],
+            [31, 3, 40],
+            [29, 4, 41],
             // The sky face's corners; they must not matter.
             [0, 0, 0],
             [1, 1, 1],
@@ -1038,7 +1068,31 @@ mod tests {
         }
         let mut faces = Vec::new();
         faces.extend_from_slice(&surface(0, 0, 3));
-        faces.extend_from_slice(&surface(1, 3, 3));
+        faces.extend_from_slice(&surface(0, 3, 3));
+        faces.extend_from_slice(&surface(1, 6, 3));
+        // Leaf 0 is solid and marks nothing; leaf 1 marks faces 0 and 1
+        // (face 1 twice over, as a face spanning leaves is marked in each);
+        // leaf 2 marks only the sky face; leaf 3 marks face 1 and the sky.
+        let marks: Vec<u16> = vec![0, 1, 2, 1, 2];
+        let mut leaves = Vec::new();
+        leaves.extend(leaf_record(0, 0));
+        leaves.extend(leaf_record(0, 2));
+        leaves.extend(leaf_record(2, 1));
+        leaves.extend(leaf_record(3, 2));
+        let geometry = PackedBspGeometry {
+            vertices,
+            planes: Vec::new(),
+            faces,
+            mark_surfaces: marks.iter().flat_map(|mark| mark.to_le_bytes()).collect(),
+            visibility: Vec::new(),
+            leaves,
+            nodes: Vec::new(),
+            material_slots: Vec::new(),
+            root_node: 0,
+            visible_leaves: 0,
+            mins: [0; 3],
+            maxs: [0; 3],
+        };
         let materials = [
             PxbspMaterial::default(),
             PxbspMaterial {
@@ -1046,39 +1100,49 @@ mod tests {
                 ..PxbspMaterial::default()
             },
         ];
-        let bounds = pack_face_bounds(&faces, &vertices, &materials).expect("bounds");
-        assert_eq!(bounds.len(), 2 * FaceBounds::SIZE);
+        let bounds = pack_leaf_bounds(&geometry, &materials).expect("bounds");
+        assert_eq!(bounds.len(), 4 * LeafBounds::SIZE);
+        let record = |leaf: usize| &bounds[leaf * LeafBounds::SIZE..][..LeafBounds::SIZE];
+        assert_eq!(record(0), LeafBounds::FULL.encode(), "empty leaf");
         assert_eq!(
-            bounds[..FaceBounds::SIZE],
-            FaceBounds {
+            record(1),
+            LeafBounds {
                 mins: [-5, -3, -8],
-                maxs: [20, 11, 100]
+                maxs: [31, 11, 100]
             }
-            .encode()
+            .encode(),
+            "union of the marked faces' vertices"
         );
-        assert_eq!(bounds[FaceBounds::SIZE..], FaceBounds::FULL.encode());
+        assert_eq!(record(2), LeafBounds::FULL.encode(), "sky leaf");
         assert_eq!(
-            pack_face_bounds(&surface(2, 0, 3), &vertices, &materials),
+            record(3),
+            LeafBounds::FULL.encode(),
+            "leaf marking a sky aperture"
+        );
+
+        let mut bad_mark = geometry.clone();
+        bad_mark.mark_surfaces = vec![9, 0];
+        assert_eq!(
+            pack_leaf_bounds(&bad_mark, &materials),
+            Err(PxbspBuildError::InvalidReference("leaf mark face"))
+        );
+        assert_eq!(
+            pack_leaf_bounds(&geometry, &materials[..1]),
             Err(PxbspBuildError::InvalidReference("face material"))
-        );
-        assert_eq!(
-            pack_face_bounds(&surface(0, 4, 3), &vertices, &materials),
-            Err(PxbspBuildError::InvalidReference("face vertices"))
         );
     }
 
     #[test]
-    fn a_compiled_room_loads_with_one_containing_box_per_face() {
+    fn a_compiled_room_loads_with_one_containing_box_per_leaf() {
         let compiled = compiled_room();
         let mut map = PxbspResidentMap::with_capacity(compiled.bytes.len());
         map.load(1, &mut SliceReader::new(&compiled.bytes))
-            .expect("resident map validates every face box");
-        let bounds = map.face_bounds().expect("v7 face bounds");
-        assert_eq!(bounds.len(), map.faces().len());
-        assert!(!bounds.is_empty());
+            .expect("resident map validates every leaf box");
+        let bounds = map.leaf_bounds().expect("v7 leaf bounds");
+        assert_eq!(bounds.len(), map.leaves().len());
         assert!(
-            bounds.iter().all(|b| *b != FaceBounds::FULL),
-            "the room has no sky aperture"
+            bounds.iter().any(|b| *b != LeafBounds::FULL),
+            "the room's marking leaves carry real boxes"
         );
     }
 

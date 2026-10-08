@@ -7,12 +7,12 @@ use psx_math::int32::mul_q12_i32;
 
 use crate::collision::CollisionHull;
 use crate::pxbsp::{
-    decompress_leaf_row, PxbspEntityTable, PxbspEntityTableError, PxbspError, PxbspIndex,
-    PxbspLumpKind, PxbspMaterial, PxbspMaterialError, PxbspVersion, PXBSP_LUMP_COUNT,
+    decompress_leaf_row, material_flags, PxbspEntityTable, PxbspEntityTableError, PxbspError,
+    PxbspIndex, PxbspLumpKind, PxbspMaterial, PxbspMaterialError, PxbspVersion, PXBSP_LUMP_COUNT,
 };
 use crate::{
     encode_node_bound_max, encode_node_bound_min, BrushModel, ClipNode, CompactNode, CompactPlane,
-    CookedRecord, Face, FaceBounds, Leaf, LumpRange, Node, ReadAt, RecordSlice, SliceReadError,
+    CookedRecord, Face, Leaf, LeafBounds, LumpRange, Node, ReadAt, RecordSlice, SliceReadError,
     SliceReader, Vec3I32, Vertex,
 };
 
@@ -34,7 +34,7 @@ const RESIDENT_LUMPS: [PxbspLumpKind; 15] = [
     PxbspLumpKind::Entities,
     PxbspLumpKind::StreamingIndex,
     // Empty for every version before v7, whose slot it is.
-    PxbspLumpKind::FACE_BOUNDS,
+    PxbspLumpKind::LEAF_BOUNDS,
 ];
 
 /// Failure while reading or validating a resident PXBSP map.
@@ -58,9 +58,10 @@ pub enum PxbspMapLoadError<E> {
     BadMaterial(usize, PxbspMaterialError),
     BadEntityTable(PxbspEntityTableError),
     BadFace(usize),
-    /// A v7 face-bounds record is missing, inverted, or does not contain its
-    /// face's vertices; the count of faces when the lump has the wrong length.
-    BadFaceBounds(usize),
+    /// A v7 leaf-bounds record is inverted, does not contain a marked face's
+    /// vertices, or fails to be the full range on a sky leaf; the count of
+    /// leaves when the lump has the wrong length.
+    BadLeafBounds(usize),
     BadMarkSurface(usize),
     BadLeaf(usize),
     BadNode(usize),
@@ -96,8 +97,8 @@ impl<E: fmt::Display> fmt::Display for PxbspMapLoadError<E> {
                 write!(output, "PXBSP entity table is invalid: {error:?}")
             }
             Self::BadFace(index) => write!(output, "face {index} has an invalid reference"),
-            Self::BadFaceBounds(index) => {
-                write!(output, "face bounds at {index} do not describe their face")
+            Self::BadLeafBounds(index) => {
+                write!(output, "leaf bounds at {index} do not describe their leaf")
             }
             Self::BadMarkSurface(index) => {
                 write!(output, "mark surface {index} has an invalid face")
@@ -125,9 +126,9 @@ pub struct PxbspResidentMap {
     ranges: [LumpRange; PXBSP_LUMP_COUNT],
     source_ranges: [LumpRange; PXBSP_LUMP_COUNT],
     source_file_len: u32,
-    /// The loaded file is PXBSP v7, whose face-bounds lump has been validated
-    /// against its faces.
-    face_bounds_present: bool,
+    /// The loaded file is PXBSP v7, whose leaf-bounds lump has been validated
+    /// against its leaves.
+    leaf_bounds_present: bool,
 }
 
 /// Backing bytes for a validated resident map.
@@ -156,7 +157,7 @@ impl PxbspResidentMap {
             ranges: [LumpRange::EMPTY; PXBSP_LUMP_COUNT],
             source_ranges: [LumpRange::EMPTY; PXBSP_LUMP_COUNT],
             source_file_len: 0,
-            face_bounds_present: false,
+            leaf_bounds_present: false,
         }
     }
 
@@ -183,7 +184,7 @@ impl PxbspResidentMap {
             ranges: [LumpRange::EMPTY; PXBSP_LUMP_COUNT],
             source_ranges: [LumpRange::EMPTY; PXBSP_LUMP_COUNT],
             source_file_len: index.file_len(),
-            face_bounds_present: index.version() == PxbspVersion::V7,
+            leaf_bounds_present: index.version() == PxbspVersion::V7,
         };
         for kind in PxbspLumpKind::ALL {
             let range = index.lump(kind);
@@ -281,7 +282,7 @@ impl PxbspResidentMap {
             self.source_ranges[kind as usize] = index.lump(kind);
         }
         self.source_file_len = index.file_len();
-        self.face_bounds_present = index.version() == PxbspVersion::V7;
+        self.leaf_bounds_present = index.version() == PxbspVersion::V7;
         if let Err(error) = self.validate_references() {
             self.clear_loaded_state();
             return Err(error);
@@ -411,22 +412,22 @@ impl PxbspResidentMap {
             .expect("validated native PXBSP node alignment")
     }
 
-    /// Per-face bounds of a PXBSP v7 map, one record per face in face order,
+    /// Per-leaf bounds of a PXBSP v7 map, one record per leaf in leaf order,
     /// borrowed in place. `None` for every earlier version, so callers keep
     /// their exact legacy path. Each record was checked at load to contain
-    /// its face's vertices.
+    /// every vertex of every face its leaf marks.
     #[cfg(target_endian = "little")]
-    pub fn face_bounds(&self) -> Option<&[FaceBounds]> {
-        if !self.face_bounds_present {
+    pub fn leaf_bounds(&self) -> Option<&[LeafBounds]> {
+        if !self.leaf_bounds_present {
             return None;
         }
-        let bytes = self.lump_bytes(PxbspLumpKind::FACE_BOUNDS);
+        let bytes = self.lump_bytes(PxbspLumpKind::LEAF_BOUNDS);
         // SAFETY: `validate_references` checked the base is two-byte aligned
-        // and the length is exactly one record per face.
+        // and the length is exactly one record per leaf.
         Some(unsafe {
             core::slice::from_raw_parts(
-                bytes.as_ptr().cast::<FaceBounds>(),
-                bytes.len() / FaceBounds::SIZE,
+                bytes.as_ptr().cast::<LeafBounds>(),
+                bytes.len() / LeafBounds::SIZE,
             )
         })
     }
@@ -709,7 +710,7 @@ impl PxbspResidentMap {
         self.ranges = [LumpRange::EMPTY; PXBSP_LUMP_COUNT];
         self.source_ranges = [LumpRange::EMPTY; PXBSP_LUMP_COUNT];
         self.source_file_len = 0;
-        self.face_bounds_present = false;
+        self.leaf_bounds_present = false;
     }
 
     fn prepare_owned_load(&mut self) {
@@ -724,7 +725,7 @@ impl PxbspResidentMap {
         self.ranges = [LumpRange::EMPTY; PXBSP_LUMP_COUNT];
         self.source_ranges = [LumpRange::EMPTY; PXBSP_LUMP_COUNT];
         self.source_file_len = 0;
-        self.face_bounds_present = false;
+        self.leaf_bounds_present = false;
     }
 
     fn storage_capacity(&self) -> usize {
@@ -757,41 +758,61 @@ impl PxbspResidentMap {
         RecordSlice::new(self.lump_bytes(kind)).expect("validated PXBSP record lump")
     }
 
-    /// Check a v7 face-bounds lump against the (already validated) faces:
-    /// one record per face, never inverted, and containing every vertex of
-    /// its face, so a cull from the bounds can never drop a face the exact
-    /// vertex test would keep.
-    fn validate_face_bounds<E>(&self, face_count: usize) -> Result<(), PxbspMapLoadError<E>> {
-        let bytes = self.lump_bytes(PxbspLumpKind::FACE_BOUNDS);
-        if bytes.len() != face_count * FaceBounds::SIZE
-            || bytes.as_ptr() as usize & (core::mem::align_of::<FaceBounds>() - 1) != 0
+    /// Check a v7 leaf-bounds lump against the (already validated) leaves,
+    /// marks, faces and vertices: one record per leaf, never inverted, and
+    /// containing every vertex of every face the leaf marks, so a cull from
+    /// the bounds can never drop a face the exact vertex scan would keep. A
+    /// leaf that marks a sky aperture, or marks nothing, must carry the full
+    /// range: the renderer counts a sky aperture as visible whether or not it
+    /// is on screen, and an empty leaf has nothing to bound.
+    fn validate_leaf_bounds<E>(&self) -> Result<(), PxbspMapLoadError<E>> {
+        let leaves = self.leaves();
+        let bytes = self.lump_bytes(PxbspLumpKind::LEAF_BOUNDS);
+        if bytes.len() != leaves.len() * LeafBounds::SIZE
+            || bytes.as_ptr() as usize & (core::mem::align_of::<LeafBounds>() - 1) != 0
         {
-            return Err(PxbspMapLoadError::BadFaceBounds(face_count));
+            return Err(PxbspMapLoadError::BadLeafBounds(leaves.len()));
         }
         let vertices = self.vertex_data();
-        for (index, face) in self.faces().iter().enumerate() {
-            let record = &bytes[index * FaceBounds::SIZE..][..FaceBounds::SIZE];
+        let faces = self.faces();
+        let materials = self.materials();
+        let marks = self.mark_surfaces();
+        for (index, leaf) in leaves.iter().enumerate() {
+            let record = &bytes[index * LeafBounds::SIZE..][..LeafBounds::SIZE];
             let mut values = [0i16; 6];
             for (value, pair) in values.iter_mut().zip(record.chunks_exact(2)) {
                 *value = i16::from_le_bytes([pair[0], pair[1]]);
             }
-            let bounds = FaceBounds {
+            let bounds = LeafBounds {
                 mins: [values[0], values[1], values[2]],
                 maxs: [values[3], values[4], values[5]],
             };
-            let first = face.first_vertex as usize;
             let mut ok = (0..3).all(|axis| bounds.mins[axis] <= bounds.maxs[axis]);
-            for vertex in first..first + face.vertex_count as usize {
-                let at = vertex * Vertex::SIZE;
-                let position = [
-                    i16::from_le_bytes([vertices[at], vertices[at + 1]]),
-                    i16::from_le_bytes([vertices[at + 2], vertices[at + 3]]),
-                    i16::from_le_bytes([vertices[at + 4], vertices[at + 5]]),
-                ];
-                ok &= bounds.contains(position);
+            let mut sky = false;
+            let first_mark = leaf.first_mark_surface as usize;
+            for mark in first_mark..first_mark + leaf.mark_surface_count as usize {
+                let face = faces
+                    .get(marks.get(mark).unwrap_or(0) as usize)
+                    .unwrap_or_default();
+                let flags = materials.get(face.texture as usize).map_or(0, |m| m.flags);
+                sky |=
+                    flags & (material_flags::SKY_APERTURE | material_flags::DIRECTIONAL_SKY) != 0;
+                let first = face.first_vertex as usize;
+                for vertex in first..first + face.vertex_count as usize {
+                    let at = vertex * Vertex::SIZE;
+                    let position = [
+                        i16::from_le_bytes([vertices[at], vertices[at + 1]]),
+                        i16::from_le_bytes([vertices[at + 2], vertices[at + 3]]),
+                        i16::from_le_bytes([vertices[at + 4], vertices[at + 5]]),
+                    ];
+                    ok &= bounds.contains(position);
+                }
+            }
+            if (sky || leaf.mark_surface_count == 0) && bounds != LeafBounds::FULL {
+                ok = false;
             }
             if !ok {
-                return Err(PxbspMapLoadError::BadFaceBounds(index));
+                return Err(PxbspMapLoadError::BadLeafBounds(index));
             }
         }
         Ok(())
@@ -862,9 +883,6 @@ impl PxbspResidentMap {
                 return Err(PxbspMapLoadError::BadFace(index));
             }
         }
-        if self.face_bounds_present {
-            self.validate_face_bounds(faces.len())?;
-        }
         for (index, face) in marks.iter().enumerate() {
             if face as usize >= faces.len() {
                 return Err(PxbspMapLoadError::BadMarkSurface(index));
@@ -877,6 +895,9 @@ impl PxbspResidentMap {
             if !valid_leaf_contents(leaf.contents) || marks_end > marks.len() || bad_visibility {
                 return Err(PxbspMapLoadError::BadLeaf(index));
             }
+        }
+        if self.leaf_bounds_present {
+            self.validate_leaf_bounds()?;
         }
         for (index, node) in nodes.iter().enumerate() {
             let bad_child = node.children.into_iter().any(|child| {
@@ -999,7 +1020,7 @@ const fn requires_transcode(version: PxbspVersion, kind: PxbspLumpKind) -> bool 
 
 fn resident_lump_len(index: &PxbspIndex, kind: PxbspLumpKind) -> usize {
     let source = index.lump(kind).len as usize;
-    if kind == PxbspLumpKind::FACE_BOUNDS && index.version() != PxbspVersion::V7 {
+    if kind == PxbspLumpKind::LEAF_BOUNDS && index.version() != PxbspVersion::V7 {
         return 0;
     }
     if !requires_transcode(index.version(), kind) {
@@ -1638,101 +1659,101 @@ pub(crate) mod tests {
         ));
     }
 
-    /// The fixture's one face spans the vertices (1,0,0), (1,1,0), (1,0,1).
-    fn v7_lumps(bounds: FaceBounds) -> [Vec<u8>; PXBSP_LUMP_COUNT] {
+    /// The fixture has a solid leaf 0 that marks nothing and a leaf 1 that
+    /// marks its one face, spanning (1,0,0), (1,1,0), (1,0,1).
+    fn v7_lumps(leaf_one: LeafBounds) -> [Vec<u8>; PXBSP_LUMP_COUNT] {
         let mut lumps = valid_lumps();
-        lumps[PxbspLumpKind::FACE_BOUNDS as usize] = bounds.encode().to_vec();
+        let mut bounds = LeafBounds::FULL.encode().to_vec();
+        bounds.extend_from_slice(&leaf_one.encode());
+        lumps[PxbspLumpKind::LEAF_BOUNDS as usize] = bounds;
         lumps
     }
 
-    const FIXTURE_FACE_BOUNDS: FaceBounds = FaceBounds {
+    fn v7_file(lumps: &[Vec<u8>; PXBSP_LUMP_COUNT]) -> Vec<u8> {
+        write_file_version(lumps, crate::pxbsp::PXBSP_VERSION_V7)
+    }
+
+    const FIXTURE_LEAF_BOUNDS: LeafBounds = LeafBounds {
         mins: [1, 0, 0],
         maxs: [1, 1, 1],
     };
 
     #[test]
-    fn v7_maps_expose_their_face_bounds_owned_and_static() {
-        let bytes = write_file_version(
-            &v7_lumps(FIXTURE_FACE_BOUNDS),
-            crate::pxbsp::PXBSP_VERSION_V7,
-        );
+    fn v7_maps_expose_their_leaf_bounds_owned_and_static() {
+        let bytes = v7_file(&v7_lumps(FIXTURE_LEAF_BOUNDS));
+        let expected = [LeafBounds::FULL, FIXTURE_LEAF_BOUNDS];
         let owned = load(&bytes).expect("v7 owned map");
-        assert_eq!(owned.face_bounds(), Some(&[FIXTURE_FACE_BOUNDS][..]));
-        let bytes = leak_aligned(bytes);
-        let in_place = PxbspResidentMap::from_static(5, bytes).expect("v7 static map");
-        assert_eq!(in_place.face_bounds(), Some(&[FIXTURE_FACE_BOUNDS][..]));
+        assert_eq!(owned.leaf_bounds(), Some(&expected[..]));
+        let in_place =
+            PxbspResidentMap::from_static(5, leak_aligned(bytes)).expect("v7 static map");
+        assert_eq!(in_place.leaf_bounds(), Some(&expected[..]));
         // A loose box is still a valid one: only containment is required.
-        let loose = FaceBounds {
+        load(&v7_file(&v7_lumps(LeafBounds {
             mins: [0, -4, -4],
             maxs: [9, 9, 9],
-        };
-        load(&write_file_version(
-            &v7_lumps(loose),
-            crate::pxbsp::PXBSP_VERSION_V7,
-        ))
+        })))
         .expect("loose bounds");
-        // And the full range, which marks a face that must never be culled.
-        load(&write_file_version(
-            &v7_lumps(FaceBounds::FULL),
-            crate::pxbsp::PXBSP_VERSION_V7,
-        ))
-        .expect("full bounds");
+        // And so is the full range.
+        load(&v7_file(&v7_lumps(LeafBounds::FULL))).expect("full bounds");
     }
 
     #[test]
-    fn earlier_versions_have_no_face_bounds() {
+    fn earlier_versions_have_no_leaf_bounds() {
         let owned = load(&write_file(&valid_lumps())).expect("v6 owned map");
-        assert_eq!(owned.face_bounds(), None);
+        assert_eq!(owned.leaf_bounds(), None);
         let in_place =
             PxbspResidentMap::from_static(5, leak_aligned(write_file(&valid_lumps()))).expect("v6");
-        assert_eq!(in_place.face_bounds(), None);
+        assert_eq!(in_place.leaf_bounds(), None);
     }
 
     #[test]
-    fn v7_rejects_face_bounds_that_do_not_describe_their_faces() {
-        for (name, bounds) in [
-            (
-                "a vertex outside the box",
-                FaceBounds {
-                    mins: [1, 0, 0],
-                    maxs: [1, 1, 0],
-                },
-            ),
-            (
-                "an inverted box",
-                FaceBounds {
-                    mins: [1, 1, 1],
-                    maxs: [1, 0, 0],
-                },
-            ),
-        ] {
-            let bytes = write_file_version(&v7_lumps(bounds), crate::pxbsp::PXBSP_VERSION_V7);
+    fn v7_rejects_leaf_bounds_that_do_not_describe_their_leaves() {
+        let fails = |name: &str, lumps: &[Vec<u8>; PXBSP_LUMP_COUNT], leaf: usize| {
+            let bytes = v7_file(lumps);
             assert_eq!(
                 load(&bytes).expect_err(name),
-                PxbspMapLoadError::BadFaceBounds(0),
+                PxbspMapLoadError::BadLeafBounds(leaf),
                 "{name}"
             );
             assert_eq!(
                 PxbspResidentMap::from_static(5, leak_aligned(bytes)).expect_err(name),
-                PxbspMapLoadError::BadFaceBounds(0),
+                PxbspMapLoadError::BadLeafBounds(leaf),
                 "{name}"
             );
-        }
-        // One record per face, no more and no fewer.
+        };
+        fails(
+            "a marked vertex outside the box",
+            &v7_lumps(LeafBounds {
+                mins: [1, 0, 0],
+                maxs: [1, 1, 0],
+            }),
+            1,
+        );
+        fails(
+            "an inverted box",
+            &v7_lumps(LeafBounds {
+                mins: [1, 1, 1],
+                maxs: [1, 0, 0],
+            }),
+            1,
+        );
+        // A leaf with nothing marked must carry the full range.
+        let mut lumps = v7_lumps(FIXTURE_LEAF_BOUNDS);
+        lumps[PxbspLumpKind::LEAF_BOUNDS as usize][..LeafBounds::SIZE]
+            .copy_from_slice(&FIXTURE_LEAF_BOUNDS.encode());
+        fails("an empty leaf with a tight box", &lumps, 0);
+        // So must a leaf that marks a sky aperture.
+        let mut lumps = v7_lumps(FIXTURE_LEAF_BOUNDS);
+        lumps[PxbspLumpKind::Materials as usize][2..4]
+            .copy_from_slice(&crate::pxbsp::material_flags::SKY_APERTURE.to_le_bytes());
+        fails("a sky leaf with a tight box", &lumps, 1);
+        // One record per leaf, no more and no fewer.
         let mut lumps = valid_lumps();
-        lumps[PxbspLumpKind::FACE_BOUNDS as usize] = Vec::new();
-        assert_eq!(
-            load(&write_file_version(&lumps, crate::pxbsp::PXBSP_VERSION_V7))
-                .expect_err("missing bounds"),
-            PxbspMapLoadError::BadFaceBounds(1)
-        );
-        let mut lumps = v7_lumps(FIXTURE_FACE_BOUNDS);
-        lumps[PxbspLumpKind::FACE_BOUNDS as usize].extend_from_slice(&FaceBounds::FULL.encode());
-        assert_eq!(
-            load(&write_file_version(&lumps, crate::pxbsp::PXBSP_VERSION_V7))
-                .expect_err("extra bounds"),
-            PxbspMapLoadError::BadFaceBounds(1)
-        );
+        lumps[PxbspLumpKind::LEAF_BOUNDS as usize] = Vec::new();
+        fails("missing bounds", &lumps, 2);
+        let mut lumps = v7_lumps(FIXTURE_LEAF_BOUNDS);
+        lumps[PxbspLumpKind::LEAF_BOUNDS as usize].extend_from_slice(&LeafBounds::FULL.encode());
+        fails("extra bounds", &lumps, 2);
     }
 
     #[test]

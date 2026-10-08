@@ -20,10 +20,10 @@ pub const PXBSP_VERSION_V5: u16 = 5;
 /// PXBSP v6 additionally stores Quake-style native 12-byte plane records with
 /// an aligned distance and cached sign bits.
 pub const PXBSP_VERSION_V6: u16 = 6;
-/// PXBSP v7 is v6 plus one 12-byte [`FaceBounds`] record per face, carried in
+/// PXBSP v7 is v6 plus one 12-byte [`LeafBounds`] record per leaf, carried in
 /// the lump slot v6 reserved for sound data (which no cooker ever filled). The
-/// renderer rejects or narrows a face against the view frustum from its
-/// bounds, before touching a single vertex.
+/// renderer rejects or narrows a leaf's marked faces against the view frustum
+/// from those bounds, before touching a single vertex.
 pub const PXBSP_VERSION_V7: u16 = 7;
 /// Current cooker/runtime PXBSP contract.
 pub const PXBSP_VERSION: u16 = PXBSP_VERSION_V7;
@@ -111,11 +111,11 @@ pub enum PxbspLumpKind {
 }
 
 impl PxbspLumpKind {
-    /// Per-face bounds, from PXBSP v7. They occupy the lump slot v6 and
+    /// Per-leaf bounds, from PXBSP v7. They occupy the lump slot v6 and
     /// earlier reserved for sound data, which no PXBSP cooker has ever
     /// written; the directory layout is unchanged, so every older reader
     /// still parses a v7 directory (and rejects it by version).
-    pub const FACE_BOUNDS: Self = Self::SoundData;
+    pub const LEAF_BOUNDS: Self = Self::SoundData;
 
     pub const ALL: [Self; PXBSP_LUMP_COUNT] = [
         Self::TextureData,
@@ -168,9 +168,9 @@ impl PxbspLumpKind {
                 }
             }),
             Self::Strings => Some(1),
-            // The slot v6 reserved for sound data holds face bounds from v7.
+            // The slot v6 reserved for sound data holds leaf bounds from v7.
             Self::SoundData => match version {
-                PxbspVersion::V7 => Some(crate::FaceBounds::SIZE as u32),
+                PxbspVersion::V7 => Some(crate::LeafBounds::SIZE as u32),
                 _ => None,
             },
             Self::TextureData
@@ -989,11 +989,11 @@ mod tests {
     }
 
     #[test]
-    fn face_bounds_slot_is_typed_from_version_seven_only() {
-        assert_eq!(PxbspLumpKind::FACE_BOUNDS, PxbspLumpKind::SoundData);
+    fn leaf_bounds_slot_is_typed_from_version_seven_only() {
+        assert_eq!(PxbspLumpKind::LEAF_BOUNDS, PxbspLumpKind::SoundData);
         assert_eq!(
-            PxbspLumpKind::FACE_BOUNDS.record_size(PxbspVersion::V7),
-            Some(crate::FaceBounds::SIZE as u32)
+            PxbspLumpKind::LEAF_BOUNDS.record_size(PxbspVersion::V7),
+            Some(crate::LeafBounds::SIZE as u32)
         );
         for version in [
             PxbspVersion::V1,
