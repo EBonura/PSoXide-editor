@@ -1577,42 +1577,6 @@ impl EditorWorkspace {
     ) {
         let _ = writeln!(
             out,
-            "runtime_player: valid={} room_index={} local=({}, {}) yaw_q12={} yaw_deg={:.2}",
-            metrics.player_map_valid,
-            metrics.player_room_index,
-            metrics.player_local_x,
-            metrics.player_local_z,
-            metrics.player_view_yaw_q12,
-            q12_degrees(metrics.player_view_yaw_q12)
-        );
-        let camera_forward = if metrics.camera_view_basis_valid {
-            let x = -(metrics.camera_view_sin_yaw_q12 as f32) / 4096.0;
-            let z = -(metrics.camera_view_cos_yaw_q12 as f32) / 4096.0;
-            Some([x, z])
-        } else {
-            None
-        };
-        let _ = writeln!(
-            out,
-            "runtime_camera: map_valid={} local=({}, {}, {}) global_valid={} global=({}, {}, {}) visibility_room={} basis_valid={} yaw_sin_q12={} yaw_cos_q12={} pitch_sin_q12={} pitch_cos_q12={} forward_xz={:?}",
-            metrics.camera_map_valid,
-            metrics.camera_local_x,
-            metrics.camera_local_y,
-            metrics.camera_local_z,
-            metrics.camera_global_valid,
-            metrics.camera_global_x,
-            metrics.camera_global_y,
-            metrics.camera_global_z,
-            metrics.portal_current_room_index,
-            metrics.camera_view_basis_valid,
-            metrics.camera_view_sin_yaw_q12,
-            metrics.camera_view_cos_yaw_q12,
-            metrics.camera_view_sin_pitch_q12,
-            metrics.camera_view_cos_pitch_q12,
-            camera_forward
-        );
-        let _ = writeln!(
-            out,
             "scheduler_tasks: fixed_avg_ms={:.3} fixed_max_ms={:.3} visual_avg_ms={:.3} visual_max_ms={:.3}",
             metrics.fixed_update_task_ms,
             metrics.fixed_update_task_max_ms,
