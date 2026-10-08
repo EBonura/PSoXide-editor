@@ -435,15 +435,15 @@ mod tests {
 
     #[test]
     fn the_charged_shot_costs_more_than_one_ordinary_shot_but_less_than_the_damage_it_buys() {
-        assert!(crate::combat_flow::CHARGED_SHOT_COST > crate::combat_flow::SHOT_COST);
-        assert!(
-            CHARGED_DAMAGE_MULTIPLIER * crate::combat_flow::SHOT_COST
-                > crate::combat_flow::CHARGED_SHOT_COST
-        );
-        assert!(
-            CHARGED_POISE_DAMAGE > 10,
-            "above the ordinary bolt's capped poise"
-        );
+        const {
+            assert!(crate::combat_flow::CHARGED_SHOT_COST > crate::combat_flow::SHOT_COST);
+            assert!(
+                CHARGED_DAMAGE_MULTIPLIER * crate::combat_flow::SHOT_COST
+                    > crate::combat_flow::CHARGED_SHOT_COST
+            );
+            // Above the ordinary bolt's capped poise.
+            assert!(CHARGED_POISE_DAMAGE > 10);
+        }
     }
 
     #[test]
