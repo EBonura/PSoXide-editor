@@ -354,6 +354,35 @@ LABELS = {
     0x2E1: "xa_loop_gap_ms",
     0x2E2: "xa_loop_period_ms",
     0x2E3: "xa_first_start_ms_positions_max_stall_ms",
+    # v1.28 CD STREAM cases (src/cdstream_cases.rs): the transport's cost, the
+    # CD-DA hand-off, the motor after Pause and Stop. console_rows() names the
+    # fields.
+    0x2F0: "cdcost_rate_2x_x10",
+    0x2F1: "cdcost_rate_1x_x10",
+    0x2F2: "cdcost_pio_us_per_sector_2x",
+    0x2F3: "cdcost_pio_us_per_sector_1x",
+    0x2F4: "cdcost_lost_permille_2x_1x_irq_x100",
+    0x2F5: "cdcost_handler_us_2x_1x_stack_unused",
+    0x2F6: "cdcost_first_sector_ms_2x_1x_discarded",
+    0x2F7: "cdcost_flags_chained_2x_1x",
+    0x300: "cdda_lease_stops_read_ms",
+    0x301: "cdda_pause_complete_x10_ms",
+    0x302: "cdda_pause_ack_x10_stat_held_still",
+    0x303: "cdda_first_sector_after_audio_ms",
+    0x304: "cdda_sectors_after_audio_ms",
+    0x305: "cdda_resume_playing_ms",
+    0x306: "cdda_resume_moved_in_place_playing",
+    0x307: "cdda_recovery_first_done_code",
+    0x308: "cdda_recovery_flags_signal_quiet",
+    0x309: "cdda_bare_first_done_code",
+    0x30A: "cdda_bare_flags_signal_quiet",
+    0x30B: "cdda_control_signal_samples_flags",
+    0x310: "cdmotor_pause_wait_0s",
+    0x311: "cdmotor_pause_wait_5s",
+    0x312: "cdmotor_pause_wait_15s",
+    0x313: "cdmotor_stop_ack_at_once_done_code",
+    0x314: "cdmotor_stop_complete_motor_off_settled_done",
+    0x315: "cdmotor_flags_recovered_first_at_once",
     # v1.21 register A/B group. Present only in a PERF A/B capture.
     0xDC: "ab_ramsize_uncached_loads_control",
     0xDD: "ab_ramsize_uncached_loads_bit7_flipped",
@@ -686,6 +715,112 @@ def console_rows(capture: Capture) -> list[str]:
         rows.append(f"console_xa,first_start_ms,{first}")
         rows.append(f"console_xa,head_positions_seen,{positions}")
         rows.append(f"console_xa,longest_unchanged_head_ms,{stall}")
+    rows.extend(cdstream_rows(by_id))
+    return rows
+
+
+CDDA_AUDIO_FLAGS = (
+    "playing_before",
+    "getlocp_advancing_before",
+    "capture_signal_before",
+    "playing_after",
+    "getlocp_advancing_after",
+    "capture_signal_after",
+    "read_intact",
+    "ran",
+)
+
+
+def cdstream_rows(by_id) -> list[str]:
+    """The v1.28 CD STREAM cases, unpacked. Nothing here is a verdict about a
+    console unless the capture came from one: the emulator has no laser, so
+    its CD-DA readings only show the suite runs."""
+    rows = []
+
+    def triple(record_id):
+        record = by_id[record_id]
+        return record.minimum, record.median, record.maximum
+
+    def spread(record_id, scale=1):
+        low, med, high = triple(record_id)
+        return f"min={low / scale:g} med={med / scale:g} max={high / scale:g}"
+
+    if all(0x2F0 + k in by_id for k in range(8)):
+        rows.append("cdstream_cost,field,value")
+        for speed, first in (("2x", 0x2F0), ("1x", 0x2F1)):
+            rows.append(f"cdstream_cost,sectors_per_second_{speed},{spread(first, 10)}")
+        for speed, first in (("2x", 0x2F2), ("1x", 0x2F3)):
+            rows.append(f"cdstream_cost,pio_us_per_sector_{speed},{spread(first)}")
+        lost_2x, lost_1x, irq = triple(0x2F4)
+        rows.append(f"cdstream_cost,cpu_lost_percent_2x,{lost_2x / 10:g}")
+        rows.append(f"cdstream_cost,cpu_lost_percent_1x,{lost_1x / 10:g}")
+        rows.append(f"cdstream_cost,irq_per_sector_2x,{irq / 100:g}")
+        h2, h1, unused = triple(0x2F5)
+        rows.append(f"cdstream_cost,handler_peak_us_2x,{h2}")
+        rows.append(f"cdstream_cost,handler_peak_us_1x,{h1}")
+        rows.append(f"cdstream_cost,handler_stack_unused_bytes,{unused}")
+        f2, f1, discarded = triple(0x2F6)
+        rows.append(f"cdstream_cost,first_sector_ms_2x,{f2}")
+        rows.append(f"cdstream_cost,first_sector_ms_1x,{f1}")
+        rows.append(f"cdstream_cost,discarded_sectors,{discarded}")
+        flags, chained_2x, chained_1x = triple(0x2F7)
+        rows.append(f"cdstream_cost,installed,{flags & 1}")
+        rows.append(f"cdstream_cost,intact_2x,{(flags >> 1) & 1}")
+        rows.append(f"cdstream_cost,intact_1x,{(flags >> 2) & 1}")
+        rows.append(f"cdstream_cost,chained_2x,{chained_2x}")
+        rows.append(f"cdstream_cost,chained_1x,{chained_1x}")
+    if all(0x300 + k in by_id for k in range(12)):
+        rows.append("cdstream_cdda,field,value")
+        rows.append(f"cdstream_cdda,lease_stops_read_ms,{spread(0x300)}")
+        rows.append(f"cdstream_cdda,t_pause_ms,{spread(0x301, 10)}")
+        ack, stat, still = triple(0x302)
+        rows.append(f"cdstream_cdda,pause_ack_ms,{ack / 10:g}")
+        rows.append(f"cdstream_cdda,status_after_pause,0x{stat:02X}")
+        rows.append(f"cdstream_cdda,getlocp_held_still_after_pause,{still}")
+        rows.append(f"cdstream_cdda,first_sector_after_audio_ms,{spread(0x303)}")
+        rows.append(f"cdstream_cdda,sectors_after_audio_ms,{spread(0x304)}")
+        rows.append(f"cdstream_cdda,resume_to_playing_ms,{spread(0x305)}")
+        moved, in_place, playing = triple(0x306)
+        moved = moved - 0x10000 if moved >= 0x8000 else moved
+        rows.append(f"cdstream_cdda,resume_moved_frames_median,{moved}")
+        rows.append(f"cdstream_cdda,resume_in_place_of_3,{in_place}")
+        rows.append(f"cdstream_cdda,resume_reported_playing_of_3,{playing}")
+        for name, first, flags_id in (("recovery_pause", 0x307, 0x308), ("no_pause", 0x309, 0x30A)):
+            first_ms, done_ms, code = triple(first)
+            flags, signal, quiet = triple(flags_id)
+            rows.append(f"cdstream_cdda,{name}_first_sector_ms,{first_ms}")
+            rows.append(f"cdstream_cdda,{name}_sectors_ms,{done_ms}")
+            rows.append(f"cdstream_cdda,{name}_read_failure_code,{code}")
+            for bit, label in enumerate(CDDA_AUDIO_FLAGS):
+                rows.append(f"cdstream_cdda,{name}_{label},{(flags >> bit) & 1}")
+            rows.append(f"cdstream_cdda,{name}_signal_during_read_percent,{signal / 10:g}")
+            quiet_text = "never" if quiet == 0xFFFF else quiet
+            rows.append(f"cdstream_cdda,{name}_first_quiet_sample_ms,{quiet_text}")
+        signal, samples, flags = triple(0x30B)
+        rows.append(f"cdstream_cdda,paused_signal_during_read_percent,{signal / 10:g}")
+        rows.append(f"cdstream_cdda,paused_capture_samples,{samples}")
+        for bit, label in enumerate(("playing_before_pause", "getlocp_advancing", "capture_signal_before", "playing_after_pause")):
+            rows.append(f"cdstream_cdda,control_{label},{(flags >> bit) & 1}")
+    if all(0x310 + k in by_id for k in range(6)):
+        rows.append("cdstream_motor,field,value")
+        for k, wait in enumerate((0, 5, 15)):
+            first, done, code = triple(0x310 + k)
+            rows.append(f"cdstream_motor,pause_wait_{wait}s_first_sector_ms,{first}")
+            rows.append(f"cdstream_motor,pause_wait_{wait}s_sectors_ms,{done}")
+            rows.append(f"cdstream_motor,pause_wait_{wait}s_failure_code,{code}")
+        ack, done, code = triple(0x313)
+        rows.append(f"cdstream_motor,stop_ack_ms,{ack}")
+        rows.append(f"cdstream_motor,read_at_once_after_stop_sectors_ms,{'failed' if done == 0xFFFF else done}")
+        rows.append(f"cdstream_motor,read_at_once_after_stop_failure_code,{code}")
+        complete, off, settled = triple(0x314)
+        rows.append(f"cdstream_motor,stop_complete_ms,{complete}")
+        rows.append(f"cdstream_motor,motor_off_after_ms,{'never' if off == 0xFFFF else off}")
+        rows.append(f"cdstream_motor,settled_read_sectors_ms,{'failed' if settled == 0xFFFF else settled}")
+        flags, recovered, at_once_first = triple(0x315)
+        rows.append(f"cdstream_motor,read_at_once_after_stop_intact,{flags & 1}")
+        rows.append(f"cdstream_motor,settled_read_intact,{(flags >> 1) & 1}")
+        rows.append(f"cdstream_motor,transport_read_afterwards_intact,{(flags >> 2) & 1}")
+        rows.append(f"cdstream_motor,read_at_once_after_stop_first_sector_ms,{at_once_first}")
     return rows
 
 
@@ -863,7 +998,7 @@ WORK_BY_ID = {
     0x13A: 16,
     **{record_id: 0 for record_id in range(0x1F0, 0x1F6)},
     **{record_id: 0 for record_id in LABELS if 0x200 <= record_id < 0x2B0},
-    **{record_id: 0 for record_id in LABELS if 0x2C0 <= record_id < 0x2F0},
+    **{record_id: 0 for record_id in LABELS if 0x2C0 <= record_id < 0x320},
     0x72: 128,
     0x73: 128,
     0x74: 64,
