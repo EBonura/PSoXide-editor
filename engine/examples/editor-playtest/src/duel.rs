@@ -281,9 +281,7 @@ impl Playtest {
             self.duel.intent = 0;
             let free = self.motor.action().is_idle()
                 && self.anim_lock_until_tick <= ctx.sim_tick
-                && !self
-                    .player_stance
-                    .swap_committed(&self.player_stance_config);
+                && !self.swap_locks_actions();
             let swapping = visible && wanted != active && free && self.player_stance.can_swap();
             if swapping {
                 buttons |= button::TRIANGLE;
@@ -337,7 +335,12 @@ impl Playtest {
                 // claw 28 ticks, heavy claw 54). A bolt is read from its flight.
                 // Decisions run every 12 ticks, the window's length, so each attack
                 // passes one decision with its contact 1 to 12 ticks away.
-                if !swapping && free && self.player_stance.can_swap() && roll < PERFECT_SWAP_SKILL_PERCENT {
+                if PERFECT_SWAPS
+                && !swapping
+                && free
+                && self.player_stance.can_swap()
+                && roll < PERFECT_SWAP_SKILL_PERCENT
+            {
                     let enemy_state = self.game_entities.state(i);
                     let kind = self.game_entities.attack_kind(i);
                     let contact = if enemy_state == GameEntityState::Attack && visible && distance < 120 {
@@ -405,9 +408,7 @@ impl Playtest {
                 } else if visible
                     && !swapping
                     && wanted == active
-                    && !self
-                        .player_stance
-                        .swap_committed(&self.player_stance_config)
+                    && !self.swap_locks_actions()
                     && ranged_order.is_none_or(|o| o.fire)
                     && !self.duel.escaping
                     && distance <= far

@@ -53,6 +53,10 @@ lto           = true
 # PSoXide's emulator-only class port so `frontend launch --sort-log` splits
 # depth-sort errors by class pair. Retail hardware ignores the writes.
 sort-probe = []
+# Measurement builds only: switch the perfect-swap parry off (72-tick swap
+# lockout, no perfect-swap window, no bot attempts) so a batch can compare the
+# same tree with and without it.
+no-perfect-swap = []
 default = [
     "cd-stream-bench",
     # Alternate-frame world selection reuse (see the feature below): -6.7%

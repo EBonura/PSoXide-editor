@@ -461,7 +461,8 @@ impl Playtest {
         let player_invulnerable = self.player_invulnerable(ctx);
         // Cortex rules: an attack that would land in the first ticks of a
         // voluntary stance swap is a perfect swap, not just a miss.
-        let perfect_window = player_invulnerable
+        let perfect_window = PERFECT_SWAPS
+            && player_invulnerable
             && self.player_has_ranged_weapon()
             && self.swap_voluntary
             && psx_game_runtime::combat_flow::perfect_swap_window(
