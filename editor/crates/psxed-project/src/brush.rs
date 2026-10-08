@@ -235,6 +235,26 @@ pub struct Brush {
     /// hierarchy operations in the editor.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group: Option<crate::NodeId>,
+    /// Detail brush (Quake 2/3 semantics): a solid that is drawn and collides
+    /// but never contributes a splitter plane to the render tree, portals or
+    /// visibility. Its faces are assigned to whichever structural leaves they
+    /// touch. Only solids can be detail; a liquid brush is always structural
+    /// because its boundary planes define contents transitions. Omitted when
+    /// false so existing project files stay byte-stable.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub detail: bool,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
+impl Brush {
+    /// Whether this brush is excluded from the structural render tree.
+    /// Liquids are always structural, so `detail` is ignored for them.
+    pub const fn is_detail(&self) -> bool {
+        self.detail && self.contents.is_solid()
+    }
 }
 
 /// Exact unnormalized plane `dot(normal, p) == dist` from integer points.
@@ -351,6 +371,7 @@ impl Brush {
             contents: BrushContents::Solid,
             mover: None,
             group: None,
+            detail: false,
         }
     }
 
@@ -484,6 +505,7 @@ impl Brush {
             contents: BrushContents::Solid,
             mover: None,
             group: None,
+            detail: false,
         };
         let solved = brush.solve();
         (solved.is_valid() && solved.within_extent(BRUSH_EDIT_EXTENT_LIMIT)).then_some(brush)
@@ -636,6 +658,7 @@ impl Brush {
             contents: self.contents,
             mover: self.mover,
             group: self.group,
+            detail: self.detail,
         }
     }
 
@@ -1043,6 +1066,7 @@ impl Brush {
             contents: self.contents,
             mover: self.mover,
             group: self.group,
+            detail: self.detail,
         };
         // Round-trip gate: the normalized brush must be the same solid.
         let resolved = candidate.solve();
@@ -1167,6 +1191,7 @@ impl Brush {
                 contents: self.contents,
                 mover: None,
                 group: self.group,
+                detail: self.detail,
             }
         };
         // Polygon winding orientation varies; try both side windings and

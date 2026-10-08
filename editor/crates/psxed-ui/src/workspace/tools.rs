@@ -2495,6 +2495,27 @@ impl EditorWorkspace {
                 .small()
                 .color(STUDIO_TEXT_WEAK),
             );
+        } else {
+            let mixed_detail = self.selected_brush_set().iter().any(|&selected| {
+                self.project
+                    .active_scene()
+                    .brushes
+                    .get(selected)
+                    .is_some_and(|selected_brush| selected_brush.detail != brush.detail)
+            });
+            let mut detail = brush.detail;
+            let response = ui
+                .checkbox(&mut detail, "Detail brush")
+                .on_hover_text(
+                    "A detail brush draws and collides but never splits the BSP or its visibility. Use it for terrain, props and small trim; keep rooms and walls structural.",
+                );
+            if mixed_detail {
+                response.on_hover_text("The selection mixes structural and detail brushes.");
+            }
+            if detail != brush.detail {
+                self.set_selected_brush_detail(detail);
+                brush.detail = detail;
+            }
         }
 
         let owners: Vec<_> = self
@@ -2813,6 +2834,38 @@ impl EditorWorkspace {
                 if unbound == 1 { "" } else { "s" }
             )
         };
+    }
+
+    /// Mark every selected solid brush structural or detail as one undo step.
+    /// Liquids stay structural, so they are left alone.
+    pub(crate) fn set_selected_brush_detail(&mut self, detail: bool) {
+        let targets: Vec<usize> = self
+            .selected_brush_set()
+            .into_iter()
+            .filter(|&index| {
+                self.project
+                    .active_scene()
+                    .brushes
+                    .get(index)
+                    .is_some_and(|brush| brush.contents.is_solid() && brush.detail != detail)
+            })
+            .collect();
+        if targets.is_empty() {
+            return;
+        }
+        self.push_undo();
+        for &index in &targets {
+            if let Some(brush) = self.project.active_scene_mut().brushes.get_mut(index) {
+                brush.detail = detail;
+            }
+        }
+        self.mark_dirty();
+        self.status = format!(
+            "{} brush{} set to {}",
+            targets.len(),
+            if targets.len() == 1 { "" } else { "es" },
+            if detail { "detail" } else { "structural" }
+        );
     }
 
     /// Bind the selected brush to one Door or Destructible node, or return it

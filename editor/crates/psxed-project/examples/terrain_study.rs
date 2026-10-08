@@ -112,6 +112,70 @@ fn main() {
         );
         return;
     }
+    if args.get(1).is_some_and(|s| s == "detail") {
+        // Re-author a legacy structural terrain group as detail wedges plus one
+        // structural bed slab. Materials and UVs carry over per wedge face.
+        // Usage: terrain_study detail <source project.ron> <destination project.ron>
+        let mut p = ProjectDocument::load_from_path(Path::new(&args[2])).unwrap();
+        let scene = p.active_scene_mut();
+        let group = scene
+            .nodes()
+            .iter()
+            .find(|n| n.name.starts_with("Terrain /"))
+            .expect("a terrain group")
+            .id;
+        let source: Vec<_> = scene
+            .brushes
+            .iter()
+            .filter(|b| b.group == Some(group))
+            .cloned()
+            .collect();
+        let terrain = Terrain::from_brushes(&source).unwrap();
+        let material = source[0].faces[0].material;
+        let mut brushes = terrain.brushes(material).unwrap();
+        let top_key = |b: &Brush| {
+            let mut points: Vec<_> = b.faces[0].points.to_vec();
+            points.sort();
+            points
+        };
+        for brush in &mut brushes {
+            let old = source
+                .iter()
+                .find(|old| top_key(old) == top_key(brush))
+                .expect("every wedge keeps its footprint");
+            for (face, old) in brush.faces.iter_mut().zip(&old.faces) {
+                face.material = old.material;
+                face.uv = old.uv;
+            }
+        }
+        brushes.push(terrain.bed(material).unwrap());
+        for brush in &mut brushes {
+            brush.group = Some(group);
+        }
+        scene.brushes.retain(|b| b.group != Some(group));
+        scene.brushes.extend(brushes);
+        assert_eq!(
+            Terrain::from_brushes(
+                &scene
+                    .brushes
+                    .iter()
+                    .filter(|b| b.group == Some(group))
+                    .cloned()
+                    .collect::<Vec<_>>()
+            )
+            .unwrap(),
+            terrain
+        );
+        assert!(brush_world::diagnose_brush_world_leak(p.clone())
+            .unwrap()
+            .is_empty());
+        p.save_to_path(Path::new(&args[3])).unwrap();
+        println!(
+            "Detail terrain: {} wedges + 1 structural bed slab, sealed.",
+            terrain.cells[0] * terrain.cells[1] * 2
+        );
+        return;
+    }
     if args.get(1).is_some_and(|s| s == "cook") {
         let path = Path::new(&args[2]);
         let p = ProjectDocument::load_from_path(path).unwrap();
