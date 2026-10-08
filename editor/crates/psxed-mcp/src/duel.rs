@@ -9,6 +9,8 @@ pub fn summarize(log: &str) -> Value {
     let mut flow_events = Vec::new();
     let mut shot_events = Vec::new();
     let mut tactic_events = Vec::new();
+    let mut combat_events: Vec<Vec<u32>> = Vec::new();
+    let mut totals: Option<Vec<u32>> = None;
     let mut result = None;
     let mut seed = None;
     for line in log.lines() {
@@ -28,6 +30,8 @@ pub fn summarize(log: &str) -> Value {
             "duel:flow" if values.len() == 3 => flow_events.push(values),
             "duel:shot" if values.len() == 3 => shot_events.push(values),
             "duel:tactic" if values.len() == 3 => tactic_events.push(values),
+            "duel:event" if values.len() == 6 => combat_events.push(values),
+            "duel:totals" if values.len() == 8 => totals = Some(values),
             "duel:end" if values.len() == 2 => result = Some(values),
             _ => {}
         }
@@ -291,7 +295,7 @@ pub fn summarize(log: &str) -> Value {
                 .collect::<Vec<_>>()
         })
         .collect();
-    json!({"seed":seed,"outcome":name,"completed_by_death":matches!(name,"player_won"|"enemy_won"|"double_ko"),
+    let mut report = json!({"seed":seed,"outcome":name,"completed_by_death":matches!(name,"player_won"|"enemy_won"|"double_ko"),
         "projectiles_emitted_player_enemy":emitted,"shot_events":shot_events,"shot_event_columns":["tick","actor_0_player_1_enemy","energy_after"],
         "energy_min_player_enemy":energy_min,"energy_end_player_enemy":energy_end,
         "flow_events":flow_events,"flow_event_columns":["tick","attacker_0_player_1_enemy","event_1_shot_interrupt"],
@@ -318,7 +322,131 @@ pub fn summarize(log: &str) -> Value {
         "sample_columns":["tick","player_x","player_z","enemy_x","enemy_z","player_hrz","player_zth","enemy_hrz","enemy_zth","player_stance","enemy_stance","player_action","enemy_state","intent","stance_reason","stamina_q12","enemy_goal_generation","player_action_start","enemy_goal","enemy_stance_reason","enemy_attack_kind","player_energy","enemy_energy"],
         "decision_columns":["tick","intent","stance_reason","requested_buttons","distance"],
         "intent_names":["hold","approach","melee","ranged","dodge","swap","retreat"],
-        "stance_reasons":["distance","recover_pool","press_after_shots","exposed_channel","forced_break","rebuild_energy","melee_to_ranged","shot_to_melee","overhead_target","ranged_phase","contest_space"],"samples":json_samples,"decisions":decisions})
+        "stance_reasons":["distance","recover_pool","press_after_shots","exposed_channel","forced_break","rebuild_energy","melee_to_ranged","shot_to_melee","overhead_target","ranged_phase","contest_space"],"samples":json_samples,"decisions":decisions});
+    report["metrics"] = metrics(&MetricInputs {
+        outcome: name,
+        end_tick: result.as_ref().map(|v| v[0]),
+        samples: &samples,
+        events: &combat_events,
+        totals: totals.as_deref(),
+        tactic_events: &tactic_events,
+        shot_events: &shot_events,
+        swaps,
+    });
+    report
+}
+
+/// Everything `metrics` reads from one parsed guest log.
+struct MetricInputs<'a> {
+    outcome: &'a str,
+    end_tick: Option<u32>,
+    samples: &'a [Vec<u32>],
+    events: &'a [Vec<u32>],
+    totals: Option<&'a [u32]>,
+    tactic_events: &'a [Vec<u32>],
+    shot_events: &'a [Vec<u32>],
+    swaps: [u32; 2],
+}
+
+/// Per-duel metrics that need guest `duel:event` records. Every value is a
+/// number so batches can aggregate them without knowing their meaning.
+///
+/// Event layout: `[tick, kind, a, b, c, d]`.
+/// - kind 1, player hit on the enemy: a = source (0 light, 1 heavy, 2 shot),
+///   b = health removed, c = poise damage applied, d = flags (1 poise break,
+///   2 killed, 4 opposite colour, 8 shot landed in an opening).
+/// - kind 2, enemy hit on the player: a = source (0 claw light, 1 claw heavy,
+///   2 cannon), b = health removed, c = poise damage applied, d = flags
+///   (1 poise break, 2 killed, 4 opposite colour).
+/// - kind 3, an enemy attack overlapped the player during i-frames: a = source.
+fn metrics(m: &MetricInputs<'_>) -> Value {
+    // [count, health removed, poise applied, breaks, opposite colour]
+    let mut dealt = [[0u32; 5]; 3];
+    let mut taken = [[0u32; 5]; 3];
+    let mut avoids = [0u32; 3];
+    let mut shot_hit_ticks = Vec::new();
+    for e in m.events {
+        let (kind, source, hp, poise, flags) = (e[1], e[2] as usize, e[3], e[4], e[5]);
+        if source > 2 {
+            continue;
+        }
+        let row = match kind {
+            1 => &mut dealt[source],
+            2 => &mut taken[source],
+            3 => {
+                avoids[source] += 1;
+                continue;
+            }
+            _ => continue,
+        };
+        row[0] += 1;
+        row[1] += hp;
+        row[2] += poise;
+        row[3] += flags & 1;
+        row[4] += (flags >> 2) & 1;
+        if kind == 1 && source == 2 {
+            shot_hit_ticks.push(e[0]);
+        }
+    }
+    // Enemy sidesteps: a mode-4 tactic event for actor 1 starts one. It failed
+    // when a player shot landed before the next mode change.
+    let enemy_modes: Vec<_> = m.tactic_events.iter().filter(|t| t[1] == 1).collect();
+    let end = m
+        .end_tick
+        .or_else(|| m.samples.last().map(|r| r[0]))
+        .unwrap_or(0);
+    let (mut evade_attempts, mut evade_failed) = (0u32, 0u32);
+    for (n, t) in enemy_modes.iter().enumerate() {
+        if t[2] != 4 {
+            continue;
+        }
+        evade_attempts += 1;
+        let until = enemy_modes
+            .get(n + 1)
+            .map_or(end.saturating_add(1), |next| next[0]);
+        if shot_hit_ticks.iter().any(|&h| h >= t[0] && h < until) {
+            evade_failed += 1;
+        }
+    }
+    // Enemy flinches are read independently, from the sampled behaviour state
+    // (6 = staggered), as a cross-check on the poise-break events.
+    let flinches = m
+        .samples
+        .windows(2)
+        .filter(|w| w[0][12] != 6 && w[1][12] == 6)
+        .count() as u32;
+    let sum = |rows: &[[u32; 5]; 3], column: usize| rows.iter().map(|r| r[column]).sum::<u32>();
+    let fired = |actor: u32| m.shot_events.iter().filter(|s| s[1] == actor).count() as u32;
+    let hp_end = |column: usize| {
+        m.totals
+            .map(|t| t[column])
+            .or_else(|| m.samples.last().map(|r| r[column + 1]))
+    };
+    let pool_sum = |a: Option<u32>, b: Option<u32>| a.zip(b).map(|(a, b)| a + b);
+    let energy = |column: usize| m.totals.map(|t| t[column]);
+    json!({
+        "outcome": m.outcome,
+        "duration_ticks": m.end_tick,
+        "player_hp_end": pool_sum(hp_end(4), hp_end(5)),
+        "enemy_hp_end": pool_sum(hp_end(6), hp_end(7)),
+        "damage_to_enemy": {"light": dealt[0][1], "heavy": dealt[1][1], "shot": dealt[2][1], "total": sum(&dealt, 1)},
+        "hits_on_enemy": {"light": dealt[0][0], "heavy": dealt[1][0], "shot": dealt[2][0], "total": sum(&dealt, 0)},
+        "damage_to_player": {"claw_light": taken[0][1], "claw_heavy": taken[1][1], "cannon": taken[2][1], "total": sum(&taken, 1)},
+        "hits_on_player": {"claw_light": taken[0][0], "claw_heavy": taken[1][0], "cannon": taken[2][0], "total": sum(&taken, 0)},
+        "poise_damage_to_enemy": sum(&dealt, 2),
+        "poise_damage_to_player": sum(&taken, 2),
+        "poise_breaks_inflicted": sum(&dealt, 3),
+        "poise_breaks_suffered": sum(&taken, 3),
+        "enemy_flinches": flinches,
+        "opposite_colour_hits_on_enemy": sum(&dealt, 4),
+        "opposite_colour_hits_on_player": sum(&taken, 4),
+        "iframe_avoids": {"claw_light": avoids[0], "claw_heavy": avoids[1], "cannon": avoids[2], "total": avoids.iter().sum::<u32>()},
+        "enemy_evades": {"attempted": evade_attempts, "avoided_shot": evade_attempts - evade_failed, "failed": evade_failed},
+        "stance_swaps": {"player": m.swaps[0], "enemy": m.swaps[1]},
+        "energy": {"player_spent": energy(0), "player_gained": energy(1), "enemy_spent": energy(2), "enemy_gained": energy(3)},
+        "shots": {"player_fired": fired(0), "player_hit": dealt[2][0], "enemy_fired": fired(1), "enemy_hit": taken[2][0]},
+        "definitions": "Health removed is what left the pools, so overkill is excluded. Poise is the value applied after colour scaling. i-frame avoids count one per enemy swing that overlapped the player (claw) or per bolt about to cross the player (cannon, estimated by look-ahead) while the player was invulnerable. An enemy evade 'avoided' when no player shot landed before the enemy left the evade mode. Flinches come from sampled behaviour state, breaks from events.",
+    })
 }
 
 /// Run an existing normal Play disc. A start gesture selects the seeded controller.
@@ -499,6 +627,87 @@ mod tests {
             report["decision_quality"]["completed_stance_visits_without_attack_player_enemy"],
             json!([1, 0])
         );
+    }
+    #[test]
+    fn event_records_become_per_source_metrics() {
+        let line = |label: &str, v: &[u32]| {
+            format!(
+                "{label} {}\n",
+                v.iter()
+                    .map(|x| format!("{x:08X}"))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            )
+        };
+        let sample = |tick: u32, enemy_state: u32| {
+            let mut r = [0u32; 23];
+            r[0] = tick;
+            r[12] = enemy_state;
+            line("duel:sample", &r)
+        };
+        let mut log = line("duel:start", &[3, 0]);
+        // Idle, then staggered at 120, back to idle, staggered again at 300.
+        log += &(sample(0, 0) + &sample(120, 6) + &sample(180, 0) + &sample(300, 6));
+        for e in [
+            // player: light (breaks, opposite), heavy, two shots
+            [120, 1, 0, 25, 50, 5],
+            [200, 1, 1, 30, 50, 0],
+            [210, 1, 2, 28, 0, 4],
+            [250, 1, 2, 28, 0, 0],
+            // enemy: claw light, cannon (breaks the player), then an i-frame avoid
+            [130, 2, 0, 32, 50, 0],
+            [140, 2, 2, 25, 20, 5],
+            [150, 3, 1, 0, 0, 0],
+        ] {
+            log += &line("duel:event", &e);
+        }
+        // Enemy sidesteps at 205 (shot lands at 210, failed) and at 400 (avoided).
+        for (tick, mode) in [(0, 0), (205, 4), (235, 0), (400, 4), (430, 0)] {
+            log += &line("duel:tactic", &[tick, 1, mode]);
+        }
+        for (tick, actor) in [(200, 0), (240, 0), (245, 0), (100, 1)] {
+            log += &line("duel:shot", &[tick, actor, 80]);
+        }
+        log += &line("duel:totals", &[60, 36, 20, 0, 90, 100, 150, 140]);
+        log += &line("duel:end", &[500, 1]);
+        let m = &summarize(&log)["metrics"];
+        assert_eq!(m["outcome"], "player_won");
+        assert_eq!(m["duration_ticks"], 500);
+        assert_eq!(
+            m["damage_to_enemy"],
+            json!({"light":25,"heavy":30,"shot":56,"total":111})
+        );
+        assert_eq!(m["hits_on_enemy"]["shot"], 2);
+        assert_eq!(m["damage_to_player"]["claw_light"], 32);
+        assert_eq!(m["damage_to_player"]["cannon"], 25);
+        assert_eq!(m["poise_breaks_inflicted"], 1);
+        assert_eq!(m["poise_breaks_suffered"], 1);
+        assert_eq!(m["enemy_flinches"], 2);
+        assert_eq!(m["opposite_colour_hits_on_enemy"], 2);
+        assert_eq!(m["opposite_colour_hits_on_player"], 1);
+        assert_eq!(
+            m["iframe_avoids"],
+            json!({"claw_light":0,"claw_heavy":1,"cannon":0,"total":1})
+        );
+        assert_eq!(
+            m["enemy_evades"],
+            json!({"attempted":2,"avoided_shot":1,"failed":1})
+        );
+        assert_eq!(
+            m["shots"],
+            json!({"player_fired":3,"player_hit":2,"enemy_fired":1,"enemy_hit":1})
+        );
+        assert_eq!(m["energy"]["player_spent"], 60);
+        assert_eq!(m["energy"]["player_gained"], 36);
+        assert_eq!(m["player_hp_end"], 190);
+        assert_eq!(m["enemy_hp_end"], 290);
+    }
+    #[test]
+    fn metrics_degrade_to_nulls_without_the_new_records() {
+        let m = &summarize("duel:start 00000001 00000000\nduel:end 00000040 00000001\n")["metrics"];
+        assert_eq!(m["hits_on_enemy"]["total"], 0);
+        assert!(m["player_hp_end"].is_null());
+        assert!(m["energy"]["player_spent"].is_null());
     }
     #[test]
     fn never_passes_an_unstarted_or_stalled_fight() {
