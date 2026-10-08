@@ -28,6 +28,14 @@ impl EditorWorkspace {
         }
     }
 
+    /// A click on empty space clears every selection domain.
+    pub(crate) fn clear_all_selections(&mut self) {
+        self.clear_resource_selection_state();
+        self.clear_brush_selection();
+        self.clear_node_selection_state();
+        self.status = "Cleared selection".to_string();
+    }
+
     pub(crate) fn clear_resource_selection_state(&mut self) {
         self.selection.selected_resource = None;
         self.selection.selected_resources.clear();
@@ -35,29 +43,11 @@ impl EditorWorkspace {
         self.resource_delete_confirm = None;
     }
 
-    pub(crate) fn replace_primitive_selection(&mut self, selection: Selection) {
-        self.selection.selected_primitive = Some(selection);
-        self.selection.selected_primitives.clear();
-        self.selection.selected_primitives.push(selection);
-    }
-
-    pub(crate) fn clear_primitive_selection_state(&mut self) {
-        self.selection.clear_primitives();
-    }
-
     pub(crate) fn select_all_current_scope(&mut self) {
         if self.selection.selected_resource.is_some()
             || !self.selection.selected_resources.is_empty()
         {
             self.select_all_resources();
-            return;
-        }
-
-        if (matches!(self.active_tool, ViewTool::Select)
-            || self.selection.selected_primitive.is_some()
-            || !self.selection.selected_primitives.is_empty())
-            && self.select_all_primitives_in_active_room()
-        {
             return;
         }
 
@@ -79,8 +69,6 @@ impl EditorWorkspace {
         self.selection.selected_node = ids[0];
         self.selection.node_selection_anchor = Some(ids[0]);
         self.clear_resource_selection_state();
-        self.clear_primitive_selection_state();
-        self.clear_sector_selection();
         self.status = if ids.len() == 1 {
             "Selected 1 node".to_string()
         } else {
@@ -105,144 +93,11 @@ impl EditorWorkspace {
         self.selection.resource_selection_anchor = Some(ids[0]);
         self.resource_delete_confirm = None;
         self.clear_node_selection_state();
-        self.clear_primitive_selection_state();
-        self.clear_sector_selection();
         self.status = if ids.len() == 1 {
             "Selected 1 resource".to_string()
         } else {
             format!("Selected {} resources", ids.len())
         };
-    }
-
-    pub(crate) fn select_all_primitives_in_active_room(&mut self) -> bool {
-        let Some(room) = self.active_room_id() else {
-            self.status = "No active room to select".to_string();
-            return false;
-        };
-        let selections = self.all_primitive_selections_in_room(room, self.selection_mode);
-        if selections.is_empty() {
-            self.status = format!("No {} primitives to select", self.selection_mode.label());
-            return false;
-        }
-
-        self.selection.selected_primitives = selections;
-        self.selection.selected_primitive = self.selection.selected_primitives.first().copied();
-        self.clear_sector_selection();
-        self.clear_node_selection_state();
-        self.update_primitive_resource_selection();
-        self.status = format!(
-            "Selected {} {} primitives",
-            self.selection.selected_primitives.len(),
-            self.selection_mode.label()
-        );
-        true
-    }
-
-    pub(crate) fn all_primitive_selections_in_room(
-        &self,
-        room: NodeId,
-        mode: SelectionMode,
-    ) -> Vec<Selection> {
-        let mut selections = Vec::new();
-        for face in self.all_faces_in_room(room) {
-            match mode {
-                SelectionMode::Face => {
-                    push_unique_selection(&mut selections, Selection::Face(face));
-                }
-                SelectionMode::Edge => {
-                    for edge in face_edges(face) {
-                        push_unique_selection(&mut selections, Selection::Edge(edge));
-                    }
-                }
-                SelectionMode::Vertex => {
-                    for vertex in face_vertices(face) {
-                        push_unique_selection(&mut selections, Selection::Vertex(vertex));
-                    }
-                }
-            }
-        }
-        selections
-    }
-
-    pub(crate) fn all_faces_in_room(&self, room: NodeId) -> Vec<FaceRef> {
-        let Some(grid) = self.room_grid_view(room) else {
-            return Vec::new();
-        };
-
-        let mut faces = Vec::new();
-        for sx in 0..grid.width {
-            for sz in 0..grid.depth {
-                let Some(sector) = grid.sector(sx, sz) else {
-                    continue;
-                };
-                if sector.floor.is_some() {
-                    faces.push(FaceRef {
-                        room,
-                        sx,
-                        sz,
-                        kind: FaceKind::Floor,
-                    });
-                }
-                if sector.ceiling.is_some() {
-                    faces.push(FaceRef {
-                        room,
-                        sx,
-                        sz,
-                        kind: FaceKind::Ceiling,
-                    });
-                }
-                for dir in GridDirection::ALL {
-                    for (stack, _) in sector.walls.get(dir).iter().enumerate() {
-                        let Ok(stack) = u8::try_from(stack) else {
-                            continue;
-                        };
-                        faces.push(FaceRef {
-                            room,
-                            sx,
-                            sz,
-                            kind: FaceKind::Wall { dir, stack },
-                        });
-                    }
-                }
-            }
-        }
-        faces
-    }
-
-    pub(crate) fn selected_primitive_targets(&self) -> Vec<Selection> {
-        if self.selection.selected_primitives.is_empty() {
-            self.selection.selected_primitive.into_iter().collect()
-        } else {
-            self.selection.selected_primitives.clone()
-        }
-    }
-
-    pub(crate) fn primitive_is_selected(&self, selection: Selection) -> bool {
-        self.selection.selected_primitives.contains(&selection)
-            || (self.selection.selected_primitives.is_empty()
-                && self.selection.selected_primitive == Some(selection))
-    }
-
-    pub(crate) fn push_selected_primitive_unique(&mut self, selection: Selection) {
-        if !self.selection.selected_primitives.contains(&selection) {
-            self.selection.selected_primitives.push(selection);
-        }
-        self.selection.selected_primitive = Some(selection);
-    }
-
-    pub(crate) fn update_primitive_resource_selection(&mut self) {
-        if self.selection.selected_primitives.len() == 1 {
-            let resource = match self.selection.selected_primitives[0] {
-                Selection::Face(face) => self.face_material(face),
-                Selection::Triangle(triangle) => self.triangle_material(triangle),
-                Selection::Edge(_) | Selection::Vertex(_) => None,
-            };
-            if let Some(id) = resource {
-                self.replace_resource_selection(id);
-                return;
-            }
-        }
-        self.clear_resource_selection_state();
     }
 
     pub(crate) fn node_is_selected(&self, id: NodeId) -> bool {
@@ -265,7 +120,6 @@ impl EditorWorkspace {
         let toggle = modifiers.command || modifiers.ctrl;
         self.selection
             .apply_node_modifiers(id, modifiers.shift, toggle, visible_order);
-        self.clear_sector_selection();
         // One selection domain at a time: picking an entity drops any
         // brush selection, mirroring the brush-click path.
         self.clear_brush_selection();
@@ -290,7 +144,6 @@ impl EditorWorkspace {
         let toggle = modifiers.command || modifiers.ctrl;
         self.selection
             .apply_resource_modifiers(id, modifiers.shift, toggle, visible_order);
-        self.clear_sector_selection();
         self.resource_delete_confirm = None;
 
         let count = self.selection.selected_resources.len();
@@ -625,11 +478,8 @@ impl EditorWorkspace {
         if matches!(node.kind, NodeKind::Group) {
             return self.group_bounds_3d(id);
         }
-        if matches!(node.kind, NodeKind::Section { .. }) {
-            return self.room_bounds_3d(node.id);
-        }
 
-        let entity_bounds = self.collect_entity_bounds(None);
+        let entity_bounds = self.collect_entity_bounds();
         let mut current = Some(node.id);
         while let Some(id) = current {
             if let Some(bounds) = entity_bounds.iter().find(|b| b.node == id) {
@@ -651,17 +501,7 @@ impl EditorWorkspace {
                 .group_bounds_3d(id)
                 .map(|(center, half)| ([center[0], center[2]], [half[0], half[2]]));
         }
-        match &node.kind {
-            NodeKind::Section { grid } => {
-                let (local_center, half) = grid_authored_editor_center_half(grid)?;
-                let center = node_world(node);
-                Some((
-                    [center[0] + local_center[0], center[1] + local_center[1]],
-                    half,
-                ))
-            }
-            _ => Some((node_world(node), [0.75, 0.75])),
-        }
+        Some((node_world(node), [0.75, 0.75]))
     }
 
     pub(crate) fn retain_hidden_ui_nodes_for_project(&mut self) {
@@ -797,113 +637,22 @@ impl EditorWorkspace {
         {
             self.selection.selected_ui_node = ui_root;
         }
-
-        // Layer creation is undoable. If undo removes the active top layer,
-        // keep the authoring index inside the restored room instead of
-        // carrying a stale value into the next Up/Down action.
-        self.active_floor = self
-            .floors_target_room()
-            .and_then(|room| self.room_base_grid(room))
-            .map(|grid| self.active_floor.min(grid.floor_count().saturating_sub(1)))
-            .unwrap_or(0);
     }
 
-    pub(crate) fn clear_sector_selection(&mut self) {
-        self.selection.selected_sector = None;
-        self.selection.selected_sectors.clear();
-        self.selection.sector_selection_anchor = None;
-        self.interaction.take_box_select_2d();
-    }
-
-    pub(crate) fn select_sector(&mut self, selection: SectorSelection, modifiers: egui::Modifiers) {
-        let toggle = modifiers.command || modifiers.ctrl;
-        if modifiers.shift {
-            let anchor = self.selection.sector_selection_anchor.unwrap_or(selection);
-            self.select_sector_rect(anchor, selection, toggle);
-            return;
-        }
-
-        if !toggle {
-            self.selection.selected_sectors.clear();
-        }
-        if toggle && self.selection.selected_sectors.remove(&selection) {
-            self.selection.selected_sector = self
-                .selection
-                .selected_sectors
-                .iter()
-                .next()
-                .map(|(_, sx, sz)| (*sx, *sz));
-        } else {
-            self.selection.selected_sectors.insert(selection);
-            self.selection.selected_sector = Some((selection.1, selection.2));
-        }
-        self.selection.sector_selection_anchor = Some(selection);
-        self.replace_node_selection(selection.0);
-        self.clear_resource_selection_state();
-        self.clear_primitive_selection_state();
-        self.status = match self.selection.selected_sectors.len() {
-            0 => "Cleared tile selection".to_string(),
-            1 => format!("Selected sector {},{}", selection.1, selection.2),
-            count => format!("Selected {count} sectors"),
-        };
-    }
-
-    pub(crate) fn select_sector_rect(
-        &mut self,
-        anchor: SectorSelection,
-        current: SectorSelection,
-        additive: bool,
-    ) {
-        if anchor.0 != current.0 {
-            return;
-        }
-        if !additive {
-            self.selection.selected_sectors.clear();
-        }
-        let min_x = anchor.1.min(current.1);
-        let max_x = anchor.1.max(current.1);
-        let min_z = anchor.2.min(current.2);
-        let max_z = anchor.2.max(current.2);
-        for sx in min_x..=max_x {
-            for sz in min_z..=max_z {
-                self.selection.selected_sectors.insert((anchor.0, sx, sz));
-            }
-        }
-        self.selection.sector_selection_anchor = Some(anchor);
-        self.replace_node_selection(anchor.0);
-        self.clear_resource_selection_state();
-        self.clear_primitive_selection_state();
-        self.selection.selected_sector = Some((current.1, current.2));
-        self.status = format!("Selected {} sectors", self.selection.selected_sectors.len());
-    }
-
-    pub(crate) fn begin_viewport_box_select(
-        &mut self,
-        start: Pos2,
-        room: Option<NodeId>,
-        modifiers: egui::Modifiers,
-    ) {
+    pub(crate) fn begin_viewport_box_select(&mut self, start: Pos2, modifiers: egui::Modifiers) {
         let additive = modifiers.shift || modifiers.command || modifiers.ctrl;
-        let brushes = !self.project.active_scene().brushes.is_empty();
         let element_mode = matches!(
             self.brush_edit_mode,
             BrushEditMode::Face | BrushEditMode::Edge | BrushEditMode::Vertex
         )
         .then_some(self.brush_edit_mode);
         let element_brush = element_mode.and(self.selected_brush);
-        let base_sectors = if additive {
-            self.selection.selected_sectors.clone()
-        } else {
-            HashSet::new()
-        };
-        let base_brushes = if brushes && additive {
+        let base_brushes = if additive {
             self.selected_brush_set()
         } else {
             Vec::new()
         };
-        let base_primary_brush = (brushes && additive)
-            .then_some(self.selected_brush)
-            .flatten();
+        let base_primary_brush = additive.then_some(self.selected_brush).flatten();
         let base_brush_elements = if element_brush.is_some() && additive {
             self.selected_brush_elements.clone()
         } else {
@@ -914,33 +663,22 @@ impl EditorWorkspace {
         } else {
             Vec::new()
         };
-        if brushes {
-            if element_brush.is_some() {
-                self.reset_brush_drill();
-                self.clear_uv_edit_transaction();
-                if !additive {
-                    self.selected_brush_face = None;
-                    self.selected_brush_faces.clear();
-                    self.selected_brush_elements.clear();
-                }
-            } else if !additive {
-                self.clear_brush_selection();
+        if element_brush.is_some() {
+            self.reset_brush_drill();
+            self.clear_uv_edit_transaction();
+            if !additive {
+                self.selected_brush_face = None;
+                self.selected_brush_faces.clear();
+                self.selected_brush_elements.clear();
             }
-            self.clear_sector_selection();
         } else if !additive {
-            self.selection.selected_sectors.clear();
-            self.selection.selected_sector = None;
-            self.selection.sector_selection_anchor = None;
+            self.clear_brush_selection();
         }
         self.clear_resource_selection_state();
-        self.clear_primitive_selection_state();
         self.interaction = Interaction::BoxSelect2d(ViewportBoxSelect {
             start,
             current: start,
-            room,
             additive,
-            base_sectors,
-            brushes,
             base_brushes,
             base_primary_brush,
             element_brush,
@@ -960,10 +698,7 @@ impl EditorWorkspace {
         };
         drag.current = current;
         let rect = drag.rect();
-        let room = drag.room;
         let additive = drag.additive;
-        let base_sectors = drag.base_sectors.clone();
-        let brushes = drag.brushes;
         let base_brushes = drag.base_brushes.clone();
         let base_primary_brush = drag.base_primary_brush;
         let element_brush = drag.element_brush;
@@ -980,7 +715,7 @@ impl EditorWorkspace {
                 &base_brush_elements,
                 &base_brush_faces,
             );
-        } else if brushes {
+        } else {
             self.select_brushes_in_screen_rect(
                 transform,
                 rect,
@@ -988,8 +723,6 @@ impl EditorWorkspace {
                 &base_brushes,
                 base_primary_brush,
             );
-        } else {
-            self.select_sectors_in_screen_rect(transform, rect, room, additive, &base_sectors);
         }
         true
     }
@@ -1108,12 +841,6 @@ impl EditorWorkspace {
         self.selected_brush_elements.clear();
         self.clear_node_selection_state();
         self.clear_resource_selection_state();
-        self.clear_primitive_selection_state();
-        // Preserve the active marquee interaction while clearing the legacy
-        // grid selection. clear_sector_selection() also ends BoxSelect2d.
-        self.selection.selected_sector = None;
-        self.selection.selected_sectors.clear();
-        self.selection.sector_selection_anchor = None;
         self.status = match self.selected_brushes.len() {
             0 => "No brushes in marquee".to_string(),
             1 => "Selected 1 brush".to_string(),
@@ -1127,14 +854,8 @@ impl EditorWorkspace {
             .map(ViewportBoxSelect::rect)
     }
 
-    pub(crate) fn begin_viewport_3d_box_select(
-        &mut self,
-        start: Pos2,
-        room: Option<NodeId>,
-        modifiers: egui::Modifiers,
-    ) {
+    pub(crate) fn begin_viewport_3d_box_select(&mut self, start: Pos2, modifiers: egui::Modifiers) {
         let additive = modifiers.shift || modifiers.command || modifiers.ctrl;
-        let brushes = !self.project.active_scene().brushes.is_empty();
         let element_mode = matches!(
             self.brush_edit_mode,
             BrushEditMode::Face | BrushEditMode::Edge | BrushEditMode::Vertex
@@ -1144,22 +865,13 @@ impl EditorWorkspace {
         self.interaction = Interaction::BoxSelect3d(Viewport3dBoxSelect {
             start,
             current: start,
-            room,
             additive,
-            base_primitives: if additive && !brushes {
-                self.selected_primitive_targets()
-            } else {
-                Vec::new()
-            },
-            brushes,
-            base_brushes: if additive && brushes {
+            base_brushes: if additive {
                 self.selected_brush_set()
             } else {
                 Vec::new()
             },
-            base_primary_brush: (additive && brushes)
-                .then_some(self.selected_brush)
-                .flatten(),
+            base_primary_brush: additive.then_some(self.selected_brush).flatten(),
             element_brush,
             element_mode,
             base_brush_elements: if additive && element_brush.is_some() {
@@ -1173,26 +885,17 @@ impl EditorWorkspace {
                 Vec::new()
             },
         });
-        if brushes {
-            if element_brush.is_some() {
-                self.reset_brush_drill();
-                self.clear_uv_edit_transaction();
-                if !additive {
-                    self.selected_brush_face = None;
-                    self.selected_brush_faces.clear();
-                    self.selected_brush_elements.clear();
-                }
-            } else if !additive {
-                self.clear_brush_selection();
+        if element_brush.is_some() {
+            self.reset_brush_drill();
+            self.clear_uv_edit_transaction();
+            if !additive {
+                self.selected_brush_face = None;
+                self.selected_brush_faces.clear();
+                self.selected_brush_elements.clear();
             }
-            self.clear_primitive_selection_state();
         } else if !additive {
-            self.selection.selected_primitive = None;
-            self.selection.selected_primitives.clear();
+            self.clear_brush_selection();
         }
-        self.selection.selected_sector = None;
-        self.selection.selected_sectors.clear();
-        self.selection.sector_selection_anchor = None;
         self.clear_resource_selection_state();
     }
 
@@ -1202,10 +905,7 @@ impl EditorWorkspace {
         };
         drag.current = current;
         let rect = drag.rect();
-        let room = drag.room;
         let additive = drag.additive;
-        let base_primitives = drag.base_primitives.clone();
-        let brushes = drag.brushes;
         let base_brushes = drag.base_brushes.clone();
         let base_primary_brush = drag.base_primary_brush;
         let element_brush = drag.element_brush;
@@ -1222,21 +922,13 @@ impl EditorWorkspace {
                 &base_brush_elements,
                 &base_brush_faces,
             );
-        } else if brushes {
+        } else {
             self.select_brushes_in_viewport_3d_rect(
                 viewport,
                 rect,
                 additive,
                 &base_brushes,
                 base_primary_brush,
-            );
-        } else {
-            self.select_primitives_in_viewport_3d_rect(
-                viewport,
-                rect,
-                room,
-                additive,
-                &base_primitives,
             );
         }
         true
@@ -1425,7 +1117,6 @@ impl EditorWorkspace {
         self.selected_brush_elements.clear();
         self.clear_node_selection_state();
         self.clear_resource_selection_state();
-        self.clear_primitive_selection_state();
         self.status = match self.selected_brushes.len() {
             0 => "No brushes in marquee".to_string(),
             1 => "Selected 1 brush".to_string(),
@@ -1441,201 +1132,5 @@ impl EditorWorkspace {
         self.interaction
             .box_select_3d()
             .map(Viewport3dBoxSelect::rect)
-    }
-
-    pub(crate) fn select_primitives_in_viewport_3d_rect(
-        &mut self,
-        viewport: Rect,
-        rect: Rect,
-        room_filter: Option<NodeId>,
-        additive: bool,
-        base_primitives: &[Selection],
-    ) {
-        let camera = self.viewport_3d_camera();
-        let room_ids: Vec<NodeId> = self
-            .project
-            .active_scene()
-            .nodes()
-            .iter()
-            .filter_map(|node| {
-                if room_filter.is_some_and(|room| room != node.id) {
-                    return None;
-                }
-                if self.scene_node_effectively_hidden(node.id) {
-                    return None;
-                }
-                matches!(node.kind, NodeKind::Section { .. }).then_some(node.id)
-            })
-            .collect();
-
-        let mut selected = if additive {
-            base_primitives.to_vec()
-        } else {
-            Vec::new()
-        };
-        for room in room_ids {
-            for selection in self.all_primitive_selections_in_room(room, self.selection_mode) {
-                let Some(bounds) = self.selection_screen_bounds(selection, camera, viewport) else {
-                    continue;
-                };
-                if bounds.intersects(rect) {
-                    push_unique_selection(&mut selected, selection);
-                }
-            }
-        }
-
-        self.selection.selected_primitives = selected;
-        self.selection.selected_primitive = self.selection.selected_primitives.last().copied();
-        self.selection.selected_sector = None;
-        self.selection.selected_sectors.clear();
-        self.selection.sector_selection_anchor = None;
-        self.clear_resource_selection_state();
-        self.update_primitive_resource_selection();
-
-        let selected_room = self
-            .selection
-            .selected_primitives
-            .first()
-            .map(Selection::room);
-        if selected_room.is_some()
-            && self
-                .selection
-                .selected_primitives
-                .iter()
-                .all(|selection| Some(selection.room()) == selected_room)
-        {
-            if let Some(room) = selected_room {
-                self.replace_node_selection(room);
-            }
-        } else if self.selection.selected_primitives.is_empty() {
-            self.clear_node_selection_state();
-        }
-
-        self.status = match self.selection.selected_primitives.len() {
-            0 => "Cleared primitive selection".to_string(),
-            1 => format!(
-                "Selected {}",
-                describe_selection(self.selection.selected_primitives[0])
-            ),
-            count => format!("Selected {count} primitives"),
-        };
-    }
-
-    pub(crate) fn selection_screen_bounds(
-        &self,
-        selection: Selection,
-        camera: ViewportCameraState,
-        viewport: Rect,
-    ) -> Option<Rect> {
-        let points = self.selection_world_points(selection)?;
-        let mut projected = Vec::with_capacity(points.len());
-        for point in points {
-            projected.push(project_world_to_viewport_screen(camera, viewport, point)?);
-        }
-        let mut bounds = Rect::from_points(&projected);
-        if matches!(selection, Selection::Edge(_) | Selection::Vertex(_)) {
-            bounds = bounds.expand(4.0);
-        }
-        Some(bounds)
-    }
-
-    pub(crate) fn selection_world_points(&self, selection: Selection) -> Option<Vec<[f32; 3]>> {
-        match selection {
-            Selection::Face(face) => Some(self.face_world_corners(face)?.to_vec()),
-            Selection::Triangle(triangle) => Some(self.triangle_world_corners(triangle)?.to_vec()),
-            Selection::Edge(edge) => {
-                let grid = self.room_grid_view(edge.room)?;
-                let (a, b) = edge_endpoint_corners(edge);
-                let a = face_corner_world(grid, a)?.map(|value| value as f32);
-                let b = face_corner_world(grid, b)?.map(|value| value as f32);
-                Some(vec![a, b])
-            }
-            Selection::Vertex(vertex) => {
-                let grid = self.room_grid_view(vertex.room)?;
-                let point = face_corner_world(grid, vertex.anchor.as_face_corner())?
-                    .map(|value| value as f32);
-                Some(vec![point])
-            }
-        }
-    }
-
-    pub(crate) fn select_sectors_in_screen_rect(
-        &mut self,
-        transform: ViewportTransform,
-        rect: Rect,
-        room_filter: Option<NodeId>,
-        additive: bool,
-        base_sectors: &HashSet<SectorSelection>,
-    ) {
-        let active_floor = self.active_floor;
-        let scene = self.project.active_scene();
-        let mut selected = if additive {
-            base_sectors.clone()
-        } else {
-            HashSet::new()
-        };
-        for node in scene.nodes() {
-            if room_filter.is_some_and(|room| room != node.id) {
-                continue;
-            }
-            if self.scene_node_effectively_hidden(node.id) {
-                continue;
-            }
-            let NodeKind::Section { grid } = &node.kind else {
-                continue;
-            };
-            let idx = active_floor.min(grid.floor_count().saturating_sub(1));
-            let Some(grid) = grid.floor(idx) else {
-                continue;
-            };
-            let node_center = node_world(node);
-            for sx in 0..grid.width {
-                for sz in 0..grid.depth {
-                    let Some(sector) = grid.sector(sx, sz) else {
-                        continue;
-                    };
-                    if !sector.has_geometry() {
-                        continue;
-                    }
-                    let local_tile_center = grid_cell_editor_center(grid, sx, sz);
-                    let tile_center = [
-                        node_center[0] + local_tile_center[0],
-                        node_center[1] + local_tile_center[1],
-                    ];
-                    let tile_rect = transform.world_rect_to_screen(tile_center, [0.5, 0.5]);
-                    if tile_rect.intersects(rect) {
-                        let selection = (node.id, sx, sz);
-                        selected.insert(selection);
-                    }
-                }
-            }
-        }
-
-        let mut selected_ordered: Vec<_> = selected.iter().copied().collect();
-        selected_ordered.sort_by_key(|(room, sx, sz)| (room.raw(), *sx, *sz));
-        self.selection.selected_sectors = selected;
-        self.selection.selected_sector = selected_ordered.first().map(|(_, sx, sz)| (*sx, *sz));
-        self.selection.sector_selection_anchor = selected_ordered.first().copied();
-        self.clear_resource_selection_state();
-        self.clear_primitive_selection_state();
-
-        let selected_room = selected_ordered.first().map(|(room, _, _)| *room);
-        if selected_room.is_some()
-            && selected_ordered
-                .iter()
-                .all(|(room, _, _)| Some(*room) == selected_room)
-        {
-            if let Some(room) = selected_room {
-                self.replace_node_selection(room);
-            }
-        } else if selected_ordered.is_empty() {
-            self.clear_node_selection_state();
-        }
-
-        self.status = match self.selection.selected_sectors.len() {
-            0 => "Cleared tile selection".to_string(),
-            1 => "Selected 1 sector".to_string(),
-            count => format!("Selected {count} sectors"),
-        };
     }
 }
