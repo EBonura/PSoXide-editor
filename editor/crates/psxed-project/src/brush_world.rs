@@ -1085,8 +1085,9 @@ pub fn diagnose_brush_world_leak(
 
     let occupant_points = player_occupant_points(scene);
     let (topology_surfaces, _) = compile_model_surfaces(&static_brushes);
+    let structural = structural_brushes(&static_brushes);
     let (_, _, engine_diagnostic) =
-        compile_model_topology(&topology_surfaces, &static_brushes, &occupant_points, false);
+        compile_model_topology(&topology_surfaces, &structural, &occupant_points, false);
     let scale_point = |point: [i32; 3]| {
         point.map(|coordinate| coordinate.saturating_mul(crate::units::WORLD_UNIT_DIVISOR))
     };
@@ -1257,8 +1258,9 @@ fn compile_model(
     collision_hulls: &[CollisionHullBounds; 3],
 ) -> Result<CompiledModel, BrushWorldCookError> {
     let (topology_surfaces, render_surfaces) = compile_model_surfaces(brushes);
+    let structural = structural_brushes(brushes);
     let (mut bsp, portals, leak_diagnostic) =
-        compile_model_topology(&topology_surfaces, brushes, occupant_points, true);
+        compile_model_topology(&topology_surfaces, &structural, occupant_points, true);
     // Every drawable face is capped to SURFACE_EXTENT_UNITS,
     // lights or not. Build exact leaves from the unsplit CSG surfaces, then
     // keep the PS1-sized render surfaces as single-owner records referenced
@@ -1366,7 +1368,43 @@ fn compile_model(
     Ok((geometry, collision, leak_diagnostic.path, uv_window))
 }
 
+/// Brushes that build the render tree, portals and visibility.
+///
+/// Detail brushes (Quake 2/3 semantics) are drawn and collide but contribute
+/// no splitter plane, so their planes never partition space. The borrowed
+/// path returns the input untouched when no brush is detail, which keeps every
+/// project without detail brushes on exactly the pre-detail compile.
+fn structural_brushes(brushes: &[Brush]) -> std::borrow::Cow<'_, [Brush]> {
+    if brushes.iter().any(Brush::is_detail) {
+        std::borrow::Cow::Owned(
+            brushes
+                .iter()
+                .filter(|brush| !brush.is_detail())
+                .cloned()
+                .collect(),
+        )
+    } else {
+        std::borrow::Cow::Borrowed(brushes)
+    }
+}
+
+/// Topology and render surfaces for one model.
+///
+/// Render surfaces are the exterior of the union of every brush, detail
+/// included, so a detail face buried in a structural solid (or the other way
+/// round) is removed exactly as before. Topology surfaces, which feed the
+/// render tree and portals, come from the structural brushes alone.
 fn compile_model_surfaces(brushes: &[Brush]) -> (Vec<CompiledSurface>, Vec<CompiledSurface>) {
+    let (topology, render) = compile_surface_pair(brushes);
+    let structural = structural_brushes(brushes);
+    if structural.len() == brushes.len() {
+        return (topology, render);
+    }
+    let (structural_topology, _) = compile_surface_pair(&structural);
+    (structural_topology, render)
+}
+
+fn compile_surface_pair(brushes: &[Brush]) -> (Vec<CompiledSurface>, Vec<CompiledSurface>) {
     let csg_surfaces = compile_csg_surfaces(brushes);
     let authored_surfaces = compile_authored_surfaces(brushes);
     if csg_surfaces.len() <= i16::MAX as usize {
@@ -1756,6 +1794,16 @@ fn compile_runtime_collision_hulls(
     brushes: &[Brush],
     hulls: &[CollisionHullBounds; 3],
 ) -> Result<CompiledCollisionHulls, CollisionHullCompileError> {
+    // Detail brushes are not in the render BSP, so hull 0 (which walks it)
+    // cannot see them and point traces (the camera arm, projectiles, melee)
+    // would pass through detail geometry. A model with any detail brush
+    // therefore cooks an exact point clip hull from every brush into head
+    // slot 1, ahead of the two body hulls; the point providers prefer it
+    // (`PxbspResidentMap::model_point_clip_hull`). Models without detail
+    // brushes keep the sentinel below, byte for byte.
+    if brushes.iter().any(Brush::is_detail) {
+        return compile_collision_hulls(brushes, hulls);
+    }
     // Quake hull 0 is the classified render BSP itself. Do not duplicate the
     // entire point tree in clipnodes merely to satisfy the four-head model
     // record: the runtime never reads collision head zero. Keep one valid
@@ -3227,6 +3275,10 @@ mod tests {
             .expect("resident PXBSP");
         for model_index in 0..map.brush_models().len() {
             let model = map.brush_models().get(model_index).expect("model");
+            assert!(
+                map.model_point_clip_hull(model_index).is_none(),
+                "no detail brushes: slot 1 stays the empty sentinel"
+            );
             let render = map
                 .model_collision_hull(model_index, 0)
                 .expect("render-served point hull");
@@ -3530,5 +3582,187 @@ mod tests {
                 error: PxbspBrushDoorError::ZeroOpenOffset,
             }
         );
+    }
+    fn terrain_project(detail: bool, wedges: bool, bed: bool) -> ProjectDocument {
+        use crate::terrain::{Terrain, TerrainShape};
+        let mut project = ProjectDocument::new("detail terrain");
+        let mut sky_material = MaterialResource::opaque(None);
+        sky_material.sky_aperture = true;
+        let sky = project.add_resource("Sky", ResourceData::Material(sky_material));
+        let stone = project.add_resource(
+            "Stone",
+            ResourceData::Material(MaterialResource::opaque(None)),
+        );
+        let terrain = Terrain::generate(
+            [4; 2],
+            [256; 2],
+            [-512, 0, -512],
+            512,
+            42,
+            TerrainShape::Hills,
+            0.4,
+        )
+        .expect("terrain");
+        let mut brushes = if wedges {
+            terrain.brushes(Some(stone)).expect("wedges")
+        } else {
+            Vec::new()
+        };
+        for brush in &mut brushes {
+            brush.detail = detail;
+        }
+        if bed {
+            brushes.push(terrain.bed(Some(stone)).expect("bed"));
+        }
+        brushes.extend(terrain.sky_enclosure(2048, sky).expect("enclosure"));
+        let scene = project.active_scene_mut();
+        scene.brushes = brushes;
+        let spawn = scene.add_node(
+            NodeId::ROOT,
+            "Player Spawn",
+            NodeKind::SpawnPoint {
+                player: true,
+                character: None,
+            },
+        );
+        scene.node_mut(spawn).expect("spawn").transform.translation = [0.0, 1024.0, 0.0];
+        project
+    }
+
+    fn cook(project: &ProjectDocument) -> CompiledBrushWorld {
+        compile_brush_world(
+            project,
+            BrushWorldCookOptions {
+                project_root: Path::new("."),
+                mode: BrushWorldCookMode::Draft,
+                ambient: [24; 3],
+                texture_asset_base: 40,
+            },
+        )
+        .expect("terrain world cooks")
+    }
+
+    fn load(world: &CompiledBrushWorld) -> PxbspResidentMap {
+        let mut map = PxbspResidentMap::with_capacity(world.pxbsp.bytes.len());
+        map.load(9, &mut SliceReader::new(&world.pxbsp.bytes))
+            .expect("resident PXBSP");
+        map
+    }
+
+    #[test]
+    fn detail_brushes_leave_the_render_tree_to_the_structural_brushes() {
+        let structural = load(&cook(&terrain_project(false, true, true)));
+        let detail = load(&cook(&terrain_project(true, true, true)));
+        let bed_only = load(&cook(&terrain_project(true, false, true)));
+        // The wedges contribute no splitter, leaf or portal: the detail
+        // world's tree is exactly the tree of the bed and enclosure alone.
+        assert_eq!(detail.nodes().len(), bed_only.nodes().len());
+        assert_eq!(detail.leaves().len(), bed_only.leaves().len());
+        assert!(
+            structural.nodes().len() > 2 * detail.nodes().len(),
+            "structural wedges split the tree: {} vs {} nodes",
+            structural.nodes().len(),
+            detail.nodes().len()
+        );
+        assert!(structural.leaves().len() > detail.leaves().len());
+        // Detail faces are still drawn: every wedge top is a face of the
+        // detail world, assigned to the structural leaf it touches.
+        assert!(detail.faces().len() >= bed_only.faces().len() + 32);
+        assert_eq!(detail.faces().len(), structural.faces().len());
+    }
+
+    #[test]
+    fn detail_brushes_collide_in_point_and_body_hulls() {
+        let structural = load(&cook(&terrain_project(false, true, true)));
+        let detail = load(&cook(&terrain_project(true, true, true)));
+        assert!(structural.model_point_clip_hull(0).is_none());
+        let point_clip = detail
+            .model_point_clip_hull(0)
+            .expect("a map with detail brushes stores an exact point hull");
+        let render = detail.model_collision_hull(0, 0).expect("hull 0");
+        let reference = structural.model_collision_hull(0, 0).expect("hull 0");
+        // Sub-unit offsets keep every probe off the wedge diagonals and the
+        // 16-unit heights, where two correct hulls may legitimately disagree
+        // by one quantized plane distance.
+        let q = |value: i32, nudge: i32| value * 4096 + nudge;
+        let (mut compared, mut solid_only_in_clip) = (0usize, 0usize);
+        for x in (-480..480).step_by(37) {
+            for z in (-480..480).step_by(41) {
+                for y in (-200..700).step_by(29) {
+                    let point = Vec3I32 {
+                        x: q(x, 1237),
+                        y: q(y, 2111),
+                        z: q(z, 733),
+                    };
+                    let expected = reference.point_contents(point);
+                    assert_eq!(
+                        point_clip.point_contents(point),
+                        expected,
+                        "point hull at ({x}, {y}, {z})"
+                    );
+                    if expected == Some(CONTENTS_SOLID)
+                        && render.point_contents(point) != Some(CONTENTS_SOLID)
+                    {
+                        solid_only_in_clip += 1;
+                    }
+                    for hull_index in 1..=2 {
+                        let a = detail.model_collision_hull(0, hull_index).expect("body");
+                        let b = structural
+                            .model_collision_hull(0, hull_index)
+                            .expect("body");
+                        assert_eq!(
+                            a.point_contents(point),
+                            b.point_contents(point),
+                            "body hull {hull_index} at ({x}, {y}, {z})"
+                        );
+                    }
+                    compared += 1;
+                }
+            }
+        }
+        assert!(compared > 4000);
+        assert!(
+            solid_only_in_clip > 50,
+            "hull 0 must miss the detail wedges the point hull sees: {solid_only_in_clip}"
+        );
+    }
+
+    #[test]
+    fn detail_terrain_needs_its_structural_bed_to_seal_the_world() {
+        assert!(diagnose_brush_world_leak(terrain_project(true, true, true))
+            .expect("sealed")
+            .is_empty());
+        assert!(
+            !diagnose_brush_world_leak(terrain_project(true, true, false))
+                .expect("open")
+                .is_empty(),
+            "detail wedges alone do not seal the underside"
+        );
+        // Structural wedges keep sealing it themselves, as before.
+        assert!(
+            diagnose_brush_world_leak(terrain_project(false, true, false))
+                .expect("structural terrain")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn projects_without_detail_brushes_take_the_pre_detail_compile() {
+        let project = terrain_project(false, true, true);
+        let brushes = &project.active_scene().brushes;
+        assert!(matches!(
+            structural_brushes(brushes),
+            std::borrow::Cow::Borrowed(_)
+        ));
+        assert_eq!(
+            compile_model_surfaces(brushes),
+            compile_surface_pair(brushes)
+        );
+        // The flag is ignored on liquids, which always define contents
+        // transitions in the tree.
+        let mut water = Brush::cuboid([0, 0, 0], [64, 64, 64]);
+        water.contents = BrushContents::Water;
+        water.detail = true;
+        assert!(!water.is_detail());
     }
 }

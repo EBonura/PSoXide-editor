@@ -140,6 +140,7 @@ impl Brush {
             contents: BrushContents::Solid,
             mover: None,
             group: None,
+            detail: false,
         };
         let solved = brush.solve();
         if let Some(lost) = solved.polygons.iter().position(Option::is_none) {

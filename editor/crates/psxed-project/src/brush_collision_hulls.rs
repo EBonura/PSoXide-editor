@@ -9,6 +9,13 @@ const HULL_EPSILON: f64 = 1.0 / 1024.0;
 // at 48 while cutting the worst moving-player leaf walks substantially. A
 // 32-brush leaf crosses 32,768 clipnodes and is therefore not representable.
 const SPATIAL_LEAF_BRUSHES: usize = 48;
+// The point hull walks one linear plane chain per leaf for every camera arm,
+// projectile and melee trace. Its planes are a third of an expanded body
+// hull's, and it exists only when detail brushes hide geometry from the render
+// BSP, so it splits much finer than the body hulls. Measured: a 38-brush point
+// chain walked as one leaf cost the camera arm several times the whole render
+// tree it replaced.
+const POINT_HULL_LEAF_BRUSHES: usize = 4;
 const MAX_SPATIAL_DEPTH: usize = 12;
 pub const MAX_MAP_HULLS: usize = 4;
 
@@ -138,7 +145,18 @@ fn compile_collision_hulls_inner(
         prepared.reverse();
         let brushes: Vec<_> = (0..prepared.len()).collect();
         head_nodes.push(if spatial {
-            build_spatial_hull(&prepared, &brushes, 0, &mut plane_records, &mut nodes)?
+            let leaf_brushes = if hull == CollisionHullBounds::POINT {
+                POINT_HULL_LEAF_BRUSHES
+            } else {
+                SPATIAL_LEAF_BRUSHES
+            };
+            build_spatial_hull(
+                &prepared,
+                &brushes,
+                (0, leaf_brushes),
+                &mut plane_records,
+                &mut nodes,
+            )?
         } else {
             build_brush_chain(&prepared, &brushes, &mut nodes)?
         });
@@ -160,11 +178,11 @@ fn compile_collision_hulls_inner(
 fn build_spatial_hull(
     brushes: &[PreparedHullBrush],
     active: &[usize],
-    depth: usize,
+    (depth, leaf_brushes): (usize, usize),
     planes: &mut Vec<[u8; 14]>,
     nodes: &mut Vec<[i16; 3]>,
 ) -> Result<i16, CollisionHullCompileError> {
-    if active.len() <= SPATIAL_LEAF_BRUSHES || depth == MAX_SPATIAL_DEPTH {
+    if active.len() <= leaf_brushes || depth == MAX_SPATIAL_DEPTH {
         return build_brush_chain(brushes, active, nodes);
     }
     let Some(split) = choose_spatial_split(brushes, active) else {
@@ -186,8 +204,8 @@ fn build_spatial_hull(
     limit("clipnodes", nodes.len() + 1, i16::MAX as usize + 1)?;
     let node = nodes.len();
     nodes.push([plane, CONTENTS_EMPTY, CONTENTS_EMPTY]);
-    let front = build_spatial_hull(brushes, &front, depth + 1, planes, nodes)?;
-    let back = build_spatial_hull(brushes, &back, depth + 1, planes, nodes)?;
+    let front = build_spatial_hull(brushes, &front, (depth + 1, leaf_brushes), planes, nodes)?;
+    let back = build_spatial_hull(brushes, &back, (depth + 1, leaf_brushes), planes, nodes)?;
     nodes[node] = [plane, front, back];
     Ok(node as i16)
 }
