@@ -75,8 +75,10 @@ fn flatten(world: &StreamedBrushWorld) -> Flat {
     let top = &debug.top;
     let index = PxbspIndex::read(&mut SliceReader::new(&world.container)).unwrap();
     let mut lumps: [Vec<u8>; PXBSP_LUMP_COUNT] = core::array::from_fn(|_| Vec::new());
-    lumps[PxbspLumpKind::Materials as usize] = lump(&world.container, &index, PxbspLumpKind::Materials);
-    lumps[PxbspLumpKind::Entities as usize] = lump(&world.container, &index, PxbspLumpKind::Entities);
+    lumps[PxbspLumpKind::Materials as usize] =
+        lump(&world.container, &index, PxbspLumpKind::Materials);
+    lumps[PxbspLumpKind::Entities as usize] =
+        lump(&world.container, &index, PxbspLumpKind::Entities);
 
     // Additive bases, region by region.
     let mut base = vec![[0usize; 8]; regions]; // planes, vertices, faces, marks, nodes, clip, leaf, vis
@@ -153,7 +155,11 @@ fn flatten(world: &StreamedBrushWorld) -> Flat {
             let mut n = node.to_vec();
             wr16(&mut n, 0, rd16(node, 0) + base[r][0] as u16);
             for side in 0..2 {
-                wr16(&mut n, 2 + side * 2, render_child(r, rd16(node, 2 + side * 2) as i16) as u16);
+                wr16(
+                    &mut n,
+                    2 + side * 2,
+                    render_child(r, rd16(node, 2 + side * 2) as i16) as u16,
+                );
             }
             nodes.extend(n);
         }
@@ -161,7 +167,11 @@ fn flatten(world: &StreamedBrushWorld) -> Flat {
             let mut n = node.to_vec();
             wr16(&mut n, 0, rd16(node, 0) + base[r][0] as u16);
             for side in 0..2 {
-                wr16(&mut n, 2 + side * 2, clip_child(r, rd16(node, 2 + side * 2) as i16) as u16);
+                wr16(
+                    &mut n,
+                    2 + side * 2,
+                    clip_child(r, rd16(node, 2 + side * 2) as i16) as u16,
+                );
             }
             clips.extend(n);
         }
@@ -203,7 +213,13 @@ fn flatten(world: &StreamedBrushWorld) -> Flat {
     }
     let n = top_nodes;
     let mut model = Vec::new();
-    for v in debug.world_bounds.0.into_iter().chain(debug.world_bounds.1).chain([0; 3]) {
+    for v in debug
+        .world_bounds
+        .0
+        .into_iter()
+        .chain(debug.world_bounds.1)
+        .chain([0; 3])
+    {
         model.extend_from_slice(&v.to_le_bytes());
     }
     for head in [0i16, 0, 1, 1 + n as i16] {
@@ -271,7 +287,8 @@ fn compare_views(world: &StreamedBrushWorld, views: usize, seed: u32) -> Sampled
     install_all(world, &mut streamed);
     streamed.check_integrity().expect("integrity");
 
-    let mut flat_renderer = Renderer::new_pxbsp_with_nodes(flat_map.faces().len(), flat_map.nodes().len());
+    let mut flat_renderer =
+        Renderer::new_pxbsp_with_nodes(flat_map.faces().len(), flat_map.nodes().len());
     let mut streamed_renderer =
         Renderer::new_pxbsp_with_nodes(streamed.faces().len(), streamed.nodes().len());
     let (mins, maxs) = world.debug.world_bounds;
@@ -288,7 +305,10 @@ fn compare_views(world: &StreamedBrushWorld, views: usize, seed: u32) -> Sampled
     let mut attempts = 0;
     while out.views < views {
         attempts += 1;
-        assert!(attempts < views * 400, "could not find {views} open camera positions");
+        assert!(
+            attempts < views * 400,
+            "could not find {views} open camera positions"
+        );
         let mut origin = [0i32; 3];
         for axis in 0..3 {
             let span = i32::from(maxs[axis]) - i32::from(mins[axis]);
@@ -309,10 +329,14 @@ fn compare_views(world: &StreamedBrushWorld, views: usize, seed: u32) -> Sampled
         };
         let flat_leaf = flat_map.point_leaf_index(camera.origin).unwrap();
         let streamed_leaf = streamed.point_leaf_index(camera.origin).unwrap();
-        let flat_open = flat_leaf != 0 && flat_map.leaves().get(flat_leaf).unwrap().contents != CONTENTS_SOLID;
-        let streamed_open =
-            streamed_leaf != 0 && streamed.leaves().get(streamed_leaf).unwrap().contents != CONTENTS_SOLID;
-        assert_eq!(flat_open, streamed_open, "the two maps disagree on whether {origin:?} is solid");
+        let flat_open =
+            flat_leaf != 0 && flat_map.leaves().get(flat_leaf).unwrap().contents != CONTENTS_SOLID;
+        let streamed_open = streamed_leaf != 0
+            && streamed.leaves().get(streamed_leaf).unwrap().contents != CONTENTS_SOLID;
+        assert_eq!(
+            flat_open, streamed_open,
+            "the two maps disagree on whether {origin:?} is solid"
+        );
         if !flat_open {
             out.skipped += 1;
             continue;
@@ -322,7 +346,10 @@ fn compare_views(world: &StreamedBrushWorld, views: usize, seed: u32) -> Sampled
         let slot_state = streamed.streaming().unwrap();
         let slot = slot_state.slot_of(region as u16).expect("installed") as usize;
         let top_leaves = slot_state.index().top.leaves as usize;
-        assert_eq!(streamed_leaf, top_leaves + slot * caps.leaves as usize + (local - 1));
+        assert_eq!(
+            streamed_leaf,
+            top_leaves + slot * caps.leaves as usize + (local - 1)
+        );
 
         let view = load_pxbsp_view(camera);
         let (pvs_flat, frame_flat) = flat_renderer
@@ -334,22 +361,37 @@ fn compare_views(world: &StreamedBrushWorld, views: usize, seed: u32) -> Sampled
         let key_flat = |f: &u16| flat.face_of[*f as usize];
         let key_streamed = |f: &u16| {
             let slot = *f as usize / caps.faces as usize;
-            let region = streamed.streaming().unwrap().region_in_slot(slot as u16).unwrap() as usize;
+            let region = streamed
+                .streaming()
+                .unwrap()
+                .region_in_slot(slot as u16)
+                .unwrap() as usize;
             (region, *f as usize % caps.faces as usize)
         };
         let mut a: Vec<_> = pvs_flat.iter().map(key_flat).collect();
         let mut b: Vec<_> = pvs_streamed.iter().map(key_streamed).collect();
         a.sort_unstable();
         b.sort_unstable();
-        assert_eq!(a, b, "PVS face sets differ at {origin:?} angles {:?}", camera.angles);
+        assert_eq!(
+            a, b,
+            "PVS face sets differ at {origin:?} angles {:?}",
+            camera.angles
+        );
         let mut c: Vec<_> = frame_flat.iter().map(key_flat).collect();
         let mut d: Vec<_> = frame_streamed.iter().map(key_streamed).collect();
         c.sort_unstable();
         d.sort_unstable();
-        assert_eq!(c, d, "frame face sets differ at {origin:?} angles {:?}", camera.angles);
+        assert_eq!(
+            c, d,
+            "frame face sets differ at {origin:?} angles {:?}",
+            camera.angles
+        );
         // The same sets by stable source id.
         let ids = |keys: &[(usize, usize)]| {
-            let mut v: Vec<u32> = keys.iter().map(|&(r, f)| world.debug.face_source[r][f]).collect();
+            let mut v: Vec<u32> = keys
+                .iter()
+                .map(|&(r, f)| world.debug.face_source[r][f])
+                .collect();
             v.sort_unstable();
             v.dedup();
             v
@@ -421,7 +463,11 @@ fn collision_matches_the_whole_map_and_absent_regions_are_walls() {
             let span = i32::from(maxs[axis]) - i32::from(mins[axis]);
             p[axis] = (i32::from(mins[axis]) + (lcg(state) as i32).rem_euclid(span.max(1))) << 12;
         }
-        Vec3I32 { x: p[0], y: p[1], z: p[2] }
+        Vec3I32 {
+            x: p[0],
+            y: p[1],
+            z: p[2],
+        }
     };
     // Nothing installed: every hull reads solid everywhere.
     for _ in 0..500 {
@@ -439,7 +485,10 @@ fn collision_matches_the_whole_map_and_absent_regions_are_walls() {
     for _ in 0..4000 {
         let p = sample(&mut state);
         for hull in 0..3 {
-            let a = flat_map.model_collision_hull(0, hull).unwrap().point_contents(p);
+            let a = flat_map
+                .model_collision_hull(0, hull)
+                .unwrap()
+                .point_contents(p);
             let b = map.model_collision_hull(0, hull).unwrap().point_contents(p);
             assert_eq!(a, b, "hull {hull} contents at {p:?}");
             open += usize::from(hull == 1 && a == Some(CONTENTS_EMPTY));
@@ -455,10 +504,24 @@ fn collision_matches_the_whole_map_and_absent_regions_are_walls() {
             let mut scratch_b = psx_bsp::collision::TraceScratch::new();
             let mut ta = psx_bsp::collision::Trace::default();
             let mut tb = psx_bsp::collision::Trace::default();
-            let ra = flat_map.model_collision_hull(0, hull).unwrap().trace_into(&p, &q, &mut scratch_a, &mut ta);
-            let rb = map.model_collision_hull(0, hull).unwrap().trace_into(&p, &q, &mut scratch_b, &mut tb);
+            let ra = flat_map.model_collision_hull(0, hull).unwrap().trace_into(
+                &p,
+                &q,
+                &mut scratch_a,
+                &mut ta,
+            );
+            let rb = map.model_collision_hull(0, hull).unwrap().trace_into(
+                &p,
+                &q,
+                &mut scratch_b,
+                &mut tb,
+            );
             assert_eq!(ra, rb);
-            assert_eq!((ta.fraction, ta.end), (tb.fraction, tb.end), "hull {hull} trace {p:?}->{q:?}");
+            assert_eq!(
+                (ta.fraction, ta.end),
+                (tb.fraction, tb.end),
+                "hull {hull} trace {p:?}->{q:?}"
+            );
         }
     }
     assert!(open > 100, "the sample should hit open space ({open})");
@@ -479,7 +542,12 @@ fn collision_matches_the_whole_map_and_absent_regions_are_walls() {
         let mut loader = RegionLoader::new(SliceReader::new(&world.region_pack), 0);
         let mut buf = vec![0u8; world.region_pack.len().max(4096)];
         let n = loader.load(&world.index, victim, &mut buf).unwrap();
-        map.install_region(victim, map.streaming().unwrap().free_slot().unwrap(), &buf[..n]).unwrap();
+        map.install_region(
+            victim,
+            map.streaming().unwrap().free_slot().unwrap(),
+            &buf[..n],
+        )
+        .unwrap();
     }
     assert_eq!(
         map.install_region(0, 0, &world.payloads[0]),
@@ -505,7 +573,8 @@ fn random_install_orders_on_a_cooked_world_never_dangle() {
                     ops += 1;
                 }
             } else if let Some(slot) = map.streaming().unwrap().free_slot() {
-                map.install_region(region, slot, &world.payloads[region as usize]).unwrap();
+                map.install_region(region, slot, &world.payloads[region as usize])
+                    .unwrap();
                 ops += 1;
             }
             map.check_integrity().unwrap_or_else(|e| panic!("{e:?}"));
@@ -542,7 +611,10 @@ fn cook_is_deterministic_and_regions_fit_their_declared_shape() {
     assert_eq!(a.container, b.container);
     assert_eq!(a.region_pack, b.region_pack);
     for (r, entry) in a.index.regions.iter().enumerate() {
-        assert_eq!(entry.fnv, psx_bsp::pxbsp_resident::stream::fnv1a32(&a.payloads[r]));
+        assert_eq!(
+            entry.fnv,
+            psx_bsp::pxbsp_resident::stream::fnv1a32(&a.payloads[r])
+        );
         assert!(entry.vis_count as usize * a.index.caps.leaves as usize / 8 <= 1024);
         assert_eq!(a.index.vis_list(r)[0] as usize, r);
         // Every face of the region has a stable source id.

@@ -390,7 +390,9 @@ impl StreamingIndex {
                 return Err(bad("a visibility list must start with its own region"));
             }
             if list[1..].windows(2).any(|pair| pair[0] >= pair[1])
-                || list[1..].iter().any(|&q| q as usize >= region_count || q as usize == r)
+                || list[1..]
+                    .iter()
+                    .any(|&q| q as usize >= region_count || q as usize == r)
             {
                 return Err(bad("visibility list is unsorted or out of range"));
             }
@@ -488,7 +490,8 @@ impl RegionBuild {
             debug_assert_eq!(*len, body.len());
             out[*start..*start + *len].copy_from_slice(body);
         }
-        let mut put16 = |at: usize, value: u16| out[at..at + 2].copy_from_slice(&value.to_le_bytes());
+        let mut put16 =
+            |at: usize, value: u16| out[at..at + 2].copy_from_slice(&value.to_le_bytes());
         put16(4, REGION_VERSION);
         put16(8, self.id);
         put16(10, self.vis_count);
@@ -559,7 +562,8 @@ impl<'a> RegionView<'a> {
         if fnv1a32(&bytes[REGION_HEADER_BYTES..layout.end]) != u32_at(44) {
             return Err(StreamError::BadChecksum);
         }
-        let section = |i: usize| &bytes[layout.sections[i].0..layout.sections[i].0 + layout.sections[i].1];
+        let section =
+            |i: usize| &bytes[layout.sections[i].0..layout.sections[i].0 + layout.sections[i].1];
         Ok(Self {
             id: u16_at(8),
             vis_count: u16_at(10),
@@ -684,7 +688,10 @@ impl StreamState {
     }
 
     pub fn resident_count(&self) -> usize {
-        self.region_of_slot.iter().filter(|&&r| r != NO_SLOT).count()
+        self.region_of_slot
+            .iter()
+            .filter(|&&r| r != NO_SLOT)
+            .count()
     }
 
     /// Bits of the dense virtual-leaf PVS bitmap: `rpad + slots * lcap`.
@@ -935,11 +942,14 @@ impl PxbspResidentMap {
     ) -> Result<(), StreamLoadError<R::Error>> {
         self.prepare_owned_load();
         self.stream = None;
-        let index = PxbspIndex::read(reader).map_err(|e| StreamLoadError::Map(PxbspMapLoadError::Index(e)))?;
+        let index = PxbspIndex::read(reader)
+            .map_err(|e| StreamLoadError::Map(PxbspMapLoadError::Index(e)))?;
         if index.version() != PxbspVersion::V6 {
-            return Err(StreamLoadError::Map(PxbspMapLoadError::StaticLegacyVersion {
-                found: index.version().wire(),
-            }));
+            return Err(StreamLoadError::Map(
+                PxbspMapLoadError::StaticLegacyVersion {
+                    found: index.version().wire(),
+                },
+            ));
         }
         let si = index.lump(PxbspLumpKind::StreamingIndex);
         let mut si_bytes = alloc::vec![0u8; si.len as usize];
@@ -972,13 +982,27 @@ impl PxbspResidentMap {
         let kind_geometry = |kind: PxbspLumpKind| -> Option<(usize, usize, usize, usize)> {
             // (record bytes, top records, slot records, container check)
             Some(match kind {
-                PxbspLumpKind::Vertices => (VERTEX_BYTES, top.vertices as usize, caps.vertices as usize, 0),
-                PxbspLumpKind::Planes => (PLANE_BYTES, top.planes as usize, caps.planes as usize, 0),
+                PxbspLumpKind::Vertices => (
+                    VERTEX_BYTES,
+                    top.vertices as usize,
+                    caps.vertices as usize,
+                    0,
+                ),
+                PxbspLumpKind::Planes => {
+                    (PLANE_BYTES, top.planes as usize, caps.planes as usize, 0)
+                }
                 PxbspLumpKind::Faces => (FACE_BYTES, top.faces as usize, caps.faces as usize, 0),
-                PxbspLumpKind::MarkSurfaces => (MARK_BYTES, top.marks as usize, caps.marks as usize, 0),
+                PxbspLumpKind::MarkSurfaces => {
+                    (MARK_BYTES, top.marks as usize, caps.marks as usize, 0)
+                }
                 PxbspLumpKind::Leaves => (LEAF_BYTES, top.leaves as usize, caps.leaves as usize, 0),
                 PxbspLumpKind::Nodes => (NODE_BYTES, top.nodes as usize, caps.nodes as usize, 0),
-                PxbspLumpKind::ClipNodes => (CLIPNODE_BYTES, top.clip_nodes as usize, caps.clip_nodes as usize, 0),
+                PxbspLumpKind::ClipNodes => (
+                    CLIPNODE_BYTES,
+                    top.clip_nodes as usize,
+                    caps.clip_nodes as usize,
+                    0,
+                ),
                 _ => return None,
             })
         };
@@ -986,7 +1010,8 @@ impl PxbspResidentMap {
         let mut full_len = [0usize; PXBSP_LUMP_COUNT];
         for kind in RESIDENT_LUMPS {
             let source = index.lump(kind).len as usize;
-            let (top_bytes, full_bytes) = if let Some((rec, top_n, slot_n, _)) = kind_geometry(kind) {
+            let (top_bytes, full_bytes) = if let Some((rec, top_n, slot_n, _)) = kind_geometry(kind)
+            {
                 if source != top_n * rec {
                     return Err(StreamLoadError::Stream(StreamError::BadIndex(
                         "container lump does not match the top counts",
@@ -1046,13 +1071,16 @@ impl PxbspResidentMap {
         let leaf_range = self.ranges[PxbspLumpKind::Leaves as usize];
         let regions = sindex.regions.len();
         {
-            let leaves = &mut self.owned_bytes_mut()[leaf_range.offset as usize..leaf_range.end() as usize];
+            let leaves =
+                &mut self.owned_bytes_mut()[leaf_range.offset as usize..leaf_range.end() as usize];
             let mut bad = None;
             for leaf in 0..leaf_range.len as usize / LEAF_BYTES {
                 let record = &mut leaves[leaf * LEAF_BYTES..][..LEAF_BYTES];
                 let wanted_stub = leaf >= 1 && leaf <= regions;
                 if wanted_stub {
-                    if record[0] as i8 != CONTENTS_UNRESIDENT as i8 || rd16(record, 10) as usize != leaf - 1 {
+                    if record[0] as i8 != CONTENTS_UNRESIDENT as i8
+                        || rd16(record, 10) as usize != leaf - 1
+                    {
                         bad = Some("stub leaf is not contents -7 carrying its region");
                     }
                     record[0] = crate::collision::CONTENTS_SOLID as i8 as u8;
@@ -1099,7 +1127,12 @@ impl PxbspResidentMap {
     /// reference, copy the tables with the slot bases added, then link the
     /// subtree into the three top trees. Nothing is allocated, and the map is
     /// unchanged when an error is returned.
-    pub fn install_region(&mut self, region: u16, slot: u16, payload: &[u8]) -> Result<(), StreamError> {
+    pub fn install_region(
+        &mut self,
+        region: u16,
+        slot: u16,
+        payload: &[u8],
+    ) -> Result<(), StreamError> {
         let (caps, entry, bases) = {
             let state = self.stream.as_deref().ok_or(StreamError::NotStreamed)?;
             let entry = *state
@@ -1120,13 +1153,17 @@ impl PxbspResidentMap {
         };
         let view = RegionView::parse(payload)?;
         if view.id != region || view.vis_count != entry.vis_count {
-            return Err(StreamError::BadRegion("payload does not belong to this region"));
+            return Err(StreamError::BadRegion(
+                "payload does not belong to this region",
+            ));
         }
         validate_region(&view, &caps, self.materials().len())?;
 
         let ranges = self.ranges;
         let storage = self.owned_bytes_mut().as_mut_slice();
-        let dst = |kind: PxbspLumpKind, base: usize, record: usize| ranges[kind as usize].offset as usize + base * record;
+        let dst = |kind: PxbspLumpKind, base: usize, record: usize| {
+            ranges[kind as usize].offset as usize + base * record
+        };
         // Planes and vertices need no rewriting.
         let at = dst(PxbspLumpKind::Planes, bases.planes, PLANE_BYTES);
         storage[at..at + view.planes.len()].copy_from_slice(view.planes);
@@ -1144,7 +1181,11 @@ impl PxbspResidentMap {
         }
         let at = dst(PxbspLumpKind::MarkSurfaces, bases.marks, MARK_BYTES);
         for (i, mark) in view.marks.chunks_exact(MARK_BYTES).enumerate() {
-            wr16(storage, at + i * MARK_BYTES, rd16(mark, 0) + bases.faces as u16);
+            wr16(
+                storage,
+                at + i * MARK_BYTES,
+                rd16(mark, 0) + bases.faces as u16,
+            );
         }
         let at = dst(PxbspLumpKind::Leaves, bases.leaf, LEAF_BYTES);
         let _ = at;
@@ -1192,7 +1233,10 @@ impl PxbspResidentMap {
             let child = bases.clip_child(view.clip_roots[hull]);
             wr16(
                 storage,
-                clip_at + entry.parents[1 + hull] as usize * CLIPNODE_BYTES + 2 + entry.side(1 + hull) * 2,
+                clip_at
+                    + entry.parents[1 + hull] as usize * CLIPNODE_BYTES
+                    + 2
+                    + entry.side(1 + hull) * 2,
                 child as u16,
             );
         }
@@ -1215,7 +1259,10 @@ impl PxbspResidentMap {
                 .regions
                 .get(region as usize)
                 .ok_or(StreamError::RegionOutOfRange)?;
-            (entry, state.slot_of(region).ok_or(StreamError::NotInstalled)?)
+            (
+                entry,
+                state.slot_of(region).ok_or(StreamError::NotInstalled)?,
+            )
         };
         let ranges = self.ranges;
         let storage = self.owned_bytes_mut().as_mut_slice();
@@ -1230,7 +1277,10 @@ impl PxbspResidentMap {
         for hull in 0..2 {
             wr16(
                 storage,
-                clip_at + entry.parents[1 + hull] as usize * CLIPNODE_BYTES + 2 + entry.side(1 + hull) * 2,
+                clip_at
+                    + entry.parents[1 + hull] as usize * CLIPNODE_BYTES
+                    + 2
+                    + entry.side(1 + hull) * 2,
                 crate::collision::CONTENTS_SOLID as u16,
             );
         }
@@ -1331,13 +1381,19 @@ impl PxbspResidentMap {
             return None;
         }
         scratch[..row_bytes].fill(0);
-        if !crate::pxbsp::decompress_visibility(self.visibility(), offset, &mut scratch[..row_bytes]) {
+        if !crate::pxbsp::decompress_visibility(
+            self.visibility(),
+            offset,
+            &mut scratch[..row_bytes],
+        ) {
             return None;
         }
         output[..out_bytes].fill(0);
         for (rank, &q) in list.iter().enumerate() {
             let Some(slot) = state.slot_of(q) else {
-                state.pvs_missing.set(state.pvs_missing.get().wrapping_add(1));
+                state
+                    .pvs_missing
+                    .set(state.pvs_missing.get().wrapping_add(1));
                 continue;
             };
             let from = rank * bytes_per_rank;
@@ -1382,12 +1438,19 @@ impl PxbspResidentMap {
                 Some((index - top_n) / cap)
             }
         };
-        let live = |slot: usize| state.region_of_slot.get(slot).is_some_and(|&r| r != NO_SLOT);
+        let live = |slot: usize| {
+            state
+                .region_of_slot
+                .get(slot)
+                .is_some_and(|&r| r != NO_SLOT)
+        };
 
         // Link halfwords against the slot table.
         for (r, entry) in state.index.regions.iter().enumerate() {
             let installed = state.slot_of_region[r] != NO_SLOT;
-            let render = nodes.get(entry.parents[0] as usize).ok_or(err("render parent", r))?;
+            let render = nodes
+                .get(entry.parents[0] as usize)
+                .ok_or(err("render parent", r))?;
             let child = render.children[entry.side(0)];
             let stub = (-1i32 - (r as i32 + 1)) as i16;
             if installed == (child == stub) {
@@ -1397,7 +1460,8 @@ impl PxbspResidentMap {
                 let slot = state.slot_of_region[r] as usize;
                 let bases = state.bases(slot);
                 let inside = if child >= 0 {
-                    child as usize >= bases.nodes && (child as usize) < bases.nodes + caps.nodes as usize
+                    child as usize >= bases.nodes
+                        && (child as usize) < bases.nodes + caps.nodes as usize
                 } else {
                     let leaf = leaf_number(child);
                     leaf >= bases.leaf && leaf < bases.leaf + caps.leaves as usize || leaf == 0
@@ -1407,7 +1471,9 @@ impl PxbspResidentMap {
                 }
             }
             for hull in 0..2 {
-                let clip = clips.get(entry.parents[1 + hull] as usize).ok_or(err("clip parent", r))?;
+                let clip = clips
+                    .get(entry.parents[1 + hull] as usize)
+                    .ok_or(err("clip parent", r))?;
                 let child = clip.children[entry.side(1 + hull)];
                 if !installed && child != crate::collision::CONTENTS_SOLID {
                     return Err(err("absent region is not solid in a clip tree", r));
@@ -1456,10 +1522,15 @@ impl PxbspResidentMap {
                 let bases = state.bases(slot);
                 let first = record.first_mark_surface as usize;
                 for mark_index in first..first + record.mark_surface_count as usize {
-                    if mark_index < bases.marks || mark_index >= bases.marks + state.slot_counts[slot][3] {
+                    if mark_index < bases.marks
+                        || mark_index >= bases.marks + state.slot_counts[slot][3]
+                    {
                         return Err(err("mark outside its slot", leaf));
                     }
-                    let face = marks.get(mark_index).ok_or(err("mark out of range", mark_index))? as usize;
+                    let face = marks
+                        .get(mark_index)
+                        .ok_or(err("mark out of range", mark_index))?
+                        as usize;
                     if face < bases.faces || face >= bases.faces + state.slot_counts[slot][2] {
                         return Err(err("face outside its slot", face));
                     }
@@ -1493,7 +1564,9 @@ impl PxbspResidentMap {
                 if !live(slot) {
                     return Err(err("node in a free slot is reachable", index));
                 }
-                if index - (top.nodes as usize + slot * caps.nodes as usize) >= state.slot_counts[slot][5] {
+                if index - (top.nodes as usize + slot * caps.nodes as usize)
+                    >= state.slot_counts[slot][5]
+                {
                     return Err(err("node beyond the installed count", index));
                 }
             }
@@ -1527,7 +1600,9 @@ impl PxbspResidentMap {
                     continue;
                 }
                 seen[index] = true;
-                if let Some(slot) = slot_of(index, top.clip_nodes as usize, caps.clip_nodes as usize) {
+                if let Some(slot) =
+                    slot_of(index, top.clip_nodes as usize, caps.clip_nodes as usize)
+                {
                     if !live(slot) {
                         return Err(err("clipnode in a free slot is reachable", index));
                     }
@@ -1676,8 +1751,12 @@ mod tests {
         // Render node: front (x >= mid) -> local leaf 2, back -> local leaf 1.
         build.nodes.extend(node(0, -3, -2, 0, 0));
         // Hull 1 node 0 and hull 2 node 1: front empty, back solid.
-        build.clip_nodes.extend(clipnode(0, CONTENTS_EMPTY, CONTENTS_SOLID));
-        build.clip_nodes.extend(clipnode(0, CONTENTS_EMPTY, CONTENTS_SOLID));
+        build
+            .clip_nodes
+            .extend(clipnode(0, CONTENTS_EMPTY, CONTENTS_SOLID));
+        build
+            .clip_nodes
+            .extend(clipnode(0, CONTENTS_EMPTY, CONTENTS_SOLID));
         build.render_root = 0;
         build.clip_roots = [0, 1];
         (build, list)
@@ -1719,7 +1798,11 @@ mod tests {
         let mut parents = vec![[0u16; 3]; r];
         let mut sides = vec![0u8; r];
         for i in 0..r - 1 {
-            let front = if i + 2 < r { (i + 1) as i16 } else { stub(r - 1) };
+            let front = if i + 2 < r {
+                (i + 1) as i16
+            } else {
+                stub(r - 1)
+            };
             nodes.extend(node(i as u16, front, stub(i), 0, 0));
             parents[i][0] = i as u16;
             sides[i] |= 1;
@@ -1731,7 +1814,11 @@ mod tests {
         for hull in 0..2usize {
             let base = 1 + hull * (r - 1);
             for i in 0..r - 1 {
-                let front = if i + 2 < r { (base + i + 1) as i16 } else { CONTENTS_SOLID };
+                let front = if i + 2 < r {
+                    (base + i + 1) as i16
+                } else {
+                    CONTENTS_SOLID
+                };
                 clip.extend(clipnode(i as i16, front, CONTENTS_SOLID));
                 parents[i][1 + hull] = (base + i) as u16;
                 sides[i] |= 2 << hull;
@@ -1786,7 +1873,10 @@ mod tests {
             let blob = build.encode();
             let sector = (pack.len() / SECTOR_BYTES as usize) as u32;
             pack.extend_from_slice(&blob);
-            pack.resize(pack.len().div_ceil(SECTOR_BYTES as usize) * SECTOR_BYTES as usize, 0);
+            pack.resize(
+                pack.len().div_ceil(SECTOR_BYTES as usize) * SECTOR_BYTES as usize,
+                0,
+            );
             let x0 = (CELL * i32::from(id)) as i16;
             index.regions.push(RegionEntry {
                 sector_start: sector,
@@ -1871,7 +1961,11 @@ mod tests {
         map.check_integrity().expect("integrity");
         for r in 0..4 {
             for hull in 1..3 {
-                assert_eq!(hull_contents(&map, hull, 100 * r + 10), CONTENTS_SOLID, "hull {hull}");
+                assert_eq!(
+                    hull_contents(&map, hull, 100 * r + 10),
+                    CONTENTS_SOLID,
+                    "hull {hull}"
+                );
             }
             assert_eq!(map.unresident_region_at(at(100 * r + 10)), Some(r as u16));
             let leaf = map.point_leaf_index(at(100 * r + 10)).unwrap();
@@ -1938,7 +2032,8 @@ mod tests {
         // Evict region 2: its slot's bits vanish and the miss is counted.
         map.uninstall_region(2).unwrap();
         let leaf = map.point_leaf_index(at(110)).unwrap();
-        map.streamed_leaf_visibility_into(leaf, &mut scratch, &mut dense).unwrap();
+        map.streamed_leaf_visibility_into(leaf, &mut scratch, &mut dense)
+            .unwrap();
         assert_eq!(dense[(rpad + 8) / 8], 0);
         assert_eq!(map.streaming().unwrap().pvs_missing(), 1);
         // The legacy accessor routes to the same expansion.
@@ -1957,7 +2052,10 @@ mod tests {
         let mut bad = w.payloads[1].clone();
         let at = bad.len() - 5;
         bad[at] ^= 0xff;
-        assert_eq!(map.install_region(1, 0, &bad), Err(StreamError::BadChecksum));
+        assert_eq!(
+            map.install_region(1, 0, &bad),
+            Err(StreamError::BadChecksum)
+        );
         // Dangling mark with a valid checksum.
         let mut build = region(1, 3).0;
         build.marks[0] = 9;
@@ -1965,12 +2063,25 @@ mod tests {
             map.install_region(1, 0, &build.encode()),
             Err(StreamError::BadReference("mark surface"))
         );
-        assert_eq!(*map.owned_bytes_mut(), before, "refused installs write nothing");
+        assert_eq!(
+            *map.owned_bytes_mut(),
+            before,
+            "refused installs write nothing"
+        );
         // Out of range slot, double install, busy slot.
-        assert_eq!(map.install_region(1, 2, &w.payloads[1]), Err(StreamError::SlotOutOfRange));
+        assert_eq!(
+            map.install_region(1, 2, &w.payloads[1]),
+            Err(StreamError::SlotOutOfRange)
+        );
         map.install_region(1, 0, &w.payloads[1]).unwrap();
-        assert_eq!(map.install_region(1, 1, &w.payloads[1]), Err(StreamError::AlreadyInstalled));
-        assert_eq!(map.install_region(2, 0, &w.payloads[2]), Err(StreamError::SlotBusy));
+        assert_eq!(
+            map.install_region(1, 1, &w.payloads[1]),
+            Err(StreamError::AlreadyInstalled)
+        );
+        assert_eq!(
+            map.install_region(2, 0, &w.payloads[2]),
+            Err(StreamError::SlotBusy)
+        );
         map.uninstall_region(1).unwrap();
         map.check_integrity().unwrap();
     }

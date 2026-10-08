@@ -63,8 +63,8 @@ use super::{
 use crate::brush::{Brush, Plane};
 use crate::brush_collision_hulls::{compile_collision_hulls, CollisionHullBounds};
 use crate::brush_compile::{
-    build_surface_bsp, pack_plane, split_polygon, split_wide_surfaces, BspChild,
-    CompiledBspLeaf, CompiledBspNode, CompiledSurface, CompiledSurfaceBsp, PolygonSplit,
+    build_surface_bsp, pack_plane, split_polygon, split_wide_surfaces, BspChild, CompiledBspLeaf,
+    CompiledBspNode, CompiledSurface, CompiledSurfaceBsp, PolygonSplit,
 };
 use crate::brush_light::bake_brush_vertex_lighting;
 use crate::brush_pack::{
@@ -445,7 +445,9 @@ fn emit_cell_node(
 ) -> (BspChild, TopChild) {
     match cells.nodes[node] {
         CellNode::Leaf { region } => {
-            let cell = cell_bsps[region as usize].take().expect("cell emitted once");
+            let cell = cell_bsps[region as usize]
+                .take()
+                .expect("cell emitted once");
             let node_base = out.bsp.nodes.len();
             let leaf_base = out.bsp.leaves.len();
             let surface_base = out.bsp.surfaces.len();
@@ -528,10 +530,9 @@ fn assign_render_surfaces(
             for (source, piece) in
                 clip_surfaces_indexed(render, render_bounds, &cells.cells[r], true)
             {
-                for fan in split_wide_surfaces(
-                    vec![piece],
-                    psx_bsp::render::PXBSP_MAX_FACE_VERTICES,
-                ) {
+                for fan in
+                    split_wide_surfaces(vec![piece], psx_bsp::render::PXBSP_MAX_FACE_VERTICES)
+                {
                     out.push((source, fan));
                 }
             }
@@ -636,7 +637,11 @@ fn for_each_bit(row: &[u8], mut f: impl FnMut(usize)) {
     }
 }
 
-fn pack_region(ctx: &mut Ctx<'_>, region: usize, face_ids: &[u32]) -> Result<RegionPacked, StreamCookError> {
+fn pack_region(
+    ctx: &mut Ctx<'_>,
+    region: usize,
+    face_ids: &[u32],
+) -> Result<RegionPacked, StreamCookError> {
     let bsp = ctx.bsp;
     let span = ctx.spans[region].clone();
     let surfaces = ctx.surface_spans[region].clone();
@@ -671,7 +676,9 @@ fn pack_region(ctx: &mut Ctx<'_>, region: usize, face_ids: &[u32]) -> Result<Reg
             );
             uvs.iter().all(|uv| {
                 uv.iter().zip(dims).all(|(&value, &size)| {
-                    value.is_finite() && value.round() >= 0.0 && value.round() < f64::from(size.max(1))
+                    value.is_finite()
+                        && value.round() >= 0.0
+                        && value.round() < f64::from(size.max(1))
                 })
             })
         } else {
@@ -682,12 +689,27 @@ fn pack_region(ctx: &mut Ctx<'_>, region: usize, face_ids: &[u32]) -> Result<Reg
                 Some(colors) => colors[surface_index][vertex_index],
                 None => 0x00ff_ffff,
             };
-            pack_vertex(&mut vertices, surface_index, vertex_index, vertex, uvs[vertex_index], light)?;
+            pack_vertex(
+                &mut vertices,
+                surface_index,
+                vertex_index,
+                vertex,
+                uvs[vertex_index],
+                light,
+            )?;
         }
         let flags = psx_bsp::FACE_BAKED_LIGHT
-            | if page_local { psx_bsp::FACE_PAGE_LOCAL_UV } else { 0 }
+            | if page_local {
+                psx_bsp::FACE_PAGE_LOCAL_UV
+            } else {
+                0
+            }
             | if flipped { psx_bsp::FACE_BACKSIDE } else { 0 }
-            | if surface.contents.is_solid() { 0 } else { psx_bsp::FACE_TWO_SIDED };
+            | if surface.contents.is_solid() {
+                0
+            } else {
+                psx_bsp::FACE_TWO_SIDED
+            };
         faces.extend_from_slice(
             &CookedDrawSurface {
                 plane: plane_index as u16,
@@ -732,7 +754,11 @@ fn pack_region(ctx: &mut Ctx<'_>, region: usize, face_ids: &[u32]) -> Result<Reg
         });
     }
     let mut list: Vec<u16> = vec![region as u16];
-    list.extend((0..regions).filter(|&q| q != region && seen[q]).map(|q| q as u16));
+    list.extend(
+        (0..regions)
+            .filter(|&q| q != region && seen[q])
+            .map(|q| q as u16),
+    );
     if list.len() * leaf_cap / 8 > PXBSP_MAX_VISIBILITY_BYTES {
         return Err(StreamCookError::RowTooWide {
             region: region_u,
@@ -776,7 +802,9 @@ fn pack_region(ctx: &mut Ctx<'_>, region: usize, face_ids: &[u32]) -> Result<Reg
         let first_mark = marks.len() / 2;
         for &surface in &leaf.mark_surfaces {
             if !surfaces.contains(&surface) {
-                return Err(StreamCookError::Unsupported("a leaf marks a face of another region"));
+                return Err(StreamCookError::Unsupported(
+                    "a leaf marks a face of another region",
+                ));
             }
             push_u16(&mut marks, (surface - surfaces.start) as u16);
         }
@@ -802,7 +830,8 @@ fn pack_region(ctx: &mut Ctx<'_>, region: usize, face_ids: &[u32]) -> Result<Reg
     let mut nodes = Vec::new();
     for host in span.nodes.clone() {
         let node = &bsp.nodes[host];
-        let (record, flipped) = pack_plane(&node.plane).ok_or(BrushPackError::InvalidPlane(host))?;
+        let (record, flipped) =
+            pack_plane(&node.plane).ok_or(BrushPackError::InvalidPlane(host))?;
         let plane = intern_plane(&mut planes, record)?;
         push_u16(&mut nodes, plane as u16);
         let mut children = [child(node.front)?, child(node.back)?];
@@ -900,7 +929,12 @@ fn clamp_i16(value: f64) -> i16 {
     value.clamp(f64::from(i16::MIN), f64::from(i16::MAX)) as i16
 }
 
-fn check_limit(region: u32, what: &'static str, count: usize, max: usize) -> Result<(), StreamCookError> {
+fn check_limit(
+    region: u32,
+    what: &'static str,
+    count: usize,
+    max: usize,
+) -> Result<(), StreamCookError> {
     if count > max {
         Err(StreamCookError::Limit {
             region,
@@ -973,8 +1007,14 @@ pub fn compile_brush_world_streamed(
     );
     let (render, uv_window) = fit_surfaces_to_uv_window(render, &texture_dims, &uv_skip);
     let render = split_wide_surfaces(render, psx_bsp::render::PXBSP_MAX_FACE_VERTICES);
-    let topology_bounds: Vec<Aabb> = topology.iter().map(|s| Aabb::from_points(&s.vertices)).collect();
-    let render_bounds: Vec<Aabb> = render.iter().map(|s| Aabb::from_points(&s.vertices)).collect();
+    let topology_bounds: Vec<Aabb> = topology
+        .iter()
+        .map(|s| Aabb::from_points(&s.vertices))
+        .collect();
+    let render_bounds: Vec<Aabb> = render
+        .iter()
+        .map(|s| Aabb::from_points(&s.vertices))
+        .collect();
 
     // One BSP: cuts on top, each cell's own tree below.
     let mut combined = build_combined(&cells, &topology, &topology_bounds);
@@ -1017,7 +1057,9 @@ pub fn compile_brush_world_streamed(
     if visible == 0 {
         return Err(BrushPackError::EmptyWorld.into());
     }
-    let rows = if visible <= 512 && portals.len() <= 10_000 || options.mode == BrushWorldCookMode::Release {
+    let rows = if visible <= 512 && portals.len() <= 10_000
+        || options.mode == BrushWorldCookMode::Release
+    {
         quake_portal_flow_rows(&bsp, &portals, &dense_of_leaf, visible)
     } else {
         quake_portal_fast_rows(&bsp, &portals, &dense_of_leaf, visible)
@@ -1061,7 +1103,10 @@ pub fn compile_brush_world_streamed(
         surface_spans.push(at..at + count);
         at += count;
     }
-    let node_bounds: Vec<_> = node_render_bounds(&bsp).into_iter().map(|b| b.packed()).collect();
+    let node_bounds: Vec<_> = node_render_bounds(&bsp)
+        .into_iter()
+        .map(|b| b.packed())
+        .collect();
     let mut ctx = Ctx {
         bsp: &bsp,
         spans: &spans,
@@ -1103,7 +1148,8 @@ pub fn compile_brush_world_streamed(
         })
         .collect();
     let refs: Vec<&PackedBspGeometry> = geometries.iter().collect();
-    let page_dims = page_local_texture_dims_for(project, &slots, &refs, &texture_dims, options.project_root);
+    let page_dims =
+        page_local_texture_dims_for(project, &slots, &refs, &texture_dims, options.project_root);
     for geometry in &mut geometries {
         mark_page_local_faces(geometry, &page_dims);
     }
@@ -1238,8 +1284,10 @@ pub fn compile_brush_world_streamed(
             let head = *heads
                 .get(hull_index.saturating_sub(1))
                 .ok_or(BrushWorldCookError::InvalidWorldTree)?;
-            let wire_planes = RecordSlice::<WirePlane>::new(planes).ok_or(BrushWorldCookError::InvalidWorldTree)?;
-            let wire_nodes = RecordSlice::<ClipNode>::new(clipnodes).ok_or(BrushWorldCookError::InvalidWorldTree)?;
+            let wire_planes = RecordSlice::<WirePlane>::new(planes)
+                .ok_or(BrushWorldCookError::InvalidWorldTree)?;
+            let wire_nodes = RecordSlice::<ClipNode>::new(clipnodes)
+                .ok_or(BrushWorldCookError::InvalidWorldTree)?;
             if CollisionHull::new(wire_planes, wire_nodes, head)
                 .and_then(|hull| hull.point_contents(origin))
                 .is_none_or(|contents| contents == CONTENTS_SOLID)
@@ -1285,7 +1333,10 @@ pub fn compile_brush_world_streamed(
         let blob = &payloads[r as usize];
         let sector = (region_pack.len() / SECTOR_BYTES as usize) as u32;
         region_pack.extend_from_slice(blob);
-        region_pack.resize(region_pack.len().div_ceil(SECTOR_BYTES as usize) * SECTOR_BYTES as usize, 0);
+        region_pack.resize(
+            region_pack.len().div_ceil(SECTOR_BYTES as usize) * SECTOR_BYTES as usize,
+            0,
+        );
         entries[r as usize].sector_start = sector;
     }
     let mut vis_lists = Vec::new();
@@ -1298,8 +1349,16 @@ pub fn compile_brush_world_streamed(
             sector_start: entries[r].sector_start,
             payload_bytes: payloads[r].len() as u32,
             fnv: fnv1a32(&payloads[r]),
-            mins: [clamp_i16(cell.min[0]), clamp_i16(cell.min[1]), clamp_i16(cell.min[2])],
-            maxs: [clamp_i16(cell.max[0]), clamp_i16(cell.max[1]), clamp_i16(cell.max[2])],
+            mins: [
+                clamp_i16(cell.min[0]),
+                clamp_i16(cell.min[1]),
+                clamp_i16(cell.min[2]),
+            ],
+            maxs: [
+                clamp_i16(cell.max[0]),
+                clamp_i16(cell.max[1]),
+                clamp_i16(cell.max[2]),
+            ],
             parents: parents[r],
             sides: sides[r],
             vis_offset: vis_lists.len() as u32,
@@ -1312,14 +1371,49 @@ pub fn compile_brush_world_streamed(
         widest = widest.max(b.vis_count as usize * leaf_cap / 8);
     }
     let caps = SlotCaps {
-        faces: packed.iter().map(|p| p.build.faces.len() / 10).max().unwrap_or(0).max(1) as u16,
-        vertices: packed.iter().map(|p| p.build.vertices.len() / 12).max().unwrap_or(0).max(1) as u16,
-        planes: packed.iter().map(|p| p.build.planes.len() / 12).max().unwrap_or(0).max(1) as u16,
-        marks: packed.iter().map(|p| p.build.marks.len() / 2).max().unwrap_or(0).max(1) as u16,
-        nodes: packed.iter().map(|p| p.build.nodes.len() / 16).max().unwrap_or(0).max(1) as u16,
-        clip_nodes: packed.iter().map(|p| p.build.clip_nodes.len() / 6).max().unwrap_or(0).max(1) as u16,
+        faces: packed
+            .iter()
+            .map(|p| p.build.faces.len() / 10)
+            .max()
+            .unwrap_or(0)
+            .max(1) as u16,
+        vertices: packed
+            .iter()
+            .map(|p| p.build.vertices.len() / 12)
+            .max()
+            .unwrap_or(0)
+            .max(1) as u16,
+        planes: packed
+            .iter()
+            .map(|p| p.build.planes.len() / 12)
+            .max()
+            .unwrap_or(0)
+            .max(1) as u16,
+        marks: packed
+            .iter()
+            .map(|p| p.build.marks.len() / 2)
+            .max()
+            .unwrap_or(0)
+            .max(1) as u16,
+        nodes: packed
+            .iter()
+            .map(|p| p.build.nodes.len() / 16)
+            .max()
+            .unwrap_or(0)
+            .max(1) as u16,
+        clip_nodes: packed
+            .iter()
+            .map(|p| p.build.clip_nodes.len() / 6)
+            .max()
+            .unwrap_or(0)
+            .max(1) as u16,
         leaves: leaf_cap as u16,
-        vis_bytes: packed.iter().map(|p| p.build.vis.len()).max().unwrap_or(0).max(1) as u32,
+        vis_bytes: packed
+            .iter()
+            .map(|p| p.build.vis.len())
+            .max()
+            .unwrap_or(0)
+            .max(1) as u32,
     };
     let index = StreamingIndex {
         caps,
@@ -1432,7 +1526,11 @@ fn region_list(ctx: &Ctx<'_>, region: usize) -> Vec<u16> {
         }
     }
     let mut list = vec![region as u16];
-    list.extend((0..regions).filter(|&q| q != region && seen[q]).map(|q| q as u16));
+    list.extend(
+        (0..regions)
+            .filter(|&q| q != region && seen[q])
+            .map(|q| q as u16),
+    );
     list
 }
 
@@ -1464,14 +1562,13 @@ pub fn cook_project_streamed(
         texture_asset_base: 0,
     };
     if plan.regions.len() <= 1 {
-        return Ok(CookedWorld::Whole(Box::new(compile_brush_world(&scaled, options)?)));
+        return Ok(CookedWorld::Whole(Box::new(compile_brush_world(
+            &scaled, options,
+        )?)));
     }
-    Ok(CookedWorld::Streamed(Box::new(compile_brush_world_streamed(
-        &scaled,
-        options,
-        &plan.tree,
-        &plan.layout.order,
-    )?)))
+    Ok(CookedWorld::Streamed(Box::new(
+        compile_brush_world_streamed(&scaled, options, &plan.tree, &plan.layout.order)?,
+    )))
 }
 
 #[cfg(test)]
