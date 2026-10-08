@@ -331,7 +331,7 @@ fn compare_views(world: &StreamedBrushWorld, views: usize, seed: u32) -> Sampled
                 z: origin[2],
             },
             angles: [
-                (lcg(&mut state) % 4096) as i16 - 2048 + 1024 * 0,
+                (lcg(&mut state) % 4096) as i16 - 2048,
                 (lcg(&mut state) % 4096) as i16,
                 0,
             ],
@@ -421,7 +421,7 @@ fn graybox_reach_streamed_equals_whole_over_sampled_views() {
     let world = cook(&project, &root, &PartitionParams::default());
     assert!(world.index.regions.len() >= 2);
     let sampled = compare_views(&world, 400, 0xC0FFEE);
-    println!(
+    eprintln!(
         "graybox-reach: {} regions, {} views ({} closed samples skipped), {} pvs faces, {} frame faces, {} source ids",
         world.index.regions.len(),
         sampled.views,
@@ -610,7 +610,7 @@ fn check_clustered_against_whole_world(
     );
     let (exact_drawn, clustered_drawn) =
         assert_frames_contained(&exact, &clustered, 400, seed, reach);
-    println!(
+    eprintln!(
         "{name}: {exact_drawn} faces within reach selected by the whole-world exact flow, all selected by the clustered flow ({clustered_drawn} selected); widest |V| {} vs {}",
         clustered.stats.max_vis_count, exact.stats.max_vis_count
     );
@@ -640,7 +640,7 @@ fn stress_world_small_variant_streamed_equals_whole() {
     let (project, root) = small_world();
     let world = cook(&project, &root, &PartitionParams::default());
     let sampled = compare_views(&world, 400, 0xBADC0DE);
-    println!(
+    eprintln!(
         "stress-small: {} regions, {} views ({} skipped), {} frame faces",
         world.index.regions.len(),
         sampled.views,
@@ -701,10 +701,12 @@ fn the_cook_judges_its_own_numbers_not_the_partitioners_estimates() {
     // The estimate is left as it was.
     assert!(!gated.estimated.gate.skeleton_measured);
     // A one-region project has nothing to re-judge.
-    let mut under = PartitionParams::default();
-    under.region_target_bytes = 64 * 1024 * 1024;
-    under.region_hard_cap_bytes = 64 * 1024 * 1024;
-    under.pool_bytes = u32::MAX;
+    let mut under = PartitionParams {
+        region_target_bytes: 64 * 1024 * 1024,
+        region_hard_cap_bytes: 64 * 1024 * 1024,
+        pool_bytes: u32::MAX,
+        ..PartitionParams::default()
+    };
     under.caps = crate::brush_region::SlotCaps {
         faces: u32::MAX,
         vertices: u32::MAX,
@@ -892,7 +894,7 @@ fn random_install_orders_on_a_cooked_world_never_dangle() {
         for _ in 0..150 {
             let region = (lcg(&mut state) % u32::from(regions)) as u16;
             if map.streaming().unwrap().is_resident(region) {
-                if lcg(&mut state) % 2 == 0 {
+                if lcg(&mut state).is_multiple_of(2) {
                     map.uninstall_region(region).unwrap();
                     ops += 1;
                 }
@@ -904,7 +906,7 @@ fn random_install_orders_on_a_cooked_world_never_dangle() {
             map.check_integrity().unwrap_or_else(|e| panic!("{e:?}"));
         }
     }
-    println!("random install/uninstall: {ops} operations, integrity checked after each");
+    eprintln!("random install/uninstall: {ops} operations, integrity checked after each");
 }
 
 // ---- format and cook properties -------------------------------------------
@@ -944,17 +946,19 @@ fn cook_is_deterministic_and_regions_fit_their_declared_shape() {
         // Every face of the region has a stable source id.
         assert_eq!(a.debug.face_source[r].len(), a.stats.regions[r].faces);
     }
-    println!("{:#?}", a.stats.regions);
+    eprintln!("{:#?}", a.stats.regions);
 }
 
 #[test]
 fn under_budget_projects_cook_byte_identical_to_the_whole_map_path() {
     let (project, root) = graybox();
     // A pool and region size no partition needs to cut for.
-    let mut params = PartitionParams::default();
-    params.region_target_bytes = 64 * 1024 * 1024;
-    params.region_hard_cap_bytes = 64 * 1024 * 1024;
-    params.pool_bytes = u32::MAX;
+    let mut params = PartitionParams {
+        region_target_bytes: 64 * 1024 * 1024,
+        region_hard_cap_bytes: 64 * 1024 * 1024,
+        pool_bytes: u32::MAX,
+        ..PartitionParams::default()
+    };
     params.caps = crate::brush_region::SlotCaps {
         faces: u32::MAX,
         vertices: u32::MAX,

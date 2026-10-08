@@ -96,11 +96,11 @@ fn prepare(world: &ClusterFlow<'_>) -> Prepared {
     }
     let mut cluster_box = vec![Aabb::EMPTY; world.clusters];
     let mut cluster_leaves = vec![Vec::new(); world.clusters];
-    for leaf in 0..world.visible {
+    for (leaf, bounds) in leaf_box.iter().enumerate() {
         let cluster = world.cluster_of[leaf] as usize;
         cluster_leaves[cluster].push(leaf as u32);
-        if !leaf_box[leaf].is_empty() {
-            cluster_box[cluster] = cluster_box[cluster].union(&leaf_box[leaf]);
+        if !bounds.is_empty() {
+            cluster_box[cluster] = cluster_box[cluster].union(bounds);
         }
     }
     let mut cluster_adjacent = vec![Vec::new(); world.clusters];
@@ -148,12 +148,12 @@ impl Mightsee for LazyMightsee<'_> {
     }
 }
 
-/// Leaf-to-leaf rows of every leaf of cluster `cluster`, as `(leaf, row)`.
-fn cluster_rows(
-    world: &ClusterFlow<'_>,
-    prep: &Prepared,
-    cluster: usize,
-) -> (Vec<(u32, Vec<u32>)>, [usize; 3]) {
+/// The rows of one cluster's leaves, `(leaf, row)`, and the size of its
+/// neighbourhood in clusters, leaves and directed portals.
+type ClusterResult = (Vec<(u32, Vec<u32>)>, [usize; 3]);
+
+/// Leaf-to-leaf rows of every leaf of cluster `cluster`.
+fn cluster_rows(world: &ClusterFlow<'_>, prep: &Prepared, cluster: usize) -> ClusterResult {
     // Neighbourhood: clusters joined to this one by open portals, each within
     // reach of this cluster's bounds.
     let home = prep.cluster_box[cluster];
@@ -312,7 +312,7 @@ pub(crate) fn clustered_portal_rows(world: &ClusterFlow<'_>) -> (Vec<Vec<u32>>, 
     // own slot so the output never depends on scheduling.
     let next = AtomicUsize::new(0);
     let done = AtomicUsize::new(0);
-    let slots: Vec<Mutex<Option<(Vec<(u32, Vec<u32>)>, [usize; 3])>>> =
+    let slots: Vec<Mutex<Option<ClusterResult>>> =
         (0..world.clusters).map(|_| Mutex::new(None)).collect();
     std::thread::scope(|scope| {
         for _ in 0..workers {
