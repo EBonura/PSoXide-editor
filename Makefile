@@ -889,7 +889,7 @@ hardware-tests-disc: hardware-tests $(HWTEST_CDDA) $(HWTEST_MOVIE) $(HWTEST_XA)
 		--exe ../../$(EXAMPLE_OUT)/hardware-tests.exe \
 		--out ../../$(EXAMPLE_OUT)/hardware-tests.bin \
 		--volume PSOXIDE \
-		--cdtest-sectors 500 \
+		--cdtest-sectors 460 \
 		--xa-file ../../$(HWTEST_MOVIE) \
 		--xa-file ../../$(HWTEST_XA) \
 		--cdda-track ../../$(HWTEST_CDDA)
