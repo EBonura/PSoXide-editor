@@ -35,5 +35,6 @@
   "replay_log_tail": "[cli] loaded poll-bound input tape editor/projects/graybox-reach/validation/light-directional-v1/extended-observe.csv (3000 polls, starting at poll 0)\n[cli] mounted cue-backed disc editor/projects/graybox-reach/baked/graybox_reach.cue\ncombat music:on\ncombat music:on\ntick=808697921  cycles=1763560910  pc=0x8002d844  stopped-at=808697921\nroute-ticks=3086  port1-polls=3000\n[cli] CPU display \u2192 build/graybox-reach/light-directional-v1/retime-gameplay/final.ppm (320x240)\n",
   "disc_sha256": "b41746521fd77ff0b1e4d083b56ef138c9705a462129ee7cab9f0374a3d2cbc9",
   "preview": "directional-cycles-slower-1080p.mp4",
-  "limits": "Nominal speed quantizes to whole cooked units. Straight-line contact checks; collision/orbit quantization can still produce slip. Original hardware not tested."
+  "limits": "Nominal speed quantizes to whole cooked units. Straight-line contact checks; collision/orbit quantization can still produce slip. Original hardware not tested.",
+  "revision": "Earlier half-speed / wide-stride revision; see narrow-integration.json for the shorter-stride revision."
 }

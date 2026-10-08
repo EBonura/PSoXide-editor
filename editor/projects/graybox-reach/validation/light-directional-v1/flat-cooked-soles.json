@@ -1,0 +1,17 @@
+{
+  "walk_backward": {
+    "max_planted_sole_spread_engine_units": 0.0,
+    "max_planted_sole_floor_error_engine_units": 0.044921875,
+    "samples": 90
+  },
+  "strafe_left": {
+    "max_planted_sole_spread_engine_units": 0.0,
+    "max_planted_sole_floor_error_engine_units": 0.044921875,
+    "samples": 74
+  },
+  "strafe_right": {
+    "max_planted_sole_spread_engine_units": 0.0,
+    "max_planted_sole_floor_error_engine_units": 0.044921875,
+    "samples": 74
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "strafe_left": {
+    "intersections": [],
+    "min_ankle_span": 6296.576454522443,
+    "max_ankle_span": 17694.141823174785,
+    "max_knee_span": 12588.38475875148,
+    "quarter_frame_checks": 64
+  },
+  "strafe_right": {
+    "intersections": [],
+    "min_ankle_span": 6296.576515557598,
+    "max_ankle_span": 17694.142311456035,
+    "max_knee_span": 12544.357597797814,
+    "quarter_frame_checks": 64
+  }
+}
