@@ -977,6 +977,7 @@ impl Playtest {
         }
         if action_locked && !hit_stopped && player_anim_is_attack(self.anim_state) {
             self.track_locked_target_in_windup();
+            let mut pushed = false;
             if let Some(character) = self.character.as_ref() {
                 let character = self.player_character_for_anim(character, self.anim_state);
                 let local_tick = now.saturating_sub(self.anim_start_tick);
@@ -989,6 +990,16 @@ impl Playtest {
                     input.walk = 1;
                     config.walk_speed = push_speed;
                     config.run_speed = config.run_speed.max(push_speed);
+                    pushed = true;
+                }
+            }
+            // A clip's authored push owns the body; otherwise a locked-on
+            // swing may lunge across a small gap.
+            if !pushed {
+                if let Some(lunge_speed) = self.attack_lunge_speed_q8() {
+                    input.walk = 1;
+                    config.walk_speed = lunge_speed;
+                    config.run_speed = config.run_speed.max(lunge_speed);
                 }
             }
         }
