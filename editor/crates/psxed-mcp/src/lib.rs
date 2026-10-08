@@ -740,3 +740,4 @@ mod tests {
 }
 
 pub mod duel;
+pub mod duel_batch;

@@ -54,6 +54,22 @@ struct CombatDuelReq {
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct CombatDuelBatchReq {
+    /// Seeds to replay, e.g. "1-20" or "3,5,9" (1..255, not 128). Default "1-20".
+    seeds: Option<String>,
+    /// Emulators at once: 1 or 2 (default 2, the maximum).
+    parallel: Option<u8>,
+    /// Encounter: "graybox" (the authored light enemy, default) or "heavy" (derived scenario with the Heavy Enemy).
+    scenario: Option<String>,
+    /// Total input polls per duel, including loading. Default 11400.
+    polls: Option<u32>,
+    /// Reuse the last built disc for the scenario. Default false rebuilds from saved project data.
+    skip_build: Option<bool>,
+    /// Name recorded in the report contract.
+    label: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 struct CombatTimelineReq {
     /// Animation Set resource id (Graybox Reach player: 61).
     animation_set: u64,
@@ -1153,6 +1169,55 @@ impl EditorServer {
         .map_err(|e| ErrorData::internal_error(e, None))?;
         Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::to_string(&report).unwrap(),
+        )]))
+    }
+
+    #[rmcp::tool(
+        description = "Replay many seeded combat duels (sequentially or two at a time) and write one aggregate: outcomes, duel length, health left, damage by source, poise breaks, i-frame avoids, enemy evades, stance swaps, Energy and shots, with mean/median/min/max per metric and a contract (source revision, dirty state, seeds, polls, disc hash, build flags). Writes batch.json and batch.md under validation/combat-duels/ and returns the markdown. Slow: one duel is about a minute of emulation. Requires a saved project."
+    )]
+    async fn combat_duel_batch(
+        &self,
+        Parameters(req): Parameters<CombatDuelBatchReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let frontend = shot::find_frontend(self.frontend.as_deref().map(PathBuf::as_path))
+            .map_err(|e| ErrorData::internal_error(e, None))?;
+        let root = self.with(|w| {
+            if w.is_dirty() {
+                return Err("Save staged edits before running duels".into());
+            }
+            Ok(w.root().to_path_buf())
+        })?;
+        let invalid = |e: String| ErrorData::invalid_params(e, None);
+        let seeds = psxed_mcp::duel_batch::parse_seeds(req.seeds.as_deref().unwrap_or("1-20"))
+            .map_err(invalid)?;
+        let scenario =
+            psxed_mcp::duel_batch::Scenario::parse(req.scenario.as_deref().unwrap_or("graybox"))
+                .map_err(invalid)?;
+        let label = req.label.unwrap_or_else(|| scenario.name().to_string());
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis();
+        let options = psxed_mcp::duel_batch::BatchOptions {
+            frontend,
+            out: root
+                .join("validation/combat-duels")
+                .join(format!("batch-{}-{stamp}", scenario.name())),
+            project: root,
+            scenario,
+            seeds,
+            parallel: usize::from(req.parallel.unwrap_or(2)),
+            polls: req.polls.unwrap_or(11400).clamp(900, 12000),
+            skip_build: req.skip_build.unwrap_or(false),
+            label,
+        };
+        // The batch blocks for minutes on child processes; keep it off the async reactor.
+        let report = tokio::task::spawn_blocking(move || psxed_mcp::duel_batch::execute(&options))
+            .await
+            .map_err(|e| ErrorData::internal_error(e.to_string(), None))?
+            .map_err(|e| ErrorData::internal_error(e, None))?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            psxed_mcp::duel_batch::markdown(&report),
         )]))
     }
 
