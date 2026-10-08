@@ -586,6 +586,9 @@ pub struct GameEntities<const MAX_ENTITIES: usize, const STANCE_BOUND_ATTACKS: b
     flow_enabled: bool,
     flow: [crate::combat_flow::CombatFlow; MAX_ENTITIES],
     recoil: [[i16; 3]; MAX_ENTITIES],
+    /// Remaining hit-stop ticks (60 Hz). While non-zero the entity's whole
+    /// per-tick step is skipped, so its clocks and animation phase hold.
+    hit_stop: [u8; MAX_ENTITIES],
     /// One-shot eye pulse age plus one; zero means no pulse (including spawn).
     stance_pulse: [u8; MAX_ENTITIES],
     /// Same cooked cooldown as the player, with independent per-enemy clocks.
@@ -795,6 +798,7 @@ impl<const MAX_ENTITIES: usize, const STANCE_BOUND_ATTACKS: bool>
         flow_enabled: false,
         flow: [crate::combat_flow::CombatFlow::FULL; MAX_ENTITIES],
         recoil: [[0; 3]; MAX_ENTITIES],
+        hit_stop: [0; MAX_ENTITIES],
         stance_pulse: [0; MAX_ENTITIES],
         stance_swap_delay: 0,
         stance_swap_cooldown: [0; MAX_ENTITIES],
@@ -843,6 +847,7 @@ impl<const MAX_ENTITIES: usize, const STANCE_BOUND_ATTACKS: bool>
             self.exchanges[index] = crate::ranged_tactics::RangedExchange::EMPTY;
             self.projectile_threats[index] = None;
             self.recoil[index] = [0; 3];
+            self.hit_stop[index] = 0;
             self.stance_pulse[index] = 0;
             self.patrol_leg[index] = 0;
             self.move_yaw[index] = 0;
@@ -910,6 +915,32 @@ impl<const MAX_ENTITIES: usize, const STANCE_BOUND_ATTACKS: bool>
     // psx-numeric-allow-next-line: mirrors the fixed 64-record activation mask above; bit ops only
     pub fn set_spatial_active_mask(&mut self, mask: u64) {
         self.spatial_active_mask = mask;
+    }
+
+    /// Freeze entity `index` for `ticks` simulation ticks (hit-stop). A longer
+    /// freeze already running is kept. A blow that defeats the entity freezes
+    /// it too, so the death clip starts after the freeze and the kill reads.
+    /// Out-of-range indices are ignored.
+    pub fn begin_hit_stop(&mut self, index: usize, ticks: u8) {
+        if index >= self.count() {
+            return;
+        }
+        self.hit_stop[index] = self.hit_stop[index].max(ticks);
+    }
+
+    /// Whether entity `index` is inside a hit-stop freeze this tick.
+    pub fn hit_stopped(&self, index: usize) -> bool {
+        index < self.count() && self.hit_stop[index] != 0
+    }
+
+    /// Advance every hit-stop countdown by one simulation tick.
+    /// Call once per tick after the entity step, so a freeze set on tick `t`
+    /// holds the entity through ticks `t + 1` to `t + ticks`.
+    pub fn tick_hit_stops(&mut self) {
+        let count = self.count();
+        for index in 0..count {
+            self.hit_stop[index] = self.hit_stop[index].saturating_sub(1);
+        }
     }
 
     /// Ticks entity `index` has spent in its current behavior state.
@@ -1594,6 +1625,14 @@ impl<const MAX_ENTITIES: usize, const STANCE_BOUND_ATTACKS: bool>
         let mut index = 0usize;
         while index < count {
             let record = &records[index];
+            if self.hit_stop[index] != 0 {
+                // Hit-stop: no clock, animation phase, movement or decision
+                // advances, so the pose and every timer resume exactly where
+                // they stopped. The countdown runs once per simulation tick in
+                // `tick_hit_stops`, not once per NPC step.
+                index += 1;
+                continue;
+            }
             let state = GameEntityState::from_raw(self.state[index]);
             if state == GameEntityState::Dead {
                 // Dead entities stop thinking but keep counting so
@@ -3522,6 +3561,53 @@ mod tests {
             entities.tick(&IDLE_ENEMY, near_input(), &mut NoClipMover);
         }
         assert_eq!(entities.state(0), GameEntityState::Aggro);
+    }
+
+    #[test]
+    fn hit_stop_holds_clocks_and_attack_tokens_then_resumes_exactly() {
+        let drive = |frozen: bool| {
+            let mut entities = GameEntities::<8>::EMPTY;
+            entities.spawn_from_records(&IDLE_ENEMY);
+            entities.set_spatial_active_mask(u64::MAX);
+            entities.tick(&IDLE_ENEMY, near_input(), &mut NoClipMover);
+            entities.tick(&IDLE_ENEMY, near_input(), &mut NoClipMover);
+            assert_eq!(entities.state(0), GameEntityState::Windup);
+            let before = (entities.state(0), entities.state_age(0));
+            if frozen {
+                entities.begin_hit_stop(0, 4);
+                assert!(entities.hit_stopped(0));
+                for _ in 0..4 {
+                    let stats = entities.tick(&IDLE_ENEMY, near_input(), &mut NoClipMover);
+                    entities.tick_hit_stops();
+                    assert_eq!(stats.thought, 0, "a frozen entity does not think");
+                    assert_eq!(stats.attacking, 0, "a frozen entity emits no attack");
+                    assert_eq!((entities.state(0), entities.state_age(0)), before);
+                }
+                assert!(!entities.hit_stopped(0));
+            }
+            // Windup lasts three ticks; the freeze must not eat any of them.
+            for _ in 0..3 {
+                entities.tick(&IDLE_ENEMY, near_input(), &mut NoClipMover);
+            }
+            (entities.state(0), entities.state_age(0))
+        };
+        assert_eq!(drive(true), drive(false));
+    }
+
+    #[test]
+    fn a_longer_freeze_is_kept_and_out_of_range_requests_are_ignored() {
+        let mut entities = GameEntities::<8>::EMPTY;
+        entities.spawn_from_records(&IDLE_ENEMY);
+        entities.begin_hit_stop(0, 8);
+        entities.begin_hit_stop(0, 4);
+        for _ in 0..7 {
+            entities.tick_hit_stops();
+        }
+        assert!(entities.hit_stopped(0));
+        entities.tick_hit_stops();
+        assert!(!entities.hit_stopped(0));
+        entities.begin_hit_stop(5, 8);
+        assert!(!entities.hit_stopped(5));
     }
 
     #[test]
