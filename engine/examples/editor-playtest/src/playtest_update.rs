@@ -792,9 +792,7 @@ impl Playtest {
             || self.hazard_death_ticks_remaining != 0
             || (action_locked
                 && !matches!(self.anim_state, PlayerAnim::RangedAttack | PlayerAnim::Land))
-            || self
-                .player_stance
-                .swap_committed(&self.player_stance_config);
+            || self.swap_locks_actions();
         self.ranged_ready.tick(
             ranged && self.player_stance.active() == VitalityChannelId::Two,
             ctx.is_held(button::L2),

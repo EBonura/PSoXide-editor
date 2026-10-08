@@ -656,6 +656,19 @@ impl Playtest {
         }
     }
 
+    /// Whether a stance swap still locks aiming, shooting and hooking. The
+    /// parry build shortens the lock to the swap's commit window; the
+    /// `no-perfect-swap` measurement build keeps the whole 72-tick animation.
+    pub(super) fn swap_locks_actions(&self) -> bool {
+        if PERFECT_SWAPS {
+            self.player_stance
+                .swap_committed(&self.player_stance_config)
+        } else {
+            self.player_stance
+                .swap_in_progress(&self.player_stance_config)
+        }
+    }
+
     /// Apply an untyped incoming hit as aligned with the active stance.
     /// Used by projects without a ranged weapon; Cortex enemy melee is typed.
     pub(super) fn apply_untyped_player_damage(&mut self, damage: u16) -> bool {
