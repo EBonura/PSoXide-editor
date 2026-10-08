@@ -2403,9 +2403,11 @@ impl Renderer {
     fn mark_visible_streamed_faces(&mut self, map: &PxbspResidentMap, leaf_index: usize) -> bool {
         self.pxbsp_face_state.fill(0);
         self.visible_pxbsp_faces.clear();
-        let Some(bits) =
-            map.streamed_leaf_visibility_into(leaf_index, &mut self.stream_row, &mut self.visibility)
-        else {
+        let Some(bits) = map.streamed_leaf_visibility_into(
+            leaf_index,
+            &mut self.stream_row,
+            &mut self.visibility,
+        ) else {
             self.cached_pxbsp_visibility = None;
             self.visible_leaf_count = 0;
             return false;
@@ -2477,9 +2479,16 @@ impl Renderer {
         );
         let ok = self.mark_visible_pxbsp_faces(map, camera.origin)
             && unsafe {
-                PxbspSelectionStack::run(|| self.select_frame_pxbsp_faces(map, camera.origin, &frustum))
+                PxbspSelectionStack::run(|| {
+                    self.select_frame_pxbsp_faces(map, camera.origin, &frustum)
+                })
             };
-        let out = ok.then(|| (self.visible_pxbsp_faces.clone(), self.frame_pxbsp_faces.clone()));
+        let out = ok.then(|| {
+            (
+                self.visible_pxbsp_faces.clone(),
+                self.frame_pxbsp_faces.clone(),
+            )
+        });
         self.retire_frame_pxbsp_selection();
         out
     }

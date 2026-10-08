@@ -40,6 +40,10 @@ name = "gen-stream-world"
 path = "src/bin/gen_stream_world.rs"
 
 [[bin]]
+name = "stream-cook"
+path = "src/bin/stream_cook.rs"
+
+[[bin]]
 name = "stream-report"
 path = "src/bin/stream_report.rs"
 

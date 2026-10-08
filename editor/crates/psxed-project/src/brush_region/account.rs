@@ -243,7 +243,8 @@ pub(crate) fn clip_surfaces_indexed(
         if !aabb.overlaps(bounds) {
             continue;
         }
-        if !(share_liquid_boundary && !surface.contents.is_solid()) && !owns_coplanar(surface, bounds)
+        if !(share_liquid_boundary && !surface.contents.is_solid())
+            && !owns_coplanar(surface, bounds)
         {
             continue;
         }
