@@ -156,7 +156,7 @@ mod tests {
         }
         let stopped = distance / 256;
         assert!(
-            stopped < LUNGE_NEAR_UNITS && stopped >= LUNGE_NEAR_UNITS - 2,
+            (LUNGE_NEAR_UNITS - 2..LUNGE_NEAR_UNITS).contains(&stopped),
             "{stopped}"
         );
     }
