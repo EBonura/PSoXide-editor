@@ -1346,7 +1346,10 @@ impl Scene for Playtest {
                             phase_assembly,
                             &mut self.player_dash_assembly,
                             stance_clut,
-                            Some(player_stance_lit_tint(self.player_stance.active())),
+                            Some(player_lit_tint(
+                                self.player_stance.active(),
+                                self.player_hit_flash,
+                            )),
                             &mut primitive_packets,
                             &mut world,
                         )

@@ -63,6 +63,53 @@ pub(super) fn player_stance_lit_tint(stance: VitalityChannelId) -> mr::LitTintBi
     }
 }
 
+/// Colour the struck body flashes toward. White raises the texture modulation
+/// to its 2x ceiling at full strength, which reads as a brightening and keeps
+/// the stance hue in what the texture still shows.
+const HIT_FLASH_RGB: (u8, u8, u8) = (255, 255, 255);
+
+/// The player's lit tint while the body flash runs: the stance bias and then
+/// the flash, folded into the single lerp the draw path applies. With no flash
+/// this is exactly [`player_stance_lit_tint`].
+pub(super) fn player_lit_tint(stance: VitalityChannelId, flash_ticks: u8) -> mr::LitTintBias {
+    let base = player_stance_lit_tint(stance);
+    let flash = i32::from(psx_game_runtime::hit_stop::flash_strength_q8(flash_ticks));
+    if flash == 0 {
+        return base;
+    }
+    let stance_strength = i32::from(base.strength_q8);
+    // t -> lerp(lerp(t, stance, a), white, f) == lerp(t, X, k) with
+    // k = 1 - (1 - a)(1 - f) and X = (stance * a * (1 - f) + white * f) / k.
+    let keep = (256 - stance_strength) * (256 - flash) / 256;
+    let strength = (256 - keep).max(1);
+    let channel = |stance_channel: u8, white: u8| -> u8 {
+        let numerator = i32::from(stance_channel) * stance_strength * (256 - flash) / 256
+            + i32::from(white) * flash;
+        (numerator / strength).clamp(0, 255) as u8
+    };
+    let stance_rgb = base.color;
+    mr::LitTintBias {
+        color: (
+            channel(stance_rgb.0, HIT_FLASH_RGB.0),
+            channel(stance_rgb.1, HIT_FLASH_RGB.1),
+            channel(stance_rgb.2, HIT_FLASH_RGB.2),
+        ),
+        strength_q8: strength as u16,
+    }
+}
+
+/// The body flash of one entity-owned model instance, if its entity was just
+/// struck. Static props have no owner and return `None`.
+fn enemy_hit_flash(
+    entities: &RuntimeGameEntities,
+    pose: &InstanceActorPoseSnapshot,
+) -> Option<ModelTintSweep> {
+    let instance = u16::try_from(pose.instance_index()).ok()?;
+    let entity = game_entity_for_instance(instance)?;
+    let strength = psx_game_runtime::hit_stop::flash_strength_q8(entities.hit_flash(entity));
+    (strength != 0).then(|| ModelTintSweep::flash(HIT_FLASH_RGB, strength))
+}
+
 fn stance_texture_rgb(stance: VitalityChannelId) -> (u8, u8, u8) {
     match stance {
         VitalityChannelId::One => HORIZON_TEXTURE_RGB,
@@ -1357,6 +1404,13 @@ pub(super) fn draw_model_instances(
                 // a later pass.
                 let _ = unsafe { sweep.apply_to_model_packets(triangles, first_slot) };
             }
+            // The struck-body flash runs over the same packets, after the
+            // stance sweep, so a body flashes white whatever else it wears.
+            if let Some(flash) = enemy_hit_flash(entities, pose) {
+                // SAFETY: as above; the stance sweep rewrites packets in place
+                // and pushes none.
+                let _ = unsafe { flash.apply_to_model_packets(triangles, first_slot) };
+            }
         }
         accumulate_model_instance_draw_stats(&mut out, stats);
         if stats.stats.primitive_overflow || stats.stats.command_overflow {
@@ -1612,6 +1666,33 @@ mod stance_colour_tests {
         let material =
             player_stance_lit_tint(stance).apply(TextureMaterial::opaque(0, 0, room_tint));
         palette.map(|entry| lit(entry, material.tint()))
+    }
+
+    #[test]
+    fn the_hit_flash_folds_into_one_lerp_and_brightens_each_channel() {
+        let room = (52u8, 118u8, 86u8);
+        for stance in [VitalityChannelId::One, VitalityChannelId::Two] {
+            let base = player_stance_lit_tint(stance);
+            assert_eq!(player_lit_tint(stance, 0), base);
+            let plain = base.apply(TextureMaterial::opaque(0, 0, room)).tint();
+            let mut previous = plain;
+            // Fading from the strongest tick down to the last: monotonically
+            // dimmer, and never darker than the plain stance tint.
+            for ticks in (1..=psx_game_runtime::hit_stop::FLASH_TICKS).rev() {
+                let flashed = player_lit_tint(stance, ticks)
+                    .apply(TextureMaterial::opaque(0, 0, room))
+                    .tint();
+                assert!(flashed.0 >= plain.0 && flashed.1 >= plain.1 && flashed.2 >= plain.2);
+                if ticks < psx_game_runtime::hit_stop::FLASH_TICKS {
+                    assert!(flashed.0 <= previous.0 && flashed.1 <= previous.1);
+                }
+                previous = flashed;
+            }
+            let peak = player_lit_tint(stance, psx_game_runtime::hit_stop::FLASH_TICKS)
+                .apply(TextureMaterial::opaque(0, 0, room))
+                .tint();
+            assert!(peak.1 > plain.1 + 60, "{stance:?}: {plain:?} -> {peak:?}");
+        }
     }
 
     // The crystal's own tint (116,132,152) at reflection strength 232, under
