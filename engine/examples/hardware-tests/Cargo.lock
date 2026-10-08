@@ -15,6 +15,7 @@ dependencies = [
  "hello-fmv",
  "hello-memcard",
  "psx-asset",
+ "psx-cdstream",
  "psx-engine",
  "psx-fmv",
  "psx-font",
@@ -64,6 +65,15 @@ dependencies = [
  "psx-gte",
  "psx-hw",
  "psxed-format",
+]
+
+[[package]]
+name = "psx-cdstream"
+version = "0.1.0"
+dependencies = [
+ "psx-hw",
+ "psx-io",
+ "psx-rt",
 ]
 
 [[package]]

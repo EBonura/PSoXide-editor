@@ -135,7 +135,7 @@ class TableSyncTests(unittest.TestCase):
         # slots when it runs, so they are not part of the standing battery.
         mdec = sum(1 for record_id in report.LABELS if 0x200 <= record_id < 0x2B0)
         # The v1.27 console cases' records likewise join a capture only once run.
-        console = sum(1 for record_id in report.LABELS if 0x2C0 <= record_id < 0x2F0)
+        console = sum(1 for record_id in report.LABELS if 0x2C0 <= record_id < 0x320)
         # What is left is the standing battery, which has not changed size.
         standing = (
             len(report.LABELS) - sum(table.values()) - dma_pairs - retired - fmv - mdec - console
@@ -148,7 +148,7 @@ class TableSyncTests(unittest.TestCase):
     def test_console_records_match_the_guest(self) -> None:
         source = (GUEST_SRC / "console_tests.rs").read_text(encoding="utf-8")
         groups = {}
-        for name in ("KERNEL", "WIDTH", "INTERLACE", "XA"):
+        for name in ("KERNEL", "WIDTH", "INTERLACE", "XA", "CDCOST", "CDHANDOFF", "CDMOTOR"):
             first = int(re.search(rf"const {name}_RECORD: u16 = (0x[0-9A-Fa-f]+);", source).group(1), 16)
             count = int(re.search(rf"const {name}_COUNT: usize = (\d+);", source).group(1))
             groups[name] = (first, count)
@@ -191,6 +191,54 @@ class TableSyncTests(unittest.TestCase):
         self.assertIn("console_xa,loop_gap_ms,min=343 med=344 max=344", rows)
         self.assertIn("console_xa,loop_period_ms,none", rows)
         self.assertEqual(report.console_rows(SimpleNamespace(records=())), [])
+
+    def test_cdstream_rows_unpack_each_case(self) -> None:
+        def record(record_id, low, mid, high):
+            return report.Record(record_id, 0, low, high, mid)
+
+        records = (
+            record(0x2F0, 1480, 1490, 1500),
+            record(0x2F1, 740, 745, 750),
+            record(0x2F2, 1250, 1300, 1320),
+            record(0x2F3, 1250, 1290, 1310),
+            record(0x2F4, 200, 100, 100),
+            record(0x2F5, 540, 500, 1800),
+            record(0x2F6, 300, 310, 0),
+            record(0x2F7, 0b111, 12, 6),
+            record(0x300, 30, 32, 40),
+            record(0x301, 120, 150, 180),
+            record(0x302, 20, 0x82, 1),
+            record(0x303, 400, 500, 900),
+            record(0x304, 900, 1000, 1500),
+            record(0x305, 100, 120, 150),
+            record(0x306, 0xFFF0, 1, 3),
+            record(0x307, 500, 1200, 0),
+            record(0x308, 0b01011111, 0, 0xFFFF),
+            record(0x309, 500, 1200, 0),
+            record(0x30A, 0b01000111, 1000, 0xFFFF),
+            record(0x30B, 0, 40, 0b0111),
+            record(0x310, 400, 500, 0),
+            record(0x311, 400, 500, 0),
+            record(0x312, 400, 500, 0),
+            record(0x313, 20, 0xFFFF, 0xFFFF),
+            record(0x314, 2000, 0xFFFF, 500),
+            record(0x315, 0b110, 600, 300),
+        )
+        rows = report.console_rows(SimpleNamespace(records=records))
+        self.assertIn("cdstream_cost,sectors_per_second_2x,min=148 med=149 max=150", rows)
+        self.assertIn("cdstream_cost,cpu_lost_percent_2x,20", rows)
+        self.assertIn("cdstream_cost,intact_1x,1", rows)
+        self.assertIn("cdstream_cdda,t_pause_ms,min=12 med=15 max=18", rows)
+        self.assertIn("cdstream_cdda,status_after_pause,0x82", rows)
+        self.assertIn("cdstream_cdda,resume_moved_frames_median,-16", rows)
+        self.assertIn("cdstream_cdda,recovery_pause_capture_signal_before,1", rows)
+        self.assertIn("cdstream_cdda,recovery_pause_capture_signal_after,0", rows)
+        self.assertIn("cdstream_cdda,recovery_pause_first_quiet_sample_ms,never", rows)
+        self.assertIn("cdstream_cdda,no_pause_signal_during_read_percent,100", rows)
+        self.assertIn("cdstream_cdda,paused_signal_during_read_percent,0", rows)
+        self.assertIn("cdstream_motor,read_at_once_after_stop_sectors_ms,failed", rows)
+        self.assertIn("cdstream_motor,motor_off_after_ms,never", rows)
+        self.assertIn("cdstream_motor,settled_read_intact,1", rows)
 
     def test_fmv_records_match_the_guest(self) -> None:
         source = (GUEST_SRC / "fmv_test.rs").read_text(encoding="utf-8")
