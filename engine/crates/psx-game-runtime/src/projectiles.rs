@@ -455,6 +455,38 @@ impl<const N: usize> CombatProjectiles<N> {
         radius: i32,
         height: i32,
     ) -> Option<ProjectileThreat> {
+        self.soonest_threat(team, room, feet, radius, height)
+            .map(|(_, threat)| threat)
+    }
+
+    /// Remove the bolt that would reach `feet` soonest, if it arrives within
+    /// `within` ticks, and return it with its damage and owner. A perfect swap
+    /// uses this to negate a bolt the player is not otherwise offered to.
+    pub fn negate_incoming(
+        &mut self,
+        team: CombatTeam,
+        room: RoomIndex,
+        feet: [i32; 3],
+        radius: i32,
+        height: i32,
+        within: u16,
+    ) -> Option<(ProjectileThreat, u16, u16)> {
+        let (index, threat) = self.soonest_threat(team, room, feet, radius, height)?;
+        if threat.ticks_to_contact > within {
+            return None;
+        }
+        self.active[index] = 0;
+        Some((threat, self.damage[index], self.owners[index]))
+    }
+
+    fn soonest_threat(
+        &self,
+        team: CombatTeam,
+        room: RoomIndex,
+        feet: [i32; 3],
+        radius: i32,
+        height: i32,
+    ) -> Option<(usize, ProjectileThreat)> {
         let mut result = None;
         let mut soonest = 25;
         for i in 0..N {
@@ -496,11 +528,14 @@ impl<const N: usize> CombatProjectiles<N> {
                 continue;
             }
             soonest = ticks;
-            result = Some(ProjectileThreat {
-                position: p,
-                velocity: v,
-                ticks_to_contact: ticks as u16,
-            });
+            result = Some((
+                i,
+                ProjectileThreat {
+                    position: p,
+                    velocity: v,
+                    ticks_to_contact: ticks as u16,
+                },
+            ));
         }
         result
     }
@@ -941,6 +976,31 @@ mod tests {
         assert!(p
             .incoming_threat(CombatTeam::Player, s.room, [0; 3], 12, 64)
             .is_none());
+    }
+
+    #[test]
+    fn negating_removes_only_a_bolt_that_arrives_inside_the_window() {
+        let mut p = CombatProjectiles::<2>::new();
+        let mut s = spawn(CombatTeam::Enemy);
+        s.velocity = [0, 0, -8];
+        s.lifetime_ticks = 120;
+        // 13 ticks out at 8 per tick.
+        s.position = [0, 32, 104];
+        let i = p.spawn(s).unwrap();
+        p.age_ticks[i] = 6;
+        let hit = |p: &mut CombatProjectiles<2>, within| {
+            p.negate_incoming(CombatTeam::Player, s.room, [0; 3], 12, 64, within)
+        };
+        assert!(
+            hit(&mut p, 12).is_none(),
+            "13 ticks away is outside a 12 window"
+        );
+        assert_eq!(p.len(), 1, "an early swap leaves the bolt alone");
+        p.positions[i] = [0, 32, 96];
+        let (threat, damage, owner) = hit(&mut p, 12).expect("12 ticks away is inside");
+        assert_eq!((threat.ticks_to_contact, damage, owner), (12, 25, 7));
+        assert!(p.is_empty());
+        assert!(hit(&mut p, 12).is_none());
     }
 
     struct ClearWorld;

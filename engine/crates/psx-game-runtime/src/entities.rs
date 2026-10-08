@@ -3074,6 +3074,28 @@ mod tests {
         e
     }
     #[test]
+    fn a_perfect_stagger_breaks_a_mid_swing_enemy_through_grace_and_only_in_flow_mode() {
+        let mut e = flow_enemy();
+        e.enter_state(
+            0,
+            GameEntityState::Attack,
+            &mut GameEntityTickStats::default(),
+        );
+        e.flow[0].broke();
+        assert!(
+            !e.flow[0].can_interrupt(),
+            "grace would refuse a normal break"
+        );
+        assert!(e.perfect_stagger(&DUAL_ENEMY, 0));
+        assert_eq!(e.state(0), GameEntityState::Staggered);
+        assert!(!e.perfect_stagger(&DUAL_ENEMY, 0), "already staggered");
+        assert!(!e.perfect_stagger(&DUAL_ENEMY, 5), "out of range");
+        let mut legacy = GameEntities::<8>::EMPTY;
+        legacy.spawn_from_records(&DUAL_ENEMY);
+        assert!(!legacy.perfect_stagger(&DUAL_ENEMY, 0));
+        assert_ne!(legacy.state(0), GameEntityState::Staggered);
+    }
+    #[test]
     fn a_fresh_enemy_survives_one_light_hit_and_breaks_on_a_combo_or_heavy() {
         // Light 25 / heavy 50 poise, the Aletha values.
         let mut e = flow_enemy();

@@ -513,6 +513,17 @@ impl Playtest {
             None => (0, 0),
         };
         let player_invulnerable = self.player_invulnerable(ctx);
+        // Cortex rules: an attack that would land in the first ticks of a
+        // voluntary stance swap is a perfect swap, not just a miss.
+        let perfect_window = player_invulnerable
+            && self.player_has_ranged_weapon()
+            && self.swap_voluntary
+            && psx_game_runtime::combat_flow::perfect_swap_window(
+                self.player_stance.swap_elapsed_ticks(),
+            );
+        // First perfect swap this tick: attack source (0 claw light, 1 claw
+        // heavy, 2 cannon), nominal damage avoided, whether the attacker staggered.
+        let mut perfect: Option<(u32, u16, bool)> = None;
         let player_capsules = self
             .character
             .as_ref()
@@ -642,8 +653,8 @@ impl Playtest {
                 continue;
             }
             if player_invulnerable {
-                if self.duel.active {
-                    let (contact, _) = combat::resolve_authored_actor_contact_swept_pending(
+                if self.duel.active || perfect_window {
+                    let (contact, window) = combat::resolve_authored_actor_contact_swept_pending(
                         attacker_capsules,
                         attack.action(),
                         attacker_pose,
@@ -654,9 +665,24 @@ impl Playtest {
                             .deferred_melee_hit_mask(attack)
                             .unwrap_or(u16::MAX),
                     );
-                    if matches!(contact, combat::AuthoredActorContact::Hit { .. }) {
+                    if let combat::AuthoredActorContact::Hit { damage, .. } = contact {
                         let heavy = self.game_entities.attack_kind(attack.entity()) == 1;
-                        self.duel_note_melee_avoid(attack.entity(), attack.swing_sequence(), heavy);
+                        if perfect_window {
+                            // Consume the swing so it cannot land once the
+                            // i-frames end, then break the attacker.
+                            let consumed = if window == 0 {
+                                self.game_entities.connect_deferred_attack(attack)
+                            } else {
+                                self.game_entities.connect_deferred_melee_window(attack, window)
+                            };
+                            if consumed {
+                                let staggered =
+                                    self.game_entities.perfect_stagger(GAME_ENTITIES, attack.entity());
+                                perfect.get_or_insert((u32::from(heavy), damage, staggered));
+                            }
+                        } else {
+                            self.duel_note_melee_avoid(attack.entity(), attack.swing_sequence(), heavy);
+                        }
                     }
                 }
                 continue;
@@ -777,8 +803,27 @@ impl Playtest {
                 });
             }
         }
-        if player_invulnerable && self.duel.active {
+        if perfect_window {
+            // A bolt due inside the window is negated, not just passed through.
+            let left = psx_game_runtime::combat_flow::PERFECT_SWAP_TICKS
+                .saturating_sub(self.player_stance.swap_elapsed_ticks())
+                + 1;
+            if let Some((threat, damage, _)) = self.combat_projectiles.negate_incoming(
+                CombatTeam::Player,
+                self.room_index,
+                player_position,
+                player_radius,
+                player_height,
+                left,
+            ) {
+                perfect.get_or_insert((2, damage, false));
+                let _ = threat;
+            }
+        } else if player_invulnerable && self.duel.active {
             self.duel_note_bolt_avoid(player_position, player_radius, player_height);
+        }
+        if let Some((source, avoided, staggered)) = perfect {
+            self.perfect_swap_payoff(source, avoided, staggered, player_position, player_height);
         }
         // Use the primary animated hurtbox for projectile contact. A legacy
         // actor without one retains its body capsule; authoring failures do
@@ -1011,6 +1056,35 @@ impl Playtest {
                 self.hazard_death_ticks_remaining != 0,
             );
         }
+    }
+
+    /// Reward a perfect swap: refund Energy, make the next swap available,
+    /// burst in the new stance colour and play the existing impact and
+    /// swap-ready sounds. Consumes the swap so one press pays once.
+    fn perfect_swap_payoff(
+        &mut self,
+        source: u32,
+        avoided: u16,
+        staggered: bool,
+        position: [i32; 3],
+        height: i32,
+    ) {
+        self.swap_voluntary = false;
+        let refunded = self
+            .combat_flow
+            .refund(psx_game_runtime::combat_flow::PERFECT_SWAP_ENERGY);
+        self.player_stance.reset_swap_cooldown();
+        self.queue_gameplay_sfx(LevelGameplaySfxEvent::HeavyHit);
+        self.queue_gameplay_sfx(LevelGameplaySfxEvent::StanceSwapReady);
+        let zenith = self.player_stance.active() == VitalityChannelId::Two;
+        let _ = self.combat_projectile_impacts.spawn_effect(
+            [position[0], position[1].saturating_add(height / 2), position[2]],
+            self.room_index,
+            24,
+            psx_game_runtime::combat_feedback::melee_impact_style(zenith, true, false),
+        );
+        telemetry::debug_log("player stance:perfect-swap");
+        self.duel_note_perfect_swap(source, u32::from(refunded), u32::from(avoided), staggered);
     }
 
     pub(super) fn track_enemy_tell(&mut self, index: usize, ctx: &Ctx, delta: u16) {

@@ -323,6 +323,9 @@ mod duel;
 
 struct Playtest {
     duel: duel::Duel,
+    /// The latest stance swap was a Triangle press, not a forced one. Only a
+    /// voluntary swap can be a perfect swap.
+    swap_voluntary: bool,
     opening: opening_sequence::OpeningSequence,
     /// Active room. `None` until `init` runs and only `Some`
     /// when the manifest had at least one room and its bytes

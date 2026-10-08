@@ -453,6 +453,10 @@ struct MetricInputs<'a> {
 ///   2 cannon), b = health removed, c = poise damage applied, d = flags
 ///   (1 poise break, 2 killed, 4 opposite colour).
 /// - kind 3, an enemy attack overlapped the player during i-frames: a = source.
+/// - kind 4, a perfect swap: a = source (0 claw light, 1 claw heavy, 2 bolt
+///   negated), b = Energy refunded, c = nominal damage avoided, d = flags
+///   (1 attacker staggered, 2 the bot was attempting one).
+/// - kind 5, the bot attempted a perfect swap: a = ticks it expected to contact.
 fn metrics(m: &MetricInputs<'_>) -> Value {
     // [count, health removed, poise applied, breaks, opposite colour]
     let mut dealt = [[0u32; 5]; 3];
@@ -462,8 +466,28 @@ fn metrics(m: &MetricInputs<'_>) -> Value {
     // Claw light hits whose own poise damage reaches the player's capacity
     // (`character::PLAYER_POISE`), i.e. hits that break a fresh player alone.
     let mut claw_light_alone = 0u32;
+    // Perfect swaps: attempts, successes by source, refunded Energy, nominal
+    // damage avoided, attackers staggered, successes that followed an attempt.
+    let (mut perfect_tried, mut perfect_after_try, mut perfect_staggers) = (0u32, 0u32, 0u32);
+    let (mut perfect_energy, mut perfect_avoided) = (0u32, 0u32);
+    let mut perfect_by_source = [0u32; 3];
     for e in m.events {
         let (kind, source, hp, poise, flags) = (e[1], e[2] as usize, e[3], e[4], e[5]);
+        match kind {
+            5 => {
+                perfect_tried += 1;
+                continue;
+            }
+            4 if source <= 2 => {
+                perfect_by_source[source] += 1;
+                perfect_energy += hp;
+                perfect_avoided += poise;
+                perfect_staggers += flags & 1;
+                perfect_after_try += (flags >> 1) & 1;
+                continue;
+            }
+            _ => {}
+        }
         if source > 2 {
             continue;
         }
@@ -541,12 +565,21 @@ fn metrics(m: &MetricInputs<'_>) -> Value {
         "enemy_flinches": flinches,
         "opposite_colour_hits_on_enemy": sum(&dealt, 4),
         "opposite_colour_hits_on_player": sum(&taken, 4),
+        "perfect_swaps": {
+            "attempted": perfect_tried,
+            "succeeded": perfect_by_source.iter().sum::<u32>(),
+            "succeeded_after_attempt": perfect_after_try,
+            "claw_light": perfect_by_source[0], "claw_heavy": perfect_by_source[1], "bolt_negated": perfect_by_source[2],
+            "energy_refunded": perfect_energy,
+            "damage_avoided": perfect_avoided,
+            "attackers_staggered": perfect_staggers,
+        },
         "iframe_avoids": {"claw_light": avoids[0], "claw_heavy": avoids[1], "cannon": avoids[2], "total": avoids.iter().sum::<u32>()},
         "enemy_evades": {"attempted": evade_attempts, "avoided_shot": evade_attempts - evade_failed, "failed": evade_failed},
         "stance_swaps": {"player": m.swaps[0], "enemy": m.swaps[1]},
         "energy": {"player_spent": energy(0), "player_gained": energy(1), "enemy_spent": energy(2), "enemy_gained": energy(3)},
         "shots": {"player_fired": fired(0), "player_hit": dealt[2][0], "enemy_fired": fired(1), "enemy_hit": taken[2][0]},
-        "definitions": "Health removed is what left the pools, so overkill is excluded. Poise is the value applied after colour scaling. i-frame avoids count one per enemy swing that overlapped the player (claw) or per bolt about to cross the player (cannon, estimated by look-ahead) while the player was invulnerable. An enemy evade 'avoided' when no player shot landed before the enemy left the evade mode. Flinches come from sampled behaviour state, breaks from events.",
+        "definitions": "Health removed is what left the pools, so overkill is excluded. Poise is the value applied after colour scaling. i-frame avoids count one per enemy swing that overlapped the player (claw) or per bolt about to cross the player (cannon, estimated by look-ahead) while the player was invulnerable. Perfect swaps: attempted counts the bot's timed Triangle presses, succeeded counts attacks that would have landed in the first ticks of a voluntary swap (claw hits stagger the attacker, bolts are negated), damage_avoided is their nominal damage before colour scaling, and an attacker staggered by one still shows in enemy_flinches but not in poise_breaks_inflicted. An enemy evade 'avoided' when no player shot landed before the enemy left the evade mode. Flinches come from sampled behaviour state, breaks from events.",
     })
 }
 
@@ -807,6 +840,44 @@ mod tests {
         assert_eq!(m["energy"]["player_gained"], 36);
         assert_eq!(m["player_hp_end"], 190);
         assert_eq!(m["enemy_hp_end"], 290);
+    }
+    #[test]
+    fn perfect_swap_events_report_attempts_and_payoff() {
+        let line = |label: &str, v: &[u32]| {
+            format!(
+                "{label} {}\n",
+                v.iter()
+                    .map(|x| format!("{x:08X}"))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            )
+        };
+        let mut log = line("duel:start", &[1, 0]);
+        for e in [
+            [100, 5, 9, 0, 0, 0],
+            [109, 4, 0, 20, 32, 3],
+            [300, 5, 4, 0, 0, 0],
+            [340, 4, 2, 10, 25, 2],
+            [500, 4, 1, 20, 48, 1],
+            [600, 5, 12, 0, 0, 0],
+        ] {
+            log += &line("duel:event", &e);
+        }
+        log += &line("duel:end", &[700, 1]);
+        let m = &summarize(&log)["metrics"]["perfect_swaps"];
+        assert_eq!(m["attempted"], 3);
+        assert_eq!(m["succeeded"], 3);
+        assert_eq!(m["succeeded_after_attempt"], 2);
+        assert_eq!(m["claw_light"], 1);
+        assert_eq!(m["claw_heavy"], 1);
+        assert_eq!(m["bolt_negated"], 1);
+        assert_eq!(m["energy_refunded"], 50);
+        assert_eq!(m["damage_avoided"], 105);
+        assert_eq!(m["attackers_staggered"], 2);
+        // Attempt and perfect-swap events are not hits and never count as damage.
+        let all = &summarize(&log)["metrics"];
+        assert_eq!(all["hits_on_player"]["total"], 0);
+        assert_eq!(all["iframe_avoids"]["total"], 0);
     }
     #[test]
     fn metrics_degrade_to_nulls_without_the_new_records() {

@@ -32,6 +32,23 @@ pub const OPPOSED_POISE_Q12: u32 = 8192;
 /// player's capacity of 60 and a claw light of 50.
 pub const PLAYER_OPPOSED_POISE_Q12: u32 = 4874;
 
+/// Ticks after a voluntary stance swap in which an enemy attack that would
+/// land is a perfect swap (starting point). Reasoned from the light claw: its
+/// tell runs about 44 ticks from the start of the windup to the hit (heavy
+/// claw about 70), the swap's i-frames last 25 ticks, and a 12-tick window is
+/// the last half of those i-frames, so a player who reads the tell and swaps
+/// late is rewarded while one who swaps early is only protected.
+pub const PERFECT_SWAP_TICKS: u16 = 12;
+/// Energy refunded by a perfect swap: one shot, so the swap can flow
+/// straight into a ranged attack.
+pub const PERFECT_SWAP_ENERGY: u16 = SHOT_COST;
+
+/// Whether `elapsed` swap ticks (1 on the tick of the press) lie inside the
+/// perfect-swap window. Both ends are inclusive; tick 0 is "no swap yet".
+pub const fn perfect_swap_window(elapsed: u16) -> bool {
+    elapsed >= 1 && elapsed <= PERFECT_SWAP_TICKS
+}
+
 /// Scale a poise damage value by a Q12 multiplier, saturating at `u16::MAX`.
 pub const fn scale_poise(poise: u16, multiplier_q12: u32) -> u16 {
     let scaled = poise as u32 * multiplier_q12 / 4096;
@@ -128,6 +145,18 @@ impl CombatFlow {
             self.followup = 0;
         }
         true
+    }
+    /// Credit `amount` Energy, clamped to the bar, as a perfect swap does.
+    /// Returns what was actually added. A bar that reaches the AI's resume
+    /// level leaves the recharge phase, like melee gain.
+    pub fn refund(&mut self, amount: u16) -> u16 {
+        let before = self.energy;
+        self.energy = self.energy.saturating_add(amount).min(ENERGY_MAX);
+        if self.energy >= AI_RESUME_ENERGY {
+            self.recharging = false;
+            self.ranged_phase = true;
+        }
+        self.energy - before
     }
     /// Contacts, never swings at air or defeated bodies, earn energy.
     pub fn melee_hit(&mut self, heavy: bool) {
@@ -243,6 +272,27 @@ impl CombatFlow {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn the_perfect_swap_window_includes_both_edges_and_nothing_else() {
+        assert!(!perfect_swap_window(0), "no swap has happened yet");
+        assert!(perfect_swap_window(1), "the press tick counts");
+        assert!(perfect_swap_window(PERFECT_SWAP_TICKS));
+        assert!(!perfect_swap_window(PERFECT_SWAP_TICKS + 1));
+        assert!(!perfect_swap_window(25), "i-frames outlast the window");
+    }
+    #[test]
+    fn a_refund_is_clamped_and_reports_what_it_added() {
+        let mut f = CombatFlow::FULL;
+        assert_eq!(f.refund(PERFECT_SWAP_ENERGY), 0);
+        for _ in 0..5 {
+            f.spend_shot();
+        }
+        assert_eq!(f.energy, 0);
+        assert_eq!(f.refund(PERFECT_SWAP_ENERGY), 20);
+        assert!(f.can_shoot(), "a perfect swap funds a shot");
+        f.energy = 90;
+        assert_eq!(f.refund(PERFECT_SWAP_ENERGY), 10);
+    }
     #[test]
     fn poise_scaling_is_exact_at_one_and_saturates() {
         assert_eq!(scale_poise(25, 4096), 25);

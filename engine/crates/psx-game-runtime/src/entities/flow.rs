@@ -255,6 +255,36 @@ impl<const N: usize, const S: bool> GameEntities<N, S> {
         };
         self.apply_stance_hit(records, index, channel, damage, poise)
     }
+    /// Break entity `index` outright, as the target of a perfect swap does:
+    /// poise empties, the break grace starts, its attack is cancelled and it
+    /// staggers. Ignores break grace (the player earned this one). Returns
+    /// false, changing nothing, outside flow mode, for a dead or already
+    /// staggered entity.
+    pub fn perfect_stagger(
+        &mut self,
+        records: &'static [LevelGameEntityRecord],
+        index: usize,
+    ) -> bool {
+        if !self.flow_enabled
+            || index >= self.count()
+            || index >= records.len()
+            || matches!(
+                self.state(index),
+                GameEntityState::Dead | GameEntityState::Staggered
+            )
+        {
+            return false;
+        }
+        self.poise[index] = crate::poise::Poise::EMPTY;
+        self.flow[index].broke();
+        self.release_attack_owner(index, u16::from(records[index].group_attack_delay_ticks));
+        self.enter_state(
+            index,
+            GameEntityState::Staggered,
+            &mut GameEntityTickStats::default(),
+        );
+        true
+    }
     /// A heavy connection creates separation through the same body collision as AI walking.
     pub fn recoil_from(&mut self, index: usize, from: [i32; 3]) {
         if !self.flow_enabled || index >= self.count() || self.state(index) == GameEntityState::Dead
