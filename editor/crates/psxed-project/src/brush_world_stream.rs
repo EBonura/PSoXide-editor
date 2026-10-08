@@ -29,9 +29,11 @@
 //!
 //! * Brush movers (doors, destructibles) are refused: a mover is a submodel
 //!   with its own tables, which the top container does not carry yet.
-//! * The dense portal-flow rows are one `u16` index space, so a world is
-//!   limited to 32,767 visible leaves in total at cook time. Region payloads
-//!   have no such limit.
+//! * Visibility is computed per region by the clustered flow
+//!   ([`crate::brush_vis`]), bounded by the far-reject distance, so a world is
+//!   no longer limited by one dense `u16` leaf index. The whole-world flow
+//!   ([`StreamPvs::Global`]) is kept for the tests that prove the two agree and
+//!   still stops at 32,767 visible leaves.
 //! * The player spawn entity carries leaf 0; a streamed world locates it by
 //!   position.
 
@@ -78,9 +80,12 @@ use crate::brush_pxbsp::{
 };
 use crate::brush_region::geometry::{polygon_on_axis_plane, Aabb};
 use crate::brush_region::{
-    clip_surfaces_indexed, partition, CutNode, CutTree, PartitionInput, PartitionParams,
+    clip_surfaces_indexed, partition, CookMeasured, CutNode, CutTree, Partition, PartitionInput,
+    PartitionParams,
 };
-use crate::brush_vis::{quake_portal_fast_rows, quake_portal_flow_rows};
+use crate::brush_vis::{
+    clustered_portal_rows, quake_portal_fast_rows, quake_portal_flow_rows, ClusterFlow,
+};
 use crate::units::ENGINE_UV_UNITS_PER_TEXEL;
 use crate::{NodeKind, ProjectDocument, ResourceData};
 
@@ -214,9 +219,10 @@ pub struct StreamedBrushWorld {
 pub struct StreamDebug {
     /// `face_source[region][face]`: index of the pre-clip render surface.
     pub face_source: Vec<Vec<u32>>,
-    /// `dense_rows[region][local leaf - 1]`: PVS over all world leaves, bit
-    /// `dense_base[q] + local - 1`.
-    pub dense_rows: Vec<Vec<Vec<u8>>>,
+    /// `sparse_rows[region][local leaf - 1]`: the world visible-leaf ids the
+    /// leaf sees, sorted. Visible leaf `dense_base[q] + local - 1` is leaf
+    /// `local` of region `q`.
+    pub sparse_rows: Vec<Vec<Vec<u32>>>,
     pub dense_base: Vec<usize>,
     pub dense_total: usize,
     pub regions: Vec<RegionBuild>,
@@ -604,7 +610,10 @@ struct Ctx<'a> {
     /// every dense id.
     dense_base: Vec<usize>,
     region_of_dense: Vec<u16>,
-    rows: Vec<Option<Vec<u8>>>,
+    /// Host leaf to world visible-leaf id plus one (zero: not visible).
+    dense_of_leaf: Vec<u32>,
+    /// Visible-leaf ids each visible leaf sees, sorted.
+    rows: Vec<Vec<u32>>,
     leaf_cap: usize,
     hull_bounds: [CollisionHullBounds; 3],
     brushes: &'a [Brush],
@@ -614,7 +623,7 @@ struct Ctx<'a> {
 struct RegionPacked {
     build: RegionBuild,
     face_source: Vec<u32>,
-    dense_rows: Vec<Vec<u8>>,
+    sparse_rows: Vec<Vec<u32>>,
     /// Raw 14 byte collision planes and clip nodes for the spawn check.
     hull: (Vec<u8>, Vec<u8>, [i16; 2]),
 }
@@ -748,10 +757,9 @@ fn pack_region(
     let mut seen = vec![false; regions];
     seen[region] = true;
     for &host in &visible_hosts {
-        let row = ctx.rows[host].as_ref().expect("visible leaves have rows");
-        for_each_bit(row, |bit| {
-            seen[ctx.region_of_dense[bit] as usize] = true;
-        });
+        for &target in &ctx.rows[ctx.dense_of_leaf[host] as usize - 1] {
+            seen[ctx.region_of_dense[target as usize] as usize] = true;
+        }
     }
     let mut list: Vec<u16> = vec![region as u16];
     list.extend(
@@ -774,16 +782,16 @@ fn pack_region(
     let mut vis = Vec::new();
     let mut interned = BTreeMap::<Vec<u8>, i32>::new();
     let mut offsets = Vec::with_capacity(visible_hosts.len());
-    let mut dense_rows = Vec::with_capacity(visible_hosts.len());
+    let mut sparse_rows = Vec::with_capacity(visible_hosts.len());
     for &host in &visible_hosts {
-        let row = ctx.rows[host].as_ref().expect("visible leaves have rows");
+        let row = &ctx.rows[ctx.dense_of_leaf[host] as usize - 1];
         let mut ranked = vec![0u8; row_bytes];
-        for_each_bit(row, |bit| {
-            let q = ctx.region_of_dense[bit] as usize;
-            let local = bit - ctx.dense_base[q];
+        for &bit in row {
+            let q = ctx.region_of_dense[bit as usize] as usize;
+            let local = bit as usize - ctx.dense_base[q];
             let target = rank_of[q] as usize * leaf_cap + local;
             ranked[target >> 3] |= 1 << (target & 7);
-        });
+        }
         let compressed = compress_visibility(&ranked);
         let offset = *interned.entry(compressed.clone()).or_insert_with(|| {
             let at = vis.len() as i32;
@@ -791,7 +799,7 @@ fn pack_region(
             at
         });
         offsets.push(offset);
-        dense_rows.push(row.clone());
+        sparse_rows.push(row.clone());
     }
 
     // Marks and leaf records.
@@ -900,7 +908,7 @@ fn pack_region(
     Ok(RegionPacked {
         build,
         face_source,
-        dense_rows,
+        sparse_rows,
         hull: (hulls.planes, hulls.clipnodes, clip_roots),
     })
 }
@@ -947,6 +955,18 @@ fn check_limit(
     }
 }
 
+/// How the cooker computes leaf visibility.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum StreamPvs {
+    /// Per-region flow bounded by the far-reject distance `reach` (engine
+    /// units). Scales to any world: the working set is one neighbourhood.
+    Clustered { reach: f64 },
+    /// One flow over every visible leaf, as the whole-map cook does. Limited
+    /// to 32,767 visible leaves and quadratic in their number; kept so the
+    /// tests can prove the clustered flow against it.
+    Global,
+}
+
 /// Cook an engine-unit project as a streamed world over `tree`'s cells.
 /// `order` is the disc order of the regions (the layout the partitioner chose).
 pub fn compile_brush_world_streamed(
@@ -954,6 +974,7 @@ pub fn compile_brush_world_streamed(
     options: BrushWorldCookOptions<'_>,
     tree: &CutTree,
     order: &[u32],
+    pvs: StreamPvs,
 ) -> Result<StreamedBrushWorld, StreamCookError> {
     let scene = project.active_scene();
     let body_hulls = authored_body_hulls(project);
@@ -1036,20 +1057,15 @@ pub fn compile_brush_world_streamed(
     let regions = cells.cells.len();
 
     // Dense runtime numbering of the visible leaves, region by region.
-    let mut dense_of_leaf = vec![0i16; bsp.leaves.len()];
+    let mut dense_of_leaf = vec![0u32; bsp.leaves.len()];
     let mut dense_base = vec![0usize; regions];
-    let mut region_of_dense = Vec::new();
+    let mut region_of_dense: Vec<u16> = Vec::new();
     for r in 0..regions {
         dense_base[r] = region_of_dense.len();
         for host in spans[r].leaves.clone() {
             if bsp.leaves[host].contents.is_visible() {
                 region_of_dense.push(r as u16);
-                dense_of_leaf[host] = region_of_dense.len() as i16;
-                if region_of_dense.len() > i16::MAX as usize {
-                    return Err(StreamCookError::Unsupported(
-                        "more than 32767 visible leaves in the whole world",
-                    ));
-                }
+                dense_of_leaf[host] = region_of_dense.len() as u32;
             }
         }
     }
@@ -1057,12 +1073,44 @@ pub fn compile_brush_world_streamed(
     if visible == 0 {
         return Err(BrushPackError::EmptyWorld.into());
     }
-    let rows = if visible <= 512 && portals.len() <= 10_000
-        || options.mode == BrushWorldCookMode::Release
-    {
-        quake_portal_flow_rows(&bsp, &portals, &dense_of_leaf, visible)
-    } else {
-        quake_portal_fast_rows(&bsp, &portals, &dense_of_leaf, visible)
+    let rows = match pvs {
+        StreamPvs::Clustered { reach } => {
+            let cluster_of: Vec<u32> = region_of_dense.iter().map(|&r| u32::from(r)).collect();
+            let (rows, _) = clustered_portal_rows(&ClusterFlow {
+                bsp: &bsp,
+                portals: &portals,
+                dense_of_leaf: &dense_of_leaf,
+                visible,
+                cluster_of: &cluster_of,
+                clusters: regions,
+                reach,
+                exact: true,
+            });
+            rows
+        }
+        StreamPvs::Global => {
+            if visible > i16::MAX as usize {
+                return Err(StreamCookError::Unsupported(
+                    "more than 32767 visible leaves for the whole-world flow; use the clustered flow",
+                ));
+            }
+            let mapping: Vec<i16> = dense_of_leaf.iter().map(|&d| d as i16).collect();
+            let dense_rows = if visible <= 512 && portals.len() <= 10_000
+                || options.mode == BrushWorldCookMode::Release
+            {
+                quake_portal_flow_rows(&bsp, &portals, &mapping, visible)
+            } else {
+                quake_portal_fast_rows(&bsp, &portals, &mapping, visible)
+            };
+            let mut rows = vec![Vec::new(); visible];
+            for (host, row) in dense_rows.iter().enumerate() {
+                if let Some(row) = row {
+                    let leaf = dense_of_leaf[host] as usize - 1;
+                    for_each_bit(row, |bit| rows[leaf].push(bit as u32));
+                }
+            }
+            rows
+        }
     };
 
     let lighting = if lights.is_empty() {
@@ -1117,6 +1165,7 @@ pub fn compile_brush_world_streamed(
         material_slots: Vec::new(),
         dense_base: dense_base.clone(),
         region_of_dense,
+        dense_of_leaf,
         rows,
         leaf_cap,
         hull_bounds,
@@ -1486,7 +1535,7 @@ pub fn compile_brush_world_streamed(
     let _ = REGION_HEADER_BYTES;
     let debug = StreamDebug {
         face_source: packed.iter().map(|p| p.face_source.clone()).collect(),
-        dense_rows: packed.iter().map(|p| p.dense_rows.clone()).collect(),
+        sparse_rows: packed.iter().map(|p| p.sparse_rows.clone()).collect(),
         dense_base,
         dense_total: visible,
         regions: packed.into_iter().map(|p| p.build).collect(),
@@ -1521,8 +1570,11 @@ fn region_list(ctx: &Ctx<'_>, region: usize) -> Vec<u16> {
     let mut seen = vec![false; regions];
     seen[region] = true;
     for host in ctx.spans[region].leaves.clone() {
-        if let Some(row) = ctx.rows[host].as_ref() {
-            for_each_bit(row, |bit| seen[ctx.region_of_dense[bit] as usize] = true);
+        let dense = ctx.dense_of_leaf[host];
+        if dense > 0 {
+            for &target in &ctx.rows[dense as usize - 1] {
+                seen[ctx.region_of_dense[target as usize] as usize] = true;
+            }
         }
     }
     let mut list = vec![region as u16];
@@ -1550,9 +1602,59 @@ pub fn cook_project_streamed(
     ambient: [u8; 3],
     params: &PartitionParams,
 ) -> Result<CookedWorld, StreamCookError> {
+    cook_project_streamed_with(
+        authored,
+        project_root,
+        mode,
+        ambient,
+        params,
+        StreamPvs::Clustered {
+            reach: params.vis_distance,
+        },
+    )
+}
+
+/// [`cook_project_streamed`] with an explicit visibility strategy.
+pub fn cook_project_streamed_with(
+    authored: &ProjectDocument,
+    project_root: &Path,
+    mode: BrushWorldCookMode,
+    ambient: [u8; 3],
+    params: &PartitionParams,
+    pvs: StreamPvs,
+) -> Result<CookedWorld, StreamCookError> {
+    Ok(cook_project_gated(authored, project_root, mode, ambient, params, pvs)?.world)
+}
+
+/// A cook together with the partition that drove it and, for a streamed
+/// world, the partition judged again with the cook's own numbers.
+pub struct GatedCook {
+    pub world: CookedWorld,
+    pub input: PartitionInput,
+    /// The partitioner's own verdict: sampled visibility, estimated payloads.
+    pub estimated: Partition,
+    /// The same partition with the cook's portal-flow closure, encoded
+    /// payload sizes and real container size. `None` for a one-region world.
+    pub measured: Option<Partition>,
+    /// Seconds spent partitioning and cooking.
+    pub partition_seconds: f64,
+    pub cook_seconds: f64,
+}
+
+/// Partition and cook, then re-run the gates on what the cook measured.
+pub fn cook_project_gated(
+    authored: &ProjectDocument,
+    project_root: &Path,
+    mode: BrushWorldCookMode,
+    ambient: [u8; 3],
+    params: &PartitionParams,
+    pvs: StreamPvs,
+) -> Result<GatedCook, StreamCookError> {
+    let started = std::time::Instant::now();
     let input = PartitionInput::from_project(authored, project_root)
         .map_err(|error| StreamCookError::Partition(error.to_string()))?;
     let plan = partition(&input, params);
+    let partition_seconds = started.elapsed().as_secs_f64();
     let mut scaled = authored.clone();
     crate::units::scale_project_to_engine_units(&mut scaled);
     let options = BrushWorldCookOptions {
@@ -1561,14 +1663,50 @@ pub fn cook_project_streamed(
         ambient,
         texture_asset_base: 0,
     };
+    let started = std::time::Instant::now();
     if plan.regions.len() <= 1 {
-        return Ok(CookedWorld::Whole(Box::new(compile_brush_world(
-            &scaled, options,
-        )?)));
+        let world = CookedWorld::Whole(Box::new(compile_brush_world(&scaled, options)?));
+        return Ok(GatedCook {
+            world,
+            input,
+            estimated: plan,
+            measured: None,
+            partition_seconds,
+            cook_seconds: started.elapsed().as_secs_f64(),
+        });
     }
-    Ok(CookedWorld::Streamed(Box::new(
-        compile_brush_world_streamed(&scaled, options, &plan.tree, &plan.layout.order)?,
-    )))
+    let world =
+        compile_brush_world_streamed(&scaled, options, &plan.tree, &plan.layout.order, pvs)?;
+    let measured = plan.with_measured(
+        &input,
+        &CookMeasured {
+            visible: (0..world.index.regions.len())
+                .map(|r| {
+                    world
+                        .index
+                        .vis_list(r)
+                        .iter()
+                        .map(|&q| u32::from(q))
+                        .collect()
+                })
+                .map(|mut list: Vec<u32>| {
+                    list.sort_unstable();
+                    list
+                })
+                .collect(),
+            payload_bytes: world.payloads.iter().map(|p| p.len() as u32).collect(),
+            container_bytes: world.container.len() as u64,
+            leaf_cap: u32::from(world.index.caps.leaves),
+        },
+    );
+    Ok(GatedCook {
+        world: CookedWorld::Streamed(Box::new(world)),
+        input,
+        estimated: plan,
+        measured: Some(measured),
+        partition_seconds,
+        cook_seconds: started.elapsed().as_secs_f64(),
+    })
 }
 
 #[cfg(test)]
