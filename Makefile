@@ -33,8 +33,7 @@
 	showcase-fog showcase-fog-disc run-showcase-fog \
 	showcase-particles showcase-particles-disc run-showcase-particles \
 	hardware-tests hardware-tests-disc run-hardware-tests \
-	hwtest-capture hwtest-diff hwtest-baseline hwtest-capture-full hwtest-diff-full hwtest-baseline-full hwtest-capture-perf hwtest-diff-perf hwtest-baseline-perf hwtest-probe-capture hwtest-silicon hwtest-verify-code hwtest-audio hwtest-audio-chain \
-	hwtest-sb4-capture hwtest-sb4 hwtest-sb4-baseline \
+	hwtest-run hwtest-diff hwtest-baseline hwtest-compare hwtest-verify-code \
 	hello-engine hello-engine-disc run-hello-engine \
 	cook-playtest build-editor-playtest editor-blank-playtest-check editor-bsp-liquid-check editor-souls-bsp-check profile-demo3 profile-demo3-forward \
 	profile-demo3-paced20 profile-demo3-paced20-forward profile-demo3-disc-stream \
@@ -551,326 +550,98 @@ hardware-tests:
 	cd engine/examples/hardware-tests && $(ENGINE_EXAMPLE_CARGO_ENV) cargo build --release $(PSX_BUILD_FLAGS)
 	cargo run -q --release --locked -p psoxide-hazard --bin hazard-scan -- $(EXAMPLE_OUT)/hardware-tests.exe
 
-# --- hardware-test capture pipeline -------------------------------------
-# The disc now boots side-effect free into its main menu. Headless capture
-# selects "RUN ALL TESTS + CAPTURE" with a short Cross pulse, after which the
-# suite mirrors every PX8 page to the debug TTY without QR scanning.
-HWTEST_CAPTURE  := build/hwtest-capture.log
+# --- hardware-test pipeline ----------------------------------------------
+# v2.0 is ONE linear run. The disc boots into a four-row menu; row 0 is
+# "RUN HARDWARE TEST". `make hwtest-run` boots it headless, presses CROSS once
+# on that row, lets the run finish and mirrors every PX8 page to the TTY.
+HWTEST_LOG   := build/hwtest-run.log
+HWTEST_WAV   := build/hwtest-run.wav
 # Baselines are named by SUITE version, not by date: the suite version is what
 # determines whether two captures are comparable, and re-baselining the same
 # version should overwrite rather than accumulate files. The capture date lives
 # in the file header.
 HWTEST_SUITE := $(shell sed -n 's/^const SUITE_VERSION: &str = "HWTEST v\(.*\)";/\1/p' engine/examples/hardware-tests/src/main.rs)
 HWTEST_BASELINE := docs/hardware-refs/px8-emulator-v$(HWTEST_SUITE).txt
-# v1.24's lever probes pushed the capture past 400M: it completes between
-# 420M and 430M instructions headless. The rest is margin.
-HWTEST_STEPS    := 480000000
+# The run completes well inside this; the rest is the capture pages being on
+# show, which is where the silence check listens.
+HWTEST_STEPS := 2500000000
 
-# Always run a source-built emulator. `cargo run` guarantees that; invoking a
-# path under target/ by hand does not, and a stale binary silently produces a
-# capture that describes an emulator nobody is running any more.
-# Build diagnostics stay on stderr so only guest TTY output reaches the log.
-# Side-loads the EXE (the HLE entry path the guest's TTY output depends on)
-# while mounting the CUE with --disc, because the CD battery needs a disc in
-# the drive. Against a driveless EXE every CD command burns its full poll
-# budget timing out, which alone exhausts the instruction cap before the
-# capture encodes; booting the CUE directly produces no guest TTY at all.
-hwtest-capture: hardware-tests-disc
-	@mkdir -p $(dir $(HWTEST_CAPTURE))
+# Always run a source-built emulator: `cargo run` guarantees that. Side-loads
+# the EXE (the HLE entry path the guest's TTY output depends on) while mounting
+# the CUE with --disc, because the CD steps need a disc in the drive. One CROSS
+# pulse is the only input.
+hwtest-run: hardware-tests-disc
+	@mkdir -p $(dir $(HWTEST_LOG))
 	cd emu && cargo run -q -p frontend --release -- launch \
 		--path ../$(EXAMPLE_OUT)/hardware-tests.exe \
 		--disc ../$(EXAMPLE_OUT)/hardware-tests.cue \
-		--steps $(HWTEST_STEPS) --pad-pulses '0x4000@25+3' > ../$(HWTEST_CAPTURE)
-	@python3 tools/hwtest-report.py $(HWTEST_CAPTURE) > /dev/null || { \
-		echo "hwtest-capture: incomplete capture (raise HWTEST_STEPS?)"; exit 2; }
-	@echo "captured $$(grep -c 'px8' $(HWTEST_CAPTURE)) PX8 page(s) -> $(HWTEST_CAPTURE)"
+		--steps $(HWTEST_STEPS) --pad-pulses '0x4000@25+3' \
+		--dump-audio ../$(HWTEST_WAV) > ../$(HWTEST_LOG)
+	@python3 tools/hwtest-report.py $(HWTEST_LOG) > /dev/null || { \
+		echo "hwtest-run: incomplete capture (raise HWTEST_STEPS?)"; exit 2; }
+	@grep -q 'run complete, every area clean, silent' $(HWTEST_LOG) || { \
+		echo "hwtest-run: the run did not finish clean and silent; see $(HWTEST_LOG)"; exit 2; }
+	@echo "captured $$(grep -c 'px8' $(HWTEST_LOG)) PX8 page line(s) -> $(HWTEST_LOG)"
 
 HWTEST_CODE_BASELINE := docs/hardware-refs/hwtest-machine-code-v$(HWTEST_SUITE).txt
 
 # Audit the linked EXE: the instructions between each probe's markers must be
 # the ones the source asked for, or its cycle count measures something else.
-# The baseline is named by suite version, so a version bump orphans the old
-# file until a new one is generated; fail that case with instructions rather
-# than a Python traceback. It went unnoticed from v1.9 to v1.14.
 hwtest-verify-code: hardware-tests
 	@test -f $(HWTEST_CODE_BASELINE) || { \
 		echo "hwtest-verify-code: $(HWTEST_CODE_BASELINE) does not exist."; \
 		echo "  The suite version bumped without a machine-code baseline."; \
 		echo "  Review the spans, then pin them with:"; \
 		echo "    python3 tools/verify-hwtest-machine-code.py $(EXAMPLE_OUT)/hardware-tests.exe --baseline <previous version's file> | grep -v '^# drift' | cut -d, -f1-4 > $(HWTEST_CODE_BASELINE)"; \
-		echo "  (--baseline carries the probe names over by id; name any probe_NN rows by hand.)"; \
 		exit 2; }
 	python3 tools/verify-hwtest-machine-code.py $(EXAMPLE_OUT)/hardware-tests.exe \
 		--baseline $(HWTEST_CODE_BASELINE) --fail-on-change
 
-# CI gate: any observation, timing minimum, or precision value that moves
-# against the baseline fails the build and is named in the output.
-hwtest-diff: hwtest-verify-code hwtest-capture
+# CI gate: any observation or warm-record minimum that moves against the
+# emulator baseline fails the build and is named in the output; the silence of
+# the capture pages is checked on the audio the emulator dumped.
+hwtest-diff: hwtest-verify-code hwtest-run
 	python3 tools/hwtest-report.py --baseline $(HWTEST_BASELINE) \
-		--fail-on-change $(HWTEST_CAPTURE)
+		--layout-immune-timing-only --fail-on-change $(HWTEST_LOG)
+	python3 tools/hwtest-report.py --check-silence $(HWTEST_WAV)
 
-HWTEST_WAV        := build/hwtest-audio.wav
-HWTEST_AUDIO_PAGES := build/hwtest-audio-pages.txt
+# THE command for a recording or a page file: decode it (a video goes through
+# the QR extractor first) and diff it against the last silicon baselines.
+#   make hwtest-compare INPUT=~/Movies/run.mov
+#   make hwtest-compare            (the emulator run, build/hwtest-run.log)
+# It names regressions against silicon (conformance verdicts that changed or
+# failed, area handoffs that are not clean, noise at the capture pages) and,
+# for an emulator capture, the records the emulator still gets wrong.
+INPUT ?= $(HWTEST_LOG)
+hwtest-compare:
+	python3 tools/hwtest-report.py --compare "$(INPUT)"
 
-# End-to-end check of the audio readout: the disc streams the whole payload as
-# FSK and loops it, so this records the emulator's SPU output, decodes it back,
-# and runs the recovered bytes through the SAME report pipeline a scanned QR
-# capture uses. Needs a longer run than hwtest-capture because the payload
-# takes ~2 s of audio per repetition for a routine conformance capture (a full
-# characterisation capture is several times that).
-hwtest-audio: hardware-tests-disc
-	@mkdir -p $(dir $(HWTEST_WAV))
-	cd emu && cargo run -q -p frontend --release -- launch \
-		--path ../$(EXAMPLE_OUT)/hardware-tests.exe \
-		--disc ../$(EXAMPLE_OUT)/hardware-tests.cue \
-		--steps 1200000000 --pad-pulses '0x4000@25+3,0x8000@1900+6' \
-		--dump-audio ../$(HWTEST_WAV) > /dev/null
-	python3 tools/hwtest-audio-decode.py $(HWTEST_WAV) --emit-pages $(HWTEST_AUDIO_PAGES)
-	python3 tools/hwtest-report.py $(HWTEST_AUDIO_PAGES) > /dev/null
-	@echo "audio link OK: payload recovered from audio and parsed as PX8"
-
-# Robustness matrix for the audio link. A clean emulator recording proves the
-# encoding; this degrades it the way a real capture chain does (resampling to
-# 48/32/96 kHz, 20x gain range, clipping, DC offset, band-limiting, noise) and
-# requires the decoder to still recover the identical payload. It cannot prove
-# the real chain works, but it does stop the decoder being brittle against the
-# damage a chain is known to introduce.
-hwtest-audio-chain: hwtest-audio
-	python3 tools/hwtest-audio-chaintest.py $(HWTEST_WAV)
-
-# Deliberate re-baseline. Review the hwtest-diff output BEFORE running this:
-# it overwrites the reference every later run is judged against.
-hwtest-baseline: hwtest-capture
-	@{ \
-		echo "# PSoXide hardware-test capture baseline"; \
-		echo "#"; \
-		echo "# SOURCE: PSoXide EMULATOR, headless. This is NOT a silicon capture."; \
-		echo "#   It detects emulator-side drift only. It is not hardware truth and"; \
-		echo "#   must never be cited as a console measurement."; \
-		echo "#"; \
-		echo "# captured:  $$(date -u +%Y-%m-%d)"; \
-		echo "# git:       $$(git describe --always --dirty)"; \
-		echo "# guest exe: sha256:$$(shasum -a 256 $(EXAMPLE_OUT)/hardware-tests.exe | cut -c1-16)"; \
-		echo "# emulator:  frontend launch --steps $(HWTEST_STEPS) (menu Cross pulse)"; \
-		echo "# schema:    PX8 conformance, $$(grep -c 'px8' $(HWTEST_CAPTURE)) page(s)"; \
-		echo "#"; \
-		grep 'px8' $(HWTEST_CAPTURE) | sed 's/^hardware-tests: px8 //'; \
-	} > $(HWTEST_BASELINE)
+# Deliberate re-baseline of the emulator. Review hwtest-diff output BEFORE
+# running this: it pins whatever the emulator does today.
+hwtest-baseline: hwtest-run
+	@python3 tools/hwtest-report.py --emulator-baseline $(HWTEST_LOG) \
+		--git "$$(git describe --always --dirty)" \
+		--exe-sha "$$(shasum -a 256 $(EXAMPLE_OUT)/hardware-tests.exe | cut -c1-16)" \
+		--steps $(HWTEST_STEPS) > $(HWTEST_BASELINE)
 	@echo "re-baselined $(HWTEST_BASELINE)"
 
-# Full characterisation capture: one DOWN then CROSS selects ROOT_MENU row 1,
-# so the payload also carries the timing, memory-control and precision blocks
-# that the routine conformance capture leaves out. Row positions are baked
-# into the pulse frames the same way hwtest-capture bakes row 0.
-HWTEST_FULL_CAPTURE  := build/hwtest-capture-full.log
-HWTEST_FULL_BASELINE := docs/hardware-refs/px8-emulator-full-v$(HWTEST_SUITE).txt
-HWTEST_FULL_PULSES   := 0x40@25+2,0x4000@35+3
-HWTEST_FULL_STEPS    := 700000000
-
-hwtest-capture-full: hardware-tests-disc
-	@mkdir -p $(dir $(HWTEST_FULL_CAPTURE))
-	cd emu && cargo run -q -p frontend --release -- launch \
-		--path ../$(EXAMPLE_OUT)/hardware-tests.exe \
-		--disc ../$(EXAMPLE_OUT)/hardware-tests.cue \
-		--steps $(HWTEST_FULL_STEPS) --pad-pulses '$(HWTEST_FULL_PULSES)' > ../$(HWTEST_FULL_CAPTURE)
-	@python3 tools/hwtest-report.py $(HWTEST_FULL_CAPTURE) > /dev/null || { \
-		echo "hwtest-capture-full: incomplete capture (raise HWTEST_FULL_STEPS?)"; exit 2; }
-	@echo "captured $$(grep -c 'px8' $(HWTEST_FULL_CAPTURE)) PX8 page(s) -> $(HWTEST_FULL_CAPTURE)"
-
-# Gate for the blocks hwtest-diff cannot see. Timing minima legitimately move
-# when unrelated guest code shifts I-cache alignment: drift here with drift=0
-# from hwtest-verify-code means re-baseline, not regression.
-hwtest-diff-full: hwtest-verify-code hwtest-capture-full
-	@test -f $(HWTEST_FULL_BASELINE) || { \
-		echo "hwtest-diff-full: $(HWTEST_FULL_BASELINE) does not exist."; \
-		echo "  Review the capture, then pin it with: make hwtest-baseline-full"; \
-		exit 2; }
-	python3 tools/hwtest-report.py --baseline $(HWTEST_FULL_BASELINE) \
-		--fail-on-change $(HWTEST_FULL_CAPTURE)
-
-hwtest-baseline-full: hwtest-capture-full
-	@{ \
-		echo "# PSoXide hardware-test FULL characterisation baseline"; \
-		echo "#"; \
-		echo "# SOURCE: PSoXide EMULATOR, headless. This is NOT a silicon capture."; \
-		echo "#   It detects emulator-side drift only. It is not hardware truth and"; \
-		echo "#   must never be cited as a console measurement."; \
-		echo "#"; \
-		echo "# captured:  $$(date -u +%Y-%m-%d)"; \
-		echo "# git:       $$(git describe --always --dirty)"; \
-		echo "# guest exe: sha256:$$(shasum -a 256 $(EXAMPLE_OUT)/hardware-tests.exe | cut -c1-16)"; \
-		echo "# emulator:  frontend launch --steps $(HWTEST_FULL_STEPS) (menu Down, Cross pulses)"; \
-		echo "# schema:    PX8 full characterisation, $$(grep -c 'px8' $(HWTEST_FULL_CAPTURE)) page(s)"; \
-		echo "#"; \
-		grep 'px8' $(HWTEST_FULL_CAPTURE) | sed 's/^hardware-tests: px8 //'; \
-	} > $(HWTEST_FULL_BASELINE)
-	@echo "re-baselined $(HWTEST_FULL_BASELINE)"
-
-# PERF A/B capture: TARGETED PROBES, then wrap UP from row 0 past BACK to the
-# row above it. The run takes the whole performance sweep and then the
-# register A/B group the default scan never touches. The emulator does not
-# model those bits, so headless every flipped record equals its control; what
-# this gate proves is that the flip/restore path runs and leaves the machine
-# alive. The numbers that matter come from a console.
-HWTEST_PERF_CAPTURE := build/hwtest-capture-perf.log
-HWTEST_PERF_PULSES  := 0x40@30+2,0x40@38+2,0x40@46+2,0x40@54+2,0x40@62+2,0x40@70+2,0x40@78+2,0x4000@90+2,0x10@100+2,0x10@108+2,0x4000@118+2
-HWTEST_PERF_STEPS   := 300000000
-
-hwtest-capture-perf: hardware-tests-disc
-	@mkdir -p $(dir $(HWTEST_PERF_CAPTURE))
-	cd emu && cargo run -q -p frontend --release -- launch \
-		--path ../$(EXAMPLE_OUT)/hardware-tests.exe \
-		--disc ../$(EXAMPLE_OUT)/hardware-tests.cue \
-		--steps $(HWTEST_PERF_STEPS) --pad-pulses '$(HWTEST_PERF_PULSES)' > ../$(HWTEST_PERF_CAPTURE)
-	@python3 tools/hwtest-report.py $(HWTEST_PERF_CAPTURE) | grep -q ',ab_cachectl_cold_sweep_bgnt_flipped,' || { \
-		echo "hwtest-capture-perf: the A/B group did not complete"; exit 2; }
-	@echo "captured $$(grep -c 'px8' $(HWTEST_PERF_CAPTURE)) PX8 page(s) -> $(HWTEST_PERF_CAPTURE)"
-
-# The sweep is warm-harness throughout, so unlike the full baseline this one
-# should survive unrelated guest edits; drift here deserves a look.
-HWTEST_PERF_BASELINE := docs/hardware-refs/px8-emulator-perf-v$(HWTEST_SUITE).txt
-
-hwtest-diff-perf: hwtest-verify-code hwtest-capture-perf
-	@test -f $(HWTEST_PERF_BASELINE) || { \
-		echo "hwtest-diff-perf: $(HWTEST_PERF_BASELINE) does not exist."; \
-		echo "  Review the capture, then pin it with: make hwtest-baseline-perf"; \
-		exit 2; }
-	python3 tools/hwtest-report.py --baseline $(HWTEST_PERF_BASELINE) \
-		--layout-immune-timing-only --fail-on-change $(HWTEST_PERF_CAPTURE)
-
-hwtest-baseline-perf: hwtest-capture-perf
-	@{ \
-		echo "# PSoXide hardware-test PERF A/B baseline"; \
-		echo "#"; \
-		echo "# SOURCE: PSoXide EMULATOR, headless. This is NOT a silicon capture."; \
-		echo "#   It detects emulator-side drift only. It is not hardware truth and"; \
-		echo "#   must never be cited as a console measurement."; \
-		echo "#"; \
-		echo "# captured:  $$(date -u +%Y-%m-%d)"; \
-		echo "# git:       $$(git describe --always --dirty)"; \
-		echo "# guest exe: sha256:$$(shasum -a 256 $(EXAMPLE_OUT)/hardware-tests.exe | cut -c1-16)"; \
-		echo "# emulator:  frontend launch --steps $(HWTEST_PERF_STEPS) (TARGETED PROBES > PERF A/B)"; \
-		echo "# schema:    PX8 full, performance scope, $$(grep -c 'px8' $(HWTEST_PERF_CAPTURE)) page(s)"; \
-		echo "#"; \
-		grep 'px8' $(HWTEST_PERF_CAPTURE) | sed 's/^hardware-tests: px8 //'; \
-	} > $(HWTEST_PERF_BASELINE)
-	@echo "re-baselined $(HWTEST_PERF_BASELINE)"
-
-# Headless run of one TARGETED PROBES row, for comparing a probe's payload
-# before and after a refactor: make hwtest-probe-capture ROW=3
-# Rows follow PROBES_MENU. SB2 (row 0) needs HWTEST_PROBE_STEPS=1500000000.
-# Expect a few fields to move when guest code shifts: buffer addresses (CL1),
-# poll counts (PA2), SPUSTAT's delayed mode bits (SB4), and SB2's REKEY late
-# sample, which is read in the same frame as a key-on.
-HWTEST_PROBE_STEPS ?= 600000000
-hwtest-probe-capture: hardware-tests-disc
-	@test -n "$(ROW)" || { echo "usage: make hwtest-probe-capture ROW=<0-9>"; exit 2; }
-	@mkdir -p build
-	@pulses="0x40@30+2,0x40@38+2,0x40@46+2,0x40@54+2,0x40@62+2,0x40@70+2,0x40@78+2,0x4000@90+2"; \
-	t=100; i=0; while [ $$i -lt $(ROW) ]; do pulses="$$pulses,0x40@$$t+2"; t=$$((t+8)); i=$$((i+1)); done; \
-	pulses="$$pulses,0x4000@$$((t+10))+2"; \
-	cd emu && cargo run -q -p frontend --release -- launch \
-		--path ../$(EXAMPLE_OUT)/hardware-tests.exe \
-		--disc ../$(EXAMPLE_OUT)/hardware-tests.cue \
-		--steps $(HWTEST_PROBE_STEPS) --pad-pulses "$$pulses" > ../build/hwtest-probe-$(ROW).log
-	@grep -oE ' (PA[1-5]|SB[1-4]|CL1)/[^ ]+' build/hwtest-probe-$(ROW).log | tail -1
-
-# Ingest a real console capture. Pass the OBS-decoded payload text:
-#   make hwtest-silicon SILICON=captures/scph9902-2026-07-25.txt
-# This is the comparison that actually matters; the emulator baseline above
-# only guards against our own drift.
-hwtest-silicon: hwtest-capture
-	@test -n "$(SILICON)" || { echo "usage: make hwtest-silicon SILICON=<payload.txt>"; exit 2; }
-	python3 tools/hwtest-report.py --baseline $(SILICON) $(HWTEST_CAPTURE)
-
-# --- SB4 capture-ring pipeline ------------------------------------------
-# Drives the menu to TARGETED PROBES -> CAPTURE RINGS (SB4) and lets the
-# probe mirror its payload to the TTY. Row positions are baked into the
-# pulse frames the same way hwtest-capture bakes row 0; moving either menu
-# entry moves this sequence or the run opens something else.
-SB4_CAPTURE  := build/hwtest-sb4.log
-SB4_BASELINE := docs/hardware-refs/sb4-emulator-v$(HWTEST_SUITE).txt
-SB4_PULSES   := 0x40@30+2,0x40@38+2,0x40@46+2,0x40@54+2,0x40@62+2,0x40@70+2,0x40@78+2,0x4000@90+2,0x40@100+2,0x4000@110+2
-SB4_STEPS    := 500000000
-
-hwtest-sb4-capture: hardware-tests-disc
-	@mkdir -p $(dir $(SB4_CAPTURE))
-	cd emu && cargo run -q -p frontend --release -- launch \
-		--path ../$(EXAMPLE_OUT)/hardware-tests.exe \
-		--disc ../$(EXAMPLE_OUT)/hardware-tests.cue \
-		--steps $(SB4_STEPS) --pad-pulses '$(SB4_PULSES)' > ../$(SB4_CAPTURE)
-	@grep -q 'sb4 SB4/' $(SB4_CAPTURE) || { \
-		echo "hwtest-sb4-capture: no SB4 payload in $(SB4_CAPTURE)"; exit 2; }
-
-# Gate: any segment hash, stat, envelope, latency, or raw sample that moves
-# against the baseline fails the build and is named.
-hwtest-sb4: hwtest-sb4-capture
-	@test -f $(SB4_BASELINE) || { \
-		echo "hwtest-sb4: $(SB4_BASELINE) does not exist."; \
-		echo "  Review the capture, then pin it with: make hwtest-sb4-baseline"; \
-		exit 2; }
-	python3 tools/hwtest-sb4-report.py --baseline $(SB4_BASELINE) \
-		--fail-on-change $(SB4_CAPTURE)
-
-# Deliberate re-baseline; review hwtest-sb4's drift output first.
-hwtest-sb4-baseline: hwtest-sb4-capture
-	@{ \
-		echo "# PSoXide SB4 capture-ring baseline"; \
-		echo "#"; \
-		echo "# SOURCE: PSoXide EMULATOR, headless. This is NOT a silicon capture."; \
-		echo "#   It detects emulator-side drift only. It is not hardware truth and"; \
-		echo "#   must never be cited as a console measurement."; \
-		echo "#"; \
-		echo "# captured:  $$(date -u +%Y-%m-%d)"; \
-		echo "# git:       $$(git describe --always --dirty)"; \
-		echo "# guest exe: sha256:$$(shasum -a 256 $(EXAMPLE_OUT)/hardware-tests.exe | cut -c1-16)"; \
-		echo "# emulator:  frontend launch --steps $(SB4_STEPS) (menu pulses to SB4)"; \
-		echo "#"; \
-		grep 'sb4 SB4/' $(SB4_CAPTURE) | sed 's/^hardware-tests: sb4 //'; \
-	} > $(SB4_BASELINE)
-	@echo "re-baselined $(SB4_BASELINE)"
-
-# PA5 snapshots BIOS reverb state and selects reset variants before PA4's
-# proven map-DMA trigger. PA3/PA2 retain prior fixtures and PA1 reads a deterministic 600-sector
-# CDTEST.BIN at LBA 424.
-# Keep the file explicit so every burn and emulator run uses identical inputs.
+# The deterministic read region and the other data the disc carries.
 # The CD-DA track is required, not decorative: read-while-CD-DA contention is
-# the one CD failure no emulator reproduces, and it cannot be probed without a
-# real audio track on the disc. The tone is synthesised (tools/gen-cdda-tone.py)
-# so the image stays redistributable and bit-reproducible.
+# the one CD failure no emulator reproduces. The tone is synthesised
+# (tools/gen-cdda-tone.py) so the image stays redistributable and
+# bit-reproducible.
 HWTEST_CDDA := $(EXAMPLE_OUT)/hardware-tests-cdda.pcm
 
 $(HWTEST_CDDA):
 	@mkdir -p $(dir $@)
 	python3 tools/gen-cdda-tone.py --seconds 10 --out $@
 
-# MOVIE.STR for the FMV STREAM TEST row (v1.25): 75 s of synthetic 320x240
-# 15 fps video at the full double-speed sector budget with interleaved XA
-# stereo beeps, every video sector stamped with an ordinal and a checksum. The
-# SDK's `xtask fmv-test-movie` encodes it with FFmpeg and psxavenc (neither
-# ships here: PSXAVENC names the psxavenc binary). xtask is not imported, so
-# PSOXIDE_SDK names a PSoXide checkout to run it from. The encode is not
-# bit-reproducible across tool versions, so keep the file once built; to reuse
-# one, copy it to this path. It lands after CDTEST.BIN, at LBA 1024, which moves
-# the CD-DA track outward but no fixed LBA a probe names.
-HWTEST_MOVIE := $(EXAMPLE_OUT)/fmv/MOVIE.STR
-PSXAVENC ?= psxavenc
+# HWSONGS.XA for the XA music loop: the SDK's four generated tone songs (6 s
+# each, plain synthesis, nothing sampled) as the channels of one 37.8 kHz
+# stereo single-speed file. The SDK's psx-audio-cook is not imported here, so
+# PSOXIDE_SDK names a PSoXide checkout to run it from; the encode is
+# deterministic, and to reuse a built file, copy it to this path.
 PSOXIDE_SDK ?=
-
-$(HWTEST_MOVIE):
-	@[ -n "$(PSOXIDE_SDK)" ] || { echo "MOVIE.STR: set PSOXIDE_SDK to a PSoXide checkout (its xtask encodes the movie)" >&2; exit 1; }
-	@mkdir -p $(dir $@)
-	cargo run -q --release --locked --manifest-path "$(PSOXIDE_SDK)/Cargo.toml" -p xtask -- \
-		fmv-test-movie --psxavenc "$(PSXAVENC)" --out $@
-
-# HWSONGS.XA for the XA MUSIC LOOP case (v1.27): the SDK's four generated
-# tone songs (6 s each, plain synthesis, nothing sampled) as the channels of one
-# 37.8 kHz stereo single-speed file, so a loop restart is the interesting
-# part of the test. It goes after MOVIE.STR so CDTEST.BIN and MOVIE.STR keep
-# their LBAs and only the CD-DA track moves outward. The SDK's psx-audio-cook
-# is not imported here, so PSOXIDE_SDK names a PSoXide checkout to run it from,
-# as for MOVIE.STR; the encode is deterministic, and to reuse a built file,
-# copy it to this path.
 HWTEST_XA_DIR := $(EXAMPLE_OUT)/xa
 HWTEST_XA := $(HWTEST_XA_DIR)/HWSONGS.XA
 HWTEST_XA_COOK = cargo run -q --release --locked --manifest-path "$(PSOXIDE_SDK)/Cargo.toml" \
@@ -885,13 +656,12 @@ $(HWTEST_XA):
 		$(HWTEST_XA_DIR)/song2_blips.wav $(HWTEST_XA_DIR)/song3_whistle.wav \
 		--manifest $(HWTEST_XA_DIR)/songs.json
 
-hardware-tests-disc: hardware-tests $(HWTEST_CDDA) $(HWTEST_MOVIE) $(HWTEST_XA)
+hardware-tests-disc: hardware-tests $(HWTEST_CDDA) $(HWTEST_XA)
 	cd tools/mkisopsx && cargo run --release -- \
 		--exe ../../$(EXAMPLE_OUT)/hardware-tests.exe \
 		--out ../../$(EXAMPLE_OUT)/hardware-tests.bin \
 		--volume PSOXIDE \
 		--cdtest-sectors 460 \
-		--xa-file ../../$(HWTEST_MOVIE) \
 		--xa-file ../../$(HWTEST_XA) \
 		--cdda-track ../../$(HWTEST_CDDA)
 

@@ -3,7 +3,9 @@
 
 PX7 carries a per-record median and explicit record ids, so a probe can be
 added without shifting the meaning of every later record. PX8 adds per-block
-flags and a variable page count. PX5 and PX6 captures are no longer parsed:
+flags and a variable page count. v2.0 (one linear run) adds a run id to every
+page and `--compare`, the one command that decodes a recording and diffs it
+against the silicon baselines. PX5 and PX6 captures are no longer parsed:
 their timing records were positional and no such capture is archived.
 """
 
@@ -322,25 +324,8 @@ LABELS = {
     0x138: "spstack_level2_on_scratchpad_stack",
     0x139: "spstack_level2_on_ram_stack_during_list_dma",
     0x13A: "spstack_level2_on_scratchpad_stack_during_list_dma",
-    # v1.25 FMV STREAM TEST (MAIN MENU, last row; src/fmv_test.rs). Present
-    # only once the test has run. Not timings: each record carries three
-    # counters from the last run in its min/median/max fields, named by
-    # FMV_FIELDS below.
-    0x1F0: "fmv_pass_good_total",
-    0x1F1: "fmv_lost_bad_dropped",
-    0x1F2: "fmv_cderr_decerr_first_error_lba",
-    0x1F3: "fmv_shown_late_vblanks",
-    0x1F4: "fmv_kcyc_vlc_mdec_wait",
-    0x1F5: "fmv_last_lba_runs_setup_error",
-    # v1.26 MDEC DIAGNOSTIC (src/fmv_diag.rs): packed halfword streams, not
-    # timings; mdec_diag_rows() below unpacks them.
-    **{0x200 + 0x10 * v + k: f"mdec_diag_{'ABCDEF'[v]}_{k:X}" for v in range(6) for k in range(14)},
-    0x260: "mdec_diag_overview",
-    **{0x270 + 4 * v + k: f"mdec_play_{'ABCDEF'[v]}_{k}" for v in range(6) for k in range(4)},
-    **{0x290 + 5 * t + k: f"mdec_reset_trace_{t}_{k}" for t in range(3) for k in range(5)},
-    **{0x2A0 + k: f"mdec_frame_control_{k}" for k in range(3)},
-    # v1.27 CONSOLE TESTS (src/console_tests.rs). Present only once a case has
-    # run; console_rows() below names the fields.
+    # v1.27 CONSOLE TESTS (src/console_tests.rs); v2.0 runs them as steps of
+    # the linear run. console_rows() below names the fields.
     0x2C0: "kernel_enter_critical_section_cycles",
     0x2C1: "kernel_exit_critical_section_cycles",
     0x2C2: "kernel_empty_call_cycles",
@@ -466,183 +451,122 @@ def list_busy_rows(capture: Capture) -> list[str]:
             rows.append(f"{index},{label},{value}")
     return rows
 
-# v1.25 FMV STREAM TEST records: (min, median, max) field names per record.
-FMV_FIRST_RECORD = 0x1F0
-FMV_FIELDS = (
-    ("pass", "good_sectors", "total_sectors"),
-    ("lost_sectors", "bad_sectors", "dropped_frames"),
-    ("cd_errors", "decode_errors", "first_error_lba"),
-    ("frames_shown", "frames_late", "vblanks"),
-    ("kcyc_vlc", "kcyc_mdec_upload", "kcyc_wait"),
-    ("last_good_lba", "runs", "setup_error"),
-)
-# first_error_lba when nothing went wrong.
-FMV_NO_ERROR_LBA = 0xFFFF
-FMV_SETUP_ERRORS = ("none", "cd prepare", "MOVIE.STR not found", "cd xa mode", "mdec tables", "cd start")
+# ---------------------------------------------------------------------------
+# v2.0 records (the linear run). The guest documents each in the `/// rec`
+# comment above its id; tools/test_hwtest_tools.py keeps this table equal to
+# those comments. Each entry: label, (min field, median field, max field).
+V2_RECORDS = {
+    0x400: ("boot_vector", ("bios_stub_standard", "vector_hash_low", "vector_hash_high")),
+    0x401: ("boot_reverb_a", ("spucnt", "spustat", "reverb_volume_left")),
+    0x402: ("boot_reverb_b", ("reverb_volume_right", "reverb_work_base", "eon_low")),
+    0x403: ("boot_reverb_c", ("config_hash_low", "config_hash_high", "config_nonzero_words")),
+    0x404: ("post_init_reverb", ("volume_left", "volume_right", "work_base")),
+    0x41A: ("silence_final", ("flags_0x7f_is_silent", "cd_capture_peak", "voices_with_envelope")),
+    0x41B: ("run_info", ("skipped_risky", "steps", "records_taken")),
+    0x420: ("mdec_setup", ("worked_mask", "driver_notes", "failing_steps")),
+    0x421: ("mdec_probe", ("words_of_128", "all_equal", "first_word_low")),
+    0x422: ("mdec_probe_word", ("first_word_high", "decode_to_request_clocks", "busy_run_words")),
+    0x423: ("mdec_status", ("after_reset_high", "after_tables_high", "after_probe_high")),
+    0x424: ("mdec_trace_idle", ("samples", "last_status_high", "last_change_clocks")),
+    0x425: ("mdec_trace_busy", ("samples", "last_status_high", "last_change_clocks")),
+    0x426: ("mdec_timeout", ("chcr_low", "bcr_high", "madr_low")),
+    0x430: ("sb1_audit", ("blocks", "flags_or_and_last", "first_end_block")),
+    0x431: ("sb1_upload", ("loop_starts", "readback_fnv_low", "readback_fnv_high")),
+}
+for _k in range(5):
+    V2_RECORDS[0x432 + _k] = (
+        f"sb1_stage_{_k + 1}",
+        ("envelope_frame_32", "envelope_frame_100", "endx_per_checkpoint"),
+    )
+for _k in range(10):
+    V2_RECORDS[0x410 + _k] = (
+        f"handoff_area_{_k}",
+        ("clean_flags_0x3f_is_clean", "interrupt_mask", "voices_active_high_dma_busy_low"),
+    )
+for _k in range(22):
+    V2_RECORDS[0x440 + _k] = (
+        f"sb2_tone_{_k}",
+        ("late_envelope", "repeat_address", "start_address"),
+    )
+    V2_RECORDS[0x460 + _k] = (
+        f"sb2_early_{_k}",
+        ("early_envelope_or_endx", "late_pitch", "table_word"),
+    )
+for _k in range(7):
+    V2_RECORDS[0x480 + _k] = (
+        f"sb2_ram_{_k}",
+        ("mismatching_words", "first_bad_index", "word_read_there"),
+    )
+for _k in range(5):
+    V2_RECORDS[0x490 + _k] = (
+        f"sb4_hash_{_k}",
+        ("ring_half_crc_low", "ring_half_crc_high", "first_nonzero_sample"),
+    )
+    V2_RECORDS[0x49A + _k] = (
+        f"sb4_state_{_k}",
+        ("spustat", "envelope", "raw_sample_16"),
+    )
+    V2_RECORDS[0x510 + _k] = (
+        f"cd_route_stage_{_k}",
+        ("capture_peak_left", "capture_peak_right", "state_word"),
+    )
+for _slot in range(2):
+    for _k in range(7):
+        V2_RECORDS[0x4A0 + _slot * 8 + _k] = (
+            f"handoff_{('baseline', 'safe2')[_slot]}_stage_{_k}",
+            ("voices_with_volume_low", "blocking_vblanks_or_readback_match", "endx_low_or_hash_low"),
+        )
+for _k in range(8):
+    V2_RECORDS[0x500 + _k] = (
+        f"cl2_variant_{_k}",
+        ("ok_bits_and_match", "diag_or_fifo_wait_low", "drive_state_high"),
+    )
+V2_HANDOFF_CLEAN = 0x3F
+V2_SILENT = 0x7F
 
-# v1.26 MDEC DIAGNOSTIC (src/fmv_diag.rs, `records` documents the layout).
-MDEC_SEQUENCES = (
-    "A control v1.25",
-    "B settle then enable",
-    "C fixed delay",
-    "D cpu tables",
-    "E psn00bsdk order",
-    "F sdk driver",
-)
-MDEC_STEPS = ("none", "reset settle", "quant upload", "scale upload", "idle after tables", "probe dma0 in", "probe dma1 out")
-MDEC_SNAPSHOTS = ("before_reset", "after_reset", "after_enable", "after_command", "after_tables", "after_probe")
-MDEC_STOPS = ("end", "stall", "wedged", "cd error", "setup")
-MDEC_TRACES = ("from_idle", "from_busy", "from_busy_with_enable")
-MDEC_NEVER = 0xFFFF
 
-
-def mdec_status_text(value: int) -> str:
-    """MDEC1 status decoded per psx-spx."""
-    flags = [
-        name
-        for bit, name in ((31, "out_empty"), (30, "in_full"), (29, "busy"), (28, "in_req"), (27, "out_req"))
-        if value >> bit & 1
-    ]
-    block = value >> 16 & 7
-    remaining = value & 0xFFFF
-    return f"0x{value:08X} [{' '.join(flags) or '-'} block={block} words-1={remaining:#06x}]"
-
-
-def mdec_stream(by_id: dict, first: int, records: int) -> list[int]:
-    halves: list[int] = []
-    for k in range(records):
-        record = by_id.get(first + k)
-        if record is None:
-            break
-        halves += [record.minimum, record.median, record.maximum]
-    return halves
-
-
-def mdec_diag_rows(capture: Capture) -> list[str]:
-    """The v1.26 MDEC DIAGNOSTIC and its playbacks, unpacked. Empty unless
-    the capture carries them."""
-    by_id = {record.record_id: record for record in capture.records}
-    if 0x260 not in by_id:
-        return []
+def v2_rows(capture: Capture) -> list[str]:
+    """Every v2.0 record the capture carries, one row per field."""
     rows = []
-    overview = by_id[0x260]
-    chosen = overview.minimum
-    rows.append(
-        f"# mdec_diag chosen={'none' if chosen == 0xFFFF else MDEC_SEQUENCES[chosen]} "
-        f"runs={overview.median} batteries={overview.maximum}"
-    )
-    rows.append("mdec_diag,sequence,field,value")
-    clocks = lambda v: "never" if v == MDEC_NEVER else str(v)  # noqa: E731
-    for v, name in enumerate(MDEC_SEQUENCES):
-        h = mdec_stream(by_id, 0x200 + 0x10 * v, 14)
-        if len(h) < 27:
-            rows.append(f"mdec_diag,{name},missing,{len(h)} halfwords")
+    for record in capture.records:
+        entry = V2_RECORDS.get(record.record_id)
+        if entry is None:
             continue
-        word = lambda i: h[i] | h[i + 1] << 16  # noqa: E731
-        mask, runs = h[0] & 0xFF, h[0] >> 8
-        run_fails = word(9)
-        fails = [MDEC_STEPS[min(run_fails >> 4 * r & 0xF, len(MDEC_STEPS) - 1)] for r in range(runs)]
-        out = rows.append
-        out(f"mdec_diag,{name},worked,{bin(mask).count('1')}/{runs} runs_1_to_8={format(mask, '08b')[::-1]}")
-        out(f"mdec_diag,{name},per_run_fail,{' | '.join(fails)}")
-        out(f"mdec_diag,{name},detail_run,{(h[1] >> 8) + 1} fail={MDEC_STEPS[min(h[1] & 0xFF, len(MDEC_STEPS) - 1)]}")
-        out(f"mdec_diag,{name},settle_clocks,{clocks(h[2])}")
-        out(f"mdec_diag,{name},request_clocks,{clocks(h[3])}")
-        out(f"mdec_diag,{name},probe_request_clocks,{clocks(h[4])}")
-        if v == 5:
-            out(
-                f"mdec_diag,{name},sdk_driver,enable_writes={h[5] & 0xFF} "
-                f"cpu_uploads={h[5] >> 8 & 0x7F} reset_settled={h[5] >> 15}"
-            )
-        taken, rescue = h[6] & 0xFF, h[6] >> 8
-        for slot, label in enumerate(MDEC_SNAPSHOTS):
-            value = word(11 + 2 * slot)
-            text = mdec_status_text(value) if taken >> slot & 1 else "not read"
-            out(f"mdec_diag,{name},status_{label},{text}")
-        out(f"mdec_diag,{name},probe,words={h[7] & 0x7FFF}/128 flat={h[7] >> 15} first=0x{word(23):08X}")
-        if v == 0:
-            out(
-                f"mdec_diag,{name},late_enable,"
-                + {0: "not tried (no timeout)", 1: "freed the stuck DMA", 2: "did not free it"}.get(rescue, str(rescue))
-                + (f" status={mdec_status_text(word(25))}" if rescue else "")
-            )
-        if h[8] and len(h) >= 39:
-            chcr, bcr, madr, dpcr, dicr, kick = (word(27 + 2 * i) for i in range(6))
-            moved = ((madr & 0xFFFFFF) - (kick & 0xFFFFFF)) // 4
-            out(
-                f"mdec_diag,{name},dma_timeout,chcr=0x{chcr:08X} bcr=0x{bcr:08X} madr=0x{madr:08X} "
-                f"kick_madr=0x{kick:08X} words_moved={moved} blocks_left={bcr >> 16} "
-                f"dpcr=0x{dpcr:08X} dicr=0x{dicr:08X}"
-            )
-    for v, name in enumerate(MDEC_SEQUENCES):
-        h = mdec_stream(by_id, 0x270 + 4 * v, 4)
-        if len(h) < 12:
-            continue
-        stop, passed, setup = h[0] & 0xF, h[0] >> 4 & 1, h[0] >> 8
-        rows.append(
-            f"mdec_play,{name},{'PASS' if passed else 'FAIL'},stop={MDEC_STOPS[min(stop, 4)]} "
-            f"setup_error={FMV_SETUP_ERRORS[setup] if setup < len(FMV_SETUP_ERRORS) else setup} "
-            f"sectors={h[3]}/{h[4]} lost={h[5]} bad={h[6]} dropped={h[7]} decode_errors={h[8]} "
-            f"cd_errors={h[9]} first_error_lba={'none' if h[10] == 0xFFFF else h[10]} "
-            f"last_good_lba={h[11]} shown={h[1]} late={h[2]}"
-        )
-    for t, name in enumerate(MDEC_TRACES):
-        h = mdec_stream(by_id, 0x290 + 5 * t, 5)
-        if len(h) < 13:
-            continue
-        samples = [
-            f"{h[1 + 3 * i]}clk:{mdec_status_text(h[2 + 3 * i] | h[3 + 3 * i] << 16)}"
-            for i in range(min(h[0], 4))
-        ]
-        rows.append(f"mdec_reset_trace,{name}," + " -> ".join(samples))
-    h = mdec_stream(by_id, 0x2A0, 3)
-    if len(h) >= 9:
-        cpu_sum, dma_sum = h[5] | h[6] << 16, h[7] | h[8] << 16
-        rows.append(
-            f"mdec_frame_control,read={h[0] & 1} cpu_ok={h[0] >> 1 & 1} dma_ok={h[0] >> 2 & 1} "
-            f"sums_equal={h[0] >> 3 & 1} rle_words={h[1]} expected={h[2]} cpu_words={h[3]} "
-            f"dma_words={h[4]} cpu_sum=0x{cpu_sum:08X} dma_sum=0x{dma_sum:08X}"
-        )
+        if not rows:
+            rows.append("v2,record,field,value")
+        label, names = entry
+        for name, value in zip(names, (record.minimum, record.median, record.maximum)):
+            rows.append(f"v2,{record.record_id:03X}_{label},{name},{value}")
     return rows
 
 
-def fmv_rows(capture: Capture) -> list[str]:
-    """The FMV STREAM TEST result, unpacked, with its verdict re-derived from
-    the pass criteria. Empty unless the test ran before the capture encoded."""
-    by_id = {record.record_id: record for record in capture.records}
-    ids = range(FMV_FIRST_RECORD, FMV_FIRST_RECORD + len(FMV_FIELDS))
-    if not all(record_id in by_id for record_id in ids):
+def v2_verdicts(capture: Capture) -> list[str]:
+    """The run's own pass criteria, re-derived from the records: every area
+    handoff clean, the final silence check passed. Empty list = all good."""
+    if capture.suite_major < 2:
         return []
-    fields: dict[str, int] = {}
-    for record_id, names in zip(ids, FMV_FIELDS):
-        record = by_id[record_id]
-        fields.update(zip(names, (record.minimum, record.median, record.maximum)))
-    host_pass = (
-        fields["total_sectors"] > 0
-        and fields["good_sectors"] == fields["total_sectors"]
-        and fields["lost_sectors"] == 0
-        and fields["bad_sectors"] == 0
-        and fields["dropped_frames"] == 0
-        and fields["cd_errors"] == 0
-        and fields["decode_errors"] == 0
-        and fields["setup_error"] == 0
-    )
-    verdict = "PASS" if fields["pass"] else "FAIL"
-    rows = [f"# fmv={verdict} criteria={'PASS' if host_pass else 'FAIL'}"]
-    if bool(fields["pass"]) != host_pass:
-        rows.append("# fmv verdict disagrees with its own counters")
-    rows.append("fmv,field,value")
-    for name, value in fields.items():
-        if name == "pass":
+    by_id = {record.record_id: record for record in capture.records}
+    problems = []
+    for area in range(10):
+        record = by_id.get(0x410 + area)
+        if record is None:
+            problems.append(f"area {area}: no handoff record")
             continue
-        if name == "first_error_lba" and value == FMV_NO_ERROR_LBA:
-            text = "none"
-        elif name == "setup_error":
-            text = FMV_SETUP_ERRORS[value] if value < len(FMV_SETUP_ERRORS) else f"code {value}"
-        else:
-            text = str(value)
-        rows.append(f"fmv,{name},{text}")
-    return rows
+        if record.minimum != V2_HANDOFF_CLEAN or record.maximum != 0:
+            problems.append(
+                f"area {area}: handoff flags 0x{record.minimum:02X} "
+                f"(clean is 0x{V2_HANDOFF_CLEAN:02X}), busy/active 0x{record.maximum:04X}"
+            )
+    silence = by_id.get(0x41A)
+    if silence is None:
+        problems.append("no final silence record")
+    elif silence.minimum != V2_SILENT:
+        problems.append(
+            f"final silence flags 0x{silence.minimum:02X} (silent is 0x{V2_SILENT:02X}), "
+            f"capture peak {silence.median}, voices with envelope {silence.maximum}"
+        )
+    return problems
+
 
 # v1.27 CONSOLE TESTS (src/console_tests.rs): the field names of each record.
 CONSOLE_KERNEL_FIRST = 0x2C0
@@ -685,11 +609,10 @@ def console_rows(capture: Capture) -> list[str]:
         rows.append(f"console_kernel,runtime_vblank_gaps,{flags >> 8}")
     for k, width in enumerate(CONSOLE_WIDTHS):
         if 0x2D0 + k in by_id:
-            status, x1, x2 = triple(0x2D0 + k)
+            status, dots, span = triple(0x2D0 + k)
             if not rows or not rows[-1].startswith("console_width"):
-                rows.append("console_width,pixels,gpustat_high16,gp1_06_x1,gp1_06_x2")
-            shown = "not shown" if status == 0xFFFF else f"0x{status:04X},{x1},{x2}"
-            rows.append(f"console_width,{width},{shown}")
+                rows.append("console_width,pixels,gpustat_high16,dot_ticks_in_64_lines,window_span_gpu_clocks")
+            rows.append(f"console_width,{width},0x{status:04X},{dots},{span}")
     if 0x2D6 in by_id and 0x2D7 in by_id:
         status, flips, frames = triple(0x2D6)
         interlaced, tall, low = triple(0x2D7)
@@ -1064,6 +987,7 @@ class CapturePage:
     total: int
     chunk: str
     crc: int
+    run_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -1165,7 +1089,8 @@ def parse_capture_page(payload: str) -> CapturePage:
         marker, page_field, chunk = body.split("/", 2)
     except ValueError as exc:
         raise ValueError("malformed capture page") from exc
-    if marker not in SCHEMAS or len(page_field) != 4 or not chunk:
+    # v2.0 pages carry the run id after the page numbers: PPTTRRRR.
+    if marker not in SCHEMAS or len(page_field) not in (4, 8) or not chunk:
         raise ValueError("malformed capture page header")
     actual_crc = binascii.crc32(chunk.encode("ascii")) & 0xFFFF_FFFF
     if int(claimed_crc, 16) != actual_crc:
@@ -1176,9 +1101,10 @@ def parse_capture_page(payload: str) -> CapturePage:
     return CapturePage(
         marker,
         int(page_field[:2], 16),
-        int(page_field[2:], 16),
+        int(page_field[2:4], 16),
         chunk,
         actual_crc,
+        int(page_field[4:], 16) if len(page_field) == 8 else None,
     )
 
 
@@ -1385,6 +1311,21 @@ def payloads_from_paths(paths: list[str]) -> list[str]:
     return payloads
 
 
+def run_id_text(capture: Capture) -> str:
+    """v2.0 and later: the 16-bit run id (also in every page). Before: the
+    timing run counter."""
+    if capture.suite_major >= 2:
+        return f"{capture.conformance_run | capture.timing_run << 8:04X}"
+    return f"{capture.timing_run:02X}"
+
+
+def record_label(record_id: int) -> str:
+    entry = V2_RECORDS.get(record_id)
+    if entry is not None:
+        return entry[0]
+    return LABELS.get(record_id, "unlabelled")
+
+
 def print_report(
     capture: Capture,
     baseline: Capture | None,
@@ -1398,7 +1339,7 @@ def print_report(
     page_count = capture.page_count
     print(
         f"# schema={capture.schema} suite=v{capture.suite_major}.{capture.suite_minor} "
-        f"pages={page_count} run={capture.timing_run:02X} "
+        f"pages={page_count} run={run_id_text(capture)} "
         f"digest={capture.timing_digest:08X} records={len(capture.records)} "
         f"binary_crc={capture.binary_crc:08X}"
     )
@@ -1463,7 +1404,7 @@ def print_report(
     )
     for record in capture.records:
         row = (
-            f"{record.record_id:02X},{LABELS.get(record.record_id, 'unlabelled')},"
+            f"{record.record_id:02X},{record_label(record.record_id)},"
             f"{record.work},{record.minimum},{record.maximum},"
             f"{record.maximum - record.minimum}"
         )
@@ -1483,7 +1424,7 @@ def print_report(
                     layout_drift += 1
                 elif prior.minimum != record.minimum:
                     drift.append(
-                        f"timing {record.record_id:02X} ({LABELS.get(record.record_id, 'unlabelled')}): "
+                        f"timing {record.record_id:02X} ({record_label(record.record_id)}): "
                         f"min {prior.minimum} -> {record.minimum}"
                     )
         print(row)
@@ -1518,9 +1459,7 @@ def print_report(
             print(row)
     for row in list_busy_rows(capture):
         print(row)
-    for row in fmv_rows(capture):
-        print(row)
-    for row in mdec_diag_rows(capture):
+    for row in v2_rows(capture):
         print(row)
     for row in console_rows(capture):
         print(row)
@@ -1654,6 +1593,238 @@ def precision_label(index: int) -> str:
     raise ValueError(f"unknown precision index {index}")
 
 
+# ---------------------------------------------------------------------------
+# The one command: decode a recording (or a page file) and diff it against the
+# last silicon baselines.
+
+REPO = pathlib.Path(__file__).resolve().parent.parent
+# Oldest first: where two baselines carry the same record, the later one wins.
+SILICON_REFERENCES = (
+    ("docs/hardware-refs/px8-silicon-2026-09-23-v1.24-full.txt", "v1.24 full"),
+    ("docs/hardware-refs/px8-silicon-2026-10-08-v1.28-cdstream.txt", "v1.28 CD stream"),
+)
+# Records whose meaning v2.0 changed; they cannot be compared across the bump.
+# Every other id that exists in both means what it meant (the v2.0 bump is MAJOR
+# because records were removed and regrouped, not because these were redefined).
+REDEFINED_IN_V2 = frozenset(range(0x2D0, 0x2D8))
+# Records that carry flags or counts: exact match, not a timing tolerance.
+EXACT_RECORDS = frozenset({0x2C4, 0x2E0, 0x2F7, 0x306, 0x308, 0x30A, 0x30B, 0x315})
+TIMING_TOLERANCE = 0.10
+TIMING_SLACK = 8
+
+
+@dataclass
+class SiliconReference:
+    cases: dict
+    records: dict
+    precision: tuple
+    sources: list
+
+
+def load_silicon_reference(root: pathlib.Path = REPO) -> SiliconReference:
+    cases: dict = {}
+    records: dict = {}
+    precision: tuple = ()
+    sources = []
+    for relative, label in SILICON_REFERENCES:
+        path = root / relative
+        if not path.exists():
+            continue
+        capture = parse_capture(payloads_from_paths([str(path)]))
+        sources.append(f"{label} (v{capture.suite_major}.{capture.suite_minor})")
+        for index, (status, observed) in enumerate(zip(capture.statuses, capture.observations)):
+            cases[index] = (status, observed)
+        for record in capture.records:
+            records[record.record_id] = record
+        if capture.precision:
+            precision = capture.precision
+    if not sources:
+        raise ValueError("no silicon baseline found under docs/hardware-refs")
+    return SiliconReference(cases, records, precision, sources)
+
+
+def compare_to_silicon(capture: Capture, reference: SiliconReference) -> dict:
+    """Regressions and mismatches of `capture` against the silicon baselines.
+
+    A regression is something that is wrong on its own terms or worse than
+    silicon was: a conformance case that passed on silicon and does not now, an
+    area that did not hand off clean, noise at the capture pages. A mismatch
+    is a value that differs from silicon's: the list of what an emulator
+    capture still gets wrong, or what moved between two silicon runs."""
+    regressions: list = [f"run check: {problem}" for problem in v2_verdicts(capture)]
+    mismatches: list = []
+    improvements: list = []
+    shared = {"cases": 0, "records": 0, "precision": 0}
+    observations = capture.observations or ()
+    for index, status in enumerate(capture.statuses):
+        if index not in reference.cases:
+            continue
+        shared["cases"] += 1
+        silicon_status, silicon_observed = reference.cases[index]
+        observed = observations[index] if index < len(observations) else None
+        name = f"case {index}"
+        if silicon_status == 1 and status in (2, 3):
+            seen = f", observed 0x{observed:08X}" if observed is not None else ""
+            regressions.append(f"{name}: {STATUS_LABELS[status]} (passed on silicon){seen}")
+        elif silicon_status in (2, 3) and status == 1:
+            improvements.append(f"{name}: passes (silicon {STATUS_LABELS[silicon_status]})")
+        if observed is not None and observed != silicon_observed:
+            mismatches.append(
+                f"{name}: 0x{observed:08X}, silicon 0x{silicon_observed:08X} "
+                f"({STATUS_LABELS[status]} vs {STATUS_LABELS[silicon_status]})"
+            )
+    for record in capture.records:
+        silicon = reference.records.get(record.record_id)
+        if silicon is None or record.record_id in REDEFINED_IN_V2:
+            continue
+        shared["records"] += 1
+        if record.record_id in EXACT_RECORDS:
+            moved = (record.minimum, record.median, record.maximum) != (
+                silicon.minimum,
+                silicon.median,
+                silicon.maximum,
+            )
+        else:
+            allowed = max(TIMING_SLACK, int(silicon.minimum * TIMING_TOLERANCE))
+            moved = abs(record.minimum - silicon.minimum) > allowed
+        if moved:
+            mismatches.append(
+                f"record {record.record_id:03X} {record_label(record.record_id)}: "
+                f"min/med/max {record.minimum}/{record.median}/{record.maximum}, "
+                f"silicon {silicon.minimum}/{silicon.median}/{silicon.maximum}"
+            )
+    for index, (value, silicon_value) in enumerate(zip(capture.precision, reference.precision)):
+        shared["precision"] += 1
+        if value != silicon_value:
+            mismatches.append(
+                f"precision {index:03d} {precision_label(index)}: "
+                f"0x{value:08X}, silicon 0x{silicon_value:08X}"
+            )
+    return {
+        "regressions": regressions,
+        "mismatches": mismatches,
+        "improvements": improvements,
+        "shared": shared,
+    }
+
+
+def pages_from_recording(path: pathlib.Path) -> list[str]:
+    """Run the QR extractor over a video and return the page lines."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("hwtest_video_qr", REPO / "tools" / "hwtest-video-qr.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.pages_from_video(path)
+
+
+def run_compare(source: str, show_report: bool, allow_failure: bool) -> int:
+    path = pathlib.Path(source)
+    if path.suffix.lower() in (".mov", ".mp4", ".mkv", ".avi", ".m4v"):
+        payloads = pages_from_recording(path)
+    else:
+        payloads = payloads_from_paths([source])
+    capture = parse_capture(payloads)
+    reference = load_silicon_reference()
+    if show_report:
+        print_report(capture, None)
+    result = compare_to_silicon(capture, reference)
+    print(
+        f"# compare: capture v{capture.suite_major}.{capture.suite_minor} run={run_id_text(capture)} "
+        f"pages={capture.page_count} crc={capture.binary_crc:08X}"
+    )
+    print("# silicon: " + ", ".join(reference.sources))
+    shared = result["shared"]
+    print(
+        f"# compared: {shared['cases']} cases, {shared['records']} records, "
+        f"{shared['precision']} precision values; records redefined in v2.0 are skipped"
+    )
+    for line in result["regressions"]:
+        print(f"REGRESSION {line}")
+    for line in result["improvements"]:
+        print(f"IMPROVED {line}")
+    for line in result["mismatches"]:
+        print(f"MISMATCH {line}")
+    print(
+        f"# summary: regressions={len(result['regressions'])} "
+        f"mismatches={len(result['mismatches'])} improvements={len(result['improvements'])}"
+    )
+    if result["regressions"] and not allow_failure:
+        return 1
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Silence of the capture pages, from the audio the emulator dumped.
+
+
+def check_silence(wav_path: str, tail_seconds: float) -> int:
+    import array
+    import wave
+
+    with wave.open(wav_path, "rb") as wav:
+        if wav.getsampwidth() != 2:
+            raise ValueError("expected 16-bit samples")
+        channels = wav.getnchannels()
+        rate = wav.getframerate()
+        samples = array.array("h")
+        samples.frombytes(wav.readframes(wav.getnframes()))
+    frames = len(samples) // channels
+    duration = frames / rate
+    # Non-silent spans, in seconds, merged when closer than 0.25 s.
+    window = rate // 20
+    loud = []
+    for start in range(0, frames, window):
+        chunk = samples[start * channels : (start + window) * channels]
+        if chunk and max(max(chunk), -min(chunk)) > 0:
+            loud.append(start / rate)
+    spans: list[list[float]] = []
+    for t in loud:
+        if spans and t - spans[-1][1] <= 0.25:
+            spans[-1][1] = t + 0.05
+        else:
+            spans.append([t, t + 0.05])
+    print(f"# audio: {duration:.1f} s, {len(spans)} non-silent span(s)")
+    for begin, end in spans:
+        print(f"# sound {begin:.1f}-{end:.1f} s")
+    last_sound = spans[-1][1] if spans else 0.0
+    silent_tail = duration - last_sound
+    print(f"# silent tail: {silent_tail:.1f} s (needs {tail_seconds:.1f} s: the capture pages)")
+    if silent_tail < tail_seconds:
+        print(f"FAIL: sound continues until {last_sound:.1f} s of {duration:.1f} s", file=sys.stderr)
+        return 1
+    print("silent at the capture pages")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+
+
+def emulator_baseline(log: str, git: str, exe_sha: str, steps: str) -> int:
+    import datetime
+
+    pages = payloads_from_paths([log])
+    parse_capture(pages)  # refuse a log that does not decode
+    print("# PSoXide hardware-test emulator baseline")
+    print("#")
+    print("# SOURCE: PSoXide EMULATOR, headless. This is NOT a silicon capture.")
+    print("#   It detects emulator-side drift only. It is not hardware truth and")
+    print("#   must never be cited as a console measurement.")
+    print("#")
+    print(f"# captured:  {datetime.datetime.now(datetime.timezone.utc).date().isoformat()}")
+    print(f"# git:       {git}")
+    print(f"# guest exe: sha256:{exe_sha}")
+    print(f"# emulator:  frontend launch --steps {steps} (one CROSS pulse on RUN HARDWARE TEST)")
+    print("#")
+    last: dict[int, str] = {}
+    for line in pages:
+        last[parse_capture_page(line).number] = line
+    for number in sorted(last):
+        print(last[number])
+    return 0
+
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -1676,9 +1847,45 @@ def main() -> int:
         help="count timing drift only for warm-harness records; the older CPU "
         "records move whenever guest code shifts I-cache alignment",
     )
+    parser.add_argument(
+        "--compare",
+        metavar="INPUT",
+        help="decode INPUT (a recording or a page file) and diff it against the last "
+        "silicon baselines: regressions and mismatches",
+    )
+    parser.add_argument(
+        "--report",
+        action="store_true",
+        help="with --compare, print the full decoded report first",
+    )
+    parser.add_argument(
+        "--no-fail",
+        action="store_true",
+        help="with --compare, exit 0 even when there are regressions",
+    )
+    parser.add_argument(
+        "--check-silence",
+        metavar="WAV",
+        help="check that the audio the emulator dumped ends in silence",
+    )
+    parser.add_argument("--tail-seconds", type=float, default=3.0)
+    parser.add_argument(
+        "--emulator-baseline",
+        metavar="LOG",
+        help="print an emulator baseline file made from a run log",
+    )
+    parser.add_argument("--git", default="unknown")
+    parser.add_argument("--exe-sha", default="unknown")
+    parser.add_argument("--steps", default="unknown")
     parser.add_argument("payload_or_file", nargs="*")
     args = parser.parse_args()
     try:
+        if args.compare:
+            return run_compare(args.compare, args.report, args.no_fail)
+        if args.check_silence:
+            return check_silence(args.check_silence, args.tail_seconds)
+        if args.emulator_baseline:
+            return emulator_baseline(args.emulator_baseline, args.git, args.exe_sha, args.steps)
         capture = parse_capture(payloads_from_paths(args.payload_or_file))
         baseline = (
             parse_capture(payloads_from_paths([args.baseline]))
