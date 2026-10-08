@@ -85,6 +85,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "psx-cdstream"
+version = "0.1.0"
+dependencies = [
+ "psx-hw",
+ "psx-io",
+ "psx-rt",
+]
+
+[[package]]
 name = "psx-chainloader"
 version = "0.1.0"
 dependencies = [
@@ -103,6 +112,7 @@ name = "psx-engine"
 version = "0.1.0"
 dependencies = [
  "psx-asset",
+ "psx-cdstream",
  "psx-font",
  "psx-gpu",
  "psx-gte",
@@ -137,6 +147,7 @@ name = "psx-game-runtime"
 version = "0.1.0"
 dependencies = [
  "psx-asset",
+ "psx-cdstream",
  "psx-engine",
  "psx-font",
  "psx-gpu",
