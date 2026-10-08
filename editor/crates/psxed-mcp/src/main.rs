@@ -25,6 +25,7 @@ use psxed_mcp::edit::{BrushSelection, ConvexBrushSpec, RadialArray, Workspace};
 use psxed_mcp::inspect::{brush_info, materials as material_table};
 use psxed_mcp::nodes::{entity_types, get_node};
 use psxed_mcp::play;
+use psxed_mcp::regions::{regions as region_query, RegionQuery};
 use psxed_mcp::shot;
 use psxed_mcp::{metrics, plan_view, scene_info, Focus, PlanAxis};
 use psxed_project::brush_primitives::{BrushCardinalDirection, BrushDrawSettings, BrushDrawShape};
@@ -412,6 +413,20 @@ struct AuditReq {
     first: Option<usize>,
     /// How many brushes from `first`.
     count: Option<usize>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct RegionsReq {
+    /// `report` (default), `region_at`, `closure` or `layout_cost`.
+    query: Option<String>,
+    /// `report` only: `json` for the machine-readable form, else text.
+    format: Option<String>,
+    /// `region_at`: authored x, y, z.
+    point: Option<[f64; 3]>,
+    /// `closure`: region id from the report.
+    region: Option<u32>,
+    /// Override the page pool the gates judge against, bytes.
+    pool_bytes: Option<u32>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -1235,6 +1250,49 @@ impl EditorServer {
                 grid.unwrap_or(GRID_STEP),
                 range,
             )? + &note)
+        })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    #[rmcp::tool(
+        description = "Partition the world into streamable regions and judge it against the drive and the RAM pool (host only; seconds on a large world). `report` gives the cook report: region count, payload per region, how far each region sees, the bytes-per-unit-of-travel verdict, the pool verdict and the disc layout cost. `region_at` finds the region holding an authored point, `closure` lists what one region sees and needs resident, `layout_cost` prints the seek-class histogram. All estimates are labelled in the report."
+    )]
+    async fn regions(
+        &self,
+        Parameters(RegionsReq {
+            query,
+            format,
+            point,
+            region,
+            pool_bytes,
+        }): Parameters<RegionsReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let query = match query.as_deref().unwrap_or("report") {
+            "report" => RegionQuery::Report {
+                json: format.as_deref() == Some("json"),
+            },
+            "region_at" => RegionQuery::RegionAt {
+                point: point
+                    .ok_or_else(|| ErrorData::invalid_params("region_at needs `point`", None))?,
+            },
+            "closure" => RegionQuery::Closure {
+                region: region
+                    .ok_or_else(|| ErrorData::invalid_params("closure needs `region`", None))?,
+            },
+            "layout_cost" => RegionQuery::LayoutCost,
+            other => {
+                return Err(ErrorData::invalid_params(
+                    format!(
+                        "unknown query {other:?}: use report, region_at, closure or layout_cost"
+                    ),
+                    None,
+                ))
+            }
+        };
+        let text = self.with(|workspace| {
+            let root = workspace.root().to_path_buf();
+            let project = workspace.document()?;
+            region_query(project, &root, &query, pool_bytes)
         })?;
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
