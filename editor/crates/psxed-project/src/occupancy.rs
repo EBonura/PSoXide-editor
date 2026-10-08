@@ -1410,9 +1410,15 @@ pub fn render_text(report: &Report) -> String {
             );
         }
         if vram.clut_rows.is_empty() {
-            let _ = writeln!(out, "\n  CLUT band: no row has data");
+            let _ = writeln!(
+                out,
+                "\n  Lines 480 to 511 (the contract's CLUT band): no data"
+            );
         } else {
-            let _ = writeln!(out, "\n  CLUT band rows with data");
+            let _ = writeln!(
+                out,
+                "\n  Lines 480 to 511 with data (the contract's CLUT band; large textures can reach these lines too, so a row is not proof of CLUTs)"
+            );
             for row in &vram.clut_rows {
                 let extent = row
                     .extent
