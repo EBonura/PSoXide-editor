@@ -26,31 +26,18 @@ cells produce 512 top triangles and 512 closed convex brushes. Start at the
 8 × 8 default and increase only where the landscape needs more shape. The
 project's normal world/collision compiler and runtime budgets still apply.
 
-## Detail wedges and the bed slab
+## Detail brushes (reference, not the terrain default)
 
-Every wedge is a **detail brush** (Quake 2/3 semantics, the *Detail brush*
-checkbox in the brush inspector). A detail brush is drawn and collides, but it
-contributes no splitter plane to the render tree, portals or visibility; its
-faces are assigned to the structural leaves they touch. The group also holds
-one structural **bed slab** under the wedges, spanning the footprint up to one
-height step below the lowest vertex. The slab seals the underside (the wedges
-alone would leave the world open) and is the terrain's only contribution to the
-tree. Its top and sides are buried in the wedges, so it never shows. Groups
-saved before this change hold structural wedges only; they still open, and
-applying them rewrites the group as detail wedges plus a bed.
+Generated terrain is structural: every wedge is an ordinary brush. The brush
+model also has a **Detail brush** flag (Quake 2/3 semantics). A detail brush is
+drawn and collides with bodies but contributes no splitter plane to the render
+tree, portals or visibility; its faces are assigned to the structural leaves
+they touch. `Terrain::bed` makes the structural slab such a terrain needs to
+seal its underside, and `terrain_study detail <src> <dst>` re-authors a terrain
+group that way. Projects without detail brushes cook byte for byte as before.
 
-Detail brushes still carve and are carved by structural brushes when the render
-surfaces are built, so buried faces disappear as before. Liquids are always
-structural.
-
-Point traces (the camera arm, projectiles, melee) normally walk the render BSP,
-which cannot see detail brushes. A model with any detail brush therefore also
-stores an exact point clip hull in head slot 1, and the editor-playtest runtime
-prefers it for those traces. Maps without detail brushes keep the empty
-sentinel there and cook byte for byte as before.
-
-Measured on the Graybox Terrain study (emulator, normal release guest, input
-tape polls 420 to 1590; the route differs between variants):
+Detail terrain was measured and rejected as the default (emulator, input tape
+polls 420 to 1590, route differs per variant):
 
 | Wedges | Structural | Detail + bed |
 | --- | ---: | ---: |
@@ -58,11 +45,13 @@ tape polls 420 to 1590; the route differs between variants):
 | 64 | 19.51 fps, 32,276 B | 18.95 fps, 45,316 B |
 | 128 | 15.41 fps, 58,144 B | 15.15 fps, 82,124 B |
 
-Detail brushes collapse the tree to the bed and enclosure (24 nodes, one open
-leaf, a one-byte PVS row), but they do not buy frame rate. Almost all of the
-terrain's cost is collision against the body hulls, which detail brushes do not
-change, and the single large leaf loses node-box culling for the terrain faces.
-Use detail wedges for the shorter tree and PVS, not for speed.
+The tree collapses to the bed and enclosure (24 nodes, one open leaf, a
+one-byte PVS row), but the frame cost is body-hull collision, which detail does
+not change, and the single large leaf loses node-box culling for the terrain
+faces. Point traces (camera arm, projectiles) walk the render BSP, which cannot
+see detail brushes, so the cook also stores an exact point hull in head slot 1.
+The runtime does not read that slot (the provider change was reverted), so
+detail brushes do not currently block those traces.
 
 The base sits 256 units below the generation origin; sculpting clamps above it
 so it cannot invert a solid or punch holes. Shared lattice vertices prevent

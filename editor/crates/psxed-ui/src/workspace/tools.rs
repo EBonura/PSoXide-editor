@@ -2507,7 +2507,7 @@ impl EditorWorkspace {
             let response = ui
                 .checkbox(&mut detail, "Detail brush")
                 .on_hover_text(
-                    "A detail brush draws and collides but never splits the BSP or its visibility. Use it for terrain, props and small trim; keep rooms and walls structural.",
+                    "A detail brush is drawn and has body collision but never splits the BSP or its visibility. The runtime does not yet trace camera and projectile points against detail brushes, so keep anything that must block them structural.",
                 );
             if mixed_detail {
                 response.on_hover_text("The selection mixes structural and detail brushes.");

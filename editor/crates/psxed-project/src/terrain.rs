@@ -1,8 +1,8 @@
-//! Editable low-poly heightfields expanded to closed solid wedges.
+//! Editable low-poly heightfields expanded to watertight, closed BSP solids.
 //!
-//! The wedges are detail brushes: they are drawn and collide, but do not split
-//! the render tree or visibility. A structural bed slab under them keeps the
-//! world sealed and gives the tree its floor.
+//! The wedges are structural brushes. They can be marked detail brushes, with
+//! [`Terrain::bed`] sealing the underside, but that was measured to cost frame
+//! rate and memory, so generated terrain stays structural.
 use crate::brush::{Brush, BrushContents, BrushFace, Plane};
 use crate::ResourceId;
 use std::collections::{BTreeMap, BTreeSet};
@@ -280,7 +280,7 @@ impl Terrain {
             }
         }
     }
-    /// One closed wedge per top triangle, marked as detail brushes.
+    /// One closed structural wedge per top triangle.
     pub fn brushes(&self, material: Option<ResourceId>) -> Result<Vec<Brush>, String> {
         self.validate()?;
         Ok(self
@@ -289,7 +289,8 @@ impl Terrain {
             .map(|top| wedge(top, self.bottom, material))
             .collect())
     }
-    /// The structural slab under the detail wedges, spanning the terrain
+    /// The structural slab for a terrain whose wedges are marked detail,
+    /// spanning the terrain
     /// footprint from the solid base up to one height step below the lowest
     /// vertex (or to the lowest vertex itself when that is the least the base
     /// allows). It is the only structural brush a terrain adds: the render
@@ -457,7 +458,6 @@ fn wedge(top: [[i32; 3]; 3], bottom: i32, material: Option<ResourceId>) -> Brush
     }
     Brush {
         faces,
-        detail: true,
         ..Brush::default()
     }
 }
@@ -516,7 +516,7 @@ mod tests {
         let brushes = p.brushes(None).unwrap();
         assert_eq!(brushes.len(), 32);
         for b in &brushes {
-            assert!(b.is_detail(), "terrain wedges are detail brushes");
+            assert!(!b.is_detail(), "generated terrain wedges stay structural");
             let s = b.solve();
             assert!(s.is_valid() && s.within_extent(crate::brush::BRUSH_EDIT_EXTENT_LIMIT));
             assert_eq!(s.polygons.iter().flatten().count(), 5);
@@ -541,7 +541,7 @@ mod tests {
     fn bed_is_one_structural_slab_buried_under_the_wedges() {
         let p = patch();
         let bed = p.bed(None).unwrap();
-        assert!(!bed.is_detail(), "the bed is the structural brush");
+        assert!(!bed.is_detail(), "the bed is a structural brush");
         assert_eq!(bed.faces.len(), 6);
         assert!(bed.solve().is_valid());
         let solved = bed.solve();
@@ -569,10 +569,16 @@ mod tests {
     fn group_with_bed_reopens_and_legacy_structural_wedges_still_do() {
         let p = patch();
         let mut group = p.brushes(None).unwrap();
+        for b in &mut group {
+            b.detail = true;
+        }
         group.push(p.bed(None).unwrap());
         // Reopening quantizes heights to the 16-unit grid, as for any save.
         let reopened = Terrain::from_brushes(&group).unwrap();
         let mut again = reopened.brushes(None).unwrap();
+        for b in &mut again {
+            b.detail = true;
+        }
         again.push(reopened.bed(None).unwrap());
         assert_eq!(again, group);
         let mut moved = group.clone();
@@ -581,6 +587,9 @@ mod tests {
         }
         let recovered = Terrain::from_brushes(&moved).unwrap();
         let mut again = recovered.brushes(None).unwrap();
+        for b in &mut again {
+            b.detail = true;
+        }
         again.push(recovered.bed(None).unwrap());
         assert_eq!(again, moved);
         // A bed that no longer matches its wedges is a destructive edit.
@@ -590,11 +599,9 @@ mod tests {
         let mut twice = group.clone();
         twice.push(p.bed(None).unwrap());
         assert!(Terrain::from_brushes(&twice).is_err());
-        // Projects saved before detail brushes hold structural wedges only.
-        let mut legacy = p.brushes(None).unwrap();
-        for b in &mut legacy {
-            b.detail = false;
-        }
+        // Structural wedges without a bed, the generated layout and every
+        // project saved before detail brushes, still reopen.
+        let legacy = p.brushes(None).unwrap();
         assert_eq!(Terrain::from_brushes(&legacy).unwrap(), reopened);
     }
     #[test]
@@ -711,7 +718,6 @@ mod integration_tests {
         assert!(t.sky_enclosure(256, sky).is_err());
         assert!(t.sky_enclosure(2049, sky).is_err());
         let mut brushes = t.brushes(None).unwrap();
-        brushes.push(t.bed(None).unwrap());
         let shell = t.sky_enclosure(2048, sky).unwrap();
         assert_eq!(shell.len(), 5);
         assert!(shell
@@ -756,7 +762,6 @@ mod integration_tests {
             .active_scene_mut()
             .add_node(root, "Terrain", crate::NodeKind::Group);
         let mut brushes = t.brushes(None).unwrap();
-        brushes.push(t.bed(None).unwrap());
         for b in &mut brushes {
             b.group = Some(group);
         }

@@ -1500,8 +1500,9 @@ impl BspRuntime {
     ) -> Result<CollisionTrace, CollisionQueryError> {
         let mut models = CollisionModels::new();
         self.collision_models(&mut models, destructibles);
-        let mut provider = PxbspCollisionProvider::new_point(
+        let mut provider = PxbspCollisionProvider::new(
             &self.map,
+            BSP_POINT_HULL_INDEX,
             models.as_slice(),
             CollisionTraceShape::Point,
             &mut self.trace_scratch,
@@ -1529,11 +1530,9 @@ impl BspRuntime {
         // spring-arm trace. The authored collision margin still stops the eye
         // before a wall. Walking the expanded body-hull brush chains here made
         // a single E1M1 camera solve roughly as expensive as rendering a room.
-        // A map with detail brushes stores an exact point hull instead, since
-        // the render BSP does not contain them; `new_point` prefers it and
-        // otherwise traces hull 0 exactly as before.
-        let mut provider = PxbspCollisionProvider::new_point(
+        let mut provider = PxbspCollisionProvider::new(
             &self.map,
+            BSP_POINT_HULL_INDEX,
             models.as_slice(),
             CollisionTraceShape::Point,
             &mut self.trace_scratch,
