@@ -273,6 +273,8 @@ struct Playtest {
     /// Action that was playing when the freeze began; a different action
     /// (an accepted dodge, say) ends the freeze early.
     player_hit_stop_action: u8,
+    /// Remaining ticks of the body hit flash.
+    player_hit_flash: u8,
     /// Active clip-transition crossfade: outgoing state, its frozen
     /// clip-local tick, and the switch tick the blend ramps from.
     /// Cleared on init/respawn; expires by elapsed ticks at render.

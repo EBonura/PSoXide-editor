@@ -589,6 +589,8 @@ pub struct GameEntities<const MAX_ENTITIES: usize, const STANCE_BOUND_ATTACKS: b
     /// Remaining hit-stop ticks (60 Hz). While non-zero the entity's whole
     /// per-tick step is skipped, so its clocks and animation phase hold.
     hit_stop: [u8; MAX_ENTITIES],
+    /// Remaining hit-flash ticks (60 Hz); presentation only.
+    hit_flash: [u8; MAX_ENTITIES],
     /// One-shot eye pulse age plus one; zero means no pulse (including spawn).
     stance_pulse: [u8; MAX_ENTITIES],
     /// Same cooked cooldown as the player, with independent per-enemy clocks.
@@ -799,6 +801,7 @@ impl<const MAX_ENTITIES: usize, const STANCE_BOUND_ATTACKS: bool>
         flow: [crate::combat_flow::CombatFlow::FULL; MAX_ENTITIES],
         recoil: [[0; 3]; MAX_ENTITIES],
         hit_stop: [0; MAX_ENTITIES],
+        hit_flash: [0; MAX_ENTITIES],
         stance_pulse: [0; MAX_ENTITIES],
         stance_swap_delay: 0,
         stance_swap_cooldown: [0; MAX_ENTITIES],
@@ -848,6 +851,7 @@ impl<const MAX_ENTITIES: usize, const STANCE_BOUND_ATTACKS: bool>
             self.projectile_threats[index] = None;
             self.recoil[index] = [0; 3];
             self.hit_stop[index] = 0;
+            self.hit_flash[index] = 0;
             self.stance_pulse[index] = 0;
             self.patrol_leg[index] = 0;
             self.move_yaw[index] = 0;
@@ -917,15 +921,19 @@ impl<const MAX_ENTITIES: usize, const STANCE_BOUND_ATTACKS: bool>
         self.spatial_active_mask = mask;
     }
 
-    /// Freeze entity `index` for `ticks` simulation ticks (hit-stop). A longer
+    /// Freeze entity `index` for `ticks` simulation ticks (hit-stop). `struck`
+    /// also flashes its body; the attacker freezes without flashing. A longer
     /// freeze already running is kept. A blow that defeats the entity freezes
     /// it too, so the death clip starts after the freeze and the kill reads.
     /// Out-of-range indices are ignored.
-    pub fn begin_hit_stop(&mut self, index: usize, ticks: u8) {
+    pub fn begin_hit_stop(&mut self, index: usize, ticks: u8, struck: bool) {
         if index >= self.count() {
             return;
         }
         self.hit_stop[index] = self.hit_stop[index].max(ticks);
+        if struck {
+            self.hit_flash[index] = crate::hit_stop::FLASH_TICKS;
+        }
     }
 
     /// Whether entity `index` is inside a hit-stop freeze this tick.
@@ -933,13 +941,23 @@ impl<const MAX_ENTITIES: usize, const STANCE_BOUND_ATTACKS: bool>
         index < self.count() && self.hit_stop[index] != 0
     }
 
-    /// Advance every hit-stop countdown by one simulation tick.
+    /// Remaining hit-flash ticks of entity `index`.
+    pub fn hit_flash(&self, index: usize) -> u8 {
+        if index < self.count() {
+            self.hit_flash[index]
+        } else {
+            0
+        }
+    }
+
+    /// Advance every hit-stop and hit-flash countdown by one simulation tick.
     /// Call once per tick after the entity step, so a freeze set on tick `t`
     /// holds the entity through ticks `t + 1` to `t + ticks`.
     pub fn tick_hit_stops(&mut self) {
         let count = self.count();
         for index in 0..count {
             self.hit_stop[index] = self.hit_stop[index].saturating_sub(1);
+            self.hit_flash[index] = self.hit_flash[index].saturating_sub(1);
         }
     }
 
@@ -3574,8 +3592,9 @@ mod tests {
             assert_eq!(entities.state(0), GameEntityState::Windup);
             let before = (entities.state(0), entities.state_age(0));
             if frozen {
-                entities.begin_hit_stop(0, 4);
+                entities.begin_hit_stop(0, 4, true);
                 assert!(entities.hit_stopped(0));
+                assert_eq!(entities.hit_flash(0), crate::hit_stop::FLASH_TICKS);
                 for _ in 0..4 {
                     let stats = entities.tick(&IDLE_ENEMY, near_input(), &mut NoClipMover);
                     entities.tick_hit_stops();
@@ -3584,6 +3603,7 @@ mod tests {
                     assert_eq!((entities.state(0), entities.state_age(0)), before);
                 }
                 assert!(!entities.hit_stopped(0));
+                assert_eq!(entities.hit_flash(0), 0);
             }
             // Windup lasts three ticks; the freeze must not eat any of them.
             for _ in 0..3 {
@@ -3598,15 +3618,15 @@ mod tests {
     fn a_longer_freeze_is_kept_and_out_of_range_requests_are_ignored() {
         let mut entities = GameEntities::<8>::EMPTY;
         entities.spawn_from_records(&IDLE_ENEMY);
-        entities.begin_hit_stop(0, 8);
-        entities.begin_hit_stop(0, 4);
+        entities.begin_hit_stop(0, 8, false);
+        entities.begin_hit_stop(0, 4, false);
         for _ in 0..7 {
             entities.tick_hit_stops();
         }
         assert!(entities.hit_stopped(0));
         entities.tick_hit_stops();
         assert!(!entities.hit_stopped(0));
-        entities.begin_hit_stop(5, 8);
+        entities.begin_hit_stop(5, 8, true);
         assert!(!entities.hit_stopped(5));
     }
 

@@ -113,6 +113,8 @@ pub struct EquipmentMaterializationSkin {
 pub struct ModelTintSweep {
     color: (u8, u8, u8),
     frontier_y: i16,
+    /// Strength ceiling, Q8; 256 lets the colour fully replace the base.
+    scale_q8: u16,
 }
 
 /// Eight pixels on either side of the rising frontier. Keeping this a power
@@ -136,7 +138,22 @@ impl ModelTintSweep {
         let frontier_y = (bottom_y as i32)
             .saturating_sub(span.saturating_mul(progress_q12 as i32) / 4096)
             .clamp(i16::MIN as i32, i16::MAX as i32) as i16;
-        Self { color, frontier_y }
+        Self {
+            color,
+            frontier_y,
+            scale_q8: 256,
+        }
+    }
+
+    /// Tint the whole body toward `color` at `strength_q8` (256 = fully), the
+    /// same post-pass as the stance sweep with the frontier above the model.
+    /// Used for the short body flash when an actor is struck.
+    pub fn flash(color: (u8, u8, u8), strength_q8: u16) -> Self {
+        Self {
+            color,
+            frontier_y: i16::MIN,
+            scale_q8: strength_q8.min(256),
+        }
     }
 
     fn tint_at_y(self, base: (u8, u8, u8), y: i16) -> (u8, u8, u8) {
@@ -144,7 +161,7 @@ impl ModelTintSweep {
             .saturating_sub(i32::from(self.frontier_y))
             .saturating_add(MODEL_TINT_SWEEP_FEATHER_PX)
             .clamp(0, MODEL_TINT_SWEEP_FEATHER_PX * 2);
-        let strength_q8 = band_position << 4;
+        let strength_q8 = ((band_position << 4) * i32::from(self.scale_q8)) >> 8;
         (
             lerp_tint_channel(base.0, self.color.0, strength_q8),
             lerp_tint_channel(base.1, self.color.1, strength_q8),
@@ -2938,6 +2955,29 @@ mod tests {
             secondary_layer: None,
             flags,
         }
+    }
+
+    #[test]
+    fn body_flash_tints_every_height_by_its_strength_and_keeps_the_opcode() {
+        let material = TextureMaterial::opaque(1, 2, (128, 128, 128));
+        for y in [-300, 0, 90, 300] {
+            let mut triangle = TriTextured::with_material(
+                [(0, y), (4, y), (0, y + 1)],
+                [(0, 0), (1, 0), (0, 1)],
+                material,
+            );
+            let opcode = triangle.color_cmd & 0xff00_0000;
+            tint_model_triangle(&mut triangle, ModelTintSweep::flash((255, 255, 255), 128));
+            assert_eq!(triangle.color_cmd & 0x00ff_ffff, 0x00bf_bfbf, "y={y}");
+            assert_eq!(triangle.color_cmd & 0xff00_0000, opcode);
+        }
+        let mut none = TriTextured::with_material(
+            [(0, 5), (4, 5), (0, 6)],
+            [(0, 0), (1, 0), (0, 1)],
+            material,
+        );
+        tint_model_triangle(&mut none, ModelTintSweep::flash((255, 255, 255), 0));
+        assert_eq!(none.color_cmd & 0x00ff_ffff, 0x0080_8080);
     }
 
     #[test]

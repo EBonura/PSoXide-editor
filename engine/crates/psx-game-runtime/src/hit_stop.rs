@@ -20,6 +20,9 @@ pub const HEAVY_TICKS: u8 = 8;
 pub const HEAVY_BREAK_TICKS: u8 = 10;
 /// The blow that defeats an actor.
 pub const KILL_TICKS: u8 = 12;
+/// Ticks the struck body stays flashed, counted from the connect. Two frames
+/// of the 30 Hz render cadence, so the flash is seen on every cadence.
+pub const FLASH_TICKS: u8 = 4;
 
 /// Freeze length for one melee connect.
 pub const fn ticks_for(heavy: bool, poise_broken: bool, killed: bool) -> u8 {
@@ -35,6 +38,16 @@ pub const fn ticks_for(heavy: bool, poise_broken: bool, killed: bool) -> u8 {
         LIGHT_BREAK_TICKS
     } else {
         LIGHT_TICKS
+    }
+}
+
+/// Flash strength, Q8 (256 = the full flash colour), for `remaining` ticks of
+/// an active flash: full for the first half, half for the second.
+pub const fn flash_strength_q8(remaining: u8) -> u16 {
+    match remaining {
+        0 => 0,
+        1 | 2 => 112,
+        _ => 224,
     }
 }
 
@@ -58,5 +71,12 @@ mod tests {
         ] {
             assert_eq!(ticks_for(heavy, broke, killed) % 2, 0);
         }
+    }
+
+    #[test]
+    fn the_flash_fits_inside_the_shortest_freeze_and_fades() {
+        assert!(FLASH_TICKS <= LIGHT_TICKS);
+        assert_eq!(flash_strength_q8(0), 0);
+        assert!(flash_strength_q8(FLASH_TICKS) > flash_strength_q8(1));
     }
 }
