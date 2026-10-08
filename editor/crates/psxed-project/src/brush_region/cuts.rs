@@ -129,15 +129,15 @@ struct Item {
 /// Model bytes of one render surface: vertices, face record, mark, shared
 /// plane. Calibrated on the three real projects (render lumps are ~82% of a
 /// cooked map). [E]
-fn surface_bytes(vertices: usize) -> f64 {
+pub(crate) fn surface_bytes(vertices: usize) -> f64 {
     (vertices as u32 * record::VERTEX + record::FACE + 3 + 5) as f64
 }
 
 /// Model bytes of one topology surface: one BSP node and one leaf. [E]
-const TOPOLOGY_BYTES: f64 = (record::NODE + record::LEAF) as f64;
+pub(crate) const TOPOLOGY_BYTES: f64 = (record::NODE + record::LEAF) as f64;
 /// Model bytes of collision per brush; cooked clipnode lumps run 75 to 109
 /// bytes per brush on graybox-valley, graybox-reach and cortex-ignition-0.5. [E]
-const BRUSH_BYTES: f64 = 100.0;
+pub(crate) const BRUSH_BYTES: f64 = 100.0;
 
 fn items(input: &PartitionInput) -> Vec<Item> {
     let mut items = Vec::with_capacity(input.render.len() + input.topology.len());
@@ -188,6 +188,18 @@ fn items(input: &PartitionInput) -> Vec<Item> {
         });
     }
     items
+}
+
+/// Bytes the cut search's model gives the items whose centroid lies in
+/// `bounds`: what decides whether a cell is split. A generator that keeps a
+/// module under the cut target never has its interior cut.
+#[cfg(test)]
+pub(crate) fn model_bytes_in(input: &PartitionInput, bounds: &Aabb) -> f64 {
+    items(input)
+        .iter()
+        .filter(|item| bounds.contains_half_open(item.centroid))
+        .map(|item| item.bytes)
+        .sum()
 }
 
 #[derive(Clone, Copy, Default)]
