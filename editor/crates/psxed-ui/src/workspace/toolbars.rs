@@ -1051,9 +1051,6 @@ impl EditorWorkspace {
             }
             self.selected_brushes = selected_brushes;
         }
-        if let Some(selection_mode) = mode.selection_mode() {
-            self.set_selection_mode(selection_mode);
-        }
         self.status = format!(
             "Brush {}: {}; grid snap {}",
             mode.label(),

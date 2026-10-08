@@ -1058,11 +1058,6 @@ impl EditorWorkspace {
         self.selected_frame_bounds_3d()
     }
 
-    /// Active selection mode (Face / Edge / Vertex).
-    pub fn selection_mode(&self) -> SelectionMode {
-        self.selection_mode
-    }
-
     /// Scene node whose 3D bounding box currently sits under
     /// the pointer (Select tool only). Frontend reads it each
     /// frame so the editor preview can highlight the box and
