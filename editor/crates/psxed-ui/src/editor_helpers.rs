@@ -65,143 +65,6 @@ pub(crate) fn node_world(node: &psxed_project::SceneNode) -> [f32; 2] {
     [node.transform.translation[0], node.transform.translation[2]]
 }
 
-pub(crate) fn room_grid_center_cells(
-    scene: &psxed_project::Scene,
-    room: NodeId,
-) -> Option<[f32; 2]> {
-    let node = scene.node(room)?;
-    let NodeKind::Section { grid } = &node.kind else {
-        return None;
-    };
-    Some(grid.grid_center_cells())
-}
-
-pub(crate) fn node_kind_uses_room_editor_position(kind: &NodeKind) -> bool {
-    matches!(
-        kind,
-        NodeKind::Entity
-            | NodeKind::MeshInstance { .. }
-            | NodeKind::ImageProp { .. }
-            | NodeKind::BoxProp { .. }
-            | NodeKind::CylinderProp { .. }
-            | NodeKind::SpawnPoint { .. }
-            | NodeKind::PointLight { .. }
-            | NodeKind::Portal { .. }
-    )
-}
-
-pub(crate) fn recenter_room_spatial_descendants(
-    scene: &mut psxed_project::Scene,
-    room: NodeId,
-    old_center: [f32; 2],
-) {
-    let Some(new_center) = room_grid_center_cells(scene, room) else {
-        return;
-    };
-    let delta = [old_center[0] - new_center[0], old_center[1] - new_center[1]];
-    if delta[0] == 0.0 && delta[1] == 0.0 {
-        return;
-    }
-    let ids: Vec<NodeId> = scene
-        .nodes()
-        .iter()
-        .filter(|node| node.id != room)
-        .filter(|node| scene.is_descendant_of(node.id, room))
-        .filter(|node| node_kind_uses_room_editor_position(&node.kind))
-        .map(|node| node.id)
-        .collect();
-    for id in ids {
-        if let Some(node) = scene.node_mut(id) {
-            node.transform.translation[0] += delta[0];
-            node.transform.translation[2] += delta[1];
-        }
-    }
-}
-
-pub(crate) fn extend_room_grid_to_include_preserving_child_positions(
-    scene: &mut psxed_project::Scene,
-    room: NodeId,
-    wcx: i32,
-    wcz: i32,
-    active_floor: usize,
-) -> Option<(u16, u16)> {
-    let old_center = room_grid_center_cells(scene, room)?;
-    let cell = {
-        let node = scene.node_mut(room)?;
-        let NodeKind::Section { grid } = &mut node.kind else {
-            return None;
-        };
-        let idx = active_floor.min(grid.floor_count().saturating_sub(1));
-        grid.floor_mut(idx)?.extend_to_include(wcx, wcz)
-    };
-    recenter_room_spatial_descendants(scene, room, old_center);
-    Some(cell)
-}
-
-pub(crate) fn resize_room_grid_preserving_child_positions(
-    scene: &mut psxed_project::Scene,
-    room: NodeId,
-    width: u16,
-    depth: u16,
-    active_floor: usize,
-) -> bool {
-    let Some(old_center) = room_grid_center_cells(scene, room) else {
-        return false;
-    };
-    let resized = {
-        let Some(node) = scene.node_mut(room) else {
-            return false;
-        };
-        let NodeKind::Section { grid } = &mut node.kind else {
-            return false;
-        };
-        let idx = active_floor.min(grid.floor_count().saturating_sub(1));
-        let Some(grid) = grid.floor_mut(idx) else {
-            return false;
-        };
-        if grid.width == width && grid.depth == depth {
-            return false;
-        }
-        grid.resize(width, depth);
-        true
-    };
-    if resized {
-        recenter_room_spatial_descendants(scene, room, old_center);
-    }
-    resized
-}
-
-pub(crate) fn grid_cell_editor_center(grid: &WorldGrid, sx: u16, sz: u16) -> [f32; 2] {
-    [
-        sx as f32 + 0.5 - grid.width as f32 * 0.5,
-        sz as f32 + 0.5 - grid.depth as f32 * 0.5,
-    ]
-}
-
-pub(crate) fn grid_rect_editor_center_half(
-    grid: &WorldGrid,
-    array_origin: [u16; 2],
-    size: [u16; 2],
-) -> ([f32; 2], [f32; 2]) {
-    let half = [size[0] as f32 * 0.5, size[1] as f32 * 0.5];
-    (
-        [
-            array_origin[0] as f32 + half[0] - grid.width as f32 * 0.5,
-            array_origin[1] as f32 + half[1] - grid.depth as f32 * 0.5,
-        ],
-        half,
-    )
-}
-
-pub(crate) fn grid_authored_editor_center_half(grid: &WorldGrid) -> Option<([f32; 2], [f32; 2])> {
-    let footprint = grid.authored_footprint()?;
-    Some(grid_rect_editor_center_half(
-        grid,
-        [footprint.x, footprint.z],
-        [footprint.width, footprint.depth],
-    ))
-}
-
 pub(crate) fn merge_bounds(
     bounds: &mut Option<(f32, f32, f32, f32)>,
     center: [f32; 2],
@@ -687,23 +550,6 @@ pub(crate) fn dot3(a: [f32; 3], b: [f32; 3]) -> f32 {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
 
-/// Walk the active scene and collect every Room node as an
-/// `(id, display name)` pair, used by Portal pickers.
-/// Walk parent links until a `NodeKind::Section` is found.
-/// Returns its `NodeId` or `None` if `node_id` lives outside
-/// any Room.
-pub(crate) fn enclosing_room_id(scene: &psxed_project::Scene, node_id: NodeId) -> Option<NodeId> {
-    let mut current = scene.node(node_id)?.parent;
-    while let Some(parent_id) = current {
-        let parent = scene.node(parent_id)?;
-        if matches!(parent.kind, NodeKind::Section { .. }) {
-            return Some(parent_id);
-        }
-        current = parent.parent;
-    }
-    None
-}
-
 /// Resolve a scene node to the Entity whose authored transform owns it.
 ///
 /// Component rows intentionally have no independent placement transform. UI
@@ -737,128 +583,21 @@ pub(crate) fn engine_grid_units(requested: u16) -> u16 {
     rounded.clamp(unit, u32::from(MAX_GRID_UNITS)) as u16
 }
 
-pub(crate) fn portal_seam_bounds_3d(
-    grid: &WorldGrid,
-    node: &psxed_project::SceneNode,
-) -> Option<([f32; 3], [f32; 3])> {
-    if !matches!(node.kind, NodeKind::Portal { .. }) {
-        return None;
-    }
-
-    let mut bounds = None;
-    for edge in portal_seam_edges_for_node(grid, node) {
-        let Some((a, b)) = portal_edge_room_local_segment(grid, edge) else {
-            continue;
-        };
-        let (min_y, max_y) = portal_edge_pick_height_bounds(grid, edge);
-        for point in [
-            [a[0], min_y, a[2]],
-            [a[0], max_y, a[2]],
-            [b[0], min_y, b[2]],
-            [b[0], max_y, b[2]],
-        ] {
-            merge_bounds_3d(&mut bounds, point, [0.0, 0.0, 0.0]);
-        }
-    }
-
-    let (center, mut half) = bounds.map(bounds_3d_to_center_half)?;
-    let pick_pad = (grid.sector_size as f32 * 0.08).clamp(48.0, 128.0);
-    half[0] = half[0].max(pick_pad);
-    half[1] = half[1].max(pick_pad);
-    half[2] = half[2].max(pick_pad);
-    Some((center, half))
-}
-
-pub(crate) fn portal_edge_room_local_segment(
-    grid: &WorldGrid,
-    edge: PortalEdge,
-) -> Option<([f32; 3], [f32; 3])> {
-    let (a, b) = portal_edge_editor_segment(grid, edge)?;
-    Some((grid.editor_to_room_local(a), grid.editor_to_room_local(b)))
-}
-
-pub(crate) fn portal_edge_pick_height_bounds(grid: &WorldGrid, edge: PortalEdge) -> (f32, f32) {
-    let mut min_y: Option<i32> = None;
-    let mut max_y: Option<i32> = None;
-    include_portal_pick_sector_heights(grid.sector(edge.x, edge.z), &mut min_y, &mut max_y);
-    if let Some((nx, nz)) = portal_edge_neighbour(edge.x, edge.z, edge.direction)
-        .filter(|(nx, nz)| *nx < grid.width && *nz < grid.depth)
-    {
-        include_portal_pick_sector_heights(grid.sector(nx, nz), &mut min_y, &mut max_y);
-    }
-    if let Some(wall) = grid.floor_transition_wall_for_edge(edge.x, edge.z, edge.direction) {
-        for height in wall.heights {
-            include_min_i32(&mut min_y, height);
-            include_max_i32(&mut max_y, height);
-        }
-    }
-
-    let fallback_min = min_y.unwrap_or(0);
-    let mut fallback_max = max_y.unwrap_or(fallback_min + grid.sector_size.max(128));
-    if fallback_max <= fallback_min {
-        fallback_max = fallback_min + grid.sector_size.max(128);
-    }
-    (fallback_min as f32, fallback_max as f32)
-}
-
-pub(crate) fn include_portal_pick_sector_heights(
-    sector: Option<&GridSector>,
-    min_y: &mut Option<i32>,
-    max_y: &mut Option<i32>,
-) {
-    let Some(sector) = sector else {
-        return;
-    };
-    for heights in [
-        sector.floor.as_ref().map(|face| face.heights),
-        sector.ceiling.as_ref().map(|face| face.heights),
-    ]
-    .into_iter()
-    .flatten()
-    {
-        for height in heights {
-            include_min_i32(min_y, height);
-            include_max_i32(max_y, height);
-        }
-    }
-    for dir in GridDirection::CARDINAL {
-        for wall in sector.walls.get(dir) {
-            for height in wall.heights {
-                include_min_i32(min_y, height);
-                include_max_i32(max_y, height);
-            }
-        }
-    }
-}
-
-pub(crate) fn include_min_i32(target: &mut Option<i32>, value: i32) {
-    *target = Some(target.map_or(value, |current| current.min(value)));
-}
-
-pub(crate) fn include_max_i32(target: &mut Option<i32>, value: i32) {
-    *target = Some(target.map_or(value, |current| current.max(value)));
-}
-
 /// Per-kind half-extents in world units. Picked so:
 /// - bounds are big enough to click reliably at typical
 ///   editor zoom levels,
 /// - small enough that a Light marker doesn't block
-///   selection of nearby grid faces,
+///   selection of nearby brush faces,
 /// - distinct enough to read at a glance.
 ///
-/// `None` for node kinds that don't get a 3D bound (Room,
-/// World, Node, Node3D -- the structural / non-spatial ones).
+/// `None` for node kinds that don't get a 3D bound (World,
+/// Node, Node3D -- the structural / non-spatial ones).
 pub(crate) fn entity_bound_kind_and_size(
     workspace: &EditorWorkspace,
     node: &psxed_project::SceneNode,
 ) -> Option<(EntityBoundKind, [f32; 3])> {
     match &node.kind {
-        NodeKind::Section { .. }
-        | NodeKind::World { .. }
-        | NodeKind::Node
-        | NodeKind::Group
-        | NodeKind::Node3D
-        | NodeKind::WaterVolume { .. } => None,
+        NodeKind::World { .. } | NodeKind::Node | NodeKind::Group | NodeKind::Node3D => None,
         NodeKind::ModelRenderer { .. }
         | NodeKind::Animator { .. }
         | NodeKind::Collider { .. }
@@ -1021,7 +760,6 @@ pub(crate) fn entity_bound_kind_and_size(
             },
             [128.0, 192.0, 128.0],
         )),
-        NodeKind::Portal { .. } => Some((EntityBoundKind::Portal, [256.0, 256.0, 64.0])),
         // Trigger volumes read as their authored extent so the box is
         // clickable where it fires; point-like logic nodes get a
         // small marker bound.
@@ -1037,30 +775,6 @@ pub(crate) fn entity_bound_kind_and_size(
             _ => Some((EntityBoundKind::Logic, [128.0, 192.0, 128.0])),
         },
     }
-}
-
-pub(crate) fn node_is_floor_anchored(kind: &NodeKind) -> bool {
-    // Trigger Volumes belong here because the cook anchors them floor-up
-    // (`record.min[1] = origin`, growing to `origin + size`), so drawing
-    // them centred on Y would show a box half its authored height below
-    // where it actually fires. Other Logic kinds are point markers with a
-    // symmetric gizmo and stay centred.
-    if let NodeKind::Logic {
-        kind: psxed_project::LogicNodeKind::TriggerVolume { .. },
-        ..
-    } = kind
-    {
-        return true;
-    }
-    matches!(
-        kind,
-        NodeKind::Entity
-            | NodeKind::MeshInstance { .. }
-            | NodeKind::BoxProp { .. }
-            | NodeKind::CylinderProp { .. }
-            | NodeKind::ArchProp { .. }
-            | NodeKind::SpawnPoint { .. }
-    )
 }
 
 pub(crate) fn entity_model_resource<'a>(
@@ -1125,16 +839,6 @@ pub(crate) fn entity_character_resource_id(
             } => Some(id),
             _ => None,
         })
-}
-
-pub(crate) fn collect_room_options(project: &ProjectDocument) -> Vec<(NodeId, String)> {
-    project
-        .active_scene()
-        .nodes()
-        .iter()
-        .filter(|node| matches!(node.kind, NodeKind::Section { .. }))
-        .map(|node| (node.id, node.name.clone()))
-        .collect()
 }
 
 pub(crate) fn collect_destructible_options(project: &ProjectDocument) -> Vec<(NodeId, String)> {
