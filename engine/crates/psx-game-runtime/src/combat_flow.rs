@@ -4,6 +4,11 @@
 pub const ENERGY_MAX: u16 = 100;
 /// Energy charged per emitted projectile.
 pub const SHOT_COST: u16 = 20;
+/// Energy a charged arch shot costs, twice an ordinary one. It is tied to the
+/// arch: a perched player cannot dodge, loses the attached refill while
+/// charging and holds still for over a second, so the shot is paid for in both
+/// resources and risk.
+pub const CHARGED_SHOT_COST: u16 = 40;
 /// AI rebuilds a useful three-shot reserve before leaving recovery melee.
 pub const AI_RESUME_ENERGY: u16 = 60;
 /// Preserve a contact opportunity through recovery and the stance cooldown.
@@ -120,11 +125,11 @@ impl CombatFlow {
     }
     /// True when energy covers a charged arch shot.
     pub fn can_shoot_charged(&self) -> bool {
-        self.energy >= crate::hook_points::CHARGED_ENERGY_COST
+        self.energy >= CHARGED_SHOT_COST
     }
     /// Charge a successfully allocated charged bolt.
     pub fn spend_charged_shot(&mut self) -> bool {
-        self.spend(crate::hook_points::CHARGED_ENERGY_COST)
+        self.spend(CHARGED_SHOT_COST)
     }
     fn spend(&mut self, cost: u16) -> bool {
         if self.energy < cost {
@@ -308,11 +313,11 @@ mod tests {
     #[test]
     fn a_charged_shot_costs_its_own_energy_and_needs_it_all() {
         let mut flow = CombatFlow::FULL;
-        flow.energy = crate::hook_points::CHARGED_ENERGY_COST - 1;
+        flow.energy = CHARGED_SHOT_COST - 1;
         assert!(flow.can_shoot() && !flow.can_shoot_charged());
         assert!(!flow.spend_charged_shot());
-        assert_eq!(flow.energy, crate::hook_points::CHARGED_ENERGY_COST - 1);
-        flow.energy = crate::hook_points::CHARGED_ENERGY_COST;
+        assert_eq!(flow.energy, CHARGED_SHOT_COST - 1);
+        flow.energy = CHARGED_SHOT_COST;
         assert!(flow.spend_charged_shot());
         assert_eq!(flow.energy, 0);
         assert!(!flow.can_shoot());
