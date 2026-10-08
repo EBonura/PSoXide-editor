@@ -184,6 +184,9 @@ pub struct PxbspCollisionProvider<'map, 'models, 'scratch> {
     map: &'map PxbspResidentMap,
     world: CollisionHull<'map>,
     hull_index: usize,
+    /// Point provider that prefers a model's exact point clip hull over the
+    /// render BSP (see [`PxbspResidentMap::model_point_clip_hull`]).
+    point_clip: bool,
     models: &'models [PxbspCollisionModel],
     supported_shape: CollisionTraceShape,
     scratch: &'scratch mut TraceScratch,
@@ -212,10 +215,40 @@ impl<'map, 'models, 'scratch> PxbspCollisionProvider<'map, 'models, 'scratch> {
             map,
             world,
             hull_index,
+            point_clip: false,
             models,
             supported_shape,
             scratch,
         })
+    }
+
+    /// Point-hull provider that sees detail brushes.
+    ///
+    /// Behaves exactly like [`Self::new`] with hull 0 for every model that has
+    /// no stored point clip hull, so a map without detail brushes traces the
+    /// render BSP as before. A model that does store one is traced through that
+    /// hull instead, because its detail brushes are absent from the render BSP.
+    pub fn new_point(
+        map: &'map PxbspResidentMap,
+        models: &'models [PxbspCollisionModel],
+        supported_shape: CollisionTraceShape,
+        scratch: &'scratch mut TraceScratch,
+    ) -> Option<Self> {
+        let mut provider = Self::new(map, 0, models, supported_shape, scratch)?;
+        provider.point_clip = true;
+        if let Some(hull) = map.model_point_clip_hull(0) {
+            provider.world = hull;
+        }
+        Some(provider)
+    }
+
+    fn model_hull(&self, model_index: usize) -> Option<CollisionHull<'map>> {
+        if self.point_clip {
+            if let Some(hull) = self.map.model_point_clip_hull(model_index) {
+                return Some(hull);
+            }
+        }
+        self.map.model_collision_hull(model_index, self.hull_index)
     }
 }
 
@@ -231,10 +264,7 @@ impl CollisionTraceProvider for PxbspCollisionProvider<'_, '_, '_> {
             return false;
         }
         for model in self.models.iter() {
-            let Some(hull) = self
-                .map
-                .model_collision_hull(model.model_index as usize, self.hull_index)
-            else {
+            let Some(hull) = self.model_hull(model.model_index as usize) else {
                 return false;
             };
             let mut candidate = Trace::default();
