@@ -78,7 +78,8 @@ pub(crate) fn node_transform_inspector(kind: &NodeKind) -> NodeTransformInspecto
         | NodeKind::Section { .. }
         | NodeKind::WaterVolume { .. }
         | NodeKind::Portal { .. } => NodeTransformInspector::Hidden,
-        NodeKind::HookPoint | NodeKind::PointLight { .. }
+        NodeKind::HookPoint
+        | NodeKind::PointLight { .. }
         | NodeKind::ParticleEmitter { .. }
         | NodeKind::VitalityCircle { .. }
         | NodeKind::Logic { .. }
@@ -2289,7 +2290,9 @@ pub(crate) fn draw_node_kind_editor(
     } = ctx;
     let mut changed = false;
     match kind {
-        NodeKind::HookPoint => { ui.weak("Place at the centre of an elevated, clear landing. In Zenith, hold L2 and aim at the hook; R2 traverses to it using the dash effect."); }
+        NodeKind::HookPoint => {
+            ui.weak("Place at the centre of an elevated, clear landing. In Zenith, hold L2 and aim at the hook; R2 traverses to it using the dash effect.");
+        }
         NodeKind::Node | NodeKind::Node3D => {
             ui.weak("Organisational transform node");
         }

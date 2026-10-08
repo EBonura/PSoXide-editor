@@ -452,8 +452,12 @@ fn draw_enemy_behavior_fields(
     let mut changed = false;
 
     ui.separator();
-    changed |= ui.checkbox(&mut enemy.tactical, "Tactical behaviour").changed();
-    changed |= ui.checkbox(&mut enemy.training, "Encounter test controls").changed();
+    changed |= ui
+        .checkbox(&mut enemy.tactical, "Tactical behaviour")
+        .changed();
+    changed |= ui
+        .checkbox(&mut enemy.training, "Encounter test controls")
+        .changed();
     ui.label(RichText::new("Awareness & patrol").strong());
     changed |= drag_u16(ui, "Aggro radius", &mut enemy.aggro_radius, 1, 32767);
     changed |= drag_u8(ui, "Reaction ticks", &mut enemy.reaction_ticks, 0, 255);
@@ -497,7 +501,13 @@ fn draw_enemy_behavior_fields(
         255,
     );
     changed |= drag_u8(ui, "Circle chance (%)", &mut enemy.circle_chance, 0, 100);
-    changed |= drag_u8(ui, "Circle/retreat speed (%)", &mut enemy.spacing_speed_percent, 1, 100);
+    changed |= drag_u8(
+        ui,
+        "Circle/retreat speed (%)",
+        &mut enemy.spacing_speed_percent,
+        1,
+        100,
+    );
 
     ui.separator();
     ui.label(RichText::new("Attack pacing").strong());
@@ -3061,8 +3071,20 @@ pub(crate) fn draw_weapon_resource_editor(
 
     ui.horizontal(|ui| {
         ui.label("Weapon class");
-        changed |= ui.selectable_value(&mut weapon.class, psxed_project::WeaponClass::Melee, "Melee").changed();
-        changed |= ui.selectable_value(&mut weapon.class, psxed_project::WeaponClass::Ranged, "Ranged").changed();
+        changed |= ui
+            .selectable_value(
+                &mut weapon.class,
+                psxed_project::WeaponClass::Melee,
+                "Melee",
+            )
+            .changed();
+        changed |= ui
+            .selectable_value(
+                &mut weapon.class,
+                psxed_project::WeaponClass::Ranged,
+                "Ranged",
+            )
+            .changed();
     });
     if weapon.class == psxed_project::WeaponClass::Ranged {
         ui.weak("Author shot damage and release timing on the character's Ranged Attack projectile emitter.");
@@ -3099,34 +3121,33 @@ pub(crate) fn draw_weapon_resource_editor(
         });
 
     if weapon.class == psxed_project::WeaponClass::Melee {
-    egui::CollapsingHeader::new(icons::label(icons::SCAN, "Melee Arc"))
-        .default_open(true)
-        .show(ui, |ui| {
-            ui.weak(
-                "Gameplay hit volume: a flat arc swept in front of the wielder. \
+        egui::CollapsingHeader::new(icons::label(icons::SCAN, "Melee Arc"))
+            .default_open(true)
+            .show(ui, |ui| {
+                ui.weak(
+                    "Gameplay hit volume: a flat arc swept in front of the wielder. \
                  Reach is engine units from the body origin; the half-angle opens \
                  to each side of the facing. Hitbox frame windows below gate WHEN \
                  the arc is live during the attack clip.",
-            );
-            changed |= drag_u16(ui, "Arc Reach", &mut weapon.arc_reach, 1, 8192);
-            changed |= drag_u16(
-                ui,
-                "Arc Half-Angle (deg)",
-                &mut weapon.arc_half_angle_degrees,
-                1,
-                170,
-            );
-            changed |= drag_u16(ui, "Damage", &mut weapon.damage, 1, 999);
-            changed |= drag_u16(ui, "Poise Damage", &mut weapon.poise_damage, 0, 999);
-        });
+                );
+                changed |= drag_u16(ui, "Arc Reach", &mut weapon.arc_reach, 1, 8192);
+                changed |= drag_u16(
+                    ui,
+                    "Arc Half-Angle (deg)",
+                    &mut weapon.arc_half_angle_degrees,
+                    1,
+                    170,
+                );
+                changed |= drag_u16(ui, "Damage", &mut weapon.damage, 1, 999);
+                changed |= drag_u16(ui, "Poise Damage", &mut weapon.poise_damage, 0, 999);
+            });
 
-    egui::CollapsingHeader::new(icons::label(icons::SCAN, "Hitboxes"))
-        .default_open(true)
-        .show(ui, |ui| {
-            ui.weak("Hit volumes are local to the weapon grip and use integer engine units.");
-            changed |= weapon_hitbox_list_editor(ui, &mut weapon.hitboxes);
-        });
-
+        egui::CollapsingHeader::new(icons::label(icons::SCAN, "Hitboxes"))
+            .default_open(true)
+            .show(ui, |ui| {
+                ui.weak("Hit volumes are local to the weapon grip and use integer engine units.");
+                changed |= weapon_hitbox_list_editor(ui, &mut weapon.hitboxes);
+            });
     }
 
     egui::CollapsingHeader::new(icons::label(icons::WAYPOINT, "Attachment Lab"))
