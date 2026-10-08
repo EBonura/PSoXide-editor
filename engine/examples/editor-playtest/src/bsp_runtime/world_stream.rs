@@ -62,33 +62,6 @@ impl WorldStream {
 #[no_mangle]
 pub static mut PSX_WORLD_STREAM: [u32; 12 + PUMP_HISTORY] = [0; 12 + PUMP_HISTORY];
 
-/// The `Debug` text of a boot-time load failure (`PSX_WORLD_STREAM_MSG`),
-/// truncated to its size; zero bytes when the load succeeded.
-#[no_mangle]
-pub static mut PSX_WORLD_STREAM_MSG: [u8; 160] = [0; 160];
-
-/// Writes into [`PSX_WORLD_STREAM_MSG`], dropping what does not fit.
-struct MessageWriter(usize);
-
-impl core::fmt::Write for MessageWriter {
-    fn write_str(&mut self, text: &str) -> core::fmt::Result {
-        for &byte in text.as_bytes() {
-            if self.0 + 1 >= 160 {
-                break;
-            }
-            // SAFETY: single-threaded guest; the buffer is written only here.
-            unsafe {
-                core::ptr::write_volatile(
-                    core::ptr::addr_of_mut!(PSX_WORLD_STREAM_MSG[self.0]),
-                    byte,
-                )
-            };
-            self.0 += 1;
-        }
-        Ok(())
-    }
-}
-
 fn publish(bsp: &BspRuntime) {
     let stats = bsp.stream.streamer.stats();
     let (image, slots) = bsp.map.streaming().map_or((0, 0), |state| {
@@ -179,7 +152,6 @@ pub(super) fn record_init_error(error: &BspRuntimeInitError) {
         E::MissingWorldHull(hull) => (16, *hull as u32),
         E::MissingMoverHull { hull, .. } => (17, *hull as u32),
     };
-    let _ = core::fmt::Write::write_fmt(&mut MessageWriter(0), format_args!("{error:?}"));
     // SAFETY: single-threaded guest; the symbol is written only here and in `publish`.
     unsafe {
         core::ptr::write_volatile(
