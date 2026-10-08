@@ -30,6 +30,31 @@ The result includes:
 - Sampled Energy for both actors and timed shot-interruption events. See [combat flow](combat-flow.md) for tuning and controls.
 - A directory under `validation/combat-duels/` containing the input tape, full guest log, JSON trace and final image.
 
+## Batches
+
+`combat_duel_batch {"seeds":"1-20","parallel":2,"scenario":"graybox"}` replays a seed set (at most two emulators at once) and writes `batch.json` and `batch.md` under `validation/combat-duels/batch-<scenario>-<stamp>/`, next to one directory per seed. The same code runs from the shell, which is how baselines are taken:
+
+```
+cargo run --release -p psxed-mcp --example duel-batch -- \
+  --project editor/projects/graybox-reach --frontend target/release/frontend \
+  --seeds 1-20 --parallel 2 --scenario graybox --out <dir> --label <name> [--skip-build] [--polls 11400]
+```
+
+Build the frontend from the same checkout: its repository root is fixed at compile time and it builds the disc from that tree.
+
+Scenario `heavy` derives a sibling project (`editor/projects/zz-duel-heavy-<project>`, git-ignored) in which the Heavy Enemy resource replaces the light enemy. The authored layout is not changed. Its placement values (poise 50, 200 health per channel, non-tactical, training flag) are comparison starting points copied from the Cortex Ignition 0.5 placement.
+
+Each duel adds a `metrics` object to its report; the batch aggregates every numeric metric (n, sum, mean, median, min, max; missing measurements are skipped, never zero):
+
+- outcome, duration, player and enemy health left
+- damage and hits by source: light, heavy, shot, claw light, claw heavy, cannon (health actually removed, so overkill is excluded)
+- poise damage, poise breaks inflicted and suffered, enemy flinches (read from sampled state as a cross-check), opposite-colour hits both ways, and claw light hits that break a fresh player alone
+- i-frame avoids: enemy swings that overlapped the player while invulnerable, and bolts about to cross the player (the bolt count is a look-ahead estimate)
+- enemy sidesteps attempted and how many ended without a player shot landing
+- stance swaps, Energy spent and gained, shots fired and hit
+
+The contract in `batch.json` records the source revision and dirty state, seeds, polls, parallelism, disc and frontend sha256, build flags and the launch command. Two aggregates are comparable only when the contract matches except for the change under test. The guest logs `duel:event` and `duel:totals` lines for this; they are written only while a duel is active.
+
 The complete trace remains in `report.json`; MCP returns its compact summary. Coordinates are signed world units. Ticks are fixed simulation ticks. Replay the saved tape against the same disc to reproduce decisions; record the disc hash when comparing builds. To re-analyse a saved log:
 
 ```
