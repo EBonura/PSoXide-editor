@@ -1022,7 +1022,7 @@ pub(crate) fn scene_tree_kind_label(kind: &'static str) -> &'static str {
 /// Structural scene-graph entries for global "Add Child" menus.
 ///
 /// Runtime objects are placed through the toolbar Add/Place menu so a click
-/// can resolve room context, resources, floor anchoring, and dedupe rules.
+/// can resolve resources, floor anchoring, and dedupe rules.
 pub(crate) fn scene_graph_addable_kinds() -> [(&'static str, NodeKind); 3] {
     [
         ("Entity", NodeKind::Entity),

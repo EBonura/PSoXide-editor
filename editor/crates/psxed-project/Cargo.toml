@@ -44,10 +44,6 @@ name = "stream-report"
 path = "src/bin/stream_report.rs"
 
 [[bin]]
-name = "gen-stress-map"
-path = "src/bin/gen_stress_map.rs"
-
-[[bin]]
 name = "gen-brush-first-playable"
 path = "src/bin/gen_brush_first_playable.rs"
 

@@ -2632,8 +2632,7 @@ mod tests {
             "Crate",
             NodeKind::BoxProp {
                 materials,
-                uvs: [psxed_project::GridUvTransform::default();
-                    psxed_project::BOX_PROP_FACE_COUNT],
+                uvs: [psxed_project::UvTransform::default(); psxed_project::BOX_PROP_FACE_COUNT],
                 vertices: psxed_project::box_prop_vertices_for_size(512),
                 collision_enabled: true,
                 break_flags: 0,
