@@ -273,7 +273,7 @@ lint:
 	cargo clippy --workspace --all-targets --all-features -- -D warnings
 	cd engine && cargo clippy --workspace --all-targets --all-features -- -D warnings
 	cd sdk && cargo clippy --workspace --all-targets --all-features -- -D warnings
-	cd engine/examples/hardware-tests && CARGO_TARGET_DIR=$(CURDIR)/build/examples-clippy cargo clippy --release $(PSX_BUILD_FLAGS) -- -D warnings
+	cd engine/examples/hardware-tests && CARGO_TARGET_DIR="$(CURDIR)/build/examples-clippy" cargo clippy --release $(PSX_BUILD_FLAGS) -- -D warnings
 
 lint-policy-guard:
 	$(PSOXIDE_DEV) lint-policy-guard
@@ -307,8 +307,8 @@ EXAMPLE_TARGET_DIR := $(CURDIR)/build/examples
 EXAMPLE_OUT := build/examples/$(PSX_TARGET)/release
 PSX_BUILD_FLAGS := --target $(PSX_TARGET) -Zjson-target-spec -Zbuild-std=core -Zbuild-std-features=compiler-builtins-mem
 EDITOR_PLAYTEST_PSX_BUILD_FLAGS := --target $(PSX_TARGET) -Zjson-target-spec -Zbuild-std=core,alloc -Zbuild-std-features=compiler-builtins-mem
-SDK_EXAMPLE_CARGO_ENV := CARGO_TARGET_DIR=$(EXAMPLE_TARGET_DIR) RUSTFLAGS="-Cllvm-args=-disable-mips-df-backward-search -Clink-arg=-T../../psoxide.ld -Clink-arg=--oformat=binary"
-ENGINE_EXAMPLE_CARGO_ENV := CARGO_TARGET_DIR=$(EXAMPLE_TARGET_DIR) RUSTFLAGS="-Cllvm-args=-disable-mips-df-backward-search -Clink-arg=-T../../../sdk/psoxide.ld -Clink-arg=--oformat=binary"
+SDK_EXAMPLE_CARGO_ENV := CARGO_TARGET_DIR="$(EXAMPLE_TARGET_DIR)" RUSTFLAGS="-Cllvm-args=-disable-mips-df-backward-search -Clink-arg=-T../../psoxide.ld -Clink-arg=--oformat=binary"
+ENGINE_EXAMPLE_CARGO_ENV := CARGO_TARGET_DIR="$(EXAMPLE_TARGET_DIR)" RUSTFLAGS="-Cllvm-args=-disable-mips-df-backward-search -Clink-arg=-T../../../sdk/psoxide.ld -Clink-arg=--oformat=binary"
 # The editor-playtest guest builds through tools/build_guest_staged.sh, which
 # owns its own RUSTFLAGS and target dir so the artifact is reproducible from
 # any checkout path.
@@ -548,7 +548,7 @@ showcase-particles:
 
 hardware-tests:
 	cd engine/examples/hardware-tests && $(ENGINE_EXAMPLE_CARGO_ENV) cargo build --release $(PSX_BUILD_FLAGS)
-	python3 tools/hazard_scan.py $(EXAMPLE_OUT)/hardware-tests.exe
+	cargo run -q --release --locked -p psoxide-hazard --bin hazard-scan -- $(EXAMPLE_OUT)/hardware-tests.exe
 
 # --- hardware-test capture pipeline -------------------------------------
 # The disc now boots side-effect free into its main menu. Headless capture
@@ -846,25 +846,52 @@ $(HWTEST_CDDA):
 # MOVIE.STR for the FMV STREAM TEST row (v1.25): 75 s of synthetic 320x240
 # 15 fps video at the full double-speed sector budget with interleaved XA
 # stereo beeps, every video sector stamped with an ordinal and a checksum. The
-# SDK's tools/fmv_test_movie.py encodes it with FFmpeg and psxavenc (neither
-# ships here: PSXAVENC names the psxavenc binary). The encode is not
+# SDK's `xtask fmv-test-movie` encodes it with FFmpeg and psxavenc (neither
+# ships here: PSXAVENC names the psxavenc binary). xtask is not imported, so
+# PSOXIDE_SDK names a PSoXide checkout to run it from. The encode is not
 # bit-reproducible across tool versions, so keep the file once built; to reuse
 # one, copy it to this path. It lands after CDTEST.BIN, at LBA 1024, which moves
 # the CD-DA track outward but no fixed LBA a probe names.
 HWTEST_MOVIE := $(EXAMPLE_OUT)/fmv/MOVIE.STR
 PSXAVENC ?= psxavenc
+PSOXIDE_SDK ?=
 
 $(HWTEST_MOVIE):
+	@[ -n "$(PSOXIDE_SDK)" ] || { echo "MOVIE.STR: set PSOXIDE_SDK to a PSoXide checkout (its xtask encodes the movie)" >&2; exit 1; }
 	@mkdir -p $(dir $@)
-	python3 tools/fmv_test_movie.py --psxavenc "$(PSXAVENC)" --out $@
+	cargo run -q --release --locked --manifest-path "$(PSOXIDE_SDK)/Cargo.toml" -p xtask -- \
+		fmv-test-movie --psxavenc "$(PSXAVENC)" --out $@
 
-hardware-tests-disc: hardware-tests $(HWTEST_CDDA) $(HWTEST_MOVIE)
+# HWSONGS.XA for the XA MUSIC LOOP case (v1.27): the SDK's four generated
+# tone songs (6 s each, plain synthesis, nothing sampled) as the channels of one
+# 37.8 kHz stereo single-speed file, so a loop restart is the interesting
+# part of the test. It goes after MOVIE.STR so CDTEST.BIN and MOVIE.STR keep
+# their LBAs and only the CD-DA track moves outward. The SDK's psx-audio-cook
+# is not imported here, so PSOXIDE_SDK names a PSoXide checkout to run it from,
+# as for MOVIE.STR; the encode is deterministic, and to reuse a built file,
+# copy it to this path.
+HWTEST_XA_DIR := $(EXAMPLE_OUT)/xa
+HWTEST_XA := $(HWTEST_XA_DIR)/HWSONGS.XA
+HWTEST_XA_COOK = cargo run -q --release --locked --manifest-path "$(PSOXIDE_SDK)/Cargo.toml" \
+	--target-dir "$(CURDIR)/build/xa-tools" -p psx-audio-cook
+
+$(HWTEST_XA):
+	@[ -n "$(PSOXIDE_SDK)" ] || { echo "HWSONGS.XA: set PSOXIDE_SDK to a PSoXide checkout (its psx-audio-cook encodes the songs)" >&2; exit 1; }
+	@mkdir -p $(HWTEST_XA_DIR)
+	$(HWTEST_XA_COOK) --example xa_demo_songs -- "$(HWTEST_XA_DIR)" 6
+	$(HWTEST_XA_COOK) -- xa-encode $@ \
+		$(HWTEST_XA_DIR)/song0_pad.wav $(HWTEST_XA_DIR)/song1_high.wav \
+		$(HWTEST_XA_DIR)/song2_blips.wav $(HWTEST_XA_DIR)/song3_whistle.wav \
+		--manifest $(HWTEST_XA_DIR)/songs.json
+
+hardware-tests-disc: hardware-tests $(HWTEST_CDDA) $(HWTEST_MOVIE) $(HWTEST_XA)
 	cd tools/mkisopsx && cargo run --release -- \
 		--exe ../../$(EXAMPLE_OUT)/hardware-tests.exe \
 		--out ../../$(EXAMPLE_OUT)/hardware-tests.bin \
 		--volume PSOXIDE \
 		--cdtest-sectors 500 \
 		--xa-file ../../$(HWTEST_MOVIE) \
+		--xa-file ../../$(HWTEST_XA) \
 		--cdda-track ../../$(HWTEST_CDDA)
 
 $(foreach example,$(DATA_DISC_EXAMPLES),$(eval $(call build_data_disc,$(example))))
@@ -1173,40 +1200,40 @@ examples: $(PUBLIC_EXAMPLE_DISCS)
 # artifact can be launched in emulators or burned to CD-R.
 
 run-tri: hello-tri-disc
-	cd emu && PSOXIDE_DISC=$(CURDIR)/$(EXAMPLE_OUT)/hello-tri.cue cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-tri.cue" cargo run -p frontend --release
 
 run-input: hello-input-disc
-	cd emu && PSOXIDE_DISC=$(CURDIR)/$(EXAMPLE_OUT)/hello-input.cue cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-input.cue" cargo run -p frontend --release
 
 run-ot: hello-ot-disc
-	cd emu && PSOXIDE_DISC=$(CURDIR)/$(EXAMPLE_OUT)/hello-ot.cue cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-ot.cue" cargo run -p frontend --release
 
 run-tex: hello-tex-disc
-	cd emu && PSOXIDE_DISC=$(CURDIR)/$(EXAMPLE_OUT)/hello-tex.cue cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-tex.cue" cargo run -p frontend --release
 
 run-gte: hello-gte-disc
-	cd emu && PSOXIDE_DISC=$(CURDIR)/$(EXAMPLE_OUT)/hello-gte.cue cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-gte.cue" cargo run -p frontend --release
 
 run-audio: hello-audio-disc
-	cd emu && PSOXIDE_DISC=$(CURDIR)/$(EXAMPLE_OUT)/hello-audio.cue cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-audio.cue" cargo run -p frontend --release
 
 run-cdda: hello-cdda-disc
-	cd emu && PSOXIDE_AUTORUN=1 PSOXIDE_AUDIO_TRACE=1 PSOXIDE_DISC=$(CURDIR)/$(EXAMPLE_OUT)/hello-cdda.cue cargo run -p frontend --release
+	cd emu && PSOXIDE_AUTORUN=1 PSOXIDE_AUDIO_TRACE=1 PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-cdda.cue" cargo run -p frontend --release
 
 probe-cdda-audio: hello-cdda-disc
-	cd emu && PSOXIDE_EXE=$(CURDIR)/$(EXAMPLE_OUT)/hello-cdda.exe PSOXIDE_DISC=$(CURDIR)/$(EXAMPLE_OUT)/hello-cdda.cue cargo run -p emulator-core --example probe_cdda_wav --release
+	cd emu && PSOXIDE_EXE="$(CURDIR)/$(EXAMPLE_OUT)/hello-cdda.exe" PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-cdda.cue" cargo run -p emulator-core --example probe_cdda_wav --release
 
 run-showcase-text: showcase-text-disc
-	cd emu && PSOXIDE_DISC=$(CURDIR)/$(EXAMPLE_OUT)/showcase-text.cue cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/showcase-text.cue" cargo run -p frontend --release
 
 run-game-pong: game-pong-disc
-	cd emu && PSOXIDE_DISC=$(CURDIR)/$(EXAMPLE_OUT)/game-pong.cue cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/game-pong.cue" cargo run -p frontend --release
 
 run-game-magikaaaaaarp-pong: game-magikaaaaaarp-pong-disc
-	cd emu && PSOXIDE_DISC=$(CURDIR)/$(EXAMPLE_OUT)/game-magikaaaaaarp-pong.cue cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/game-magikaaaaaarp-pong.cue" cargo run -p frontend --release
 
 probe-magikaaaaaarp-pong-audio: game-magikaaaaaarp-pong-disc
-	cd emu && PSOXIDE_EXE=$(CURDIR)/$(EXAMPLE_OUT)/game-magikaaaaaarp-pong.exe PSOXIDE_DISC=$(CURDIR)/$(EXAMPLE_OUT)/game-magikaaaaaarp-pong.cue PSOXIDE_WAV=/tmp/psoxide_magikaaaaaarp_pong.wav PSOXIDE_AUDIO_SECONDS=6 cargo run -p emulator-core --example probe_cdda_wav --release
+	cd emu && PSOXIDE_EXE="$(CURDIR)/$(EXAMPLE_OUT)/game-magikaaaaaarp-pong.exe" PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/game-magikaaaaaarp-pong.cue" PSOXIDE_WAV=/tmp/psoxide_magikaaaaaarp_pong.wav PSOXIDE_AUDIO_SECONDS=6 cargo run -p emulator-core --example probe_cdda_wav --release
 
 cortex-ignition-v1-project-disc:
 	cd emu && cargo run -p frontend --release -- build-project-disc --project ../$(CORTEX_IGNITION_V1_PROJECT)
@@ -1279,42 +1306,42 @@ cortex-ignition-v1-preburn-cdda-audio: cortex-ignition-v1-project-disc
 
 cortex-ignition-v1-bringup-report:
 	$(PSOXIDE_DEV) cortex-bringup-report \
-		--out $(CURDIR)/$(CORTEX_IGNITION_V1_BRINGUP_REPORT) \
-		--preburn-dir $(CURDIR)/$(CORTEX_IGNITION_V1_PREBURN_OUT)
+		--out "$(CURDIR)/$(CORTEX_IGNITION_V1_BRINGUP_REPORT)" \
+		--preburn-dir "$(CURDIR)/$(CORTEX_IGNITION_V1_PREBURN_OUT)"
 
 cortex-ignition-v1-burn-candidate: cortex-ignition-v1-preburn-local
 	$(PSOXIDE_DEV) cortex-bringup-report \
-		--out $(CURDIR)/$(CORTEX_IGNITION_V1_BRINGUP_REPORT) \
-		--preburn-dir $(CURDIR)/$(CORTEX_IGNITION_V1_PREBURN_OUT) \
+		--out "$(CURDIR)/$(CORTEX_IGNITION_V1_BRINGUP_REPORT)" \
+		--preburn-dir "$(CURDIR)/$(CORTEX_IGNITION_V1_PREBURN_OUT)" \
 		--fail-on-warn
 	@echo "cortex_ignition_v1 burn candidate passed -> $(CORTEX_IGNITION_V1_BRINGUP_REPORT)"
 
 run-game-breakout: game-breakout-disc
-	cd emu && PSOXIDE_DISC=$(CURDIR)/$(EXAMPLE_OUT)/game-breakout.cue cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/game-breakout.cue" cargo run -p frontend --release
 
 run-game-invaders: game-invaders-disc
-	cd emu && PSOXIDE_DISC=$(CURDIR)/$(EXAMPLE_OUT)/game-invaders.cue cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/game-invaders.cue" cargo run -p frontend --release
 
 run-showcase-3d: showcase-3d-disc
-	cd emu && PSOXIDE_DISC=$(CURDIR)/$(EXAMPLE_OUT)/showcase-3d.cue cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/showcase-3d.cue" cargo run -p frontend --release
 
 run-showcase-model: showcase-model-disc
-	cd emu && PSOXIDE_DISC=$(CURDIR)/$(EXAMPLE_OUT)/showcase-model.cue cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/showcase-model.cue" cargo run -p frontend --release
 
 run-showcase-lights: showcase-lights-disc
-	cd emu && PSOXIDE_DISC=$(CURDIR)/$(EXAMPLE_OUT)/showcase-lights.cue cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/showcase-lights.cue" cargo run -p frontend --release
 
 run-showcase-fog: showcase-fog-disc
-	cd emu && PSOXIDE_DISC=$(CURDIR)/$(EXAMPLE_OUT)/showcase-fog.cue cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/showcase-fog.cue" cargo run -p frontend --release
 
 run-showcase-particles: showcase-particles-disc
-	cd emu && PSOXIDE_DISC=$(CURDIR)/$(EXAMPLE_OUT)/showcase-particles.cue cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/showcase-particles.cue" cargo run -p frontend --release
 
 run-hardware-tests: hardware-tests-disc
-	cd emu && PSOXIDE_DISC=$(CURDIR)/$(EXAMPLE_OUT)/hardware-tests.cue cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hardware-tests.cue" cargo run -p frontend --release
 
 run-hello-engine: hello-engine-disc
-	cd emu && PSOXIDE_DISC=$(CURDIR)/$(EXAMPLE_OUT)/hello-engine.cue cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-engine.cue" cargo run -p frontend --release
 
 # ---------------------------------------------------------------------------
 # cortex_anim: the AI-generated locomotion/attack pack on Aletha.
@@ -1396,7 +1423,7 @@ check test fmt lint run run-fast run-release psxed cook-playtest build-editor-pl
 cortex-ignition-v1-preburn-streaming-guard: cortex-ignition-v1-preburn-internal cortex-ignition-v1-preburn-cdda-audio
 	@mkdir -p $(CORTEX_IGNITION_V1_PREBURN_OUT)
 	@($(PSOXIDE_DEV) cortex-stream-guard \
-		--profile $(CURDIR)/$(CORTEX_IGNITION_V1_PREBURN_OUT)/profile.csv \
-		--cdda-log $(CURDIR)/$(CORTEX_IGNITION_V1_PREBURN_OUT)/cdda-probe.log) > "$(CORTEX_IGNITION_V1_PREBURN_OUT)/streaming-guard.log" 2>&1; \
+		--profile "$(CURDIR)/$(CORTEX_IGNITION_V1_PREBURN_OUT)/profile.csv" \
+		--cdda-log "$(CURDIR)/$(CORTEX_IGNITION_V1_PREBURN_OUT)/cdda-probe.log") > "$(CORTEX_IGNITION_V1_PREBURN_OUT)/streaming-guard.log" 2>&1; \
 	status=$$?; cat "$(CORTEX_IGNITION_V1_PREBURN_OUT)/streaming-guard.log"; exit $$status
 

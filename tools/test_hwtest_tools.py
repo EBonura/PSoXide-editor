@@ -134,12 +134,63 @@ class TableSyncTests(unittest.TestCase):
         # The v1.26 MDEC DIAGNOSTIC's records replace an earlier battery's
         # slots when it runs, so they are not part of the standing battery.
         mdec = sum(1 for record_id in report.LABELS if 0x200 <= record_id < 0x2B0)
+        # The v1.27 console cases' records likewise join a capture only once run.
+        console = sum(1 for record_id in report.LABELS if 0x2C0 <= record_id < 0x2F0)
         # What is left is the standing battery, which has not changed size.
-        standing = len(report.LABELS) - sum(table.values()) - dma_pairs - retired - fmv - mdec
+        standing = (
+            len(report.LABELS) - sum(table.values()) - dma_pairs - retired - fmv - mdec - console
+        )
         self.assertEqual(standing, 151)
         # The standard scope takes the standing battery, SAFE and LEVERS.
         self.assertLessEqual(standing + table["SAFE"] + table["LEVERS"] + fmv, slots)
         self.assertLessEqual(sum(table.values()) + dma_pairs + fmv, slots)
+
+    def test_console_records_match_the_guest(self) -> None:
+        source = (GUEST_SRC / "console_tests.rs").read_text(encoding="utf-8")
+        groups = {}
+        for name in ("KERNEL", "WIDTH", "INTERLACE", "XA"):
+            first = int(re.search(rf"const {name}_RECORD: u16 = (0x[0-9A-Fa-f]+);", source).group(1), 16)
+            count = int(re.search(rf"const {name}_COUNT: usize = (\d+);", source).group(1))
+            groups[name] = (first, count)
+            for record_id in range(first, first + count):
+                with self.subTest(record=f"{record_id:03X}"):
+                    self.assertIn(record_id, report.LABELS)
+                    self.assertEqual(report.WORK_BY_ID[record_id], 0)
+        self.assertEqual(groups["KERNEL"], (report.CONSOLE_KERNEL_FIRST, len(report.CONSOLE_KERNEL)))
+        self.assertEqual(groups["WIDTH"][1], len(report.CONSOLE_WIDTHS))
+        # The slots the guest reserves are exactly the records it can emit.
+        slots = int(re.search(r"const RECORD_SLOTS: usize = ([^;]+);", source).group(1).count("_COUNT"))
+        self.assertEqual(slots, len(groups))
+
+    def test_console_rows_unpack_each_case(self) -> None:
+        def record(record_id, low, mid, high):
+            return report.Record(record_id, 0, low, high, mid)
+
+        records = (
+            record(0x2C0, 492, 498, 538),
+            record(0x2C1, 481, 487, 505),
+            record(0x2C2, 5, 5, 14),
+            record(0x2C3, 981, 993, 1112),
+            record(0x2C4, 24, 24, 1 | 2 | 4 | (24 << 8)),
+            record(0x2C5, 90, 90, 103),
+            record(0x2D0, 0xD780, 608, 3168),
+            record(0x2D1, 0xFFFF, 0, 0),
+            record(0x2E0, 0b11111, 6, 45),
+            record(0x2E1, 343, 344, 344),
+            record(0x2E2, 0xFFFF, 0xFFFF, 0xFFFF),
+            record(0x2E3, 376, 2918, 13),
+        )
+        rows = report.console_rows(SimpleNamespace(records=records))
+        self.assertIn("console_kernel,enter_cs_net,493", rows)
+        self.assertIn("console_kernel,exit_cs_net,482", rows)
+        self.assertIn("console_kernel,runtime_vblank_gaps,24", rows)
+        self.assertIn("console_width,256,0xD780,608,3168", rows)
+        self.assertIn("console_width,320,not shown", rows)
+        self.assertIn("console_xa,getlocp_updating,1", rows)
+        self.assertIn("console_xa,no_loop_seen,0", rows)
+        self.assertIn("console_xa,loop_gap_ms,min=343 med=344 max=344", rows)
+        self.assertIn("console_xa,loop_period_ms,none", rows)
+        self.assertEqual(report.console_rows(SimpleNamespace(records=())), [])
 
     def test_fmv_records_match_the_guest(self) -> None:
         source = (GUEST_SRC / "fmv_test.rs").read_text(encoding="utf-8")
