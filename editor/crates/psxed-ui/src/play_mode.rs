@@ -180,8 +180,8 @@ pub struct EditorPlaytestTapeStatus {
     pub cursor: u32,
 }
 
-/// Engine telemetry from instrumented playtest builds (scheduler tasks,
-/// streaming, portals, player and camera pose), for the Debug snapshot.
+/// Engine telemetry from instrumented playtest builds (scheduler tasks and
+/// VRAM pressure), for the Debug snapshot.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct EditorPlaytestMetrics {
     /// Average fixed-update scheduler task cost, in guest milliseconds per task hit.
@@ -192,138 +192,9 @@ pub struct EditorPlaytestMetrics {
     pub visual_render_task_ms: f32,
     /// Worst visual-render scheduler task cost in the current profiler window, in guest milliseconds.
     pub visual_render_task_max_ms: f32,
-    /// Active room/chunk records submitted by the runtime renderer.
-    pub chunk_visible: u32,
-    /// Resident streamed room/chunk slots currently loaded.
-    pub chunk_loaded: u32,
-    /// Candidate chunks found by the active-room window builder.
-    pub chunk_candidates: u32,
-    /// Chunks built by the most recent active-room window rebuild.
-    pub chunk_built: u32,
-    /// Candidate chunks skipped because the active room cache was not ready.
-    pub chunk_cache_skips: u32,
-    /// Runtime rooms accepted by portal traversal.
-    pub portal_visible_rooms: u32,
-    /// Portal-clipped rooms beyond the traversal depth/capacity edge.
-    pub portal_frontier_rooms: u32,
-    /// Portal-visible rooms neither resident nor loading when the active window was built.
-    pub portal_missing_resident: u32,
-    /// Portal-visible rooms resident in stream cache but not buildable.
-    pub portal_build_failed: u32,
-    /// Directed portals tested by the runtime traversal.
-    pub portal_tests: u32,
-    /// Directed portals accepted by the runtime traversal.
-    pub portal_accepts: u32,
-    /// Directed portals recovered by occupied-room-bounds fallback.
-    pub portal_bounds_fallbacks: u32,
-    /// Portal rejections from backface, frustum, and tiny-cone tests.
-    pub portal_rejects: [u32; 3],
-    /// Portal traversal capacity hits for rooms, frustums, and depth.
-    pub portal_caps: [u32; 3],
-    /// Stream request priorities for current, visible, and frontier rooms.
-    pub stream_priorities: [u32; 3],
-    /// Stream scheduler requests considered by recent window refreshes.
-    pub stream_requests: u32,
-    /// Stream scheduler requests that were missing from resident slots.
-    pub stream_misses: u32,
-    /// Prefetch-only stream scheduler requests.
-    pub stream_prefetches: u32,
-    /// Resident stream slots evicted by recent window refreshes.
-    pub stream_evictions: u32,
-    /// Effective resident stream slot limit for the latest active window.
-    pub stream_slot_limit: u32,
-    /// Stream loads currently pending.
-    pub stream_pending: u32,
-    /// Stream loads that failed validation or CD reads.
-    pub stream_failed: u32,
-    /// Requested rooms denied a slot because every candidate was protected
-    /// (the resident-budget-exceeded signal: more high-priority rooms than slots).
-    pub stream_protected_full: u32,
-    /// Room materials dropped to the untextured fallback because their texture
-    /// could not become VRAM-resident: the silent missing-texture symptom.
-    pub vram_texture_drops: u32,
-    /// VRAM overflow attribution behind the drops, in order: [slot-table full
-    /// (the binding 64-slot cap), room-window band full, CLUT band full,
-    /// upload-queue full].
+    /// VRAM overflow attribution, in order: [slot-table full (the binding
+    /// 64-slot cap), room-window band full, CLUT band full, upload-queue full].
     pub vram_caps_full: [u32; 4],
-    /// Room materials dropped because their local slot is >= MAX_ROOM_MATERIALS:
-    /// the room uses more distinct materials than the per-room table holds, so
-    /// every surface on an overflow slot renders untextured or not at all. This
-    /// is a per-room-cap problem, distinct from the VRAM drops above.
-    pub room_material_slot_overflow: u32,
-    /// Active room draws that conservatively rendered all cells because a
-    /// usable precomputed visibility set was unavailable.
-    pub room_visibility_fallback_draws: u32,
-    /// Resident streamed chunks, keyed by runtime room/chunk index.
-    pub chunk_loaded_mask: u64,
-    /// Streamed chunks with in-flight loads, keyed by runtime room/chunk index.
-    pub chunk_loading_mask: u64,
-    /// Active drawable chunks, keyed by runtime room/chunk index.
-    pub chunk_active_mask: u64,
-    /// Chunks that submitted room geometry, keyed by runtime room/chunk index.
-    pub chunk_drawn_mask: u64,
-    /// Portal-accepted rooms, keyed by runtime room index.
-    pub portal_visible_mask: u64,
-    /// Portal depth/capacity frontier rooms, keyed by runtime room index.
-    pub portal_frontier_mask: u64,
-    /// Portal-accepted rooms missing residency and not loading, keyed by runtime room index.
-    pub portal_missing_mask: u64,
-    /// Portal-accepted resident rooms that failed active-room build.
-    pub portal_build_failed_mask: u64,
-    /// Destination rooms whose portals were tested by the latest traversal.
-    pub portal_tested_mask: u64,
-    /// Destination rooms whose portals were accepted by the latest traversal.
-    pub portal_accepted_mask: u64,
-    /// Destination rooms rejected by portal window clipping in the latest traversal.
-    pub portal_reject_frustum_mask: u64,
-    /// Destination rooms recovered by occupied-room-bounds fallback in the latest traversal.
-    pub portal_bounds_fallback_mask: u64,
-    /// Directed portal records tested in the latest traversal.
-    pub portal_tested_portal_mask: u64,
-    /// Directed portal records accepted in the latest traversal.
-    pub portal_accepted_portal_mask: u64,
-    /// Directed portal records rejected by camera/window clipping.
-    pub portal_reject_frustum_portal_mask: u64,
-    /// Directed portal records recovered by occupied-room-bounds fallback.
-    pub portal_bounds_fallback_portal_mask: u64,
-    /// True when the profiler sample contains player map telemetry.
-    pub player_map_valid: bool,
-    /// Runtime room/chunk index containing the player.
-    pub player_room_index: u32,
-    /// Runtime room/chunk index used as the root of portal traversal.
-    pub portal_current_room_index: u32,
-    /// Player room-local X in engine units.
-    pub player_local_x: i32,
-    /// Player room-local Z in engine units.
-    pub player_local_z: i32,
-    /// Camera/view yaw in Q12 angle units for player-centred chunk diagnostics.
-    pub player_view_yaw_q12: u16,
-    /// True when the profiler sample contains exact render-camera yaw basis telemetry.
-    pub camera_view_basis_valid: bool,
-    /// Render camera yaw sine in Q12 basis units.
-    pub camera_view_sin_yaw_q12: i32,
-    /// Render camera yaw cosine in Q12 basis units.
-    pub camera_view_cos_yaw_q12: i32,
-    /// Render camera pitch sine in Q12 basis units.
-    pub camera_view_sin_pitch_q12: i32,
-    /// Render camera pitch cosine in Q12 basis units.
-    pub camera_view_cos_pitch_q12: i32,
-    /// True when the profiler sample contains render-camera map telemetry.
-    pub camera_map_valid: bool,
-    /// True when the profiler sample contains exact level-space render-camera telemetry.
-    pub camera_global_valid: bool,
-    /// Render camera room-local X in engine units.
-    pub camera_local_x: i32,
-    /// Render camera room-local Y in engine units.
-    pub camera_local_y: i32,
-    /// Render camera room-local Z in engine units.
-    pub camera_local_z: i32,
-    /// Render camera absolute level X in engine units.
-    pub camera_global_x: i32,
-    /// Render camera absolute level Y in engine units.
-    pub camera_global_y: i32,
-    /// Render camera absolute level Z in engine units.
-    pub camera_global_z: i32,
 }
 
 /// One host-drawn editor overlay segment over the 3D preview.
