@@ -711,9 +711,9 @@ impl Playtest {
             config.aligned_damage_q12 = 4096;
             config.opposed_damage_q12 = 5120;
         }
-        let result = self
-            .player_stance
-            .apply_damage(&mut self.player_vitality, attack, damage, &config);
+        let result =
+            self.player_stance
+                .apply_damage(&mut self.player_vitality, attack, damage, &config);
         if result.forced_swap {
             // A forced swap grants the i-frames but is not a perfect-swap press.
             self.swap_voluntary = false;
