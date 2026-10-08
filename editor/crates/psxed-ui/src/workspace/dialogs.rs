@@ -49,7 +49,7 @@ impl EditorWorkspace {
         // A New/Delete Project dialog is waiting on the user: editor
         // shortcuts would otherwise edit (or undo) the project behind it,
         // and Delete Project has no text field to hold keyboard focus.
-        let dialog_open = !matches!(self.modal, Modal::None);
+        let dialog_open = !matches!(self.modal, Modal::None) || self.terrain_editor.is_some();
         if !playtest_captured && !dialog_open {
             self.handle_global_shortcuts(ctx, playtest_status);
         }
@@ -70,6 +70,7 @@ impl EditorWorkspace {
         self.draw_delete_project_dialog(ctx);
         self.draw_unsaved_changes_dialog(ctx);
         self.draw_brush_overlap_dialog(ctx);
+        self.draw_terrain_editor(ctx);
         self.draw_texture_import_dialog(ctx);
         self.draw_model_import_dialog(ctx);
     }
