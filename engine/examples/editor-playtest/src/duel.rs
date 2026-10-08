@@ -7,7 +7,7 @@ use psx_game_runtime::{combat_policy, entities::GameEntityState};
 pub(super) struct Duel {
     pub active: bool,
     pub finished: bool,
-    target: usize,
+    pub(super) target: usize,
     started: u32,
     releasing_start: bool,
     last_seen: [i32; 3],
@@ -32,8 +32,26 @@ pub(super) struct Duel {
     intent: u8,
     last_snapshot: [u32; 23],
     last_progress: u32,
+    /// Duel-relative tick of the latest `duel_pad`, for event stamps.
+    tick: u32,
+    /// Energy at the previous observation: player, enemy.
+    energy_prev: [u16; 2],
+    /// Energy removed and credited so far: player, enemy.
+    energy_spent: [u32; 2],
+    energy_gained: [u32; 2],
+    /// Entity and swing of the last logged i-frame melee avoid, plus one.
+    avoid_swing: u32,
+    /// Tick of the last logged i-frame bolt avoid, plus one.
+    avoid_bolt_tick: u32,
 }
 impl Duel {
+    /// Log one combat event stamped with the duel-relative tick.
+    pub(super) fn event(&self, kind: u32, a: u32, b: u32, c: u32, d: u32) {
+        if self.active && !self.finished {
+            log_values("duel:event", &[self.tick, kind, a, b, c, d]);
+        }
+    }
+
     pub(super) fn started_tick(&self) -> u32 {
         self.started
     }
@@ -128,6 +146,12 @@ impl Playtest {
                 intent: 0,
                 last_snapshot: [0; 23],
                 last_progress: 0,
+                tick: 0,
+                energy_prev: [self.combat_flow.energy, self.game_entities.energy(target)],
+                energy_spent: [0; 2],
+                energy_gained: [0; 2],
+                avoid_swing: 0,
+                avoid_bolt_tick: 0,
             };
             log_values("duel:start", &[seed, target as u32]);
         } else if self.duel.active
@@ -143,6 +167,7 @@ impl Playtest {
         if !self.duel.active {
             return;
         }
+        self.duel.tick = ctx.sim_tick.as_u32().wrapping_sub(self.duel.started);
         if self.duel.releasing_start && !ctx.is_held(button::SELECT | button::L2) {
             self.duel.releasing_start = false;
         }
@@ -562,12 +587,69 @@ impl Playtest {
 
     fn duel_end(&mut self, result: u32, ctx: &Ctx) {
         if !self.duel.finished {
+            let i = self.duel.target;
+            let pool = |c| self.player_vitality.pool(c).current() as u32;
+            log_values(
+                "duel:totals",
+                &[
+                    self.duel.energy_spent[0],
+                    self.duel.energy_gained[0],
+                    self.duel.energy_spent[1],
+                    self.duel.energy_gained[1],
+                    pool(VitalityChannelId::One),
+                    pool(VitalityChannelId::Two),
+                    self.game_entities.health(i) as u32,
+                    self.game_entities.health_secondary(i) as u32,
+                ],
+            );
             self.duel.finished = true;
             self.duel.outcome = result as u8;
             log_values(
                 "duel:end",
                 &[ctx.sim_tick.as_u32() - self.duel.started, result],
             );
+        }
+    }
+
+    /// Player health summed over both channels.
+    pub(super) fn duel_player_hp(&self) -> u32 {
+        u32::from(self.player_vitality.pool(VitalityChannelId::One).current())
+            + u32::from(self.player_vitality.pool(VitalityChannelId::Two).current())
+    }
+
+    /// Duel target health summed over both channels.
+    pub(super) fn duel_enemy_hp(&self) -> u32 {
+        let i = self.duel.target;
+        u32::from(self.game_entities.health(i)) + u32::from(self.game_entities.health_secondary(i))
+    }
+
+    /// A melee swing overlapped the player during i-frames. One event per swing.
+    pub(super) fn duel_note_melee_avoid(&mut self, entity: usize, swing: u16, heavy: bool) {
+        let key = ((entity as u32) << 16 | u32::from(swing)).wrapping_add(1);
+        if self.duel.avoid_swing != key {
+            self.duel.avoid_swing = key;
+            self.duel.event(3, u32::from(heavy), 0, 0, 0);
+        }
+    }
+
+    /// An enemy bolt is about to cross the player during i-frames, so it will
+    /// not be offered as a target this tick. Estimated with the evasion
+    /// look-ahead, one event per bolt (bolts are at least 8 ticks apart).
+    pub(super) fn duel_note_bolt_avoid(&mut self, feet: [i32; 3], radius: i32, height: i32) {
+        let tick = self.duel.tick.wrapping_add(1);
+        if self.duel.avoid_bolt_tick != 0 && tick.wrapping_sub(self.duel.avoid_bolt_tick) < 8 {
+            return;
+        }
+        let threat = self.combat_projectiles.incoming_threat(
+            psx_game_runtime::projectiles::CombatTeam::Player,
+            self.room_index,
+            feet,
+            radius,
+            height,
+        );
+        if threat.is_some_and(|t| t.ticks_to_contact <= 1) {
+            self.duel.avoid_bolt_tick = tick;
+            self.duel.event(3, 2, 0, 0, 0);
         }
     }
 
@@ -607,6 +689,16 @@ impl Playtest {
             self.combat_flow.energy as u32,
             self.game_entities.energy(i) as u32,
         ];
+        let energy = [self.combat_flow.energy, self.game_entities.energy(i)];
+        for actor in 0..2 {
+            let before = self.duel.energy_prev[actor];
+            if energy[actor] < before {
+                self.duel.energy_spent[actor] += u32::from(before - energy[actor]);
+            } else {
+                self.duel.energy_gained[actor] += u32::from(energy[actor] - before);
+            }
+        }
+        self.duel.energy_prev = energy;
         let roles = [self.duel.combat_role, self.game_entities.combat_role(i)];
         for actor in 0..2 {
             if roles[actor] != self.duel.last_roles[actor] {
