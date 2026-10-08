@@ -154,7 +154,7 @@ fn module_estimates_bound_the_cut_search_model_so_no_module_is_cut() {
         }
         assert_eq!(world.stats.over_budget_modules, 0);
     }
-    println!("actual / estimate by kind (min, max): {worst:?}");
+    eprintln!("actual / estimate by kind (min, max): {worst:?}");
     for (kind, (_, max)) in &worst {
         assert!(*max <= 1.0, "{kind} models {max:.2}x its estimate");
     }

@@ -1257,7 +1257,7 @@ pub fn compile_brush_world_streamed(
         for (side, child) in node.children.into_iter().enumerate() {
             if let TopChild::Region(r) = child {
                 parents[r as usize][0] = t as u16;
-                sides[r as usize] |= (side as u8) << 0;
+                sides[r as usize] |= side as u8;
             }
         }
     }
