@@ -1,9 +1,5 @@
 use super::*;
 
-/// The node whose geometry is selected plus that selection's cell
-/// coordinates, or the reason no single target could be resolved.
-type GeometryCellTargets = Result<(NodeId, Vec<(u16, u16)>), &'static str>;
-
 fn project_center_half_2d(
     view: OrthographicView,
     center: [f32; 3],
@@ -18,8 +14,7 @@ impl EditorWorkspace {
     /// any in-session camera movement untouched.
     pub(crate) fn frame_bsp_camera_if_uninitialized(&mut self) -> bool {
         let default_camera = EditorCameraState::default();
-        if self.active_room_id().is_some()
-            || self.project.active_scene().brushes.is_empty()
+        if self.project.active_scene().brushes.is_empty()
             || self.current_editor_camera_state() != default_camera
         {
             return false;
@@ -40,11 +35,7 @@ impl EditorWorkspace {
             .into_iter()
             .all(|value| value.abs() <= f32::EPSILON);
         let untouched_zoom = (self.viewport_zoom - DEFAULT_VIEWPORT_ZOOM).abs() <= f32::EPSILON;
-        if self.active_room_id().is_none()
-            && !self.project.active_scene().brushes.is_empty()
-            && untouched_focus
-            && untouched_zoom
-        {
+        if !self.project.active_scene().brushes.is_empty() && untouched_focus && untouched_zoom {
             self.frame_viewport();
             return true;
         }
@@ -202,16 +193,7 @@ impl EditorWorkspace {
             ViewTool::Select => {
                 if let Some(hit) = hits.iter().rev().find(|hit| hit.contains(world)) {
                     self.clear_brush_selection();
-                    if let Some(sector) = self
-                        .world_to_sector(hit.id, world)
-                        .map(|(sx, sz)| (hit.id, sx, sz))
-                    {
-                        self.select_sector(sector, modifiers);
-                    } else {
-                        self.select_node_with_group_semantics(hit.id, modifiers, false);
-                        self.clear_primitive_selection_state();
-                        self.clear_sector_selection();
-                    }
+                    self.select_node_with_group_semantics(hit.id, modifiers, false);
                 } else if self.brush_edit_mode == BrushEditMode::Clip
                     && self.selected_brush.is_some()
                 {
@@ -232,7 +214,6 @@ impl EditorWorkspace {
                 } else {
                     self.clear_brush_selection();
                     self.clear_resource_selection_state();
-                    self.clear_sector_selection();
                 }
             }
             ViewTool::Place => {
@@ -248,17 +229,7 @@ impl EditorWorkspace {
         }
     }
 
-    pub(crate) fn has_geometry_selection(&self) -> bool {
-        !self.selection.selected_sectors.is_empty()
-            || !self.selected_primitive_targets().is_empty()
-            || (self.active_room_id().is_some() && self.selection.selected_sector.is_some())
-    }
-
     pub(crate) fn duplicate_current_selection(&mut self) {
-        if self.floating_geometry.is_some() {
-            self.status = "Place or cancel the duplicate preview first".to_string();
-            return;
-        }
         // A brush selected through the general Select tool is directly
         // editable (see the Select toolbar arm), so Cmd+D must route to the
         // brush copy for both tools, not just ViewTool::Brush.
@@ -268,19 +239,7 @@ impl EditorWorkspace {
             self.duplicate_selected_brushes();
             return;
         }
-        if self
-            .selected_node_ids_in_hierarchy()
-            .into_iter()
-            .any(|id| self.node_is_group(id))
-        {
-            self.duplicate_selected();
-            return;
-        }
-        if self.has_geometry_selection() {
-            self.begin_floating_geometry_duplicate();
-        } else {
-            self.duplicate_selected();
-        }
+        self.duplicate_selected();
     }
 
     pub(crate) fn copy_current_geometry(&mut self) -> bool {
@@ -294,15 +253,10 @@ impl EditorWorkspace {
         copied
     }
 
-    /// Copy BSP brushes or authored cell geometry into a clipboard that can
+    /// Copy BSP brushes into a clipboard that can
     /// survive a project switch. Project-local ids are captured by name (or
     /// removed, for Door bindings) instead of leaking into the destination.
     fn copy_current_geometry_inner(&mut self) -> bool {
-        if self.floating_geometry.is_some() {
-            self.status = "Place or cancel the geometry preview first".to_string();
-            return false;
-        }
-
         let selected_group_roots: Vec<NodeId> = self
             .selected_node_ids_in_hierarchy()
             .into_iter()
@@ -420,9 +374,7 @@ impl EditorWorkspace {
         false
     }
 
-    /// Paste the portable Room-workspace clipboard into the active project.
-    /// Brushes keep world coordinates; cell geometry enters the existing
-    /// floating placement loop at the destination room's current cell.
+    /// Whether the portable clipboard holds BSP brushes to paste.
     pub(crate) fn has_brush_geometry_clipboard(&self) -> bool {
         matches!(
             self.portable_geometry_clipboard.as_ref(),
@@ -481,10 +433,6 @@ impl EditorWorkspace {
     }
 
     fn paste_current_geometry_inner(&mut self) -> bool {
-        if self.floating_geometry.is_some() {
-            self.status = "Place or cancel the geometry preview first".to_string();
-            return false;
-        }
         let Some(clipboard) = self.portable_geometry_clipboard.clone() else {
             self.status = "Copy brush or world geometry first".to_string();
             return false;
@@ -661,870 +609,6 @@ impl EditorWorkspace {
         ctx.request_repaint_after(std::time::Duration::from_millis(50));
     }
 
-    pub(crate) fn selected_geometry_cell_targets(&self) -> GeometryCellTargets {
-        let mut targets = Vec::new();
-        if !self.selection.selected_sectors.is_empty() {
-            targets.extend(
-                self.selection
-                    .selected_sectors
-                    .iter()
-                    .map(|(room, sx, sz)| (*room, *sx, *sz)),
-            );
-        } else {
-            targets.extend(
-                self.selected_primitive_targets()
-                    .into_iter()
-                    .map(|selection| {
-                        let (room, sx, sz) = selection_sector(selection);
-                        (room, sx, sz)
-                    }),
-            );
-            if targets.is_empty() {
-                if let (Some(room), Some((sx, sz))) =
-                    (self.active_room_id(), self.selection.selected_sector)
-                {
-                    targets.push((room, sx, sz));
-                }
-            }
-        }
-
-        if targets.is_empty() {
-            return Err("Select world geometry first");
-        }
-        targets.sort_by_key(|(room, sx, sz)| (room.raw(), *sx, *sz));
-        targets.dedup();
-
-        let room = targets[0].0;
-        if targets.iter().any(|(candidate, _, _)| *candidate != room) {
-            return Err("Select geometry from one room at a time");
-        }
-
-        Ok((
-            room,
-            targets.into_iter().map(|(_, sx, sz)| (sx, sz)).collect(),
-        ))
-    }
-
-    pub(crate) fn copy_selected_geometry(&mut self) -> Option<GeometryClipboard> {
-        if self.selection.selected_sectors.is_empty()
-            && !self.selected_primitive_targets().is_empty()
-        {
-            return self.copy_selected_primitive_geometry();
-        }
-
-        self.copy_selected_geometry_cells()
-    }
-
-    pub(crate) fn copy_selected_primitive_geometry(&mut self) -> Option<GeometryClipboard> {
-        let targets = self.selected_primitive_targets();
-        let (clipboard, populated) = match self.primitive_geometry_clipboard_for_targets(&targets) {
-            Ok(result) => result,
-            Err(message) => {
-                self.status = message.to_string();
-                return None;
-            }
-        };
-        self.status = if populated == 1 {
-            "Copied 1 primitive".to_string()
-        } else {
-            format!("Copied {populated} primitives")
-        };
-        Some(clipboard)
-    }
-
-    pub(crate) fn primitive_geometry_clipboard_for_targets(
-        &self,
-        targets: &[Selection],
-    ) -> Result<(GeometryClipboard, usize), &'static str> {
-        let Some(first) = targets.first().copied() else {
-            return Err("Select world geometry first");
-        };
-        let room = first.room();
-        if targets.iter().any(|selection| selection.room() != room) {
-            return Err("Select geometry from one room at a time");
-        }
-
-        let Some(grid) = self.room_grid_view(room) else {
-            return Err("Selected room no longer exists");
-        };
-
-        let mut min_x = i32::MAX;
-        let mut min_z = i32::MAX;
-        let mut max_x = i32::MIN;
-        let mut max_z = i32::MIN;
-        let mut staged: Vec<([i32; 2], GridSector)> = Vec::new();
-        let mut populated = 0usize;
-        for &selection in targets {
-            let Some(fragment) = sector_fragment_for_selection(grid, selection) else {
-                continue;
-            };
-            let (_, sx, sz) = selection_sector(selection);
-            let world = [grid.origin[0] + sx as i32, grid.origin[1] + sz as i32];
-            min_x = min_x.min(world[0]);
-            min_z = min_z.min(world[1]);
-            max_x = max_x.max(world[0]);
-            max_z = max_z.max(world[1]);
-            if let Some((_, cell)) = staged
-                .iter_mut()
-                .find(|(candidate_world, _)| *candidate_world == world)
-            {
-                merge_clipboard_fragment(cell, fragment);
-            } else {
-                staged.push((world, fragment));
-            }
-            populated += 1;
-        }
-
-        if populated == 0 {
-            return Err("Selected primitives are empty");
-        }
-
-        let width = max_x - min_x + 1;
-        let height = max_z - min_z + 1;
-        let clipboard = GeometryClipboard {
-            mode: GeometryClipboardMode::MergePrimitives,
-            source_room: room,
-            source_origin: [min_x, min_z],
-            next_paste_origin: [max_x + 1, min_z],
-            width,
-            height,
-            cells: staged
-                .into_iter()
-                .map(|(world, sector)| GeometryClipboardCell {
-                    offset: [world[0] - min_x, world[1] - min_z],
-                    sector: Some(sector),
-                })
-                .collect(),
-            extra_floors: Vec::new(),
-            lights: Vec::new(),
-        };
-        Ok((clipboard, populated))
-    }
-
-    pub(crate) fn copy_selected_geometry_cells(&mut self) -> Option<GeometryClipboard> {
-        let (room, cells) = match self.selected_geometry_cell_targets() {
-            Ok(targets) => targets,
-            Err(message) => {
-                self.status = message.to_string();
-                return None;
-            }
-        };
-        let Some(grid) = self.room_grid_view(room) else {
-            self.status = "Selected room no longer exists".to_string();
-            return None;
-        };
-
-        let mut min_x = i32::MAX;
-        let mut min_z = i32::MAX;
-        let mut max_x = i32::MIN;
-        let mut max_z = i32::MIN;
-        let mut staged = Vec::new();
-        for (sx, sz) in cells {
-            let world = [grid.origin[0] + sx as i32, grid.origin[1] + sz as i32];
-            min_x = min_x.min(world[0]);
-            min_z = min_z.min(world[1]);
-            max_x = max_x.max(world[0]);
-            max_z = max_z.max(world[1]);
-            staged.push((world, grid.sector(sx, sz).cloned()));
-        }
-
-        let populated = staged
-            .iter()
-            .filter(|(_, sector)| sector.as_ref().is_some_and(GridSector::has_geometry))
-            .count();
-        if populated == 0 {
-            self.status = "Selected cells are empty".to_string();
-            return None;
-        }
-
-        let width = max_x - min_x + 1;
-        let height = max_z - min_z + 1;
-        let clipboard = GeometryClipboard {
-            mode: GeometryClipboardMode::ReplaceCells,
-            source_room: room,
-            source_origin: [min_x, min_z],
-            next_paste_origin: [max_x + 1, min_z],
-            width,
-            height,
-            cells: staged
-                .into_iter()
-                .map(|(world, sector)| GeometryClipboardCell {
-                    offset: [world[0] - min_x, world[1] - min_z],
-                    sector,
-                })
-                .collect(),
-            extra_floors: Vec::new(),
-            lights: Vec::new(),
-        };
-        self.status = if populated == 1 {
-            "Copied 1 world cell".to_string()
-        } else {
-            format!("Copied {populated} world cells")
-        };
-        Some(clipboard)
-    }
-
-    pub(crate) fn begin_floating_geometry_duplicate(&mut self) {
-        let Some(clipboard) = self.copy_selected_geometry() else {
-            return;
-        };
-        self.begin_floating_geometry(clipboard, "Duplicating world geometry beside source");
-    }
-
-    /// Enter the floating preview loop with `clipboard`. Shared by Duplicate
-    /// and by stamping a prefab: the two differ only in where the cells came
-    /// from and what the status line calls the operation.
-    fn begin_floating_geometry(&mut self, clipboard: GeometryClipboard, lead: &str) {
-        let Some(room) = self.paste_target_room(&clipboard) else {
-            self.status = "No section to duplicate into".to_string();
-            return;
-        };
-        self.floating_geometry = Some(FloatingGeometryPlacement {
-            base_project: self.project.clone(),
-            base_dirty: self.dirty,
-            mode: clipboard.mode,
-            room,
-            origin: clipboard.next_paste_origin,
-            width: clipboard.width,
-            height: clipboard.height,
-            rotation_quarters: 0,
-            flip_x: false,
-            flip_z: false,
-            pointer_anchor_origin: None,
-            pointer_anchor_placement_origin: clipboard.next_paste_origin,
-            selected_cells: Vec::new(),
-            selected_primitives: Vec::new(),
-            cells: clipboard.cells,
-            extra_floors: clipboard.extra_floors,
-            lights: clipboard.lights,
-            seam_walls_stripped: 0,
-            elevation_offset: 0,
-        });
-        self.apply_floating_geometry_preview();
-        self.status = format!(
-            "{lead} - move cursor, R rotates, F flips, Shift+F flips vertically, PgUp/PgDn \
-             raises and lowers, click places, Esc cancels"
-        );
-    }
-
-    pub(crate) fn paste_target_room(&self, clipboard: &GeometryClipboard) -> Option<NodeId> {
-        self.active_room_id().or_else(|| {
-            self.project
-                .active_scene()
-                .node(clipboard.source_room)
-                .and_then(|node| matches!(node.kind, NodeKind::Section { .. }).then_some(node.id))
-        })
-    }
-
-    pub(crate) fn rotate_current_selection_90(&mut self) {
-        if self.floating_geometry.is_some() {
-            self.rotate_floating_geometry_cw();
-        } else if self.has_geometry_selection() {
-            self.rotate_selected_geometry_cw();
-        } else {
-            self.rotate_selected_yaw_90();
-        }
-    }
-
-    pub(crate) fn update_floating_geometry_origin(&mut self, origin: [i32; 2]) -> bool {
-        let Some(preview) = self.floating_geometry.as_mut() else {
-            return false;
-        };
-        if preview.origin == origin {
-            return true;
-        }
-        preview.origin = origin;
-        self.apply_floating_geometry_preview();
-        true
-    }
-
-    /// Feed a pointer-derived grid origin into floating placement. The first
-    /// observed cell is only an anchor: duplicate commands can originate from
-    /// a shortcut, toolbar, or tree menu while the mouse is elsewhere, and
-    /// immediately snapping to that stale position makes the copy appear to
-    /// vanish. Later pointer cells move the preview by their delta from this
-    /// anchor, preserving the adjacent starting placement even when the cursor
-    /// began on the other side of a large room.
-    pub(crate) fn track_floating_geometry_pointer_origin(&mut self, origin: [i32; 2]) -> bool {
-        let Some(preview) = self.floating_geometry.as_mut() else {
-            return false;
-        };
-        let Some(anchor) = preview.pointer_anchor_origin else {
-            preview.pointer_anchor_origin = Some(origin);
-            preview.pointer_anchor_placement_origin = preview.origin;
-            return true;
-        };
-        let placement_anchor = preview.pointer_anchor_placement_origin;
-        let target = [
-            placement_anchor[0].saturating_add(origin[0].saturating_sub(anchor[0])),
-            placement_anchor[1].saturating_add(origin[1].saturating_sub(anchor[1])),
-        ];
-        self.update_floating_geometry_origin(target)
-    }
-
-    pub(crate) fn rotate_floating_geometry_cw(&mut self) {
-        let Some(preview) = self.floating_geometry.as_mut() else {
-            return;
-        };
-        preview.rotation_quarters = (preview.rotation_quarters + 1) % 4;
-        self.apply_floating_geometry_preview();
-        self.status = "Rotated duplicate preview 90°".to_string();
-    }
-
-    pub(crate) fn flip_floating_geometry_x(&mut self) {
-        let Some(preview) = self.floating_geometry.as_mut() else {
-            return;
-        };
-        preview.flip_x = !preview.flip_x;
-        self.apply_floating_geometry_preview();
-        self.status = "Flipped duplicate preview horizontally".to_string();
-    }
-
-    /// Raise or lower the floating placement by `steps` height quanta.
-    ///
-    /// Snapped to [`HEIGHT_QUANTUM`] because the cooker rejects any authored
-    /// height that is not a multiple of it, and a free-running offset would
-    /// turn a stamp into a build failure the user cannot see.
-    pub(crate) fn nudge_floating_geometry_elevation(&mut self, steps: i32) {
-        let Some(preview) = self.floating_geometry.as_mut() else {
-            return;
-        };
-        preview.elevation_offset = preview
-            .elevation_offset
-            .saturating_add(steps.saturating_mul(HEIGHT_QUANTUM));
-        let offset = preview.elevation_offset;
-        self.apply_floating_geometry_preview();
-        self.status = format!("Placement raised {offset} units from its authored height");
-    }
-
-    pub(crate) fn flip_floating_geometry_z(&mut self) {
-        let Some(preview) = self.floating_geometry.as_mut() else {
-            return;
-        };
-        preview.flip_z = !preview.flip_z;
-        self.apply_floating_geometry_preview();
-        self.status = "Flipped duplicate preview vertically".to_string();
-    }
-
-    pub(crate) fn commit_floating_geometry(&mut self) -> bool {
-        let Some(preview) = self.floating_geometry.take() else {
-            return false;
-        };
-        // Lights go in before anything consumes `preview`, and before the undo
-        // snapshot is recorded: `base_project` is the pre-placement state, so
-        // recording it after is still correct and one Escape still undoes the
-        // whole stamp, lights included.
-        let lit = self.place_floating_lights(&preview);
-        self.history.record(preview.base_project);
-        match preview.mode {
-            GeometryClipboardMode::ReplaceCells => {
-                self.select_geometry_cells(preview.room, preview.selected_cells);
-            }
-            GeometryClipboardMode::MergePrimitives => {
-                self.select_geometry_primitives(preview.room, preview.selected_primitives);
-            }
-        }
-        let mut notes = Vec::new();
-        match preview.seam_walls_stripped {
-            0 => {}
-            1 => notes.push("1 wall dropped onto a seam a neighbour owns".to_string()),
-            n => notes.push(format!("{n} walls dropped onto seams neighbours own")),
-        }
-        match self.portal_rooms_over_budget(preview.room) {
-            0 => {}
-            1 => notes
-                .push("1 runtime room past a hard cap - author a Portal to split it".to_string()),
-            n => notes.push(format!(
-                "{n} runtime rooms past a hard cap - author Portals to split them"
-            )),
-        }
-        match lit {
-            0 => {}
-            1 => notes.push("1 light placed".to_string()),
-            n => notes.push(format!("{n} lights placed")),
-        }
-        self.status = if notes.is_empty() {
-            "Placed world geometry".to_string()
-        } else {
-            format!("Placed world geometry - {}", notes.join("; "))
-        };
-        self.mark_dirty();
-        true
-    }
-
-    /// Derived runtime rooms in `room` that still bust a hard cap.
-    ///
-    /// The authored grid is one contiguous room; the runtime splits it only at
-    /// authored `Portal` nodes, and the planner deliberately will not invent a
-    /// seam for size (`portal_rooms.rs:3-5`). Stamping grows the grid freely,
-    /// so a piece placed past `MAX_ROOM_WIDTH` becomes a build failure that
-    /// otherwise only surfaces on Play, an hour of clicking later. Counting
-    /// here says it at the moment the placement causes it.
-    ///
-    /// ponytail: the plan, not a cook. `over_budget` comes off the budget
-    /// estimate, which is a sector walk; cooking each derived room the way the
-    /// Play path does would be far too slow to run on a click.
-    fn portal_rooms_over_budget(&self, room: NodeId) -> usize {
-        let scene = self.project.active_scene();
-        let Some(NodeKind::Section { grid }) = scene.node(room).map(|node| &node.kind) else {
-            return 0;
-        };
-        plan_portal_rooms(scene, room, grid, PortalRoomConfig::default())
-            .rooms
-            .iter()
-            .filter(|derived| derived.over_budget)
-            .count()
-    }
-
-    /// Materialise the piece's lights as child nodes of the destination room.
-    ///
-    /// Runs on commit rather than on every preview pass, because the preview
-    /// rebuilds the project from its base snapshot each frame and would either
-    /// discard them or stack duplicates. Offsets go through the same transform
-    /// the cells take, so a rotated piece keeps its light in the same corner.
-    fn place_floating_lights(&mut self, preview: &FloatingGeometryPlacement) -> usize {
-        if preview.lights.is_empty() {
-            return 0;
-        }
-        // Reuse the geometry transform verbatim by feeding it sectorless cells:
-        // any divergence here would drift a rotated piece's light off-centre.
-        let carrier: Vec<GeometryClipboardCell> = preview
-            .lights
-            .iter()
-            .map(|light| GeometryClipboardCell {
-                offset: light.cell,
-                sector: None,
-            })
-            .collect();
-        let placed = transformed_geometry_cells(
-            &carrier,
-            preview.width,
-            preview.height,
-            preview.rotation_quarters,
-            preview.flip_x,
-            preview.flip_z,
-        );
-
-        let Some(grid) = self.room_grid_view(preview.room) else {
-            return 0;
-        };
-        let sector_size = grid.sector_size.max(1) as f32;
-        let lift = preview.elevation_offset as f32 / sector_size;
-        let spawn: Vec<(String, NodeKind, [f32; 3])> = preview
-            .lights
-            .iter()
-            .zip(&placed)
-            .map(|(light, (offset, _))| {
-                let editor = grid.world_cells_to_editor([
-                    (preview.origin[0] + offset[0]) as f32 + 0.5,
-                    (preview.origin[1] + offset[1]) as f32 + 0.5,
-                ]);
-                (
-                    "Prefab Light".to_string(),
-                    NodeKind::PointLight {
-                        color: light.color,
-                        intensity: light.intensity,
-                        radius: light.radius,
-                    },
-                    [editor[0], light.height_sectors + lift, editor[1]],
-                )
-            })
-            .collect();
-
-        let scene = self.project.active_scene_mut();
-        let mut count = 0;
-        for (name, kind, translation) in spawn {
-            let id = scene.add_node(preview.room, &name, kind);
-            if let Some(node) = scene.node_mut(id) {
-                node.transform.translation = translation;
-            }
-            count += 1;
-        }
-        count
-    }
-
-    pub(crate) fn cancel_floating_geometry(&mut self) -> bool {
-        let Some(preview) = self.floating_geometry.take() else {
-            return false;
-        };
-        self.project = preview.base_project;
-        self.dirty = preview.base_dirty;
-        self.clear_sector_selection();
-        self.clear_primitive_selection_state();
-        self.status = "Cancelled duplicate".to_string();
-        true
-    }
-
-    /// Write one floor of a floating placement, growing the floor stack and the
-    /// grid footprint to fit. Returns how many walls the seam pass dropped.
-    fn place_floating_floor(
-        &mut self,
-        preview: &FloatingGeometryPlacement,
-        target_floor: usize,
-        base_floor: usize,
-        relative_elevation: i32,
-        cells: Vec<([i32; 2], Option<GridSector>)>,
-        selected_cells: &mut Vec<(u16, u16)>,
-        selected_primitives: &mut Vec<Selection>,
-    ) -> Result<usize, &'static str> {
-        {
-            let scene = self.project.active_scene_mut();
-            let Some(node) = scene.node_mut(preview.room) else {
-                return Err("Duplicate target section no longer exists");
-            };
-            let NodeKind::Section { grid } = &mut node.kind else {
-                return Err("Duplicate target is not a Section");
-            };
-            // Grow the stack so an upper floor of the piece has somewhere to
-            // land. A floor this stamp creates takes the piece's own spacing;
-            // one that already existed keeps its authored elevation, because
-            // moving it would drag the geometry already sitting on it.
-            while grid.floor_count() <= target_floor {
-                let base_elevation = grid.floor(base_floor).map(|floor| floor.elevation);
-                let created = grid.push_floor();
-                if created == target_floor && relative_elevation != 0 {
-                    if let (Some(base_elevation), Some(floor)) =
-                        (base_elevation, grid.floor_mut(created))
-                    {
-                        floor.elevation = base_elevation.saturating_add(relative_elevation);
-                    }
-                }
-            }
-            for (offset, _) in &cells {
-                let _ = extend_room_grid_to_include_preserving_child_positions(
-                    scene,
-                    preview.room,
-                    preview.origin[0] + offset[0],
-                    preview.origin[1] + offset[1],
-                    target_floor,
-                );
-            }
-        }
-
-        let scene = self.project.active_scene_mut();
-        let Some(node) = scene.node_mut(preview.room) else {
-            return Err("Duplicate target section no longer exists");
-        };
-        let NodeKind::Section { grid } = &mut node.kind else {
-            return Err("Duplicate target is not a Section");
-        };
-        let floor_idx = target_floor.min(grid.floor_count().saturating_sub(1));
-        let grid = grid
-            .floor_mut(floor_idx)
-            .expect("floor index clamped to range");
-        for (offset, sector) in cells {
-            let wcx = preview.origin[0] + offset[0];
-            let wcz = preview.origin[1] + offset[1];
-            let Some((sx, sz)) = grid.world_cell_to_array(wcx, wcz) else {
-                continue;
-            };
-            let Some(index) = grid.sector_index(sx, sz) else {
-                continue;
-            };
-            match preview.mode {
-                GeometryClipboardMode::ReplaceCells => {
-                    grid.sectors[index] = sector;
-                    selected_cells.push((sx, sz));
-                }
-                GeometryClipboardMode::MergePrimitives => {
-                    let Some(fragment) = sector else {
-                        continue;
-                    };
-                    let target = grid.sectors[index].get_or_insert_with(GridSector::empty);
-                    merge_primitive_fragment(
-                        target,
-                        fragment,
-                        preview.room,
-                        sx,
-                        sz,
-                        selected_primitives,
-                    );
-                }
-            }
-        }
-        // Placing a piece against existing geometry hands the cooker two claims
-        // on one physical edge, which it rejects outright. The incoming wall
-        // loses. ponytail: cells only -- MergePrimitives grafts individual faces
-        // onto a sector that keeps its own walls, so it never authors a whole
-        // perimeter to collide.
-        Ok(match preview.mode {
-            GeometryClipboardMode::ReplaceCells => grid.strip_seam_walls(selected_cells),
-            GeometryClipboardMode::MergePrimitives => 0,
-        })
-    }
-
-    pub(crate) fn apply_floating_geometry_preview(&mut self) {
-        let Some(preview) = self.floating_geometry.clone() else {
-            return;
-        };
-        self.project = preview.base_project.clone();
-        self.dirty = preview.base_dirty;
-
-        let mut cells = transformed_geometry_cells(
-            &preview.cells,
-            preview.width,
-            preview.height,
-            preview.rotation_quarters,
-            preview.flip_x,
-            preview.flip_z,
-        );
-        for sector in cells.iter_mut().filter_map(|(_, sector)| sector.as_mut()) {
-            sector.offset_heights(preview.elevation_offset);
-        }
-        let mut selected_cells = Vec::new();
-        let mut selected_primitives = Vec::new();
-        let mut seam_walls_stripped = 0;
-        let active_floor = self.active_floor;
-
-        // Batch 0 is the active floor. A multi-floor prefab adds one batch per
-        // floor above it, each carrying the same rotation, flips and lift.
-        let mut batches = vec![(0usize, 0i32, cells)];
-        for (index, floor) in preview.extra_floors.iter().enumerate() {
-            let mut above = transformed_geometry_cells(
-                &floor.cells,
-                preview.width,
-                preview.height,
-                preview.rotation_quarters,
-                preview.flip_x,
-                preview.flip_z,
-            );
-            for sector in above.iter_mut().filter_map(|(_, sector)| sector.as_mut()) {
-                sector.offset_heights(preview.elevation_offset);
-            }
-            batches.push((index + 1, floor.relative_elevation, above));
-        }
-
-        for (floor_delta, relative_elevation, cells) in batches {
-            let target_floor = active_floor + floor_delta;
-            let mut floor_cells = Vec::new();
-            let mut floor_primitives = Vec::new();
-            match self.place_floating_floor(
-                &preview,
-                target_floor,
-                active_floor,
-                relative_elevation,
-                cells,
-                &mut floor_cells,
-                &mut floor_primitives,
-            ) {
-                Ok(stripped) => seam_walls_stripped += stripped,
-                Err(message) => {
-                    self.floating_geometry = None;
-                    self.status = message.to_string();
-                    return;
-                }
-            }
-            // Selection tracks the floor the user is authoring on; geometry
-            // written to the floors above it is placed but not selected.
-            if floor_delta == 0 {
-                selected_cells = floor_cells;
-                selected_primitives = floor_primitives;
-            }
-        }
-        if let Some(active_preview) = self.floating_geometry.as_mut() {
-            active_preview.selected_cells = selected_cells.clone();
-            active_preview.selected_primitives = selected_primitives.clone();
-            active_preview.seam_walls_stripped = seam_walls_stripped;
-        }
-        match preview.mode {
-            GeometryClipboardMode::ReplaceCells => {
-                self.select_geometry_cells(preview.room, selected_cells);
-            }
-            GeometryClipboardMode::MergePrimitives => {
-                self.select_geometry_primitives(preview.room, selected_primitives);
-            }
-        }
-    }
-
-    pub(crate) fn floating_origin_from_2d_world(
-        &self,
-        room: NodeId,
-        world: [f32; 2],
-    ) -> Option<[i32; 2]> {
-        let scene = self
-            .floating_geometry
-            .as_ref()
-            .map(|preview| preview.base_project.active_scene())
-            .unwrap_or_else(|| self.project.active_scene());
-        let node = scene.node(room)?;
-        let NodeKind::Section { grid } = &node.kind else {
-            return None;
-        };
-        let center = node_world(node);
-        let editor = [world[0] - center[0], world[1] - center[1]];
-        let world_cells = grid.editor_to_world_cells(editor);
-        Some([world_cells[0].floor() as i32, world_cells[1].floor() as i32])
-    }
-
-    pub(crate) fn floating_origin_from_3d_hover(
-        &self,
-        room: NodeId,
-        face_hit: Option<(FaceRef, [f32; 3])>,
-        ground_hit: Option<[f32; 2]>,
-    ) -> Option<[i32; 2]> {
-        // Anchor on the ground-plane projection only, never on
-        // `face_hit`. `face_hit` comes from `pick_face_with_hit`, which
-        // ray-tests the baked preview in `self.project`; feeding the
-        // preview's own faces back as the anchor makes the origin flip
-        // to whatever cell the cursor's nearest preview surface is in.
-        // `ground_hit` is a pure camera-ray/plane intersection
-        // (`pick_3d_world`), independent of scene geometry.
-        let _ = face_hit;
-        let editor = ground_hit?;
-        // Convert with the SAME grid the pick used. `ground_hit` was
-        // produced by `pick_3d_world_on_room_plane` via
-        // `WorldGrid::room_local_to_editor`, which subtracts
-        // `grid_center_cells()` of the *current* (`self.project`) grid.
-        // `editor_to_world_cells` re-adds the center, so it must read the
-        // same grid or the two centers cancel incorrectly. During a
-        // floating placement `self.project` may have been auto-grown,
-        // shifting its center: reading the clean base grid here would
-        // leave a constant offset between the two centers, the origin
-        // lands a cell over, the preview re-grows, the center shifts
-        // again, and the wireframe oscillates between two cells frame to
-        // frame. Using `self.project`'s grid makes the center cancel so
-        // `world_cells` is the true absolute cell under the cursor,
-        // regardless of how the preview grew.
-        let grid = self.room_grid_view(room)?;
-        let world_cells = grid.editor_to_world_cells(editor);
-        Some([world_cells[0].floor() as i32, world_cells[1].floor() as i32])
-    }
-
-    pub(crate) fn rotate_selected_geometry_cw(&mut self) {
-        let (room, cells) = match self.selected_geometry_cell_targets() {
-            Ok(targets) => targets,
-            Err(message) => {
-                self.status = message.to_string();
-                return;
-            }
-        };
-        let Some(grid) = self.room_grid_view(room) else {
-            self.status = "Selected room no longer exists".to_string();
-            return;
-        };
-
-        let mut min_x = i32::MAX;
-        let mut min_z = i32::MAX;
-        let mut max_x = i32::MIN;
-        let mut staged = Vec::new();
-        for (sx, sz) in cells {
-            let world = [grid.origin[0] + sx as i32, grid.origin[1] + sz as i32];
-            min_x = min_x.min(world[0]);
-            min_z = min_z.min(world[1]);
-            max_x = max_x.max(world[0]);
-            staged.push((world, grid.sector(sx, sz).cloned()));
-        }
-
-        let populated = staged
-            .iter()
-            .filter(|(_, sector)| sector.as_ref().is_some_and(GridSector::has_geometry))
-            .count();
-        if populated == 0 {
-            self.status = "Selected cells are empty".to_string();
-            return;
-        }
-
-        let width = max_x - min_x + 1;
-        let rotated: Vec<([i32; 2], Option<GridSector>)> = staged
-            .iter()
-            .map(|(world, sector)| {
-                let local_x = world[0] - min_x;
-                let local_z = world[1] - min_z;
-                (
-                    [min_x + local_z, min_z + width - 1 - local_x],
-                    sector.as_ref().map(rotate_sector_cw),
-                )
-            })
-            .collect();
-
-        self.push_undo();
-        let active_floor = self.active_floor;
-        let mut selected = Vec::new();
-        {
-            let scene = self.project.active_scene_mut();
-            let Some(node) = scene.node(room) else {
-                self.status = "Selected room no longer exists".to_string();
-                return;
-            };
-            let NodeKind::Section { .. } = &node.kind else {
-                self.status = "Selected target is not a Room".to_string();
-                return;
-            };
-
-            for (world, _) in &rotated {
-                let _ = extend_room_grid_to_include_preserving_child_positions(
-                    scene,
-                    room,
-                    world[0],
-                    world[1],
-                    active_floor,
-                );
-            }
-            let Some(node) = scene.node_mut(room) else {
-                self.status = "Selected room no longer exists".to_string();
-                return;
-            };
-            let NodeKind::Section { grid } = &mut node.kind else {
-                self.status = "Selected target is not a Room".to_string();
-                return;
-            };
-            let floor_idx = active_floor.min(grid.floor_count().saturating_sub(1));
-            let grid = grid
-                .floor_mut(floor_idx)
-                .expect("floor index clamped to range");
-            for (world, _) in &staged {
-                if let Some((sx, sz)) = grid.world_cell_to_array(world[0], world[1]) {
-                    if let Some(index) = grid.sector_index(sx, sz) {
-                        grid.sectors[index] = None;
-                    }
-                }
-            }
-            for (world, sector) in rotated {
-                let Some((sx, sz)) = grid.world_cell_to_array(world[0], world[1]) else {
-                    continue;
-                };
-                let Some(index) = grid.sector_index(sx, sz) else {
-                    continue;
-                };
-                grid.sectors[index] = sector;
-                selected.push((sx, sz));
-            }
-        }
-
-        self.select_geometry_cells(room, selected.clone());
-        self.status = if populated == 1 {
-            "Rotated 1 world cell 90°".to_string()
-        } else {
-            format!("Rotated {populated} world cells 90°")
-        };
-        self.mark_dirty();
-    }
-
-    pub(crate) fn select_geometry_cells(&mut self, room: NodeId, cells: Vec<(u16, u16)>) {
-        self.replace_node_selection(room);
-        self.clear_resource_selection_state();
-        self.clear_primitive_selection_state();
-        self.selection.selected_sectors = cells
-            .iter()
-            .map(|(sx, sz)| (room, *sx, *sz))
-            .collect::<HashSet<_>>();
-        self.selection.selected_sector = cells.first().copied();
-        self.selection.sector_selection_anchor = cells.first().map(|(sx, sz)| (room, *sx, *sz));
-        self.interaction.take_box_select_2d();
-    }
-
-    pub(crate) fn select_geometry_primitives(&mut self, room: NodeId, selections: Vec<Selection>) {
-        self.replace_node_selection(room);
-        self.clear_resource_selection_state();
-        self.clear_primitive_selection_state();
-        self.clear_sector_selection();
-        for selection in selections {
-            self.push_selected_primitive_unique(selection);
-        }
-        self.interaction.take_box_select_2d();
-        self.update_primitive_resource_selection();
-    }
-
     pub(crate) fn add_child(&mut self, kind: NodeKind, name: &str) {
         let parent = self.selection.selected_node;
         if kind.is_component() {
@@ -1545,8 +629,6 @@ impl EditorWorkspace {
             .add_node(parent, name.to_string(), kind);
         self.replace_node_selection(id);
         self.clear_resource_selection_state();
-        self.clear_primitive_selection_state();
-        self.clear_sector_selection();
         self.status = format!("Added {name}");
         self.mark_dirty();
     }
@@ -1561,8 +643,6 @@ impl EditorWorkspace {
         let id = scene.add_node(parent, name.to_string(), kind);
         self.selection.selected_ui_node = id;
         self.clear_resource_selection_state();
-        self.clear_primitive_selection_state();
-        self.clear_sector_selection();
         self.status = format!("Added UI {name}");
         self.mark_dirty();
     }
@@ -1679,8 +759,6 @@ impl EditorWorkspace {
         self.selection.selected_node = duplicated[0];
         self.selection.node_selection_anchor = duplicated.last().copied();
         self.clear_resource_selection_state();
-        self.clear_primitive_selection_state();
-        self.clear_sector_selection();
         self.status = if duplicated.len() == 1 {
             "Duplicated node".to_string()
         } else {
@@ -1704,8 +782,6 @@ impl EditorWorkspace {
         if removed > 0 {
             self.clear_node_selection_state();
             self.clear_resource_selection_state();
-            self.clear_primitive_selection_state();
-            self.clear_sector_selection();
             self.status = if removed == 1 {
                 "Deleted node".to_string()
             } else {
@@ -1747,8 +823,6 @@ impl EditorWorkspace {
                             if ui.button(parent_name).clicked() {
                                 self.replace_node_selection(*parent_id);
                                 self.clear_resource_selection_state();
-                                self.clear_primitive_selection_state();
-                                self.clear_sector_selection();
                             }
                         });
                     } else {
@@ -1902,8 +976,6 @@ impl EditorWorkspace {
         if let Some(id) = select_component {
             self.replace_node_selection(id);
             self.clear_resource_selection_state();
-            self.clear_primitive_selection_state();
-            self.clear_sector_selection();
         }
         if let Some((label, kind)) = add_component {
             self.add_component_to_host(selected, label, kind);
@@ -1991,187 +1063,9 @@ impl EditorWorkspace {
             .add_node(host, label.to_string(), kind);
         self.replace_node_selection(id);
         self.clear_resource_selection_state();
-        self.clear_primitive_selection_state();
-        self.clear_sector_selection();
         self.status = format!("Added {label} component");
         self.mark_dirty();
         Some(id)
-    }
-
-    /// Delete dispatch for the active selection:
-    /// - Face   → remove the face from its sector.
-    /// - Edge   → remove the face that owns the edge.
-    /// - Vertex → drop the corner on the seed face, turning it
-    ///   into a triangle (split is auto-flipped to the surviving
-    ///   diagonal). The other coincident face-corners are left
-    ///   untouched.
-    pub(crate) fn delete_selected_primitives(&mut self) {
-        let targets = self.selected_primitive_targets();
-        if targets.is_empty() {
-            return;
-        }
-        self.push_undo();
-
-        let mut removed = 0usize;
-        let mut triangulated = 0usize;
-        let mut first_label = None;
-        for selection in targets {
-            match self.delete_primitive_no_undo(selection) {
-                DeleteOutcome::Removed(label) => {
-                    removed += 1;
-                    first_label.get_or_insert(label);
-                }
-                DeleteOutcome::Triangulated(label) => {
-                    triangulated += 1;
-                    first_label.get_or_insert(label);
-                }
-                DeleteOutcome::Missing => {}
-            }
-        }
-
-        let changed = removed + triangulated;
-        if changed == 0 {
-            self.status = "Nothing to delete".to_string();
-            return;
-        }
-
-        self.clear_primitive_selection_state();
-        self.selection.hovered_primitive = None;
-        self.status = if changed == 1 {
-            if removed == 1 {
-                format!("Deleted {}", first_label.unwrap_or("primitive"))
-            } else {
-                format!("Dropped {}", first_label.unwrap_or("primitive"))
-            }
-        } else {
-            format!("Deleted {changed} primitives")
-        };
-        self.mark_dirty();
-    }
-
-    pub(crate) fn delete_primitive_no_undo(&mut self, selection: Selection) -> DeleteOutcome {
-        match selection {
-            Selection::Face(face) => self.remove_face_no_undo(face),
-            Selection::Triangle(triangle) => self.remove_triangle_no_undo(triangle),
-            Selection::Edge(edge) => edge_owning_face_ref(edge)
-                .map(|face| self.remove_face_no_undo(face))
-                .unwrap_or(DeleteOutcome::Missing),
-            Selection::Vertex(vertex) => self.drop_vertex_no_undo(vertex),
-        }
-    }
-
-    pub(crate) fn remove_triangle_no_undo(
-        &mut self,
-        triangle: HorizontalTriangleRef,
-    ) -> DeleteOutcome {
-        let Some(grid) = self.room_floor_grid_mut(triangle.room) else {
-            return DeleteOutcome::Missing;
-        };
-        let Some(sector) = grid.sector_mut(triangle.sx, triangle.sz) else {
-            return DeleteOutcome::Missing;
-        };
-        match triangle.surface {
-            HorizontalSurfaceKind::Floor => {
-                let Some(face) = sector.floor.as_mut() else {
-                    return DeleteOutcome::Missing;
-                };
-                if face.dropped_corner.is_some() {
-                    sector.floor = None;
-                    DeleteOutcome::Removed("floor")
-                } else {
-                    let corner = horizontal_triangle_delete_corner(face.split, triangle.index);
-                    face.drop_corner(corner);
-                    DeleteOutcome::Triangulated("floor triangle")
-                }
-            }
-            HorizontalSurfaceKind::Ceiling => {
-                let Some(face) = sector.ceiling.as_mut() else {
-                    return DeleteOutcome::Missing;
-                };
-                if face.dropped_corner.is_some() {
-                    sector.ceiling = None;
-                    DeleteOutcome::Removed("ceiling")
-                } else {
-                    let corner = horizontal_triangle_delete_corner(face.split, triangle.index);
-                    face.drop_corner(corner);
-                    DeleteOutcome::Triangulated("ceiling triangle")
-                }
-            }
-        }
-    }
-
-    /// Detach a face from its sector. Floors / ceilings clear the
-    /// `Option<>`; walls splice the entry out of the per-direction
-    /// `Vec`. Returns `Removed` on success so the caller can update
-    /// status / clear the selection.
-    pub(crate) fn remove_face_no_undo(&mut self, face: FaceRef) -> DeleteOutcome {
-        let Some(grid) = self.room_floor_grid_mut(face.room) else {
-            return DeleteOutcome::Missing;
-        };
-        let Some(sector) = grid.sector_mut(face.sx, face.sz) else {
-            return DeleteOutcome::Missing;
-        };
-        let removed = match face.kind {
-            FaceKind::Floor => sector.floor.take().is_some(),
-            FaceKind::Ceiling => sector.ceiling.take().is_some(),
-            FaceKind::Wall { dir, stack } => {
-                let walls = sector.walls.get_mut(dir);
-                if (stack as usize) < walls.len() {
-                    walls.remove(stack as usize);
-                    true
-                } else {
-                    false
-                }
-            }
-        };
-        if removed {
-            DeleteOutcome::Removed(describe_face_kind(face.kind))
-        } else {
-            DeleteOutcome::Missing
-        }
-    }
-
-    /// Drop a corner from the vertex's seed face. Floors / ceilings
-    /// gain a `dropped_corner` and have their split forced to the
-    /// surviving diagonal. Walls do the same with `WallCorner`.
-    pub(crate) fn drop_vertex_no_undo(&mut self, vertex: VertexRef) -> DeleteOutcome {
-        let Some(grid) = self.room_floor_grid_mut(vertex.room) else {
-            return DeleteOutcome::Missing;
-        };
-        let (sx, sz) = match vertex.anchor {
-            VertexAnchor::Floor { sx, sz, .. }
-            | VertexAnchor::Ceiling { sx, sz, .. }
-            | VertexAnchor::Wall { sx, sz, .. } => (sx, sz),
-        };
-        let Some(sector) = grid.sector_mut(sx, sz) else {
-            return DeleteOutcome::Missing;
-        };
-        match vertex.anchor {
-            VertexAnchor::Floor { corner, .. } => {
-                let Some(floor) = sector.floor.as_mut() else {
-                    return DeleteOutcome::Missing;
-                };
-                floor.drop_corner(corner);
-                DeleteOutcome::Triangulated("floor corner")
-            }
-            VertexAnchor::Ceiling { corner, .. } => {
-                let Some(ceiling) = sector.ceiling.as_mut() else {
-                    return DeleteOutcome::Missing;
-                };
-                ceiling.drop_corner(corner);
-                DeleteOutcome::Triangulated("ceiling corner")
-            }
-            VertexAnchor::Wall {
-                dir, stack, corner, ..
-            } => {
-                let walls = sector.walls.get_mut(dir);
-                let Some(wall) = walls.get_mut(stack as usize) else {
-                    return DeleteOutcome::Missing;
-                };
-                wall.drop_corner(corner);
-                DeleteOutcome::Triangulated("wall corner")
-            }
-        }
     }
 
     pub(crate) fn open_new_project_dialog(&mut self) {
@@ -2488,7 +1382,6 @@ impl EditorWorkspace {
             self.project = prev;
             self.clear_resource_selection_state();
             self.resource_renaming = None;
-            self.clear_sector_selection();
             self.reconcile_selection_after_document_change();
             self.status = "Undo".to_string();
             self.mark_dirty();
@@ -2505,7 +1398,6 @@ impl EditorWorkspace {
             self.project = next;
             self.clear_resource_selection_state();
             self.resource_renaming = None;
-            self.clear_sector_selection();
             self.reconcile_selection_after_document_change();
             self.status = "Redo".to_string();
             self.mark_dirty();
@@ -2590,11 +1482,8 @@ impl EditorWorkspace {
     }
 
     pub(crate) fn current_frame_bounds_3d(&self) -> Option<([f32; 3], [f32; 3])> {
-        self.selected_frame_bounds_3d().or_else(|| {
-            self.active_room_id()
-                .and_then(|room_id| self.room_bounds_3d(room_id))
-                .or_else(|| self.all_brush_frame_bounds_3d())
-        })
+        self.selected_frame_bounds_3d()
+            .or_else(|| self.all_brush_frame_bounds_3d())
     }
 
     pub(crate) fn selected_frame_bounds_3d(&self) -> Option<([f32; 3], [f32; 3])> {
@@ -2603,37 +1492,6 @@ impl EditorWorkspace {
         if matches!(self.active_tool, ViewTool::Brush | ViewTool::Select) {
             if let Some(bounds) = self.selected_brush_frame_bounds_3d() {
                 return Some(bounds);
-            }
-        }
-
-        let mut bounds: Option<(f32, f32, f32, f32, f32, f32)> = None;
-        for &(room, sx, sz) in &self.selection.selected_sectors {
-            if let Some((center, half)) = self.sector_bounds_3d(room, sx, sz) {
-                merge_bounds_3d(&mut bounds, center, half);
-            }
-        }
-        if let Some(bounds) = bounds {
-            return Some(bounds_3d_to_center_half(bounds));
-        }
-
-        let primitive_targets = self.selected_primitive_targets();
-        if primitive_targets.len() > 1 {
-            let mut bounds = None;
-            for selection in primitive_targets {
-                if let Some((center, half)) = self.selection_bounds_3d(selection) {
-                    merge_bounds_3d(&mut bounds, center, half);
-                }
-            }
-            if let Some(bounds) = bounds {
-                return Some(bounds_3d_to_center_half(bounds));
-            }
-        } else if let Some(selection) = self.selection.selected_primitive {
-            return self.selection_bounds_3d(selection);
-        }
-
-        if let Some((sx, sz)) = self.selection.selected_sector {
-            if let Some(room) = self.active_room_id() {
-                return self.sector_bounds_3d(room, sx, sz);
             }
         }
 
@@ -2715,20 +1573,6 @@ impl EditorWorkspace {
         bounds.map(bounds_3d_to_center_half)
     }
 
-    pub(crate) fn selection_bounds_3d(&self, selection: Selection) -> Option<([f32; 3], [f32; 3])> {
-        let grid = self.room_grid_view(selection.room())?;
-        let mut bounds: Option<(f32, f32, f32, f32, f32, f32)> = None;
-        for seed in drag_corner_seeds(selection)? {
-            let world = face_corner_world(grid, seed)?;
-            merge_bounds_3d(
-                &mut bounds,
-                [world[0] as f32, world[1] as f32, world[2] as f32],
-                [0.0, 0.0, 0.0],
-            );
-        }
-        bounds.map(bounds_3d_to_center_half)
-    }
-
     pub(crate) fn current_frame_bounds_2d(&self) -> Option<([f32; 2], [f32; 2])> {
         if self.active_tool == ViewTool::Brush {
             if let Some((center, half)) = self.selected_brush_frame_bounds_3d() {
@@ -2736,9 +1580,9 @@ impl EditorWorkspace {
             }
         }
 
-        // Legacy room-grid/node authoring remains a Top-view workflow. In
-        // Front and Side, frame all BSP brushes when no brush is selected so
-        // the alternate views never reinterpret grid XZ coordinates as XY.
+        // Node authoring remains a Top-view workflow. In Front and Side,
+        // frame all BSP brushes when no brush is selected so the alternate
+        // views never reinterpret node XZ coordinates as XY.
         if self.orthographic_view != OrthographicView::Top {
             let mut bounds = None;
             for brush in &self.project.active_scene().brushes {
@@ -2761,35 +1605,6 @@ impl EditorWorkspace {
                 );
             }
             return bounds.map(bounds_to_center_half);
-        }
-
-        let mut bounds: Option<(f32, f32, f32, f32)> = None;
-        for &(room, sx, sz) in &self.selection.selected_sectors {
-            if let Some((center, half)) = self.sector_bounds_2d(room, sx, sz) {
-                merge_bounds(&mut bounds, center, half);
-            }
-        }
-        if let Some(bounds) = bounds {
-            return Some(bounds_to_center_half(bounds));
-        }
-
-        let primitive_targets = self.selected_primitive_targets();
-        if !primitive_targets.is_empty() {
-            for selection in primitive_targets {
-                let (room, sx, sz) = selection_sector(selection);
-                if let Some((center, half)) = self.sector_bounds_2d(room, sx, sz) {
-                    merge_bounds(&mut bounds, center, half);
-                }
-            }
-            if let Some(bounds) = bounds {
-                return Some(bounds_to_center_half(bounds));
-            }
-        }
-
-        if let Some((sx, sz)) = self.selection.selected_sector {
-            if let Some(room) = self.active_room_id() {
-                return self.sector_bounds_2d(room, sx, sz);
-            }
         }
 
         let selected_nodes = self.selected_node_ids_in_hierarchy();
@@ -2816,22 +1631,6 @@ impl EditorWorkspace {
         self.all_brush_frame_bounds_3d()
             .map(|(center, half)| project_center_half_2d(self.orthographic_view, center, half))
             .or(selected_node_bounds)
-    }
-
-    pub(crate) fn sector_bounds_2d(
-        &self,
-        room: NodeId,
-        sx: u16,
-        sz: u16,
-    ) -> Option<([f32; 2], [f32; 2])> {
-        let node = self.project.active_scene().node(room)?;
-        let center = node_world(node);
-        let grid = self.room_grid_view(room)?;
-        if sx >= grid.width || sz >= grid.depth {
-            return None;
-        }
-        let local = grid_cell_editor_center(grid, sx, sz);
-        Some(([center[0] + local[0], center[1] + local[1]], [0.5, 0.5]))
     }
 
     /// End a Top-view node drag: the next drag starts a new gesture (and a

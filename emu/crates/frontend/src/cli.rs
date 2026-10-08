@@ -3367,7 +3367,7 @@ fn headless_editor_viewport_image(
     let mut assets = crate::editor_assets::EditorAssets::new();
     assets.refresh(project, project_root);
     let hidden = HashSet::new();
-    let entity_bounds = editor.collect_entity_bounds(None);
+    let entity_bounds = editor.collect_entity_bounds();
     let mut frame = crate::editor_preview::build_phase1_frame(
         project,
         editor.viewport_3d_camera(),
@@ -3630,7 +3630,7 @@ fn cmd_dump_editor_preview(args: DumpEditorPreviewArgs) -> Result<(), String> {
         .map_err(|e| format!("load {}: {e}", project_file.display()))?;
     let editor = EditorWorkspace::open_directory(&project_root)
         .map_err(|error| format!("open editor project at {}: {error}", project_root.display()))?;
-    let entity_bounds = editor.collect_entity_bounds(None);
+    let entity_bounds = editor.collect_entity_bounds();
 
     let camera = ViewportCameraState {
         mode: ViewportCameraMode::Orbit,
