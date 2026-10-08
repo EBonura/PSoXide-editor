@@ -24,6 +24,7 @@ use super::*;
 use psx_game_runtime::combat::{self, MeleeArc, WorldCombatCapsule};
 use psx_game_runtime::destructibles::{DamageChannel, DamageOutcome};
 use psx_game_runtime::entities::{GameEntityState, MeleeArcStats};
+use psx_game_runtime::hit_stop;
 use psx_game_runtime::model_rendering as mr;
 use psx_game_runtime::projectiles::{
     CombatTeam, ProjectileImpactKind, ProjectileImpacts, ProjectileSpawn, ProjectileTarget,
@@ -486,6 +487,9 @@ impl Playtest {
         // player's stance like a bolt does. Other projects keep untyped hits.
         let typed_melee = self.player_has_ranged_weapon();
         let opposed_melee = typed_melee && self.player_stance.active() != VitalityChannelId::One;
+        // Entities whose melee connected this tick (bit per entity index), so
+        // each can share the hit-stop of the blow it landed.
+        let mut striking_entities = 0u32;
         let mut attack_index = 0usize;
         while attack_index < self.deferred_enemy_attacks.len() {
             let Some(attack) = self.deferred_enemy_attacks.get(attack_index) else {
@@ -711,6 +715,9 @@ impl Playtest {
                 hits = hits.saturating_add(1);
                 damage_total = damage_total.saturating_add(damage);
                 poise_total = poise_total.saturating_add(poise_damage);
+                if attack.entity() < u32::BITS as usize {
+                    striking_entities |= 1u32 << attack.entity();
+                }
                 let source = usize::from(self.game_entities.attack_kind(attack.entity()) == 1);
                 tally[source][0] = tally[source][0].saturating_add(damage);
                 tally[source][1] = tally[source][1].saturating_add(poise_damage);
@@ -1042,6 +1049,18 @@ impl Playtest {
                 .unwrap_or(armored);
             let active_stance = self.player_stance.active();
             let staggered = self.react_player_to_hit(poise_total, armored, damage_total == 0, ctx);
+            if damage_total > 0 && self.hazard_death_ticks_remaining == 0 {
+                // Claw blows only: bolts hit without a freeze. The reaction has
+                // just started, so the player's fresh lock is what gets held.
+                let ticks = hit_stop::ticks_for(tally[1][0] > 0, staggered, false);
+                let mut entity = 0usize;
+                while entity < u32::BITS as usize && striking_entities >> entity != 0 {
+                    if striking_entities & (1u32 << entity) != 0 {
+                        self.hit_stop_enemy_strikes(entity, ticks, ctx.sim_tick);
+                    }
+                    entity += 1;
+                }
+            }
             if self.duel.active {
                 // Event flags: 1 player poise break, 2 player died, 4 opposite colour.
                 let broke = u32::from(staggered) | u32::from(player_died) << 1;
@@ -1282,6 +1301,7 @@ impl Playtest {
             spec.reach,
             prop_blockers.as_slice(),
             gameplay_now,
+            now,
         ) {
             self.report_player_melee_stats(stats);
             return;
@@ -1616,6 +1636,7 @@ impl Playtest {
         environment_reach: i32,
         prop_blockers: &[CharacterCollisionAabb],
         now: SimTick,
+        sim_now: SimTick,
     ) -> Option<MeleeArcStats> {
         let first = character.combat_capsule_first.to_usize();
         let end = first.saturating_add(usize::from(character.combat_capsule_count));
@@ -1820,6 +1841,15 @@ impl Playtest {
                         vitality_channel == VitalityChannelId::Two,
                         outcome.staggered,
                         outcome.died,
+                    );
+                    let heavy_swing = matches!(
+                        self.anim_state,
+                        PlayerAnim::HeavyAttack | PlayerAnim::VertHeavyAttack
+                    );
+                    self.hit_stop_player_strikes(
+                        entity,
+                        hit_stop::ticks_for(heavy_swing, outcome.staggered, outcome.died),
+                        sim_now,
                     );
                 }
                 if outcome.died {

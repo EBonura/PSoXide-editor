@@ -30,6 +30,7 @@ pub mod combat_timing;
 pub mod cylinder_props;
 pub mod destructibles;
 pub mod entities;
+pub mod hit_stop;
 pub mod image_props;
 pub mod logic;
 pub mod model_rendering;

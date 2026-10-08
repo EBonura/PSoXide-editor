@@ -365,6 +365,7 @@ impl Playtest {
                 );
             }
         }
+        self.tick_hit_feel_counters();
         self.logic.tick(
             LOGIC,
             psx_game_runtime::logic::LogicTickInput {
@@ -637,6 +638,8 @@ impl Playtest {
             return;
         }
         self.tick_gameplay_layer(ctx);
+        // Hit-stop holds the player's animation clock before anything reads it.
+        let hit_stopped = self.step_player_hit_stop(ctx.sim_tick);
         if let Some(bsp) = self.bsp.as_mut() {
             bsp.tick_doors();
         }
@@ -972,7 +975,7 @@ impl Playtest {
             config.walk_speed = config.walk_speed.saturating_mul(60) / 100;
             config.run_speed = config.run_speed.saturating_mul(60) / 100;
         }
-        if action_locked && player_anim_is_attack(self.anim_state) {
+        if action_locked && !hit_stopped && player_anim_is_attack(self.anim_state) {
             if let Some(character) = self.character.as_ref() {
                 let character = self.player_character_for_anim(character, self.anim_state);
                 let local_tick = now.saturating_sub(self.anim_start_tick);
