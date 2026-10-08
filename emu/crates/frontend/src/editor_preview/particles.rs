@@ -171,7 +171,7 @@ fn push_particle_preview_quad(
     scratch.particle_used = idx + 1;
     let packet_ptr: *mut QuadTexturedMaterial = &mut scratch.particle_quads[idx];
     unsafe {
-        scratch.ot.insert(
+        scratch.ot.resume_frame().add_raw(
             preview_depth_slot(
                 scratch.depth_range,
                 u32::from(center.sz) << scratch.gte_depth_shift,

@@ -529,7 +529,7 @@ pub(crate) fn render_import_model_preview_with_equipment_set_at_size(
         }
     }
 
-    let double_sided = model.double_sided();
+    let double_sided = model.is_double_sided();
     let (character_uv_offset, character_wrap_uv) = match character_material {
         Some(layer) => {
             // Same tick source as `frame_q12` above, so scrubbing the
@@ -1739,7 +1739,7 @@ fn draw_equipped_weapon_overlay(
         };
         *slot = project_import_model_vertex(vertex, weapon_joint, &weapon_transforms, camera);
     }
-    let double_sided = weapon_model.double_sided();
+    let double_sided = weapon_model.is_double_sided();
     let visible_faces = (usize::from(weapon_model.face_count())
         .saturating_mul(usize::from(materialization_q12))
         .saturating_add(4095))

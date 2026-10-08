@@ -339,6 +339,21 @@ LABELS = {
     **{0x270 + 4 * v + k: f"mdec_play_{'ABCDEF'[v]}_{k}" for v in range(6) for k in range(4)},
     **{0x290 + 5 * t + k: f"mdec_reset_trace_{t}_{k}" for t in range(3) for k in range(5)},
     **{0x2A0 + k: f"mdec_frame_control_{k}" for k in range(3)},
+    # v1.27 CONSOLE TESTS (src/console_tests.rs). Present only once a case has
+    # run; console_rows() below names the fields.
+    0x2C0: "kernel_enter_critical_section_cycles",
+    0x2C1: "kernel_exit_critical_section_cycles",
+    0x2C2: "kernel_empty_call_cycles",
+    0x2C3: "kernel_bios_vblank_round_trip_cycles",
+    0x2C4: "kernel_bios_vblank_gaps_events_flags",
+    0x2C5: "kernel_runtime_vblank_round_trip_cycles",
+    **{0x2D0 + k: f"display_width_{w}" for k, w in enumerate((256, 320, 368, 384, 512, 640))},
+    0x2D6: "interlace_status_field_changes_frames",
+    0x2D7: "interlace_frames_interlaced_480_status_low",
+    0x2E0: "xa_flags_loops_seconds",
+    0x2E1: "xa_loop_gap_ms",
+    0x2E2: "xa_loop_period_ms",
+    0x2E3: "xa_first_start_ms_positions_max_stall_ms",
     # v1.21 register A/B group. Present only in a PERF A/B capture.
     0xDC: "ab_ramsize_uncached_loads_control",
     0xDD: "ab_ramsize_uncached_loads_bit7_flipped",
@@ -600,6 +615,80 @@ def fmv_rows(capture: Capture) -> list[str]:
         rows.append(f"fmv,{name},{text}")
     return rows
 
+# v1.27 CONSOLE TESTS (src/console_tests.rs): the field names of each record.
+CONSOLE_KERNEL_FIRST = 0x2C0
+CONSOLE_KERNEL = (
+    ("enter_cs_min", "enter_cs_med", "enter_cs_max"),
+    ("exit_cs_min", "exit_cs_med", "exit_cs_max"),
+    ("empty_call_min", "empty_call_med", "empty_call_max"),
+    ("bios_vblank_min", "bios_vblank_med", "bios_vblank_max"),
+    ("bios_vblank_gaps", "bios_vblank_events_ready", "flags"),
+    ("runtime_vblank_min", "runtime_vblank_med", "runtime_vblank_max"),
+)
+CONSOLE_WIDTHS = (256, 320, 368, 384, 512, 640)
+
+
+def console_rows(capture: Capture) -> list[str]:
+    """The v1.27 CONSOLE TESTS results, unpacked. Empty unless a case ran
+    before the capture encoded. Nothing here is a verdict: each case is read
+    off the screen (and the film of it), and these are the numbers behind it."""
+    by_id = {record.record_id: record for record in capture.records}
+    rows = []
+
+    def triple(record_id):
+        record = by_id[record_id]
+        return record.minimum, record.median, record.maximum
+
+    if all(CONSOLE_KERNEL_FIRST + k in by_id for k in range(len(CONSOLE_KERNEL))):
+        fields = {}
+        for k, names in enumerate(CONSOLE_KERNEL):
+            fields.update(zip(names, triple(CONSOLE_KERNEL_FIRST + k)))
+        flags = fields.pop("flags")
+        harness = fields["empty_call_med"]
+        rows.append("console_kernel,field,value")
+        for name, value in fields.items():
+            rows.append(f"console_kernel,{name},{value}")
+        rows.append(f"console_kernel,enter_cs_net,{max(fields['enter_cs_med'] - harness, 0)}")
+        rows.append(f"console_kernel,exit_cs_net,{max(fields['exit_cs_med'] - harness, 0)}")
+        rows.append(f"console_kernel,standard_vector,{flags & 1}")
+        rows.append(f"console_kernel,event_opened,{(flags >> 1) & 1}")
+        rows.append(f"console_kernel,bios_loop_finished,{(flags >> 2) & 1}")
+        rows.append(f"console_kernel,runtime_vblank_gaps,{flags >> 8}")
+    for k, width in enumerate(CONSOLE_WIDTHS):
+        if 0x2D0 + k in by_id:
+            status, x1, x2 = triple(0x2D0 + k)
+            if not rows or not rows[-1].startswith("console_width"):
+                rows.append("console_width,pixels,gpustat_high16,gp1_06_x1,gp1_06_x2")
+            shown = "not shown" if status == 0xFFFF else f"0x{status:04X},{x1},{x2}"
+            rows.append(f"console_width,{width},{shown}")
+    if 0x2D6 in by_id and 0x2D7 in by_id:
+        status, flips, frames = triple(0x2D6)
+        interlaced, tall, low = triple(0x2D7)
+        rows.append("console_interlace,field,value")
+        rows.append(f"console_interlace,gpustat,0x{status:04X}{low:04X}")
+        rows.append(f"console_interlace,field_parity_changes,{flips}")
+        rows.append(f"console_interlace,frames_sampled,{frames}")
+        rows.append(f"console_interlace,frames_with_interlace_bit,{interlaced}")
+        rows.append(f"console_interlace,frames_with_480_bit,{tall}")
+    if all(0x2E0 + k in by_id for k in range(4)):
+        flags, loops, seconds = triple(0x2E0)
+        names = ("file_found", "play_refused", "head_in_song", "looped", "getlocp_updating", "no_loop_seen")
+        rows.append("console_xa,field,value")
+        for bit, name in enumerate(names):
+            rows.append(f"console_xa,{name},{(flags >> bit) & 1}")
+        rows.append(f"console_xa,loops,{loops}")
+        rows.append(f"console_xa,seconds_run,{seconds}")
+        for record_id, name in ((0x2E1, "loop_gap_ms"), (0x2E2, "loop_period_ms")):
+            lo, med, hi = triple(record_id)
+            text = "none" if lo == 0xFFFF else f"min={lo} med={med} max={hi}"
+            rows.append(f"console_xa,{name},{text}")
+        first, positions, stall = triple(0x2E3)
+        rows.append(f"console_xa,first_start_ms,{first}")
+        rows.append(f"console_xa,head_positions_seen,{positions}")
+        rows.append(f"console_xa,longest_unchanged_head_ms,{stall}")
+    return rows
+
+
 # Work is fixed by record ID, so the wire carries only id/min/median/max.
 WORK_BY_ID = {
     0x00: 0,
@@ -774,6 +863,7 @@ WORK_BY_ID = {
     0x13A: 16,
     **{record_id: 0 for record_id in range(0x1F0, 0x1F6)},
     **{record_id: 0 for record_id in LABELS if 0x200 <= record_id < 0x2B0},
+    **{record_id: 0 for record_id in LABELS if 0x2C0 <= record_id < 0x2F0},
     0x72: 128,
     0x73: 128,
     0x74: 64,
@@ -1296,6 +1386,8 @@ def print_report(
     for row in fmv_rows(capture):
         print(row)
     for row in mdec_diag_rows(capture):
+        print(row)
+    for row in console_rows(capture):
         print(row)
     settle = capture.observations[
         GTE_SETTLE_FIRST_CASE : GTE_SETTLE_FIRST_CASE + GTE_SETTLE_CASE_COUNT

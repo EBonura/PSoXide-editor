@@ -161,7 +161,8 @@ echo "cortex-pgo: optimised build"
 build_disc "$PROFILE_FLAGS -Zprofile-sample-use=$WORK/cortex.prof $PGO_FLAGS ${CORTEX_PGO_EXTRA_RUSTFLAGS:-}" \
     "$WORK/pgo.map" "$WORK/pgo-build.txt"
 EXE="$ROOT/build/examples/mipsel-sony-psx/release/editor-playtest.exe"
-python3 "$ROOT/tools/hazard_scan.py" "$EXE" || fail "load-delay hazards in $EXE"
+(cd "$ROOT" && cargo run -q --release --locked -p psoxide-hazard --bin hazard-scan -- "$EXE") \
+    || fail "load-delay hazards in $EXE"
 # RAM is the risk: profile-driven inlining grows .text, and the heap is what
 # is left between __bss_end and the reserved stack.
 BSS_END="$(sed -n 's/^ *\([0-9a-f]*\) .* __bss_end = \.$/\1/p' "$WORK/pgo.map" | head -1)"
