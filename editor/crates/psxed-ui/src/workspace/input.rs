@@ -494,16 +494,6 @@ impl EditorWorkspace {
         self.mark_shortcut_group_changed(ShortcutGroup::Viewport);
     }
 
-    /// Switch the Face / Edge / Vertex selection mode shown in the status bar.
-    pub(crate) fn set_selection_mode(&mut self, mode: SelectionMode) {
-        if self.selection_mode == mode {
-            return;
-        }
-        self.selection_mode = mode;
-        self.status = format!("Selection mode: {}", mode.label());
-        self.mark_shortcut_group_changed(ShortcutGroup::Selection);
-    }
-
     /// Snap the selected node's Y-rotation up by 90°. No-op on
     /// macro / structural nodes (World, plain transform-only nodes)
     /// since they have no in-world heading. Entity hosts, the legacy
