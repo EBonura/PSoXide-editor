@@ -355,7 +355,7 @@ impl StreamReport {
                                 "sampled line of sight over brush solids (estimate)"
                             }
                             ClosureSource::PortalFlow => {
-                                "clustered portal flow bounded by the far-reject distance (measured by the cook)"
+                                "the cook's own portal flow (measured)"
                             }
                         }),
                     ),
@@ -562,7 +562,7 @@ impl StreamReport {
                     grouped(p.closure.rays_cast)
                 ),
                 ClosureSource::PortalFlow =>
-                    "measured: clustered portal flow, far-reject bounded".to_string(),
+                    "measured: the cook's portal flow".to_string(),
             },
             gate.max_closure,
             median(&closure_sizes),
