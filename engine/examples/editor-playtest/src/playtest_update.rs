@@ -976,6 +976,7 @@ impl Playtest {
             config.run_speed = config.run_speed.saturating_mul(60) / 100;
         }
         if action_locked && !hit_stopped && player_anim_is_attack(self.anim_state) {
+            self.track_locked_target_in_windup();
             if let Some(character) = self.character.as_ref() {
                 let character = self.player_character_for_anim(character, self.anim_state);
                 let local_tick = now.saturating_sub(self.anim_start_tick);
