@@ -354,9 +354,7 @@ impl StreamReport {
                             ClosureSource::Sampled => {
                                 "sampled line of sight over brush solids (estimate)"
                             }
-                            ClosureSource::PortalFlow => {
-                                "the cook's own portal flow (measured)"
-                            }
+                            ClosureSource::PortalFlow => "the cook's own portal flow (measured)",
                         }),
                     ),
                     ("closure_max", int(gate.max_closure)),
