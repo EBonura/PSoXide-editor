@@ -542,6 +542,16 @@ impl EditorWorkspace {
 
         self.draw_bsp_mode_strip(ui);
         self.draw_bsp_add_menu(ui);
+        ui.menu_button("Terrain", |ui| {
+            if ui.button("Generate terrain…").clicked() {
+                self.open_terrain_editor(false);
+                ui.close_menu();
+            }
+            if ui.button("Edit selected terrain…").clicked() {
+                self.open_terrain_editor(true);
+                ui.close_menu();
+            }
+        });
         self.draw_bsp_context_controls(ui);
         ui.separator();
         self.draw_grid_controls(ui);

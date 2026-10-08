@@ -654,6 +654,7 @@ pub struct EditorWorkspace {
     /// report; `Some`, including an empty report, keeps the results window
     /// open until the author dismisses it or edits geometry.
     brush_overlap_report: Option<Vec<psxed_project::brush_overlap::BrushFaceOverlap>>,
+    terrain_editor: Option<workspace::terrain::TerrainEditor>,
     /// Floating duplicate placement created by Cmd+D. While active,
     /// `project` contains the preview copy, but `base_project`
     /// lets Escape cancel without dirtying the document and lets
@@ -3313,6 +3314,7 @@ impl EditorWorkspace {
             validation_issue_rooms: HashSet::new(),
             last_cook_errors: Vec::new(),
             brush_overlap_report: None,
+            terrain_editor: None,
             floating_geometry: None,
             portable_geometry_clipboard: None,
             clipboard_notice: None,
