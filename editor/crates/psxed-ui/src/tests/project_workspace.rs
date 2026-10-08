@@ -968,52 +968,6 @@ fn referenced_runtime_resource_delete_recreate_and_atomic_replace_are_detected()
 }
 
 #[test]
-fn room_grid_grow_preserves_spatial_descendant_preview_position() {
-    let mut project = ProjectDocument::new("grid-grow");
-    let scene = project.active_scene_mut();
-    let room = scene.add_node(
-        scene.root,
-        "Room",
-        NodeKind::Section {
-            grid: WorldGrid::empty(2, 2, 1024),
-        },
-    );
-    let entity = scene.add_node(room, "Entity", NodeKind::Entity);
-    scene
-        .node_mut(entity)
-        .expect("entity exists")
-        .transform
-        .translation = [0.0, 0.0, 0.0];
-
-    let before = test_node_preview_origin(&project, room, entity);
-    assert_eq!(before, [1024, 0, 1024]);
-
-    assert_eq!(
-        extend_room_grid_to_include_preserving_child_positions(
-            project.active_scene_mut(),
-            room,
-            2,
-            0,
-            0,
-        ),
-        Some((2, 0))
-    );
-    assert_eq!(test_node_preview_origin(&project, room, entity), before);
-
-    assert_eq!(
-        extend_room_grid_to_include_preserving_child_positions(
-            project.active_scene_mut(),
-            room,
-            -1,
-            0,
-            0,
-        ),
-        Some((0, 0))
-    );
-    assert_eq!(test_node_preview_origin(&project, room, entity), before);
-}
-
-#[test]
 fn centered_aspect_rect_centers_wide_preview_box() {
     let container = Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(800.0, 240.0));
 
@@ -1137,13 +1091,13 @@ fn focus_shortcut_in_free_mode_fits_bounds_and_preserves_direction() {
 fn editor_camera_saves_with_project_and_restores_on_open() {
     let project_dir = test_temp_dir("editor-camera");
     let mut project = ProjectDocument::new("editor-camera");
-    project.active_scene_mut().add_node(
-        NodeId::ROOT,
-        "Room",
-        NodeKind::Section {
-            grid: populated_grid(2, 2),
-        },
-    );
+    project
+        .active_scene_mut()
+        .brushes
+        .push(psxed_project::brush::Brush::cuboid(
+            [0, 0, 0],
+            [2048, 256, 2048],
+        ));
     let mut workspace = EditorWorkspace::with_project(project_dir.clone(), project);
     workspace.camera_rig.mode = ViewportCameraMode::Free;
     workspace.camera_rig.yaw = 384;
@@ -1667,83 +1621,6 @@ fn free_camera_rotation_uses_q12_drag_sensitivity() {
 }
 
 #[test]
-fn select_pick_passes_through_culled_wall_front_material() {
-    let mut project = ProjectDocument::new("visible-pick");
-    let mut one_sided = MaterialResource::opaque(None);
-    one_sided.face_sidedness = MaterialFaceSidedness::Front;
-    one_sided.sync_legacy_sidedness();
-    let material = project.add_resource("one-sided", ResourceData::Material(one_sided));
-
-    let mut grid = WorldGrid::empty(1, 1, 1024);
-    grid.add_wall(0, 0, GridDirection::North, 0, 1024, Some(material));
-    grid.add_wall(0, 0, GridDirection::South, 0, 1024, Some(material));
-    let room =
-        project
-            .active_scene_mut()
-            .add_node(NodeId::ROOT, "Room", NodeKind::Section { grid });
-
-    let mut workspace = EditorWorkspace::with_project(std::env::temp_dir(), project);
-    workspace.replace_node_selection(room);
-    workspace.camera_rig.mode = ViewportCameraMode::Free;
-    workspace.camera_rig.free_initialized = true;
-    workspace.camera_rig.free_position = [512, 512, 2048];
-    workspace.camera_rig.free_yaw = 0;
-    workspace.camera_rig.free_pitch = 0;
-
-    let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(320.0, 240.0));
-    let (face, hit) = workspace
-        .pick_face_with_hit(rect, rect.center())
-        .expect("ray should pass through hidden north wall to visible south wall");
-
-    assert_eq!(
-        face.kind,
-        FaceKind::Wall {
-            dir: GridDirection::South,
-            stack: 0,
-        }
-    );
-    assert!(hit[2].abs() < 0.001, "expected south wall hit, got {hit:?}");
-}
-
-#[test]
-fn select_pick_passes_through_culled_ceiling_to_visible_floor() {
-    let mut project = ProjectDocument::new("horizontal-visible-pick");
-    let mut one_sided = MaterialResource::opaque(None);
-    one_sided.face_sidedness = MaterialFaceSidedness::Front;
-    one_sided.sync_legacy_sidedness();
-    let material = project.add_resource("one-sided", ResourceData::Material(one_sided));
-
-    let mut grid = WorldGrid::empty(1, 1, 1024);
-    grid.set_floor(0, 0, 0, Some(material));
-    grid.ensure_sector(0, 0).unwrap().ceiling =
-        Some(GridHorizontalFace::flat(1024, Some(material)));
-    let room =
-        project
-            .active_scene_mut()
-            .add_node(NodeId::ROOT, "Room", NodeKind::Section { grid });
-
-    let mut workspace = EditorWorkspace::with_project(std::env::temp_dir(), project);
-    workspace.replace_node_selection(room);
-    workspace.camera_rig.mode = ViewportCameraMode::Free;
-    workspace.camera_rig.free_initialized = true;
-    workspace.camera_rig.free_position = [512, 2048, 512];
-    workspace.camera_rig.free_yaw = 0;
-    workspace.camera_rig.free_pitch = signed_to_q12(-960);
-
-    let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(320.0, 240.0));
-    let (_, dir) = workspace
-        .camera_ray_for_pointer(rect, rect.center())
-        .unwrap();
-    assert!(dir[1] < -0.9, "expected downward ray, got {dir:?}");
-    let (face, hit) = workspace
-        .pick_face_with_hit(rect, rect.center())
-        .expect("ray should pass through hidden ceiling top to visible floor top");
-
-    assert_eq!(face.kind, FaceKind::Floor);
-    assert!(hit[1].abs() < 0.001, "expected floor hit, got {hit:?}");
-}
-
-#[test]
 fn command_modifier_blocks_bare_shortcuts() {
     assert!(bare_shortcuts_available(false, egui::Modifiers::NONE));
     assert!(!bare_shortcuts_available(true, egui::Modifiers::NONE));
@@ -1866,34 +1743,18 @@ fn material_paint_is_a_separate_bsp_tool() {
 }
 
 #[test]
-fn entering_material_paint_clears_geometry_selection_and_syncs_the_material() {
+fn entering_material_paint_syncs_the_material() {
     let mut project = ProjectDocument::new("paint-modal-selection");
     let material = project.add_resource(
         "Sand",
         ResourceData::Material(MaterialResource::opaque(None)),
     );
-    let mut grid = WorldGrid::empty(1, 1, 1024);
-    grid.set_floor(0, 0, 0, Some(material));
-    let room =
-        project
-            .active_scene_mut()
-            .add_node(NodeId::ROOT, "Room", NodeKind::Section { grid });
     let mut workspace =
         EditorWorkspace::with_project(test_temp_dir("paint-modal-selection"), project);
-    workspace.replace_node_selection(room);
-    workspace.replace_primitive_selection(Selection::Face(FaceRef {
-        room,
-        sx: 0,
-        sz: 0,
-        kind: FaceKind::Floor,
-    }));
     workspace.replace_resource_selection(material);
 
     workspace.set_active_tool_cycle_value((ViewTool::PaintMaterial, None));
 
-    assert!(workspace.selection.selected_primitive.is_none());
-    assert!(workspace.selection.selected_primitives.is_empty());
-    assert!(workspace.selection.selected_sector.is_none());
     assert_eq!(workspace.brush_material, Some(material));
     assert_eq!(workspace.selection.selected_resource, Some(material));
 }
@@ -2032,7 +1893,10 @@ fn debug_snapshot_omits_retired_portal_runtime_log() {
 
 #[test]
 fn play_performance_panel_toggle_persists_in_the_view_sidecar() {
-    let (mut workspace, _) = workspace_with_populated_grid("perf-panel-toggle", 1, 1);
+    let mut workspace = EditorWorkspace::with_project(
+        test_temp_dir("perf-panel-toggle"),
+        ProjectDocument::new("perf-panel-toggle"),
+    );
     let shown = workspace.play_performance_panel_visible();
     workspace.toggle_play_performance_panel();
     assert_eq!(workspace.play_performance_panel_visible(), !shown);
@@ -2259,12 +2123,8 @@ fn create_and_open_project_sets_document_name_and_derived_directory() {
         "new projects use the BSP-first brush template"
     );
     assert!(
-        ws.project()
-            .active_scene()
-            .nodes()
-            .iter()
-            .all(|node| !matches!(node.kind, NodeKind::Section { .. })),
-        "new projects do not inherit legacy grid sections"
+        ProjectDocument::load_from_path(ws.project_root().join("project.ron")).is_ok(),
+        "the saved new project loads without tripping the legacy grid-world check"
     );
     // The v0.4b starter carries three deliberately two-sided DP City overlays:
     // thin transparent geometry that has to draw from both sides. Everything
@@ -2321,7 +2181,6 @@ fn bsp_new_project_can_author_save_cook_edit_and_recook_without_grid_rooms() {
     let _ = std::fs::remove_dir_all(&cook_c);
 
     workspace.create_and_open_project(&name).unwrap();
-    assert!(workspace.active_room_id().is_none());
     assert_eq!(
         workspace.bsp_authoring_root(),
         Some(workspace.project().active_scene().root)
@@ -2374,7 +2233,7 @@ fn bsp_new_project_can_author_save_cook_edit_and_recook_without_grid_rooms() {
         .all(|face| face.material == Some(material)));
     workspace.orthographic_focus[1] = 320.0;
 
-    // Real Place commands in a scene with no legacy Room/Section. The top
+    // Real Place commands in a brush-only scene. The top
     // view resolves the hollow's upward roof at Y=320 and lifts the spawn
     // one unit out of the solid boundary.
     workspace.set_active_tool_cycle_value((ViewTool::Place, Some(PlaceKind::PlayerSpawn)));
@@ -2639,12 +2498,17 @@ fn placed_trigger_volume_contains_a_player_standing_on_the_placement_surface() {
         .active_scene()
         .node(placed)
         .expect("placed Logic node");
-    assert!(
-        crate::editor_helpers::node_is_floor_anchored(&node.kind),
-        "a Trigger Volume gizmo must be floor anchored to match its cooked AABB"
-    );
     let (_, half) = crate::editor_helpers::entity_bound_kind_and_size(&workspace, node)
         .expect("trigger volumes have a preview bound");
+    let bound = workspace
+        .collect_entity_bounds()
+        .into_iter()
+        .find(|bound| bound.node == placed)
+        .expect("trigger volumes have a pickable bound");
+    assert!(
+        (bound.center[1] - bound.half_extents[1] - node.transform.translation[1]).abs() < 0.001,
+        "a Trigger Volume gizmo must be floor anchored to match its cooked AABB"
+    );
     let drawn_min = engine(node.transform.translation[1]);
     let drawn_max = drawn_min + engine(half[1] * 2.0);
     assert!(
@@ -2811,11 +2675,10 @@ fn bsp_blank_slate_commands_preserve_rooted_prop_door_and_portal_contract() {
         "the authored Box Prop must retain its collision contract"
     );
     assert_eq!(package.lights.len(), 1);
-    assert!(matches!(
-        package.world_geometry,
-        psxed_project::playtest::PlaytestWorldGeometry::Pxbsp(ref world)
-            if world.movers.len() == 1 && world.movers[0].node == door.raw() as u32
-    ));
+    assert!(
+        package.world_geometry.movers.len() == 1
+            && package.world_geometry.movers[0].node == door.raw() as u32
+    );
 
     // Rebuild an unchanged persisted revision into a separate directory and
     // compare both authoritative generated files byte-for-byte.
@@ -4959,10 +4822,7 @@ fn souls_slice_project_is_authored_through_production_commands() {
     let (package, report) = psxed_project::playtest::build_package(&project, &project_dir);
     assert!(report.is_ok(), "{}", report.error_messages().join("; "));
     let package = package.expect("cooked package");
-    let psxed_project::playtest::PlaytestWorldGeometry::Pxbsp(ref world) = package.world_geometry
-    else {
-        panic!("slice must cook as PXBSP");
-    };
+    let world = &package.world_geometry;
     assert_eq!(world.movers.len(), 1, "one lift-door mover");
     // Hulls must derive from the two authored character envelopes: hull one
     // for the Aletha body, hull two for the Mantis body (authored 188/192 x
@@ -5033,4 +4893,66 @@ fn souls_slice_project_is_authored_through_production_commands() {
     let _ = std::fs::remove_dir_all(project_dir);
     let _ = std::fs::remove_dir_all(cook_a);
     let _ = std::fs::remove_dir_all(cook_b);
+}
+
+/// A project file that still holds a retired grid-world node as raw RON.
+fn legacy_grid_world_project_dir(label: &str) -> PathBuf {
+    let dir = test_temp_dir(label);
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut project = ProjectDocument::new(label);
+    let root = project.active_scene().root;
+    project
+        .active_scene_mut()
+        .add_node(root, "Legacy Room", NodeKind::Node3D);
+    let ron =
+        project
+            .to_ron_string()
+            .unwrap()
+            .replacen("kind: Node3D", "kind: Section(grid: ())", 1);
+    assert!(ron.contains("kind: Section("), "scaffold node rewritten");
+    std::fs::write(dir.join("project.ron"), ron).unwrap();
+    dir
+}
+
+#[test]
+fn opening_a_project_with_a_legacy_grid_world_fails_with_the_plain_message() {
+    let dir = legacy_grid_world_project_dir("legacy-grid-open");
+    let before = std::fs::read_to_string(dir.join("project.ron")).unwrap();
+
+    let error = match EditorWorkspace::open_directory(&dir) {
+        Ok(_) => panic!("a project holding a Section node must not open"),
+        Err(error) => error,
+    };
+
+    assert!(error.contains("legacy grid-world node(s)"), "{error}");
+    assert!(error.contains("Grid worlds were removed"), "{error}");
+    assert_eq!(
+        std::fs::read_to_string(dir.join("project.ron")).unwrap(),
+        before,
+        "a refused load must not touch the file"
+    );
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn reloading_a_project_that_gained_a_legacy_grid_world_reports_it_in_the_status() {
+    let dir = legacy_grid_world_project_dir("legacy-grid-reload");
+    let mut workspace =
+        EditorWorkspace::with_project(dir.clone(), ProjectDocument::new("legacy-grid-reload"));
+
+    workspace.reload();
+
+    assert!(
+        workspace.status_text().starts_with("Reload failed: "),
+        "{}",
+        workspace.status_text()
+    );
+    assert!(
+        workspace
+            .status_text()
+            .contains("legacy grid-world node(s)"),
+        "{}",
+        workspace.status_text()
+    );
+    let _ = std::fs::remove_dir_all(dir);
 }

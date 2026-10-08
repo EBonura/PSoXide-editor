@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn collect_entity_bounds_covers_starter_scene_entities() {
     let workspace = EditorWorkspace::open_directory(psxed_project::default_project_dir()).unwrap();
-    let bounds = workspace.collect_entity_bounds(workspace.active_room_id());
+    let bounds = workspace.collect_entity_bounds();
     assert!(
         !bounds.is_empty(),
         "starter scene should expose at least one selectable entity bound"
@@ -63,7 +63,7 @@ fn dropping_model_resource_creates_component_entity() {
         .expect("starter has a model")
         .id;
 
-    workspace.drop_resource_at_room_hit(model_id, NodeId::ROOT, [512.0, 0.0, 512.0], None);
+    workspace.drop_resource_at_room_hit(model_id, NodeId::ROOT, [512.0, 0.0, 512.0]);
 
     let scene = workspace.project.active_scene();
     let entity = scene
@@ -101,7 +101,7 @@ fn dropping_character_resource_creates_entity_components() {
         .expect("starter has a character")
         .id;
 
-    workspace.drop_resource_at_room_hit(character_id, NodeId::ROOT, [512.0, 0.0, 512.0], None);
+    workspace.drop_resource_at_room_hit(character_id, NodeId::ROOT, [512.0, 0.0, 512.0]);
 
     let scene = workspace.project.active_scene();
     let entity = scene
@@ -141,16 +141,10 @@ fn dropping_weapon_resource_creates_equipment_entity() {
             ..psxed_project::WeaponResource::default()
         }),
     );
-    let room = project.active_scene_mut().add_node(
-        NodeId::ROOT,
-        "Room",
-        NodeKind::Section {
-            grid: WorldGrid::empty(2, 2, 1024),
-        },
-    );
+    let room = NodeId::ROOT;
     let mut workspace = EditorWorkspace::with_project(std::env::temp_dir(), project);
 
-    workspace.drop_resource_at_room_hit(weapon, room, [512.0, 0.0, 512.0], None);
+    workspace.drop_resource_at_room_hit(weapon, room, [512.0, 0.0, 512.0]);
 
     let scene = workspace.project.active_scene();
     let entity = scene
@@ -607,9 +601,10 @@ fn character_motion_preview_moves_without_mutating_authored_transform_and_tracks
 fn scene_graph_add_menu_is_structure_only() {
     let addable = scene_graph_addable_kinds();
     assert_eq!(addable.len(), 3);
-    assert!(!addable
-        .iter()
-        .any(|(label, kind)| *label == "Section" || matches!(kind, NodeKind::Section { .. })));
+    assert!(!addable.iter().any(|(label, _)| matches!(
+        *label,
+        "Section" | "Room" | "Map" | "Water Volume" | "Portal"
+    )));
     assert!(addable
         .iter()
         .any(|(label, kind)| *label == "Entity" && matches!(kind, NodeKind::Entity)));
@@ -759,16 +754,10 @@ fn dropping_first_character_profile_creates_player_controller() {
         "Hero",
         ResourceData::Character(psxed_project::CharacterResource::defaults()),
     );
-    let room = project.active_scene_mut().add_node(
-        NodeId::ROOT,
-        "Room",
-        NodeKind::Section {
-            grid: WorldGrid::empty(1, 1, 1024),
-        },
-    );
+    let room = NodeId::ROOT;
     let mut workspace = EditorWorkspace::with_project(std::env::temp_dir(), project);
 
-    workspace.drop_resource_at_room_hit(character, room, [0.0, 0.0, 0.0], None);
+    workspace.drop_resource_at_room_hit(character, room, [0.0, 0.0, 0.0]);
 
     let entity = workspace.selection.selected_node;
     let scene = workspace.project.active_scene();
@@ -796,13 +785,7 @@ fn dropping_character_profile_stays_non_player_when_player_exists() {
         "NPC",
         ResourceData::Character(psxed_project::CharacterResource::defaults()),
     );
-    let room = project.active_scene_mut().add_node(
-        NodeId::ROOT,
-        "Room",
-        NodeKind::Section {
-            grid: WorldGrid::empty(1, 1, 1024),
-        },
-    );
+    let room = NodeId::ROOT;
     project.active_scene_mut().add_node(
         room,
         "Player Spawn",
@@ -813,7 +796,7 @@ fn dropping_character_profile_stays_non_player_when_player_exists() {
     );
     let mut workspace = EditorWorkspace::with_project(std::env::temp_dir(), project);
 
-    workspace.drop_resource_at_room_hit(character, room, [0.0, 0.0, 0.0], None);
+    workspace.drop_resource_at_room_hit(character, room, [0.0, 0.0, 0.0]);
 
     let entity = workspace.selection.selected_node;
     let scene = workspace.project.active_scene();
@@ -849,16 +832,10 @@ fn dropping_enemy_profile_first_preserves_authored_enemy_defaults() {
             ..psxed_project::CharacterResource::defaults()
         }),
     );
-    let room = project.active_scene_mut().add_node(
-        NodeId::ROOT,
-        "Room",
-        NodeKind::Section {
-            grid: WorldGrid::empty(1, 1, 1024),
-        },
-    );
+    let room = NodeId::ROOT;
     let mut workspace = EditorWorkspace::with_project(std::env::temp_dir(), project);
 
-    workspace.drop_resource_at_room_hit(character, room, [0.0, 0.0, 0.0], None);
+    workspace.drop_resource_at_room_hit(character, room, [0.0, 0.0, 0.0]);
 
     let entity = workspace.selection.selected_node;
     let scene = workspace.project.active_scene();
@@ -956,13 +933,7 @@ fn dropping_player_profile_applies_camera_preset_and_replaces_player_source() {
             ..psxed_project::CharacterResource::defaults()
         }),
     );
-    let room = project.active_scene_mut().add_node(
-        NodeId::ROOT,
-        "Room",
-        NodeKind::Section {
-            grid: WorldGrid::empty(1, 1, 1024),
-        },
-    );
+    let room = NodeId::ROOT;
     let old_spawn = project.active_scene_mut().add_node(
         room,
         "Old Player",
@@ -973,7 +944,7 @@ fn dropping_player_profile_applies_camera_preset_and_replaces_player_source() {
     );
     let mut workspace = EditorWorkspace::with_project(std::env::temp_dir(), project);
 
-    workspace.drop_resource_at_room_hit(character, room, [0.0, 0.0, 0.0], None);
+    workspace.drop_resource_at_room_hit(character, room, [0.0, 0.0, 0.0]);
 
     let entity = workspace.selection.selected_node;
     let scene = workspace.project.active_scene();
@@ -1049,13 +1020,7 @@ fn dropping_player_profile_applies_camera_preset_and_replaces_player_source() {
 #[test]
 fn player_source_demote_handles_spawn_points_and_character_controllers() {
     let mut project = ProjectDocument::new("player-source-demote");
-    let room = project.active_scene_mut().add_node(
-        NodeId::ROOT,
-        "Room",
-        NodeKind::Section {
-            grid: WorldGrid::empty(1, 1, 1024),
-        },
-    );
+    let room = NodeId::ROOT;
     let spawn = project.active_scene_mut().add_node(
         room,
         "Legacy Player",
@@ -1095,13 +1060,7 @@ fn player_source_demote_handles_spawn_points_and_character_controllers() {
 #[test]
 fn character_controller_player_toggle_demotes_existing_player_source() {
     let mut project = ProjectDocument::new("player-source-toggle");
-    let room = project.active_scene_mut().add_node(
-        NodeId::ROOT,
-        "Room",
-        NodeKind::Section {
-            grid: WorldGrid::empty(1, 1, 1024),
-        },
-    );
+    let room = NodeId::ROOT;
     let spawn = project.active_scene_mut().add_node(
         room,
         "Legacy Player",
@@ -1142,7 +1101,7 @@ fn character_controller_player_toggle_demotes_existing_player_source() {
 #[test]
 fn pick_entity_bound_returns_node_when_ray_hits_centre() {
     let workspace = EditorWorkspace::open_directory(psxed_project::default_project_dir()).unwrap();
-    let bounds = workspace.collect_entity_bounds(workspace.active_room_id());
+    let bounds = workspace.collect_entity_bounds();
     let target = bounds
         .iter()
         .find(|b| {
@@ -1169,13 +1128,7 @@ fn pick_entity_bound_returns_node_when_ray_hits_centre() {
 #[test]
 fn pick_entity_bound_includes_box_prop_bounds() {
     let mut project = ProjectDocument::new("box-prop-pick");
-    let room = project.active_scene_mut().add_node(
-        NodeId::ROOT,
-        "Room",
-        NodeKind::Section {
-            grid: WorldGrid::empty(1, 1, 1024),
-        },
-    );
+    let room = NodeId::ROOT;
     let prop = project.active_scene_mut().add_node(
         room,
         "Crate",
@@ -1189,7 +1142,7 @@ fn pick_entity_bound_includes_box_prop_bounds() {
         },
     );
     let workspace = EditorWorkspace::with_project(test_temp_dir("box-prop-pick"), project);
-    let bounds = workspace.collect_entity_bounds(Some(room));
+    let bounds = workspace.collect_entity_bounds();
     let target = bounds
         .iter()
         .find(|bound| bound.node == prop && bound.kind == EntityBoundKind::BoxProp)

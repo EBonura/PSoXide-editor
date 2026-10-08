@@ -20,36 +20,6 @@ impl UvTransformEdit {
             || self.flip_v
     }
 
-    pub(crate) fn include_value_changes(&mut self, before: UvTransform, after: UvTransform) {
-        for axis in 0..2 {
-            self.offset[axis] |= before.offset[axis] != after.offset[axis];
-            self.span[axis] |= before.span[axis] != after.span[axis];
-        }
-        self.rotation |= before.rotation != after.rotation;
-        self.flip_u |= before.flip_u != after.flip_u;
-        self.flip_v |= before.flip_v != after.flip_v;
-    }
-
-    pub(crate) fn apply(self, uv: &mut UvTransform, authored: UvTransform) {
-        for axis in 0..2 {
-            if self.offset[axis] {
-                uv.offset[axis] = authored.offset[axis];
-            }
-            if self.span[axis] {
-                uv.span[axis] = authored.span[axis];
-            }
-        }
-        if self.rotation {
-            uv.rotation = authored.rotation;
-        }
-        if self.flip_u {
-            uv.flip_u = authored.flip_u;
-        }
-        if self.flip_v {
-            uv.flip_v = authored.flip_v;
-        }
-    }
-
     const fn all() -> Self {
         Self {
             offset: [true; 2],
@@ -127,69 +97,6 @@ pub(crate) fn uv_transform_controls(uv: &mut UvTransform, ui: &mut egui::Ui) -> 
     edit
 }
 
-pub(crate) fn height_row(label: &str, heights: &mut [i32; 4], ui: &mut egui::Ui) -> bool {
-    let mut changed = false;
-    let mut sloped =
-        !(heights[0] == heights[1] && heights[1] == heights[2] && heights[2] == heights[3]);
-    ui.horizontal(|ui| {
-        ui.label(label);
-        if ui
-            .toggle_value(&mut sloped, "Slope")
-            .on_hover_text("Edit each corner height independently.")
-            .changed()
-            && !sloped
-        {
-            heights[1] = heights[0];
-            heights[2] = heights[0];
-            heights[3] = heights[0];
-            changed = true;
-        }
-    });
-    if sloped {
-        egui::Grid::new(format!("{label}-corners"))
-            .num_columns(2)
-            .spacing([8.0, 4.0])
-            .show(ui, |ui| {
-                for &idx in &[0usize, 1, 3, 2] {
-                    if ui
-                        .add(egui::DragValue::new(&mut heights[idx]).speed(HEIGHT_QUANTUM as f32))
-                        .changed()
-                    {
-                        heights[idx] = snap_height(heights[idx]);
-                        changed = true;
-                    }
-                    if idx == 1 {
-                        ui.end_row();
-                    }
-                }
-                ui.end_row();
-            });
-    } else {
-        ui.horizontal(|ui| {
-            ui.label("    ");
-            let mut h = heights[0];
-            if ui
-                .add(egui::DragValue::new(&mut h).speed(HEIGHT_QUANTUM as f32))
-                .changed()
-            {
-                *heights = [snap_height(h); 4];
-                changed = true;
-            }
-        });
-    }
-    changed
-}
-
-pub(crate) fn split_row(label: &str, split: &mut GridSplit, ui: &mut egui::Ui) -> bool {
-    let before = *split;
-    ui.horizontal(|ui| {
-        ui.label(label);
-        ui.selectable_value(split, GridSplit::NorthWestSouthEast, "NW-SE");
-        ui.selectable_value(split, GridSplit::NorthEastSouthWest, "NE-SW");
-    });
-    *split != before
-}
-
 pub(crate) fn material_picker(
     ui: &mut egui::Ui,
     label: &str,
@@ -229,18 +136,4 @@ pub(crate) fn material_picker(
         }
     });
     changed
-}
-
-pub(crate) fn material_option_label(
-    material: Option<ResourceId>,
-    options: &[(ResourceId, String)],
-) -> String {
-    material
-        .and_then(|id| {
-            options
-                .iter()
-                .find(|(rid, _)| *rid == id)
-                .map(|(_, name)| name.clone())
-        })
-        .unwrap_or_else(|| "(none)".to_string())
 }
