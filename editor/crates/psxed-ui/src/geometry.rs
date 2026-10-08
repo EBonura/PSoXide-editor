@@ -1496,7 +1496,7 @@ pub(crate) fn flip_horizontal_face_z(mut face: GridHorizontalFace) -> GridHorizo
 pub(crate) fn flip_horizontal_face(
     mut face: GridHorizontalFace,
     flip_corner: fn(Corner) -> Corner,
-    flip_uv: fn(GridUvTransform) -> GridUvTransform,
+    flip_uv: fn(UvTransform) -> UvTransform,
 ) -> GridHorizontalFace {
     let old_split = face.split;
     let old_overrides = face.triangle_overrides;
@@ -1790,12 +1790,12 @@ pub(crate) fn wall_corner_from_horizontal_endpoint(
     }
 }
 
-pub(crate) fn flip_uv_transform_u(mut uv: GridUvTransform) -> GridUvTransform {
+pub(crate) fn flip_uv_transform_u(mut uv: UvTransform) -> UvTransform {
     uv.flip_u = !uv.flip_u;
     uv
 }
 
-pub(crate) fn flip_uv_transform_v(mut uv: GridUvTransform) -> GridUvTransform {
+pub(crate) fn flip_uv_transform_v(mut uv: UvTransform) -> UvTransform {
     uv.flip_v = !uv.flip_v;
     uv
 }

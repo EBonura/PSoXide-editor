@@ -1825,7 +1825,7 @@ pub(crate) fn apply_box_prop_gizmo_scale(
 /// Room surfaces map one complete source texture across one sector. Box
 /// faces can be arbitrary quadrilaterals, so use the average length of each
 /// pair of opposing edges and repeat the source texture proportionally.
-/// `GridUvTransform` stores inclusive u8 spans, hence the `- 1`.
+/// `UvTransform` stores inclusive u8 spans, hence the `- 1`.
 pub(crate) fn box_prop_face_native_texel_span(
     vertices: [[i16; 3]; psxed_project::BOX_PROP_VERTEX_COUNT],
     face: usize,

@@ -4,21 +4,21 @@ use super::*;
 fn rotate_sector_preserves_authored_uv_rotation() {
     let mut sector = GridSector::empty();
     let mut floor = GridHorizontalFace::flat(0, None);
-    floor.uv.rotation = GridUvRotation::Deg45;
-    let mut floor_tri_a = GridUvTransform::IDENTITY;
-    floor_tri_a.rotation = GridUvRotation::Deg135;
+    floor.uv.rotation = UvRotation::Deg45;
+    let mut floor_tri_a = UvTransform::IDENTITY;
+    floor_tri_a.rotation = UvRotation::Deg135;
     floor.triangle_override_mut(0).uv = Some(floor_tri_a);
-    let mut floor_tri_b = GridUvTransform::IDENTITY;
-    floor_tri_b.rotation = GridUvRotation::Deg225;
+    let mut floor_tri_b = UvTransform::IDENTITY;
+    floor_tri_b.rotation = UvRotation::Deg225;
     floor.triangle_override_mut(1).uv = Some(floor_tri_b);
     sector.floor = Some(floor);
 
     let mut ceiling = GridHorizontalFace::flat(1024, None);
-    ceiling.uv.rotation = GridUvRotation::Deg315;
+    ceiling.uv.rotation = UvRotation::Deg315;
     sector.ceiling = Some(ceiling);
 
     let mut wall = GridVerticalFace::with_heights([0, 10, 110, 100], None);
-    wall.uv.rotation = GridUvRotation::Deg90;
+    wall.uv.rotation = UvRotation::Deg90;
     sector.walls.get_mut(GridDirection::North).push(wall);
 
     let rotated = rotate_sector_cw(&sector);
@@ -28,16 +28,16 @@ fn rotate_sector_preserves_authored_uv_rotation() {
         floor.triangle_override(1).uv.unwrap().rotation,
     ];
 
-    assert_eq!(floor.uv.rotation, GridUvRotation::Deg45);
-    assert!(floor_override_rotations.contains(&GridUvRotation::Deg135));
-    assert!(floor_override_rotations.contains(&GridUvRotation::Deg225));
+    assert_eq!(floor.uv.rotation, UvRotation::Deg45);
+    assert!(floor_override_rotations.contains(&UvRotation::Deg135));
+    assert!(floor_override_rotations.contains(&UvRotation::Deg225));
     assert_eq!(
         rotated.ceiling.as_ref().unwrap().uv.rotation,
-        GridUvRotation::Deg315
+        UvRotation::Deg315
     );
     assert_eq!(
         rotated.walls.get(GridDirection::East)[0].uv.rotation,
-        GridUvRotation::Deg90
+        UvRotation::Deg90
     );
 }
 
@@ -991,7 +991,7 @@ fn arch_prop_exposes_move_rotate_and_quantized_scale_gizmos() {
         "Arch",
         NodeKind::ArchProp {
             materials: [None; psxed_project::ARCH_PROP_MATERIAL_COUNT],
-            uvs: [GridUvTransform::IDENTITY; psxed_project::ARCH_PROP_MATERIAL_COUNT],
+            uvs: [UvTransform::IDENTITY; psxed_project::ARCH_PROP_MATERIAL_COUNT],
             geometry: psxed_project::ArchPropGeometry::default(),
             collision_enabled: false,
         },
@@ -1098,7 +1098,7 @@ fn node_gizmo_scales_box_prop_width() {
         "Crate",
         NodeKind::BoxProp {
             materials: [None; psxed_project::BOX_PROP_FACE_COUNT],
-            uvs: [GridUvTransform::IDENTITY; psxed_project::BOX_PROP_FACE_COUNT],
+            uvs: [UvTransform::IDENTITY; psxed_project::BOX_PROP_FACE_COUNT],
             vertices: psxed_project::box_prop_vertices_for_size(1024),
             collision_enabled: true,
             break_flags: 0,
@@ -1167,7 +1167,7 @@ fn box_prop_face_resize_keeps_the_opposite_face_fixed() {
         "Anchored Crate",
         NodeKind::BoxProp {
             materials: [None; psxed_project::BOX_PROP_FACE_COUNT],
-            uvs: [GridUvTransform::IDENTITY; psxed_project::BOX_PROP_FACE_COUNT],
+            uvs: [UvTransform::IDENTITY; psxed_project::BOX_PROP_FACE_COUNT],
             vertices: start_vertices,
             collision_enabled: true,
             break_flags: 0,
@@ -1217,10 +1217,10 @@ fn material_click_assignment_updates_all_faces_in_selected_sectors() {
             .unwrap()
             .walls
             .get_mut(GridDirection::North)[0]
-            .uv = GridUvTransform {
+            .uv = UvTransform {
             offset: [9, 11],
             span: [22, 33],
-            rotation: GridUvRotation::Deg90,
+            rotation: UvRotation::Deg90,
             flip_u: true,
             flip_v: false,
         };
@@ -1263,7 +1263,7 @@ fn material_click_assignment_updates_all_faces_in_selected_sectors() {
             "assigning a material autotiles every selected wall"
         );
         assert_eq!(wall.uv.offset, [9, 11]);
-        assert_eq!(wall.uv.rotation, GridUvRotation::Deg90);
+        assert_eq!(wall.uv.rotation, UvRotation::Deg90);
         assert!(wall.uv.flip_u);
         assert!(!wall.uv.flip_v);
         assert_eq!(
@@ -1329,31 +1329,31 @@ fn face_uv_rotation_and_flip_apply_to_every_selected_face() {
     {
         let grid = workspace.room_floor_grid_mut(room).unwrap();
         let sector = grid.sector_mut(0, 0).unwrap();
-        sector.floor.as_mut().unwrap().uv = GridUvTransform {
+        sector.floor.as_mut().unwrap().uv = UvTransform {
             offset: [11, 12],
             span: [21, 22],
-            rotation: GridUvRotation::Deg45,
+            rotation: UvRotation::Deg45,
             flip_u: false,
             flip_v: true,
         };
-        sector.ceiling.as_mut().unwrap().uv = GridUvTransform {
+        sector.ceiling.as_mut().unwrap().uv = UvTransform {
             offset: [31, 32],
             span: [41, 42],
-            rotation: GridUvRotation::Deg90,
+            rotation: UvRotation::Deg90,
             flip_u: false,
             flip_v: false,
         };
-        sector.walls.get_mut(GridDirection::North)[0].uv = GridUvTransform {
+        sector.walls.get_mut(GridDirection::North)[0].uv = UvTransform {
             offset: [51, 52],
             span: [61, 62],
-            rotation: GridUvRotation::Deg135,
+            rotation: UvRotation::Deg135,
             flip_u: false,
             flip_v: true,
         };
-        grid.sector_mut(1, 0).unwrap().floor.as_mut().unwrap().uv = GridUvTransform {
+        grid.sector_mut(1, 0).unwrap().floor.as_mut().unwrap().uv = UvTransform {
             offset: [71, 72],
             span: [81, 82],
-            rotation: GridUvRotation::Deg180,
+            rotation: UvRotation::Deg180,
             flip_u: false,
             flip_v: false,
         };
@@ -1387,7 +1387,7 @@ fn face_uv_rotation_and_flip_apply_to_every_selected_face() {
     assert_eq!(
         workspace.apply_selected_face_uv_change_no_undo(
             wall,
-            GridUvTransformEdit {
+            UvTransformEdit {
                 rotation: true,
                 flip_u: true,
                 ..Default::default()
@@ -1404,18 +1404,18 @@ fn face_uv_rotation_and_flip_apply_to_every_selected_face() {
     let wall_uv = sector.walls.get(GridDirection::North)[0].uv;
     let unselected_uv = grid.sector(1, 0).unwrap().floor.as_ref().unwrap().uv;
 
-    assert_eq!(floor_uv.rotation, GridUvRotation::Deg135);
+    assert_eq!(floor_uv.rotation, UvRotation::Deg135);
     assert!(floor_uv.flip_u);
     assert_eq!(floor_uv.offset, [11, 12]);
     assert_eq!(floor_uv.span, [21, 22]);
     assert!(floor_uv.flip_v);
-    assert_eq!(ceiling_uv.rotation, GridUvRotation::Deg135);
+    assert_eq!(ceiling_uv.rotation, UvRotation::Deg135);
     assert!(ceiling_uv.flip_u);
     assert_eq!(ceiling_uv.offset, [31, 32]);
     assert_eq!(ceiling_uv.span, [41, 42]);
     assert!(!ceiling_uv.flip_v);
     assert_eq!(wall_uv, after);
-    assert_eq!(unselected_uv.rotation, GridUvRotation::Deg180);
+    assert_eq!(unselected_uv.rotation, UvRotation::Deg180);
     assert!(!unselected_uv.flip_u);
 }
 
@@ -1442,17 +1442,17 @@ fn face_uv_offset_span_and_flip_v_apply_without_replacing_untouched_fields() {
         sz: 0,
         kind: FaceKind::Floor,
     };
-    let first_uv = GridUvTransform {
+    let first_uv = UvTransform {
         offset: [3, 4],
         span: [5, 6],
-        rotation: GridUvRotation::Deg225,
+        rotation: UvRotation::Deg225,
         flip_u: true,
         flip_v: false,
     };
-    let before = GridUvTransform {
+    let before = UvTransform {
         offset: [10, 20],
         span: [30, 40],
-        rotation: GridUvRotation::Deg45,
+        rotation: UvRotation::Deg45,
         flip_u: false,
         flip_v: false,
     };
@@ -1471,7 +1471,7 @@ fn face_uv_offset_span_and_flip_v_apply_without_replacing_untouched_fields() {
     assert_eq!(
         workspace.apply_selected_face_uv_change_no_undo(
             active,
-            GridUvTransformEdit {
+            UvTransformEdit {
                 offset: [true, false],
                 span: [false, true],
                 flip_v: true,
@@ -1493,7 +1493,7 @@ fn face_uv_offset_span_and_flip_v_apply_without_replacing_untouched_fields() {
         .uv;
     assert_eq!(first_after.offset, [90, 4]);
     assert_eq!(first_after.span, [5, 120]);
-    assert_eq!(first_after.rotation, GridUvRotation::Deg225);
+    assert_eq!(first_after.rotation, UvRotation::Deg225);
     assert!(first_after.flip_u);
     assert!(first_after.flip_v);
 }
@@ -1517,7 +1517,7 @@ fn material_click_assignment_updates_selected_box_prop_faces() {
         "Crate",
         NodeKind::BoxProp {
             materials: [None; psxed_project::BOX_PROP_FACE_COUNT],
-            uvs: [GridUvTransform::IDENTITY; psxed_project::BOX_PROP_FACE_COUNT],
+            uvs: [UvTransform::IDENTITY; psxed_project::BOX_PROP_FACE_COUNT],
             vertices: psxed_project::box_prop_vertices_for_size(1024),
             collision_enabled: true,
             break_flags: 0,
@@ -1562,7 +1562,7 @@ fn material_click_assignment_applies_to_selected_box_prop() {
         "Crate",
         NodeKind::BoxProp {
             materials: [None; psxed_project::BOX_PROP_FACE_COUNT],
-            uvs: [GridUvTransform::IDENTITY; psxed_project::BOX_PROP_FACE_COUNT],
+            uvs: [UvTransform::IDENTITY; psxed_project::BOX_PROP_FACE_COUNT],
             vertices: psxed_project::box_prop_vertices_for_size(1024),
             collision_enabled: true,
             break_flags: 0,
@@ -1607,7 +1607,7 @@ fn box_prop_resource_click_keeps_node_selection_active() {
         "Crate",
         NodeKind::BoxProp {
             materials: [None; psxed_project::BOX_PROP_FACE_COUNT],
-            uvs: [GridUvTransform::IDENTITY; psxed_project::BOX_PROP_FACE_COUNT],
+            uvs: [UvTransform::IDENTITY; psxed_project::BOX_PROP_FACE_COUNT],
             vertices: psxed_project::box_prop_vertices_for_size(1024),
             collision_enabled: true,
             break_flags: 0,
