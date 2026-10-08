@@ -415,6 +415,29 @@ struct AuditReq {
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct OccupancyReq {
+    /// lld link map of the guest build (`PSOXIDE_GUEST_LINK_MAP=<path> make
+    /// build-editor-playtest`). Required.
+    map: String,
+    /// The linked PS-X EXE, for its header and size on disc.
+    exe: Option<String>,
+    /// `generated/level_manifest.rs`, for the cooked arena capacities.
+    manifest: Option<String>,
+    /// A project.ron to cook in memory for the texture and SFX tables.
+    project: Option<String>,
+    /// 2 MiB RAM dump from `frontend launch --dump-ram`, for heap use.
+    ram: Option<String>,
+    /// VRAM dump from `--dump-vram` (a PPM), for page occupancy.
+    vram: Option<String>,
+    /// SPU RAM dump from `--dump-spu-ram`.
+    spu: Option<String>,
+    /// Report heading, for example the project and commit.
+    label: Option<String>,
+    /// `text` (default) or `json`.
+    format: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 struct DeleteReq {
     /// Scene index. Omit for the first scene that has brushes.
     scene: Option<usize>,
@@ -1236,6 +1259,42 @@ impl EditorServer {
                 range,
             )? + &note)
         })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    #[rmcp::tool(
+        description = "Report how full the PS1's RAM, VRAM and SPU RAM are for a cooked project's guest: .text/.data/.bss, the stack reserve and the exact static headroom from the link map, every large static and arena, heap use and free (from a RAM dump), VRAM page and CLUT-row occupancy (from a VRAM dump), and the SPU RAM map with the SFX banks. Every row names its source: link-map, cook, layout-contract or emulator-*; nothing is guessed. Inputs are files on disk, so it works without a project open."
+    )]
+    async fn occupancy(
+        &self,
+        Parameters(OccupancyReq {
+            map,
+            exe,
+            manifest,
+            project,
+            ram,
+            vram,
+            spu,
+            label,
+            format,
+        }): Parameters<OccupancyReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let inputs = psxed_project::occupancy::Inputs {
+            map: Some(map.into()),
+            exe: exe.map(Into::into),
+            manifest: manifest.map(Into::into),
+            project: project.map(Into::into),
+            ram: ram.map(Into::into),
+            vram: vram.map(Into::into),
+            spu: spu.map(Into::into),
+            label,
+        };
+        let report = psxed_project::occupancy::build_report(&inputs)
+            .map_err(|error| ErrorData::invalid_params(error.to_string(), None))?;
+        let text = match format.as_deref() {
+            Some("json") => psxed_project::occupancy::render_json(&report),
+            _ => psxed_project::occupancy::render_text(&report),
+        };
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
