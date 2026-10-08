@@ -613,6 +613,10 @@ pub struct GameEntities<const MAX_ENTITIES: usize, const STANCE_BOUND_ATTACKS: b
     /// Wrapping identity of each entity's current swing. Deferred tokens use
     /// it to reject a contact retained across a later attack.
     attack_sequence: [u16; MAX_ENTITIES],
+    /// Per-entity offset into the legacy decision hash. Zero except for a
+    /// training actor seeded by [`GameEntities::seed_training_actor`], so a
+    /// replay seed changes a legacy actor's choices and no shipped one's.
+    decision_salt: [u8; MAX_ENTITIES],
     authored_connection_mask: [u16; MAX_ENTITIES],
     /// Packed selected swing plus next close-range alternation bit.
     attack_mode: [u8; MAX_ENTITIES],
@@ -812,6 +816,7 @@ impl<const MAX_ENTITIES: usize, const STANCE_BOUND_ATTACKS: bool>
         move_tried: [0; MAX_ENTITIES],
         combat_flags: [0; MAX_ENTITIES],
         attack_sequence: [0; MAX_ENTITIES],
+        decision_salt: [0; MAX_ENTITIES],
         authored_connection_mask: [0; MAX_ENTITIES],
         attack_mode: [0; MAX_ENTITIES],
         intent: [0; MAX_ENTITIES],
@@ -2377,9 +2382,10 @@ impl<const MAX_ENTITIES: usize, const STANCE_BOUND_ATTACKS: bool>
 
         let interval = u16::from(record.decision_interval_ticks).max(1);
         let epoch = self.state_ticks[index] / interval;
-        let choice = (u32::from(epoch) * 37 + index as u32 * 17) % 100;
+        let salt = u32::from(self.decision_salt[index]);
+        let choice = (u32::from(epoch) * 37 + index as u32 * 17 + salt * 29) % 100;
         if choice < u32::from(record.circle_chance.min(100)) {
-            let left = (u32::from(epoch) + index as u32).is_multiple_of(2);
+            let left = (u32::from(epoch) + index as u32 + salt).is_multiple_of(2);
             let intent = if left {
                 GameEntityIntent::CircleLeft
             } else {
@@ -3794,6 +3800,63 @@ mod tests {
             (i32::from(entities.yaw(0)) - 1024).abs() < 32,
             "circling keeps facing the player after its lateral step"
         );
+    }
+
+    #[test]
+    fn a_training_seed_changes_a_legacy_actors_decisions_and_nothing_else_does() {
+        static LEGACY: [LevelGameEntityRecord; 1] = [LevelGameEntityRecord {
+            aggro_radius: 2048,
+            preferred_distance: 700,
+            spacing_tolerance: 100,
+            spacing_speed_percent: 100,
+            decision_interval_ticks: 1,
+            circle_chance: 50,
+            ..test_record(
+                1000,
+                1000,
+                0,
+                512,
+                game_entity_flags::ENABLED
+                    | game_entity_flags::CAN_RUN
+                    | game_entity_flags::TRAINING,
+            )
+        }];
+        let stream = |seed: Option<u32>| {
+            let mut entities = GameEntities::<8>::EMPTY;
+            entities.spawn_from_records(&LEGACY);
+            if let Some(seed) = seed {
+                entities.seed_training_actor(&LEGACY, 0, seed ^ 0x9e3779b9);
+            }
+            let in_band = GameEntityTickInput {
+                player: [1700, 0, 1000],
+                ..near_input(&ACTIVE)
+            };
+            let mut out = [0u8; 48];
+            for (t, slot) in out.iter_mut().enumerate() {
+                entities.x[0] = 1000;
+                entities.z[0] = 1000;
+                entities.state[0] = GameEntityState::Aggro as u8;
+                entities.state_ticks[0] = t as u16;
+                entities.attack_cooldown[0] = 100;
+                entities.tick(&LEGACY, in_band, &mut NoClipMover);
+                *slot = entities.intent(0) as u8;
+            }
+            out
+        };
+        let mut streams = [[0u8; 48]; 8];
+        for (n, slot) in streams.iter_mut().enumerate() {
+            *slot = stream(Some(n as u32 + 1));
+        }
+        for (i, a) in streams.iter().enumerate() {
+            for b in &streams[i + 1..] {
+                assert_ne!(a, b, "seeds must not replay the same fight");
+            }
+        }
+        // Unseeded actors keep salt 0 and so the pre-existing hash.
+        let mut entities = GameEntities::<8>::EMPTY;
+        entities.spawn_from_records(&LEGACY);
+        assert_eq!(entities.decision_salt[0], 0);
+        assert_eq!(stream(None), stream(None));
     }
 
     #[test]

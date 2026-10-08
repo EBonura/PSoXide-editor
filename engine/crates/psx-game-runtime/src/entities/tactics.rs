@@ -199,6 +199,9 @@ impl<const N: usize, const S: bool> GameEntities<N, S> {
                 .is_some_and(|r| r.flags & game_entity_flags::TRAINING != 0)
         {
             self.tactics[index].seed = seed.max(1);
+            // Fold the whole seed into one byte; a legacy actor draws no
+            // random numbers, so this is its only link to the seed.
+            self.decision_salt[index] = (seed ^ (seed >> 8) ^ (seed >> 16) ^ (seed >> 24)) as u8;
         }
     }
 

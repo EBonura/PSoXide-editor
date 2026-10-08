@@ -16,6 +16,8 @@ use std::sync::Mutex;
 
 /// Never run more emulators than this at once.
 pub const MAX_PARALLEL: usize = 2;
+/// Default seed set. Sixty runs give a win-rate interval of roughly +-13 points.
+pub const DEFAULT_SEEDS: &str = "1-60";
 /// Seeds are one stick byte: 1..=255, and 128 is the physical default.
 pub const RESERVED_SEED: u8 = 128;
 
@@ -55,7 +57,8 @@ impl Scenario {
             Self::Graybox => Ok(project_root.to_path_buf()),
             Self::Heavy => {
                 // The asset link below must not depend on the caller's working directory.
-                let project_root = &std::fs::canonicalize(project_root).map_err(|e| e.to_string())?;
+                let project_root =
+                    &std::fs::canonicalize(project_root).map_err(|e| e.to_string())?;
                 let parent = project_root
                     .parent()
                     .ok_or_else(|| format!("{} has no parent", project_root.display()))?;
@@ -157,6 +160,32 @@ pub fn parse_seeds(spec: &str) -> Result<Vec<u8>, String> {
     Ok(seeds)
 }
 
+/// Two-sided 95% Student t critical value (exact to df 10, then 1.96 + 2.4/df,
+/// within 0.5% of the table from df 11).
+fn t95(df: usize) -> f64 {
+    const TABLE: [f64; 10] = [
+        12.706, 4.303, 3.182, 2.776, 2.571, 2.447, 2.365, 2.306, 2.262, 2.228,
+    ];
+    match df {
+        0 => 0.0,
+        1..=10 => TABLE[df - 1],
+        _ => 1.96 + 2.4 / df as f64,
+    }
+}
+
+/// Wilson 95% interval for `wins` out of `n`.
+fn wilson(wins: usize, n: usize) -> (f64, f64) {
+    if n == 0 {
+        return (0.0, 0.0);
+    }
+    let (p, n) = (wins as f64 / n as f64, n as f64);
+    let z = 1.96f64;
+    let denom = 1.0 + z * z / n;
+    let centre = (p + z * z / (2.0 * n)) / denom;
+    let half = z * (p * (1.0 - p) / n + z * z / (4.0 * n * n)).sqrt() / denom;
+    ((centre - half).max(0.0), (centre + half).min(1.0))
+}
+
 /// Statistics over one metric.
 fn stats(values: &mut [f64]) -> Value {
     values.sort_by(|a, b| a.total_cmp(b));
@@ -170,10 +199,22 @@ fn stats(values: &mut [f64]) -> Value {
         (values[n / 2 - 1] + values[n / 2]) / 2.0
     };
     let round = |v: f64| (v * 100.0).round() / 100.0;
+    let mean = if n == 0 { 0.0 } else { sum / n as f64 };
+    let variance = if n < 2 {
+        0.0
+    } else {
+        values.iter().map(|v| (v - mean) * (v - mean)).sum::<f64>() / (n - 1) as f64
+    };
+    let half = if n < 2 {
+        0.0
+    } else {
+        t95(n - 1) * (variance / n as f64).sqrt()
+    };
     json!({
         "n": n,
         "sum": round(sum),
-        "mean": round(if n == 0 { 0.0 } else { sum / n as f64 }),
+        "ci95_half": round(half),
+        "mean": round(mean),
         "median": round(median),
         "min": round(values.first().copied().unwrap_or(0.0)),
         "max": round(values.last().copied().unwrap_or(0.0)),
@@ -208,6 +249,12 @@ fn numeric_leaves(prefix: &str, value: &Value, visit: &mut dyn FnMut(&str, f64))
 /// failed to produce one.
 pub fn aggregate(runs: &[(u8, Result<Value, String>)]) -> Value {
     let mut outcomes: Map<String, Value> = Map::new();
+    let mut end_classes: Map<String, Value> = Map::new();
+    let (mut early, mut whole) = (
+        std::collections::BTreeSet::new(),
+        std::collections::BTreeSet::new(),
+    );
+    let mut wins = 0usize;
     let mut per_seed = Vec::new();
     let mut failures = Vec::new();
     let mut columns: std::collections::BTreeMap<String, Vec<f64>> = Default::default();
@@ -224,10 +271,25 @@ pub fn aggregate(runs: &[(u8, Result<Value, String>)]) -> Value {
                 numeric_leaves("", &metrics, &mut |path, v| {
                     columns.entry(path.to_string()).or_default().push(v);
                 });
+                if outcome == "player_won" {
+                    wins += 1;
+                }
+                if let Some(print) = report["fingerprints"]["early"].as_str() {
+                    early.insert(print.to_string());
+                }
+                if let Some(print) = report["fingerprints"]["whole"].as_str() {
+                    whole.insert(print.to_string());
+                }
+                let class = report["end_diagnosis"]["class"].as_str();
+                if let Some(class) = class {
+                    let count = end_classes.get(class).and_then(Value::as_u64).unwrap_or(0);
+                    end_classes.insert(class.to_string(), json!(count + 1));
+                }
                 let mut row = metrics.clone();
                 if let Some(map) = row.as_object_mut() {
                     map.remove("definitions");
                     map.insert("seed".into(), json!(seed));
+                    map.insert("end_class".into(), json!(class));
                 }
                 per_seed.push(row);
             }
@@ -237,10 +299,15 @@ pub fn aggregate(runs: &[(u8, Result<Value, String>)]) -> Value {
         .into_iter()
         .map(|(path, mut values)| (path, stats(&mut values)))
         .collect();
+    let runs_done = per_seed.len();
+    let (low, high) = wilson(wins, runs_done);
     json!({
-        "runs": per_seed.len(),
+        "runs": runs_done,
         "failed_runs": failures.len(),
         "outcomes": outcomes,
+        "player_win_rate": {"p": if runs_done == 0 { 0.0 } else { (wins as f64 / runs_done as f64 * 1000.0).round() / 1000.0 }, "wilson95_low": (low * 1000.0).round() / 1000.0, "wilson95_high": (high * 1000.0).round() / 1000.0},
+        "end_classes": end_classes,
+        "seed_diversity": {"runs": runs_done, "distinct_early_streams": early.len(), "distinct_whole_fights": whole.len()},
         "metrics": metrics,
         "per_seed": per_seed,
         "failures": failures,
@@ -270,28 +337,39 @@ pub fn markdown(report: &Value) -> String {
         contract["polls"],
         contract["disc_sha256"].as_str().unwrap_or("?")
     ));
-    out.push_str(&format!("- outcomes {}\n\n", agg["outcomes"]));
-    out.push_str("| metric | mean | median | min | max | sum |\n|---|---:|---:|---:|---:|---:|\n");
+    out.push_str(&format!("- outcomes {}\n", agg["outcomes"]));
+    out.push_str(&format!(
+        "- player win rate {} (Wilson 95%: {} to {})\n",
+        agg["player_win_rate"]["p"],
+        agg["player_win_rate"]["wilson95_low"],
+        agg["player_win_rate"]["wilson95_high"]
+    ));
+    out.push_str(&format!(
+        "- distinct early streams {} and whole fights {} of {} runs; unfinished-fight causes {}\n\n",
+        agg["seed_diversity"]["distinct_early_streams"], agg["seed_diversity"]["distinct_whole_fights"], agg["runs"], agg["end_classes"]
+    ));
+    out.push_str("| metric | mean | 95% CI half-width | median | min | max | sum |\n|---|---:|---:|---:|---:|---:|---:|\n");
     if let Some(metrics) = agg["metrics"].as_object() {
         for (path, s) in metrics {
             out.push_str(&format!(
-                "| {path} | {} | {} | {} | {} | {} |\n",
-                s["mean"], s["median"], s["min"], s["max"], s["sum"]
+                "| {path} | {} | {} | {} | {} | {} | {} |\n",
+                s["mean"], s["ci95_half"], s["median"], s["min"], s["max"], s["sum"]
             ));
         }
     }
-    out.push_str("\n| seed | outcome | ticks | player hp | enemy hp | breaks given | breaks taken |\n|---:|---|---:|---:|---:|---:|---:|\n");
+    out.push_str("\n| seed | outcome | ticks | player hp | enemy hp | breaks given | breaks taken | end |\n|---:|---|---:|---:|---:|---:|---:|---|\n");
     if let Some(rows) = agg["per_seed"].as_array() {
         for r in rows {
             out.push_str(&format!(
-                "| {} | {} | {} | {} | {} | {} | {} |\n",
+                "| {} | {} | {} | {} | {} | {} | {} | {} |\n",
                 r["seed"],
                 r["outcome"].as_str().unwrap_or("?"),
                 r["duration_ticks"],
                 r["player_hp_end"],
                 r["enemy_hp_end"],
                 r["poise_breaks_inflicted"],
-                r["poise_breaks_suffered"]
+                r["poise_breaks_suffered"],
+                r["end_class"].as_str().unwrap_or("")
             ));
         }
     }
@@ -546,6 +624,50 @@ mod tests {
         assert_eq!(seeds.len(), 130);
         assert!(!seeds.contains(&128));
         assert_eq!(&seeds[..3], &[1, 2, 3]);
+    }
+
+    #[test]
+    fn intervals_cover_small_samples_and_win_rates() {
+        let agg = aggregate(&[
+            run(1, "player_won", 10, 0, false),
+            run(2, "player_won", 20, 0, false),
+        ]);
+        // n = 2: t(1) = 12.706, sd = 7.071, half = 12.706 * 7.071 / sqrt 2.
+        assert_eq!(agg["metrics"]["duration_ticks"]["ci95_half"], 63.53);
+        assert_eq!(agg["player_win_rate"]["p"], 1.0);
+        let (low, high) = wilson(30, 60);
+        assert!(
+            (low - 0.3773).abs() < 0.001 && (high - 0.6227).abs() < 0.001,
+            "{low} {high}"
+        );
+        assert_eq!(wilson(0, 0), (0.0, 0.0));
+        assert!(t95(59) > 1.99 && t95(59) < 2.01);
+        assert_eq!(DEFAULT_SEEDS, "1-60");
+        assert_eq!(parse_seeds(DEFAULT_SEEDS).unwrap().len(), 60);
+    }
+
+    #[test]
+    fn seed_diversity_counts_distinct_fights_and_unfinished_causes() {
+        let with = |seed: u8, whole: &str, class: Option<&str>| {
+            let (_, report) = run(seed, "stalled_no_damage", 100, 0, false);
+            let mut report = report.unwrap();
+            report["fingerprints"] = json!({"early": "e", "whole": whole});
+            report["end_diagnosis"] = class.map_or(Value::Null, |c| json!({"class": c}));
+            (seed, Ok(report))
+        };
+        let agg = aggregate(&[
+            with(1, "a", Some("blocked_approach")),
+            with(2, "b", Some("blocked_approach")),
+            with(3, "a", Some("chip_loop")),
+        ]);
+        assert_eq!(
+            agg["seed_diversity"],
+            json!({"runs": 3, "distinct_early_streams": 1, "distinct_whole_fights": 2})
+        );
+        assert_eq!(
+            agg["end_classes"],
+            json!({"blocked_approach": 2, "chip_loop": 1})
+        );
     }
 
     #[test]

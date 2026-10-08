@@ -43,6 +43,13 @@ pub(super) struct Duel {
     avoid_swing: u32,
     /// Tick of the last logged i-frame bolt avoid, plus one.
     avoid_bolt_tick: u32,
+    /// Player position at the previous decision.
+    last_pos: [i32; 2],
+    /// Ticks the bot has pushed forward without moving.
+    stuck: u16,
+    /// Sidestep around an obstacle until this duel tick, and its side (+1/-1).
+    sidestep_until: u32,
+    sidestep_side: i32,
 }
 impl Duel {
     /// Log one combat event stamped with the duel-relative tick.
@@ -152,6 +159,10 @@ impl Playtest {
                 energy_gained: [0; 2],
                 avoid_swing: 0,
                 avoid_bolt_tick: 0,
+                last_pos: [0; 2],
+                stuck: 0,
+                sidestep_until: 0,
+                sidestep_side: 1,
             };
             log_values("duel:start", &[seed, target as u32]);
         } else if self.duel.active
@@ -379,6 +390,31 @@ impl Playtest {
                         self.duel.intent = if ranged { 3 } else { 2 };
                     }
                 }
+                // Pushing forward without moving is a blocked approach: a prop in
+                // the way, or an enemy that holds its spacing just outside the
+                // conservative reach. Swing from where the bot stands, or step
+                // around the obstacle, instead of waiting for the watchdog.
+                let moved = isqrt_i32(
+                    square_i32_saturating(p.x - self.duel.last_pos[0])
+                        .saturating_add(square_i32_saturating(p.z - self.duel.last_pos[1])),
+                );
+                self.duel.last_pos = [p.x, p.z];
+                let tick_now = ctx.sim_tick.as_u32() - self.duel.started;
+                if direction > 0 && moved < 3 && free && tick_now >= self.duel.sidestep_until {
+                    self.duel.stuck = self.duel.stuck.saturating_add(12);
+                } else {
+                    self.duel.stuck = 0;
+                }
+                if self.duel.stuck >= 48 {
+                    self.duel.stuck = 0;
+                    if visible && !ranged && distance <= far + 24 && buttons == 0 {
+                        buttons |= button::R1;
+                        self.duel.intent = 2;
+                    } else {
+                        self.duel.sidestep_until = tick_now + 48;
+                        self.duel.sidestep_side = if (roll & 1) == 0 { 1 } else { -1 };
+                    }
+                }
                 if direction != 0 {
                     self.duel.movement = [dx * direction, dz * direction];
                     if self.duel.escaping {
@@ -401,6 +437,10 @@ impl Playtest {
                 } else if visible && !free && !ranged {
                     // Hold footing while an attack is committed.
                     self.duel.movement = [0, 0];
+                }
+                if direction > 0 && tick_now < self.duel.sidestep_until {
+                    let side = self.duel.sidestep_side;
+                    self.duel.movement = [-dz * side, dx * side];
                 }
             }
             // Cover, peeking and real bullet evasion override ordinary radial spacing.

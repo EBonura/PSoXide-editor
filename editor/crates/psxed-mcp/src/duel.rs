@@ -295,6 +295,13 @@ pub fn summarize(log: &str) -> Value {
                 .collect::<Vec<_>>()
         })
         .collect();
+    let fingerprints = json!({
+        "early": fingerprint(&samples, &combat_events, Some(EARLY_TICKS)),
+        "whole": fingerprint(&samples, &combat_events, None),
+        "early_ticks": EARLY_TICKS,
+        "note": "FNV-1a over sampled positions, health, state and combat events; bot decisions are excluded so two seeds that only differ in a roll the world ignores compare equal.",
+    });
+    let diagnosis = end_diagnosis(name, &samples, &decisions);
     let mut report = json!({"seed":seed,"outcome":name,"completed_by_death":matches!(name,"player_won"|"enemy_won"|"double_ko"),
         "projectiles_emitted_player_enemy":emitted,"shot_events":shot_events,"shot_event_columns":["tick","actor_0_player_1_enemy","energy_after"],
         "energy_min_player_enemy":energy_min,"energy_end_player_enemy":energy_end,
@@ -323,6 +330,8 @@ pub fn summarize(log: &str) -> Value {
         "decision_columns":["tick","intent","stance_reason","requested_buttons","distance"],
         "intent_names":["hold","approach","melee","ranged","dodge","swap","retreat"],
         "stance_reasons":["distance","recover_pool","press_after_shots","exposed_channel","forced_break","rebuild_energy","melee_to_ranged","shot_to_melee","overhead_target","ranged_phase","contest_space"],"samples":json_samples,"decisions":decisions});
+    report["fingerprints"] = fingerprints;
+    report["end_diagnosis"] = diagnosis;
     report["metrics"] = metrics(&MetricInputs {
         outcome: name,
         end_tick: result.as_ref().map(|v| v[0]),
@@ -334,6 +343,88 @@ pub fn summarize(log: &str) -> Value {
         swaps,
     });
     report
+}
+
+/// Ticks of fight covered by the early fingerprint.
+const EARLY_TICKS: u32 = 900;
+
+/// FNV-1a over the world-visible record of a fight, up to `upto` ticks.
+fn fingerprint(samples: &[Vec<u32>], events: &[Vec<u32>], upto: Option<u32>) -> String {
+    let mut hash = 0xcbf2_9ce4_8422_2325u64;
+    let mut feed = |value: u32| {
+        for byte in value.to_le_bytes() {
+            hash = (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    };
+    let within = |tick: u32| upto.is_none_or(|limit| tick <= limit);
+    for row in samples.iter().filter(|r| within(r[0])) {
+        row.iter().take(13).for_each(|v| feed(*v));
+    }
+    for event in events.iter().filter(|e| within(e[0])) {
+        event.iter().for_each(|v| feed(*v));
+    }
+    format!("{hash:016x}")
+}
+
+/// Why a fight that nobody won stopped making progress, from its last
+/// 600 ticks. `null` for a fight that ended in a death or takeover.
+///
+/// Classes: `blocked_approach` (the player pushed forward and did not move:
+/// a prop in the way, or an enemy holding its spacing outside the bot's
+/// reach), `moving_standoff` (no damage but both actors moving),
+/// `chip_loop` (damage kept landing to the end without a kill), `other`.
+fn end_diagnosis(outcome: &str, samples: &[Vec<u32>], decisions: &[Vec<u32>]) -> Value {
+    if !matches!(outcome, "stalled_no_damage" | "timeout") {
+        return Value::Null;
+    }
+    let Some(last) = samples.last() else {
+        return Value::Null;
+    };
+    let from = last[0].saturating_sub(600);
+    let window: Vec<_> = samples.iter().filter(|r| r[0] >= from).collect();
+    let span = |column: usize| {
+        let values = window.iter().map(|r| r[column] as i32);
+        values.clone().max().unwrap_or(0) - values.min().unwrap_or(0)
+    };
+    let player_range = span(1).max(span(2));
+    let recent: Vec<_> = decisions.iter().filter(|d| d[0] >= from).collect();
+    let approach = recent.iter().filter(|d| d[1] == 1).count();
+    let approach_share = if recent.is_empty() {
+        0.0
+    } else {
+        approach as f64 / recent.len() as f64
+    };
+    let damaged = window.windows(2).any(|w| (5..9).any(|c| w[1][c] < w[0][c]));
+    let class = if approach_share >= 0.8 && player_range < 12 {
+        "blocked_approach"
+    } else if damaged {
+        "chip_loop"
+    } else if outcome == "stalled_no_damage" {
+        "moving_standoff"
+    } else {
+        "other"
+    };
+    let distance = {
+        let dx = f64::from(last[1] as i32) - f64::from(last[3] as i32);
+        let dz = f64::from(last[2] as i32) - f64::from(last[4] as i32);
+        (dx * dx + dz * dz).sqrt() as u32
+    };
+    json!({
+        "class": class,
+        "player_intent_approach_share": (approach_share * 100.0).round() / 100.0,
+        "player_range_units": player_range,
+        "damage_in_window": damaged,
+        "enemy_state_last": last[12],
+        "enemy_state_names": ["idle","patrol","aggro","windup","attack","recover","staggered","dead"],
+        "distance_last": distance,
+        "player_stance": last[9],
+        "enemy_stance": last[10],
+        "player_hp_channels": [last[5], last[6]],
+        "enemy_hp_channels": [last[7], last[8]],
+        "player_energy": last.get(21),
+        "enemy_energy": last.get(22),
+        "window_ticks": [from, last[0]],
+    })
 }
 
 /// Player poise capacity in the runtime (`psx_game_runtime::character::PLAYER_POISE`).
@@ -723,6 +814,59 @@ mod tests {
         assert_eq!(m["hits_on_enemy"]["total"], 0);
         assert!(m["player_hp_end"].is_null());
         assert!(m["energy"]["player_spent"].is_null());
+    }
+    /// A log of `ticks` ticks in which the player holds still at x = 0 and the
+    /// decisions carry `intent`, ending as a no-damage stall.
+    fn stalled_log(intent: u32, move_player: bool, damage_late: bool) -> String {
+        let line = |label: &str, v: &[u32]| {
+            format!(
+                "{label} {}\n",
+                v.iter()
+                    .map(|x| format!("{x:08X}"))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            )
+        };
+        let mut log = line("duel:start", &[1, 0]);
+        for tick in (0..=1800u32).step_by(60) {
+            let mut r = [0u32; 23];
+            r[0] = tick;
+            r[1] = if move_player { tick / 4 } else { 0 };
+            r[3] = 61;
+            r[5..9].fill(100);
+            r[12] = 2;
+            if damage_late && tick >= 1500 {
+                r[5] = 100 - (tick - 1500) / 12;
+            }
+            log += &line("duel:sample", &r);
+            log += &line("duel:decision", &[tick, intent, 9, 0, 61]);
+        }
+        log + &line("duel:end", &[1800, 6])
+    }
+    #[test]
+    fn a_stall_is_classified_by_what_the_actors_were_doing() {
+        let blocked = summarize(&stalled_log(1, false, false));
+        assert_eq!(blocked["end_diagnosis"]["class"], "blocked_approach");
+        assert_eq!(blocked["end_diagnosis"]["enemy_state_last"], 2);
+        let moving = summarize(&stalled_log(1, true, false));
+        assert_eq!(moving["end_diagnosis"]["class"], "moving_standoff");
+        let waiting = summarize(&stalled_log(0, false, false));
+        assert_eq!(waiting["end_diagnosis"]["class"], "moving_standoff");
+        // A death has nothing to diagnose.
+        assert!(
+            summarize("duel:start 00000001 00000000\nduel:end 00000040 00000001\n")
+                ["end_diagnosis"]
+                .is_null()
+        );
+    }
+    #[test]
+    fn fingerprints_ignore_bot_decisions_but_not_the_fight() {
+        let a = summarize(&stalled_log(1, false, false));
+        let b = summarize(&stalled_log(2, false, false));
+        assert_eq!(a["fingerprints"]["whole"], b["fingerprints"]["whole"]);
+        let c = summarize(&stalled_log(1, true, false));
+        assert_ne!(a["fingerprints"]["whole"], c["fingerprints"]["whole"]);
+        assert_ne!(a["fingerprints"]["early"], c["fingerprints"]["early"]);
     }
     #[test]
     fn never_passes_an_unstarted_or_stalled_fight() {
