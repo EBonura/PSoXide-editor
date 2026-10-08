@@ -1,0 +1,31 @@
+{
+  "source_release": "Cortex Ignition v0.4b",
+  "source_cue": "Cortex Ignition v0.4b.cue",
+  "verification": "PCM is byte-identical to release CD-DA tracks 2 (combat) and 3 (menu), excluding trailing sector padding. Copied the original WAV masters without resampling, trimming or gain changes.",
+  "previous_state": "Graybox referenced these same recordings via ../default. This migration makes the music project-local.",
+  "tracks": [
+    {
+      "file": "menu2.wav",
+      "role": "menu, settings, credits",
+      "sha256": "a5355af0d22dfe89e0d267a63f23178053b6a3a61fbf4a372e7c277749acbce1",
+      "pcm_sha256": "13de7c3e60ba3e26bd6b60f11ea9f2bd24276d446d1bc0b75b93322233229fbd",
+      "duration_seconds": 59.128798185941044,
+      "sample_rate": 44100,
+      "channels": 2,
+      "bits_per_sample": 16,
+      "release_track": 3
+    },
+    {
+      "file": "cortex_boss.wav",
+      "role": "combat",
+      "sha256": "18e07a90fa5f674fdfcd92c835a7606b0deead4346d4f3aeb526fc98cb84ce93",
+      "pcm_sha256": "d06ed3e35fc8b5740df94b3d770f22f84a180f86cd512d1addf2a731b5e71f89",
+      "duration_seconds": 72.72727891156462,
+      "sample_rate": 44100,
+      "channels": 2,
+      "bits_per_sample": 16,
+      "release_track": 2
+    }
+  ],
+  "source_bin_sha256": "300891d3a21c2d8dbd6dbff72ed66d661a529b677f37435a01ae5d828d2775d9"
+}
