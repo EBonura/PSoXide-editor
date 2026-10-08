@@ -1395,7 +1395,6 @@ fn arbitrary_plane_face_handle_drags_along_its_normal_and_undoes_once() {
     assert!(wedge.solve().is_valid());
     let (mut workspace, rect) = handle_test_workspace(wedge);
     workspace.brush_edit_mode = BrushEditMode::Face;
-    workspace.selection_mode = SelectionMode::Face;
     // Load-time normalization prunes the wedge's dead plane, shifting
     // indices: find the slant (the one non-axis-aligned plane).
     let base = workspace.project.active_scene().brushes[0].clone();
@@ -1457,20 +1456,15 @@ fn arbitrary_plane_face_handle_drags_along_its_normal_and_undoes_once() {
 
 #[test]
 fn vertex_and_edge_3d_handles_start_camera_plane_edits_and_keep_brush_valid() {
-    for mode in [SelectionMode::Vertex, SelectionMode::Edge] {
+    for mode in [BrushEditMode::Vertex, BrushEditMode::Edge] {
         let brush = psxed_project::brush::Brush::cuboid([0, 0, 0], [128, 128, 128]);
         let (mut workspace, rect) = handle_test_workspace(brush.clone());
-        workspace.brush_edit_mode = match mode {
-            SelectionMode::Vertex => BrushEditMode::Vertex,
-            SelectionMode::Edge => BrushEditMode::Edge,
-            SelectionMode::Face => unreachable!(),
-        };
-        workspace.selection_mode = mode;
+        workspace.brush_edit_mode = mode;
         let solved = brush.solve();
         let vertex = solved.polygons.iter().flatten().next().unwrap().verts[0];
         let anchor = match mode {
-            SelectionMode::Vertex => vertex,
-            SelectionMode::Edge => {
+            BrushEditMode::Vertex => vertex,
+            BrushEditMode::Edge => {
                 let polygon = solved.polygons.iter().flatten().next().unwrap();
                 let a = polygon.verts[0];
                 let b = polygon.verts[1];
@@ -1480,7 +1474,7 @@ fn vertex_and_edge_3d_handles_start_camera_plane_edits_and_keep_brush_valid() {
                     (a[2] + b[2]) * 0.5,
                 ]
             }
-            SelectionMode::Face => unreachable!(),
+            _ => unreachable!(),
         };
         let pointer = workspace.project_brush_point_3d(rect, anchor).unwrap();
         let mut frame = ToolFrame3d {
@@ -1656,7 +1650,6 @@ fn vertex_3d_handle_drag_runs_through_real_egui_raw_input_and_commits() {
     let brush = psxed_project::brush::Brush::cuboid([0, 0, 0], [128, 128, 128]);
     let (mut workspace, _) = handle_test_workspace(brush.clone());
     workspace.brush_edit_mode = BrushEditMode::Vertex;
-    workspace.selection_mode = SelectionMode::Vertex;
     let viewport = Rect::from_center_size(Pos2::new(400.0, 300.0), Vec2::new(778.6667, 584.0));
     let vertex = brush
         .solve()
@@ -2657,7 +2650,6 @@ fn brush_tool_face_drag_extrudes_top_face() {
         Some(0),
         "leaving Draw keeps the brush the gesture just authored"
     );
-    harness.workspace.selection_mode = SelectionMode::Face;
     let tool = tool_impl_3d(harness.workspace.active_tool);
     let solved = harness.workspace.project.active_scene().brushes[0].solve();
     let top_center = [
@@ -4081,7 +4073,6 @@ fn solved_unique_verts(brush: &psxed_project::brush::Brush) -> Vec<[i64; 3]> {
 fn vertex_mode_corner_drag_reshapes_footprint() {
     let mut harness = ViewportHarness::empty("brush_vertex_drag");
     harness.workspace.active_tool = ViewTool::Brush;
-    harness.workspace.selection_mode = SelectionMode::Vertex;
     harness
         .workspace
         .set_orthographic_view(OrthographicView::Top);
@@ -4123,7 +4114,6 @@ fn vertex_mode_corner_drag_reshapes_footprint() {
 fn edge_mode_silhouette_drag_slides_whole_side() {
     let mut harness = ViewportHarness::empty("brush_edge_drag");
     harness.workspace.active_tool = ViewTool::Brush;
-    harness.workspace.selection_mode = SelectionMode::Edge;
     harness
         .workspace
         .set_orthographic_view(OrthographicView::Top);
@@ -4160,7 +4150,6 @@ fn edge_mode_silhouette_drag_slides_whole_side() {
 fn vertex_drag_refuses_invalid_shapes_and_escape_cancels() {
     let mut harness = ViewportHarness::empty("brush_vertex_invalid");
     harness.workspace.active_tool = ViewTool::Brush;
-    harness.workspace.selection_mode = SelectionMode::Edge;
     harness
         .workspace
         .set_orthographic_view(OrthographicView::Top);
@@ -5325,7 +5314,6 @@ fn off_corner_authored_plane_face_handle_drags_along_its_normal_and_undoes_once(
     let far_points: [[i32; 3]; 3] = [[-64, 192, 0], [-64, 192, 128], [192, -64, 128]];
     let (mut workspace, rect) = handle_test_workspace(wedge);
     workspace.brush_edit_mode = BrushEditMode::Face;
-    workspace.selection_mode = SelectionMode::Face;
     // Load-time normalization prunes the wedge's dead plane, shifting
     // indices: find the slant (the one non-axis-aligned plane).
     let loaded = workspace.project.active_scene().brushes[0].clone();

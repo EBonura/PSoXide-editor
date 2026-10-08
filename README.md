@@ -1,5 +1,7 @@
 # PSoXide Editor
 
+> **Built with agentic coding.** AI coding agents write most of the code in PSoXide. I direct them, review what they produce, and test the results in the emulator and on a real PlayStation.
+
 Start with the [PSoXide Demo Disc](https://bonnie-studios.itch.io/psoxide-demo-disc): it includes the Cortex Ignition Tech Demo
 and the other Bonnie Studios PlayStation demos. Standalone downloads are available
 for testing just this project.
