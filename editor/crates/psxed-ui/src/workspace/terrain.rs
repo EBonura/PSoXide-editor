@@ -523,9 +523,6 @@ impl EditorWorkspace {
                 }
             }
         }
-        // The wedges are detail brushes; the structural bed slab under them
-        // seals the world and is the terrain's only render-tree contribution.
-        brushes.push(draft.terrain.bed(draft.material)?);
         let sky_material = self.project.resources.iter().find_map(|r| match &r.data {
             ResourceData::Material(m) if m.sky_aperture => Some(r.id),
             _ => None,
@@ -575,7 +572,7 @@ impl EditorWorkspace {
         self.clear_brush_selection();
         self.replace_node_selection(group);
         self.mark_dirty();
-        self.status=format!("Terrain applied: {count} brushes (detail wedges plus one structural bed). Use Terrain → Edit selected to keep sculpting.");
+        self.status=format!("Terrain applied: {count} solid brushes. Use Terrain → Edit selected to keep sculpting.");
         Ok(())
     }
 }
@@ -608,8 +605,7 @@ mod tests {
                 .iter()
                 .filter(|b| b.group == Some(group))
                 .count(),
-            129,
-            "128 detail wedges plus the structural bed"
+            128
         );
         ws.open_terrain_editor(true);
         let mut draft = ws.terrain_editor.take().unwrap();

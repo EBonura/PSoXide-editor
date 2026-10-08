@@ -113,8 +113,9 @@ fn main() {
         return;
     }
     if args.get(1).is_some_and(|s| s == "detail") {
-        // Re-author a legacy structural terrain group as detail wedges plus one
-        // structural bed slab. Materials and UVs carry over per wedge face.
+        // Re-author a structural terrain group as detail wedges plus one
+        // structural bed slab, the measured-and-rejected layout kept for
+        // reference. Materials and UVs carry over per wedge face.
         // Usage: terrain_study detail <source project.ron> <destination project.ron>
         let mut p = ProjectDocument::load_from_path(Path::new(&args[2])).unwrap();
         let scene = p.active_scene_mut();
@@ -147,6 +148,9 @@ fn main() {
                 face.material = old.material;
                 face.uv = old.uv;
             }
+        }
+        for brush in &mut brushes {
+            brush.detail = true;
         }
         brushes.push(terrain.bed(material).unwrap());
         for brush in &mut brushes {

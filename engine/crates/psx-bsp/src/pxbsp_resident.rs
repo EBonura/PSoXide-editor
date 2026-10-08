@@ -540,30 +540,6 @@ impl PxbspResidentMap {
         if slot >= 4 {
             return None;
         }
-        self.clip_hull_at_slot(model_index, slot)
-    }
-
-    /// Borrow the exact point clip hull the cooker stored in head slot 1, or
-    /// `None` when that slot holds the empty sentinel.
-    ///
-    /// The editor cook leaves slot 1 as a single empty clipnode, because point
-    /// traces normally walk the render BSP (hull 0). A model that contains
-    /// detail brushes is the exception: detail brushes are not in the render
-    /// tree, so hull 0 cannot see them, and the cook stores one point hull
-    /// built from every brush here instead. Callers that want point traces to
-    /// collide with detail geometry prefer this hull and fall back to hull 0.
-    /// Maps from other cookers keep a real hull in slot 1 (Quake stores its
-    /// player hull there), so only the editor-playtest runtime asks.
-    pub fn model_point_clip_hull(&self, model_index: usize) -> Option<CollisionHull<'_>> {
-        let head_node = self.model_head_node(model_index, 1)?;
-        let node = self.clip_nodes().get(usize::try_from(head_node).ok()?)?;
-        if node.children == [crate::collision::CONTENTS_EMPTY; 2] {
-            return None;
-        }
-        self.clip_hull_at_slot(model_index, 1)
-    }
-
-    fn clip_hull_at_slot(&self, model_index: usize, slot: usize) -> Option<CollisionHull<'_>> {
         let head_node = self.model_head_node(model_index, slot)?;
         let records = self.clip_nodes();
         // SAFETY: validate_references rejects a non-empty clip-node lump whose
@@ -1723,89 +1699,6 @@ pub(crate) mod tests {
         );
         assert!(map.model_collision_hull(0, 3).is_none());
         assert!(map.model_collision_hull(1, 0).is_none());
-    }
-
-    #[test]
-    fn point_clip_hull_exists_only_when_slot_one_is_not_the_empty_sentinel() {
-        // The fixture's clipnode 0 is a real x-split (front empty, back
-        // solid) and every head node points at it, so slot 1 holds a hull.
-        let map = load(&write_file(&valid_lumps())).expect("resident map");
-        let hull = map.model_point_clip_hull(0).expect("hull in slot 1");
-        let at = |x: i32| Vec3I32 { x, y: 0, z: 0 };
-        assert_eq!(
-            hull.point_contents(at(4096)),
-            Some(crate::collision::CONTENTS_EMPTY)
-        );
-        assert_eq!(
-            hull.point_contents(at(-4096)),
-            Some(crate::collision::CONTENTS_SOLID)
-        );
-        assert!(map.model_point_clip_hull(1).is_none(), "no such model");
-
-        // The editor cook's sentinel: one node whose children are both empty.
-        let mut lumps = valid_lumps();
-        let mut sentinel = Vec::new();
-        push_i16(&mut sentinel, 0);
-        push_i16(&mut sentinel, -1);
-        push_i16(&mut sentinel, -1);
-        lumps[PxbspLumpKind::ClipNodes as usize] = sentinel;
-        let map = load(&write_file(&lumps)).expect("resident map");
-        assert!(map.model_point_clip_hull(0).is_none());
-        assert!(map.model_collision_hull(0, 0).is_some());
-    }
-
-    #[test]
-    fn point_provider_prefers_the_stored_point_hull_and_otherwise_walks_the_render_bsp() {
-        use crate::collision::TraceScratch;
-        use crate::collision_provider::PxbspCollisionProvider;
-        use psx_engine::{
-            CollisionTrace, CollisionTraceProvider, CollisionTraceQuery, CollisionTraceShape,
-            RoomPoint,
-        };
-        // Render BSP: x >= 0 empty, x < 0 solid. Slot 1 holds the opposite,
-        // so which hull a provider walks is visible in the trace.
-        let mut lumps = valid_lumps();
-        let mut inverted = Vec::new();
-        push_i16(&mut inverted, 0);
-        push_i16(&mut inverted, -2);
-        push_i16(&mut inverted, -1);
-        lumps[PxbspLumpKind::ClipNodes as usize] = inverted;
-        let with_clip = load(&write_file(&lumps)).expect("resident map");
-        let mut lumps = valid_lumps();
-        let mut sentinel = Vec::new();
-        push_i16(&mut sentinel, 0);
-        push_i16(&mut sentinel, -1);
-        push_i16(&mut sentinel, -1);
-        lumps[PxbspLumpKind::ClipNodes as usize] = sentinel;
-        let without = load(&write_file(&lumps)).expect("resident map");
-        let query =
-            || CollisionTraceQuery::point(RoomPoint::new(4, 0, 0), RoomPoint::new(-4, 0, 0));
-        let run = |map: &PxbspResidentMap, point: bool| {
-            let mut scratch = TraceScratch::new();
-            let mut output = CollisionTrace::default();
-            let shape = CollisionTraceShape::Point;
-            let ok = if point {
-                PxbspCollisionProvider::new_point(map, &[], shape, &mut scratch)
-                    .expect("provider")
-                    .trace_into(query(), &mut output)
-            } else {
-                PxbspCollisionProvider::new(map, 0, &[], shape, &mut scratch)
-                    .expect("provider")
-                    .trace_into(query(), &mut output)
-            };
-            assert!(ok);
-            output
-        };
-        // `new` always walks the render BSP: empty at +4, solid behind x=0.
-        let render = run(&with_clip, false);
-        assert!(!render.start_solid && !render.all_solid);
-        assert_eq!(render.end.x, 0);
-        // `new_point` walks the stored hull, which is solid at +4.
-        let stored = run(&with_clip, true);
-        assert!(stored.start_solid);
-        // Without a stored hull `new_point` is exactly `new`.
-        assert_eq!(run(&without, true), run(&without, false));
-        assert_eq!(run(&without, true), render);
     }
 
     /// `model_head_node` reads one halfword at an offset it owns rather than

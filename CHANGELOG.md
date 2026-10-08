@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Brushes have a detail flag. Detail brushes draw and collide but do not split the BSP or its visibility. Generated terrain is now detail wedges plus one structural bed slab, and point traces on such maps use an exact point hull. Existing projects and maps without detail brushes cook byte for byte as before.
+- Brushes have a detail flag (drawn, body collision, no BSP splits). It is off by default and generated terrain stays structural; projects without detail brushes cook byte for byte as before.
 
 - The emulator now walks GPU linked lists through the GPU's command FIFO and
   charges drawing at costs fitted to console captures (hardware tests v1.23

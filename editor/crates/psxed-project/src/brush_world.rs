@@ -1798,9 +1798,10 @@ fn compile_runtime_collision_hulls(
     // cannot see them and point traces (the camera arm, projectiles, melee)
     // would pass through detail geometry. A model with any detail brush
     // therefore cooks an exact point clip hull from every brush into head
-    // slot 1, ahead of the two body hulls; the point providers prefer it
-    // (`PxbspResidentMap::model_point_clip_hull`). Models without detail
-    // brushes keep the sentinel below, byte for byte.
+    // slot 1, ahead of the two body hulls. The runtime does not read slot 1
+    // yet, so until a point provider prefers it (the change reverted from
+    // commit 124c9c5f) detail brushes do not block point traces. Models
+    // without detail brushes keep the sentinel below, byte for byte.
     if brushes.iter().any(Brush::is_detail) {
         return compile_collision_hulls(brushes, hulls);
     }
@@ -3275,10 +3276,6 @@ mod tests {
             .expect("resident PXBSP");
         for model_index in 0..map.brush_models().len() {
             let model = map.brush_models().get(model_index).expect("model");
-            assert!(
-                map.model_point_clip_hull(model_index).is_none(),
-                "no detail brushes: slot 1 stays the empty sentinel"
-            );
             let render = map
                 .model_collision_hull(model_index, 0)
                 .expect("render-served point hull");
@@ -3675,10 +3672,24 @@ mod tests {
     fn detail_brushes_collide_in_point_and_body_hulls() {
         let structural = load(&cook(&terrain_project(false, true, true)));
         let detail = load(&cook(&terrain_project(true, true, true)));
-        assert!(structural.model_point_clip_hull(0).is_none());
-        let point_clip = detail
-            .model_point_clip_hull(0)
-            .expect("a map with detail brushes stores an exact point hull");
+        // The cook stores the exact point hull in head slot 1; the runtime
+        // does not read it (see docs/editor-terrain.md), so open it directly.
+        fn slot_one(map: &PxbspResidentMap) -> psx_bsp::collision::CollisionHull<'_> {
+            let head = map.brush_models().get(0).expect("world").head_nodes[1];
+            let nodes = map.clip_nodes().as_native_clip_nodes().expect("clipnodes");
+            // SAFETY: a loaded resident map validated every clip node and
+            // model head node.
+            unsafe {
+                psx_bsp::collision::CollisionHull::from_native_clip_nodes(map.planes(), nodes, head)
+            }
+        }
+        let sentinel = slot_one(&structural);
+        assert_eq!(
+            sentinel.point_contents(Vec3I32 { x: 0, y: 0, z: 0 }),
+            Some(psx_bsp::collision::CONTENTS_EMPTY),
+            "no detail brushes: slot 1 stays the empty sentinel"
+        );
+        let point_clip = slot_one(&detail);
         let render = detail.model_collision_hull(0, 0).expect("hull 0");
         let reference = structural.model_collision_hull(0, 0).expect("hull 0");
         // Sub-unit offsets keep every probe off the wedge diagonals and the
