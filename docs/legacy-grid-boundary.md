@@ -1,5 +1,11 @@
 # Retired grid-world boundary audit
 
+> **EXECUTED (2026-10-08).** The grid world was deleted entirely on branch
+> `chore/remove-grid-world`: runtime, cooker tables, project model, editor
+> authoring. Loading a project that still holds Section/Room/Map, Water Volume
+> or Portal nodes now fails with `ProjectIoError::LegacyGridWorld` instead of
+> being cooked into an error. Everything below is history.
+
 > **RETIRED (2026-08-25).** The owner closed the compatibility window. New and
 > existing editor authoring is BSP-only; the grid starter, grid cooker, editor
 > tools, and preview path have been removed. The remainder of this file is a

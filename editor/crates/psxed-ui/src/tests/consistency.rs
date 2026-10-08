@@ -929,7 +929,7 @@ fn box_prop_one_to_one_texels_repeat_one_tile_per_world_sector() {
         "Crate",
         NodeKind::BoxProp {
             materials: [Some(material); psxed_project::BOX_PROP_FACE_COUNT],
-            uvs: [psxed_project::GridUvTransform::default(); psxed_project::BOX_PROP_FACE_COUNT],
+            uvs: [psxed_project::UvTransform::default(); psxed_project::BOX_PROP_FACE_COUNT],
             vertices: psxed_project::box_prop_vertices_for_size(world_sector as u16),
             collision_enabled: true,
             break_flags: 0,

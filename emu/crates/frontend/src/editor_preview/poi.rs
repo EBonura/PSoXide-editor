@@ -292,7 +292,6 @@ mod tests {
         );
         let bounds = [psxed_ui::EntityBounds {
             node: host,
-            room: None,
             kind: psxed_ui::EntityBoundKind::PointOfInterest,
             center: [0.0, 96.0, 0.0],
             half_extents: [96.0; 3],

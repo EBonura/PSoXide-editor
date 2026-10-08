@@ -47,10 +47,6 @@ pub(super) const ENTITY_BOUND_SELECTED: FaceOutlineStyle = FaceOutlineStyle {
     rgb: (0x60, 0xC8, 0xFF),
     thickness_px: EDITOR_PREVIEW_SELECTED_STROKE_WIDTH,
 };
-pub(super) const PORTAL_SEAM_STYLE: FaceOutlineStyle = FaceOutlineStyle {
-    rgb: (0xFF, 0x48, 0xD6),
-    thickness_px: 3.0,
-};
 
 struct GridIntersections {
     points: [[f64; 3]; GRID_INTERSECTION_CAP],
@@ -961,7 +957,6 @@ pub(super) fn walk_entity_bounds(
                     | psxed_ui::EntityBoundKind::BoxProp
                     | psxed_ui::EntityBoundKind::CylinderProp
                     | psxed_ui::EntityBoundKind::PointOfInterest
-                    | psxed_ui::EntityBoundKind::Portal
             ) {
                 continue;
             }
@@ -1032,7 +1027,6 @@ pub(super) fn entity_bound_style(
         psxed_ui::EntityBoundKind::DestructibleHorizon => (0xFF, 0x64, 0x3A),
         psxed_ui::EntityBoundKind::DestructibleZenith => (0x52, 0xC2, 0xB2),
         psxed_ui::EntityBoundKind::DestructibleBoth => (0xF0, 0xB8, 0x48),
-        psxed_ui::EntityBoundKind::Portal => PORTAL_SEAM_STYLE.rgb,
         psxed_ui::EntityBoundKind::Logic => (0xC8, 0x8C, 0xE8),
     };
     FaceOutlineStyle {
@@ -1556,7 +1550,6 @@ mod surface_grid_tests {
         );
         let bounds = [psxed_ui::EntityBounds {
             node: light,
-            room: None,
             kind: psxed_ui::EntityBoundKind::PointLight,
             center: [0.0; 3],
             half_extents: [16.0; 3],

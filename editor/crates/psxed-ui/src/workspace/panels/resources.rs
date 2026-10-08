@@ -462,8 +462,6 @@ impl EditorWorkspace {
         if let Some(target) = nav_target {
             self.replace_resource_selection(target);
             self.clear_node_selection_state();
-            self.clear_primitive_selection_state();
-            self.clear_sector_selection();
         }
     }
 
@@ -576,8 +574,6 @@ impl EditorWorkspace {
                 );
                 self.replace_resource_selection(id);
                 self.clear_node_selection_state();
-                self.clear_primitive_selection_state();
-                self.clear_sector_selection();
                 self.status = "Added projectile profile".to_string();
                 self.mark_dirty();
                 ui.close_menu();
@@ -594,8 +590,6 @@ impl EditorWorkspace {
                 );
                 self.replace_resource_selection(id);
                 self.clear_node_selection_state();
-                self.clear_primitive_selection_state();
-                self.clear_sector_selection();
                 self.status = "Added boost module".to_string();
                 self.mark_dirty();
                 ui.close_menu();
@@ -611,8 +605,6 @@ impl EditorWorkspace {
                 );
                 self.replace_resource_selection(id);
                 self.clear_node_selection_state();
-                self.clear_primitive_selection_state();
-                self.clear_sector_selection();
                 self.status = "Added weapon".to_string();
                 self.mark_dirty();
                 ui.close_menu();
@@ -630,8 +622,6 @@ impl EditorWorkspace {
                 );
                 self.replace_resource_selection(id);
                 self.clear_node_selection_state();
-                self.clear_primitive_selection_state();
-                self.clear_sector_selection();
                 self.status = "Added character profile".to_string();
                 self.mark_dirty();
                 ui.close_menu();
@@ -652,8 +642,6 @@ impl EditorWorkspace {
                 );
                 self.replace_resource_selection(id);
                 self.clear_node_selection_state();
-                self.clear_primitive_selection_state();
-                self.clear_sector_selection();
                 self.status = "Added animation source".to_string();
                 self.mark_dirty();
                 ui.close_menu();
@@ -671,8 +659,6 @@ impl EditorWorkspace {
                 );
                 self.replace_resource_selection(id);
                 self.clear_node_selection_state();
-                self.clear_primitive_selection_state();
-                self.clear_sector_selection();
                 self.status = "Added clip role map".to_string();
                 self.mark_dirty();
                 ui.close_menu();
@@ -688,8 +674,6 @@ impl EditorWorkspace {
                 );
                 self.replace_resource_selection(id);
                 self.clear_node_selection_state();
-                self.clear_primitive_selection_state();
-                self.clear_sector_selection();
                 self.status = "Added material".to_string();
                 self.mark_dirty();
                 ui.close_menu();
@@ -713,8 +697,6 @@ impl EditorWorkspace {
                 self.replace_resource_selection(id);
                 self.material_lab.focused_material = Some(id);
                 self.clear_node_selection_state();
-                self.clear_primitive_selection_state();
-                self.clear_sector_selection();
                 self.status = "Added transition material".to_string();
                 self.mark_dirty();
                 ui.close_menu();
