@@ -47,6 +47,7 @@ mod tests;
 mod tests_world;
 
 pub use account::{PayloadCounts, Region};
+pub(crate) use account::clip_surfaces_indexed;
 pub use closure::Closure;
 pub use cuts::{CutNode, CutTree};
 pub use gate::{GateFailure, GateReport, PoolPeak, RhoEdge, RhoWindow};
