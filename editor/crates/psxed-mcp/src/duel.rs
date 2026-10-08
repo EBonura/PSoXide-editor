@@ -336,6 +336,9 @@ pub fn summarize(log: &str) -> Value {
     report
 }
 
+/// Player poise capacity in the runtime (`psx_game_runtime::character::PLAYER_POISE`).
+const PLAYER_POISE: u32 = 60;
+
 /// Everything `metrics` reads from one parsed guest log.
 struct MetricInputs<'a> {
     outcome: &'a str,
@@ -365,6 +368,9 @@ fn metrics(m: &MetricInputs<'_>) -> Value {
     let mut taken = [[0u32; 5]; 3];
     let mut avoids = [0u32; 3];
     let mut shot_hit_ticks = Vec::new();
+    // Claw light hits whose own poise damage reaches the player's capacity
+    // (`character::PLAYER_POISE`), i.e. hits that break a fresh player alone.
+    let mut claw_light_alone = 0u32;
     for e in m.events {
         let (kind, source, hp, poise, flags) = (e[1], e[2] as usize, e[3], e[4], e[5]);
         if source > 2 {
@@ -379,6 +385,9 @@ fn metrics(m: &MetricInputs<'_>) -> Value {
             }
             _ => continue,
         };
+        if kind == 2 && source == 0 && poise >= PLAYER_POISE {
+            claw_light_alone += 1;
+        }
         row[0] += 1;
         row[1] += hp;
         row[2] += poise;
@@ -433,6 +442,7 @@ fn metrics(m: &MetricInputs<'_>) -> Value {
         "hits_on_enemy": {"light": dealt[0][0], "heavy": dealt[1][0], "shot": dealt[2][0], "total": sum(&dealt, 0)},
         "damage_to_player": {"claw_light": taken[0][1], "claw_heavy": taken[1][1], "cannon": taken[2][1], "total": sum(&taken, 1)},
         "hits_on_player": {"claw_light": taken[0][0], "claw_heavy": taken[1][0], "cannon": taken[2][0], "total": sum(&taken, 0)},
+        "claw_light_poise": {"hits": taken[0][0], "breaks": taken[0][3], "alone_capable": claw_light_alone},
         "poise_damage_to_enemy": sum(&dealt, 2),
         "poise_damage_to_player": sum(&taken, 2),
         "poise_breaks_inflicted": sum(&dealt, 3),
@@ -682,6 +692,11 @@ mod tests {
         assert_eq!(m["damage_to_player"]["cannon"], 25);
         assert_eq!(m["poise_breaks_inflicted"], 1);
         assert_eq!(m["poise_breaks_suffered"], 1);
+        // The claw light hit applied 50 poise: below the player's 60, so it cannot break alone.
+        assert_eq!(
+            m["claw_light_poise"],
+            json!({"hits":1,"breaks":0,"alone_capable":0})
+        );
         assert_eq!(m["enemy_flinches"], 2);
         assert_eq!(m["opposite_colour_hits_on_enemy"], 2);
         assert_eq!(m["opposite_colour_hits_on_player"], 1);
