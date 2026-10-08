@@ -2056,6 +2056,7 @@ fn draw_preview_model_instances(
     scratch.model_tex_used = tex_start.saturating_add(triangles.len()).min(TRI_CAP);
 }
 
+#[allow(clippy::too_many_arguments)]
 fn submit_preview_model_instance(
     world: &mut psx_engine::WorldRenderPass<'_, '_, OT_DEPTH>,
     triangles: &mut psx_engine::PrimitiveArena<'_, TriTextured>,
