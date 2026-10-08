@@ -68,12 +68,13 @@ pub(super) fn player_stance_lit_tint(stance: VitalityChannelId) -> mr::LitTintBi
 /// the stance hue in what the texture still shows.
 const HIT_FLASH_RGB: (u8, u8, u8) = (255, 255, 255);
 
-/// The player's lit tint while the body flash runs: the stance bias and then
-/// the flash, folded into the single lerp the draw path applies. With no flash
-/// this is exactly [`player_stance_lit_tint`].
-pub(super) fn player_lit_tint(stance: VitalityChannelId, flash_ticks: u8) -> mr::LitTintBias {
+/// The player's lit tint while a white flash runs (a struck body, or a charge
+/// glowing): the stance bias and then the flash at `flash_q8`, folded into the
+/// single lerp the draw path applies. With no flash this is exactly
+/// [`player_stance_lit_tint`].
+pub(super) fn player_lit_tint(stance: VitalityChannelId, flash_q8: u16) -> mr::LitTintBias {
     let base = player_stance_lit_tint(stance);
-    let flash = i32::from(psx_game_runtime::hit_stop::flash_strength_q8(flash_ticks));
+    let flash = i32::from(flash_q8.min(256));
     if flash == 0 {
         return base;
     }
@@ -1679,7 +1680,7 @@ mod stance_colour_tests {
             // Fading from the strongest tick down to the last: monotonically
             // dimmer, and never darker than the plain stance tint.
             for ticks in (1..=psx_game_runtime::hit_stop::FLASH_TICKS).rev() {
-                let flashed = player_lit_tint(stance, ticks)
+                let flashed = player_lit_tint(stance, psx_game_runtime::hit_stop::flash_strength_q8(ticks))
                     .apply(TextureMaterial::opaque(0, 0, room))
                     .tint();
                 assert!(flashed.0 >= plain.0 && flashed.1 >= plain.1 && flashed.2 >= plain.2);
@@ -1688,7 +1689,10 @@ mod stance_colour_tests {
                 }
                 previous = flashed;
             }
-            let peak = player_lit_tint(stance, psx_game_runtime::hit_stop::FLASH_TICKS)
+            let peak = player_lit_tint(
+                stance,
+                psx_game_runtime::hit_stop::flash_strength_q8(psx_game_runtime::hit_stop::FLASH_TICKS),
+            )
                 .apply(TextureMaterial::opaque(0, 0, room))
                 .tint();
             assert!(peak.1 > plain.1 + 60, "{stance:?}: {plain:?} -> {peak:?}");

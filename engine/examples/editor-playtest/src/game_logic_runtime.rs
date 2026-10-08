@@ -548,6 +548,7 @@ impl Playtest {
                         radius: release.radius,
                         damage: release.damage,
                         poise_damage: release.poise_damage,
+                        empowered: false,
                         lifetime_ticks: release.lifetime_ticks,
                         room: attack.room(),
                         team: CombatTeam::Enemy,
@@ -856,13 +857,23 @@ impl Playtest {
                             self.duel_enemy_hp(),
                             channel != self.game_entities.stance(index),
                         );
-                        let outcome = self.game_entities.apply_projectile_hit(
-                            GAME_ENTITIES,
-                            index,
-                            channel,
-                            impact.damage,
-                            impact.poise_damage,
-                        );
+                        let outcome = if impact.empowered {
+                            self.game_entities.apply_empowered_hit(
+                                GAME_ENTITIES,
+                                index,
+                                channel,
+                                impact.damage,
+                                impact.poise_damage,
+                            )
+                        } else {
+                            self.game_entities.apply_projectile_hit(
+                                GAME_ENTITIES,
+                                index,
+                                channel,
+                                impact.damage,
+                                impact.poise_damage,
+                            )
+                        };
                         if self.duel.active && index == self.duel.target {
                             let flags = u32::from(outcome.staggered)
                                 | u32::from(outcome.died) << 1
