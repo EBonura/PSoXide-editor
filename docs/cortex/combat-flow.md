@@ -14,6 +14,8 @@ The current AI separates ranged and melee decisions. At range, a shared bounded 
 | Total attachment allowance per excursion | 6 seconds |
 | Continuous grounded time to rearm allowance | 2 seconds |
 
+| Charged arch shot, Energy | 40 |
+
 A missed melee swing earns nothing. Each burst projectile costs separately; allocation failures do not spend Energy. Rehooking another arch does not refresh the timer. Timer expiry, poise break or death detaches the player; Circle also drops voluntarily. Ordinary projectile hits still deal damage, but do not force the player into the hit-reaction animation. The small TETHER meter beside Energy shows remaining attachment time.
 
 Triangle changes stance manually. Horizon uses R1 light / R2 heavy. Zenith uses R2 directly to fire; L2 adds precision aiming. L2+R2 hooks when an eligible arch is selected. Firing slows movement even without L2. The enemy can retreat or circle at half its spacing-walk speed while firing, with a leg animation layer beneath the cannon animation.
@@ -35,6 +37,20 @@ The melee approach stops 16 units farther out. In the first half of its tell, a 
 The Energy bar turns orange-red below a shot's cost. `combat_flow` exposes AI thresholds and timing, and duel switch reasons distinguish reserve rebuilding, melee-to-ranged follow-ups, shot-to-melee follow-ups and overhead targeting.
 
 Initial comparison across seeds 1 and 3 increased observed player damage from 45/77 to 161/120. Seed 7 took 120 damage. All three fights reached enemy death; sampled damage can be offset by vitality regeneration, and these results are not a win-rate balance target. Seed 3 did not damage both player vitality channels, which remains a coverage warning. Evidence is stored under the project's `validation/ai-polish/` directory.
+
+## Hit feel, October 8
+
+Starting values for how a melee connection feels. They are common action-game practice, not Bloodborne data: the decompilation notes carry no hit-stop, tracking or lunge numbers beyond "animation proposes displacement, collision resolves it", which the lunge follows. None has been tested on hardware.
+
+**Hit-stop** (`psx_game_runtime::hit_stop`). On a melee connect both actors freeze for a few 60 Hz ticks; the world, projectiles and renderer keep running. Light 4, light that breaks poise 6, heavy 8, heavy that breaks poise 10, the blow that defeats an actor 12. The counts are even because the NPC step consumes two ticks. An entity holds its whole step (clocks, animation phase, movement, decisions, attack tokens), so it resumes exactly where it stopped. The player holds its animation clock by moving every tick-stamped animation field forward one tick per frozen tick, which also holds the attack lock, the combat windows and any pending buffered request; a dodge cancel, a new reaction, an arch, a hook flight or death ends it early. Bolts do not freeze anyone. The counts depend only on the connect, so replays and the duel tapes stay deterministic.
+
+**Hit flash.** The struck body is tinted white for 4 ticks (strength 224/256 for the first two, 112 for the last two). The player's tint folds into the one lerp the draw already applies; an enemy's tint is the existing stance-sweep packet post-pass with the frontier above the model. No packets are added.
+
+**Windup tracking and lunge** (`attack_assist.rs`). With a hard lock, a melee swing turns toward the target at most 32 Q12 per tick (about 169 degrees a second) until three source frames before its first authored active frame. In the last 8 (light) or 10 (heavy) frames up to that frame, a target whose centre is 56 to 112 units away pulls the player forward at 1.5 (light) or 2 (heavy) units a tick through the ordinary motor, so walls, props and the enemy's body stop it; inside 56 it stops. An authored clip push still takes precedence. Measured hits land at centre distances of 24 to 76.
+
+**Impact sounds.** A light blow plays `light_hit.wav`; a heavy blow plays `heavy_hit.wav` pitched down. A bank without `light_hit.wav` keeps the old pitched-up heavy sample for light blows. Graybox Reach ships no gameplay sound bank, so it stays silent.
+
+**Charged arch shot.** On an arch, in Zenith with the weapon aimed, R2 no longer fires on the press. A tap fires an ordinary bolt on release. Holding past 10 ticks builds the charge over 75 ticks (the contact glints swell and warm, the body glows, a CHARGE bar under TETHER fills, and a chime marks full); releasing at full fires a gold bolt for 3x damage, 30 poise damage (an ordinary bolt is capped at 10) and a 1.5x radius, costing 40 Energy. Releasing early fires an ordinary bolt. Charging pauses the attached Energy refill like firing does and needs 40 Energy to start. The player cannot dodge on an arch (Circle detaches), is held still for over a second and can still be shot, which is what the doubled Energy and the lost refill pay for; the damage and poise are the reward.
 
 ## Physical push and pull
 
