@@ -1,0 +1,1834 @@
+{
+  "aggregate": {
+    "failed_runs": 0,
+    "failures": [],
+    "metrics": {
+      "claw_light_poise.alone_capable": {
+        "max": 0.0,
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "n": 20,
+        "sum": 0.0
+      },
+      "claw_light_poise.breaks": {
+        "max": 0.0,
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "n": 20,
+        "sum": 0.0
+      },
+      "claw_light_poise.hits": {
+        "max": 7.0,
+        "mean": 3.2,
+        "median": 3.0,
+        "min": 0.0,
+        "n": 20,
+        "sum": 64.0
+      },
+      "damage_to_enemy.heavy": {
+        "max": 304.0,
+        "mean": 230.05,
+        "median": 246.0,
+        "min": 76.0,
+        "n": 20,
+        "sum": 4601.0
+      },
+      "damage_to_enemy.light": {
+        "max": 261.0,
+        "mean": 152.6,
+        "median": 160.5,
+        "min": 50.0,
+        "n": 20,
+        "sum": 3052.0
+      },
+      "damage_to_enemy.shot": {
+        "max": 224.0,
+        "mean": 134.4,
+        "median": 147.5,
+        "min": 28.0,
+        "n": 20,
+        "sum": 2688.0
+      },
+      "damage_to_enemy.total": {
+        "max": 600.0,
+        "mean": 517.05,
+        "median": 600.0,
+        "min": 166.0,
+        "n": 20,
+        "sum": 10341.0
+      },
+      "damage_to_player.cannon": {
+        "max": 50.0,
+        "mean": 9.75,
+        "median": 0.0,
+        "min": 0.0,
+        "n": 20,
+        "sum": 195.0
+      },
+      "damage_to_player.claw_heavy": {
+        "max": 311.0,
+        "mean": 151.25,
+        "median": 144.5,
+        "min": 48.0,
+        "n": 20,
+        "sum": 3025.0
+      },
+      "damage_to_player.claw_light": {
+        "max": 197.0,
+        "mean": 94.3,
+        "median": 96.0,
+        "min": 0.0,
+        "n": 20,
+        "sum": 1886.0
+      },
+      "damage_to_player.total": {
+        "max": 441.0,
+        "mean": 255.3,
+        "median": 291.0,
+        "min": 48.0,
+        "n": 20,
+        "sum": 5106.0
+      },
+      "duration_ticks": {
+        "max": 9219.0,
+        "mean": 7311.7,
+        "median": 7490.0,
+        "min": 4450.0,
+        "n": 20,
+        "sum": 146234.0
+      },
+      "enemy_evades.attempted": {
+        "max": 5.0,
+        "mean": 2.95,
+        "median": 3.0,
+        "min": 0.0,
+        "n": 20,
+        "sum": 59.0
+      },
+      "enemy_evades.avoided_shot": {
+        "max": 5.0,
+        "mean": 2.75,
+        "median": 3.0,
+        "min": 0.0,
+        "n": 20,
+        "sum": 55.0
+      },
+      "enemy_evades.failed": {
+        "max": 1.0,
+        "mean": 0.2,
+        "median": 0.0,
+        "min": 0.0,
+        "n": 20,
+        "sum": 4.0
+      },
+      "enemy_flinches": {
+        "max": 11.0,
+        "mean": 8.15,
+        "median": 9.0,
+        "min": 3.0,
+        "n": 20,
+        "sum": 163.0
+      },
+      "enemy_hp_end": {
+        "max": 434.0,
+        "mean": 82.95,
+        "median": 0.0,
+        "min": 0.0,
+        "n": 20,
+        "sum": 1659.0
+      },
+      "energy.enemy_gained": {
+        "max": 160.0,
+        "mean": 80.4,
+        "median": 80.0,
+        "min": 20.0,
+        "n": 20,
+        "sum": 1608.0
+      },
+      "energy.enemy_spent": {
+        "max": 160.0,
+        "mean": 103.0,
+        "median": 100.0,
+        "min": 60.0,
+        "n": 20,
+        "sum": 2060.0
+      },
+      "energy.player_gained": {
+        "max": 208.0,
+        "mean": 141.4,
+        "median": 158.0,
+        "min": 20.0,
+        "n": 20,
+        "sum": 2828.0
+      },
+      "energy.player_spent": {
+        "max": 240.0,
+        "mean": 173.0,
+        "median": 190.0,
+        "min": 20.0,
+        "n": 20,
+        "sum": 3460.0
+      },
+      "hits_on_enemy.heavy": {
+        "max": 8.0,
+        "mean": 6.05,
+        "median": 7.0,
+        "min": 2.0,
+        "n": 20,
+        "sum": 121.0
+      },
+      "hits_on_enemy.light": {
+        "max": 9.0,
+        "mean": 5.7,
+        "median": 6.0,
+        "min": 2.0,
+        "n": 20,
+        "sum": 114.0
+      },
+      "hits_on_enemy.shot": {
+        "max": 8.0,
+        "mean": 4.75,
+        "median": 5.5,
+        "min": 1.0,
+        "n": 20,
+        "sum": 95.0
+      },
+      "hits_on_enemy.total": {
+        "max": 20.0,
+        "mean": 16.5,
+        "median": 19.0,
+        "min": 5.0,
+        "n": 20,
+        "sum": 330.0
+      },
+      "hits_on_player.cannon": {
+        "max": 2.0,
+        "mean": 0.4,
+        "median": 0.0,
+        "min": 0.0,
+        "n": 20,
+        "sum": 8.0
+      },
+      "hits_on_player.claw_heavy": {
+        "max": 7.0,
+        "mean": 3.4,
+        "median": 3.5,
+        "min": 1.0,
+        "n": 20,
+        "sum": 68.0
+      },
+      "hits_on_player.claw_light": {
+        "max": 7.0,
+        "mean": 3.2,
+        "median": 3.0,
+        "min": 0.0,
+        "n": 20,
+        "sum": 64.0
+      },
+      "hits_on_player.total": {
+        "max": 12.0,
+        "mean": 7.0,
+        "median": 8.0,
+        "min": 1.0,
+        "n": 20,
+        "sum": 140.0
+      },
+      "iframe_avoids.cannon": {
+        "max": 2.0,
+        "mean": 1.1,
+        "median": 1.0,
+        "min": 1.0,
+        "n": 20,
+        "sum": 22.0
+      },
+      "iframe_avoids.claw_heavy": {
+        "max": 1.0,
+        "mean": 0.05,
+        "median": 0.0,
+        "min": 0.0,
+        "n": 20,
+        "sum": 1.0
+      },
+      "iframe_avoids.claw_light": {
+        "max": 1.0,
+        "mean": 0.1,
+        "median": 0.0,
+        "min": 0.0,
+        "n": 20,
+        "sum": 2.0
+      },
+      "iframe_avoids.total": {
+        "max": 2.0,
+        "mean": 1.25,
+        "median": 1.0,
+        "min": 1.0,
+        "n": 20,
+        "sum": 25.0
+      },
+      "opposite_colour_hits_on_enemy": {
+        "max": 7.0,
+        "mean": 3.15,
+        "median": 3.0,
+        "min": 0.0,
+        "n": 20,
+        "sum": 63.0
+      },
+      "opposite_colour_hits_on_player": {
+        "max": 9.0,
+        "mean": 3.85,
+        "median": 4.0,
+        "min": 1.0,
+        "n": 20,
+        "sum": 77.0
+      },
+      "player_hp_end": {
+        "max": 200.0,
+        "mean": 102.7,
+        "median": 117.0,
+        "min": 0.0,
+        "n": 20,
+        "sum": 2054.0
+      },
+      "poise_breaks_inflicted": {
+        "max": 11.0,
+        "mean": 8.15,
+        "median": 9.0,
+        "min": 3.0,
+        "n": 20,
+        "sum": 163.0
+      },
+      "poise_breaks_suffered": {
+        "max": 7.0,
+        "mean": 3.3,
+        "median": 3.0,
+        "min": 1.0,
+        "n": 20,
+        "sum": 66.0
+      },
+      "poise_damage_to_enemy": {
+        "max": 575.0,
+        "mean": 445.0,
+        "median": 487.5,
+        "min": 150.0,
+        "n": 20,
+        "sum": 8900.0
+      },
+      "poise_damage_to_player": {
+        "max": 731.0,
+        "mean": 417.4,
+        "median": 421.5,
+        "min": 75.0,
+        "n": 20,
+        "sum": 8348.0
+      },
+      "shots.enemy_fired": {
+        "max": 8.0,
+        "mean": 5.15,
+        "median": 5.0,
+        "min": 3.0,
+        "n": 20,
+        "sum": 103.0
+      },
+      "shots.enemy_hit": {
+        "max": 2.0,
+        "mean": 0.4,
+        "median": 0.0,
+        "min": 0.0,
+        "n": 20,
+        "sum": 8.0
+      },
+      "shots.player_fired": {
+        "max": 12.0,
+        "mean": 8.65,
+        "median": 9.5,
+        "min": 1.0,
+        "n": 20,
+        "sum": 173.0
+      },
+      "shots.player_hit": {
+        "max": 8.0,
+        "mean": 4.75,
+        "median": 5.5,
+        "min": 1.0,
+        "n": 20,
+        "sum": 95.0
+      },
+      "stance_swaps.enemy": {
+        "max": 15.0,
+        "mean": 10.75,
+        "median": 11.0,
+        "min": 5.0,
+        "n": 20,
+        "sum": 215.0
+      },
+      "stance_swaps.player": {
+        "max": 19.0,
+        "mean": 14.1,
+        "median": 14.5,
+        "min": 7.0,
+        "n": 20,
+        "sum": 282.0
+      }
+    },
+    "outcomes": {
+      "enemy_won": 5,
+      "player_won": 12,
+      "stalled_no_damage": 3
+    },
+    "per_seed": [
+      {
+        "claw_light_poise": {
+          "alone_capable": 0,
+          "breaks": 0,
+          "hits": 4
+        },
+        "damage_to_enemy": {
+          "heavy": 304,
+          "light": 170,
+          "shot": 126,
+          "total": 600
+        },
+        "damage_to_player": {
+          "cannon": 0,
+          "claw_heavy": 96,
+          "claw_light": 128,
+          "total": 224
+        },
+        "duration_ticks": 8964,
+        "enemy_evades": {
+          "attempted": 3,
+          "avoided_shot": 3,
+          "failed": 0
+        },
+        "enemy_flinches": 10,
+        "enemy_hp_end": 0,
+        "energy": {
+          "enemy_gained": 88,
+          "enemy_spent": 100,
+          "player_gained": 180,
+          "player_spent": 180
+        },
+        "hits_on_enemy": {
+          "heavy": 8,
+          "light": 7,
+          "shot": 4,
+          "total": 19
+        },
+        "hits_on_player": {
+          "cannon": 0,
+          "claw_heavy": 2,
+          "claw_light": 4,
+          "total": 6
+        },
+        "iframe_avoids": {
+          "cannon": 2,
+          "claw_heavy": 0,
+          "claw_light": 0,
+          "total": 2
+        },
+        "opposite_colour_hits_on_enemy": 2,
+        "opposite_colour_hits_on_player": 2,
+        "outcome": "player_won",
+        "player_hp_end": 65,
+        "poise_breaks_inflicted": 10,
+        "poise_breaks_suffered": 2,
+        "poise_damage_to_enemy": 575,
+        "poise_damage_to_player": 350,
+        "seed": 1,
+        "shots": {
+          "enemy_fired": 5,
+          "enemy_hit": 0,
+          "player_fired": 9,
+          "player_hit": 4
+        },
+        "stance_swaps": {
+          "enemy": 10,
+          "player": 17
+        }
+      },
+      {
+        "claw_light_poise": {
+          "alone_capable": 0,
+          "breaks": 0,
+          "hits": 5
+        },
+        "damage_to_enemy": {
+          "heavy": 266,
+          "light": 187,
+          "shot": 147,
+          "total": 600
+        },
+        "damage_to_player": {
+          "cannon": 20,
+          "claw_heavy": 240,
+          "claw_light": 160,
+          "total": 420
+        },
+        "duration_ticks": 9219,
+        "enemy_evades": {
+          "attempted": 3,
+          "avoided_shot": 3,
+          "failed": 0
+        },
+        "enemy_flinches": 9,
+        "enemy_hp_end": 0,
+        "energy": {
+          "enemy_gained": 100,
+          "enemy_spent": 100,
+          "player_gained": 144,
+          "player_spent": 180
+        },
+        "hits_on_enemy": {
+          "heavy": 7,
+          "light": 7,
+          "shot": 5,
+          "total": 19
+        },
+        "hits_on_player": {
+          "cannon": 1,
+          "claw_heavy": 5,
+          "claw_light": 5,
+          "total": 11
+        },
+        "iframe_avoids": {
+          "cannon": 1,
+          "claw_heavy": 0,
+          "claw_light": 1,
+          "total": 2
+        },
+        "opposite_colour_hits_on_enemy": 5,
+        "opposite_colour_hits_on_player": 3,
+        "outcome": "player_won",
+        "player_hp_end": 111,
+        "poise_breaks_inflicted": 9,
+        "poise_breaks_suffered": 5,
+        "poise_damage_to_enemy": 525,
+        "poise_damage_to_player": 631,
+        "seed": 2,
+        "shots": {
+          "enemy_fired": 5,
+          "enemy_hit": 1,
+          "player_fired": 9,
+          "player_hit": 5
+        },
+        "stance_swaps": {
+          "enemy": 11,
+          "player": 15
+        }
+      },
+      {
+        "claw_light_poise": {
+          "alone_capable": 0,
+          "breaks": 0,
+          "hits": 3
+        },
+        "damage_to_enemy": {
+          "heavy": 270,
+          "light": 162,
+          "shot": 168,
+          "total": 600
+        },
+        "damage_to_player": {
+          "cannon": 25,
+          "claw_heavy": 174,
+          "claw_light": 96,
+          "total": 295
+        },
+        "duration_ticks": 8030,
+        "enemy_evades": {
+          "attempted": 3,
+          "avoided_shot": 3,
+          "failed": 0
+        },
+        "enemy_flinches": 8,
+        "enemy_hp_end": 0,
+        "energy": {
+          "enemy_gained": 116,
+          "enemy_spent": 120,
+          "player_gained": 168,
+          "player_spent": 180
+        },
+        "hits_on_enemy": {
+          "heavy": 7,
+          "light": 6,
+          "shot": 6,
+          "total": 19
+        },
+        "hits_on_player": {
+          "cannon": 1,
+          "claw_heavy": 4,
+          "claw_light": 3,
+          "total": 8
+        },
+        "iframe_avoids": {
+          "cannon": 1,
+          "claw_heavy": 0,
+          "claw_light": 0,
+          "total": 1
+        },
+        "opposite_colour_hits_on_enemy": 5,
+        "opposite_colour_hits_on_player": 5,
+        "outcome": "player_won",
+        "player_hp_end": 22,
+        "poise_breaks_inflicted": 8,
+        "poise_breaks_suffered": 4,
+        "poise_damage_to_enemy": 500,
+        "poise_damage_to_player": 456,
+        "seed": 3,
+        "shots": {
+          "enemy_fired": 6,
+          "enemy_hit": 1,
+          "player_fired": 9,
+          "player_hit": 6
+        },
+        "stance_swaps": {
+          "enemy": 11,
+          "player": 17
+        }
+      },
+      {
+        "claw_light_poise": {
+          "alone_capable": 0,
+          "breaks": 0,
+          "hits": 0
+        },
+        "damage_to_enemy": {
+          "heavy": 245,
+          "light": 131,
+          "shot": 224,
+          "total": 600
+        },
+        "damage_to_player": {
+          "cannon": 0,
+          "claw_heavy": 48,
+          "claw_light": 0,
+          "total": 48
+        },
+        "duration_ticks": 6062,
+        "enemy_evades": {
+          "attempted": 3,
+          "avoided_shot": 2,
+          "failed": 1
+        },
+        "enemy_flinches": 7,
+        "enemy_hp_end": 0,
+        "energy": {
+          "enemy_gained": 20,
+          "enemy_spent": 120,
+          "player_gained": 200,
+          "player_spent": 240
+        },
+        "hits_on_enemy": {
+          "heavy": 7,
+          "light": 5,
+          "shot": 8,
+          "total": 20
+        },
+        "hits_on_player": {
+          "cannon": 0,
+          "claw_heavy": 1,
+          "claw_light": 0,
+          "total": 1
+        },
+        "iframe_avoids": {
+          "cannon": 2,
+          "claw_heavy": 0,
+          "claw_light": 0,
+          "total": 2
+        },
+        "opposite_colour_hits_on_enemy": 1,
+        "opposite_colour_hits_on_player": 1,
+        "outcome": "player_won",
+        "player_hp_end": 200,
+        "poise_breaks_inflicted": 7,
+        "poise_breaks_suffered": 1,
+        "poise_damage_to_enemy": 475,
+        "poise_damage_to_player": 75,
+        "seed": 4,
+        "shots": {
+          "enemy_fired": 6,
+          "enemy_hit": 0,
+          "player_fired": 12,
+          "player_hit": 8
+        },
+        "stance_swaps": {
+          "enemy": 8,
+          "player": 9
+        }
+      },
+      {
+        "claw_light_poise": {
+          "alone_capable": 0,
+          "breaks": 0,
+          "hits": 2
+        },
+        "damage_to_enemy": {
+          "heavy": 251,
+          "light": 174,
+          "shot": 175,
+          "total": 600
+        },
+        "damage_to_player": {
+          "cannon": 0,
+          "claw_heavy": 144,
+          "claw_light": 64,
+          "total": 208
+        },
+        "duration_ticks": 6770,
+        "enemy_evades": {
+          "attempted": 5,
+          "avoided_shot": 4,
+          "failed": 1
+        },
+        "enemy_flinches": 8,
+        "enemy_hp_end": 0,
+        "energy": {
+          "enemy_gained": 72,
+          "enemy_spent": 80,
+          "player_gained": 124,
+          "player_spent": 200
+        },
+        "hits_on_enemy": {
+          "heavy": 7,
+          "light": 6,
+          "shot": 6,
+          "total": 19
+        },
+        "hits_on_player": {
+          "cannon": 0,
+          "claw_heavy": 3,
+          "claw_light": 2,
+          "total": 5
+        },
+        "iframe_avoids": {
+          "cannon": 1,
+          "claw_heavy": 0,
+          "claw_light": 0,
+          "total": 1
+        },
+        "opposite_colour_hits_on_enemy": 5,
+        "opposite_colour_hits_on_player": 3,
+        "outcome": "player_won",
+        "player_hp_end": 200,
+        "poise_breaks_inflicted": 8,
+        "poise_breaks_suffered": 3,
+        "poise_damage_to_enemy": 500,
+        "poise_damage_to_player": 325,
+        "seed": 5,
+        "shots": {
+          "enemy_fired": 4,
+          "enemy_hit": 0,
+          "player_fired": 10,
+          "player_hit": 6
+        },
+        "stance_swaps": {
+          "enemy": 12,
+          "player": 13
+        }
+      },
+      {
+        "claw_light_poise": {
+          "alone_capable": 0,
+          "breaks": 0,
+          "hits": 4
+        },
+        "damage_to_enemy": {
+          "heavy": 152,
+          "light": 150,
+          "shot": 28,
+          "total": 330
+        },
+        "damage_to_player": {
+          "cannon": 0,
+          "claw_heavy": 217,
+          "claw_light": 102,
+          "total": 319
+        },
+        "duration_ticks": 5886,
+        "enemy_evades": {
+          "attempted": 0,
+          "avoided_shot": 0,
+          "failed": 0
+        },
+        "enemy_flinches": 6,
+        "enemy_hp_end": 270,
+        "energy": {
+          "enemy_gained": 60,
+          "enemy_spent": 60,
+          "player_gained": 20,
+          "player_spent": 20
+        },
+        "hits_on_enemy": {
+          "heavy": 4,
+          "light": 6,
+          "shot": 1,
+          "total": 11
+        },
+        "hits_on_player": {
+          "cannon": 0,
+          "claw_heavy": 5,
+          "claw_light": 4,
+          "total": 9
+        },
+        "iframe_avoids": {
+          "cannon": 1,
+          "claw_heavy": 0,
+          "claw_light": 0,
+          "total": 1
+        },
+        "opposite_colour_hits_on_enemy": 0,
+        "opposite_colour_hits_on_player": 6,
+        "outcome": "enemy_won",
+        "player_hp_end": 0,
+        "poise_breaks_inflicted": 6,
+        "poise_breaks_suffered": 5,
+        "poise_damage_to_enemy": 350,
+        "poise_damage_to_player": 575,
+        "seed": 6,
+        "shots": {
+          "enemy_fired": 3,
+          "enemy_hit": 0,
+          "player_fired": 1,
+          "player_hit": 1
+        },
+        "stance_swaps": {
+          "enemy": 12,
+          "player": 14
+        }
+      },
+      {
+        "claw_light_poise": {
+          "alone_capable": 0,
+          "breaks": 0,
+          "hits": 2
+        },
+        "damage_to_enemy": {
+          "heavy": 255,
+          "light": 261,
+          "shot": 84,
+          "total": 600
+        },
+        "damage_to_player": {
+          "cannon": 25,
+          "claw_heavy": 240,
+          "claw_light": 64,
+          "total": 329
+        },
+        "duration_ticks": 7779,
+        "enemy_evades": {
+          "attempted": 2,
+          "avoided_shot": 2,
+          "failed": 0
+        },
+        "enemy_flinches": 11,
+        "enemy_hp_end": 0,
+        "energy": {
+          "enemy_gained": 100,
+          "enemy_spent": 100,
+          "player_gained": 84,
+          "player_spent": 120
+        },
+        "hits_on_enemy": {
+          "heavy": 7,
+          "light": 9,
+          "shot": 3,
+          "total": 19
+        },
+        "hits_on_player": {
+          "cannon": 1,
+          "claw_heavy": 5,
+          "claw_light": 2,
+          "total": 8
+        },
+        "iframe_avoids": {
+          "cannon": 1,
+          "claw_heavy": 0,
+          "claw_light": 0,
+          "total": 1
+        },
+        "opposite_colour_hits_on_enemy": 7,
+        "opposite_colour_hits_on_player": 4,
+        "outcome": "player_won",
+        "player_hp_end": 123,
+        "poise_breaks_inflicted": 11,
+        "poise_breaks_suffered": 5,
+        "poise_damage_to_enemy": 575,
+        "poise_damage_to_player": 481,
+        "seed": 7,
+        "shots": {
+          "enemy_fired": 5,
+          "enemy_hit": 1,
+          "player_fired": 6,
+          "player_hit": 3
+        },
+        "stance_swaps": {
+          "enemy": 15,
+          "player": 17
+        }
+      },
+      {
+        "claw_light_poise": {
+          "alone_capable": 0,
+          "breaks": 0,
+          "hits": 5
+        },
+        "damage_to_enemy": {
+          "heavy": 284,
+          "light": 168,
+          "shot": 148,
+          "total": 600
+        },
+        "damage_to_player": {
+          "cannon": 0,
+          "claw_heavy": 48,
+          "claw_light": 160,
+          "total": 208
+        },
+        "duration_ticks": 6806,
+        "enemy_evades": {
+          "attempted": 4,
+          "avoided_shot": 4,
+          "failed": 0
+        },
+        "enemy_flinches": 10,
+        "enemy_hp_end": 0,
+        "energy": {
+          "enemy_gained": 80,
+          "enemy_spent": 120,
+          "player_gained": 156,
+          "player_spent": 220
+        },
+        "hits_on_enemy": {
+          "heavy": 7,
+          "light": 6,
+          "shot": 6,
+          "total": 19
+        },
+        "hits_on_player": {
+          "cannon": 0,
+          "claw_heavy": 1,
+          "claw_light": 5,
+          "total": 6
+        },
+        "iframe_avoids": {
+          "cannon": 1,
+          "claw_heavy": 1,
+          "claw_light": 0,
+          "total": 2
+        },
+        "opposite_colour_hits_on_enemy": 7,
+        "opposite_colour_hits_on_player": 1,
+        "outcome": "player_won",
+        "player_hp_end": 125,
+        "poise_breaks_inflicted": 10,
+        "poise_breaks_suffered": 1,
+        "poise_damage_to_enemy": 500,
+        "poise_damage_to_player": 325,
+        "seed": 8,
+        "shots": {
+          "enemy_fired": 6,
+          "enemy_hit": 0,
+          "player_fired": 11,
+          "player_hit": 6
+        },
+        "stance_swaps": {
+          "enemy": 10,
+          "player": 14
+        }
+      },
+      {
+        "claw_light_poise": {
+          "alone_capable": 0,
+          "breaks": 0,
+          "hits": 2
+        },
+        "damage_to_enemy": {
+          "heavy": 246,
+          "light": 149,
+          "shot": 56,
+          "total": 451
+        },
+        "damage_to_player": {
+          "cannon": 25,
+          "claw_heavy": 96,
+          "claw_light": 64,
+          "total": 185
+        },
+        "duration_ticks": 8242,
+        "enemy_evades": {
+          "attempted": 4,
+          "avoided_shot": 4,
+          "failed": 0
+        },
+        "enemy_flinches": 9,
+        "enemy_hp_end": 149,
+        "energy": {
+          "enemy_gained": 64,
+          "enemy_spent": 120,
+          "player_gained": 156,
+          "player_spent": 240
+        },
+        "hits_on_enemy": {
+          "heavy": 6,
+          "light": 5,
+          "shot": 2,
+          "total": 13
+        },
+        "hits_on_player": {
+          "cannon": 1,
+          "claw_heavy": 2,
+          "claw_light": 2,
+          "total": 5
+        },
+        "iframe_avoids": {
+          "cannon": 1,
+          "claw_heavy": 0,
+          "claw_light": 0,
+          "total": 1
+        },
+        "opposite_colour_hits_on_enemy": 6,
+        "opposite_colour_hits_on_player": 4,
+        "outcome": "stalled_no_damage",
+        "player_hp_end": 184,
+        "poise_breaks_inflicted": 9,
+        "poise_breaks_suffered": 2,
+        "poise_damage_to_enemy": 425,
+        "poise_damage_to_player": 256,
+        "seed": 9,
+        "shots": {
+          "enemy_fired": 6,
+          "enemy_hit": 1,
+          "player_fired": 12,
+          "player_hit": 2
+        },
+        "stance_swaps": {
+          "enemy": 10,
+          "player": 15
+        }
+      },
+      {
+        "claw_light_poise": {
+          "alone_capable": 0,
+          "breaks": 0,
+          "hits": 1
+        },
+        "damage_to_enemy": {
+          "heavy": 208,
+          "light": 168,
+          "shot": 168,
+          "total": 544
+        },
+        "damage_to_player": {
+          "cannon": 0,
+          "claw_heavy": 48,
+          "claw_light": 32,
+          "total": 80
+        },
+        "duration_ticks": 6363,
+        "enemy_evades": {
+          "attempted": 3,
+          "avoided_shot": 3,
+          "failed": 0
+        },
+        "enemy_flinches": 8,
+        "enemy_hp_end": 56,
+        "energy": {
+          "enemy_gained": 32,
+          "enemy_spent": 100,
+          "player_gained": 168,
+          "player_spent": 180
+        },
+        "hits_on_enemy": {
+          "heavy": 5,
+          "light": 6,
+          "shot": 6,
+          "total": 17
+        },
+        "hits_on_player": {
+          "cannon": 0,
+          "claw_heavy": 1,
+          "claw_light": 1,
+          "total": 2
+        },
+        "iframe_avoids": {
+          "cannon": 1,
+          "claw_heavy": 0,
+          "claw_light": 0,
+          "total": 1
+        },
+        "opposite_colour_hits_on_enemy": 5,
+        "opposite_colour_hits_on_player": 1,
+        "outcome": "stalled_no_damage",
+        "player_hp_end": 200,
+        "poise_breaks_inflicted": 8,
+        "poise_breaks_suffered": 1,
+        "poise_damage_to_enemy": 400,
+        "poise_damage_to_player": 125,
+        "seed": 10,
+        "shots": {
+          "enemy_fired": 5,
+          "enemy_hit": 0,
+          "player_fired": 9,
+          "player_hit": 6
+        },
+        "stance_swaps": {
+          "enemy": 10,
+          "player": 12
+        }
+      },
+      {
+        "claw_light_poise": {
+          "alone_capable": 0,
+          "breaks": 0,
+          "hits": 4
+        },
+        "damage_to_enemy": {
+          "heavy": 161,
+          "light": 50,
+          "shot": 168,
+          "total": 379
+        },
+        "damage_to_player": {
+          "cannon": 25,
+          "claw_heavy": 260,
+          "claw_light": 100,
+          "total": 385
+        },
+        "duration_ticks": 8266,
+        "enemy_evades": {
+          "attempted": 2,
+          "avoided_shot": 2,
+          "failed": 0
+        },
+        "enemy_flinches": 5,
+        "enemy_hp_end": 221,
+        "energy": {
+          "enemy_gained": 160,
+          "enemy_spent": 160,
+          "player_gained": 104,
+          "player_spent": 160
+        },
+        "hits_on_enemy": {
+          "heavy": 4,
+          "light": 2,
+          "shot": 6,
+          "total": 12
+        },
+        "hits_on_player": {
+          "cannon": 1,
+          "claw_heavy": 6,
+          "claw_light": 4,
+          "total": 11
+        },
+        "iframe_avoids": {
+          "cannon": 1,
+          "claw_heavy": 0,
+          "claw_light": 0,
+          "total": 1
+        },
+        "opposite_colour_hits_on_enemy": 1,
+        "opposite_colour_hits_on_player": 7,
+        "outcome": "enemy_won",
+        "player_hp_end": 0,
+        "poise_breaks_inflicted": 5,
+        "poise_breaks_suffered": 5,
+        "poise_damage_to_enemy": 250,
+        "poise_damage_to_player": 656,
+        "seed": 11,
+        "shots": {
+          "enemy_fired": 8,
+          "enemy_hit": 1,
+          "player_fired": 8,
+          "player_hit": 6
+        },
+        "stance_swaps": {
+          "enemy": 12,
+          "player": 16
+        }
+      },
+      {
+        "claw_light_poise": {
+          "alone_capable": 0,
+          "breaks": 0,
+          "hits": 3
+        },
+        "damage_to_enemy": {
+          "heavy": 240,
+          "light": 150,
+          "shot": 210,
+          "total": 600
+        },
+        "damage_to_player": {
+          "cannon": 0,
+          "claw_heavy": 48,
+          "claw_light": 96,
+          "total": 144
+        },
+        "duration_ticks": 6554,
+        "enemy_evades": {
+          "attempted": 3,
+          "avoided_shot": 2,
+          "failed": 1
+        },
+        "enemy_flinches": 9,
+        "enemy_hp_end": 0,
+        "energy": {
+          "enemy_gained": 56,
+          "enemy_spent": 120,
+          "player_gained": 200,
+          "player_spent": 200
+        },
+        "hits_on_enemy": {
+          "heavy": 7,
+          "light": 6,
+          "shot": 7,
+          "total": 20
+        },
+        "hits_on_player": {
+          "cannon": 0,
+          "claw_heavy": 1,
+          "claw_light": 3,
+          "total": 4
+        },
+        "iframe_avoids": {
+          "cannon": 1,
+          "claw_heavy": 0,
+          "claw_light": 0,
+          "total": 1
+        },
+        "opposite_colour_hits_on_enemy": 3,
+        "opposite_colour_hits_on_player": 2,
+        "outcome": "player_won",
+        "player_hp_end": 181,
+        "poise_breaks_inflicted": 9,
+        "poise_breaks_suffered": 1,
+        "poise_damage_to_enemy": 500,
+        "poise_damage_to_player": 225,
+        "seed": 12,
+        "shots": {
+          "enemy_fired": 6,
+          "enemy_hit": 0,
+          "player_fired": 10,
+          "player_hit": 7
+        },
+        "stance_swaps": {
+          "enemy": 8,
+          "player": 11
+        }
+      },
+      {
+        "claw_light_poise": {
+          "alone_capable": 0,
+          "breaks": 0,
+          "hits": 5
+        },
+        "damage_to_enemy": {
+          "heavy": 76,
+          "light": 150,
+          "shot": 28,
+          "total": 254
+        },
+        "damage_to_player": {
+          "cannon": 0,
+          "claw_heavy": 148,
+          "claw_light": 144,
+          "total": 292
+        },
+        "duration_ticks": 5548,
+        "enemy_evades": {
+          "attempted": 0,
+          "avoided_shot": 0,
+          "failed": 0
+        },
+        "enemy_flinches": 5,
+        "enemy_hp_end": 346,
+        "energy": {
+          "enemy_gained": 60,
+          "enemy_spent": 60,
+          "player_gained": 40,
+          "player_spent": 40
+        },
+        "hits_on_enemy": {
+          "heavy": 2,
+          "light": 6,
+          "shot": 1,
+          "total": 9
+        },
+        "hits_on_player": {
+          "cannon": 0,
+          "claw_heavy": 4,
+          "claw_light": 5,
+          "total": 9
+        },
+        "iframe_avoids": {
+          "cannon": 1,
+          "claw_heavy": 0,
+          "claw_light": 0,
+          "total": 1
+        },
+        "opposite_colour_hits_on_enemy": 0,
+        "opposite_colour_hits_on_player": 4,
+        "outcome": "enemy_won",
+        "player_hp_end": 0,
+        "poise_breaks_inflicted": 5,
+        "poise_breaks_suffered": 3,
+        "poise_damage_to_enemy": 250,
+        "poise_damage_to_player": 550,
+        "seed": 13,
+        "shots": {
+          "enemy_fired": 3,
+          "enemy_hit": 0,
+          "player_fired": 2,
+          "player_hit": 1
+        },
+        "stance_swaps": {
+          "enemy": 12,
+          "player": 13
+        }
+      },
+      {
+        "claw_light_poise": {
+          "alone_capable": 0,
+          "breaks": 0,
+          "hits": 5
+        },
+        "damage_to_enemy": {
+          "heavy": 228,
+          "light": 100,
+          "shot": 140,
+          "total": 468
+        },
+        "damage_to_player": {
+          "cannon": 0,
+          "claw_heavy": 241,
+          "claw_light": 118,
+          "total": 359
+        },
+        "duration_ticks": 6446,
+        "enemy_evades": {
+          "attempted": 2,
+          "avoided_shot": 2,
+          "failed": 0
+        },
+        "enemy_flinches": 7,
+        "enemy_hp_end": 132,
+        "energy": {
+          "enemy_gained": 80,
+          "enemy_spent": 80,
+          "player_gained": 140,
+          "player_spent": 140
+        },
+        "hits_on_enemy": {
+          "heavy": 6,
+          "light": 4,
+          "shot": 5,
+          "total": 15
+        },
+        "hits_on_player": {
+          "cannon": 0,
+          "claw_heavy": 6,
+          "claw_light": 5,
+          "total": 11
+        },
+        "iframe_avoids": {
+          "cannon": 1,
+          "claw_heavy": 0,
+          "claw_light": 0,
+          "total": 1
+        },
+        "opposite_colour_hits_on_enemy": 0,
+        "opposite_colour_hits_on_player": 5,
+        "outcome": "enemy_won",
+        "player_hp_end": 0,
+        "poise_breaks_inflicted": 7,
+        "poise_breaks_suffered": 6,
+        "poise_damage_to_enemy": 400,
+        "poise_damage_to_player": 700,
+        "seed": 14,
+        "shots": {
+          "enemy_fired": 4,
+          "enemy_hit": 0,
+          "player_fired": 7,
+          "player_hit": 5
+        },
+        "stance_swaps": {
+          "enemy": 6,
+          "player": 13
+        }
+      },
+      {
+        "claw_light_poise": {
+          "alone_capable": 0,
+          "breaks": 0,
+          "hits": 7
+        },
+        "damage_to_enemy": {
+          "heavy": 266,
+          "light": 159,
+          "shot": 175,
+          "total": 600
+        },
+        "damage_to_player": {
+          "cannon": 0,
+          "claw_heavy": 145,
+          "claw_light": 197,
+          "total": 342
+        },
+        "duration_ticks": 9025,
+        "enemy_evades": {
+          "attempted": 4,
+          "avoided_shot": 4,
+          "failed": 0
+        },
+        "enemy_flinches": 10,
+        "enemy_hp_end": 0,
+        "energy": {
+          "enemy_gained": 120,
+          "enemy_spent": 140,
+          "player_gained": 180,
+          "player_spent": 240
+        },
+        "hits_on_enemy": {
+          "heavy": 7,
+          "light": 6,
+          "shot": 6,
+          "total": 19
+        },
+        "hits_on_player": {
+          "cannon": 0,
+          "claw_heavy": 4,
+          "claw_light": 7,
+          "total": 11
+        },
+        "iframe_avoids": {
+          "cannon": 1,
+          "claw_heavy": 0,
+          "claw_light": 0,
+          "total": 1
+        },
+        "opposite_colour_hits_on_enemy": 3,
+        "opposite_colour_hits_on_player": 7,
+        "outcome": "player_won",
+        "player_hp_end": 48,
+        "poise_breaks_inflicted": 10,
+        "poise_breaks_suffered": 4,
+        "poise_damage_to_enemy": 500,
+        "poise_damage_to_player": 650,
+        "seed": 15,
+        "shots": {
+          "enemy_fired": 7,
+          "enemy_hit": 0,
+          "player_fired": 12,
+          "player_hit": 6
+        },
+        "stance_swaps": {
+          "enemy": 12,
+          "player": 19
+        }
+      },
+      {
+        "claw_light_poise": {
+          "alone_capable": 0,
+          "breaks": 0,
+          "hits": 1
+        },
+        "damage_to_enemy": {
+          "heavy": 298,
+          "light": 106,
+          "shot": 196,
+          "total": 600
+        },
+        "damage_to_player": {
+          "cannon": 0,
+          "claw_heavy": 96,
+          "claw_light": 32,
+          "total": 128
+        },
+        "duration_ticks": 7334,
+        "enemy_evades": {
+          "attempted": 5,
+          "avoided_shot": 5,
+          "failed": 0
+        },
+        "enemy_flinches": 10,
+        "enemy_hp_end": 0,
+        "energy": {
+          "enemy_gained": 52,
+          "enemy_spent": 80,
+          "player_gained": 208,
+          "player_spent": 240
+        },
+        "hits_on_enemy": {
+          "heavy": 8,
+          "light": 4,
+          "shot": 7,
+          "total": 19
+        },
+        "hits_on_player": {
+          "cannon": 0,
+          "claw_heavy": 2,
+          "claw_light": 1,
+          "total": 3
+        },
+        "iframe_avoids": {
+          "cannon": 1,
+          "claw_heavy": 0,
+          "claw_light": 0,
+          "total": 1
+        },
+        "opposite_colour_hits_on_enemy": 2,
+        "opposite_colour_hits_on_player": 2,
+        "outcome": "player_won",
+        "player_hp_end": 200,
+        "poise_breaks_inflicted": 10,
+        "poise_breaks_suffered": 2,
+        "poise_damage_to_enemy": 500,
+        "poise_damage_to_player": 200,
+        "seed": 16,
+        "shots": {
+          "enemy_fired": 4,
+          "enemy_hit": 0,
+          "player_fired": 12,
+          "player_hit": 7
+        },
+        "stance_swaps": {
+          "enemy": 14,
+          "player": 15
+        }
+      },
+      {
+        "claw_light_poise": {
+          "alone_capable": 0,
+          "breaks": 0,
+          "hits": 4
+        },
+        "damage_to_enemy": {
+          "heavy": 228,
+          "light": 181,
+          "shot": 140,
+          "total": 549
+        },
+        "damage_to_player": {
+          "cannon": 25,
+          "claw_heavy": 311,
+          "claw_light": 105,
+          "total": 441
+        },
+        "duration_ticks": 8524,
+        "enemy_evades": {
+          "attempted": 3,
+          "avoided_shot": 3,
+          "failed": 0
+        },
+        "enemy_flinches": 9,
+        "enemy_hp_end": 51,
+        "energy": {
+          "enemy_gained": 140,
+          "enemy_spent": 140,
+          "player_gained": 184,
+          "player_spent": 220
+        },
+        "hits_on_enemy": {
+          "heavy": 6,
+          "light": 7,
+          "shot": 5,
+          "total": 18
+        },
+        "hits_on_player": {
+          "cannon": 1,
+          "claw_heavy": 7,
+          "claw_light": 4,
+          "total": 12
+        },
+        "iframe_avoids": {
+          "cannon": 1,
+          "claw_heavy": 0,
+          "claw_light": 0,
+          "total": 1
+        },
+        "opposite_colour_hits_on_enemy": 1,
+        "opposite_colour_hits_on_player": 9,
+        "outcome": "enemy_won",
+        "player_hp_end": 0,
+        "poise_breaks_inflicted": 9,
+        "poise_breaks_suffered": 7,
+        "poise_damage_to_enemy": 475,
+        "poise_damage_to_player": 731,
+        "seed": 17,
+        "shots": {
+          "enemy_fired": 7,
+          "enemy_hit": 1,
+          "player_fired": 11,
+          "player_hit": 5
+        },
+        "stance_swaps": {
+          "enemy": 8,
+          "player": 16
+        }
+      },
+      {
+        "claw_light_poise": {
+          "alone_capable": 0,
+          "breaks": 0,
+          "hits": 3
+        },
+        "damage_to_enemy": {
+          "heavy": 301,
+          "light": 187,
+          "shot": 112,
+          "total": 600
+        },
+        "damage_to_player": {
+          "cannon": 50,
+          "claw_heavy": 144,
+          "claw_light": 96,
+          "total": 290
+        },
+        "duration_ticks": 7646,
+        "enemy_evades": {
+          "attempted": 5,
+          "avoided_shot": 5,
+          "failed": 0
+        },
+        "enemy_flinches": 10,
+        "enemy_hp_end": 0,
+        "energy": {
+          "enemy_gained": 96,
+          "enemy_spent": 120,
+          "player_gained": 192,
+          "player_spent": 220
+        },
+        "hits_on_enemy": {
+          "heavy": 8,
+          "light": 7,
+          "shot": 4,
+          "total": 19
+        },
+        "hits_on_player": {
+          "cannon": 2,
+          "claw_heavy": 3,
+          "claw_light": 3,
+          "total": 8
+        },
+        "iframe_avoids": {
+          "cannon": 1,
+          "claw_heavy": 0,
+          "claw_light": 0,
+          "total": 1
+        },
+        "opposite_colour_hits_on_enemy": 4,
+        "opposite_colour_hits_on_player": 5,
+        "outcome": "player_won",
+        "player_hp_end": 142,
+        "poise_breaks_inflicted": 10,
+        "poise_breaks_suffered": 3,
+        "poise_damage_to_enemy": 575,
+        "poise_damage_to_player": 387,
+        "seed": 18,
+        "shots": {
+          "enemy_fired": 6,
+          "enemy_hit": 2,
+          "player_fired": 11,
+          "player_hit": 4
+        },
+        "stance_swaps": {
+          "enemy": 14,
+          "player": 13
+        }
+      },
+      {
+        "claw_light_poise": {
+          "alone_capable": 0,
+          "breaks": 0,
+          "hits": 3
+        },
+        "damage_to_enemy": {
+          "heavy": 246,
+          "light": 187,
+          "shot": 167,
+          "total": 600
+        },
+        "damage_to_player": {
+          "cannon": 0,
+          "claw_heavy": 233,
+          "claw_light": 96,
+          "total": 329
+        },
+        "duration_ticks": 8320,
+        "enemy_evades": {
+          "attempted": 5,
+          "avoided_shot": 4,
+          "failed": 1
+        },
+        "enemy_flinches": 9,
+        "enemy_hp_end": 0,
+        "energy": {
+          "enemy_gained": 80,
+          "enemy_spent": 80,
+          "player_gained": 160,
+          "player_spent": 220
+        },
+        "hits_on_enemy": {
+          "heavy": 6,
+          "light": 7,
+          "shot": 6,
+          "total": 19
+        },
+        "hits_on_player": {
+          "cannon": 0,
+          "claw_heavy": 5,
+          "claw_light": 3,
+          "total": 8
+        },
+        "iframe_avoids": {
+          "cannon": 1,
+          "claw_heavy": 0,
+          "claw_light": 1,
+          "total": 2
+        },
+        "opposite_colour_hits_on_enemy": 4,
+        "opposite_colour_hits_on_player": 4,
+        "outcome": "player_won",
+        "player_hp_end": 53,
+        "poise_breaks_inflicted": 9,
+        "poise_breaks_suffered": 5,
+        "poise_damage_to_enemy": 475,
+        "poise_damage_to_player": 525,
+        "seed": 19,
+        "shots": {
+          "enemy_fired": 4,
+          "enemy_hit": 0,
+          "player_fired": 11,
+          "player_hit": 6
+        },
+        "stance_swaps": {
+          "enemy": 15,
+          "player": 16
+        }
+      },
+      {
+        "claw_light_poise": {
+          "alone_capable": 0,
+          "breaks": 0,
+          "hits": 1
+        },
+        "damage_to_enemy": {
+          "heavy": 76,
+          "light": 62,
+          "shot": 28,
+          "total": 166
+        },
+        "damage_to_player": {
+          "cannon": 0,
+          "claw_heavy": 48,
+          "claw_light": 32,
+          "total": 80
+        },
+        "duration_ticks": 4450,
+        "enemy_evades": {
+          "attempted": 0,
+          "avoided_shot": 0,
+          "failed": 0
+        },
+        "enemy_flinches": 3,
+        "enemy_hp_end": 434,
+        "energy": {
+          "enemy_gained": 32,
+          "enemy_spent": 60,
+          "player_gained": 20,
+          "player_spent": 20
+        },
+        "hits_on_enemy": {
+          "heavy": 2,
+          "light": 2,
+          "shot": 1,
+          "total": 5
+        },
+        "hits_on_player": {
+          "cannon": 0,
+          "claw_heavy": 1,
+          "claw_light": 1,
+          "total": 2
+        },
+        "iframe_avoids": {
+          "cannon": 1,
+          "claw_heavy": 0,
+          "claw_light": 0,
+          "total": 1
+        },
+        "opposite_colour_hits_on_enemy": 2,
+        "opposite_colour_hits_on_player": 2,
+        "outcome": "stalled_no_damage",
+        "player_hp_end": 200,
+        "poise_breaks_inflicted": 3,
+        "poise_breaks_suffered": 1,
+        "poise_damage_to_enemy": 150,
+        "poise_damage_to_player": 125,
+        "seed": 20,
+        "shots": {
+          "enemy_fired": 3,
+          "enemy_hit": 0,
+          "player_fired": 1,
+          "player_hit": 1
+        },
+        "stance_swaps": {
+          "enemy": 5,
+          "player": 7
+        }
+      }
+    ],
+    "runs": 20
+  },
+  "contract": {
+    "build_flag_defaults": "Makefile: EDITOR_PLAYTEST_FEATURES ?= cd-stream-bench; release profile; guest built from the canonical stage with the SDK delay-slot flags",
+    "build_flags": {
+      "EDITOR_PLAYTEST_CARGO_FEATURE_FLAGS": null,
+      "EDITOR_PLAYTEST_FEATURES": null,
+      "EDITOR_PLAYTEST_PSX_BUILD_FLAGS": null,
+      "PSOXIDE_GUEST_EXTRA_RUSTFLAGS": null,
+      "PSOXIDE_GUEST_STAGE_ROOT": "/private/tmp/claude-501/-Users-ebonura-Desktop-repos-PSoXide/5ceeb678-52d3-4698-ab48-20d37b258210/scratchpad/combat/guest-stage"
+    },
+    "dirty": false,
+    "dirty_diff_bytes": 0,
+    "dirty_paths": [],
+    "disc": "editor/projects/graybox-reach/baked/graybox_reach.cue",
+    "disc_sha256": "cc10b8d908b80ecf88a06428476e6bf9774747845225d921d77d8aba71709a21",
+    "frontend": "target/release/frontend",
+    "frontend_sha256": "ba5cb2599a7fdc77b673c925a9244edaa86cb5f80b33cf18c1253bd28874c19e",
+    "label": "baseline-graybox",
+    "launch": "frontend launch --embedded-playtest --input-tape <pad_poll tape> --stop-at-poll <polls> --steps 10000000000",
+    "parallel": 2,
+    "polls": 11400,
+    "project": "editor/projects/graybox-reach",
+    "rustc": "rustc 1.96.0-nightly (362211dc2 2026-03-24)",
+    "scenario": "graybox",
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20
+    ],
+    "skipped_build": true,
+    "source_branch": "feat/combat-feel",
+    "source_rev": "eb0c6898fb2054f4458b1fa44329158fe129e491",
+    "started_unix_ms": 1791452330146
+  }
+}

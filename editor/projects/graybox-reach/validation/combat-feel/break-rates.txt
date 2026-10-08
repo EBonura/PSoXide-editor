@@ -1,0 +1,63 @@
+baseline-graybox
+  player->enemy  heavy match        hits 102  breaks  83  rate 0.81
+  player->enemy  heavy opp          hits  19  breaks  14  rate 0.74
+  player->enemy  light match        hits  79  breaks  38  rate 0.48
+  player->enemy  light opp          hits  35  breaks  24  rate 0.69
+  player->enemy  shot match         hits  86  breaks   4  rate 0.05
+  player->enemy  shot opp           hits   9  breaks   0  rate 0.00
+  enemy->player  cannon match       hits   1  breaks   0  rate 0.00
+  enemy->player  cannon opp         hits   7  breaks   0  rate 0.00
+  enemy->player  claw_heavy match   hits  31  breaks  30  rate 0.97
+  enemy->player  claw_heavy opp     hits  37  breaks  36  rate 0.97
+  enemy->player  claw_light match   hits  31  breaks   0  rate 0.00
+  enemy->player  claw_light opp     hits  33  breaks   0  rate 0.00
+after-a-graybox
+  player->enemy  heavy match        hits 103  breaks  80  rate 0.78
+  player->enemy  heavy opp          hits  11  breaks  10  rate 0.91
+  player->enemy  light match        hits  85  breaks  10  rate 0.12
+  player->enemy  light opp          hits  40  breaks  30  rate 0.75
+  player->enemy  shot match         hits  98  breaks   3  rate 0.03
+  player->enemy  shot opp           hits  21  breaks   0  rate 0.00
+  enemy->player  cannon opp         hits   6  breaks   0  rate 0.00
+  enemy->player  claw_heavy match   hits  33  breaks  31  rate 0.94
+  enemy->player  claw_heavy opp     hits  32  breaks  32  rate 1.00
+  enemy->player  claw_light match   hits  32  breaks   0  rate 0.00
+  enemy->player  claw_light opp     hits  26  breaks  21  rate 0.81
+after-b-graybox
+  player->enemy  heavy match        hits  93  breaks  68  rate 0.73
+  player->enemy  heavy opp          hits  12  breaks   9  rate 0.75
+  player->enemy  light match        hits  71  breaks   9  rate 0.13
+  player->enemy  light opp          hits  36  breaks  28  rate 0.78
+  player->enemy  shot match         hits  94  breaks   2  rate 0.02
+  player->enemy  shot opp           hits  14  breaks   0  rate 0.00
+  enemy->player  cannon opp         hits   7  breaks   0  rate 0.00
+  enemy->player  claw_heavy match   hits  37  breaks  34  rate 0.92
+  enemy->player  claw_heavy opp     hits  32  breaks  30  rate 0.94
+  enemy->player  claw_light match   hits  28  breaks   0  rate 0.00
+  enemy->player  claw_light opp     hits  29  breaks   0  rate 0.00
+baseline-heavy
+  player->enemy  heavy match        hits  87  breaks  72  rate 0.83
+  player->enemy  heavy opp          hits   7  breaks   5  rate 0.71
+  player->enemy  light match        hits  68  breaks  20  rate 0.29
+  player->enemy  light opp          hits  17  breaks   3  rate 0.18
+  player->enemy  shot match         hits   5  breaks   0  rate 0.00
+  player->enemy  shot opp           hits   3  breaks   0  rate 0.00
+  enemy->player  cannon match       hits  24  breaks   0  rate 0.00
+  enemy->player  cannon opp         hits  22  breaks   0  rate 0.00
+  enemy->player  claw_heavy match   hits  27  breaks   3  rate 0.11
+  enemy->player  claw_heavy opp     hits  41  breaks   9  rate 0.22
+  enemy->player  claw_light match   hits  30  breaks   0  rate 0.00
+  enemy->player  claw_light opp     hits  31  breaks   0  rate 0.00
+after-b-heavy
+  player->enemy  heavy match        hits  87  breaks  72  rate 0.83
+  player->enemy  heavy opp          hits  10  breaks   9  rate 0.90
+  player->enemy  light match        hits  77  breaks  14  rate 0.18
+  player->enemy  light opp          hits  14  breaks  12  rate 0.86
+  player->enemy  shot match         hits   1  breaks   0  rate 0.00
+  player->enemy  shot opp           hits   2  breaks   0  rate 0.00
+  enemy->player  cannon match       hits  23  breaks   0  rate 0.00
+  enemy->player  cannon opp         hits  22  breaks   0  rate 0.00
+  enemy->player  claw_heavy match   hits  47  breaks   2  rate 0.04
+  enemy->player  claw_heavy opp     hits  12  breaks  10  rate 0.83
+  enemy->player  claw_light match   hits  42  breaks   0  rate 0.00
+  enemy->player  claw_light opp     hits  27  breaks   0  rate 0.00
