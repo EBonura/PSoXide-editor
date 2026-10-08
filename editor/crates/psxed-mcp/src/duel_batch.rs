@@ -417,6 +417,8 @@ pub fn execute(options: &BatchOptions) -> Result<Value, String> {
         crate::play::build_disc(&options.frontend, &project)?
     };
     std::fs::create_dir_all(&options.out).map_err(|e| e.to_string())?;
+    // Taken before the runs so edits made while they are in flight cannot leak into it.
+    let contract = contract(options, &project, &cue);
     let next = AtomicUsize::new(0);
     let results: Mutex<Vec<(u8, Result<Value, String>)>> = Mutex::new(Vec::new());
     std::thread::scope(|scope| {
@@ -434,7 +436,7 @@ pub fn execute(options: &BatchOptions) -> Result<Value, String> {
     });
     let runs = results.into_inner().unwrap();
     let report = json!({
-        "contract": contract(options, &project, &cue),
+        "contract": contract,
         "aggregate": aggregate(&runs),
     });
     std::fs::write(
