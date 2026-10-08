@@ -630,6 +630,11 @@ pub fn build_package(
             mode: project.bsp_cook_mode,
             ambient: [32; 3],
             texture_asset_base,
+            collision_hulls: if project.collision_hull_bsp {
+                crate::brush_collision_hulls::CollisionHullStrategy::HullBsp
+            } else {
+                crate::brush_collision_hulls::CollisionHullStrategy::SpatialChains
+            },
         },
     ) {
         Ok(compiled) => compiled,
@@ -2367,7 +2372,6 @@ pub fn build_package(
                 }
                 paths.into_iter().collect()
             },
-            runtime_texture_split_max_edge: project.runtime_texture_split_max_edge,
             assets,
             rooms,
             models,
