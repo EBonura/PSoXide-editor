@@ -54,6 +54,8 @@ impl Scenario {
         match self {
             Self::Graybox => Ok(project_root.to_path_buf()),
             Self::Heavy => {
+                // The asset link below must not depend on the caller's working directory.
+                let project_root = &std::fs::canonicalize(project_root).map_err(|e| e.to_string())?;
                 let parent = project_root
                     .parent()
                     .ok_or_else(|| format!("{} has no parent", project_root.display()))?;
