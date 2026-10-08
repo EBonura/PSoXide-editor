@@ -1251,6 +1251,11 @@ impl Scene for Playtest {
 
             // Player draws through the same compact model path as
             // placed model instances.
+            // The white flash the body wears this frame: a struck body, or a
+            // charge building on an arch. Read before the character borrow.
+            let player_flash_q8 =
+                psx_game_runtime::hit_stop::flash_strength_q8(self.player_hit_flash)
+                    .max(self.arch_charge_glow_q8(ctx.sim_tick));
             // `character` by reference: copying the whole RuntimeCharacter
             // (688 B) into the tuple cost a memcpy per frame.
             if let (Some(character), Some(player_pose)) =
@@ -1348,7 +1353,7 @@ impl Scene for Playtest {
                             stance_clut,
                             Some(player_lit_tint(
                                 self.player_stance.active(),
-                                self.player_hit_flash,
+                                player_flash_q8,
                             )),
                             &mut primitive_packets,
                             &mut world,
@@ -1785,6 +1790,9 @@ impl Scene for Playtest {
                         font,
                         self.combat_flow.energy,
                         self.hook_attached.map(|_| self.combat_flow.air_left),
+                        self.hook_charge
+                            .charging()
+                            .then(|| (self.hook_charge.progress_q12(), self.hook_charge.ready())),
                     );
                 }
                 const VITALITY_Q12_ONE: u16 = 4096;

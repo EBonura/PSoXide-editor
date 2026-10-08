@@ -1188,6 +1188,7 @@ pub(crate) fn draw_combat_energy(
     font: &FontAtlas,
     energy: u16,
     air_left: Option<u16>,
+    charge: Option<(u16, bool)>,
 ) {
     use psx_game_runtime::combat_flow::{AIR_TICKS, ENERGY_MAX, SHOT_COST};
     let rgb = if energy < SHOT_COST {
@@ -1220,5 +1221,23 @@ pub(crate) fn draw_combat_energy(
             rgb,
         );
         font.draw_text(142, 44, "TETHER", rgb);
+    }
+    // The arch charge: fills over the hold, and turns white once full.
+    if let Some((progress_q12, ready)) = charge {
+        let rgb = if ready {
+            (255, 245, 210)
+        } else {
+            (255, 200, 96)
+        };
+        draw_rect(gpu, 142, 56, 48, 6, (25, 30, 34));
+        draw_rect(
+            gpu,
+            143,
+            57,
+            (u32::from(progress_q12.min(4096)) * 46 / 4096) as i16,
+            4,
+            rgb,
+        );
+        font.draw_text(142, 65, if ready { "RELEASE" } else { "CHARGE" }, rgb);
     }
 }

@@ -99,6 +99,7 @@ mod bsp_runtime;
 #[cfg(feature = "cd-stream-benchmark")]
 use psx_game_runtime::cd_stream;
 mod aim_control;
+mod arch_charge_runtime;
 mod attack_assist;
 mod character_runtime;
 mod combat_input;

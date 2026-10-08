@@ -332,7 +332,7 @@ impl Playtest {
         self.hook_attached = None;
         self.hook_target = None;
         self.hook_travel = None;
-        self.hook_charge.tick(false, false);
+        self.hook_charge.cancel();
         self.player_dash_assembly.cancel();
         self.evade_run_hold_consumed = true;
         self.evade_run_hold_ticks = 0;
@@ -396,7 +396,8 @@ impl Playtest {
         if self.combat_flow.air_tick(
             self.hook_attached.is_some(),
             self.hook_travel.is_none() && self.motor.grounded(),
-            self.ranged_ready.firing(ctx.sim_tick.as_u32()),
+            // A shot and a held charge both pause the refill.
+            self.ranged_ready.firing(ctx.sim_tick.as_u32()) || self.hook_charge.charging(),
         ) {
             self.detach_arch(ctx.sim_tick);
             telemetry::debug_log("arch:timeout");
@@ -412,7 +413,7 @@ impl Playtest {
             return false;
         }
         let Some(mut flight) = self.hook_travel else {
-            self.hook_charge.tick(false, self.motor.grounded());
+            self.hook_charge.cancel();
             return false;
         };
         if let Some(index) = self.hook_target {

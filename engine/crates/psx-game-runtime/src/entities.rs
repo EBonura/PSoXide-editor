@@ -3101,6 +3101,84 @@ mod tests {
         );
     }
     #[test]
+    fn a_charged_bolt_keeps_its_poise_where_an_ordinary_bolt_is_capped() {
+        use crate::hook_points::CHARGED_POISE_DAMAGE;
+        // Ordinary bolts: a quarter of the authored poise, at most 10 (doubled
+        // against the opposite colour), so three of them still do not break a
+        // fresh enemy of capacity 50.
+        let mut e = flow_enemy();
+        for _ in 0..3 {
+            let ordinary = e.apply_projectile_hit(
+                &DUAL_ENEMY,
+                0,
+                VitalityChannelId::Two,
+                28,
+                CHARGED_POISE_DAMAGE,
+            );
+            assert!(ordinary.connected && !ordinary.staggered);
+        }
+        // A charged bolt delivers its full poise: one matching hit leaves the
+        // enemy 20 short of breaking, and a second one breaks it.
+        let mut e = flow_enemy();
+        assert!(
+            !e.apply_empowered_hit(
+                &DUAL_ENEMY,
+                0,
+                VitalityChannelId::One,
+                10,
+                CHARGED_POISE_DAMAGE
+            )
+            .staggered
+        );
+        assert!(
+            e.apply_empowered_hit(
+                &DUAL_ENEMY,
+                0,
+                VitalityChannelId::One,
+                10,
+                CHARGED_POISE_DAMAGE
+            )
+            .staggered
+        );
+        // Opposite colour doubles it, so one charged bolt breaks a fresh enemy.
+        let mut e = flow_enemy();
+        assert!(
+            e.apply_empowered_hit(
+                &DUAL_ENEMY,
+                0,
+                VitalityChannelId::Two,
+                10,
+                CHARGED_POISE_DAMAGE
+            )
+            .staggered
+        );
+    }
+
+    #[test]
+    fn break_grace_still_protects_against_a_charged_bolt() {
+        use crate::hook_points::CHARGED_POISE_DAMAGE;
+        let mut e = flow_enemy();
+        assert!(
+            e.apply_empowered_hit(
+                &DUAL_ENEMY,
+                0,
+                VitalityChannelId::Two,
+                10,
+                CHARGED_POISE_DAMAGE
+            )
+            .staggered
+        );
+        // Recovering and in grace: another charged bolt damages but never re-breaks.
+        let again = e.apply_empowered_hit(
+            &DUAL_ENEMY,
+            0,
+            VitalityChannelId::Two,
+            10,
+            CHARGED_POISE_DAMAGE,
+        );
+        assert!(again.connected && !again.staggered);
+    }
+    #[test]
     fn opposite_colour_adds_poise_and_matching_colour_adds_none() {
         let e = flow_enemy();
         assert_eq!(e.scaled_stance_poise(0, VitalityChannelId::One, 25, 25), 25);

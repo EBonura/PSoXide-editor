@@ -2,7 +2,7 @@
 //! authored release frames and stance-aware damage. Lock-on never readies a gun.
 use super::*;
 use psx_game_runtime::{
-    combat,
+    combat, hook_points,
     projectiles::{self, CombatTeam, ProjectileSpawn},
 };
 
@@ -156,6 +156,9 @@ impl Playtest {
                     continue;
                 }
             }
+            // The charged arch shot, if this shot carries it and the Energy is
+            // still there. It applies to the first emitter only.
+            let charged = self.ranged_ready.charged && self.combat_flow.can_shoot_charged();
             let mut visual = release.visual;
             visual.crystal = true;
             visual.core_rgb = [224, 255, 248];
@@ -164,19 +167,49 @@ impl Playtest {
             visual.length_ticks = 3;
             visual.trail_segments = 4;
             visual.impact_rgb = [144, 248, 208];
+            if charged {
+                // Gold, where the ordinary bolt is teal, and much larger.
+                visual.core_rgb = [255, 252, 224];
+                visual.glow_rgb = [255, 200, 96];
+                visual.glow_scale_q8 = 1024;
+                visual.length_ticks = 5;
+                visual.trail_segments = 6;
+                visual.impact_rgb = [255, 224, 140];
+                visual.impact_lifetime_ticks = visual.impact_lifetime_ticks.saturating_mul(2);
+            }
             if !self.combat_flow.can_shoot() {
                 break;
             }
+            let base_damage = if charged {
+                release
+                    .damage
+                    .saturating_mul(hook_points::CHARGED_DAMAGE_MULTIPLIER)
+            } else {
+                release.damage
+            };
             let damage = self
                 .vitality_modifiers()
-                .outgoing_damage(VitalityChannelId::Two, release.damage);
+                .outgoing_damage(VitalityChannelId::Two, base_damage);
             let spawn = ProjectileSpawn {
                 position: release.position,
                 velocity: projectiles::velocity_toward(release.position, target, release.speed),
-                radius: release.radius,
+                radius: if charged {
+                    release
+                        .radius
+                        .saturating_mul(hook_points::CHARGED_RADIUS_QUARTERS)
+                        / 4
+                } else {
+                    release.radius
+                },
                 damage,
                 // The receiving actor evaluates the visible interrupt window.
-                poise_damage: release.poise_damage,
+                // A charged bolt carries a poise share of its own instead.
+                poise_damage: if charged {
+                    hook_points::CHARGED_POISE_DAMAGE
+                } else {
+                    release.poise_damage
+                },
+                empowered: charged,
                 lifetime_ticks: release.lifetime_ticks,
                 room: self.room_index,
                 team: CombatTeam::Player,
@@ -188,7 +221,13 @@ impl Playtest {
             if self.combat_projectiles.spawn(spawn).is_err() {
                 break;
             }
-            self.combat_flow.spend_shot();
+            if charged {
+                self.combat_flow.spend_charged_shot();
+                self.ranged_ready.charged = false;
+                telemetry::debug_log("arch charge:fired");
+            } else {
+                self.combat_flow.spend_shot();
+            }
             if self.duel.active {
                 duel::log_values(
                     "duel:shot",

@@ -1590,8 +1590,15 @@ impl Playtest {
             {
                 return true;
             }
-            if ctx.just_pressed(ACTIVE_HEAVY_ATTACK_BUTTON) {
-                self.attack_buffer.request(5, now.as_u32());
+            if self.hook_attached.is_some() {
+                // On an arch the fire button charges: the press arms it and the
+                // release fires (see `arch_charge_runtime`).
+                self.update_arch_charge(ctx, now, action_locked);
+            } else {
+                self.hook_charge.cancel();
+                if ctx.just_pressed(ACTIVE_HEAVY_ATTACK_BUTTON) {
+                    self.attack_buffer.request(5, now.as_u32());
+                }
             }
             if !action_locked
                 && self.motor.action().is_idle()

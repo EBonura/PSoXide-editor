@@ -2777,6 +2777,7 @@ mod life_reset_tests {
                 radius: 2,
                 damage: 50,
                 poise_damage: 50,
+                empowered: false,
                 lifetime_ticks: 100,
                 room: RoomIndex::ZERO,
                 team: CombatTeam::Enemy,
