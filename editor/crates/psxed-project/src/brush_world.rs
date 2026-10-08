@@ -2521,6 +2521,77 @@ fn flat_white_psxt() -> Vec<u8> {
     .expect("fixed brush fallback texture is valid")
 }
 
+/// The world front end the stream partitioner reuses: exactly the surfaces,
+/// texture dimensions and collision body bounds `compile_brush_world` feeds
+/// its static world model, without the BSP, visibility, lighting or packing.
+///
+/// Render surfaces are subdivided at the project's authored patch extent with
+/// no resident-face budget, because the partitioner exists to cook worlds that
+/// do not fit one resident map. `project` must already be at engine scale.
+pub(crate) struct PartitionFrontEnd {
+    /// Unsplit CSG surfaces: what the surface BSP is built from.
+    pub topology: Vec<CompiledSurface>,
+    /// PS1-sized render surfaces, before any region cut.
+    pub render: Vec<CompiledSurface>,
+    /// Static world brushes (door and destructible submodels excluded).
+    pub brushes: Vec<Brush>,
+    /// Point, then the two body hulls.
+    pub hull_bounds: [CollisionHullBounds; 3],
+    pub uv_window: UvWindowStats,
+}
+
+pub(crate) fn partition_front_end(
+    project: &ProjectDocument,
+    project_root: &Path,
+) -> Result<PartitionFrontEnd, BrushWorldCookError> {
+    let scene = project.active_scene();
+    let hull_bounds = collision_hull_bounds(authored_body_hulls(project));
+    let mut brushes = Vec::new();
+    for (brush_index, brush) in scene.brushes.iter().enumerate() {
+        if !brush.solve().is_valid() {
+            return Err(BrushWorldCookError::InvalidBrush {
+                brush: brush_index,
+                face: None,
+            });
+        }
+        if brush.mover.is_none() {
+            brushes.push(brush.clone());
+        }
+    }
+    if brushes.is_empty() {
+        return Err(BrushWorldCookError::EmptyStaticWorld);
+    }
+    let options = BrushWorldCookOptions {
+        project_root,
+        mode: BrushWorldCookMode::Draft,
+        ambient: [0; 3],
+        texture_asset_base: 0,
+    };
+    let texture_dims = brush_texture_dims(project, scene, &options);
+    let uv_window_skip = sky_aperture_materials(project);
+    let patch_extent = match &scene.node(NodeId::ROOT).unwrap().kind {
+        NodeKind::World { culling, .. } => culling.bsp_patch_extent.clamp(64, 256) as f64,
+        _ => ENGINE_SURFACE_EXTENT_UNITS,
+    };
+    let (topology, render) = compile_model_surfaces(&brushes);
+    let render = subdivide_drawable_surfaces(
+        merge_render_rectangles(render),
+        &uv_window_skip,
+        patch_extent,
+        usize::MAX,
+        &[],
+    );
+    let (render, uv_window) = fit_surfaces_to_uv_window(render, &texture_dims, &uv_window_skip);
+    let render = split_wide_surfaces(render, psx_bsp::render::PXBSP_MAX_FACE_VERTICES);
+    Ok(PartitionFrontEnd {
+        topology,
+        render,
+        brushes,
+        hull_bounds,
+        uv_window,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
