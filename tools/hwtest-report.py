@@ -324,6 +324,82 @@ LABELS = {
     0x138: "spstack_level2_on_scratchpad_stack",
     0x139: "spstack_level2_on_ram_stack_during_list_dma",
     0x13A: "spstack_level2_on_scratchpad_stack_during_list_dma",
+    0x140: "spu_dma_idle_ram_loads",
+    0x141: "spu_dma_running_ram_loads",
+    0x142: "otc_dma_idle_ram_loads",
+    0x143: "otc_dma_running_ram_loads",
+    0x144: "gpu_block_dma_idle_ram_loads",
+    0x145: "gpu_block_dma_running_ram_loads",
+    0x192: "gte_rtps_then_swc2_mac1",
+    0x193: "gte_rtps_then_swc2_sxy2",
+    0x194: "gte_nclip_then_swc2_mac0",
+    0x195: "gte_sqr_then_swc2_mac1",
+    0x150: "gte_rtps_then_read_mac0",
+    0x151: "gte_rtps_then_read_mac1",
+    0x152: "gte_rtps_back_to_back",
+    0x153: "gte_nclip_then_read_mac0",
+    0x154: "gte_nclip_then_read_mac1",
+    0x155: "gte_nclip_back_to_back",
+    0x156: "gte_op_then_read_mac0",
+    0x157: "gte_op_then_read_mac1",
+    0x158: "gte_op_back_to_back",
+    0x159: "gte_dpcs_then_read_mac0",
+    0x15A: "gte_dpcs_then_read_mac1",
+    0x15B: "gte_dpcs_back_to_back",
+    0x15C: "gte_intpl_then_read_mac0",
+    0x15D: "gte_intpl_then_read_mac1",
+    0x15E: "gte_intpl_back_to_back",
+    0x15F: "gte_mvmva_then_read_mac0",
+    0x160: "gte_mvmva_then_read_mac1",
+    0x161: "gte_mvmva_back_to_back",
+    0x162: "gte_ncds_then_read_mac0",
+    0x163: "gte_ncds_then_read_mac1",
+    0x164: "gte_ncds_back_to_back",
+    0x165: "gte_cdp_then_read_mac0",
+    0x166: "gte_cdp_then_read_mac1",
+    0x167: "gte_cdp_back_to_back",
+    0x168: "gte_ncdt_then_read_mac0",
+    0x169: "gte_ncdt_then_read_mac1",
+    0x16A: "gte_ncdt_back_to_back",
+    0x16B: "gte_nccs_then_read_mac0",
+    0x16C: "gte_nccs_then_read_mac1",
+    0x16D: "gte_nccs_back_to_back",
+    0x16E: "gte_cc_then_read_mac0",
+    0x16F: "gte_cc_then_read_mac1",
+    0x170: "gte_cc_back_to_back",
+    0x171: "gte_ncs_then_read_mac0",
+    0x172: "gte_ncs_then_read_mac1",
+    0x173: "gte_ncs_back_to_back",
+    0x174: "gte_nct_then_read_mac0",
+    0x175: "gte_nct_then_read_mac1",
+    0x176: "gte_nct_back_to_back",
+    0x177: "gte_sqr_then_read_mac0",
+    0x178: "gte_sqr_then_read_mac1",
+    0x179: "gte_sqr_back_to_back",
+    0x17A: "gte_dcpl_then_read_mac0",
+    0x17B: "gte_dcpl_then_read_mac1",
+    0x17C: "gte_dcpl_back_to_back",
+    0x17D: "gte_dpct_then_read_mac0",
+    0x17E: "gte_dpct_then_read_mac1",
+    0x17F: "gte_dpct_back_to_back",
+    0x180: "gte_avsz3_then_read_mac0",
+    0x181: "gte_avsz3_then_read_mac1",
+    0x182: "gte_avsz3_back_to_back",
+    0x183: "gte_avsz4_then_read_mac0",
+    0x184: "gte_avsz4_then_read_mac1",
+    0x185: "gte_avsz4_back_to_back",
+    0x186: "gte_rtpt_then_read_mac0",
+    0x187: "gte_rtpt_then_read_mac1",
+    0x188: "gte_rtpt_back_to_back",
+    0x189: "gte_gpf_then_read_mac0",
+    0x18A: "gte_gpf_then_read_mac1",
+    0x18B: "gte_gpf_back_to_back",
+    0x18C: "gte_gpl_then_read_mac0",
+    0x18D: "gte_gpl_then_read_mac1",
+    0x18E: "gte_gpl_back_to_back",
+    0x18F: "gte_ncct_then_read_mac0",
+    0x190: "gte_ncct_then_read_mac1",
+    0x191: "gte_ncct_back_to_back",
     # v1.27 CONSOLE TESTS (src/console_tests.rs); v2.0 runs them as steps of
     # the linear run. console_rows() below names the fields.
     0x2C0: "kernel_enter_critical_section_cycles",
@@ -456,7 +532,7 @@ def list_busy_rows(capture: Capture) -> list[str]:
 # comment above its id; tools/test_hwtest_tools.py keeps this table equal to
 # those comments. Each entry: label, (min field, median field, max field).
 V2_RECORDS = {
-    0x400: ("boot_vector", ("bios_stub_standard", "vector_hash_low", "vector_hash_high")),
+    0x400: ("boot_vector", ("bios_stub_standard", "vector_hash_lo", "vector_hash_hi")),
     0x401: ("boot_reverb_a", ("spucnt", "spustat", "reverb_volume_left")),
     0x402: ("boot_reverb_b", ("reverb_volume_right", "reverb_work_base", "eon_low")),
     0x403: ("boot_reverb_c", ("config_hash_low", "config_hash_high", "config_nonzero_words")),
@@ -470,18 +546,18 @@ V2_RECORDS = {
     0x424: ("mdec_trace_idle", ("samples", "last_status_high", "last_change_clocks")),
     0x425: ("mdec_trace_busy", ("samples", "last_status_high", "last_change_clocks")),
     0x426: ("mdec_timeout", ("chcr_low", "bcr_high", "madr_low")),
-    0x430: ("sb1_audit", ("blocks", "flags_or_and_last", "first_end_block")),
+    0x430: ("sb1_audit", ("blocks_or_loop_starts", "flags_or_and_last_or_readback_low", "first_end_block_or_readback_high")),
     0x431: ("sb1_upload", ("loop_starts", "readback_fnv_low", "readback_fnv_high")),
 }
 for _k in range(5):
     V2_RECORDS[0x432 + _k] = (
         f"sb1_stage_{_k + 1}",
-        ("envelope_frame_32", "envelope_frame_100", "endx_per_checkpoint"),
+        ("envelope_at_frame_32", "envelope_at_frame_100", "endx_bit_per_checkpoint"),
     )
 for _k in range(10):
     V2_RECORDS[0x410 + _k] = (
         f"handoff_area_{_k}",
-        ("clean_flags_0x3f_is_clean", "interrupt_mask", "voices_active_high_dma_busy_low"),
+        ("clean_flags_0x3f_is_clean", "interrupt_mask", "voices_active_high_dma_busy_mask_low"),
     )
 for _k in range(22):
     V2_RECORDS[0x440 + _k] = (
@@ -513,13 +589,84 @@ for _k in range(5):
 for _slot in range(2):
     for _k in range(7):
         V2_RECORDS[0x4A0 + _slot * 8 + _k] = (
-            f"handoff_{('baseline', 'safe2')[_slot]}_stage_{_k}",
-            ("voices_with_volume_low", "blocking_vblanks_or_readback_match", "endx_low_or_hash_low"),
+            f"handoff_stage_{('baseline', 'safe2')[_slot]}_{_k}",
+            ("voices_with_volume_low", "blocking_event_vblanks_or_readback_match", "endx_low_or_readback_hash_low"),
         )
 for _k in range(8):
     V2_RECORDS[0x500 + _k] = (
         f"cl2_variant_{_k}",
-        ("ok_bits_and_match", "diag_or_fifo_wait_low", "drive_state_high"),
+        ("ok_bits_and_data_match", "diag_or_fifo_wait_low", "drive_state_high"),
+    )
+# SIO0 measurements (src/sio_timing.rs), the pad engine (src/pad_engine.rs)
+# and the Timer 1 rate (src/timer1_rate.rs).
+_ACK = ("ack_rise_cycles", "ack_width_cycles", "byte_done_cycles")
+_ANSWER = ("replies_0_and_1", "replies_2_and_3", "ack_mask_and_flags")
+for _port in range(2):
+    V2_RECORDS[0x600 + _port] = (
+        f"sio_setup_p{_port + 1}",
+        ("first_ok_delay_cycles", "last_failed_delay_cycles", "ok_mask_per_delay"),
+    )
+    for _k in range(9):
+        V2_RECORDS[0x610 + 16 * _port + _k] = (f"sio_pad_ack_p{_port + 1}_b{_k}", _ACK)
+    for _k in range(4):
+        V2_RECORDS[0x6C0 + 8 * _port + _k] = (f"sio_card_ack_p{_port + 1}_b{_k}", _ACK)
+    V2_RECORDS[0x630 + _port] = (f"sio_pad_answer_p{_port + 1}", _ANSWER)
+    V2_RECORDS[0x634 + _port] = (f"sio_card_answer_p{_port + 1}", _ANSWER)
+    V2_RECORDS[0x638 + _port] = (
+        f"engine_hotplug_p{_port + 1}",
+        ("transitions", "initial_health_and_final_health", "frames_absent"),
+    )
+    V2_RECORDS[0x63A + _port] = (
+        f"engine_hotplug_frames_p{_port + 1}",
+        ("first_event_frame", "last_event_frame", "frames_watched"),
+    )
+    for _load in range(2):
+        _base = 0x640 + 4 * (2 * _port + _load)
+        _tag = f"p{_port + 1}_{('idle', 'loaded')[_load]}"
+        V2_RECORDS[_base] = (
+            f"sio_mix_count_{_tag}",
+            ("pad_ok_and_tried", "card_ok_and_tried", "error_counts"),
+        )
+        V2_RECORDS[_base + 1] = (
+            f"sio_mix_card_{_tag}",
+            ("card_frame_hblanks_min", "card_frame_hblanks_med", "card_frame_hblanks_max"),
+        )
+        V2_RECORDS[_base + 2] = (
+            f"sio_mix_pad_{_tag}",
+            ("pad_poll_cycles_min", "pad_poll_cycles_med", "pad_poll_cycles_max"),
+        )
+V2_RECORDS[0x650] = ("timer1_free", ("hblanks_in_window", "frames_in_window", "spins_without_vblank"))
+V2_RECORDS[0x651] = ("timer1_polled", ("hblanks_in_window", "distinct_values_seen", "largest_step_between_reads"))
+V2_RECORDS[0x652] = ("timer1_polled_reads", ("reads_low", "reads_high", "steps_larger_than_one"))
+for _k in range(7):
+    V2_RECORDS[0x660 + _k] = (
+        f"engine_setup_{2000 + 1000 * _k}",
+        ("clean_updates_port1", "faults_port1", "health_port1_and_port2"),
+    )
+for _pacing, _base in (("ack", 0x670), ("timed", 0x678)):
+    V2_RECORDS[_base] = (f"engine_port_{_pacing}_p1", ("updates", "faults", "health_and_last_fault"))
+    V2_RECORDS[_base + 1] = (f"engine_port_{_pacing}_p2", ("updates", "faults", "health_and_last_fault"))
+    V2_RECORDS[_base + 2] = (f"engine_stats_{_pacing}", ("events", "stalls", "spurious"))
+    V2_RECORDS[_base + 3] = (f"engine_work_{_pacing}", ("work_avg", "work_min", "work_idle_avg"))
+    V2_RECORDS[_base + 4] = (
+        f"engine_pad_{_pacing}",
+        ("mode_changes", "kicks", "final_mode_and_buttons_seen"),
+    )
+V2_RECORDS[0x690] = ("engine_card_pad", ("pad_faults", "leased_skips", "card_checksum_errors"))
+V2_RECORDS[0x691] = ("engine_card_ops", ("card_ok", "card_tried", "slot_with_card"))
+V2_RECORDS[0x692] = ("engine_card_wait", ("lease_wait_med_cycles", "lease_wait_max_cycles", "pad_updates"))
+V2_RECORDS[0x693] = (
+    "engine_card_frame",
+    ("card_frame_hblanks_min", "card_frame_hblanks_med", "card_frame_hblanks_max"),
+)
+for _phase in range(2):
+    _base = 0x6A0 + 4 * _phase
+    _tag = ("no_ports", "both_ports")[_phase]
+    V2_RECORDS[_base] = (f"engine_load_work_{_tag}", ("rounds_avg", "rounds_min", "rounds_max"))
+    V2_RECORDS[_base + 1] = (f"engine_load_health_{_tag}", ("pad_faults", "stalls", "spurious"))
+    V2_RECORDS[_base + 2] = (
+        f"engine_load_stack_{_tag}",
+        ("handler_stack_unused_bytes", "events", "kicks"),
     )
 V2_HANDOFF_CLEAN = 0x3F
 V2_SILENT = 0x7F
@@ -919,7 +1066,74 @@ WORK_BY_ID = {
     0x138: 16,
     0x139: 16,
     0x13A: 16,
-    **{record_id: 0 for record_id in range(0x1F0, 0x1F6)},
+    **{record_id: 64 for record_id in range(0x140, 0x146)},
+    **{record_id: 16 for record_id in range(0x192, 0x196)},
+    0x150: 16,
+    0x151: 16,
+    0x152: 16,
+    0x153: 16,
+    0x154: 16,
+    0x155: 16,
+    0x156: 16,
+    0x157: 16,
+    0x158: 16,
+    0x159: 16,
+    0x15A: 16,
+    0x15B: 16,
+    0x15C: 16,
+    0x15D: 16,
+    0x15E: 16,
+    0x15F: 16,
+    0x160: 16,
+    0x161: 16,
+    0x162: 8,
+    0x163: 8,
+    0x164: 8,
+    0x165: 8,
+    0x166: 8,
+    0x167: 8,
+    0x168: 8,
+    0x169: 8,
+    0x16A: 8,
+    0x16B: 8,
+    0x16C: 8,
+    0x16D: 8,
+    0x16E: 16,
+    0x16F: 16,
+    0x170: 16,
+    0x171: 8,
+    0x172: 8,
+    0x173: 8,
+    0x174: 8,
+    0x175: 8,
+    0x176: 8,
+    0x177: 16,
+    0x178: 16,
+    0x179: 16,
+    0x17A: 16,
+    0x17B: 16,
+    0x17C: 16,
+    0x17D: 8,
+    0x17E: 8,
+    0x17F: 8,
+    0x180: 16,
+    0x181: 16,
+    0x182: 16,
+    0x183: 16,
+    0x184: 16,
+    0x185: 16,
+    0x186: 8,
+    0x187: 8,
+    0x188: 8,
+    0x189: 16,
+    0x18A: 16,
+    0x18B: 16,
+    0x18C: 16,
+    0x18D: 16,
+    0x18E: 16,
+    0x18F: 8,
+    0x190: 8,
+    0x191: 8,
     **{record_id: 0 for record_id in LABELS if 0x200 <= record_id < 0x2B0},
     **{record_id: 0 for record_id in LABELS if 0x2C0 <= record_id < 0x320},
     0x72: 128,
