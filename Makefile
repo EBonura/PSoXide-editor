@@ -36,7 +36,7 @@
 	hwtest-capture hwtest-diff hwtest-baseline hwtest-capture-full hwtest-diff-full hwtest-baseline-full hwtest-capture-perf hwtest-diff-perf hwtest-baseline-perf hwtest-probe-capture hwtest-silicon hwtest-verify-code hwtest-audio hwtest-audio-chain \
 	hwtest-sb4-capture hwtest-sb4 hwtest-sb4-baseline \
 	hello-engine hello-engine-disc run-hello-engine \
-	cook-playtest build-editor-playtest editor-blank-playtest-check editor-bsp-liquid-check editor-souls-bsp-check profile-demo3 profile-demo3-forward \
+	cook-playtest occupancy-report build-editor-playtest editor-blank-playtest-check editor-bsp-liquid-check editor-souls-bsp-check profile-demo3 profile-demo3-forward \
 	profile-demo3-paced20 profile-demo3-paced20-forward profile-demo3-disc-stream \
 	profile-demo3-disc-stream-forward profile-demo7-camera-sweep
 
@@ -905,6 +905,15 @@ $(foreach example,$(DATA_DISC_EXAMPLES),$(eval $(call build_data_disc,$(example)
 # the editor's output replaced.
 cook-playtest:
 	cd editor && cargo run --release -p psxed-project --bin cook-playtest -- "$(PROJECT)"
+
+# How full RAM, VRAM and SPU RAM are for a cooked project's guest. `--map` is the
+# link map `PSOXIDE_GUEST_LINK_MAP=<path> make build-editor-playtest` writes;
+# the other inputs are optional (see the bin's header). Example:
+#   make occupancy-report OCCUPANCY_ARGS="--map /tmp/gr.map --exe build/examples/mipsel-sony-psx/release/editor-playtest.exe \
+#     --manifest engine/examples/editor-playtest/generated/level_manifest.cooked.rs --project editor/projects/graybox-reach/project.ron"
+OCCUPANCY_ARGS ?=
+occupancy-report:
+	cargo run --release -p psxed-project --bin occupancy-report -- $(OCCUPANCY_ARGS)
 
 # Build the editor-playtest example against whatever is in
 # `generated/level_manifest.cooked.rs` if present, otherwise

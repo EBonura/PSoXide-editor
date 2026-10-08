@@ -38,6 +38,7 @@ pub mod floor_view;
 pub use animation_pose_correction::*;
 mod import_util;
 pub mod model_import;
+pub mod occupancy;
 mod model_material_texture;
 pub use model_material_texture::*;
 pub mod playtest;
