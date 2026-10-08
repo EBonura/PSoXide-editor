@@ -9,7 +9,6 @@
 #                       template. Its project.ron is include_str!'d into
 #                       psxed-project and its starter assets seed every new
 #                       project, so the build needs it on disk.
-#   quake-e1m1-geometry brush/workspace test fixture
 #   graybox-valley      outdoor traversal fixture using the Picotron grid
 #   graybox-reach   large mixed outdoor/interior traversal fixture
 #
@@ -18,8 +17,6 @@
 # arrangement as editor/archive/legacy-grid/.
 !default/
 !default/**
-!quake-e1m1-geometry/
-!quake-e1m1-geometry/**
 !graybox-valley/
 !graybox-valley/**
 !graybox-reach/
