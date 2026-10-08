@@ -1801,6 +1801,37 @@ impl Renderer {
             }
 
             if policy & pxbsp_material_policy::SKY != 0 {
+                // An aperture is never drawn; it only reports that sky shows
+                // through it, and the sky pass runs when any is reported. One
+                // whose polygon lies wholly outside the view shows nothing, so
+                // it gets the exact classification a drawn face gets and is
+                // dropped when that rejects it. A face the marking node proved
+                // inside the frustum has an empty mask and costs nothing here.
+                let clip_mask = match selection {
+                    PxbspFaceSelection::VisibleWorld => unsafe {
+                        *self.frame_pxbsp_face_clip_mask.get_unchecked(face_index)
+                    },
+                    PxbspFaceSelection::ModelRange { .. } => PXBSP_CLIP_ALL_PLANES,
+                };
+                if clip_mask != 0 {
+                    #[cfg(target_arch = "mips")]
+                    let classified = unsafe {
+                        Self::pxbsp_face_clip_gte(
+                            source_base,
+                            face,
+                            clip_planes,
+                            side_error,
+                            clip_mask,
+                        )
+                    };
+                    #[cfg(not(target_arch = "mips"))]
+                    let classified = unsafe {
+                        Self::pxbsp_face_clip(source_base, face, clip_planes, side_error, clip_mask)
+                    };
+                    if classified.is_none() {
+                        continue;
+                    }
+                }
                 stats.visible_faces = stats.visible_faces.saturating_add(1);
                 stats.visible_sky_apertures = stats.visible_sky_apertures.saturating_add(1);
                 continue;
@@ -3776,6 +3807,63 @@ mod tests {
         assert_eq!(frame.stats.packets, 0);
         assert_eq!(frame.stats.hardware_triangles, 0);
         assert_eq!(frame.packet_words, 0);
+    }
+
+    #[test]
+    fn a_sky_aperture_wholly_outside_the_view_is_not_reported() {
+        configure_projection();
+        let build = |face_x: i16| {
+            let mut lumps = valid_lumps();
+            let mut vertices = Vec::new();
+            for position in [[face_x, -16, -16], [face_x, 16, -16], [face_x, 0, 16]] {
+                for component in position {
+                    vertices.extend_from_slice(&component.to_le_bytes());
+                }
+                vertices.extend_from_slice(&[0, 0, 128, 0, 0, 0]);
+            }
+            lumps[PxbspLumpKind::Vertices as usize] = vertices;
+            // The node box straddles the camera, so the node itself survives
+            // the frustum walk and only the face's own polygon can reject.
+            let mins = [-64i16, -16, -16].map(crate::encode_node_bound_min);
+            let maxs = [64i16, 16, 16].map(crate::encode_node_bound_max);
+            lumps[PxbspLumpKind::Nodes as usize][6..9]
+                .copy_from_slice(&mins.map(|value| value as u8));
+            lumps[PxbspLumpKind::Nodes as usize][9..12]
+                .copy_from_slice(&maxs.map(|value| value as u8));
+            lumps[PxbspLumpKind::Materials as usize][2..4]
+                .copy_from_slice(&material_flags::LAYERED_SKY.to_le_bytes());
+            let bytes = write_file(&lumps);
+            let mut map = PxbspResidentMap::with_capacity(bytes.len());
+            map.load(10, &mut SliceReader::new(&bytes))
+                .expect("resident map");
+            let camera = Camera {
+                origin: Vec3I32 {
+                    x: 1 << 12,
+                    y: 0,
+                    z: 0,
+                },
+                angles: [0; 3],
+            };
+            let mut packets = [0u32; 16];
+            let mut renderer = Renderer::new_pxbsp_with_nodes(map.faces().len(), map.nodes().len());
+            assert!(renderer.mark_visible_pxbsp_faces(&map, camera.origin));
+            renderer
+                .draw_pxbsp_world(
+                    &map,
+                    camera,
+                    load_pxbsp_view(camera),
+                    &[None],
+                    0,
+                    &mut packets,
+                )
+                .stats
+        };
+
+        // In front of the camera: reported. Behind it: wholly outside the near
+        // plane, so there is no sky to show through it.
+        assert_eq!(build(64).visible_sky_apertures, 1);
+        assert_eq!(build(-64).visible_sky_apertures, 0);
+        assert_eq!(build(-64).visible_faces, 0);
     }
 
     #[test]
