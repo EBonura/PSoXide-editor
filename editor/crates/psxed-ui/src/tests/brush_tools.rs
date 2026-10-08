@@ -24,11 +24,8 @@ fn brush_frame(harness: &ViewportHarness, pointer: Pos2) -> ToolFrame3d {
         pointer_target: harness.workspace.resolve_viewport_3d_pointer_target(
             harness.viewport,
             pointer,
-            None,
             true,
         ),
-        hover_room: None,
-        drag_delta_y: 0.0,
     }
 }
 
@@ -88,9 +85,7 @@ fn benchmark_e1m1_viewport_pointer_resolution() {
         .collect();
 
     for &pointer in &pointers {
-        std::hint::black_box(
-            workspace.resolve_viewport_3d_pointer_target(rect, pointer, None, true),
-        );
+        std::hint::black_box(workspace.resolve_viewport_3d_pointer_target(rect, pointer, true));
     }
     let repetitions = 100;
     let started = std::time::Instant::now();
@@ -98,7 +93,7 @@ fn benchmark_e1m1_viewport_pointer_resolution() {
     for _ in 0..repetitions {
         for &pointer in &pointers {
             targets += workspace
-                .resolve_viewport_3d_pointer_target(rect, pointer, None, true)
+                .resolve_viewport_3d_pointer_target(rect, pointer, true)
                 .is_some() as usize;
         }
     }
@@ -1020,7 +1015,7 @@ fn subpixel_brush_click_and_nearby_marquee_work_in_every_2d_view_via_real_egui()
 
 #[test]
 fn coincident_brushes_cycle_individually_in_3d_via_real_egui() {
-    let mut harness = ViewportHarness::floored_room("3d coincident brush cycle", 1);
+    let mut harness = ViewportHarness::empty("3d coincident brush cycle");
     let brush = psxed_project::brush::Brush::cuboid([320, 0, 320], [704, 640, 704]);
     harness
         .workspace
@@ -1064,7 +1059,7 @@ fn coincident_brushes_cycle_individually_in_3d_via_real_egui() {
 #[test]
 fn brush_and_select_tools_require_the_gizmo_for_whole_brush_moves_in_3d() {
     for tool in [ViewTool::Brush, ViewTool::Select] {
-        let mut harness = ViewportHarness::floored_room("3d plain brush move", 1);
+        let mut harness = ViewportHarness::empty("3d plain brush move");
         let base = psxed_project::brush::Brush::cuboid([320, 0, 320], [704, 640, 704]);
         harness
             .workspace
@@ -1220,7 +1215,6 @@ fn bsp_marquee_multi_selects_brushes_in_every_orthographic_view_via_real_egui() 
             workspace.interaction
         );
         assert_eq!(workspace.status_text(), "Selected 2 brushes", "{view:?}");
-        assert!(workspace.selection.selected_sectors.is_empty());
 
         workspace.replace_brush_selection(2, None);
         run_real_egui_orthographic_drag(
@@ -1429,8 +1423,6 @@ fn arbitrary_plane_face_handle_drags_along_its_normal_and_undoes_once() {
         pointer_hover: Some(pointer),
         modifiers: egui::Modifiers::NONE,
         pointer_target: None,
-        hover_room: None,
-        drag_delta_y: 0.0,
     };
     tool_impl_3d(ViewTool::Brush).primary_pressed(&mut workspace, &frame);
     let drag = workspace.brush_extrude.clone().expect("face handle drag");
@@ -1497,8 +1489,6 @@ fn vertex_and_edge_3d_handles_start_camera_plane_edits_and_keep_brush_valid() {
             pointer_hover: Some(pointer),
             modifiers: egui::Modifiers::NONE,
             pointer_target: None,
-            hover_room: None,
-            drag_delta_y: 0.0,
         };
         tool_impl_3d(ViewTool::Brush).primary_pressed(&mut workspace, &frame);
         assert!(workspace.brush_vertex_drag.is_some(), "{mode:?}");
@@ -2333,14 +2323,13 @@ fn top_view_select_and_brush_tools_pick_the_specific_topmost_brush_via_real_egui
         assert!(workspace.brush_is_selected(1));
         assert_eq!(workspace.selection.selected_node, NodeId::ROOT);
         assert!(workspace.selection.selected_nodes.is_empty());
-        assert!(workspace.selection.selected_primitives.is_empty());
     }
 }
 
 #[test]
 fn bsp_brush_click_selection_runs_through_real_egui_response_dispatch() {
     for tool in [ViewTool::Brush, ViewTool::Select] {
-        let mut harness = ViewportHarness::floored_room("real_egui_bsp_click", 1);
+        let mut harness = ViewportHarness::empty("real_egui_bsp_click");
         harness.workspace.project.active_scene_mut().brushes.push(
             psxed_project::brush::Brush::cuboid([256, 0, 256], [768, 512, 768]),
         );
@@ -2433,7 +2422,7 @@ fn select_tool_resolves_bsp_only_brush_and_clears_old_node_selection() {
         rect.center().y + ny * rect.height() * 0.5,
     );
     let target = workspace
-        .resolve_viewport_3d_pointer_target(rect, pointer, None, true)
+        .resolve_viewport_3d_pointer_target(rect, pointer, true)
         .expect("BSP brush target");
     assert!(matches!(
         target,
@@ -2445,8 +2434,6 @@ fn select_tool_resolves_bsp_only_brush_and_clears_old_node_selection() {
         pointer_hover: Some(pointer),
         modifiers: egui::Modifiers::NONE,
         pointer_target: Some(target),
-        hover_room: None,
-        drag_delta_y: 0.0,
     };
     tool_impl_3d(ViewTool::Select).primary_clicked(&mut workspace, &frame);
 
@@ -2454,7 +2441,6 @@ fn select_tool_resolves_bsp_only_brush_and_clears_old_node_selection() {
     assert!(workspace.selected_brush_face.is_some());
     assert_eq!(workspace.selection.selected_node, NodeId::ROOT);
     assert!(workspace.selection.selected_nodes.is_empty());
-    assert!(workspace.selection.selected_primitives.is_empty());
 }
 
 #[test]
@@ -2557,8 +2543,8 @@ fn top_view_can_frame_full_i16_bsp_world_bounds_at_minimum_viewport() {
 
 #[test]
 fn brush_tool_drag_creates_selectable_undoable_brush() {
-    let mut harness = ViewportHarness::floored_room("brush_tool_create", 4);
-    let center = harness.room_center();
+    let mut harness = ViewportHarness::empty("brush_tool_create");
+    let center = harness.world_center();
     harness.frame(center, 3000.0);
     harness.workspace.active_tool = ViewTool::Brush;
     let tool = tool_impl_3d(ViewTool::Brush);
@@ -2634,8 +2620,8 @@ fn brush_tool_drag_creates_selectable_undoable_brush() {
 
 #[test]
 fn brush_tool_starts_creation_over_existing_selected_geometry() {
-    let mut harness = ViewportHarness::floored_room("brush_tool_draw_over_existing", 4);
-    harness.frame(harness.room_center(), 3000.0);
+    let mut harness = ViewportHarness::empty("brush_tool_draw_over_existing");
+    harness.frame(harness.world_center(), 3000.0);
     harness.workspace.active_tool = ViewTool::Brush;
     harness.workspace.replace_brush_selection(0, Some(0));
     let tool = tool_impl_3d(ViewTool::Brush);
@@ -2653,8 +2639,8 @@ fn brush_tool_starts_creation_over_existing_selected_geometry() {
 
 #[test]
 fn brush_tool_face_drag_extrudes_top_face() {
-    let mut harness = ViewportHarness::floored_room("brush_tool_extrude", 4);
-    harness.frame(harness.room_center(), 3000.0);
+    let mut harness = ViewportHarness::empty("brush_tool_extrude");
+    harness.frame(harness.world_center(), 3000.0);
     harness.workspace.active_tool = ViewTool::Brush;
     // Create a brush.
     draw_brush_3d(
@@ -2717,8 +2703,8 @@ fn brush_tool_face_drag_extrudes_top_face() {
 
 #[test]
 fn brush_tool_modifier_clicks_clip_selected_brush() {
-    let mut harness = ViewportHarness::floored_room("brush_tool_clip", 4);
-    harness.frame(harness.room_center(), 3000.0);
+    let mut harness = ViewportHarness::empty("brush_tool_clip");
+    harness.frame(harness.world_center(), 3000.0);
     harness.workspace.active_tool = ViewTool::Brush;
 
     // Create and keep selected.
@@ -2766,8 +2752,8 @@ fn brush_tool_modifier_clicks_clip_selected_brush() {
 
 #[test]
 fn brush_tool_clip_keep_back_replaces_in_place() {
-    let mut harness = ViewportHarness::floored_room("brush_tool_clip_back", 4);
-    harness.frame(harness.room_center(), 3000.0);
+    let mut harness = ViewportHarness::empty("brush_tool_clip_back");
+    harness.frame(harness.world_center(), 3000.0);
     harness.workspace.active_tool = ViewTool::Brush;
 
     draw_brush_3d(
@@ -2800,8 +2786,8 @@ fn brush_tool_clip_keep_back_replaces_in_place() {
 
 #[test]
 fn brush_tool_shift_drag_does_not_bypass_the_whole_brush_gizmo() {
-    let mut harness = ViewportHarness::floored_room("brush_tool_move", 4);
-    harness.frame(harness.room_center(), 3000.0);
+    let mut harness = ViewportHarness::empty("brush_tool_move");
+    harness.frame(harness.world_center(), 3000.0);
     harness.workspace.active_tool = ViewTool::Brush;
     let tool = tool_impl_3d(ViewTool::Brush);
 
@@ -2843,7 +2829,7 @@ fn brush_tool_shift_drag_does_not_bypass_the_whole_brush_gizmo() {
 
 #[test]
 fn brush_2d_drag_creates_and_click_selects() {
-    let mut harness = ViewportHarness::floored_room("brush_2d_create", 4);
+    let mut harness = ViewportHarness::empty("brush_2d_create");
     harness.workspace.active_tool = ViewTool::Brush;
 
     // Drag a footprint in 2D world coordinates (XZ plane).
@@ -2869,7 +2855,7 @@ fn brush_2d_drag_creates_and_click_selects() {
 
 #[test]
 fn orthographic_brush_creation_uses_two_real_pointer_gestures() {
-    let mut workspace = ViewportHarness::floored_room("brush_2d_staged_create", 4).workspace;
+    let mut workspace = ViewportHarness::empty("brush_2d_staged_create").workspace;
     workspace.active_workspace = WorkspaceView::Room;
     workspace.active_tool = ViewTool::Brush;
     workspace.view_2d = true;
@@ -2895,7 +2881,7 @@ fn orthographic_brush_creation_uses_two_real_pointer_gestures() {
 
 #[test]
 fn brush_2d_clip_clicks_split_selected() {
-    let mut harness = ViewportHarness::floored_room("brush_2d_clip", 4);
+    let mut harness = ViewportHarness::empty("brush_2d_clip");
     harness.workspace.active_tool = ViewTool::Brush;
     harness.workspace.begin_brush_drag_2d([0.0, 0.0]);
     harness.workspace.update_brush_drag_2d([256.0, 128.0]);
@@ -2922,7 +2908,7 @@ fn brush_2d_clip_clicks_split_selected() {
 /// and it is the one that replaces the brush with the far half.
 #[test]
 fn brush_clip_keep_front_replaces_with_the_far_half() {
-    let mut harness = ViewportHarness::floored_room("brush_clip_front", 4);
+    let mut harness = ViewportHarness::empty("brush_clip_front");
     harness.workspace.active_tool = ViewTool::Brush;
     harness.workspace.begin_brush_drag_2d([0.0, 0.0]);
     harness.workspace.update_brush_drag_2d([256.0, 128.0]);
@@ -3021,7 +3007,7 @@ fn clipped_brush_saves_reopens_and_still_cooks() {
 
 #[test]
 fn hollow_selected_brush_makes_room_walls() {
-    let mut harness = ViewportHarness::floored_room("brush_hollow", 4);
+    let mut harness = ViewportHarness::empty("brush_hollow");
     harness.workspace.active_tool = ViewTool::Brush;
     harness.workspace.begin_brush_drag_2d([0.0, 0.0]);
     harness.workspace.update_brush_drag_2d([512.0, 512.0]);
@@ -3040,7 +3026,7 @@ fn hollow_selected_brush_makes_room_walls() {
 
 #[test]
 fn snap_selected_brush_rounds_points() {
-    let mut harness = ViewportHarness::floored_room("brush_snap_sel", 4);
+    let mut harness = ViewportHarness::empty("brush_snap_sel");
     harness.workspace.active_tool = ViewTool::Brush;
     // Author an off-grid brush directly.
     harness
@@ -3061,7 +3047,7 @@ fn snap_selected_brush_rounds_points() {
 
 #[test]
 fn snap_selected_brush_repairs_visible_corners_and_reports_a_no_op_second_time() {
-    let mut harness = ViewportHarness::floored_room("brush_snap_sel_solved", 4);
+    let mut harness = ViewportHarness::empty("brush_snap_sel_solved");
     let brush = fractional_corner_brush();
     assert!(
         !brush.solved_vertices_on_grid(1, 0.01),
@@ -3251,7 +3237,7 @@ fn snap_level_is_atomic_when_the_grid_would_collapse_a_thin_brush() {
 
 #[test]
 fn texture_lock_compensates_face_uv_on_move() {
-    let mut harness = ViewportHarness::floored_room("brush_uv_lock", 4);
+    let mut harness = ViewportHarness::empty("brush_uv_lock");
     harness.workspace.active_tool = ViewTool::Brush;
     assert!(harness.workspace.brush_texture_lock, "lock defaults on");
     // Near the room centre so the framed camera can grab it.
@@ -3289,7 +3275,7 @@ fn texture_lock_compensates_face_uv_on_move() {
 
 #[test]
 fn escape_cancels_gestures_and_delete_removes_brush() {
-    let mut harness = ViewportHarness::floored_room("brush_keys", 4);
+    let mut harness = ViewportHarness::empty("brush_keys");
     harness.workspace.active_tool = ViewTool::Brush;
 
     // Cancel a create drag: nothing commits.
@@ -3313,8 +3299,8 @@ fn escape_cancels_gestures_and_delete_removes_brush() {
 
 #[test]
 fn brush_tool_zero_area_drag_commits_nothing() {
-    let mut harness = ViewportHarness::floored_room("brush_tool_zero", 4);
-    harness.frame(harness.room_center(), 3000.0);
+    let mut harness = ViewportHarness::empty("brush_tool_zero");
+    harness.frame(harness.world_center(), 3000.0);
     harness.workspace.active_tool = ViewTool::Brush;
     let tool = tool_impl_3d(ViewTool::Brush);
 
@@ -3327,7 +3313,7 @@ fn brush_tool_zero_area_drag_commits_nothing() {
 
 #[test]
 fn shift_click_builds_multi_selection_and_group_moves() {
-    let mut harness = ViewportHarness::floored_room("brush_multi_move", 4);
+    let mut harness = ViewportHarness::empty("brush_multi_move");
     harness.workspace.active_tool = ViewTool::Brush;
     harness
         .workspace
@@ -3394,7 +3380,7 @@ fn shift_click_builds_multi_selection_and_group_moves() {
 
 #[test]
 fn multi_selection_delete_and_duplicate_are_grouped() {
-    let mut harness = ViewportHarness::floored_room("brush_multi_edit", 4);
+    let mut harness = ViewportHarness::empty("brush_multi_edit");
     harness.workspace.active_tool = ViewTool::Brush;
     let scene = harness.workspace.project.active_scene_mut();
     scene
@@ -3480,8 +3466,6 @@ fn element_click_frame(rect: Rect, pointer: Pos2, modifiers: egui::Modifiers) ->
         pointer_hover: Some(pointer),
         modifiers,
         pointer_target: None,
-        hover_room: None,
-        drag_delta_y: 0.0,
     }
 }
 
@@ -3537,7 +3521,7 @@ fn clicks_select_vertices_and_edges_individually() {
 
 #[test]
 fn top_view_click_selects_the_vertex_column() {
-    let mut harness = ViewportHarness::floored_room("brush_2d_element_click", 4);
+    let mut harness = ViewportHarness::empty("brush_2d_element_click");
     harness.workspace.active_tool = ViewTool::Select;
     harness
         .workspace
@@ -3719,7 +3703,7 @@ fn face_mode_first_click_selects_brush_and_face_together() {
     // One click on the top face: brush selected AND the face element
     // recorded, no second click needed, nearest face (no cycling).
     let pointer = screen_for_world(&workspace, rect, [256.0, 512.0, 256.0]);
-    let target = workspace.resolve_viewport_3d_pointer_target(rect, pointer, None, true);
+    let target = workspace.resolve_viewport_3d_pointer_target(rect, pointer, true);
     let mut frame = element_click_frame(rect, pointer, egui::Modifiers::NONE);
     frame.pointer_target = target;
     tool_impl_3d(ViewTool::Select).primary_clicked(&mut workspace, &frame);
@@ -3796,7 +3780,7 @@ fn face_mode_click_selects_face_and_mirrors_uv_state() {
     // Click the brush body (a visible face centre): resolves the real
     // pointer target and routes through the face element path.
     let pointer = screen_for_world(&workspace, rect, [256.0, 512.0, 256.0]);
-    let target = workspace.resolve_viewport_3d_pointer_target(rect, pointer, None, true);
+    let target = workspace.resolve_viewport_3d_pointer_target(rect, pointer, true);
     let mut frame = element_click_frame(rect, pointer, egui::Modifiers::NONE);
     frame.pointer_target = target;
     tool_impl_3d(ViewTool::Select).primary_clicked(&mut workspace, &frame);
@@ -3813,7 +3797,7 @@ fn face_mode_click_selects_face_and_mirrors_uv_state() {
 
 #[test]
 fn clip_mode_cuts_the_whole_multi_selection_in_one_undo_step() {
-    let mut harness = ViewportHarness::floored_room("clip_multi", 4);
+    let mut harness = ViewportHarness::empty("clip_multi");
     harness.workspace.active_tool = ViewTool::Select;
     let scene = harness.workspace.project.active_scene_mut();
     scene.brushes.push(psxed_project::brush::Brush::cuboid(
@@ -3851,7 +3835,7 @@ fn clip_mode_cuts_the_whole_multi_selection_in_one_undo_step() {
 
 #[test]
 fn clip_three_points_cut_a_sloped_plane_and_escape_clears() {
-    let mut harness = ViewportHarness::floored_room("clip_sloped", 4);
+    let mut harness = ViewportHarness::empty("clip_sloped");
     harness.workspace.active_tool = ViewTool::Select;
     harness
         .workspace
@@ -3903,7 +3887,7 @@ fn brush_element_enumerators_dedup_and_canonicalize() {
 
 #[test]
 fn selection_domains_are_exclusive_and_empty_click_clears_all() {
-    let mut harness = ViewportHarness::floored_room("brush_sel_domains", 4);
+    let mut harness = ViewportHarness::empty("brush_sel_domains");
     let scene = harness.workspace.project.active_scene_mut();
     scene
         .brushes
@@ -3933,10 +3917,7 @@ fn selection_domains_are_exclusive_and_empty_click_clears_all() {
 
     // Empty click clears every domain.
     harness.workspace.replace_brush_selection(0, None);
-    harness.workspace.selection.hovered_primitive = None;
-    harness
-        .workspace
-        .commit_face_selection(egui::Modifiers::default());
+    harness.workspace.clear_all_selections();
     assert_eq!(harness.workspace.selected_brush, None);
     assert_eq!(harness.workspace.selection.selected_node, NodeId::ROOT);
     assert!(harness.workspace.selection.selected_nodes.is_empty());
@@ -3946,7 +3927,7 @@ fn selection_domains_are_exclusive_and_empty_click_clears_all() {
 fn duplicate_routes_to_brushes_from_the_select_tool() {
     // A brush selected through the general Select tool is directly editable,
     // so Cmd+D must copy the brush there too, not only under ViewTool::Brush.
-    let mut harness = ViewportHarness::floored_room("brush_dup_select_tool", 4);
+    let mut harness = ViewportHarness::empty("brush_dup_select_tool");
     harness.workspace.active_tool = ViewTool::Select;
     harness
         .workspace
@@ -3967,7 +3948,7 @@ fn duplicate_routes_to_brushes_from_the_select_tool() {
 
 #[test]
 fn room_copy_and_paste_shortcuts_copy_brush_geometry() {
-    let mut harness = ViewportHarness::floored_room("brush_copy_paste_shortcuts", 4);
+    let mut harness = ViewportHarness::empty("brush_copy_paste_shortcuts");
     harness.workspace.active_workspace = WorkspaceView::Room;
     harness.workspace.active_tool = ViewTool::Select;
     let brush = psxed_project::brush::Brush::cuboid([32, 0, 64], [160, 192, 224]);
@@ -4007,7 +3988,7 @@ fn room_copy_and_paste_shortcuts_copy_brush_geometry() {
 
 #[test]
 fn undo_reconciles_stale_brush_selection_and_clip_never_panics() {
-    let mut harness = ViewportHarness::floored_room("brush_stale_sel", 4);
+    let mut harness = ViewportHarness::empty("brush_stale_sel");
     harness.workspace.active_tool = ViewTool::Brush;
 
     // Create two brushes, select the second, then undo its creation:
@@ -4036,8 +4017,8 @@ fn undo_reconciles_stale_brush_selection_and_clip_never_panics() {
 
 #[test]
 fn shift_click_in_3d_toggles_multi_selection() {
-    let mut harness = ViewportHarness::floored_room("brush_multi_3d", 4);
-    harness.frame(harness.room_center(), 3000.0);
+    let mut harness = ViewportHarness::empty("brush_multi_3d");
+    harness.frame(harness.world_center(), 3000.0);
     harness.workspace.active_tool = ViewTool::Brush;
 
     // Two brushes created through the tool.
@@ -4098,7 +4079,7 @@ fn solved_unique_verts(brush: &psxed_project::brush::Brush) -> Vec<[i64; 3]> {
 
 #[test]
 fn vertex_mode_corner_drag_reshapes_footprint() {
-    let mut harness = ViewportHarness::floored_room("brush_vertex_drag", 4);
+    let mut harness = ViewportHarness::empty("brush_vertex_drag");
     harness.workspace.active_tool = ViewTool::Brush;
     harness.workspace.selection_mode = SelectionMode::Vertex;
     harness
@@ -4140,7 +4121,7 @@ fn vertex_mode_corner_drag_reshapes_footprint() {
 
 #[test]
 fn edge_mode_silhouette_drag_slides_whole_side() {
-    let mut harness = ViewportHarness::floored_room("brush_edge_drag", 4);
+    let mut harness = ViewportHarness::empty("brush_edge_drag");
     harness.workspace.active_tool = ViewTool::Brush;
     harness.workspace.selection_mode = SelectionMode::Edge;
     harness
@@ -4177,7 +4158,7 @@ fn edge_mode_silhouette_drag_slides_whole_side() {
 
 #[test]
 fn vertex_drag_refuses_invalid_shapes_and_escape_cancels() {
-    let mut harness = ViewportHarness::floored_room("brush_vertex_invalid", 4);
+    let mut harness = ViewportHarness::empty("brush_vertex_invalid");
     harness.workspace.active_tool = ViewTool::Brush;
     harness.workspace.selection_mode = SelectionMode::Edge;
     harness
@@ -4231,7 +4212,7 @@ fn vertex_drag_refuses_invalid_shapes_and_escape_cancels() {
 
 #[test]
 fn brush_numeric_origin_and_face_plane_edits() {
-    let mut harness = ViewportHarness::floored_room("brush_numeric", 4);
+    let mut harness = ViewportHarness::empty("brush_numeric");
     harness.workspace.active_tool = ViewTool::Brush;
     harness
         .workspace
@@ -4275,7 +4256,7 @@ fn brush_numeric_origin_and_face_plane_edits() {
 
 #[test]
 fn brush_numeric_drag_coalesces_to_one_undo_step() {
-    let mut harness = ViewportHarness::floored_room("brush_numeric_undo", 4);
+    let mut harness = ViewportHarness::empty("brush_numeric_undo");
     harness.workspace.active_tool = ViewTool::Brush;
     harness
         .workspace
@@ -4311,7 +4292,7 @@ fn brush_numeric_drag_coalesces_to_one_undo_step() {
 
 #[test]
 fn brush_edits_mark_the_project_dirty_for_save_and_cook() {
-    let mut harness = ViewportHarness::floored_room("brush_dirty", 4);
+    let mut harness = ViewportHarness::empty("brush_dirty");
     harness.workspace.active_tool = ViewTool::Brush;
     assert!(!harness.workspace.is_dirty(), "fresh workspace is clean");
 
@@ -4372,7 +4353,7 @@ fn brush_edits_mark_the_project_dirty_for_save_and_cook() {
 
 #[test]
 fn brush_mover_binding_accepts_doors_and_is_undoable() {
-    let mut harness = ViewportHarness::floored_room("brush_mover_binding", 4);
+    let mut harness = ViewportHarness::empty("brush_mover_binding");
     harness
         .workspace
         .project
@@ -4426,7 +4407,7 @@ fn brush_mover_binding_accepts_doors_and_is_undoable() {
 
 #[test]
 fn brush_model_owner_assigns_multiselection_to_destructible() {
-    let mut harness = ViewportHarness::floored_room("brush_destructible_binding", 4);
+    let mut harness = ViewportHarness::empty("brush_destructible_binding");
     harness.workspace.project.active_scene_mut().brushes = vec![
         psxed_project::brush::Brush::cuboid([0, 0, 0], [128, 128, 128]),
         psxed_project::brush::Brush::cuboid([160, 0, 0], [288, 128, 128]),
@@ -4469,7 +4450,7 @@ fn brush_model_owner_assigns_multiselection_to_destructible() {
 fn brush_contents_apply_to_multiselection_clear_movers_and_are_undoable() {
     use psxed_project::brush::BrushContents;
 
-    let mut harness = ViewportHarness::floored_room("brush_contents", 4);
+    let mut harness = ViewportHarness::empty("brush_contents");
     let door = harness.workspace.project.active_scene_mut().add_node(
         NodeId::ROOT,
         "Liquid Candidate Door",
@@ -4542,7 +4523,7 @@ fn brush_contents_apply_to_multiselection_clear_movers_and_are_undoable() {
 fn real_egui_brush_inspector_exposes_and_changes_bsp_contents() {
     use psxed_project::brush::BrushContents;
 
-    let mut harness = ViewportHarness::floored_room("brush_contents_egui", 4);
+    let mut harness = ViewportHarness::empty("brush_contents_egui");
     let mut water_brush = psxed_project::brush::Brush::cuboid([0, 0, 0], [128, 128, 128]);
     water_brush.contents = BrushContents::Water;
     let solid_brush = psxed_project::brush::Brush::cuboid([256, 0, 0], [384, 128, 128]);
@@ -5386,8 +5367,6 @@ fn off_corner_authored_plane_face_handle_drags_along_its_normal_and_undoes_once(
         pointer_hover: Some(pointer),
         modifiers: egui::Modifiers::NONE,
         pointer_target: None,
-        hover_room: None,
-        drag_delta_y: 0.0,
     };
     tool_impl_3d(ViewTool::Brush).primary_pressed(&mut workspace, &frame);
     let drag = workspace.brush_extrude.clone().expect("face handle drag");
@@ -5422,7 +5401,7 @@ fn off_corner_authored_plane_face_handle_drags_along_its_normal_and_undoes_once(
 /// orientation, and rejects an edit that would stop enclosing volume.
 #[test]
 fn face_plane_numeric_edit_slides_a_non_axis_aligned_face() {
-    let mut harness = ViewportHarness::floored_room("brush_numeric_slope", 4);
+    let mut harness = ViewportHarness::empty("brush_numeric_slope");
     harness.workspace.active_tool = ViewTool::Brush;
     let mut wedge = psxed_project::brush::Brush::cuboid([0, 0, 0], [128, 128, 128]);
     wedge.faces[5] =
@@ -5774,7 +5753,7 @@ fn snap_level_toolbar_button_runs_the_global_quantisation_command() {
 
 #[test]
 fn draw_toolbar_exposes_a_compact_primitive_selector_in_3d() {
-    let mut workspace = ViewportHarness::floored_room("draw-primitive-selector", 4).workspace;
+    let mut workspace = ViewportHarness::empty("draw-primitive-selector").workspace;
     workspace.active_workspace = WorkspaceView::Room;
     workspace.active_tool = ViewTool::Brush;
     workspace.view_2d = false;
@@ -5806,7 +5785,7 @@ fn draw_toolbar_exposes_a_compact_primitive_selector_in_3d() {
 /// mapping the moment the mouse came up.
 #[test]
 fn locked_move_preview_uvs_match_the_committed_uvs() {
-    let mut harness = ViewportHarness::floored_room("brush_uv_preview", 4);
+    let mut harness = ViewportHarness::empty("brush_uv_preview");
     harness.workspace.active_tool = ViewTool::Brush;
     assert!(harness.workspace.brush_texture_lock, "lock defaults on");
 
@@ -5880,7 +5859,7 @@ fn locked_move_preview_uvs_match_the_committed_uvs() {
 /// and the brush slides under its texture.
 #[test]
 fn unlocked_move_preview_leaves_the_mapping_world_aligned() {
-    let mut harness = ViewportHarness::floored_room("brush_uv_unlocked", 4);
+    let mut harness = ViewportHarness::empty("brush_uv_unlocked");
     harness.workspace.active_tool = ViewTool::Brush;
     harness.workspace.brush_texture_lock = false;
     harness

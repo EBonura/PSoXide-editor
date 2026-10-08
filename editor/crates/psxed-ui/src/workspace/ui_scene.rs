@@ -412,8 +412,6 @@ impl EditorWorkspace {
     pub(crate) fn select_ui_node(&mut self, id: UiNodeId) {
         self.selection.selected_ui_node = id;
         self.clear_resource_selection_state();
-        self.clear_primitive_selection_state();
-        self.clear_sector_selection();
     }
 
     pub(crate) fn begin_ui_canvas_drag(
@@ -681,8 +679,6 @@ impl EditorWorkspace {
         };
         self.selection.selected_ui_node = pasted;
         self.clear_resource_selection_state();
-        self.clear_primitive_selection_state();
-        self.clear_sector_selection();
         self.interaction.take_ui_canvas_drag();
         self.mark_dirty();
         self.status = if clipboard.nodes.len() == 1 {
