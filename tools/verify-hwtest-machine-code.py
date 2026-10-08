@@ -39,6 +39,9 @@ MARKER_BASE = 0x3400_0000
 LAYOUT_BIT = 0x8000
 # A measured block is tens to hundreds of instructions; 1024 words is slack.
 MAX_SPAN_WORDS = 1024
+# Probe ids are small. A data table can hold a word shaped like a marker
+# (`ori $zero, $zero, imm`); ids this large are such coincidences.
+MAX_PROBE_ID = 1023
 
 
 class AuditError(Exception):
@@ -76,6 +79,8 @@ def discover(words: list[int]) -> tuple[dict[int, tuple[int, int]], dict[int, in
             layout[tag] = index
             continue
         probe_id, is_end = low >> 1, low & 1
+        if probe_id > MAX_PROBE_ID:
+            continue
         if not is_end:
             if open_id is not None:
                 raise AuditError(f"probe {open_id:02d} has no end marker before probe {probe_id:02d} starts")
