@@ -607,7 +607,7 @@ fn multi_brush_paste_shortcut_survives_a_switch_to_a_non_room_workspace() {
 }
 
 #[test]
-#[ignore = "developer regression over the tracked full E1M1 project"]
+#[ignore = "developer regression; needs a locally regenerated quake-e1m1-geometry project (no longer tracked)"]
 fn e1m1_real_platform_copy_and_paste_duplicates_the_selected_brush() {
     let editor_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()

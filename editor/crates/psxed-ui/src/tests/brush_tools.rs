@@ -61,7 +61,7 @@ fn fractional_corner_brush() -> psxed_project::brush::Brush {
 }
 
 #[test]
-#[ignore = "developer performance benchmark over local editable E1M1"]
+#[ignore = "developer performance benchmark; needs a locally regenerated quake-e1m1-geometry project (no longer tracked)"]
 fn benchmark_e1m1_viewport_pointer_resolution() {
     let editor_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
