@@ -691,8 +691,6 @@ impl EditorWorkspace {
                 self.history.record(before);
                 self.replace_resource_selection(id);
                 self.clear_node_selection_state();
-                self.clear_primitive_selection_state();
-                self.clear_sector_selection();
                 self.close_texture_import_dialog();
                 self.status = format!("Imported texture {output_name}");
                 self.mark_dirty();
@@ -1333,8 +1331,6 @@ impl EditorWorkspace {
                 }
                 self.replace_resource_selection(id);
                 self.clear_node_selection_state();
-                self.clear_primitive_selection_state();
-                self.clear_sector_selection();
                 self.close_model_import_dialog();
                 self.status = format!("Imported model {output_name}");
                 self.mark_dirty();

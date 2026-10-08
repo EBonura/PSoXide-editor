@@ -1611,10 +1611,7 @@ fn ashen_sanctum_project_is_authored_through_production_commands() {
     let (package, report) = psxed_project::playtest::build_package(&document, &project_dir);
     assert!(report.is_ok(), "{}", report.error_messages().join("; "));
     let package = package.expect("Ashen Sanctum package");
-    let psxed_project::playtest::PlaytestWorldGeometry::Pxbsp(ref world) = package.world_geometry
-    else {
-        panic!("Ashen Sanctum must cook as PXBSP");
-    };
+    let world = &package.world_geometry;
     assert_eq!(world.movers.len(), 3);
     assert_eq!(package.game_entities.len(), 3);
     // Four authored Equipment records plus the three weapon/socket pairs the

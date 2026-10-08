@@ -43,8 +43,6 @@ impl EditorWorkspace {
         self.replace_brush_selection(brush, Some(face));
         self.clear_node_selection_state();
         self.clear_resource_selection_state();
-        self.clear_sector_selection();
-        self.clear_primitive_selection_state();
         self.frame_viewport();
         self.status = format!("Overlap: selected brush {}, face {}", brush + 1, face + 1);
         true

@@ -97,33 +97,10 @@ impl EditorWorkspace {
             }
         }
 
-        // Preserve the old room-plane projection only for a retained portable
-        // clipboard preview. Normal BSP tools resolve their own world hit.
-        let hover_world = response
-            .hover_pos()
-            .and_then(|pointer| self.pick_3d_world(rect, pointer));
-        let hover_room = self
-            .active_room_id()
-            .filter(|id| !self.scene_node_effectively_hidden(*id))
-            .or_else(|| {
-                self.project
-                    .active_scene()
-                    .nodes()
-                    .iter()
-                    .find(|n| {
-                        matches!(n.kind, NodeKind::Section { .. })
-                            && !self.scene_node_effectively_hidden(n.id)
-                    })
-                    .map(|n| n.id)
-            });
         let select_tool = matches!(self.active_tool, ViewTool::Select);
         let select_drag_active = matches!(
             self.interaction,
-            Interaction::PrimitiveHeight(_)
-                | Interaction::PrimitiveGrid(_)
-                | Interaction::PrimitiveGizmo(_)
-                | Interaction::NodeGizmo(_)
-                | Interaction::BoxSelect3d(_)
+            Interaction::NodeGizmo(_) | Interaction::BoxSelect3d(_)
         );
         let pointer_target = if select_tool && select_drag_active {
             None
@@ -135,7 +112,6 @@ impl EditorWorkspace {
                     self.resolve_viewport_3d_pointer_target(
                         rect,
                         pointer,
-                        hover_room,
                         select_tool && !dnd_active,
                     )
                 })
@@ -180,57 +156,19 @@ impl EditorWorkspace {
             ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
         }
         let hover_entity_hit = pointer_target.and_then(|target| target.entity_hit());
-        // Face hover ray-tests every floor / wall / ceiling in the
-        // active Room and reports the closest hit. Used by Select
-        // for the outline UI, AND by paint tools to anchor their
-        // dispatch onto the actual face the user clicked rather
-        // than the floor-plane projection (which lies under wall
-        // surfaces and gets the wrong cell for back-row clicks).
-        let face_hit = pointer_target.and_then(|target| target.face_hit());
-        // Hover-track via the same target resolver used for clicks
-        // and drags, so foreground gizmos/entities consume the
-        // pointer before scene faces behind them can highlight.
-        self.selection.hovered_primitive =
-            pointer_target.and_then(|target| target.primitive_selection());
-        if let Some(room) = self.floating_geometry.as_ref().map(|preview| preview.room) {
-            if let Some(origin) = self.floating_origin_from_3d_hover(room, face_hit, hover_world) {
-                self.track_floating_geometry_pointer_origin(origin);
-            }
-        }
         let dropped_resource = resource_drop_hovered
             .then(|| response.dnd_release_payload::<ResourceId>())
             .flatten()
             .map(|payload| *payload);
-        if self.floating_geometry.is_none() {
-            if let Some(resource_id) = dropped_resource {
-                if let Some(pointer) = response.hover_pos() {
-                    self.drop_resource_bsp_3d(resource_id, rect, pointer);
-                }
+        if let Some(resource_id) = dropped_resource {
+            if let Some(pointer) = response.hover_pos() {
+                self.drop_resource_bsp_3d(resource_id, rect, pointer);
             }
         }
 
-        // Primary click / drag: ray-pick the cell under the cursor
-        // and dispatch to the active tool. Click starts a fresh
-        // drag; drag fires every frame the pointer moves; per-cell
-        // dedupe keeps walls / placements from stacking when the
-        // pointer dwells inside the same cell across frames.
+        // Primary click / drag: dispatch to the active tool. Click starts a
+        // fresh drag; drag fires every frame the pointer moves.
         if !dnd_active {
-            if self.floating_geometry.is_some() {
-                if response.clicked_by(egui::PointerButton::Primary) {
-                    self.commit_floating_geometry();
-                }
-                if response.clicked_by(egui::PointerButton::Secondary) {
-                    self.cancel_floating_geometry();
-                }
-                egui::Image::new((viewport_3d.texture, rect.size()))
-                    .uv(viewport_3d.uv)
-                    .paint_at(ui, rect);
-                let painter = ui.painter_at(rect);
-                Self::draw_viewport_3d_overlay_lines(&painter, rect, &viewport_3d);
-                self.draw_bsp_leak_notice(&painter, rect);
-                return;
-            }
-
             if response.drag_started_by(egui::PointerButton::Primary)
                 || response.clicked_by(egui::PointerButton::Primary)
             {
@@ -258,8 +196,6 @@ impl EditorWorkspace {
                 pointer_hover: response.hover_pos(),
                 modifiers: ui.input(|input| input.modifiers),
                 pointer_target,
-                hover_room,
-                drag_delta_y: response.drag_delta().y,
             };
             let tool = tools::tool_impl_3d(self.active_tool);
             if response.drag_started_by(egui::PointerButton::Primary) {
@@ -273,7 +209,6 @@ impl EditorWorkspace {
                     self.resolve_viewport_3d_pointer_target(
                         rect,
                         pointer,
-                        hover_room,
                         select_tool && !dnd_active,
                     )
                 });
@@ -318,7 +253,6 @@ impl EditorWorkspace {
             }
         }
 
-        let hovered_primitive_axis = pointer_target.and_then(|target| target.primitive_axis());
         let hovered_node_handle = pointer_target.and_then(|target| target.node_handle());
 
         egui::Image::new((viewport_3d.texture, rect.size()))
@@ -327,7 +261,7 @@ impl EditorWorkspace {
         let painter = ui.painter_at(rect);
         Self::draw_viewport_3d_overlay_lines(&painter, rect, &viewport_3d);
         if self
-            .collect_entity_bounds(None)
+            .collect_entity_bounds()
             .iter()
             .any(|bounds| bounds.kind == EntityBoundKind::PointOfInterest)
         {
@@ -337,7 +271,6 @@ impl EditorWorkspace {
         }
         self.draw_bsp_leak_notice(&painter, rect);
         self.draw_character_behavior_overlay(&painter, rect);
-        self.draw_primitive_gizmo(&painter, rect, hovered_primitive_axis);
         self.draw_node_gizmo(&painter, rect, hovered_node_handle);
         draw_viewport_box_select_marquee(&painter, self.viewport_3d_box_select_rect());
         self.draw_brush_overlay(&painter, rect);
@@ -635,7 +568,7 @@ impl EditorWorkspace {
         scene.node(host_id)?;
         let settings = self.character_controller_settings(host_id)?;
         let bounds = self
-            .collect_entity_bounds(None)
+            .collect_entity_bounds()
             .into_iter()
             .find(|bounds| bounds.node == host_id)?;
         let mut origin = [
@@ -1037,7 +970,7 @@ impl EditorWorkspace {
         let host = scene.node(state.entity)?;
         let settings = self.character_controller_settings(state.entity)?;
         let bounds = self
-            .collect_entity_bounds(None)
+            .collect_entity_bounds()
             .into_iter()
             .find(|bounds| bounds.node == state.entity)?;
         let base_origin = [
@@ -1118,90 +1051,11 @@ impl EditorWorkspace {
         &self.hidden_scene_nodes
     }
 
-    /// Primitive under the 3D pointer when the Select tool is
-    /// active -- face / edge / vertex of a floor, wall, or
-    /// ceiling on the active Room. Frontend reads this every
-    /// frame to draw a light hover outline.
-    pub fn hovered_primitive(&self) -> Option<Selection> {
-        self.selection.hovered_primitive
-    }
-
-    /// Primitive the user clicked with the Select tool. Frontend
-    /// draws a bold outline; the inspector reads it to surface
-    /// per-primitive editable fields.
-    pub fn selected_primitive(&self) -> Option<Selection> {
-        self.selection.selected_primitive
-    }
-
-    /// All selected grid primitives, excluding floor-tile sector
-    /// selections which are exposed separately as floor faces.
-    pub fn selected_primitives(&self) -> Vec<Selection> {
-        self.selected_primitive_targets()
-    }
-
-    /// Grid primitives currently flagged by the last failed cook or
-    /// playtest validation pass. The frontend draws these in red.
-    pub fn validation_issue_primitives(&self) -> Vec<Selection> {
-        self.validation_issue_primitives.clone()
-    }
-
     /// World-space selected bounds for the 3D preview. Unlike
     /// viewport framing, this intentionally does not fall back to
     /// the active Room when nothing is selected.
     pub fn selected_bounds_3d(&self) -> Option<([f32; 3], [f32; 3])> {
         self.selected_frame_bounds_3d()
-    }
-
-    /// Selected cells expanded to every authored face they contain.
-    /// 2D tile selection stores sector cells; the 3D preview,
-    /// material tools, and drag code work on concrete face refs.
-    pub fn selected_sector_faces(&self) -> Vec<FaceRef> {
-        let mut sectors: Vec<_> = self.selection.selected_sectors.iter().copied().collect();
-        sectors.sort_by_key(|(room, sx, sz)| (room.raw(), *sx, *sz));
-        let mut faces = Vec::new();
-        for (room, sx, sz) in sectors {
-            let Some(grid) = self.room_grid_view(room) else {
-                continue;
-            };
-            let Some(sector) = grid.sector(sx, sz) else {
-                continue;
-            };
-            if sector.floor.is_some() {
-                faces.push(FaceRef {
-                    room,
-                    sx,
-                    sz,
-                    kind: FaceKind::Floor,
-                });
-            }
-            if sector.ceiling.is_some() {
-                faces.push(FaceRef {
-                    room,
-                    sx,
-                    sz,
-                    kind: FaceKind::Ceiling,
-                });
-            }
-            for dir in GridDirection::ALL {
-                for (stack, _) in sector.walls.get(dir).iter().enumerate() {
-                    let Ok(stack) = u8::try_from(stack) else {
-                        continue;
-                    };
-                    faces.push(FaceRef {
-                        room,
-                        sx,
-                        sz,
-                        kind: FaceKind::Wall { dir, stack },
-                    });
-                }
-            }
-        }
-        faces
-    }
-
-    /// Active selection mode (Face / Edge / Vertex).
-    pub fn selection_mode(&self) -> SelectionMode {
-        self.selection_mode
     }
 
     /// Scene node whose 3D bounding box currently sits under

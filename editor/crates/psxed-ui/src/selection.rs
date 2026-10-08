@@ -1,279 +1,25 @@
 use super::*;
 
-pub(crate) type SectorSelection = (NodeId, u16, u16);
-
-/// One pickable surface on the active Room's grid. Floors and
-/// ceilings are addressed by sector; walls add a cardinal direction
-/// plus a stack index (a single edge can hold multiple stacked walls
-/// -- windows / arches -- and each is independently selectable).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FaceKind {
-    Floor,
-    Ceiling,
-    Wall { dir: GridDirection, stack: u8 },
-}
-
-/// Horizontal surface type for triangle editing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HorizontalSurfaceKind {
-    Floor,
-    Ceiling,
-}
-
-impl HorizontalSurfaceKind {
-    const fn face_kind(self) -> FaceKind {
-        match self {
-            Self::Floor => FaceKind::Floor,
-            Self::Ceiling => FaceKind::Ceiling,
-        }
-    }
-}
-
-/// Which half of a split floor/ceiling face is being addressed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HorizontalTriangleIndex {
-    A,
-    B,
-}
-
-impl HorizontalTriangleIndex {
-    pub(crate) const fn label(self) -> &'static str {
-        match self {
-            Self::A => "A",
-            Self::B => "B",
-        }
-    }
-
-    pub(crate) const fn idx(self) -> usize {
-        match self {
-            Self::A => 0,
-            Self::B => 1,
-        }
-    }
-}
-
-/// One triangle half of a floor or ceiling face. The corner list
-/// snapshots the split layout at pick time so downstream edit code
-/// can move/outline the exact triangle the user selected.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct HorizontalTriangleRef {
-    pub room: NodeId,
-    pub sx: u16,
-    pub sz: u16,
-    pub surface: HorizontalSurfaceKind,
-    pub index: HorizontalTriangleIndex,
-    pub corners: [Corner; 3],
-}
-
-impl HorizontalTriangleRef {
-    pub const fn parent_face(self) -> FaceRef {
-        FaceRef {
-            room: self.room,
-            sx: self.sx,
-            sz: self.sz,
-            kind: self.surface.face_kind(),
-        }
-    }
-
-    pub const fn face_corner(self, corner: Corner) -> FaceCornerRef {
-        match self.surface {
-            HorizontalSurfaceKind::Floor => FaceCornerRef::Floor {
-                sx: self.sx,
-                sz: self.sz,
-                corner,
-            },
-            HorizontalSurfaceKind::Ceiling => FaceCornerRef::Ceiling {
-                sx: self.sx,
-                sz: self.sz,
-                corner,
-            },
-        }
-    }
-}
-
-/// A face inside the active Room, fully qualified by Room id +
-/// sector + face kind. Used by the Select tool's hover / selected
-/// state and the per-face inspector that follows.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FaceRef {
-    pub room: NodeId,
-    pub sx: u16,
-    pub sz: u16,
-    pub kind: FaceKind,
-}
-
-// Corner / WallCorner live in `psxed-project` so faces can carry
-// `dropped_corner` data with serde support. Re-exported here so
-// existing imports (`use psxed_ui::Corner`) keep working.
-pub use psxed_project::{Corner, WallCorner};
-
-/// Which of the four edges of a wall quad. Order matches the
-/// perimeter walk used by the picker:
-/// `Bottom = BL-BR`, `Right = BR-TR`, `Top = TR-TL`,
-/// `Left = TL-BL`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WallEdge {
-    Bottom,
-    Right,
-    Top,
-    Left,
-}
-
-/// One face-corner. `Selection::Vertex(_)` resolves through
-/// [`physical_vertex`] to a `Vec<FaceCornerRef>` listing every
-/// face-corner currently sharing the same world position.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FaceCornerRef {
-    Floor {
-        sx: u16,
-        sz: u16,
-        corner: Corner,
-    },
-    FloorTriangle {
-        sx: u16,
-        sz: u16,
-        triangle: HorizontalTriangleIndex,
-        corner: Corner,
-    },
-    Ceiling {
-        sx: u16,
-        sz: u16,
-        corner: Corner,
-    },
-    CeilingTriangle {
-        sx: u16,
-        sz: u16,
-        triangle: HorizontalTriangleIndex,
-        corner: Corner,
-    },
-    Wall {
-        sx: u16,
-        sz: u16,
-        dir: GridDirection,
-        stack: u8,
-        corner: WallCorner,
-    },
-}
-
-/// Vertex in a `Selection`. Carries the *seed* corner -- the one
-/// the user actually clicked. Resolve to a `PhysicalVertex` to
-/// get every coincident face-corner.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct VertexRef {
-    pub room: NodeId,
-    pub anchor: VertexAnchor,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum VertexAnchor {
-    Floor {
-        sx: u16,
-        sz: u16,
-        corner: Corner,
-    },
-    Ceiling {
-        sx: u16,
-        sz: u16,
-        corner: Corner,
-    },
-    Wall {
-        sx: u16,
-        sz: u16,
-        dir: GridDirection,
-        stack: u8,
-        corner: WallCorner,
-    },
-}
-
-impl VertexAnchor {
-    pub const fn as_face_corner(self) -> FaceCornerRef {
-        match self {
-            Self::Floor { sx, sz, corner } => FaceCornerRef::Floor { sx, sz, corner },
-            Self::Ceiling { sx, sz, corner } => FaceCornerRef::Ceiling { sx, sz, corner },
-            Self::Wall {
-                sx,
-                sz,
-                dir,
-                stack,
-                corner,
-            } => FaceCornerRef::Wall {
-                sx,
-                sz,
-                dir,
-                stack,
-                corner,
-            },
-        }
-    }
-}
-
-/// Edge in a `Selection`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct EdgeRef {
-    pub room: NodeId,
-    pub anchor: EdgeAnchor,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EdgeAnchor {
-    Floor {
-        sx: u16,
-        sz: u16,
-        dir: GridDirection,
-    },
-    Ceiling {
-        sx: u16,
-        sz: u16,
-        dir: GridDirection,
-    },
-    Wall {
-        sx: u16,
-        sz: u16,
-        dir: GridDirection,
-        stack: u8,
-        edge: WallEdge,
-    },
-}
-
-/// Tagged selection used by the editor's Select tool. Replaces
-/// the previous `selected_face: Option<FaceRef>` so all three
-/// modes share one piece of state.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Selection {
-    Face(FaceRef),
-    Triangle(HorizontalTriangleRef),
-    Edge(EdgeRef),
-    Vertex(VertexRef),
-}
-
-impl Selection {
-    /// The room this selection belongs to.
-    pub const fn room(&self) -> NodeId {
-        match self {
-            Self::Face(f) => f.room,
-            Self::Triangle(t) => t.room,
-            Self::Edge(e) => e.room,
-            Self::Vertex(v) => v.room,
-        }
-    }
-
-    /// Convenience: when the selection is a face, hand it to
-    /// callers that still want the old `FaceRef` shape (e.g.
-    /// the per-face inspector).
-    pub const fn as_face(&self) -> Option<FaceRef> {
-        match self {
-            Self::Face(f) => Some(*f),
-            Self::Triangle(t) => Some(t.parent_face()),
-            _ => None,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum MaterialTarget {
-    Face(FaceRef),
-    Triangle(HorizontalTriangleRef),
     BrushFace { brush: usize, face: usize },
+}
+
+pub(crate) fn describe_material_target(target: MaterialTarget) -> String {
+    match target {
+        MaterialTarget::BrushFace { brush, face } => {
+            format!("brush {} face {}", brush + 1, face + 1)
+        }
+    }
+}
+
+pub(crate) fn push_unique_material_target(
+    targets: &mut Vec<MaterialTarget>,
+    target: MaterialTarget,
+) {
+    if !targets.contains(&target) {
+        targets.push(target);
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -319,25 +65,19 @@ pub enum EntityBoundKind {
     DestructibleZenith,
     /// Shared breakable state accepting either attack channel.
     DestructibleBoth,
-    /// `Portal`.
-    Portal,
     /// Placed `Logic` graph node (trigger volume / relay /
     /// multisource / door).
     Logic,
 }
 
 /// World-space AABB for one selectable scene entity.
-/// Coordinates use [`psxed_project::spatial::node_preview_bounds_center`]
-/// for entities under a Room, so bounds line up with the same
-/// origin-aware preview world used by rendered models, markers, and
+/// Nodes live in raw world units, so the bound sits at the node translation
+/// lifted by its half extent and lines up with rendered models, markers, and
 /// lights.
 #[derive(Debug, Clone, Copy)]
 pub struct EntityBounds {
     /// Owning scene-tree node id.
     pub node: NodeId,
-    /// Enclosing Room id, if any. Used to filter picking to
-    /// the active room.
-    pub room: Option<NodeId>,
     /// Bound class for visual styling + picking priority.
     pub kind: EntityBoundKind,
     /// World-space AABB centre.

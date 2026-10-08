@@ -3,9 +3,7 @@ use super::*;
 impl EditorWorkspace {
     /// Build the camera ray in world units for the given pointer
     /// position, or `None` if the pointer's outside the viewport.
-    /// Shared by `pick_3d_world` (ray vs. ground plane) and
-    /// `pick_face_at` (ray vs. every face triangle in the active
-    /// room) so both agree on every axis convention.
+    /// Shared by every 3D picker so they agree on every axis convention.
     pub(crate) fn camera_ray_for_pointer(
         &self,
         rect: egui::Rect,
@@ -23,8 +21,6 @@ impl EditorWorkspace {
     }
 
     pub(crate) fn clear_validation_issues(&mut self) {
-        self.validation_issue_primitives.clear();
-        self.validation_issue_rooms.clear();
         self.last_cook_errors.clear();
     }
 
@@ -47,8 +43,6 @@ impl EditorWorkspace {
                 self.replace_brush_selection(brush, face);
                 self.clear_node_selection_state();
                 self.clear_resource_selection_state();
-                self.clear_sector_selection();
-                self.clear_primitive_selection_state();
                 self.frame_viewport();
                 true
             }
@@ -59,8 +53,6 @@ impl EditorWorkspace {
                 self.clear_brush_selection();
                 self.replace_node_selection(node);
                 self.clear_resource_selection_state();
-                self.clear_sector_selection();
-                self.clear_primitive_selection_state();
                 self.frame_viewport();
                 true
             }
@@ -71,302 +63,9 @@ impl EditorWorkspace {
                 self.clear_brush_selection();
                 self.replace_resource_selection(resource);
                 self.clear_node_selection_state();
-                self.clear_sector_selection();
-                self.clear_primitive_selection_state();
                 true
             }
         }
-    }
-
-    /// Map a `(face, world-hit)` pair from `pick_face_with_hit`
-    /// to a `Selection`, refining to an edge or vertex of the
-    /// face when `selection_mode` demands one. Local-UV math
-    /// happens here; the picker's heavy lifting (ray vs every
-    /// face) was already paid above.
-    pub(crate) fn pick_primitive_from_hit(&self, face: FaceRef, hit: [f32; 3]) -> Selection {
-        match self.selection_mode {
-            SelectionMode::Face => Selection::Face(face),
-            SelectionMode::Edge => self
-                .face_edge_at_hit(face, hit)
-                .map(Selection::Edge)
-                .unwrap_or(Selection::Face(face)),
-            SelectionMode::Vertex => self
-                .face_vertex_at_hit(face, hit)
-                .map(Selection::Vertex)
-                .unwrap_or(Selection::Face(face)),
-        }
-    }
-
-    /// Closest edge of `face` to the world-space hit. Computes
-    /// distance to each of the four perimeter line segments in
-    /// 3D (so sloped floors / non-rectangular walls still pick
-    /// the right edge) and returns the smallest.
-    pub(crate) fn face_edge_at_hit(&self, face: FaceRef, hit: [f32; 3]) -> Option<EdgeRef> {
-        let corners = self.face_world_corners(face)?;
-        let edge_idx = closest_edge_idx(&corners, hit);
-        let anchor = match face.kind {
-            FaceKind::Floor => EdgeAnchor::Floor {
-                sx: face.sx,
-                sz: face.sz,
-                dir: floor_edge_dir(edge_idx),
-            },
-            FaceKind::Ceiling => EdgeAnchor::Ceiling {
-                sx: face.sx,
-                sz: face.sz,
-                dir: floor_edge_dir(edge_idx),
-            },
-            FaceKind::Wall { dir, stack } => EdgeAnchor::Wall {
-                sx: face.sx,
-                sz: face.sz,
-                dir,
-                stack,
-                edge: wall_edge_idx(edge_idx),
-            },
-        };
-        Some(EdgeRef {
-            room: face.room,
-            anchor,
-        })
-    }
-
-    /// Closest corner of `face` to the world-space hit. Distance
-    /// computed in world space against the four corner points.
-    pub(crate) fn face_vertex_at_hit(&self, face: FaceRef, hit: [f32; 3]) -> Option<VertexRef> {
-        let corners = self.face_world_corners(face)?;
-        let corner_idx = closest_corner_idx(&corners, hit);
-        let anchor = match face.kind {
-            FaceKind::Floor => VertexAnchor::Floor {
-                sx: face.sx,
-                sz: face.sz,
-                corner: floor_corner_idx(corner_idx),
-            },
-            FaceKind::Ceiling => VertexAnchor::Ceiling {
-                sx: face.sx,
-                sz: face.sz,
-                corner: floor_corner_idx(corner_idx),
-            },
-            FaceKind::Wall { dir, stack } => VertexAnchor::Wall {
-                sx: face.sx,
-                sz: face.sz,
-                dir,
-                stack,
-                corner: wall_corner_idx(corner_idx),
-            },
-        };
-        Some(VertexRef {
-            room: face.room,
-            anchor,
-        })
-    }
-
-    pub(crate) fn triangle_world_corners(
-        &self,
-        triangle: HorizontalTriangleRef,
-    ) -> Option<[[f32; 3]; 3]> {
-        let grid = self.room_grid_view(triangle.room)?;
-        if triangle.sx >= grid.width || triangle.sz >= grid.depth {
-            return None;
-        }
-        let sector = grid.sector(triangle.sx, triangle.sz)?;
-        let face = match triangle.surface {
-            HorizontalSurfaceKind::Floor => sector.floor.as_ref()?,
-            HorizontalSurfaceKind::Ceiling => sector.ceiling.as_ref()?,
-        };
-        let bounds = grid.cell_bounds_world(triangle.sx, triangle.sz);
-        Some(horizontal_triangle_world_corners(
-            bounds,
-            triangle.corners,
-            face.triangle_heights(triangle.index.idx()),
-        ))
-    }
-
-    /// Four world-space corners of `face` in canonical
-    /// perimeter order -- `[NW, NE, SE, SW]` for floors / ceilings,
-    /// `[BL, BR, TR, TL]` for walls. Returns `None` if the face
-    /// no longer exists (cell out of bounds, geometry missing).
-    pub(crate) fn face_world_corners(&self, face: FaceRef) -> Option<[[f32; 3]; 4]> {
-        let grid = self.room_grid_view(face.room)?;
-        if face.sx >= grid.width || face.sz >= grid.depth {
-            return None;
-        }
-        let sector = grid.sector(face.sx, face.sz)?;
-        let bounds = grid.cell_bounds_world(face.sx, face.sz);
-        match face.kind {
-            FaceKind::Floor => sector
-                .floor
-                .as_ref()
-                .map(|f| horizontal_face_world_corners(bounds, f.heights)),
-            FaceKind::Ceiling => sector
-                .ceiling
-                .as_ref()
-                .map(|c| horizontal_face_world_corners(bounds, c.heights)),
-            FaceKind::Wall { dir, stack } => {
-                let wall = sector.walls.get(dir).get(stack as usize)?;
-                wall_face_world_corners(bounds, dir, wall.heights)
-            }
-        }
-    }
-
-    /// Walk every floor / ceiling / wall in the active Room and
-    /// return the closest face the camera ray hits. Mirrors the
-    /// triangle layout `editor_preview` emits so what the user sees
-    /// matches what gets picked. `None` when the pointer is off the
-    /// panel or no face is along the ray.
-    /// Closest floor / wall / ceiling the camera ray intersects,
-    /// along with the world-space hit point. Paint dispatch reads
-    /// the hit point to infer which edge of a floor cell the user
-    /// clicked when the wall paint tool is active.
-    pub(crate) fn pick_face_with_hit(
-        &self,
-        rect: egui::Rect,
-        pointer: egui::Pos2,
-    ) -> Option<(FaceRef, [f32; 3])> {
-        let (origin, dir) = self.camera_ray_for_pointer(rect, pointer)?;
-        let scene = self.project.active_scene();
-        let room = scene.nodes().iter().find(|node| {
-            matches!(node.kind, NodeKind::Section { .. })
-                && !self.scene_node_effectively_hidden(node.id)
-        })?;
-        let room_id = room.id;
-        // Read the active floor's grid, not the floor 0 destructure, so a
-        // ray pick on an upper floor tests that floor's faces (the render
-        // shows the active floor in place, so the ray must match it).
-        let grid = self.room_grid_view(room_id)?;
-        let mut best: Option<(FaceRef, f32)> = None;
-        let mut consider = |face: FaceRef, t: f32| {
-            if !t.is_finite() || t <= 0.0 {
-                return;
-            }
-            if best.is_none_or(|(_, bt)| t < bt) {
-                best = Some((face, t));
-            }
-        };
-
-        for sx in 0..grid.width {
-            for sz in 0..grid.depth {
-                let Some(sector) = grid.sector(sx, sz) else {
-                    continue;
-                };
-                let bounds = grid.cell_bounds_world(sx, sz);
-
-                if let Some(floor) = &sector.floor {
-                    let sidedness = material_sidedness(&self.project, floor.material);
-                    let face = FaceRef {
-                        room: room_id,
-                        sx,
-                        sz,
-                        kind: FaceKind::Floor,
-                    };
-                    for index in [HorizontalTriangleIndex::A, HorizontalTriangleIndex::B] {
-                        let corners = horizontal_triangle_corners(floor.split, index);
-                        if floor.dropped_corner.is_some_and(|d| corners.contains(&d)) {
-                            continue;
-                        }
-                        let [a, b, c] = horizontal_triangle_world_corners(
-                            bounds,
-                            corners,
-                            floor.triangle_heights(index.idx()),
-                        );
-                        if let Some(t) = ray_triangle_sided(origin, dir, a, c, b, sidedness) {
-                            consider(face, t);
-                        }
-                    }
-                }
-                if let Some(ceiling) = &sector.ceiling {
-                    let sidedness = material_sidedness(&self.project, ceiling.material);
-                    let face = FaceRef {
-                        room: room_id,
-                        sx,
-                        sz,
-                        kind: FaceKind::Ceiling,
-                    };
-                    for index in [HorizontalTriangleIndex::A, HorizontalTriangleIndex::B] {
-                        let corners = horizontal_triangle_corners(ceiling.split, index);
-                        if ceiling.dropped_corner.is_some_and(|d| corners.contains(&d)) {
-                            continue;
-                        }
-                        let [a, b, c] = horizontal_triangle_world_corners(
-                            bounds,
-                            corners,
-                            ceiling.triangle_heights(index.idx()),
-                        );
-                        if let Some(t) = ray_triangle_sided(origin, dir, a, b, c, sidedness) {
-                            consider(face, t);
-                        }
-                    }
-                }
-                for dir_card in GridDirection::ALL {
-                    for (stack_idx, wall) in sector.walls.get(dir_card).iter().enumerate() {
-                        let sidedness = material_sidedness(&self.project, wall.material);
-                        if !wall_side_visible_from_camera(sidedness, bounds, dir_card, origin) {
-                            continue;
-                        }
-                        let Some([bl, br, tr, tl]) =
-                            wall_face_world_corners(bounds, dir_card, wall.heights)
-                        else {
-                            continue;
-                        };
-                        let face = FaceRef {
-                            room: room_id,
-                            sx,
-                            sz,
-                            kind: FaceKind::Wall {
-                                dir: dir_card,
-                                stack: stack_idx as u8,
-                            },
-                        };
-                        for (a, b, c, members) in
-                            wall_triangles(bl, br, tr, tl, wall.dropped_corner)
-                        {
-                            if wall.dropped_corner.is_some_and(|d| members.contains(&d)) {
-                                continue;
-                            }
-                            if let Some(t) = ray_triangle(origin, dir, a, b, c) {
-                                consider(face, t);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        best.map(|(face, t)| {
-            let hit = [
-                origin[0] + dir[0] * t,
-                origin[1] + dir[1] * t,
-                origin[2] + dir[2] * t,
-            ];
-            (face, hit)
-        })
-    }
-
-    /// Project a pointer position inside the 3D viewport panel onto
-    /// the active Room's ground plane and return the editor's
-    /// "1 unit = 1 sector" world coordinates the 2D click handler
-    /// already speaks.
-    pub(crate) fn pick_3d_world(&self, rect: egui::Rect, pointer: egui::Pos2) -> Option<[f32; 2]> {
-        let scene = self.project.active_scene();
-        let room = scene.nodes().iter().find(|node| {
-            matches!(node.kind, NodeKind::Section { .. })
-                && !self.scene_node_effectively_hidden(node.id)
-        })?;
-        self.pick_3d_world_on_room_plane(rect, pointer, room.id, 0.0)
-    }
-
-    pub(crate) fn pick_3d_world_on_room_plane(
-        &self,
-        rect: egui::Rect,
-        pointer: egui::Pos2,
-        room_id: NodeId,
-        plane_y: f32,
-    ) -> Option<[f32; 2]> {
-        let grid = self.room_grid_view(room_id)?;
-        let (origin, dir) = self.camera_ray_for_pointer(rect, pointer)?;
-        let hit = ray_intersects_horizontal_plane(origin, dir, plane_y)?;
-        // `WorldGrid::room_local_to_editor` is the canonical inverse
-        // of `editor_to_room_local` and accounts for `origin`, so
-        // picking stays correct after a negative-side grow.
-        Some(grid.room_local_to_editor(hit))
     }
 
     /// Top-level keyboard shortcut handler. Cleared via `consume_*`
@@ -444,20 +143,11 @@ impl EditorWorkspace {
             self.request_play_or_rebuild(playtest_status);
         }
         if consume_redo {
-            if self.floating_geometry.is_some() {
-                self.cancel_floating_geometry();
-            } else {
-                self.do_redo();
-            }
+            self.do_redo();
         } else if consume_undo {
-            if self.floating_geometry.is_some() {
-                self.cancel_floating_geometry();
-            } else {
-                self.do_undo();
-            }
+            self.do_undo();
         }
         if !focus_taken
-            && self.floating_geometry.is_none()
             && self.active_workspace != WorkspaceView::Ui
             && consume_command_shortcut(ctx, egui::Key::A)
         {
@@ -500,33 +190,11 @@ impl EditorWorkspace {
                 return;
             }
             let rot = ctx.input_mut(|i| i.key_pressed(egui::Key::R));
-            if rot
-                && self.renaming.is_none()
-                && (room_workspace || self.floating_geometry.is_some())
-            {
-                self.rotate_current_selection_90();
-            }
-            let flip = ctx.input_mut(|i| i.key_pressed(egui::Key::F));
-            if flip && self.floating_geometry.is_some() {
-                if modifiers.shift {
-                    self.flip_floating_geometry_z();
-                } else {
-                    self.flip_floating_geometry_x();
-                }
-            }
-            if self.floating_geometry.is_some() {
-                // Heights are absolute, so a piece authored at ground level
-                // has to be liftable onto a terrace before it is placed.
-                let raise = ctx.input_mut(|i| i.key_pressed(egui::Key::PageUp));
-                let lower = ctx.input_mut(|i| i.key_pressed(egui::Key::PageDown));
-                if raise != lower {
-                    self.nudge_floating_geometry_elevation(if raise { 1 } else { -1 });
-                }
+            if rot && self.renaming.is_none() && room_workspace {
+                self.rotate_selected_yaw_90();
             }
             let escape = ctx.input_mut(|i| i.key_pressed(egui::Key::Escape));
-            if escape && self.floating_geometry.is_some() {
-                self.cancel_floating_geometry();
-            } else if escape && self.open_group.is_some() {
+            if escape && self.open_group.is_some() {
                 self.close_open_group();
             }
             let frame = ctx.input_mut(|i| i.key_pressed(egui::Key::Period));
@@ -559,9 +227,6 @@ impl EditorWorkspace {
                     }
                 }
             }
-            if self.floating_geometry.is_some() {
-                return;
-            }
             let snap_to_floor = self.active_workspace == WorkspaceView::Room
                 && ctx.input_mut(|input| input.key_pressed(egui::Key::End));
             if snap_to_floor && self.can_snap_selected_entities_to_floor() {
@@ -575,9 +240,7 @@ impl EditorWorkspace {
                 i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace)
             });
             if del && self.renaming.is_none() {
-                if room_workspace && !self.selected_primitive_targets().is_empty() {
-                    self.delete_selected_primitives();
-                } else if self.selection.selected_resource.is_some() {
+                if self.selection.selected_resource.is_some() {
                     // Asks first, and the resource is what these
                     // workspaces show, so it stays available everywhere.
                     self.begin_resource_delete_confirmation();
@@ -703,13 +366,7 @@ impl EditorWorkspace {
             self.place_kind = place_kind;
         }
         if tool == ViewTool::PaintMaterial {
-            self.clear_sector_selection();
-            self.clear_primitive_selection_state();
-            self.selection.hovered_primitive = None;
-            if matches!(
-                self.interaction,
-                Interaction::PrimitiveGizmo(_) | Interaction::NodeGizmo(_)
-            ) {
+            if matches!(self.interaction, Interaction::NodeGizmo(_)) {
                 self.interaction = Interaction::Idle;
             }
             let material = self
@@ -759,13 +416,9 @@ impl EditorWorkspace {
             return;
         }
         self.transform_gizmo_mode = mode;
-        // Switching gizmo mode cancels an in-flight transform stroke
-        // (gizmo / node-gizmo / node drag), but must leave an unrelated
-        // marquee or UI-canvas stroke alone.
-        if matches!(
-            self.interaction,
-            Interaction::PrimitiveGizmo(_) | Interaction::NodeGizmo(_)
-        ) {
+        // Switching gizmo mode cancels an in-flight node-gizmo stroke, but
+        // must leave an unrelated marquee or UI-canvas stroke alone.
+        if matches!(self.interaction, Interaction::NodeGizmo(_)) {
             self.interaction = Interaction::Idle;
         }
         self.status = format!("Transform: {}", mode.label());
@@ -841,93 +494,10 @@ impl EditorWorkspace {
         self.mark_shortcut_group_changed(ShortcutGroup::Viewport);
     }
 
-    /// Switch the Select tool's primitive mode. Tries to adapt
-    /// the existing selection to the new mode (a face → its NW
-    /// corner, a vertex → its parent face) so the user doesn't
-    /// lose their place. Falls back to clearing if the current
-    /// selection has no natural counterpart.
-    pub(crate) fn set_selection_mode(&mut self, mode: SelectionMode) {
-        if self.selection_mode == mode {
-            return;
-        }
-        self.selection_mode = mode;
-        let active = self
-            .selection
-            .selected_primitive
-            .and_then(|selection| Self::selection_as_mode(selection, mode));
-        let mut converted = Vec::new();
-        for selection in self.selected_primitive_targets() {
-            let Some(selection) = Self::selection_as_mode(selection, mode) else {
-                continue;
-            };
-            if !converted.contains(&selection) {
-                converted.push(selection);
-            }
-        }
-        self.selection.selected_primitives = converted;
-        self.selection.selected_primitive =
-            active.or_else(|| self.selection.selected_primitives.first().copied());
-        // Clear the hover too -- its mode is the old one, and
-        // the next mouse-move re-pick will repopulate under the
-        // new mode anyway.
-        self.selection.hovered_primitive = None;
-        self.status = format!("Selection mode: {}", mode.label());
-        self.mark_shortcut_group_changed(ShortcutGroup::Selection);
-    }
-
-    pub(crate) fn selection_as_mode(
-        selection: Selection,
-        mode: SelectionMode,
-    ) -> Option<Selection> {
-        match (selection, mode) {
-            (Selection::Face(face), SelectionMode::Face) => Some(Selection::Face(face)),
-            (Selection::Face(face), SelectionMode::Edge) => {
-                Some(Selection::Edge(face_first_edge(face)))
-            }
-            (Selection::Face(face), SelectionMode::Vertex) => {
-                Some(Selection::Vertex(face_first_vertex(face)))
-            }
-            (Selection::Triangle(triangle), SelectionMode::Face) => {
-                Some(Selection::Triangle(triangle))
-            }
-            (Selection::Triangle(triangle), SelectionMode::Edge) => {
-                Some(Selection::Edge(triangle_first_edge(triangle)))
-            }
-            (Selection::Triangle(triangle), SelectionMode::Vertex) => {
-                Some(Selection::Vertex(triangle_first_vertex(triangle)))
-            }
-            (Selection::Edge(edge), SelectionMode::Face) => {
-                edge_owning_face_ref(edge).map(Selection::Face)
-            }
-            (Selection::Edge(edge), SelectionMode::Vertex) => {
-                Some(Selection::Vertex(edge_first_vertex(edge)))
-            }
-            (Selection::Vertex(vertex), SelectionMode::Face) => {
-                vertex_owning_face_ref(vertex).map(Selection::Face)
-            }
-            (Selection::Vertex(vertex), SelectionMode::Edge) => {
-                Some(Selection::Edge(vertex_first_edge(vertex)))
-            }
-            (selection, mode) if Self::matches_mode(selection, mode) => Some(selection),
-            _ => None,
-        }
-    }
-
-    pub(crate) fn matches_mode(selection: Selection, mode: SelectionMode) -> bool {
-        matches!(
-            (selection, mode),
-            (Selection::Face(_), SelectionMode::Face)
-                | (Selection::Triangle(_), SelectionMode::Face)
-                | (Selection::Edge(_), SelectionMode::Edge)
-                | (Selection::Vertex(_), SelectionMode::Vertex)
-        )
-    }
-
     /// Snap the selected node's Y-rotation up by 90°. No-op on
-    /// macro / structural nodes (World, Room, plain
-    /// transform-only nodes) since they have no in-world heading.
-    /// Entity hosts, the legacy `MeshInstance` card, and directional
-    /// markers (spawn / portal) are rotatable.
+    /// macro / structural nodes (World, plain transform-only nodes)
+    /// since they have no in-world heading. Entity hosts, the legacy
+    /// `MeshInstance` card, and directional markers (spawn) are rotatable.
     pub(crate) fn rotate_selected_yaw_90(&mut self) {
         let id = self.selection.selected_node;
         if id == NodeId::ROOT {
@@ -943,7 +513,6 @@ impl EditorWorkspace {
                 | NodeKind::BoxProp { .. }
                 | NodeKind::CylinderProp { .. }
                 | NodeKind::SpawnPoint { .. }
-                | NodeKind::Portal { .. }
         );
         if !rotatable {
             return;
@@ -1118,8 +687,6 @@ impl EditorWorkspace {
                         self.selection.node_selection_anchor = Some(self.selection.selected_node);
                     }
                     self.clear_resource_selection_state();
-                    self.clear_primitive_selection_state();
-                    self.clear_sector_selection();
                     self.status = if moved == 1 {
                         "Moved node".to_string()
                     } else {
@@ -1487,13 +1054,11 @@ impl EditorWorkspace {
         });
         ui.menu_button("Edit", |ui| {
             let can_node_delete = self.selection.selected_node != NodeId::ROOT;
-            let has_geometry_selection = self.has_geometry_selection();
             let selected_nodes = self.selected_node_ids_in_hierarchy();
             let has_selected_group = selected_nodes.iter().any(|id| self.node_is_group(*id));
             if self.active_workspace == WorkspaceView::Room {
-                let can_copy_geometry = !self.selected_brush_set().is_empty()
-                    || has_geometry_selection
-                    || has_selected_group;
+                let can_copy_geometry =
+                    !self.selected_brush_set().is_empty() || has_selected_group;
                 if ui
                     .add_enabled(
                         can_copy_geometry,
@@ -1569,17 +1134,6 @@ impl EditorWorkspace {
                 .clicked()
             {
                 self.duplicate_current_selection();
-                ui.close_menu();
-            }
-            ui.separator();
-            if ui
-                .add_enabled(
-                    has_geometry_selection,
-                    egui::Button::new("Rotate World Geometry 90°"),
-                )
-                .clicked()
-            {
-                self.rotate_current_selection_90();
                 ui.close_menu();
             }
             ui.separator();
@@ -2021,42 +1575,6 @@ impl EditorWorkspace {
         out: &mut String,
         metrics: EditorPlaytestMetrics,
     ) {
-        let _ = writeln!(
-            out,
-            "runtime_player: valid={} room_index={} local=({}, {}) yaw_q12={} yaw_deg={:.2}",
-            metrics.player_map_valid,
-            metrics.player_room_index,
-            metrics.player_local_x,
-            metrics.player_local_z,
-            metrics.player_view_yaw_q12,
-            q12_degrees(metrics.player_view_yaw_q12)
-        );
-        let camera_forward = if metrics.camera_view_basis_valid {
-            let x = -(metrics.camera_view_sin_yaw_q12 as f32) / 4096.0;
-            let z = -(metrics.camera_view_cos_yaw_q12 as f32) / 4096.0;
-            Some([x, z])
-        } else {
-            None
-        };
-        let _ = writeln!(
-            out,
-            "runtime_camera: map_valid={} local=({}, {}, {}) global_valid={} global=({}, {}, {}) visibility_room={} basis_valid={} yaw_sin_q12={} yaw_cos_q12={} pitch_sin_q12={} pitch_cos_q12={} forward_xz={:?}",
-            metrics.camera_map_valid,
-            metrics.camera_local_x,
-            metrics.camera_local_y,
-            metrics.camera_local_z,
-            metrics.camera_global_valid,
-            metrics.camera_global_x,
-            metrics.camera_global_y,
-            metrics.camera_global_z,
-            metrics.portal_current_room_index,
-            metrics.camera_view_basis_valid,
-            metrics.camera_view_sin_yaw_q12,
-            metrics.camera_view_cos_yaw_q12,
-            metrics.camera_view_sin_pitch_q12,
-            metrics.camera_view_cos_pitch_q12,
-            camera_forward
-        );
         let _ = writeln!(
             out,
             "scheduler_tasks: fixed_avg_ms={:.3} fixed_max_ms={:.3} visual_avg_ms={:.3} visual_max_ms={:.3}",

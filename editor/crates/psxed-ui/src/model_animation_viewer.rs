@@ -1027,10 +1027,24 @@ pub(crate) fn draw_model_animation_viewer_toolbar(
             action = Some(AnimationViewerAction::ProjectChanged);
         }
     }
-    if draw_combat_window_controls(ui, project, state.selected_character, state.selected_action) {
-        action = Some(AnimationViewerAction::ProjectChanged);
-    }
-    if draw_action_chain_controls(ui, project, state.selected_character, state.selected_action) {
+    // Side by side so the per-action rules cost one row while collapsed and
+    // never push the Weapon Studio rows below the panel.
+    let rules_changed = ui.columns(2, |columns| {
+        let timing = draw_combat_window_controls(
+            &mut columns[0],
+            project,
+            state.selected_character,
+            state.selected_action,
+        );
+        let chain = draw_action_chain_controls(
+            &mut columns[1],
+            project,
+            state.selected_character,
+            state.selected_action,
+        );
+        timing | chain
+    });
+    if rules_changed {
         action = Some(AnimationViewerAction::ProjectChanged);
     }
     let character_available = state.selected_character.is_some_and(|id| {

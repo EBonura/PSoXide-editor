@@ -917,7 +917,7 @@ cook-playtest:
 GUEST_STAGE_ROOT ?= /tmp/psoxide-psx-guest-v1
 EDITOR_PLAYTEST_FEATURES ?= cd-stream-bench
 EDITOR_PLAYTEST_CARGO_FEATURE_FLAGS ?= --features "$(EDITOR_PLAYTEST_FEATURES)"
-EDITOR_PLAYTEST_HARDWARE_FEATURES ?= cd-stream-bench world-order-bucketed world-grid-visible ot-2048 vis-anchor-pvs-candidates
+EDITOR_PLAYTEST_HARDWARE_FEATURES ?= cd-stream-bench world-order-bucketed ot-2048
 
 build-editor-playtest:
 	sh tools/build_guest_staged.sh $(EDITOR_PLAYTEST_PSX_BUILD_FLAGS) $(EDITOR_PLAYTEST_CARGO_FEATURE_FLAGS)

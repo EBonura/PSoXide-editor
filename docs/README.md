@@ -26,7 +26,7 @@ They are historical evidence, not the current release status or setup guide.
 |-----|-------|
 | [editor-architecture.md](editor-architecture.md) | Editor internals. |
 | [frontend.md](frontend.md) | Emulator frontend architecture. |
-| [world-grid-architecture.md](world-grid-architecture.md) | Room/sector grid model. |
+| [world-grid-architecture.md](world-grid-architecture.md) | Retired room/sector grid model (history). |
 | [level-residency.md](level-residency.md) | Streamed-room residency runtime. |
 | [demo10-low-level-hot-paths-2026-06-02.md](demo10-low-level-hot-paths-2026-06-02.md) | Demo10 guest-cycle baseline for low-level optimization work. |
 

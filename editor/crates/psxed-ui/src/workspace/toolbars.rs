@@ -156,7 +156,7 @@ impl EditorWorkspace {
                             orthographic_view.project_f32(self.orthographic_focus),
                             self.viewport_zoom,
                         );
-                        if top_view && self.floating_geometry.is_none() {
+                        if top_view {
                             let dropped_resource = resource_drop_hovered
                                 .then(|| response.dnd_release_payload::<ResourceId>())
                                 .flatten()
@@ -202,42 +202,10 @@ impl EditorWorkspace {
                             .hover_pos()
                             .or_else(|| response.interact_pointer_pos())
                             .map(|pos| transform.screen_to_world(pos));
-                        if top_view {
-                            if let (Some(room), Some(world)) = (
-                                self.floating_geometry.as_ref().map(|preview| preview.room),
-                                pointer_world,
-                            ) {
-                                if let Some(origin) =
-                                    self.floating_origin_from_2d_world(room, world)
-                                {
-                                    self.track_floating_geometry_pointer_origin(origin);
-                                }
-                            }
-                        }
                         let primary_down = ui
                             .input(|input| input.pointer.button_down(egui::PointerButton::Primary));
                         if !primary_down {
                             self.interaction.take_box_select_2d();
-                        }
-                        if !dnd_active && top_view && self.floating_geometry.is_some() {
-                            if response.clicked_by(egui::PointerButton::Primary) {
-                                self.commit_floating_geometry();
-                            }
-                            if response.clicked_by(egui::PointerButton::Secondary) {
-                                self.cancel_floating_geometry();
-                            }
-                            draw_viewport_overlay(
-                                &painter,
-                                rect,
-                                &self.project,
-                                self.viewport_zoom,
-                                self.snap_units,
-                                orthographic_view,
-                            );
-                            self.draw_bsp_leak_path_2d(&painter, transform, orthographic_view);
-                            draw_axes_gizmo(&painter, rect, orthographic_view);
-                            self.draw_bsp_leak_notice(&painter, rect);
-                            return;
                         }
                         let brush_edit_active = matches!(self.active_tool, ViewTool::Brush)
                             || (matches!(self.active_tool, ViewTool::Select)
@@ -358,7 +326,7 @@ impl EditorWorkspace {
                                     .or_else(|| response.interact_pointer_pos())
                                 {
                                     let modifiers = ui.input(|input| input.modifiers);
-                                    self.begin_viewport_box_select(start, None, modifiers);
+                                    self.begin_viewport_box_select(start, modifiers);
                                 }
                             }
                         }
@@ -1083,9 +1051,6 @@ impl EditorWorkspace {
             }
             self.selected_brushes = selected_brushes;
         }
-        if let Some(selection_mode) = mode.selection_mode() {
-            self.set_selection_mode(selection_mode);
-        }
         self.status = format!(
             "Brush {}: {}; grid snap {}",
             mode.label(),
@@ -1713,18 +1678,10 @@ impl EditorWorkspace {
         }
     }
 
-    /// Resolve the Room node that owns the current selection, if any.
-    ///
-    /// Order: selected face's room → climb the selected node's
     /// Walk the active scene and collect a selectable AABB for
     /// every entity-kind node -- every node that's neither the
-    /// world root, nor a structural Node/World, nor a Room.
-    ///
-    /// `room_filter` confines the walk to descendants of one
-    /// Room (Some(id)) or includes everything (None). The 3D
-    /// click handler uses Some(active_room) so a click in the
-    /// active room can't pick lights from another room.
-    pub fn collect_entity_bounds(&self, room_filter: Option<NodeId>) -> Vec<EntityBounds> {
+    /// world root nor a structural Node/World.
+    pub fn collect_entity_bounds(&self) -> Vec<EntityBounds> {
         let scene = self.project.active_scene();
         let mut out = Vec::new();
         for node in scene.nodes() {
@@ -1737,110 +1694,15 @@ impl EditorWorkspace {
             if matches!(node.kind, NodeKind::PointLight { .. }) && !self.show_lights {
                 continue;
             }
-            if matches!(node.kind, NodeKind::Portal { .. }) {
-                continue;
-            }
-            // Find this node's enclosing Room.
-            let enclosing_room = enclosing_room_id(scene, node.id);
-            if let (Some(want), Some(actual)) = (room_filter, enclosing_room) {
-                if want != actual {
-                    continue;
-                }
-            }
-            // Floor-aware selection: in the active room, a node is only
-            // interactable when its floor is visible in the Sims view
-            // (active floor or below), and its bounds must sit at the same
-            // Y the renderer drew it. `node_draw_offset` is the shared
-            // source of truth that the render pass also uses, so selection
-            // and render can't disagree. Nodes in other rooms (or rooms
-            // with a single floor) get offset 0.
-            let floor_y_offset = match enclosing_room {
-                Some(room) => {
-                    match psxed_project::floor_view::node_draw_offset(
-                        scene,
-                        room,
-                        self.active_floor,
-                        node.id,
-                    ) {
-                        Some(offset) => offset,
-                        // Floor hidden (above the active floor): not
-                        // selectable this frame.
-                        None => continue,
-                    }
-                }
-                None => 0,
-            };
-            let Some((kind, mut half_extents)) = entity_bound_kind_and_size(self, node) else {
+            let Some((kind, half_extents)) = entity_bound_kind_and_size(self, node) else {
                 continue;
             };
-            // World position. Entities under a Room use the
-            // canonical room-local convention so bounds line up
-            // with the rendered marker / model exactly.
-            let center_world = match enclosing_room.and_then(|id| scene.node(id)) {
-                Some(room_node) => match &room_node.kind {
-                    NodeKind::Section { grid } => {
-                        // A stacked floor can grow independently from the
-                        // base floor, so its width/origin (and therefore its
-                        // editor-to-preview conversion) can differ. The 3D
-                        // renderer places node markers with the node's own
-                        // floor grid; picking must use that same grid or the
-                        // clickable bound drifts away from the visible node.
-                        let node_floor = psxed_project::floor_view::node_floor(scene, node.id);
-                        let Some(node_grid) = grid.floor(node_floor) else {
-                            continue;
-                        };
-                        if kind == EntityBoundKind::Portal {
-                            let Some((center, half)) = portal_seam_bounds_3d(node_grid, node)
-                            else {
-                                continue;
-                            };
-                            half_extents = half;
-                            center
-                        } else if node_is_floor_anchored(&node.kind) {
-                            psxed_project::spatial::floor_anchored_node_preview_bounds_center(
-                                node_grid,
-                                &node.transform,
-                                half_extents,
-                            )
-                        } else if kind == EntityBoundKind::PointLight {
-                            // The light bulb gizmo is centred exactly on the
-                            // authored transform. Keep its pick box symmetric
-                            // around that visible marker instead of treating
-                            // the transform as the bottom of a standing prop.
-                            psxed_project::spatial::node_preview_origin_f32(
-                                node_grid,
-                                &node.transform,
-                            )
-                        } else {
-                            psxed_project::spatial::node_preview_bounds_center(
-                                node_grid,
-                                &node.transform,
-                                half_extents,
-                            )
-                        }
-                    }
-                    _ => continue,
-                },
-                None => {
-                    // No enclosing Room -- node lives in raw
-                    // world space. Use translation directly so
-                    // the bound at least lands somewhere
-                    // pickable.
-                    let p = node.transform.translation;
-                    [p[0], p[1] + half_extents[1], p[2]]
-                }
-            };
-            // Lift the bound to the floor's drawn elevation so the pick
-            // box / gizmo coincides with the rendered node on a stacked
-            // floor.
-            let center_world = [
-                center_world[0],
-                center_world[1] + floor_y_offset as f32,
-                center_world[2],
-            ];
+            // Nodes live in raw world space. Use the translation directly,
+            // lifted by the half extent so the bound sits on the anchor.
+            let p = node.transform.translation;
+            let center_world = [p[0], p[1] + half_extents[1], p[2]];
             out.push(EntityBounds {
                 node: node.id,
-                room: enclosing_room,
                 kind,
                 center: center_world,
                 half_extents,
@@ -1852,16 +1714,15 @@ impl EditorWorkspace {
 
     /// Pick the nearest entity bound under the camera ray.
     /// Returns the `EntityBoundHit` plus its world distance --
-    /// the 3D click handler compares this against grid hits to
+    /// the 3D click handler compares this against brush hits to
     /// pick whichever is closer.
     pub fn pick_entity_bound(
         &self,
         rect: egui::Rect,
         pointer: egui::Pos2,
-        room_filter: Option<NodeId>,
     ) -> Option<EntityBoundHit> {
         let (origin, dir) = self.camera_ray_for_pointer(rect, pointer)?;
-        let bounds = self.collect_entity_bounds(room_filter);
+        let bounds = self.collect_entity_bounds();
         let mut best: Option<EntityBoundHit> = None;
         for b in &bounds {
             let Some(t) = ray_intersects_aabb(origin, dir, b.center, b.half_extents) else {
@@ -1882,53 +1743,6 @@ impl EditorWorkspace {
             });
         }
         best
-    }
-
-    /// parent chain → fall back to the active scene's first Room.
-    /// The fallback keeps paint tools enabled even when the
-    /// selection sits outside the scene tree (e.g. a face the user
-    /// just picked, which clears `selected_node` to ROOT).
-    pub fn active_room_id(&self) -> Option<NodeId> {
-        if let Some(selection) = self.selection.selected_primitive {
-            let room = selection.room();
-            if !self.scene_node_effectively_hidden(room) {
-                return Some(room);
-            }
-        }
-        let scene = self.project.active_scene();
-        let mut current = self.selection.selected_node;
-        while let Some(node) = scene.node(current) {
-            if matches!(node.kind, NodeKind::Section { .. })
-                && !self.scene_node_effectively_hidden(current)
-            {
-                return Some(current);
-            }
-            let Some(parent) = node.parent else { break };
-            current = parent;
-        }
-        scene
-            .nodes()
-            .iter()
-            .find(|node| {
-                matches!(node.kind, NodeKind::Section { .. })
-                    && !self.scene_node_effectively_hidden(node.id)
-            })
-            .map(|node| node.id)
-    }
-
-    /// Translate a 2D-viewport-space click into a sector cell on
-    /// `room`. The viewport draws cells around `node_world(room)`
-    /// with 1 unit = 1 sector, so the click is first re-expressed
-    /// as editor coords (room-centre-relative) and then routed
-    /// through `WorldGrid::editor_cells_to_array`. `origin` enters
-    /// the conversion via the canonical helper, keeping 2D and 3D
-    /// picks consistent after a negative-side grow.
-    pub(crate) fn world_to_sector(&self, room_id: NodeId, world: [f32; 2]) -> Option<(u16, u16)> {
-        let room = self.project.active_scene().node(room_id)?;
-        let center = node_world(room);
-        let grid = self.room_grid_view(room_id)?;
-        let editor = [world[0] - center[0], world[1] - center[1]];
-        grid.editor_cells_to_array(editor)
     }
 
     /// Default material id for a brushed surface, picked by name from

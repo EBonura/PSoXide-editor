@@ -83,14 +83,6 @@ impl PrimitiveGizmoAxis {
         }
     }
 
-    pub(crate) const fn cell_delta(self, steps: i32) -> [i32; 2] {
-        match self {
-            Self::X => [steps, 0],
-            Self::Y => [0, 0],
-            Self::Z => [0, steps],
-        }
-    }
-
     pub(crate) const fn index(self) -> usize {
         match self {
             Self::X => 0,
