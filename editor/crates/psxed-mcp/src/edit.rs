@@ -1324,12 +1324,10 @@ fn clone_subtree(
         .ok_or_else(|| "the node vanished mid-clone".to_string())?;
     let kind = node.kind.clone();
     let transform = node.transform;
-    let floor = node.floor;
     let children = node.children.clone();
     let new_id = scene.add_node(parent, name, kind);
     if let Some(copy) = scene.node_mut(new_id) {
         copy.transform = transform;
-        copy.floor = floor;
     }
     for child in children {
         // Component children keep their own names: a Model Renderer named
