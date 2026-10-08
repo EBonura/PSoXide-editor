@@ -47,7 +47,11 @@ impl Playtest {
     /// charge reads without looking at the HUD.
     pub(super) fn arch_charge_glow_q8(&self, now: SimTick) -> u16 {
         if self.hook_charge.ready() {
-            return if (now.as_u32() / 6) % 2 == 0 { 144 } else { 64 };
+            return if (now.as_u32() / 6).is_multiple_of(2) {
+                144
+            } else {
+                64
+            };
         }
         (u32::from(self.hook_charge.progress_q12()) * 64 / 4096) as u16
     }
