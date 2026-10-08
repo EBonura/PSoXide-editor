@@ -113,10 +113,6 @@ pub const CHARGE_TICKS: u16 = 75;
 /// A press released within this many ticks is an ordinary shot, fired on
 /// release; holding past it starts the charge.
 pub const CHARGE_TAP_TICKS: u16 = 10;
-/// Energy a charged shot costs, twice an ordinary one. It is fixed to the
-/// arch: a perched player cannot dodge, loses refill while charging and holds
-/// still for over a second, so the shot is paid for in both resources and risk.
-pub const CHARGED_ENERGY_COST: u16 = 40;
 /// Health damage of a charged bolt as a multiple of the ordinary bolt's.
 pub const CHARGED_DAMAGE_MULTIPLIER: u16 = 3;
 /// Poise damage a charged bolt delivers. The ordinary bolt's poise is capped
@@ -439,8 +435,11 @@ mod tests {
 
     #[test]
     fn the_charged_shot_costs_more_than_one_ordinary_shot_but_less_than_the_damage_it_buys() {
-        assert!(CHARGED_ENERGY_COST > crate::combat_flow::SHOT_COST);
-        assert!(CHARGED_DAMAGE_MULTIPLIER * crate::combat_flow::SHOT_COST > CHARGED_ENERGY_COST);
+        assert!(crate::combat_flow::CHARGED_SHOT_COST > crate::combat_flow::SHOT_COST);
+        assert!(
+            CHARGED_DAMAGE_MULTIPLIER * crate::combat_flow::SHOT_COST
+                > crate::combat_flow::CHARGED_SHOT_COST
+        );
         assert!(
             CHARGED_POISE_DAMAGE > 10,
             "above the ordinary bolt's capped poise"
