@@ -2705,19 +2705,24 @@ fn transition_material_recipe_roundtrips_through_ron_string() {
 }
 
 #[test]
-fn runtime_depth_sort_mode_roundtrips_through_ron_string() {
-    let mut project = ProjectDocument::new("depth-sort");
-    project.runtime_depth_sort_mode = RuntimeDepthSortMode::HybridWalls;
-    project.runtime_texture_split_mode = RuntimeTextureSplitMode::DepthSorted;
-    project.runtime_room_draw_order_mode = RuntimeRoomDrawOrderMode::Portal;
-    project.runtime_texture_split_max_edge = 96;
-    let ron = project.to_ron_string().unwrap();
+fn removed_runtime_render_knobs_in_old_files_are_ignored() {
+    // Projects saved before the legacy grid removal carry four `runtime_*`
+    // render keys that no longer exist. They must still load, and saving
+    // drops them.
+    let current = ProjectDocument::new("old-file").to_ron_string().unwrap();
+    let old_keys = "    runtime_depth_sort_mode: HybridWalls,\n    \
+                    runtime_texture_split_mode: All,\n    \
+                    runtime_room_draw_order_mode: Distance,\n    \
+                    runtime_texture_split_max_edge: 0,\n";
+    let at = current.find("    scenes:").expect("scenes field");
+    let mut old = current.clone();
+    old.insert_str(at, old_keys);
 
-    assert!(ron.contains("runtime_depth_sort_mode"));
-    assert!(ron.contains("runtime_texture_split_mode"));
-    assert!(ron.contains("runtime_room_draw_order_mode"));
-    assert!(ron.contains("runtime_texture_split_max_edge"));
-    assert_eq!(ProjectDocument::from_ron_str(&ron).unwrap(), project);
+    let loaded = ProjectDocument::from_ron_str(&old).unwrap();
+    assert_eq!(loaded.name, "old-file");
+    let resaved = loaded.to_ron_string().unwrap();
+    assert!(!resaved.contains("runtime_depth_sort_mode"));
+    assert!(!resaved.contains("runtime_texture_split_max_edge"));
 }
 
 #[test]
@@ -4159,4 +4164,16 @@ fn fractional_world_gravity_survives_authoring_units_and_legacy_defaults() {
             action
         );
     }
+}
+
+#[test]
+fn legacy_scene_nodes_with_a_floor_field_still_load() {
+    let project = ProjectDocument::starter();
+    let ron = project.to_ron_string().unwrap();
+    assert!(!ron.contains("floor:"), "SceneNode no longer writes floor");
+
+    // Projects saved while SceneNode carried `floor` have it on every node.
+    let legacy = ron.replace("parent:", "floor: 2,\n parent:");
+    assert!(legacy.contains("floor: 2,"), "the fixture must hit a node");
+    assert_eq!(ProjectDocument::from_ron_str(&legacy).unwrap(), project);
 }

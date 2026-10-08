@@ -266,6 +266,7 @@ fmt:
 	cargo fmt --all
 	cd engine && cargo fmt --all
 	cd sdk && cargo fmt --all
+	cd engine/examples/editor-playtest && cargo fmt
 
 lint:
 	$(PSOXIDE_DEV) lint-policy-guard
