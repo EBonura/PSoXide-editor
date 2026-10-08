@@ -736,6 +736,10 @@ impl App {
                     missed_visual_intervals,
                     fixed_update_clamped: _,
                 } => {
+                    // Select the pad now, so the setup time its next poll needs
+                    // passes under this frame's render instead of being spun.
+                    // Nothing else uses the controller port until that poll.
+                    pad_reader.prepare();
                     let mut submission = scene.render_submission();
                     if !PRESENT_QUEUE_ENABLED && submission == RenderSubmission::PresentQueue {
                         submission = RenderSubmission::QueuedDoubleBuffered;
