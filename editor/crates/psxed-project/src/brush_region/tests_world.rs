@@ -129,6 +129,8 @@ fn module_estimates_bound_the_cut_search_model_so_no_module_is_cut() {
             seed,
             terrain_pct: 15,
             courtyard_pct: 15,
+            // Room for the heaviest module of every kind.
+            region_target_bytes: 24_576,
             ..StreamWorldConfig::small([6, 6])
         };
         let world = generate(&config, &donor).expect("world");

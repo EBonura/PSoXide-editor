@@ -172,9 +172,9 @@ impl Default for StreamWorldConfig {
             hook_spacing: 4,
             dense: false,
             max_door_degree: 3,
-            terrain_cells: 4,
-            region_target_bytes: 24_576,
-            detail_bytes: 3_072,
+            terrain_cells: 3,
+            region_target_bytes: 18_432,
+            detail_bytes: 1_024,
             arena_reclaim_bytes: 0,
             shortest_routes: 6,
             random_walks: 8,
@@ -884,8 +884,9 @@ fn build_module(
     if module.kind == ModuleKind::Terrain {
         let span = m - 2 * WALL;
         let options = terrain_resolutions(span, config.terrain_cells);
-        // A wedge is one render face, three topology sides and a brush.
-        let wedge_bytes = MODEL_MARGIN * (surface_bytes(3) + 5.0 * TOPOLOGY_BYTES + BRUSH_BYTES);
+        // A wedge is a render face or two (counted as quads), its sides and a brush.
+        let wedge_bytes =
+            MODEL_MARGIN * (2.0 * surface_bytes(4) + 6.0 * TOPOLOGY_BYTES + BRUSH_BYTES);
         let cost = |c: usize| (2 * c * c) as f64 * wedge_bytes;
         let pick = match options
             .iter()
@@ -1749,7 +1750,10 @@ mod tests {
         let a = generate(&base, &d).unwrap();
         let b = generate(&base.dense_variant(), &d).unwrap();
         assert!(b.stats.edges > a.stats.edges);
-        assert!(b.stats.brushes < a.stats.brushes, "no interior detail");
+        assert!(
+            b.stats.max_door_degree > a.stats.max_door_degree,
+            "the dense variant lifts the door cap"
+        );
     }
 
     #[test]

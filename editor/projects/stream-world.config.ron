@@ -25,13 +25,13 @@
     // Doors per module: bounds how many regions a region sees.
     max_door_degree: 3,
     // Finest terrain patch per module side that the budget allows.
-    terrain_cells: 4,
+    terrain_cells: 3,
     // Cut target in the cut search's byte model; every module is built under
-    // it. Twelve sectors holds a 768 unit module with its door walls and
+    // it. Nine sectors holds a 768 unit module with its door walls and
     // vestibules.
-    region_target_bytes: 24576,
+    region_target_bytes: 18432,
     // Interior detail a module may add to its shell, same bytes.
-    detail_bytes: 3072,
+    detail_bytes: 1024,
     // RAM scenario: bytes the model pass is assumed to hand the world. Zero is
     // the guest as it is today.
     arena_reclaim_bytes: 0,
