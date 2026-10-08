@@ -43,6 +43,8 @@ mod layout;
 mod report;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_world;
 
 pub use account::{PayloadCounts, Region};
 pub use closure::Closure;
