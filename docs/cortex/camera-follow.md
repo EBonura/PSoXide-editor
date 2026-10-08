@@ -517,3 +517,18 @@ build/graybox-reach/camera-comparison/recalibration-before-after.png and
 recalibrated-*.png, with settings in recalibration.json. Earlier comparison
 artifacts remain as historical evidence. Temporary intermediate screenshots
 are removed after review.
+
+## Manual orbit stops at walls
+
+With the player's back to a wall (the replay tape walks her into the Graybox
+Terrain sky enclosure, 13 units from her centre), a full-stick orbit swept the
+eye through every yaw on the wall side. The arm fell to the wall distance over
+about 146 degrees of yaw, under `min_distance` for 35 ticks, so the scene hid
+her and the view was the room from inside her head.
+
+A manual yaw step is now refused when it shortens an arm already under twice
+`min_distance`. Stepping out of that arc, and any orbit with room for the boom,
+is unchanged. Lock-on and recenter steering keep their existing rules. With the
+guest built with `emulator-telemetry`, each camera update logs a `camera-pose`
+line (tick, player, eye, focus, yaw, pitch, boom, pull-in, stick, lock) for
+`launch --guest-debug-log`.
