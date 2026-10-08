@@ -1777,7 +1777,7 @@ mod tests {
     use psxed_project::{
         FarVistaSettings, GeneratedMaterialTexture, MaterialResource, MaterialTextureMode,
         ModelSecondaryLayer, NodeKind, ProjectDocument, PsxBlendMode, ResourceData, SkyMode,
-        TransitionMaterialTexture, WorldGrid,
+        TransitionMaterialTexture,
     };
     use std::path::{Path, PathBuf};
 
@@ -2172,10 +2172,20 @@ mod tests {
             .map(|index| add_material(&mut project, format!("Unused {index}")))
             .collect();
         let used = add_material(&mut project, "Active Late Material");
-        let grid = WorldGrid::stone_room(1, 1, 1024, Some(used), Some(used));
-
         let scene = project.active_scene_mut();
-        scene.add_node(scene.root, "Room", NodeKind::Section { grid });
+        scene.add_node(
+            scene.root,
+            "Banner",
+            NodeKind::ImageProp {
+                material: Some(used),
+                width: 256,
+                height: 256,
+                cylindrical_billboard: false,
+                collision_enabled: false,
+                collision_size: [256; 3],
+                destructible: None,
+            },
+        );
 
         let plan = preview_texture_upload_plan(&project, Path::new("."));
         assert_eq!(plan.first().map(|item| item.id), Some(used));
@@ -2211,7 +2221,6 @@ mod tests {
                 far_vista,
                 camera: Default::default(),
                 culling: Default::default(),
-                streaming: Default::default(),
                 physics: Default::default(),
                 world_message: None,
             },
@@ -2238,7 +2247,20 @@ mod tests {
             "Vista Panel",
             ResourceData::Material(MaterialResource::opaque(Some("vista.psxt".to_string()))),
         );
-        let grid = WorldGrid::stone_room(1, 1, 1024, Some(used), Some(used));
+        let scene = project.active_scene_mut();
+        scene.add_node(
+            scene.root,
+            "Banner",
+            NodeKind::ImageProp {
+                material: Some(used),
+                width: 256,
+                height: 256,
+                cylindrical_billboard: false,
+                collision_enabled: false,
+                collision_size: [256; 3],
+                destructible: None,
+            },
+        );
         let mut far_vista = FarVistaSettings {
             enabled: true,
             ..FarVistaSettings::default()
@@ -2246,7 +2268,6 @@ mod tests {
         far_vista.texture_panels[0] = Some(panel);
 
         let scene = project.active_scene_mut();
-        scene.add_node(scene.root, "Room", NodeKind::Section { grid });
         scene.add_node(
             scene.root,
             "World",
@@ -2256,7 +2277,6 @@ mod tests {
                 far_vista,
                 camera: Default::default(),
                 culling: Default::default(),
-                streaming: Default::default(),
                 physics: Default::default(),
                 world_message: None,
             },

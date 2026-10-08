@@ -16,7 +16,6 @@ pub(crate) fn draw_transform_policy_editor(
             far_vista,
             camera: _,
             culling,
-            streaming: _,
             physics,
             world_message,
         } => draw_world_settings(
@@ -72,12 +71,7 @@ pub(crate) enum NodeTransformInspector {
 
 pub(crate) fn node_transform_inspector(kind: &NodeKind) -> NodeTransformInspector {
     match kind {
-        NodeKind::World { .. }
-        | NodeKind::Node
-        | NodeKind::Group
-        | NodeKind::Section { .. }
-        | NodeKind::WaterVolume { .. }
-        | NodeKind::Portal { .. } => NodeTransformInspector::Hidden,
+        NodeKind::World { .. } | NodeKind::Node | NodeKind::Group => NodeTransformInspector::Hidden,
         NodeKind::HookPoint
         | NodeKind::PointLight { .. }
         | NodeKind::ParticleEmitter { .. }
@@ -1456,7 +1450,7 @@ pub(crate) fn light_transform_editor(
 /// plane gizmo, 2D drag, placement): the grid step, in world units, the
 /// node's position lands on. `None` for nodes that move by the gesture's
 /// delta without landing on the grid: a Group follows its brushes (which
-/// keep their own offsets), and retired grid-world Portals.
+/// keep their own offsets).
 pub(crate) fn node_snap_step(kind: &NodeKind, grid_step: i32) -> Option<i32> {
     match kind {
         NodeKind::Entity
@@ -1875,7 +1869,6 @@ pub(crate) fn node_kind_supports_transform_gizmo(
                 | NodeKind::ArchProp { .. }
                 | NodeKind::MeshInstance { .. }
                 | NodeKind::SpawnPoint { .. }
-                | NodeKind::Portal { .. }
         ),
         TransformGizmoMode::Rotate => matches!(
             kind,
@@ -1887,7 +1880,6 @@ pub(crate) fn node_kind_supports_transform_gizmo(
                 | NodeKind::ArchProp { .. }
                 | NodeKind::MeshInstance { .. }
                 | NodeKind::SpawnPoint { .. }
-                | NodeKind::Portal { .. }
         ),
         TransformGizmoMode::Scale => {
             matches!(
@@ -2165,7 +2157,6 @@ pub(crate) struct NodeKindEditorContext<'a> {
     pub(crate) material_options: &'a [(ResourceId, String)],
     pub(crate) material_texture_dimensions: &'a [(ResourceId, [u16; 2])],
     pub(crate) texture_options: &'a [(ResourceId, String)],
-    pub(crate) room_options: &'a [(NodeId, String)],
     pub(crate) destructible_options: &'a [(NodeId, String)],
     pub(crate) model_options: &'a [(ResourceId, String, Vec<String>)],
     pub(crate) character_options: &'a [(ResourceId, String)],
@@ -2185,7 +2176,6 @@ pub(crate) struct NodeKindEditorContext<'a> {
     /// sectors, and the cook, the brush-light bake and the viewport preview
     /// all scale it by this value, so the Inspector has to as well.
     pub(crate) world_sector_size: i32,
-    pub(crate) room_grid_resize: &'a mut Option<(u16, u16)>,
     pub(crate) nav_target: &'a mut Option<ResourceId>,
     pub(crate) character_preview_action: &'a mut Option<psxed_project::CharacterAnimationAction>,
     pub(crate) camera_preview: Option<EditorCameraPreviewPresentation>,
@@ -2258,21 +2248,10 @@ pub(crate) fn draw_node_kind_editor(
     kind: &mut NodeKind,
     ctx: NodeKindEditorContext<'_>,
 ) -> bool {
-    if matches!(
-        kind,
-        NodeKind::Section { .. } | NodeKind::WaterVolume { .. } | NodeKind::Portal { .. }
-    ) {
-        ui.colored_label(
-            Color32::from_rgb(220, 160, 80),
-            "This retired grid-world node is read-only. BSP brushes and ordinary entities are the supported authoring path.",
-        );
-        return false;
-    }
     let NodeKindEditorContext {
         material_options,
         material_texture_dimensions,
         texture_options,
-        room_options,
         destructible_options,
         model_options,
         character_options,
@@ -2283,7 +2262,6 @@ pub(crate) fn draw_node_kind_editor(
         boost_module_options,
         animator_clip_context,
         world_sector_size,
-        room_grid_resize,
         nav_target,
         character_preview_action,
         camera_preview,
@@ -2304,211 +2282,6 @@ pub(crate) fn draw_node_kind_editor(
         }
         NodeKind::World { .. } => {
             ui.weak("BSP world root; holds global physics, camera, sky, and far vista settings.");
-        }
-        NodeKind::Section { grid } => {
-            ui.horizontal(|ui| {
-                ui.label(icons::text(icons::GRID, 12.0).color(STUDIO_TEXT_WEAK));
-                ui.label("Grid");
-                let mut new_w = grid.width;
-                let mut new_d = grid.depth;
-                let w_changed = ui
-                    .add(
-                        egui::DragValue::new(&mut new_w)
-                            .speed(0.1)
-                            .range(1..=64)
-                            .prefix("W "),
-                    )
-                    .changed();
-                let d_changed = ui
-                    .add(
-                        egui::DragValue::new(&mut new_d)
-                            .speed(0.1)
-                            .range(1..=64)
-                            .prefix("D "),
-                    )
-                    .changed();
-                if w_changed || d_changed {
-                    *room_grid_resize = Some((new_w, new_d));
-                    changed = true;
-                }
-            });
-            ui.horizontal(|ui| {
-                ui.label(icons::text(icons::BOX, 12.0).color(STUDIO_TEXT_WEAK));
-                ui.label(format!(
-                    "{} populated sectors",
-                    grid.populated_sector_count()
-                ));
-            });
-            changed |= color_editor(ui, "Ambient Light", &mut grid.ambient_color);
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Preset").color(STUDIO_TEXT_WEAK));
-                if ui.small_button("Low").clicked() {
-                    grid.ambient_color = [32, 32, 32];
-                    changed = true;
-                }
-                if ui.small_button("Neutral").clicked() {
-                    grid.ambient_color = [128, 128, 128];
-                    changed = true;
-                }
-                if ui.small_button("Warm").clicked() {
-                    grid.ambient_color = [96, 80, 64];
-                    changed = true;
-                }
-            });
-            changed |= ui
-                .checkbox(&mut grid.fog_enabled, icons::label(icons::SCAN, "Fog"))
-                .changed();
-            if grid.fog_enabled {
-                changed |= color_editor(ui, "Fog Color", &mut grid.fog_color);
-                ui.horizontal(|ui| {
-                    ui.label(icons::text(icons::SCAN, 12.0).color(STUDIO_TEXT_WEAK));
-                    ui.label("Fog Range");
-                    let near_changed = ui
-                        .add(
-                            egui::DragValue::new(&mut grid.fog_near)
-                                .prefix("Near ")
-                                .speed(128.0)
-                                .range(0..=262_144),
-                        )
-                        .changed();
-                    let far_changed = ui
-                        .add(
-                            egui::DragValue::new(&mut grid.fog_far)
-                                .prefix("Far ")
-                                .speed(128.0)
-                                .range(128..=262_144),
-                        )
-                        .changed();
-                    if near_changed || far_changed {
-                        grid.fog_near = grid.fog_near.max(0);
-                        grid.fog_far = grid.fog_far.max(grid.fog_near + 128);
-                        changed = true;
-                    }
-                });
-            }
-            ui.separator();
-            changed |= ui
-                .checkbox(
-                    &mut grid.atmosphere_enabled,
-                    icons::label(icons::SCAN, "Atmosphere"),
-                )
-                .changed();
-            if grid.atmosphere_enabled {
-                changed |= color_editor(ui, "Particle Color", &mut grid.atmosphere_color);
-                changed |= drag_i32(ui, "Density", &mut grid.atmosphere_density, 0, 96);
-                changed |= drag_i32(ui, "Fall Speed", &mut grid.atmosphere_fall_speed_q4, 0, 64);
-                changed |= drag_i32(
-                    ui,
-                    "Wind Speed",
-                    &mut grid.atmosphere_wind_speed_q4,
-                    -64,
-                    64,
-                );
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Preset").color(STUDIO_TEXT_WEAK));
-                    if ui.small_button("Ash").clicked() {
-                        grid.atmosphere_color = [58, 52, 44];
-                        grid.atmosphere_density = 44;
-                        grid.atmosphere_fall_speed_q4 = 7;
-                        grid.atmosphere_wind_speed_q4 = 2;
-                        changed = true;
-                    }
-                    if ui.small_button("Snow").clicked() {
-                        grid.atmosphere_color = [198, 205, 214];
-                        grid.atmosphere_density = 36;
-                        grid.atmosphere_fall_speed_q4 = 10;
-                        grid.atmosphere_wind_speed_q4 = 1;
-                        changed = true;
-                    }
-                    if ui.small_button("Sparse").clicked() {
-                        grid.atmosphere_color = [74, 66, 56];
-                        grid.atmosphere_density = 18;
-                        grid.atmosphere_fall_speed_q4 = 5;
-                        grid.atmosphere_wind_speed_q4 = 1;
-                        changed = true;
-                    }
-                });
-            }
-        }
-        NodeKind::WaterVolume {
-            material,
-            cells,
-            settings,
-        } => {
-            ui.weak("Painted, floor-bound water. Every cell extends from its terrain tile up to the authored height; there is no separate volume bottom.");
-            changed |= material_picker(
-                ui,
-                "Surface material",
-                material,
-                material_options,
-                nav_target,
-            );
-            ui.horizontal(|ui| {
-                ui.label("Painted cells");
-                ui.monospace(cells.len().to_string());
-            });
-            ui.separator();
-            ui.label(RichText::new("Water behaviour").strong());
-            changed |= ui
-                .add(
-                    egui::DragValue::new(&mut settings.height_above_floor)
-                        .range(1..=8192)
-                        .speed(8.0)
-                        .prefix("Water height "),
-                )
-                .on_hover_text(
-                    "Distance from the lowest point of the terrain tile to the water surface. Each painted cell calculates its surface from its own floor geometry.",
-                )
-                .changed();
-            changed |= ui
-                .add(
-                    egui::DragValue::new(&mut settings.lethal_depth)
-                        .range(1..=8192)
-                        .prefix("Death threshold "),
-                )
-                .on_hover_text(
-                    "Gameplay threshold only: water at least this tall is lethal. It does not change the volume geometry.",
-                )
-                .changed();
-            changed |= ui
-                .add(
-                    egui::Slider::new(&mut settings.movement_percent, 10..=100)
-                        .text("Movement speed"),
-                )
-                .on_hover_text(
-                    "Percentage of normal walk and run speed retained in non-lethal water. 70% means movement is exactly 70% of normal.",
-                )
-                .changed();
-            let classification = if settings.height_above_floor >= settings.lethal_depth {
-                "Lethal water"
-            } else {
-                "Wading water"
-            };
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Result").color(STUDIO_TEXT_WEAK));
-                ui.label(classification);
-            });
-            changed |= ui
-                .add(
-                    egui::DragValue::new(&mut settings.death_submerge_depth)
-                        .range(0..=2048)
-                        .prefix("Submerge "),
-                )
-                .on_hover_text(
-                    "How far below the surface the actor must fall before deep-water death begins.",
-                )
-                .changed();
-            changed |= ui
-                .add(
-                    egui::DragValue::new(&mut settings.death_delay_ticks)
-                        .range(1..=240)
-                        .prefix("Death delay ")
-                        .suffix(" ticks"),
-                )
-                .changed();
-            if changed {
-                *settings = settings.normalized();
-            }
         }
         NodeKind::MeshInstance {
             mesh,
@@ -4403,52 +4176,6 @@ pub(crate) fn draw_node_kind_editor(
                 changed |= draw_character_selector(ui, character_options, character, nav_target);
             }
         }
-        NodeKind::Portal {
-            target_room,
-            target_entry,
-            entry_name,
-            geometry,
-        } => {
-            ui.horizontal(|ui| {
-                ui.label(icons::text(icons::WAYPOINT, 12.0).color(STUDIO_TEXT_WEAK));
-                ui.label("Entry name");
-                changed |= ui.text_edit_singleline(entry_name).changed();
-            });
-            ui.horizontal(|ui| {
-                ui.label(icons::text(icons::HOUSE, 12.0).color(STUDIO_TEXT_WEAK));
-                ui.label("Target room");
-                let preview = target_room
-                    .and_then(|id| {
-                        room_options
-                            .iter()
-                            .find(|(rid, _)| *rid == id)
-                            .map(|(_, name)| name.as_str())
-                    })
-                    .unwrap_or("(none)");
-                changed |= searchable_picker(
-                    ui,
-                    "portal_target_room",
-                    target_room,
-                    preview,
-                    room_options,
-                    SearchablePickerConfig::optional("(none)").with_search_hint("Search rooms…"),
-                );
-            });
-            ui.horizontal(|ui| {
-                ui.label(icons::text(icons::MAP_PIN, 12.0).color(STUDIO_TEXT_WEAK));
-                ui.label("Target entry");
-                changed |= ui.text_edit_singleline(target_entry).changed();
-            });
-            if let Some(geometry) = geometry {
-                ui.horizontal(|ui| {
-                    ui.label(icons::text(icons::BOX, 12.0).color(STUDIO_TEXT_WEAK));
-                    ui.label(format!(
-                        "Imported plane n=({}, {}, {})",
-                        geometry.normal[0], geometry.normal[1], geometry.normal[2]
-                    ));
-                });
-            }
-        }
     }
     changed
 }
@@ -4821,7 +4548,6 @@ pub(crate) fn node_lucide_icon(kind: &str, root: bool) -> char {
         "Node3D" => icons::CIRCLE_DOT,
         "Entity" => icons::BOX,
         "World" => icons::HOUSE,
-        "Section" | "Room" | "Map" => icons::GRID,
         "Mesh Instance" | "MeshInstance" => icons::BOX,
         "Image Prop" | "ImageProp" => icons::PALETTE,
         "Box Prop" | "BoxProp" => icons::BOX,
@@ -4835,7 +4561,6 @@ pub(crate) fn node_lucide_icon(kind: &str, root: bool) -> char {
         "Particle Emitter" | "ParticleEmitter" => icons::FOCUS,
         "Point of Interest" | "PointOfInterest" => icons::FOCUS,
         "Spawn Point" | "SpawnPoint" => icons::MAP_PIN,
-        "Portal" => icons::WAYPOINT,
         _ => icons::CIRCLE_DOT,
     }
 }
@@ -4851,7 +4576,6 @@ pub(crate) fn node_lucide_color(kind: &str, root: bool, selected: bool) -> Color
     match kind {
         "Entity" => Color32::from_rgb(156, 174, 190),
         "World" => Color32::from_rgb(232, 152, 96),
-        "Section" | "Room" | "Map" => Color32::from_rgb(209, 118, 71),
         "Mesh Instance" | "MeshInstance" => Color32::from_rgb(156, 174, 190),
         "Image Prop" | "ImageProp" => Color32::from_rgb(210, 170, 120),
         "Box Prop" | "BoxProp" => Color32::from_rgb(135, 180, 220),
@@ -4865,13 +4589,8 @@ pub(crate) fn node_lucide_color(kind: &str, root: bool, selected: bool) -> Color
         "Particle Emitter" | "ParticleEmitter" => Color32::from_rgb(152, 214, 230),
         "Point of Interest" | "PointOfInterest" => Color32::from_rgb(224, 72, 56),
         "Spawn Point" | "SpawnPoint" => Color32::from_rgb(236, 188, 104),
-        "Portal" => PORTAL_PINK,
         _ => Color32::from_rgb(141, 160, 180),
     }
-}
-
-pub(crate) fn draw_inline_icon(ui: &mut egui::Ui, icon: char, color: Color32) {
-    ui.label(icons::text(icon, 16.0).color(color));
 }
 
 /// Toolbar group button showing the group's icon plus its current

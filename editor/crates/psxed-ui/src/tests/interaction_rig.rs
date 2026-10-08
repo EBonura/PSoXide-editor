@@ -710,7 +710,7 @@ fn mouse_entity_body_drag_selects_without_moving_it() {
     rig.click(body);
     assert_eq!(rig.workspace.selected_brush, Some(0));
 
-    let bounds = rig.workspace.collect_entity_bounds(None);
+    let bounds = rig.workspace.collect_entity_bounds();
     let bound = bounds
         .iter()
         .find(|bound| bound.node == entity)
@@ -875,9 +875,9 @@ fn mouse_wall_face_move_works_on_every_axis_at_sanctum_scale() {
             rig.workspace.selected_brush_elements.as_slice(),
             [BrushElement::Face(0)]
         ) {
-            let target =
-                rig.workspace
-                    .resolve_viewport_3d_pointer_target(RIG_VIEWPORT, wall, None, true);
+            let target = rig
+                .workspace
+                .resolve_viewport_3d_pointer_target(RIG_VIEWPORT, wall, true);
             let nearest = rig
                 .workspace
                 .pick_brush_face_nearest_for_selection_3d(RIG_VIEWPORT, wall);
