@@ -517,3 +517,44 @@ build/graybox-reach/camera-comparison/recalibration-before-after.png and
 recalibrated-*.png, with settings in recalibration.json. Earlier comparison
 artifacts remain as historical evidence. Temporary intermediate screenshots
 are removed after review.
+
+## Lift-over near walls
+
+A player with her back to a wall (the replay tape walks her into the Graybox
+Terrain sky enclosure, 13 units from her centre) used to lose the camera: a
+full-stick orbit swept the eye through every yaw on the wall side, the boom fell
+under `min_distance` for 35 ticks, the scene hid her and the view was the room
+from inside her head. Walking backwards into a wall squeezed the boom the same
+way.
+
+The orbit is never refused. When collision squeezes the boom, the camera rises
+and pitches down over her instead:
+
+- One extra trace at an 80 degree cap pitch (`LIFT_PITCH_CAP_Q12` = 910) reads
+  the horizontal run the wall leaves on this yaw, and the lift is the pitch at
+  which a boom of twice `min_distance` fits that run. While the orbit is turning
+  it also reads three ticks ahead (`LIFT_LOOKAHEAD_TICKS`) and takes the tighter
+  run, so the lift is rising when the swing reaches the wall.
+- A low obstacle leaves the cap ray clear. The camera then raises until the boom
+  is comfortable, holds, and gives the lift back once the unlifted boom is
+  roomy again.
+- The eased lift (same 0.16 per tick chase as the lock-on pitch, three times
+  faster once the boom is under twice `min_distance`) is added to the orbit
+  pitch on the next tick. The ordinary spring-arm solve still shortens the boom
+  first, so nothing here pushes the eye into geometry. Lock-on gets no lift.
+- A sight line from the eye to her torso (half the target height) is traced when
+  the boom is constrained, a lift is held, or every fourth tick. A pillar between
+  them raises the lift 64 Q12 units per check until she is in view and gives it
+  back 8 per check once the line stays clear.
+- The wall margin is applied perpendicular to the wall plane (a margin of 12 left
+  the eye 2 units from a plane the arm grazed), and the brush-world margin is 6
+  units, under her 11.75 unit radius, so the eye fits between her and a wall she
+  stands against.
+
+Hiding her when the eye is inside her body remains, but only where even the
+lifted boom cannot reach `min_distance`.
+
+`camera-pose-log` (a lighter feature than `emulator-telemetry`, which overflows
+Graybox Reach's RAM by 9,292 bytes) prints one `camera-pose` line per camera
+update under `launch --guest-debug-log`: tick, player, eye, focus, yaw, pitch,
+boom, pull-in, stick, lift, and the squeeze and sight-line lift goals.
