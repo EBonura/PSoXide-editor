@@ -1,5 +1,6 @@
-//! Render one cooked world from many cameras with and without its v7 leaf
-//! bounds and require identical packets and statistics.
+//! Render one cooked world from many cameras (four projections, a camera
+//! pulled away from the PVS point as the third-person camera is) with and
+//! without its v7 leaf bounds and require identical packets and statistics.
 //!
 //! ```sh
 //! cargo run --release -p psx-bsp --example pxbsp_leaf_cull_equivalence -- LEGACY_MAP BOUNDED_MAP [POSES]
@@ -11,7 +12,7 @@
 use psx_bsp::collision::{Trace, TraceScratch};
 use psx_bsp::pxbsp_resident::PxbspResidentMap;
 use psx_bsp::render::{
-    configure_projection, load_pxbsp_view, Camera, PxbspTextureBinding, Renderer,
+    configure_projection, load_pxbsp_view, Camera, PxbspTextureBinding, Renderer, ViewProjection,
     DEFAULT_PACKET_WORDS,
 };
 use psx_bsp::Vec3I32;
@@ -62,6 +63,23 @@ fn main() {
         state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
         ((state >> 8) as i32).rem_euclid(range.max(1))
     };
+    let projections = [
+        ViewProjection::DEFAULT,
+        ViewProjection {
+            focal_length: 256,
+            ..ViewProjection::DEFAULT
+        },
+        ViewProjection {
+            focal_length: 100,
+            ..ViewProjection::DEFAULT
+        },
+        ViewProjection {
+            focal_length: 320,
+            half_width: 160,
+            half_height: 120,
+            ..ViewProjection::DEFAULT
+        },
+    ];
     let (mut compared, mut skipped, mut mismatches) = (0usize, 0usize, 0usize);
     let (mut faces_total, mut words_total) = (0u64, 0u64);
     for _ in 0..poses {
@@ -86,9 +104,41 @@ fn main() {
             origin,
             angles: [(next(801) - 400) as i16, next(4096) as i16, 0],
         };
+        let projection = projections[next(projections.len() as i32) as usize];
+        renderer_a.set_view_projection(projection);
+        renderer_b.set_view_projection(projection);
+        // The game's third-person camera hangs behind the player, possibly
+        // inside a wall: draw from the standable point's PVS with a camera
+        // pulled away from it by up to 300 units on each axis.
+        let mut pull = || (next(601) - 300) << 12;
+        let camera = Camera {
+            origin: Vec3I32 {
+                x: origin.x + pull(),
+                y: origin.y + pull() / 4,
+                z: origin.z + pull(),
+            },
+            angles: camera.angles,
+        };
         let view = load_pxbsp_view(camera);
-        let a = renderer_a.draw_pxbsp_world(&legacy, camera, view, &bindings, 0, &mut packets_a);
-        let b = renderer_b.draw_pxbsp_world(&bounded, camera, view, &bindings, 0, &mut packets_b);
+        let origin_pvs = origin;
+        let a = renderer_a.draw_pxbsp_world_from_visibility_origin(
+            &legacy,
+            camera,
+            origin_pvs,
+            view,
+            &bindings,
+            0,
+            &mut packets_a,
+        );
+        let b = renderer_b.draw_pxbsp_world_from_visibility_origin(
+            &bounded,
+            camera,
+            origin_pvs,
+            view,
+            &bindings,
+            0,
+            &mut packets_b,
+        );
         compared += 1;
         faces_total += u64::from(b.stats.visible_faces);
         words_total += b.packet_words as u64;
