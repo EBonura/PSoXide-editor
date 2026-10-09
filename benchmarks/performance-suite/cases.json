@@ -452,7 +452,6 @@
         "image": "$quake.e1m1-chain3800_image",
         "image_bin_0": "$quake.e1m1-chain3800_image_bin_0",
         "quake_adapter": "$quake_chain_adapter",
-        "python": "$python",
         "emulator": "$frontend_42e69"
       },
       "argv": [
@@ -501,8 +500,7 @@
       },
       "build_provenance": "historical accepted binary fixture, not current-main rebuild",
       "completion": {
-        "adapter": "quake_adapter",
-        "interpreter": "python"
+        "adapter": "quake_adapter"
       },
       "required_outputs": [
         "route.csv",

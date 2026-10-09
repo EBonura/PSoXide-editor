@@ -1,20 +1,21 @@
 # Verified local performance replays
 
-`tools/performance_suite.py` reuses completed replays by their complete input identity. It does not build games, download assets, mutate a game library, or resume snapshots. Python's standard library is sufficient on macOS/Linux.
+`psoxide-perf performance-suite` (the `tools/psoxide-perf` crate) reuses completed replays by their complete input identity. It does not build games, download assets, mutate a game library, or resume snapshots. Build it once with `cargo build --release -p psoxide-perf`; the commands below assume `target/release/psoxide-perf` is on your path.
 
 Bindings map each `$name` input in `cases.json` to a local file. They are machine-specific and never live in this repository: keep the JSON (`{"name": "/absolute/path"}`) next to your local replay store. No retail assets or personal paths belong in the committed manifest. `cases.json` contains Celeste recorded checkpoints, a bounded Cortex gameplay checkpoint, Half-Life chapter-two timing, and the Quake E1M1-to-E1M2 diagnostic route. These are named historical fixtures, not claims that every current main was rebuilt.
 
 ```sh
-python3 tools/performance_suite.py run benchmarks/performance-suite/cases.json \
+psoxide-perf performance-suite run benchmarks/performance-suite/cases.json \
   --bindings /absolute/local/bindings.json --store /absolute/local/replay-store \
   --case celeste.recorded.poll900 --jobs 1 --report /absolute/local/run.json
-python3 tools/performance_suite.py get /absolute/local/replay-store/results/KEY
-python3 tools/performance_suite.py compare /absolute/local/baseline/KEY /absolute/local/candidate/KEY
-python3 -m unittest discover -s tools -p test_performance_suite.py
-python3 -m unittest discover -s benchmarks/performance-suite -p test_quake_chain_adapter.py
+psoxide-perf performance-suite get /absolute/local/replay-store/results/KEY
+psoxide-perf performance-suite compare /absolute/local/baseline/KEY /absolute/local/candidate/KEY
+cargo test -p psoxide-perf
 ```
 
-`run` rehashes current inputs, takes an exclusive per-key lock, checks the inputs again, and verifies every cached artifact before returning a hit. Different inputs, commands, script/parser bytes, environment, build provenance, absolute paths or CUE-referenced files produce another key. It makes no assumption that a source commit built in two directories yields equivalent binaries. Results are atomically published only after completion and a post-run input rehash. Failed, timed-out, corrupt and partial entries cannot be hits. Failures remain available for diagnosis; storage retention is manual. A lock prevents duplicate simultaneous execution. Use a small `--jobs` value for bounded concurrency; parallel host wall times are not comparable benchmarks.
+`run` rehashes current inputs, takes an exclusive per-key lock, checks the inputs again, and verifies every cached artifact before returning a hit. Different inputs, commands, tool and launch-parser source bytes, environment, build provenance, absolute paths or CUE-referenced files produce another key. It makes no assumption that a source commit built in two directories yields equivalent binaries. Results are atomically published only after completion and a post-run input rehash. Failed, timed-out, corrupt and partial entries cannot be hits. Failures remain available for diagnosis; storage retention is manual. A lock prevents duplicate simultaneous execution. Use a small `--jobs` value for bounded concurrency; parallel host wall times are not comparable benchmarks.
+
+Replays sealed by the earlier Python tool still verify with `get`, but their identity records name that tool, so `compare` refuses to pair them with new results; rerun the case to repopulate the store.
 
 `get` verifies a historical result and returns an artifact index without copying the artifacts. It does **not** verify today's external inputs; use `run` for that. Historical logs without the complete identity/completion receipt are not automatically imported or trusted. Lookup still hashes all bytes, including transitive disc inputs for `run`; there is no mtime shortcut.
 
@@ -22,7 +23,7 @@ Each run gets an empty config/HOME and absent memory cards. Inherited `PSOXIDE_*
 
 ## Completion and quality
 
-Generic poll completion supports validated binary `PXITAPE2` only. Its sample extent must continue beyond the maximum accepted poll. Competing frame limits are rejected, and the stdout early-stop marker must precede the instruction cap. CLI faults fail even when the process exits zero. These conditions distinguish the CLI's next-display-flip stop from tape exhaustion or a hard cap. Other clocks and game-specific completion use a hashed Python adapter/interpreter. Quake's adapter validates its v9 RAM probe and the canonical gameplay presentation window; this is diagnostic-game evidence, not an ordinary shipping campaign proof.
+Generic poll completion supports validated binary `PXITAPE2` only. Its sample extent must continue beyond the maximum accepted poll. Competing frame limits are rejected, and the stdout early-stop marker must precede the instruction cap. CLI faults fail even when the process exits zero. These conditions distinguish the CLI's next-display-flip stop from tape exhaustion or a hard cap. Other clocks and game-specific completion use a hashed adapter executable (a script adapter may also name a hashed `interpreter` input). Quake's adapter, the `quake-chain-adapter` binary of the same crate (`cargo build --release -p psoxide-perf` writes it next to `psoxide-perf`; bind `$quake_chain_adapter` to it), validates its v9 RAM probe and the canonical gameplay presentation window; this is diagnostic-game evidence, not an ordinary shipping campaign proof.
 
 `quick` means timing triage: it can never pass acceptance. `acceptance` enables explicitly declared artifact comparisons. At least two visual artifacts and one state/audio artifact are required for those dimensions; missing evidence remains unavailable. The supplied generic cases compare software captures and, where captured, whole PCM, but do not infer game-state equivalence from pixels or cycles. Quake's semantic completion is reported separately from comparative state parity. Celeste's actual frame deadlines and authored freeze classification remain the responsibility of its source-bound timing observer; controller polls and display refresh counts alone do not prove 60 fps.
 
