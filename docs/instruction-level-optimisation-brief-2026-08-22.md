@@ -75,7 +75,7 @@ closed them. Read it before proposing anything.
 ## 1. How to reproduce every number in this brief
 
 ```bash
-python3 tools/text_census.py build/examples/mipsel-sony-psx/release/editor-playtest.exe
+cargo run --release -p psoxide-perf -- text-census build/examples/mipsel-sony-psx/release/editor-playtest.exe
 ```
 
 That script is new, checked in with this brief, and prints the entire table set
@@ -829,7 +829,7 @@ finding out is about ten minutes.
 Each phase gates the next. Do not skip ahead.
 
 **Phase 0, measurement.** 7.1, 7.2 and 7.3. Nothing else. Re-run
-`tools/text_census.py` after any build change so the static baseline stays live.
+`psoxide-perf text-census` after any build change so the static baseline stays live.
 Exit criterion: you can state the dynamic cycle split by class and the render
 subtree's stack high-water mark.
 

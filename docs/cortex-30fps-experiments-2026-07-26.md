@@ -932,7 +932,7 @@ spending a cortex_v1 run.
 A normal cortex_v3 build was sampled every 64 retired instructions, entirely
 from the emulator, producing 6.13 million samples. Filtering the windowed
 capture from route tick 300 removes boot/menu work and leaves 5.09 million
-gameplay samples. `tools/pc_symbolize.py --min-window-start` now performs this
+gameplay samples. `psoxide-perf pc-symbolize --min-window-start` now performs this
 filter reproducibly.
 
 The hottest gameplay symbols were the vblank-edge spin in `run_scheduled`
@@ -2083,6 +2083,6 @@ confirms there is no changed image.
 | C1 | Cooker worst-view 30 FPS/RAM/packet validator | accepted, warning-only | v1/v3 observed maxima 73/551 and 183/639 stay below 390/771 and 364/728; both theoretical packet envelopes correctly warn above 1,536 |
 | H1 | Real-hardware timer, cadence, tear, seam, and near-plane sweep | burn images prepared; awaiting silicon | Structural checks and full no-telemetry tape replays pass; mandatory final gate remains physical |
 
-Run `python3 tools/cortex_30fps_report.py <run-dir>...` for the standard table.
+Run `cargo run --release -p psoxide-perf -- cortex-30fps-report <run-dir>...` for the standard table.
 Pass exactly two lockstep run directories plus `--compare-lockstep` to make any
 guest-frame hash mismatch, missing frame, or extra frame fail the command.

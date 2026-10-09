@@ -97,14 +97,14 @@ emulated timing:
   and the head of the next, and a line log bills the whole line to the first,
   so a hot callee (memcpy after a small closure) shows up as a fake delta in
   its neighbour when code moves. Word logs cost about the same as line logs.
-  `python3 tools/pc_line_attribution.py <pc.csv> <link.map> --compare
+  `cargo run --release -p psoxide-perf -- pc-line-attribution <pc.csv> <link.map> --compare
   <base-pc.csv> <base-link.map>` prints exact per-function totals and deltas,
   and warns how much of a line log straddles symbols.
 - `--icache-event-log <csv>` records every real refill with its direct-mapped
   set, incoming line/tag, previous victim line/tag/valid mask, miss kind, fill
   width and charged stall cycles. Add `--icache-event-start-route-tick <N>` to
   isolate a gameplay window. Rank exact temporal victim-to-incoming pairs with
-  `python3 tools/pc_line_attribution.py <pc-lines.csv> <link.map>
+  `cargo run --release -p psoxide-perf -- pc-line-attribution <pc-lines.csv> <link.map>
   --icache-events <events.csv>`; always resolve against the matching executable
   map.
 - `--instruction-class-log <csv>` writes exact per-route-tick dynamic counts

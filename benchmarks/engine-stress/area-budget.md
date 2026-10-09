@@ -107,8 +107,8 @@ emulator evidence, not a hardware certification.
 Run from the editor repository, with the current release frontend and psxed-mcp built:
 
 ```sh
-python3 benchmarks/engine-stress/calibrate_areas.py 0 4 8 12 16 18 20
-python3 benchmarks/engine-stress/measure_route.py build/area-calibration/pillars-18 600 1750
+psoxide-perf engine-stress calibrate-areas 0 4 8 12 16 18 20
+psoxide-perf engine-stress measure-route build/area-calibration/pillars-18 600 1750
 ```
 
 Generated test projects stay under `build/area-calibration`, outside the editor picker.

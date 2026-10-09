@@ -126,7 +126,7 @@ C. **Performance** (separate lever, same campaign): tape replay shows render
 
 Session scratchpad holds `cortex_v3-vblank.csv`, `cortex_v3-counters.csv`,
 `cortex_v3-portal-debug.log`, and frame dumps. `tools/vblank_chart.py` no
-longer exists; `tools/cortex_30fps_report.py` is the current summariser.
+longer exists; `psoxide-perf cortex-30fps-report` is the current summariser.
 
 ## Synthetic corridor harness (2026-08-01, Manny's idea)
 

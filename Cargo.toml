@@ -25,6 +25,7 @@ members = [
     "tools/mkisopsx",
     "tools/psoxide-hazard",
     "tools/psoxide-link",
+    "tools/psoxide-perf",
     "tools/psoxide-pgo",
     "tools/psoxide-dev",
     "tools/psoxide-hwtest",

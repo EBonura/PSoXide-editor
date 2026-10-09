@@ -9,12 +9,17 @@ retain the measured baseline. Full CSVs and screenshots remain local.
 ## Reproduce
 
 Run from the editor repository root with the locked components bootstrapped, the
-release `frontend` and `psxed-mcp` binaries built, and default-project assets available:
+release `frontend` and `psxed-mcp` binaries built, default-project assets available and
+`psoxide-perf` built (`cargo build --release -p psoxide-perf`, binary `target/release/psoxide-perf`):
 
 ```sh
-python3 benchmarks/engine-stress/run.py e0 e1 e2 small2 scale4 outdoor vista8 vista16 patch4k patch4k_scale4 outdoor_sealed
-python3 benchmarks/engine-stress/analyse.py > build/engine-stress/results.md
+psoxide-perf engine-stress run e0 e1 e2 small2 scale4 outdoor vista8 vista16 patch4k patch4k_scale4 outdoor_sealed
+psoxide-perf engine-stress analyse > build/engine-stress/results.md
 ```
+
+`psoxide-perf mcp-client --project DIR --tools` lists the `psxed-mcp` tools; with a calls file
+(`[{"tool": name, "args": {...}}, ...]`) it runs a batch in one server process. The runner and the
+calibration sweep use the same client. `PSOXIDE_PERF_REPO` points the tools at another checkout root.
 
 `PSOXIDE_STRESS_OUTPUT` overrides the output directory (default `build/engine-stress`).
 Set it on both commands. The runner copies the four frozen RON baselines in `fixtures/`

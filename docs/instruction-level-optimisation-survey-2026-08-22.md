@@ -76,7 +76,7 @@ Paths are relative to `~/Desktop/repos/` (`PSoXide/`, `quake-psx/`, `hl-psx/`).
 | i64 | `__divdi3`/`__moddi3` from compiler-builtins are broken on this target; `psx-rt/src/builtins.rs` overrides them (correct, still slow) | `PSoXide/sdk/crates/psx-rt/src/builtins.rs` |
 
 Note the consequence of `--oformat=binary`: none of the shipped guests have
-symbols. `tools/pc_symbolize.py` documents the fix (relink the same sources as
+symbols. `psoxide-perf pc-symbolize` documents the fix (relink the same sources as
 an ELF by dropping `--oformat=binary`), and references a `make perf-symbols`
 target that does not exist in the current `Makefile`. See 5.0.2.
 
@@ -133,7 +133,7 @@ Two consequences to keep in front of every proposal:
 | Hazard repro | force the V0.x commit hazard | `PSOXIDE_GTE_V0X_STALE` (`cpu.rs:368`) |
 | Silicon timing | 129 timing records incl. CPU/GTE/DMA, QR transport | `engine/examples/hardware-tests`, `docs/hardware-test-disc.md` |
 | Machine-code audit | digests of measured instruction spans in the linked EXE | ``psoxide-hwtest verify-machine-code`` |
-| Static census | this survey's counts | `tools/instr_census.py` (added with this document) |
+| Static census | this survey's counts | `psoxide-perf instr-census` (added with this document) |
 | Game gates | hl: `psoxide-profile`, `psoxide-map-smoke`, `psoxide-chart` (`hl-psx/Makefile:95-122`); quake: `visual-parity-regress`, fixed-tick E1M1 route; cortex: Arena/E1M1 route per `docs/shared-engine-standardisation-2026-08-22.md` | |
 
 ---
@@ -170,7 +170,7 @@ ceiling; beyond it is asm.
 
 ## 3. Static instruction census (new data, 2026-08-22)
 
-Method: `tools/instr_census.py` strips the PSX-EXE header, disassembles with
+Method: `psoxide-perf instr-census` strips the PSX-EXE header, disassembles with
 `mipsel-none-elf-objdump -m mips:3000`, and locates the `.text`/`.data`
 boundary by the first 256-word window with >=16 undecodable words (the linker
 script places `.text` first). Static counts over linked text; they say nothing
@@ -333,10 +333,10 @@ from counts in section 3 and stage costs in `docs/playtest-profiling.md` and
 
 #### 5.0.2 Symbolised PC sampling for all three games
 
-- `tools/pc_symbolize.py` exists and needs an ELF. Add a `perf-symbols`
+- `psoxide-perf pc-symbolize` exists and needs an ELF. Add a `perf-symbols`
   Makefile target (referenced in its docstring, absent in `Makefile`) that
   relinks `editor-playtest` without `--oformat=binary` (same staged source,
-  same RUSTFLAGS otherwise) and runs `pc_symbolize.py`. Do the same in
+  same RUSTFLAGS otherwise) and runs `psoxide-perf pc-symbolize`. Do the same in
   `quake-psx/game/build.rs:141` and `hl-psx/game/build.rs:913` behind an env
   var (hl already has a PC-sampling profile flow; reuse it).
 - Verify the ELF's code is byte-identical to the shipped binary payload
@@ -739,7 +739,7 @@ OFX/OFY, 26 H, 27/28 DQA/DQB, 29/30 ZSF3/ZSF4, 31 FLAG.
 
 ```bash
 # static census (any of the three .exe files)
-python3 tools/instr_census.py build/examples/mipsel-sony-psx/release/editor-playtest.exe --name cortex --dis /tmp/cortex.dis
+cargo run --release -p psoxide-perf -- instr-census build/examples/mipsel-sony-psx/release/editor-playtest.exe --name cortex --dis /tmp/cortex.dis
 ```
 
 ```bash
@@ -754,7 +754,7 @@ cd emu && cargo run -p frontend --release -- launch --path ../build/examples/mip
 
 ```bash
 # symbolise (needs the ELF relink from 5.0.2)
-python3 tools/pc_symbolize.py --elf /tmp/editor-playtest.elf --samples /tmp/cortex-pc.csv --top 40
+cargo run --release -p psoxide-perf -- pc-symbolize --elf /tmp/editor-playtest.elf --samples /tmp/cortex-pc.csv --top 40
 ```
 
 ### 8.3 Kernel skeleton (copy the hl-psx shape)
