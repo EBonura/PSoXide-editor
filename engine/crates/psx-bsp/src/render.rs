@@ -1223,12 +1223,12 @@ impl AttributedClipPlane<AffineVertex> for PxbspClipPlane<'_> {
     ) -> AffineVertex {
         // Two faces share an edge but traverse it in opposite directions; a
         // fixed endpoint order gives both the same crossing.
-        let (first, first_distance, second, second_distance) =
-            if first.position <= second.position {
-                (first, first_distance, second, second_distance)
-            } else {
-                (second, second_distance, first, first_distance)
-            };
+        let (first, first_distance, second, second_distance) = if first.position <= second.position
+        {
+            (first, first_distance, second, second_distance)
+        } else {
+            (second, second_distance, first, first_distance)
+        };
         let fraction = crossing_fraction_q16_i32(first_distance, second_distance);
         lerp_vertex(first, second, fraction)
     }
