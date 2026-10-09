@@ -36,14 +36,11 @@ fn main() {
     assert!(legacy.leaf_bounds().is_none(), "first map must be pre-v7");
     let bounds = bounded.leaf_bounds().expect("second map must be v7");
     println!(
-        "faces {} leaves {} leaf-bounds {} ({} full-range)",
+        "faces {} leaves {} leaf-bounds {} ({} with a full-range box)",
         bounded.faces().len(),
         bounded.leaves().len(),
         bounds.len(),
-        bounds
-            .iter()
-            .filter(|b| **b == psx_bsp::LeafBounds::FULL)
-            .count()
+        bounds.iter().filter(|b| b.is_unbounded_box()).count()
     );
 
     let world = bounded.brush_models().get(0).expect("world model");

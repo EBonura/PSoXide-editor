@@ -907,43 +907,72 @@ impl<'a> RecordSlice<'a, Node> {
     }
 }
 
-/// Inclusive axis-aligned bounds of every vertex of every face a leaf marks,
-/// in the model-local `i16` units the vertex lump uses (PXBSP v7 lump
+/// What the renderer needs to cull one leaf's marked faces without reading a
+/// vertex (PXBSP v7 lump
 /// [`PxbspLumpKind::LEAF_BOUNDS`](crate::pxbsp::PxbspLumpKind::LEAF_BOUNDS)).
 ///
-/// A leaf that must never be culled from its bounds (one marking a sky
-/// aperture, whose stats are counted whether or not it is on screen, or one
-/// marking nothing) carries [`Self::FULL`].
+/// The box is the inclusive bounds, in the model-local `i16` units the vertex
+/// lump uses, of every vertex of every NON-sky face the leaf marks. Sky
+/// apertures are counted as visible whether or not they are on screen, so a
+/// culled leaf must still mark them: the cooker orders each leaf's marks with
+/// its sky apertures first, and `sky_marks` says how many there are. A leaf
+/// with no non-sky face, or one the cooker chose not to bound, carries the
+/// full-range box ([`Self::UNBOUNDED`]).
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct LeafBounds {
     pub mins: [i16; 3],
     pub maxs: [i16; 3],
+    /// Leading marks of the leaf that are sky apertures.
+    pub sky_marks: u16,
+    /// Zero on the wire; reserved.
+    pub reserved: u16,
 }
 
-const _: [(); 12] = [(); core::mem::size_of::<LeafBounds>()];
+const _: [(); 16] = [(); core::mem::size_of::<LeafBounds>()];
 const _: [(); 2] = [(); core::mem::align_of::<LeafBounds>()];
 
 impl LeafBounds {
     /// Wire size of one record.
-    pub const SIZE: usize = 12;
+    pub const SIZE: usize = 16;
 
-    /// The whole `i16` cube: no plane can reject it and none can be proven.
-    pub const FULL: Self = Self {
+    /// The whole `i16` cube and no sky marks: no plane can reject it and none
+    /// can be proven.
+    pub const UNBOUNDED: Self = Self {
         mins: [i16::MIN; 3],
         maxs: [i16::MAX; 3],
+        sky_marks: 0,
+        reserved: 0,
     };
+
+    /// Whether the box is the full range.
+    pub fn is_unbounded_box(&self) -> bool {
+        self.mins == [i16::MIN; 3] && self.maxs == [i16::MAX; 3]
+    }
 
     /// Little-endian wire form.
     pub fn encode(self) -> [u8; Self::SIZE] {
         let mut bytes = [0u8; Self::SIZE];
-        for (slot, value) in bytes
-            .chunks_exact_mut(2)
-            .zip(self.mins.into_iter().chain(self.maxs))
-        {
+        let words = self
+            .mins
+            .into_iter()
+            .chain(self.maxs)
+            .chain([self.sky_marks as i16, self.reserved as i16]);
+        for (slot, value) in bytes.chunks_exact_mut(2).zip(words) {
             slot.copy_from_slice(&value.to_le_bytes());
         }
         bytes
+    }
+
+    /// Decode one little-endian wire record.
+    pub fn decode(bytes: &[u8]) -> Self {
+        let word = |index: usize| i16::from_le_bytes([bytes[index * 2], bytes[index * 2 + 1]]);
+        Self {
+            mins: [word(0), word(1), word(2)],
+            maxs: [word(3), word(4), word(5)],
+            sky_marks: word(6) as u16,
+            reserved: word(7) as u16,
+        }
     }
 
     /// Whether `position` lies inside the box.
