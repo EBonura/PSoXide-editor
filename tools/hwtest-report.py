@@ -823,7 +823,7 @@ for _port in range(2):
     )
 V2_RECORDS[0x766] = (
     "rumble_operator",
-    ("answers_two_bits_each", "stimuli_asked", "port_tested"),
+    ("answers_two_bits_each", "stimuli_asked", "port_tested_and_api_enabled_in_bit_8"),
 )
 for _speed, _speed_tag in enumerate(("1x", "2x")):
     for _size, _size_tag in enumerate(("2048", "2340")):
