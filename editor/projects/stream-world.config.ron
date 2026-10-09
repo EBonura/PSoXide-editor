@@ -5,7 +5,9 @@
 // derive from the guest's measured RAM (brush_region::RAM_BUDGET).
 (
     seed: 31,
-    grid: (16, 16),
+    // 400 modules: about 4.6 MB of regions, over ten times the 406 KB pool
+    // (the design asks the stress world for at least that).
+    grid: (20, 20),
     module_units: 768,
     // The cooker's coarsest surface subdivision (4096 authored = 256 units)
     // and a texture scale that lets it bind (see uv_scale_q8 in the source).
@@ -27,9 +29,10 @@
     // Finest terrain patch per module side that the budget allows.
     terrain_cells: 3,
     // Cut target in the cut search's byte model; every module is built under
-    // it. Nine sectors holds a 768 unit module with its door walls and
-    // vestibules.
-    region_target_bytes: 18432,
+    // it. Seven sectors holds a 768 unit module with its door walls and
+    // vestibules. The drive gate (rho) prices a crossing at the median region,
+    // so a target above this lets the heavy modules push a crossing over it.
+    region_target_bytes: 14336,
     // Interior detail a module may add to its shell, same bytes.
     detail_bytes: 1024,
     // RAM scenario: bytes the model pass is assumed to hand the world. Zero is

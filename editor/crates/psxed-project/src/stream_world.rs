@@ -136,9 +136,14 @@ pub struct StreamWorldConfig {
     /// Terrain patch resolution at most, cells per module side.
     pub terrain_cells: u32,
     /// The cut target the world is cooked with, bytes in the cut search's
-    /// model. Every module is built under it, so a cell is a module. Five
-    /// sectors holds a module with its door walls, vestibules and a little
-    /// detail (the cut model counts more than the region encodes).
+    /// model. Every module is built under it, so a cell is a module (a module
+    /// whose bare shell is over it is cut in two and reported). Seven sectors
+    /// holds a module with its door walls, vestibules and a little detail (the
+    /// cut model counts more than the region encodes). The drive gate prices a
+    /// crossing at the median region's sector count, so this is also what
+    /// keeps the bytes a crossing brings in under the gate: at nine sectors
+    /// 17 of 50 seeds failed it, at seven none do (see the sweep table in
+    /// docs/streaming-world-sweep-2026-10-09.md).
     pub region_target_bytes: u32,
     /// Interior detail (pillars, cover) a module may add to its shell, in the
     /// same bytes. Zero builds bare shells. The sum with the shell never
@@ -158,7 +163,7 @@ impl Default for StreamWorldConfig {
     fn default() -> Self {
         Self {
             seed: 31,
-            grid: [16, 16],
+            grid: [20, 20],
             module_units: 768,
             patch_extent_authored: 4096,
             uv_scale_q8: 512,
@@ -173,7 +178,7 @@ impl Default for StreamWorldConfig {
             dense: false,
             max_door_degree: 3,
             terrain_cells: 3,
-            region_target_bytes: 18_432,
+            region_target_bytes: 14_336,
             detail_bytes: 1_024,
             arena_reclaim_bytes: 0,
             shortest_routes: 6,
@@ -718,9 +723,13 @@ fn module_doors(layout: &Layout, config: &StreamWorldConfig, index: usize) -> Do
 }
 
 /// Terrain resolutions a module side can be cut into, finest first, capped at
-/// `max_cells` (the span must divide evenly).
+/// `max_cells` (the span must divide evenly). One cell is two wedges: the
+/// coarsest patch, taken when the shell leaves no room for four cells, so
+/// that a terrain module is not cut in two (a cut module is seen by more
+/// regions than a whole one, and brings more bytes in per crossing). A shell
+/// with no room even for that stays flat.
 fn terrain_resolutions(span: i32, max_cells: u32) -> Vec<usize> {
-    (2..=max_cells.min(16) as usize)
+    (1..=max_cells.min(16) as usize)
         .rev()
         .filter(|&c| span % c as i32 == 0)
         .collect()
@@ -880,43 +889,41 @@ fn build_module(
     let mut model = model_of(&cubes);
     outcome.over_budget = model > budgets.bytes;
 
-    // Terrain takes the finest resolution that still fits.
+    // Terrain takes the finest resolution that still fits. A shell with no
+    // room for even one patch stays a flat open court (trimmed, not over
+    // budget, unless the shell alone is over).
     if module.kind == ModuleKind::Terrain {
         let span = m - 2 * WALL;
         let options = terrain_resolutions(span, config.terrain_cells);
+        if options.is_empty() {
+            return Err("module_units leave no terrain resolution".into());
+        }
         // A wedge is a render face or two (counted as quads), its sides and a brush.
         let wedge_bytes =
             MODEL_MARGIN * (2.0 * surface_bytes(4) + 6.0 * TOPOLOGY_BYTES + BRUSH_BYTES);
         let cost = |c: usize| (2 * c * c) as f64 * wedge_bytes;
-        let pick = match options
+        let pick = options
             .iter()
             .copied()
-            .find(|&c| model + cost(c) <= budgets.bytes)
-        {
-            Some(c) => c,
-            None => {
-                outcome.over_budget = true;
-                *options
-                    .last()
-                    .ok_or("module_units leave no terrain resolution")?
-            }
-        };
-        if pick < options[0] {
+            .find(|&c| model + cost(c) <= budgets.bytes);
+        if pick != options.first().copied() {
             outcome.trimmed = true;
         }
-        let spacing = (span / pick as i32) * A;
-        let patch = Terrain::generate(
-            [pick, pick],
-            [spacing, spacing],
-            [(x0 + WALL) * A, 0, (z0 + WALL) * A],
-            TERRAIN_AMPLITUDE * A,
-            (hash & 0xFFFF_FFFF) as u32,
-            TerrainShape::Hills,
-            0.5,
-        )
-        .map_err(|e| format!("terrain at module {index}: {e}"))?;
-        model += cost(pick);
-        terrain = Some(patch);
+        if let Some(pick) = pick {
+            let spacing = (span / pick as i32) * A;
+            let patch = Terrain::generate(
+                [pick, pick],
+                [spacing, spacing],
+                [(x0 + WALL) * A, 0, (z0 + WALL) * A],
+                TERRAIN_AMPLITUDE * A,
+                (hash & 0xFFFF_FFFF) as u32,
+                TerrainShape::Hills,
+                0.5,
+            )
+            .map_err(|e| format!("terrain at module {index}: {e}"))?;
+            model += cost(pick);
+            terrain = Some(patch);
+        }
     }
 
     // Interior detail, most valuable first, while it fits. Terrain counts as
@@ -1840,6 +1847,27 @@ mod tests {
         )
         .unwrap();
         assert!(bare.stats.brushes < roomy.stats.brushes);
+    }
+
+    #[test]
+    fn terrain_modules_fit_the_default_target_by_giving_up_patches() {
+        // A terrain module with several doors has a shell that leaves no room
+        // for four cells, or for any. It is trimmed to fewer cells or to a
+        // flat court, never left over budget (an over-budget module is cut in
+        // two by the cooker, and the halves see more regions).
+        let config = StreamWorldConfig {
+            terrain_pct: 60,
+            corridor_pct: 10,
+            interior_pct: 10,
+            courtyard_pct: 10,
+            ..StreamWorldConfig::small([8, 8])
+        };
+        for seed in 1..=3 {
+            let world = generate(&StreamWorldConfig { seed, ..config.clone() }, &donor()).unwrap();
+            assert!(world.stats.terrains >= 8, "seed {seed}: terrain modules");
+            assert_eq!(world.stats.over_budget_modules, 0, "seed {seed}");
+            assert!(world.stats.trimmed_modules > 0, "seed {seed}");
+        }
     }
 
     #[test]
