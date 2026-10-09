@@ -1,6 +1,8 @@
 # Frontend architecture
 
-The desktop frontend lives in [`emu/crates/frontend`](../emu/crates/frontend). It's a single-threaded wgpu + egui app that drives the emulator core directly -- no `Arc<Mutex<_>>`, no message-passing, no separate render thread. The UI reads emulator state in place each frame.
+The desktop frontend lives in [`emu/crates/frontend`](../emu/crates/frontend). The source is the emulator's own frontend, hydrated from `PSoXide-emulator` through `components.lock.json` (`make bootstrap`), not a fork kept here. The editor is that frontend built with the `editor` feature (`cargo run -p frontend --features editor`; the Makefile targets, tools and CI pass it), which adds the 3D preview, the Play viewport, the project and disc authoring CLI and the Editor menu. Only the modules the feature needs and the emulator cannot carry are tracked in this repository: `editor_assets.rs`, `editor_preview*`, `editor_textures.rs`, `embedded_playtest.rs`, `playtest_disc.rs` and `assets/fonts/lucide.ttf`. Change shared frontend behaviour in the emulator repository and bump the lock; `make fmt` formats the editor-owned files, which the emulator marks `#[rustfmt::skip]`.
+
+It is a single-threaded wgpu + egui app that drives the emulator core directly -- no `Arc<Mutex<_>>`, no message-passing, no separate render thread. The UI reads emulator state in place each frame.
 
 ## Why single-threaded?
 
