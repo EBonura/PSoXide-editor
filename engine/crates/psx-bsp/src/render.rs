@@ -14,7 +14,7 @@ use psx_engine::{
         AttributedClipPlane, ClipTraversal,
     },
     compose_model_view_transform, materialize_baked_surface_vertices, materialize_surface_vertices,
-    submit_surface_batch, AffineSurface, AffineVertex, SurfaceProfile, SurfaceSourceVertex,
+    submit_surface_batch_counted, AffineSurface, AffineVertex, SurfaceProfile, SurfaceSourceVertex,
     SurfaceSubmit,
 };
 use psx_gte::math::{Mat3I16, Vec3I16 as GteVec3I16, Vec3I32 as GteVec3I32};
@@ -1939,7 +1939,7 @@ impl Renderer {
                 if batch_surface_count != 0 {
                     stats.surface_batches = stats.surface_batches.saturating_add(1);
                 }
-                let submitted = unsafe {
+                let (submitted, dropped) = unsafe {
                     flush_pxbsp_batch(
                         batch_vertices,
                         batch_vertex_count,
@@ -1953,9 +1953,7 @@ impl Renderer {
                 stats.hardware_triangles = stats
                     .hardware_triangles
                     .wrapping_add(submitted.hardware_triangles);
-                stats.dropped_polygons = stats
-                    .dropped_polygons
-                    .wrapping_add(submitted.dropped_polygons);
+                stats.dropped_polygons = stats.dropped_polygons.wrapping_add(dropped);
                 batch_vertex_count = 0;
                 batch_surface_count = 0;
                 batch_worst_words = 0;
@@ -2000,7 +1998,7 @@ impl Renderer {
         if batch_surface_count != 0 {
             stats.surface_batches = stats.surface_batches.saturating_add(1);
         }
-        let submitted = unsafe {
+        let (submitted, dropped) = unsafe {
             flush_pxbsp_batch(
                 batch_vertices,
                 batch_vertex_count,
@@ -2014,9 +2012,7 @@ impl Renderer {
         stats.hardware_triangles = stats
             .hardware_triangles
             .wrapping_add(submitted.hardware_triangles);
-        stats.dropped_polygons = stats
-            .dropped_polygons
-            .wrapping_add(submitted.dropped_polygons);
+        stats.dropped_polygons = stats.dropped_polygons.wrapping_add(dropped);
 
         let packet_words = unsafe { next.offset_from(start) as usize };
         stats.see_through_material_selected = self.pxbsp_see_through_seen;
@@ -3153,21 +3149,23 @@ unsafe fn flush_pxbsp_batch(
     surfaces: &[AffineSurface],
     surface_count: usize,
     output: *mut u32,
-) -> SurfaceSubmit {
+) -> (SurfaceSubmit, u32) {
     if vertex_count == 0 || surface_count == 0 {
-        return SurfaceSubmit {
-            next_packet: output,
-            packets: 0,
-            hardware_triangles: 0,
-            dropped_polygons: 0,
-        };
+        return (
+            SurfaceSubmit {
+                next_packet: output,
+                packets: 0,
+                hardware_triangles: 0,
+            },
+            0,
+        );
     }
     // SAFETY: the planes and the batch are the only scratchpad bytes live
     // around the flush (see PxbspWriterStack), the writer installs no
     // exception handler, and tools/stack_guard.py proves its call tree fits.
     unsafe {
         PxbspWriterStack::run(|| {
-            submit_surface_batch(
+            submit_surface_batch_counted(
                 vertices.as_mut_ptr(),
                 vertex_count,
                 surfaces.as_ptr(),
