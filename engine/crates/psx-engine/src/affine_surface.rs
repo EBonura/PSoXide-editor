@@ -161,10 +161,6 @@ pub struct SurfaceSubmit {
     pub packets: u32,
     /// Number of hardware triangles those packets draw.
     pub hardware_triangles: u32,
-    /// Polygons dropped because their ordering-table slot was out of range.
-    /// A dropped polygon leaves a hole in the view, so a caller that skips a
-    /// sky pass behind the surface must not when this is non-zero.
-    pub dropped_polygons: u32,
 }
 
 /// Brightness of a vertex lit by two light styles: each style's level
@@ -728,6 +724,36 @@ pub unsafe fn submit_surface_batch(
     output: *mut u32,
     profile: SurfaceProfile,
 ) -> SurfaceSubmit {
+    // SAFETY: the contract is forwarded unchanged.
+    unsafe {
+        submit_surface_batch_counted(
+            vertices,
+            vertex_count,
+            surfaces,
+            surface_count,
+            output,
+            profile,
+        )
+    }
+    .0
+}
+
+/// [`submit_surface_batch`], also returning how many polygons the writer
+/// dropped because their ordering-table slot was out of range. A dropped
+/// polygon leaves a hole in the view, so a caller that skips a sky pass
+/// behind the surface must keep it when the count is non-zero.
+///
+/// # Safety
+/// As [`submit_surface_batch`].
+#[inline(always)]
+pub unsafe fn submit_surface_batch_counted(
+    vertices: *mut AffineVertex,
+    vertex_count: usize,
+    surfaces: *const AffineSurface,
+    surface_count: usize,
+    output: *mut u32,
+    profile: SurfaceProfile,
+) -> (SurfaceSubmit, u32) {
     let mut sink = PacketSink {
         next: output,
         packets: 0,
@@ -738,12 +764,14 @@ pub unsafe fn submit_surface_batch(
         dropped: 0,
     };
     if vertices.is_null() || surfaces.is_null() || output.is_null() || vertex_count == 0 {
-        return SurfaceSubmit {
-            next_packet: output,
-            packets: 0,
-            hardware_triangles: 0,
-            dropped_polygons: 0,
-        };
+        return (
+            SurfaceSubmit {
+                next_packet: output,
+                packets: 0,
+                hardware_triangles: 0,
+            },
+            0,
+        );
     }
     // SAFETY: `vertex_count` initialised records per the contract.
     unsafe { project_vertices(vertices, vertex_count) };
@@ -769,12 +797,14 @@ pub unsafe fn submit_surface_batch(
         // SAFETY: range checked above; capacity and scratch per the contract.
         unsafe { splitter.surface(first, count) };
     }
-    SurfaceSubmit {
-        next_packet: sink.next,
-        packets: sink.packets,
-        hardware_triangles: sink.triangles,
-        dropped_polygons: sink.dropped,
-    }
+    (
+        SurfaceSubmit {
+            next_packet: sink.next,
+            packets: sink.packets,
+            hardware_triangles: sink.triangles,
+        },
+        sink.dropped,
+    )
 }
 
 #[cfg(test)]
