@@ -17,6 +17,7 @@ pub mod inspect;
 pub mod nodes;
 pub mod performance;
 pub mod play;
+pub mod regions;
 pub mod shot;
 
 use std::collections::BTreeMap;
