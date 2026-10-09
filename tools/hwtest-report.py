@@ -2663,7 +2663,22 @@ def v24_report(capture: Capture) -> int:
                 h = triple(base + offset)
                 print(f"v24,card_proto_p{port + 1}_{name},rise={h[0]},width={h[1]},done={h[2]}")
             w = triple(base + 0x1D)
-            print(f"v24,card_proto_p{port + 1}_write_total,span={w[0] | w[1] << 16},flags=0x{w[2]:04X}")
+            reasons = [
+                name
+                for bit, name in (
+                    (1, "not_asked"),
+                    (2, "slot_empty_or_read_not_good"),
+                    (3, "checksum_mismatch"),
+                    (4, "card_error_flag"),
+                    (5, "reads_differ"),
+                )
+                if (w[2] >> bit) & 1
+            ]
+            print(
+                f"v24,card_proto_p{port + 1}_write_total,span={w[0] | w[1] << 16},flags=0x{w[2]:04X},"
+                f"status_byte=0x{w[2] >> 8:02X},written={'no' if reasons else 'yes'},"
+                f"not_written_because={'+'.join(reasons) or '-'}"
+            )
         else:
             h = triple(base)
             print(f"v24,card_proto_p{port + 1}_empty_byte0,rise={h[0]},width={h[1]},done={h[2]}")
