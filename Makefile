@@ -347,6 +347,7 @@ CORTEX_IGNITION_V1_PREBURN_INTERNAL_CUE ?= $(CORTEX_IGNITION_V1_PREBURN_INTERNAL
 CORTEX_IGNITION_V1_PREBURN_INTERNAL_BIN ?= $(CORTEX_IGNITION_V1_PREBURN_INTERNAL_DISC_DIR)/$(CORTEX_IGNITION_V1_NAME).bin
 CORTEX_IGNITION_V1_BRINGUP_REPORT ?= $(CORTEX_IGNITION_V1_PREBURN_OUT)/BRINGUP_REPORT.md
 PSOXIDE_DEV ?= cargo run --manifest-path tools/psoxide-dev/Cargo.toml --release --
+PSOXIDE_HWTEST ?= cargo run -q --manifest-path tools/psoxide-hwtest/Cargo.toml --release --
 PROFILE_DEMO3_FRAMES ?= 60
 PROFILE_DEMO3_STEPS ?= 120000000
 PROFILE_DEMO3_HW ?= /tmp/psoxide-demo3-hw-$(PROFILE_DEMO3_FRAMES).ppm
@@ -581,7 +582,7 @@ hwtest-capture: hardware-tests-disc
 		--path ../$(EXAMPLE_OUT)/hardware-tests.exe \
 		--disc ../$(EXAMPLE_OUT)/hardware-tests.cue \
 		--steps $(HWTEST_STEPS) --pad-pulses '0x4000@25+3' > ../$(HWTEST_CAPTURE)
-	@python3 tools/hwtest-report.py $(HWTEST_CAPTURE) > /dev/null || { \
+	@$(PSOXIDE_HWTEST) report $(HWTEST_CAPTURE) > /dev/null || { \
 		echo "hwtest-capture: incomplete capture (raise HWTEST_STEPS?)"; exit 2; }
 	@echo "captured $$(grep -c 'px8' $(HWTEST_CAPTURE)) PX8 page(s) -> $(HWTEST_CAPTURE)"
 
@@ -597,16 +598,16 @@ hwtest-verify-code: hardware-tests
 		echo "hwtest-verify-code: $(HWTEST_CODE_BASELINE) does not exist."; \
 		echo "  The suite version bumped without a machine-code baseline."; \
 		echo "  Review the spans, then pin them with:"; \
-		echo "    python3 tools/verify-hwtest-machine-code.py $(EXAMPLE_OUT)/hardware-tests.exe --baseline <previous version's file> | grep -v '^# drift' | cut -d, -f1-4 > $(HWTEST_CODE_BASELINE)"; \
+		echo "    $(PSOXIDE_HWTEST) verify-machine-code $(EXAMPLE_OUT)/hardware-tests.exe --baseline <previous version's file> | grep -v '^# drift' | cut -d, -f1-4 > $(HWTEST_CODE_BASELINE)"; \
 		echo "  (--baseline carries the probe names over by id; name any probe_NN rows by hand.)"; \
 		exit 2; }
-	python3 tools/verify-hwtest-machine-code.py $(EXAMPLE_OUT)/hardware-tests.exe \
+	$(PSOXIDE_HWTEST) verify-machine-code $(EXAMPLE_OUT)/hardware-tests.exe \
 		--baseline $(HWTEST_CODE_BASELINE) --fail-on-change
 
 # CI gate: any observation, timing minimum, or precision value that moves
 # against the baseline fails the build and is named in the output.
 hwtest-diff: hwtest-verify-code hwtest-capture
-	python3 tools/hwtest-report.py --baseline $(HWTEST_BASELINE) \
+	$(PSOXIDE_HWTEST) report --baseline $(HWTEST_BASELINE) \
 		--fail-on-change $(HWTEST_CAPTURE)
 
 HWTEST_WAV        := build/hwtest-audio.wav
@@ -625,8 +626,8 @@ hwtest-audio: hardware-tests-disc
 		--disc ../$(EXAMPLE_OUT)/hardware-tests.cue \
 		--steps 1200000000 --pad-pulses '0x4000@25+3,0x8000@1900+6' \
 		--dump-audio ../$(HWTEST_WAV) > /dev/null
-	python3 tools/hwtest-audio-decode.py $(HWTEST_WAV) --emit-pages $(HWTEST_AUDIO_PAGES)
-	python3 tools/hwtest-report.py $(HWTEST_AUDIO_PAGES) > /dev/null
+	$(PSOXIDE_HWTEST) audio-decode $(HWTEST_WAV) --emit-pages $(HWTEST_AUDIO_PAGES)
+	$(PSOXIDE_HWTEST) report $(HWTEST_AUDIO_PAGES) > /dev/null
 	@echo "audio link OK: payload recovered from audio and parsed as PX8"
 
 # Robustness matrix for the audio link. A clean emulator recording proves the
@@ -636,7 +637,7 @@ hwtest-audio: hardware-tests-disc
 # the real chain works, but it does stop the decoder being brittle against the
 # damage a chain is known to introduce.
 hwtest-audio-chain: hwtest-audio
-	python3 tools/hwtest-audio-chaintest.py $(HWTEST_WAV)
+	$(PSOXIDE_HWTEST) audio-chaintest $(HWTEST_WAV)
 
 # Deliberate re-baseline. Review the hwtest-diff output BEFORE running this:
 # it overwrites the reference every later run is judged against.
@@ -673,7 +674,7 @@ hwtest-capture-full: hardware-tests-disc
 		--path ../$(EXAMPLE_OUT)/hardware-tests.exe \
 		--disc ../$(EXAMPLE_OUT)/hardware-tests.cue \
 		--steps $(HWTEST_FULL_STEPS) --pad-pulses '$(HWTEST_FULL_PULSES)' > ../$(HWTEST_FULL_CAPTURE)
-	@python3 tools/hwtest-report.py $(HWTEST_FULL_CAPTURE) > /dev/null || { \
+	@$(PSOXIDE_HWTEST) report $(HWTEST_FULL_CAPTURE) > /dev/null || { \
 		echo "hwtest-capture-full: incomplete capture (raise HWTEST_FULL_STEPS?)"; exit 2; }
 	@echo "captured $$(grep -c 'px8' $(HWTEST_FULL_CAPTURE)) PX8 page(s) -> $(HWTEST_FULL_CAPTURE)"
 
@@ -685,7 +686,7 @@ hwtest-diff-full: hwtest-verify-code hwtest-capture-full
 		echo "hwtest-diff-full: $(HWTEST_FULL_BASELINE) does not exist."; \
 		echo "  Review the capture, then pin it with: make hwtest-baseline-full"; \
 		exit 2; }
-	python3 tools/hwtest-report.py --baseline $(HWTEST_FULL_BASELINE) \
+	$(PSOXIDE_HWTEST) report --baseline $(HWTEST_FULL_BASELINE) \
 		--fail-on-change $(HWTEST_FULL_CAPTURE)
 
 hwtest-baseline-full: hwtest-capture-full
@@ -722,7 +723,7 @@ hwtest-capture-perf: hardware-tests-disc
 		--path ../$(EXAMPLE_OUT)/hardware-tests.exe \
 		--disc ../$(EXAMPLE_OUT)/hardware-tests.cue \
 		--steps $(HWTEST_PERF_STEPS) --pad-pulses '$(HWTEST_PERF_PULSES)' > ../$(HWTEST_PERF_CAPTURE)
-	@python3 tools/hwtest-report.py $(HWTEST_PERF_CAPTURE) | grep -q ',ab_cachectl_cold_sweep_bgnt_flipped,' || { \
+	@$(PSOXIDE_HWTEST) report $(HWTEST_PERF_CAPTURE) | grep -q ',ab_cachectl_cold_sweep_bgnt_flipped,' || { \
 		echo "hwtest-capture-perf: the A/B group did not complete"; exit 2; }
 	@echo "captured $$(grep -c 'px8' $(HWTEST_PERF_CAPTURE)) PX8 page(s) -> $(HWTEST_PERF_CAPTURE)"
 
@@ -735,7 +736,7 @@ hwtest-diff-perf: hwtest-verify-code hwtest-capture-perf
 		echo "hwtest-diff-perf: $(HWTEST_PERF_BASELINE) does not exist."; \
 		echo "  Review the capture, then pin it with: make hwtest-baseline-perf"; \
 		exit 2; }
-	python3 tools/hwtest-report.py --baseline $(HWTEST_PERF_BASELINE) \
+	$(PSOXIDE_HWTEST) report --baseline $(HWTEST_PERF_BASELINE) \
 		--layout-immune-timing-only --fail-on-change $(HWTEST_PERF_CAPTURE)
 
 hwtest-baseline-perf: hwtest-capture-perf
@@ -781,7 +782,7 @@ hwtest-probe-capture: hardware-tests-disc
 # only guards against our own drift.
 hwtest-silicon: hwtest-capture
 	@test -n "$(SILICON)" || { echo "usage: make hwtest-silicon SILICON=<payload.txt>"; exit 2; }
-	python3 tools/hwtest-report.py --baseline $(SILICON) $(HWTEST_CAPTURE)
+	$(PSOXIDE_HWTEST) report --baseline $(SILICON) $(HWTEST_CAPTURE)
 
 # --- SB4 capture-ring pipeline ------------------------------------------
 # Drives the menu to TARGETED PROBES -> CAPTURE RINGS (SB4) and lets the
@@ -809,7 +810,7 @@ hwtest-sb4: hwtest-sb4-capture
 		echo "hwtest-sb4: $(SB4_BASELINE) does not exist."; \
 		echo "  Review the capture, then pin it with: make hwtest-sb4-baseline"; \
 		exit 2; }
-	python3 tools/hwtest-sb4-report.py --baseline $(SB4_BASELINE) \
+	$(PSOXIDE_HWTEST) sb4-report --baseline $(SB4_BASELINE) \
 		--fail-on-change $(SB4_CAPTURE)
 
 # Deliberate re-baseline; review hwtest-sb4's drift output first.
