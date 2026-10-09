@@ -108,8 +108,21 @@ pub fn perch_aim_sample(yaw: i32, pitch: i32, recoil: bool) -> (u32, u32, u16) {
         (y & 4095) as u16,
     )
 }
-/// One optional empowered shot per grounded visit; ordinary shots remain unlimited.
+/// Ticks of holding fire on an arch to reach a full charge.
 pub const CHARGE_TICKS: u16 = 75;
+/// A press released within this many ticks is an ordinary shot, fired on
+/// release; holding past it starts the charge.
+pub const CHARGE_TAP_TICKS: u16 = 10;
+/// Health damage of a charged bolt as a multiple of the ordinary bolt's.
+pub const CHARGED_DAMAGE_MULTIPLIER: u16 = 3;
+/// Poise damage a charged bolt delivers. The ordinary bolt's poise is capped
+/// at 10, so this is a real contribution: against an enemy capacity of 50 it
+/// breaks poise together with one light melee hit, and against an opposite
+/// colour (poise x2) on its own.
+pub const CHARGED_POISE_DAMAGE: u16 = 30;
+/// Collision radius of a charged bolt as a multiple of the ordinary one, in
+/// quarters (6 = 1.5x), so the slower, costlier shot is easier to land.
+pub const CHARGED_RADIUS_QUARTERS: u16 = 6;
 
 /// Prototype motion: tower and duel arches move laterally over eight seconds.
 pub fn arch_offset(slot: usize, tick: u32) -> i32 {
@@ -119,38 +132,135 @@ pub fn arch_offset(slot: usize, tick: u32) -> i32 {
     psx_math::sin_q12(((tick % 480) * 4096 / 480) as u16) * 64 / 4096
 }
 
-/// Charge cannot be farmed by detaching and immediately reattaching in midair.
+/// What releasing the fire button after an arch hold produces.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChargeRelease {
+    /// No hold was in progress.
+    None,
+    /// A tap or a hold cut short: an ordinary shot.
+    Ordinary,
+    /// A full charge: the empowered shot.
+    Charged,
+}
+
+/// What the pad and the player's state say this tick.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ChargeInput {
+    /// Attached, Zenith, aim ready, no action running, Energy for a shot.
+    pub can_hold: bool,
+    /// The fire button went down this tick.
+    pub pressed: bool,
+    /// The fire button is down.
+    pub held: bool,
+    /// Energy covers the charged shot.
+    pub may_charge: bool,
+}
+
+/// What one tick of the charge decided.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ChargeStep {
+    /// Queue an ordinary shot request.
+    pub ordinary_shot: bool,
+    /// Queue a charged shot request.
+    pub charged_shot: bool,
+    /// The hold just outlasted a tap and the charge began building.
+    pub began_charging: bool,
+    /// The charge just became full.
+    pub became_ready: bool,
+}
+
+/// Hold-to-charge state for the arch shot. A fresh press arms it; the hold
+/// grows while the button stays down and the weapon stays ready; release
+/// reports what to fire. It never accumulates on its own: a detached, swapped
+/// or interrupted player simply cancels.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ArchCharge {
-    ticks: u16,
-    spent: bool,
+    held: u16,
+    armed: bool,
 }
 impl ArchCharge {
-    /// Fresh visit with no accumulated charge.
+    /// No hold in progress.
     pub const EMPTY: Self = Self {
-        ticks: 0,
-        spent: false,
+        held: 0,
+        armed: false,
     };
-    /// Advance charge or rearm after touching solid ground.
-    pub fn tick(&mut self, attached: bool, grounded: bool) {
-        if grounded {
-            *self = Self::EMPTY;
-        } else if attached && !self.spent {
-            self.ticks = self.ticks.saturating_add(1).min(CHARGE_TICKS);
-        } else if !attached {
-            self.ticks = 0;
+    /// A fire press with the weapon ready starts a hold.
+    pub fn arm(&mut self) {
+        self.armed = true;
+        self.held = 0;
+    }
+    /// One tick of the button held down. Without `may_charge` (not enough
+    /// Energy for the charged shot) the hold stops at the end of the tap, so
+    /// the release stays an ordinary shot.
+    pub fn tick(&mut self, may_charge: bool) {
+        if self.armed && (may_charge || self.held < CHARGE_TAP_TICKS) {
+            self.held = self.held.saturating_add(1).min(CHARGE_TICKS);
         }
     }
-    /// Whether the next successfully spawned shot receives the bonus.
+    /// Drop the hold without firing (aim lowered, interrupted, swapped, detached).
+    pub fn cancel(&mut self) {
+        *self = Self::EMPTY;
+    }
+    /// The button came up: report the shot and end the hold.
+    pub fn release(&mut self) -> ChargeRelease {
+        let result = if !self.armed {
+            ChargeRelease::None
+        } else if self.held >= CHARGE_TICKS {
+            ChargeRelease::Charged
+        } else {
+            ChargeRelease::Ordinary
+        };
+        *self = Self::EMPTY;
+        result
+    }
+    /// Advance one tick: arm on a press, build while held, and on release
+    /// report the shot. A tick that cannot hold cancels instead.
+    pub fn step(&mut self, input: ChargeInput) -> ChargeStep {
+        let mut out = ChargeStep::default();
+        if !input.can_hold {
+            self.cancel();
+            return out;
+        }
+        if input.pressed {
+            self.arm();
+        }
+        if !self.armed {
+            return out;
+        }
+        if input.held {
+            let (was_charging, was_ready) = (self.charging(), self.ready());
+            self.tick(input.may_charge);
+            out.began_charging = !was_charging && self.charging();
+            out.became_ready = !was_ready && self.ready();
+            return out;
+        }
+        match self.release() {
+            ChargeRelease::None => {}
+            ChargeRelease::Ordinary => out.ordinary_shot = true,
+            ChargeRelease::Charged => out.charged_shot = true,
+        }
+        out
+    }
+    /// Whether a hold is in progress.
+    pub fn armed(&self) -> bool {
+        self.armed
+    }
+    /// True once the hold has outlasted a tap, so the charge is building.
+    pub fn charging(&self) -> bool {
+        self.armed && self.held > CHARGE_TAP_TICKS
+    }
+    /// Whether the charge is full and the next release fires the empowered shot.
     pub fn ready(&self) -> bool {
-        !self.spent && self.ticks == CHARGE_TICKS
+        self.armed && self.held >= CHARGE_TICKS
     }
-    /// Spend the reward once, after projectile allocation succeeds.
-    pub fn consume(&mut self) {
-        if self.ready() {
-            self.spent = true;
-            self.ticks = 0;
+    /// Charge progress, Q12: zero through the tap window, then rising to
+    /// 4096 over the rest of the hold.
+    pub fn progress_q12(&self) -> u16 {
+        if !self.charging() {
+            return 0;
         }
+        let span = u32::from(CHARGE_TICKS - CHARGE_TAP_TICKS);
+        (u32::from(self.held - CHARGE_TAP_TICKS) * 4096 / span).min(4096) as u16
     }
 }
 
@@ -173,26 +283,169 @@ mod tests {
         assert_eq!(perch_aim_sample(0, 0, false), (12 << 12, 17 << 12, 0));
     }
     #[test]
-    fn charge_requires_ground_between_rewards() {
+    fn a_tap_is_an_ordinary_shot_and_a_full_hold_is_the_charged_one() {
         let mut c = ArchCharge::EMPTY;
-        for _ in 0..CHARGE_TICKS {
-            c.tick(true, false);
+        assert_eq!(c.release(), ChargeRelease::None);
+        c.arm();
+        for _ in 0..CHARGE_TAP_TICKS {
+            c.tick(true);
+        }
+        assert!(!c.charging(), "a tap never shows charge");
+        assert_eq!(c.progress_q12(), 0);
+        assert_eq!(c.release(), ChargeRelease::Ordinary);
+        assert!(!c.armed());
+        c.arm();
+        for _ in 0..CHARGE_TICKS - 1 {
+            c.tick(true);
+        }
+        assert!(c.charging() && !c.ready());
+        assert_eq!(
+            c.release(),
+            ChargeRelease::Ordinary,
+            "a cut-short hold is ordinary"
+        );
+        c.arm();
+        for _ in 0..CHARGE_TICKS + 40 {
+            c.tick(true);
         }
         assert!(c.ready());
-        c.consume();
-        c.tick(false, false);
-        for _ in 0..CHARGE_TICKS * 2 {
-            c.tick(true, false);
-        }
-        assert!(!c.ready());
-        c.tick(false, true);
-        for _ in 0..CHARGE_TICKS {
-            c.tick(true, false);
-        }
-        assert!(c.ready());
-        c.tick(false, false);
-        assert!(!c.ready());
+        assert_eq!(c.progress_q12(), 4096);
+        assert_eq!(c.release(), ChargeRelease::Charged);
+        assert_eq!(
+            c.release(),
+            ChargeRelease::None,
+            "a release spends the hold"
+        );
     }
+
+    #[test]
+    fn the_step_machine_arms_builds_and_fires_on_release() {
+        let hold = ChargeInput {
+            can_hold: true,
+            held: true,
+            may_charge: true,
+            ..ChargeInput::default()
+        };
+        let press = ChargeInput {
+            pressed: true,
+            ..hold
+        };
+        let release = ChargeInput {
+            held: false,
+            ..hold
+        };
+        // A tap: nothing fires on the press, an ordinary shot on release.
+        let mut c = ArchCharge::EMPTY;
+        assert_eq!(c.step(press), ChargeStep::default());
+        assert_eq!(c.step(hold), ChargeStep::default());
+        assert_eq!(
+            c.step(release),
+            ChargeStep {
+                ordinary_shot: true,
+                ..ChargeStep::default()
+            }
+        );
+        // A full hold reports its two milestones once each, then fires charged.
+        let mut began = 0;
+        let mut ready = 0;
+        c.step(press);
+        for _ in 0..CHARGE_TICKS + 20 {
+            let step = c.step(hold);
+            began += u32::from(step.began_charging);
+            ready += u32::from(step.became_ready);
+        }
+        assert_eq!((began, ready), (1, 1));
+        assert_eq!(
+            c.step(release),
+            ChargeStep {
+                charged_shot: true,
+                ..ChargeStep::default()
+            }
+        );
+        // Releasing with nothing armed is nothing.
+        assert_eq!(c.step(release), ChargeStep::default());
+    }
+
+    #[test]
+    fn losing_the_ability_to_hold_cancels_without_firing() {
+        let hold = ChargeInput {
+            can_hold: true,
+            held: true,
+            may_charge: true,
+            ..ChargeInput::default()
+        };
+        let mut c = ArchCharge::EMPTY;
+        c.step(ChargeInput {
+            pressed: true,
+            ..hold
+        });
+        for _ in 0..CHARGE_TICKS {
+            c.step(hold);
+        }
+        assert!(c.ready());
+        // Aim lowered, a hit, a detach: the weapon is not ready this tick.
+        let lost = ChargeInput {
+            can_hold: false,
+            ..hold
+        };
+        assert_eq!(c.step(lost), ChargeStep::default());
+        assert!(!c.armed());
+        // The button is still down, but without a fresh press nothing re-arms.
+        assert_eq!(c.step(hold), ChargeStep::default());
+        assert!(!c.armed());
+        // A press while the weapon is not ready does not arm either.
+        c.step(ChargeInput {
+            pressed: true,
+            can_hold: false,
+            ..hold
+        });
+        assert!(!c.armed());
+    }
+
+    #[test]
+    fn without_the_energy_the_hold_never_becomes_a_charge() {
+        let mut c = ArchCharge::EMPTY;
+        c.arm();
+        for _ in 0..CHARGE_TICKS * 2 {
+            c.tick(false);
+        }
+        assert!(!c.charging() && !c.ready());
+        assert_eq!(c.release(), ChargeRelease::Ordinary);
+    }
+
+    #[test]
+    fn progress_rises_monotonically_from_the_end_of_the_tap_to_full() {
+        let mut c = ArchCharge::EMPTY;
+        c.arm();
+        let mut last = 0;
+        for _ in 0..CHARGE_TICKS {
+            c.tick(true);
+            assert!(c.progress_q12() >= last);
+            last = c.progress_q12();
+        }
+        assert_eq!(last, 4096);
+        c.cancel();
+        assert!(!c.armed() && c.progress_q12() == 0 && !c.ready());
+        // Ticking without a press never builds anything.
+        for _ in 0..CHARGE_TICKS * 2 {
+            c.tick(true);
+        }
+        assert!(!c.charging() && !c.ready());
+    }
+
+    #[test]
+    fn the_charged_shot_costs_more_than_one_ordinary_shot_but_less_than_the_damage_it_buys() {
+        const {
+            assert!(crate::combat_flow::CHARGED_SHOT_COST > crate::combat_flow::SHOT_COST);
+            assert!(
+                CHARGED_DAMAGE_MULTIPLIER * crate::combat_flow::SHOT_COST
+                    > crate::combat_flow::CHARGED_SHOT_COST
+            );
+            // Above the ordinary bolt's capped poise.
+            assert!(CHARGED_POISE_DAMAGE > 10);
+        }
+    }
+
     #[test]
     fn moving_arch_is_bounded_and_periodic() {
         for t in 0..960 {

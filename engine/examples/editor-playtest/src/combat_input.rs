@@ -61,6 +61,11 @@ pub(super) struct RangedReady {
     pub released: u16,
     pub fire_started: u32,
     pub fire_until: u32,
+    /// Set on the tick a full arch charge is released; the shot that starts on
+    /// that same tick takes it into `charged`.
+    pub charged_next: bool,
+    /// The shot now firing is the charged arch shot.
+    pub charged: bool,
 }
 impl RangedReady {
     pub const EMPTY: Self = Self {
@@ -68,6 +73,8 @@ impl RangedReady {
         released: 0,
         fire_started: 0,
         fire_until: 0,
+        charged_next: false,
+        charged: false,
     };
     pub fn tick(&mut self, enabled: bool, held: bool, interrupted: bool) {
         if !enabled || interrupted {
@@ -86,6 +93,7 @@ impl RangedReady {
         self.fire_started = now;
         self.fire_until = now.saturating_add(duration);
         self.released = 0;
+        self.charged = core::mem::take(&mut self.charged_next);
     }
     pub fn aiming(&self) -> bool {
         self.ticks != 0

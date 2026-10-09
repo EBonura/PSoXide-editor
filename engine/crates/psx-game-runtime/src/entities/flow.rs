@@ -285,6 +285,28 @@ impl<const N: usize, const S: bool> GameEntities<N, S> {
         );
         true
     }
+    /// Apply a charged bolt. Unlike [`Self::apply_projectile_hit`] its authored
+    /// poise is not cut to a capped share, so a charged bolt can contribute a
+    /// real break; the break grace after a recent break still protects the
+    /// target, exactly as it does for every other hit.
+    pub fn apply_empowered_hit(
+        &mut self,
+        records: &'static [LevelGameEntityRecord],
+        index: usize,
+        channel: VitalityChannelId,
+        damage: u16,
+        poise: u16,
+    ) -> GameEntityHitOutcome {
+        if index >= self.count() || index >= records.len() {
+            return GameEntityHitOutcome::MISS;
+        }
+        let poise = if self.flow_enabled && !self.flow[index].can_interrupt() {
+            0
+        } else {
+            poise
+        };
+        self.apply_stance_hit(records, index, channel, damage, poise)
+    }
     /// A heavy connection creates separation through the same body collision as AI walking.
     pub fn recoil_from(&mut self, index: usize, from: [i32; 3]) {
         if !self.flow_enabled || index >= self.count() || self.state(index) == GameEntityState::Dead

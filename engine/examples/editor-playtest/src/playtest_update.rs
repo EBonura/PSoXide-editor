@@ -365,6 +365,7 @@ impl Playtest {
                 );
             }
         }
+        self.tick_hit_feel_counters();
         self.logic.tick(
             LOGIC,
             psx_game_runtime::logic::LogicTickInput { player: player_pos },
@@ -635,6 +636,8 @@ impl Playtest {
             return;
         }
         self.tick_gameplay_layer(ctx);
+        // Hit-stop holds the player's animation clock before anything reads it.
+        let hit_stopped = self.step_player_hit_stop(ctx.sim_tick);
         if let Some(bsp) = self.bsp.as_mut() {
             bsp.tick_doors();
         }
@@ -969,7 +972,9 @@ impl Playtest {
             config.walk_speed = config.walk_speed.saturating_mul(60) / 100;
             config.run_speed = config.run_speed.saturating_mul(60) / 100;
         }
-        if action_locked && player_anim_is_attack(self.anim_state) {
+        if action_locked && !hit_stopped && player_anim_is_attack(self.anim_state) {
+            self.track_locked_target_in_windup();
+            let mut pushed = false;
             if let Some(character) = self.character.as_ref() {
                 let character = self.player_character_for_anim(character, self.anim_state);
                 let local_tick = now.saturating_sub(self.anim_start_tick);
@@ -982,6 +987,16 @@ impl Playtest {
                     input.walk = 1;
                     config.walk_speed = push_speed;
                     config.run_speed = config.run_speed.max(push_speed);
+                    pushed = true;
+                }
+            }
+            // A clip's authored push owns the body; otherwise a locked-on
+            // swing may lunge across a small gap.
+            if !pushed {
+                if let Some(lunge_speed) = self.attack_lunge_speed_q8() {
+                    input.walk = 1;
+                    config.walk_speed = lunge_speed;
+                    config.run_speed = config.run_speed.max(lunge_speed);
                 }
             }
         }
@@ -1572,8 +1587,15 @@ impl Playtest {
             {
                 return true;
             }
-            if ctx.just_pressed(ACTIVE_HEAVY_ATTACK_BUTTON) {
-                self.attack_buffer.request(5, now.as_u32());
+            if self.hook_attached.is_some() {
+                // On an arch the fire button charges: the press arms it and the
+                // release fires (see `arch_charge_runtime`).
+                self.update_arch_charge(ctx, now, action_locked);
+            } else {
+                self.hook_charge.cancel();
+                if ctx.just_pressed(ACTIVE_HEAVY_ATTACK_BUTTON) {
+                    self.attack_buffer.request(5, now.as_u32());
+                }
             }
             if !action_locked
                 && self.motor.action().is_idle()

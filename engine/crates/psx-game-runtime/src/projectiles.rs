@@ -160,6 +160,9 @@ pub struct ProjectileSpawn {
     pub damage: u16,
     /// Poise damage delivered by the first actor impact.
     pub poise_damage: u16,
+    /// A charged bolt: on an actor it keeps its full `poise_damage` instead of
+    /// the ordinary bolt's capped share (see `CombatFlow::shot_poise`).
+    pub empowered: bool,
     /// Maximum 60 Hz ticks before the projectile expires.
     pub lifetime_ticks: u16,
     /// Collision room containing the projectile.
@@ -297,6 +300,8 @@ pub struct ProjectileImpact {
     pub damage: u16,
     /// Poise damage copied from the projectile.
     pub poise_damage: u16,
+    /// Whether the projectile was a charged bolt.
+    pub empowered: bool,
     /// Firing team.
     pub team: CombatTeam,
     /// Firing entity or [`NO_PROJECTILE_OWNER`].
@@ -317,6 +322,7 @@ impl ProjectileImpact {
         radius: 0,
         damage: 0,
         poise_damage: 0,
+        empowered: false,
         team: CombatTeam::Neutral,
         owner: NO_PROJECTILE_OWNER,
         damage_channel: ProjectileDamageChannel::Zenith,
@@ -391,6 +397,7 @@ pub struct CombatProjectiles<const N: usize> {
     radii: [u16; N],
     damage: [u16; N],
     poise_damage: [u16; N],
+    empowered: [bool; N],
     lifetime_ticks: [u16; N],
     rooms: [RoomIndex; N],
     teams: [CombatTeam; N],
@@ -414,6 +421,7 @@ impl<const N: usize> CombatProjectiles<N> {
             radii: [0; N],
             damage: [0; N],
             poise_damage: [0; N],
+            empowered: [false; N],
             lifetime_ticks: [0; N],
             rooms: [RoomIndex::ZERO; N],
             teams: [CombatTeam::Neutral; N],
@@ -575,6 +583,7 @@ impl<const N: usize> CombatProjectiles<N> {
         self.radii[index] = spawn.radius;
         self.damage[index] = spawn.damage;
         self.poise_damage[index] = spawn.poise_damage;
+        self.empowered[index] = spawn.empowered;
         self.lifetime_ticks[index] = spawn.lifetime_ticks;
         self.rooms[index] = spawn.room;
         self.teams[index] = spawn.team;
@@ -685,6 +694,7 @@ impl<const N: usize> CombatProjectiles<N> {
                     radius: self.radii[index],
                     damage: self.damage[index],
                     poise_damage: self.poise_damage[index],
+                    empowered: self.empowered[index],
                     team: self.teams[index],
                     owner: self.owners[index],
                     damage_channel: self.damage_channels[index],
@@ -1024,6 +1034,7 @@ mod tests {
             radius: 10,
             damage: 25,
             poise_damage: 9,
+            empowered: false,
             lifetime_ticks: 3,
             room: RoomIndex(2),
             team,

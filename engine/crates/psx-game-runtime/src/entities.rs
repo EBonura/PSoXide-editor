@@ -586,6 +586,11 @@ pub struct GameEntities<const MAX_ENTITIES: usize, const STANCE_BOUND_ATTACKS: b
     flow_enabled: bool,
     flow: [crate::combat_flow::CombatFlow; MAX_ENTITIES],
     recoil: [[i16; 3]; MAX_ENTITIES],
+    /// Remaining hit-stop ticks (60 Hz). While non-zero the entity's whole
+    /// per-tick step is skipped, so its clocks and animation phase hold.
+    hit_stop: [u8; MAX_ENTITIES],
+    /// Remaining hit-flash ticks (60 Hz); presentation only.
+    hit_flash: [u8; MAX_ENTITIES],
     /// One-shot eye pulse age plus one; zero means no pulse (including spawn).
     stance_pulse: [u8; MAX_ENTITIES],
     /// Same cooked cooldown as the player, with independent per-enemy clocks.
@@ -799,6 +804,8 @@ impl<const MAX_ENTITIES: usize, const STANCE_BOUND_ATTACKS: bool>
         flow_enabled: false,
         flow: [crate::combat_flow::CombatFlow::FULL; MAX_ENTITIES],
         recoil: [[0; 3]; MAX_ENTITIES],
+        hit_stop: [0; MAX_ENTITIES],
+        hit_flash: [0; MAX_ENTITIES],
         stance_pulse: [0; MAX_ENTITIES],
         stance_swap_delay: 0,
         stance_swap_cooldown: [0; MAX_ENTITIES],
@@ -848,6 +855,8 @@ impl<const MAX_ENTITIES: usize, const STANCE_BOUND_ATTACKS: bool>
             self.exchanges[index] = crate::ranged_tactics::RangedExchange::EMPTY;
             self.projectile_threats[index] = None;
             self.recoil[index] = [0; 3];
+            self.hit_stop[index] = 0;
+            self.hit_flash[index] = 0;
             self.stance_pulse[index] = 0;
             self.patrol_leg[index] = 0;
             self.move_yaw[index] = 0;
@@ -915,6 +924,46 @@ impl<const MAX_ENTITIES: usize, const STANCE_BOUND_ATTACKS: bool>
     // psx-numeric-allow-next-line: mirrors the fixed 64-record activation mask above; bit ops only
     pub fn set_spatial_active_mask(&mut self, mask: u64) {
         self.spatial_active_mask = mask;
+    }
+
+    /// Freeze entity `index` for `ticks` simulation ticks (hit-stop). `struck`
+    /// also flashes its body; the attacker freezes without flashing. A longer
+    /// freeze already running is kept. A blow that defeats the entity freezes
+    /// it too, so the death clip starts after the freeze and the kill reads.
+    /// Out-of-range indices are ignored.
+    pub fn begin_hit_stop(&mut self, index: usize, ticks: u8, struck: bool) {
+        if index >= self.count() {
+            return;
+        }
+        self.hit_stop[index] = self.hit_stop[index].max(ticks);
+        if struck {
+            self.hit_flash[index] = crate::hit_stop::FLASH_TICKS;
+        }
+    }
+
+    /// Whether entity `index` is inside a hit-stop freeze this tick.
+    pub fn hit_stopped(&self, index: usize) -> bool {
+        index < self.count() && self.hit_stop[index] != 0
+    }
+
+    /// Remaining hit-flash ticks of entity `index`.
+    pub fn hit_flash(&self, index: usize) -> u8 {
+        if index < self.count() {
+            self.hit_flash[index]
+        } else {
+            0
+        }
+    }
+
+    /// Advance every hit-stop and hit-flash countdown by one simulation tick.
+    /// Call once per tick after the entity step, so a freeze set on tick `t`
+    /// holds the entity through ticks `t + 1` to `t + ticks`.
+    pub fn tick_hit_stops(&mut self) {
+        let count = self.count();
+        for index in 0..count {
+            self.hit_stop[index] = self.hit_stop[index].saturating_sub(1);
+            self.hit_flash[index] = self.hit_flash[index].saturating_sub(1);
+        }
     }
 
     /// Ticks entity `index` has spent in its current behavior state.
@@ -1599,6 +1648,14 @@ impl<const MAX_ENTITIES: usize, const STANCE_BOUND_ATTACKS: bool>
         let mut index = 0usize;
         while index < count {
             let record = &records[index];
+            if self.hit_stop[index] != 0 {
+                // Hit-stop: no clock, animation phase, movement or decision
+                // advances, so the pose and every timer resume exactly where
+                // they stopped. The countdown runs once per simulation tick in
+                // `tick_hit_stops`, not once per NPC step.
+                index += 1;
+                continue;
+            }
             let state = GameEntityState::from_raw(self.state[index]);
             if state == GameEntityState::Dead {
                 // Dead entities stop thinking but keep counting so
@@ -3072,6 +3129,84 @@ mod tests {
         );
     }
     #[test]
+    fn a_charged_bolt_keeps_its_poise_where_an_ordinary_bolt_is_capped() {
+        use crate::hook_points::CHARGED_POISE_DAMAGE;
+        // Ordinary bolts: a quarter of the authored poise, at most 10 (doubled
+        // against the opposite colour), so three of them still do not break a
+        // fresh enemy of capacity 50.
+        let mut e = flow_enemy();
+        for _ in 0..3 {
+            let ordinary = e.apply_projectile_hit(
+                &DUAL_ENEMY,
+                0,
+                VitalityChannelId::Two,
+                28,
+                CHARGED_POISE_DAMAGE,
+            );
+            assert!(ordinary.connected && !ordinary.staggered);
+        }
+        // A charged bolt delivers its full poise: one matching hit leaves the
+        // enemy 20 short of breaking, and a second one breaks it.
+        let mut e = flow_enemy();
+        assert!(
+            !e.apply_empowered_hit(
+                &DUAL_ENEMY,
+                0,
+                VitalityChannelId::One,
+                10,
+                CHARGED_POISE_DAMAGE
+            )
+            .staggered
+        );
+        assert!(
+            e.apply_empowered_hit(
+                &DUAL_ENEMY,
+                0,
+                VitalityChannelId::One,
+                10,
+                CHARGED_POISE_DAMAGE
+            )
+            .staggered
+        );
+        // Opposite colour doubles it, so one charged bolt breaks a fresh enemy.
+        let mut e = flow_enemy();
+        assert!(
+            e.apply_empowered_hit(
+                &DUAL_ENEMY,
+                0,
+                VitalityChannelId::Two,
+                10,
+                CHARGED_POISE_DAMAGE
+            )
+            .staggered
+        );
+    }
+
+    #[test]
+    fn break_grace_still_protects_against_a_charged_bolt() {
+        use crate::hook_points::CHARGED_POISE_DAMAGE;
+        let mut e = flow_enemy();
+        assert!(
+            e.apply_empowered_hit(
+                &DUAL_ENEMY,
+                0,
+                VitalityChannelId::Two,
+                10,
+                CHARGED_POISE_DAMAGE
+            )
+            .staggered
+        );
+        // Recovering and in grace: another charged bolt damages but never re-breaks.
+        let again = e.apply_empowered_hit(
+            &DUAL_ENEMY,
+            0,
+            VitalityChannelId::Two,
+            10,
+            CHARGED_POISE_DAMAGE,
+        );
+        assert!(again.connected && !again.staggered);
+    }
+    #[test]
     fn opposite_colour_adds_poise_and_matching_colour_adds_none() {
         let e = flow_enemy();
         assert_eq!(e.scaled_stance_poise(0, VitalityChannelId::One, 25, 25), 25);
@@ -3550,6 +3685,55 @@ mod tests {
             entities.tick(&IDLE_ENEMY, near_input(), &mut NoClipMover);
         }
         assert_eq!(entities.state(0), GameEntityState::Aggro);
+    }
+
+    #[test]
+    fn hit_stop_holds_clocks_and_attack_tokens_then_resumes_exactly() {
+        let drive = |frozen: bool| {
+            let mut entities = GameEntities::<8>::EMPTY;
+            entities.spawn_from_records(&IDLE_ENEMY);
+            entities.set_spatial_active_mask(u64::MAX);
+            entities.tick(&IDLE_ENEMY, near_input(), &mut NoClipMover);
+            entities.tick(&IDLE_ENEMY, near_input(), &mut NoClipMover);
+            assert_eq!(entities.state(0), GameEntityState::Windup);
+            let before = (entities.state(0), entities.state_age(0));
+            if frozen {
+                entities.begin_hit_stop(0, 4, true);
+                assert!(entities.hit_stopped(0));
+                assert_eq!(entities.hit_flash(0), crate::hit_stop::FLASH_TICKS);
+                for _ in 0..4 {
+                    let stats = entities.tick(&IDLE_ENEMY, near_input(), &mut NoClipMover);
+                    entities.tick_hit_stops();
+                    assert_eq!(stats.thought, 0, "a frozen entity does not think");
+                    assert_eq!(stats.attacking, 0, "a frozen entity emits no attack");
+                    assert_eq!((entities.state(0), entities.state_age(0)), before);
+                }
+                assert!(!entities.hit_stopped(0));
+                assert_eq!(entities.hit_flash(0), 0);
+            }
+            // Windup lasts three ticks; the freeze must not eat any of them.
+            for _ in 0..3 {
+                entities.tick(&IDLE_ENEMY, near_input(), &mut NoClipMover);
+            }
+            (entities.state(0), entities.state_age(0))
+        };
+        assert_eq!(drive(true), drive(false));
+    }
+
+    #[test]
+    fn a_longer_freeze_is_kept_and_out_of_range_requests_are_ignored() {
+        let mut entities = GameEntities::<8>::EMPTY;
+        entities.spawn_from_records(&IDLE_ENEMY);
+        entities.begin_hit_stop(0, 8, false);
+        entities.begin_hit_stop(0, 4, false);
+        for _ in 0..7 {
+            entities.tick_hit_stops();
+        }
+        assert!(entities.hit_stopped(0));
+        entities.tick_hit_stops();
+        assert!(!entities.hit_stopped(0));
+        entities.begin_hit_stop(5, 8, true);
+        assert!(!entities.hit_stopped(5));
     }
 
     #[test]

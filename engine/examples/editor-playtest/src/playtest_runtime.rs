@@ -766,6 +766,8 @@ impl Playtest {
         self.hook_attached = None;
         self.fall_from_arch = false;
         self.hook_charge = psx_game_runtime::hook_points::ArchCharge::EMPTY;
+        self.player_hit_stop = 0;
+        self.player_hit_flash = 0;
         self.hook_selected = None;
         self.hook_visible = 0;
         self.hook_fov_delta_q8 = 0;
@@ -891,6 +893,8 @@ impl Playtest {
         self.hook_attached = None;
         self.fall_from_arch = false;
         self.hook_charge = psx_game_runtime::hook_points::ArchCharge::EMPTY;
+        self.player_hit_stop = 0;
+        self.player_hit_flash = 0;
         self.hook_selected = None;
         self.hook_visible = 0;
         self.hook_fov_delta_q8 = 0;
@@ -2816,6 +2820,7 @@ mod life_reset_tests {
                 radius: 2,
                 damage: 50,
                 poise_damage: 50,
+                empowered: false,
                 lifetime_ticks: 100,
                 room: RoomIndex::ZERO,
                 team: CombatTeam::Enemy,

@@ -99,6 +99,8 @@ mod bsp_runtime;
 #[cfg(feature = "cd-stream-benchmark")]
 use psx_game_runtime::cd_stream;
 mod aim_control;
+mod arch_charge_runtime;
+mod attack_assist;
 mod character_runtime;
 mod combat_input;
 mod crystal_palette;
@@ -107,6 +109,7 @@ mod debug_runtime;
 #[cfg(feature = "emulator-telemetry")]
 use debug_runtime::*;
 mod game_logic_runtime;
+mod hit_stop_runtime;
 mod hook_runtime;
 mod hook_signposting;
 mod image_props_runtime;
@@ -279,6 +282,13 @@ struct Playtest {
     /// locomotion input is ignored and the current action clip
     /// plays from start to finish.
     anim_lock_until_tick: SimTick,
+    /// Remaining hit-stop ticks of the player (60 Hz); see `hit_stop_runtime`.
+    player_hit_stop: u8,
+    /// Action that was playing when the freeze began; a different action
+    /// (an accepted dodge, say) ends the freeze early.
+    player_hit_stop_action: u8,
+    /// Remaining ticks of the body hit flash.
+    player_hit_flash: u8,
     /// Active clip-transition crossfade: outgoing state, its frozen
     /// clip-local tick, and the switch tick the blend ramps from.
     /// Cleared on init/respawn; expires by elapsed ticks at render.
