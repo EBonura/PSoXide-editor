@@ -494,5 +494,5 @@ Linker maps: `repos/.perf-2026-08-23/e1m1.map` (Cortex) and `hl.map`
 (Half-Life), each byte-matched to its profiled binary. Symbolize with:
 
 ```
-python3 psoxide/tools/pc_line_attribution.py <lines.csv> <map>
+cargo run --release -p psoxide-perf -- pc-line-attribution <lines.csv> <map>
 ```
