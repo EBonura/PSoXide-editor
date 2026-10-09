@@ -1,13 +1,17 @@
-//! Render one cooked world from many cameras (four projections, a camera
-//! pulled away from the PVS point as the third-person camera is) with and
-//! without its v7 leaf bounds and require identical packets and statistics.
+//! Render one cooked world from many cameras with and without its v7 leaf
+//! bounds and require identical packets and statistics.
 //!
 //! ```sh
 //! cargo run --release -p psx-bsp --example pxbsp_leaf_cull_equivalence -- LEGACY_MAP BOUNDED_MAP [POSES]
 //! ```
 //!
 //! Both files must be cooks of the same world, one as PXBSP v6 (no leaf
-//! bounds, so the renderer takes its previous path) and one as v7.
+//! bounds, so the renderer takes its previous path) and one as v7. The sweep
+//! covers four projections, a camera pulled away from the PVS point as the
+//! third-person camera is, and short walks drawn with alternate-frame
+//! selection reuse on, which is how the game ships: the reuse frames draw the
+//! chain the frame before selected, so a selection that dropped a face the
+//! previous renderer kept would show up there.
 
 use psx_bsp::collision::{Trace, TraceScratch};
 use psx_bsp::pxbsp_resident::PxbspResidentMap;
@@ -55,6 +59,8 @@ fn main() {
     let mut renderer_a = Renderer::new_pxbsp_with_nodes(legacy.faces().len(), legacy.nodes().len());
     let mut renderer_b =
         Renderer::new_pxbsp_with_nodes(bounded.faces().len(), bounded.nodes().len());
+    renderer_a.set_selection_reuse(true);
+    renderer_b.set_selection_reuse(true);
     let mut packets_a = vec![0u32; DEFAULT_PACKET_WORDS];
     let mut packets_b = vec![0u32; DEFAULT_PACKET_WORDS];
 
@@ -75,8 +81,6 @@ fn main() {
         },
         ViewProjection {
             focal_length: 320,
-            half_width: 160,
-            half_height: 120,
             ..ViewProjection::DEFAULT
         },
     ];
@@ -100,10 +104,6 @@ fn main() {
             ..origin
         };
         assert!(hull.trace_into(&origin, &floor_end, &mut TraceScratch::new(), &mut floor));
-        let camera = Camera {
-            origin,
-            angles: [(next(801) - 400) as i16, next(4096) as i16, 0],
-        };
         let projection = projections[next(projections.len() as i32) as usize];
         renderer_a.set_view_projection(projection);
         renderer_b.set_view_projection(projection);
@@ -111,60 +111,65 @@ fn main() {
         // inside a wall: draw from the standable point's PVS with a camera
         // pulled away from it by up to 300 units on each axis.
         let mut pull = || (next(601) - 300) << 12;
-        let camera = Camera {
+        let mut camera = Camera {
             origin: Vec3I32 {
                 x: origin.x + pull(),
                 y: origin.y + pull() / 4,
                 z: origin.z + pull(),
             },
-            angles: camera.angles,
+            angles: [(next(801) - 400) as i16, next(4096) as i16, 0],
         };
-        let view = load_pxbsp_view(camera);
-        let origin_pvs = origin;
-        let a = renderer_a.draw_pxbsp_world_from_visibility_origin(
-            &legacy,
-            camera,
-            origin_pvs,
-            view,
-            &bindings,
-            0,
-            &mut packets_a,
-        );
-        let b = renderer_b.draw_pxbsp_world_from_visibility_origin(
-            &bounded,
-            camera,
-            origin_pvs,
-            view,
-            &bindings,
-            0,
-            &mut packets_b,
-        );
-        compared += 1;
-        faces_total += u64::from(b.stats.visible_faces);
-        words_total += b.packet_words as u64;
-        let same = a.packet_words == b.packet_words
-            && packets_a[..a.packet_words] == packets_b[..b.packet_words]
-            && a.stats.visible_faces == b.stats.visible_faces
-            && a.stats.packets == b.stats.packets
-            && a.stats.hardware_triangles == b.stats.hardware_triangles
-            && a.stats.surface_batches == b.stats.surface_batches
-            && a.stats.visible_sky_apertures == b.stats.visible_sky_apertures
-            && a.stats.unresolved_material_faces == b.stats.unresolved_material_faces;
-        if !same {
-            mismatches += 1;
-            println!(
-                "MISMATCH at {:?} angles {:?}: words {} vs {}, faces {} vs {}",
-                camera.origin,
-                camera.angles,
-                a.packet_words,
-                b.packet_words,
-                a.stats.visible_faces,
-                b.stats.visible_faces
+        for _ in 0..4 {
+            camera.origin.x += 24 << 12;
+            camera.angles[1] = camera.angles[1].wrapping_add(40);
+            let view = load_pxbsp_view(camera);
+            let a = renderer_a.draw_pxbsp_world_from_visibility_origin(
+                &legacy,
+                camera,
+                origin,
+                view,
+                &bindings,
+                0,
+                &mut packets_a,
             );
+            let b = renderer_b.draw_pxbsp_world_from_visibility_origin(
+                &bounded,
+                camera,
+                origin,
+                view,
+                &bindings,
+                0,
+                &mut packets_b,
+            );
+            compared += 1;
+            faces_total += u64::from(b.stats.visible_faces);
+            words_total += b.packet_words as u64;
+            let same = a.packet_words == b.packet_words
+                && packets_a[..a.packet_words] == packets_b[..b.packet_words]
+                && a.stats.visible_faces == b.stats.visible_faces
+                && a.stats.packets == b.stats.packets
+                && a.stats.hardware_triangles == b.stats.hardware_triangles
+                && a.stats.surface_batches == b.stats.surface_batches
+                && a.stats.visible_sky_apertures == b.stats.visible_sky_apertures
+                && a.stats.unresolved_material_faces == b.stats.unresolved_material_faces;
+            if !same {
+                mismatches += 1;
+                if mismatches <= 10 {
+                    println!(
+                        "MISMATCH at {:?} angles {:?}: words {} vs {}, faces {} vs {}",
+                        camera.origin,
+                        camera.angles,
+                        a.packet_words,
+                        b.packet_words,
+                        a.stats.visible_faces,
+                        b.stats.visible_faces
+                    );
+                }
+            }
         }
     }
     println!(
-        "poses compared {compared} (skipped {skipped}), mismatches {mismatches}, \
+        "frames compared {compared} (poses skipped {skipped}), mismatches {mismatches}, \
          mean faces {} mean packet words {}",
         faces_total / compared.max(1) as u64,
         words_total / compared.max(1) as u64
