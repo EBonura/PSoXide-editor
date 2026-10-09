@@ -1662,6 +1662,7 @@ pub fn cook_project_gated(
         mode,
         ambient,
         texture_asset_base: 0,
+        collision_hulls: Default::default(),
     };
     let started = std::time::Instant::now();
     if plan.regions.len() <= 1 {
