@@ -3306,6 +3306,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "psoxide-perf"
+version = "0.1.0"
+dependencies = [
+ "regex",
+ "sha2",
+ "tempfile",
+]
+
+[[package]]
 name = "psoxide-pgo"
 version = "0.1.0"
 dependencies = [
@@ -3390,6 +3399,14 @@ dependencies = [
 [[package]]
 name = "psx-disasm"
 version = "0.1.0"
+
+[[package]]
+name = "psx-display"
+version = "0.1.0"
+dependencies = [
+ "psx-gpu",
+ "psx-hw",
+]
 
 [[package]]
 name = "psx-engine"
@@ -3529,6 +3546,7 @@ dependencies = [
 name = "psx-settings"
 version = "0.1.0"
 dependencies = [
+ "psx-display",
  "psx-pad",
 ]
 

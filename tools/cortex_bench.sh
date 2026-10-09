@@ -99,4 +99,4 @@ for RUN in 1 2; do
         > "$OUT/run-$RUN.txt" 2>&1 || fail "replay $RUN failed (see $OUT/run-$RUN.txt)"
 done
 
-python3 tools/cortex_bench_report.py "$OUT" ${CORTEX_BENCH_BASELINE:+--baseline "$CORTEX_BENCH_BASELINE"}
+cargo run --quiet --release -p psoxide-perf -- cortex-bench-report "$OUT" ${CORTEX_BENCH_BASELINE:+--baseline "$CORTEX_BENCH_BASELINE"}
