@@ -5,7 +5,8 @@ use std::path::Path;
 
 use crate::brush::{paraxial_uv, rebase_texel_uvs, Brush, BrushContents};
 use crate::brush_collision_hulls::{
-    compile_collision_hulls, CollisionHullBounds, CollisionHullCompileError, CompiledCollisionHulls,
+    compile_collision_hulls_with, CollisionHullBounds, CollisionHullCompileError,
+    CollisionHullStrategy, CompiledCollisionHulls,
 };
 use crate::brush_compile::{
     build_surface_bsp, compile_authored_surfaces, compile_csg_surfaces, pack_normalized_plane,
@@ -13,7 +14,7 @@ use crate::brush_compile::{
     subdivide_surfaces_to_budget, CompiledSurface, CompiledSurfaceBsp,
 };
 use crate::brush_light::{
-    bake_brush_vertex_lighting, BrushLightError, BrushMaterialTint, BrushPointLight,
+    bake_brush_vertex_lighting_along, BrushLightError, BrushMaterialTint, BrushPointLight,
 };
 use crate::brush_pack::{
     pack_bsp_geometry_with_visibility, BrushPackError, BspLighting, BspVisibility,
@@ -94,6 +95,8 @@ pub struct BrushWorldCookOptions<'a> {
     pub ambient: [u8; 3],
     /// First caller-owned runtime asset-table slot reserved for brush textures.
     pub texture_asset_base: u16,
+    /// How the body-hull collision trees are built.
+    pub collision_hulls: CollisionHullStrategy,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -335,7 +338,7 @@ impl From<PxbspBuildError> for BrushWorldCookError {
     }
 }
 
-fn authored_body_hulls(project: &ProjectDocument) -> [CookedBodyHull; 2] {
+pub(crate) fn authored_body_hulls(project: &ProjectDocument) -> [CookedBodyHull; 2] {
     let scene = project.active_scene();
     let character_resources: Vec<_> = project
         .resources
@@ -459,7 +462,7 @@ fn player_spawn_body(
     }
 }
 
-fn collision_hull_bounds(body_hulls: [CookedBodyHull; 2]) -> [CollisionHullBounds; 3] {
+pub(crate) fn collision_hull_bounds(body_hulls: [CookedBodyHull; 2]) -> [CollisionHullBounds; 3] {
     let bounds = |hull: CookedBodyHull| CollisionHullBounds {
         mins: [-hull.radius, 0, -hull.radius],
         maxs: [hull.radius, hull.height, hull.radius],
@@ -559,6 +562,7 @@ pub fn compile_brush_world(
         options.mode,
         options.ambient,
         &collision_hulls,
+        options.collision_hulls,
     )?;
     let collision_planes = RecordSlice::<Plane>::new(&world_collision.planes)
         .ok_or(BrushWorldCookError::InvalidWorldTree)?;
@@ -647,6 +651,7 @@ pub fn compile_brush_world(
             options.mode,
             options.ambient,
             &collision_hulls,
+            options.collision_hulls,
         )?;
         uv_window.add(submodel_uv_window);
         let model_index = u16::try_from(submodels.len() + 1)
@@ -1255,6 +1260,7 @@ fn compile_model(
     mode: BrushWorldCookMode,
     ambient: [u8; 3],
     collision_hulls: &[CollisionHullBounds; 3],
+    hull_strategy: CollisionHullStrategy,
 ) -> Result<CompiledModel, BrushWorldCookError> {
     let (topology_surfaces, render_surfaces) = compile_model_surfaces(brushes);
     let (mut bsp, portals, leak_diagnostic) =
@@ -1303,6 +1309,13 @@ fn compile_model(
             split_surfaces: uv_window.split_surfaces,
         });
     }
+    // The packer rounds every vertex to a whole unit and the GTE projects
+    // each face's vertices on their own, so faces only meet pixel-exactly at
+    // shared vertices. Every split above (CSG carving, the extent grid, the
+    // UV window, rectangle merging) cuts one face without cutting its
+    // neighbours, leaving corners that sit on a neighbour's edge. Weld those
+    // into the edges they touch so the drawn surface is watertight.
+    let (render_surfaces, light_edges) = make_surfaces_watertight(render_surfaces, uv_window_skip);
     // The runtime draws a face only up to its batch bound; split wider ones
     // into same-triangle fans rather than let the packer refuse the level.
     let render_surfaces =
@@ -1344,16 +1357,22 @@ fn compile_model(
             BrushWorldCookMode::Draft => &[],
             BrushWorldCookMode::Release => light_occluders,
         };
-        let lighting =
-            bake_brush_vertex_lighting(&bsp.surfaces, occluders, ambient, lights, material_tints)
-                .map_err(|error| BrushWorldCookError::Light {
-                // `translate_lights` preserves scene order, so the reported
-                // light index indexes the same list `scene_lights` built.
-                node: match error {
-                    BrushLightError::InvalidLight(index) => light_nodes.get(index).copied(),
-                },
-                error,
-            })?;
+        let lighting = bake_brush_vertex_lighting_along(
+            &bsp.surfaces,
+            occluders,
+            ambient,
+            lights,
+            material_tints,
+            &light_edges,
+        )
+        .map_err(|error| BrushWorldCookError::Light {
+            // `translate_lights` preserves scene order, so the reported
+            // light index indexes the same list `scene_lights` built.
+            node: match error {
+                BrushLightError::InvalidLight(index) => light_nodes.get(index).copied(),
+            },
+            error,
+        })?;
         pack_bsp_geometry_with_visibility(
             &bsp,
             &portals,
@@ -1362,8 +1381,35 @@ fn compile_model(
             texture_dims,
         )?
     };
-    let collision = compile_runtime_collision_hulls(brushes, collision_hulls)?;
+    let collision = compile_runtime_collision_hulls(brushes, collision_hulls, hull_strategy)?;
     Ok((geometry, collision, leak_diagnostic.path, uv_window))
+}
+
+/// Weld and conform the drawable render surfaces; sky apertures are never
+/// drawn and stay as they are.
+fn make_surfaces_watertight(
+    mut surfaces: Vec<CompiledSurface>,
+    sky_materials: &std::collections::HashSet<Option<ResourceId>>,
+) -> (Vec<CompiledSurface>, Vec<crate::brush_seams::LightEdge>) {
+    let skip: Vec<bool> = surfaces
+        .iter()
+        .map(|surface| sky_materials.contains(&surface.material))
+        .collect();
+    let mut polygons: Vec<Vec<[f64; 3]>> = surfaces
+        .iter_mut()
+        .map(|surface| std::mem::take(&mut surface.vertices))
+        .collect();
+    let stats = crate::brush_seams::make_watertight(&mut polygons, |index| skip[index]);
+    for (surface, vertices) in surfaces.iter_mut().zip(polygons) {
+        surface.vertices = vertices;
+    }
+    if stats.vertices_added > 0 {
+        crate::playtest::emit_cook_output(format_args!(
+            "[brush-seams] conformed {} faces with {} T-junction vertices",
+            stats.polygons_changed, stats.vertices_added
+        ));
+    }
+    (surfaces, stats.light_edges)
 }
 
 fn compile_model_surfaces(brushes: &[Brush]) -> (Vec<CompiledSurface>, Vec<CompiledSurface>) {
@@ -1775,13 +1821,14 @@ fn prefer_csg_render_surfaces(csg_count: usize, authored_count: usize) -> bool {
 fn compile_runtime_collision_hulls(
     brushes: &[Brush],
     hulls: &[CollisionHullBounds; 3],
+    strategy: CollisionHullStrategy,
 ) -> Result<CompiledCollisionHulls, CollisionHullCompileError> {
     // Quake hull 0 is the classified render BSP itself. Do not duplicate the
     // entire point tree in clipnodes merely to satisfy the four-head model
     // record: the runtime never reads collision head zero. Keep one valid
     // empty sentinel head for format validation, followed by the two actual
     // box-expanded body hulls.
-    let mut collision = compile_collision_hulls(brushes, &hulls[1..])?;
+    let mut collision = compile_collision_hulls_with(brushes, &hulls[1..], strategy)?;
     let plane = if collision.planes.is_empty() {
         let (record, _) = pack_normalized_plane([1.0, 0.0, 0.0], 0.0)
             .ok_or(CollisionHullCompileError::InvalidPlane(None))?;
@@ -2971,6 +3018,7 @@ mod tests {
                 mode: BrushWorldCookMode::Draft,
                 ambient: [24; 3],
                 texture_asset_base: 40,
+                collision_hulls: Default::default(),
             },
         )
         .expect("draft cook with a light");
@@ -2978,6 +3026,58 @@ mod tests {
         assert_ne!(
             lit.pxbsp.bytes, unlit.pxbsp.bytes,
             "the light must change the packed vertex stream"
+        );
+    }
+
+    #[test]
+    fn cooked_world_has_no_t_junctions_where_a_platform_meets_the_floor() {
+        // A platform standing on the room floor carves the floor face and
+        // leaves floor corners on the platform's base edges: the T-junction
+        // pattern that rasterises as hairline cracks. The cook must emit
+        // faces that meet only at shared vertices.
+        let mut project = authored_project();
+        let material = project.active_scene().brushes[0].faces[0].material;
+        let mut platform = Brush::cuboid([600, 64, 600], [900, 192, 800]);
+        for face in &mut platform.faces {
+            face.material = material;
+        }
+        project.active_scene_mut().brushes.push(platform);
+        let world = compile_brush_world(
+            &project,
+            BrushWorldCookOptions {
+                project_root: Path::new("."),
+                mode: BrushWorldCookMode::Draft,
+                ambient: [24; 3],
+                texture_asset_base: 40,
+                collision_hulls: Default::default(),
+            },
+        )
+        .expect("cook with a platform");
+        let mut map =
+            psx_bsp::pxbsp_resident::PxbspResidentMap::with_capacity(world.pxbsp.bytes.len());
+        map.load(0, &mut psx_bsp::SliceReader::new(&world.pxbsp.bytes))
+            .expect("cooked PXBSP loads");
+        let vertices = map.vertices();
+        let faces = map.faces();
+        let polygons: Vec<Vec<[i32; 3]>> = (0..faces.len())
+            .filter_map(|index| faces.get(index))
+            .map(|face| {
+                (0..face.vertex_count as usize)
+                    .filter_map(|k| vertices.get(face.first_vertex as usize + k))
+                    .map(|v| {
+                        [
+                            i32::from(v.position.x),
+                            i32::from(v.position.y),
+                            i32::from(v.position.z),
+                        ]
+                    })
+                    .collect()
+            })
+            .collect();
+        assert!(polygons.len() > 6, "the platform must add faces");
+        assert!(
+            crate::brush_seams::find_t_junctions(&polygons, 1).is_empty(),
+            "cooked faces must not carry T-junctions"
         );
     }
 
@@ -2990,6 +3090,7 @@ mod tests {
                 mode,
                 ambient: [24; 3],
                 texture_asset_base: 40,
+                collision_hulls: Default::default(),
             },
         )
         .expect("brush world")
@@ -3285,6 +3386,7 @@ mod tests {
                 mode: BrushWorldCookMode::Draft,
                 ambient: [24; 3],
                 texture_asset_base: 40,
+                collision_hulls: Default::default(),
             },
         )
         .expect("destructible brush world");
@@ -3434,6 +3536,7 @@ mod tests {
                     mode: BrushWorldCookMode::Draft,
                     ambient: [24; 3],
                     texture_asset_base: 40,
+                    collision_hulls: Default::default(),
                 },
             )
             .expect("liquid world");
@@ -3488,6 +3591,7 @@ mod tests {
                     mode: BrushWorldCookMode::Draft,
                     ambient: [24; 3],
                     texture_asset_base: 0,
+                    collision_hulls: Default::default(),
                 },
             )
             .expect_err("body overlaps the inner X wall even though its origin is empty"),
@@ -3519,6 +3623,7 @@ mod tests {
                 mode: BrushWorldCookMode::Draft,
                 ambient: [32; 3],
                 texture_asset_base: 0,
+                collision_hulls: Default::default(),
             },
         )
         .expect_err("bad mover");
@@ -3546,6 +3651,7 @@ mod tests {
                 mode: BrushWorldCookMode::Draft,
                 ambient: [32; 3],
                 texture_asset_base: 0,
+                collision_hulls: Default::default(),
             },
         )
         .expect_err("liquid mover");
@@ -3576,6 +3682,7 @@ mod tests {
                 mode: BrushWorldCookMode::Draft,
                 ambient: [32; 3],
                 texture_asset_base: 0,
+                collision_hulls: Default::default(),
             },
         )
         .expect_err("invalid brush");
@@ -3627,6 +3734,7 @@ mod tests {
                 mode: BrushWorldCookMode::Draft,
                 ambient: [24; 3],
                 texture_asset_base: 40,
+                collision_hulls: Default::default(),
             },
         )
         .expect_err("motionless door");

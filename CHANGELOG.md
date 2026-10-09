@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- The game runtime reads the disc through the shared psx-cdstream transport: an
+  interrupt-driven, seek-first PIO reader that replaces the polled DMA path.
+  CD-DA music now shares the drive through an audio lease, so a data read pauses
+  a playing track where it stands and the track resumes from that position
+  afterwards. The SDK pin moves to the psx-cdstream revision.
+
 - The emulator now walks GPU linked lists through the GPU's command FIFO and
   charges drawing at costs fitted to console captures (hardware tests v1.23
   and v1.24), so headless frame rates sit closer to a console. Save states

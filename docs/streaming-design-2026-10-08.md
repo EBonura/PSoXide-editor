@@ -559,3 +559,14 @@ Each step: the hk-psx repo changes its `sdk.lock.json` pin and nothing else in t
 - hk's relocation cooker is Python (`host/code_modules.py`), against the Rust-only direction.
 - `entities.rs` / `tactics.rs` still reason in grid "rooms" for leash and disengage.
 - Visibility lump capped at `u16::MAX` bytes and rows at 1024 bytes are silent world-size ceilings of the whole PXBSP path today.
+
+
+---
+
+## 13. M2 adoption notes (2026-10-08)
+
+What landed in the engine: `psx-game-runtime`'s `cd_stream` now reads through `psx-cdstream` (`cd_stream/ring.rs`), `hw.rs` and the DMA path are gone, and `psx_engine::cd_drive` owns the audio lease. Evidence labels: [E] emulator-replayed, [H] host-tested.
+
+- Transport shape: each read is a run of sectors read through a two-window staging ring (one sector per window, 4 KiB of `.bss`). The transport chains the windows without a pause or seek; a foreground that stays away longer than one sector time (6.7 ms) costs a seek, not a sector. A third window costs 2 KiB more RAM.
+- Arbiter: music takes the lease only while no read is queued or running, never leaves a pending request behind (a pending lease is granted by the transport later, behind a read queued in the belief the drive is free, and that read waits forever; found on the emulator as a hang in `load_runtime_models`), and ends with Pause. A data read that finds music holding the lease calls `cd_drive::yield_music_for_data`, which saves the GetlocP position, pauses and releases; music restarts at that position once the drive is idle again. [H] tests in `cd_stream/ring/tests.rs` (abort, resume position, drive-error resume, pending-lease regression) and `game_app.rs` (yield and resume).
+- Costs on Graybox Reach (guest `.map`, plain `cd-stream-bench` build): `.text` plus `.rodata` grow by about 18 KiB (`psx-cdstream` is 17.4 KiB of that) and `.bss` by 4.4 KiB. The emulator-telemetry build of Graybox Reach no longer fits RAM by 8,132 bytes with the default optimiser settings.

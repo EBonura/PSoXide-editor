@@ -548,7 +548,6 @@ enum ShortcutGroup {
     Workspace,
     Tool,
     Transform,
-    Selection,
     Visibility,
     Camera,
     Viewport,
@@ -616,8 +615,6 @@ pub struct EditorWorkspace {
     /// rather than a bag of mutually-exclusive `Option`s. See
     /// [`Interaction`].
     interaction: Interaction,
-    /// Selection mode of the Face / Edge / Vertex brush edit modes.
-    selection_mode: SelectionMode,
     /// Transform gizmo mode for selected scene nodes in the 3D
     /// viewport. Move keeps the existing axis handles; Rotate edits
     /// yaw; Scale edits size data for node kinds that support it.
@@ -1170,27 +1167,6 @@ struct PackageSummary {
     player_character: Option<String>,
 }
 
-/// Three-mode selection switch -- Blender-style. `Face` keeps
-/// the existing whole-face semantics; `Edge` and `Vertex` pick
-/// finer primitives via local-UV math on the picked face.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum SelectionMode {
-    #[default]
-    Face,
-    Edge,
-    Vertex,
-}
-
-impl SelectionMode {
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Face => "Face",
-            Self::Edge => "Edge",
-            Self::Vertex => "Vertex",
-        }
-    }
-}
-
 /// One selectable sub-element of a brush. Faces are stable authored
 /// indices; edges and vertices are quantized solved positions (canonical
 /// endpoint order for edges), re-resolved each frame against
@@ -1240,16 +1216,6 @@ impl BrushEditMode {
             Self::Edge => "Drag an edge handle to reshape",
             Self::Vertex => "Drag a vertex handle to reshape",
             Self::Clip => "Click 2-3 points; Enter cuts, X flips the kept side, Esc clears",
-        }
-    }
-
-    const fn selection_mode(self) -> Option<SelectionMode> {
-        match self {
-            Self::Move => None,
-            Self::Face => Some(SelectionMode::Face),
-            Self::Edge => Some(SelectionMode::Edge),
-            Self::Vertex => Some(SelectionMode::Vertex),
-            Self::Clip => None,
         }
     }
 }
@@ -3011,7 +2977,6 @@ impl EditorWorkspace {
                 hovered_entity_node: None,
             },
             interaction: Interaction::Idle,
-            selection_mode: SelectionMode::default(),
             transform_gizmo_mode: TransformGizmoMode::Move,
             gizmo_space: GizmoSpace::Global,
             ui_transform_mode: UiTransformMode::Move,
