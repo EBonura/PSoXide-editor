@@ -8,7 +8,7 @@ its lockfile. Run them from the repository root with `cargo run -p <name> --`.
 | [`mkisopsx`](mkisopsx) | Pack a PSX-EXE and optional assets/audio into a bootable BIN/CUE disc. |
 | [`psoxide-link`](psoxide-link) | Hydrate a pinned source tree or an explicit local override for downstream games. |
 | [`psoxide-dev`](psoxide-dev) | Repository checks, numeric policy, profiling reports and asset-generation helpers. |
-| [`psoxide-perf`](psoxide-perf) | PC-line and sample attribution against linker maps and ELFs, static instruction censuses (`pc-line-attribution`, `pc-symbolize`, `instr-census`, `text-census`), the Cortex benchmark and 30 fps reports, and the content-verified replay store (`performance-suite`, with its `quake-chain-adapter`). |
+| [`psoxide-perf`](psoxide-perf) | PC-line and sample attribution against linker maps and ELFs, static instruction censuses (`pc-line-attribution`, `pc-symbolize`, `instr-census`, `text-census`), the Cortex benchmark and 30 fps reports, the content-verified replay store (`performance-suite`, with its `quake-chain-adapter`), and the engine-stress runner, analyser, route measurer and area calibration sweep plus the `psxed-mcp` batch client they share (`engine-stress`, `mcp-client`). |
 
 The remaining Python and shell utilities cover MIPS instruction hazards, guest symbol
 checks, hardware capture analysis and web delivery. Use their `--help` where
