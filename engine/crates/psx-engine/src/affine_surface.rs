@@ -412,17 +412,17 @@ impl<const COUNT: bool> PacketSink<COUNT> {
             // The GPU draws no polygon whose vertices lie more than 1023
             // pixels apart horizontally or 511 vertically, so such a polygon
             // is a hole in the view. It is still written, as it always was.
-            let mut min = [i16::MAX; 2];
-            let mut max = [i16::MIN; 2];
-            for corner in corners {
-                for axis in 0..2 {
-                    min[axis] = min[axis].min(corner.screen[axis]);
-                    max[axis] = max[axis].max(corner.screen[axis]);
-                }
+            // Plain scalars, because this runs inside the writer's tiny
+            // scratchpad stack.
+            let first = corners[0].screen;
+            let (mut x0, mut x1, mut y0, mut y1) = (first[0], first[0], first[1], first[1]);
+            for corner in &corners[1..] {
+                x0 = x0.min(corner.screen[0]);
+                x1 = x1.max(corner.screen[0]);
+                y0 = y0.min(corner.screen[1]);
+                y1 = y1.max(corner.screen[1]);
             }
-            if i32::from(max[0]) - i32::from(min[0]) > 1023
-                || i32::from(max[1]) - i32::from(min[1]) > 511
-            {
+            if i32::from(x1) - i32::from(x0) > 1023 || i32::from(y1) - i32::from(y0) > 511 {
                 self.dropped += 1;
             }
         }
