@@ -46,6 +46,11 @@ const PXBSP_NODE_STACK_INDEX: u32 = 0xffff;
 const PXBSP_NODE_STACK_MASK_SHIFT: u32 = 16;
 /// All five clip planes still need testing.
 const PXBSP_CLIP_ALL_PLANES: u8 = 0x1f;
+/// Face clip mask of a face the selection proved wholly outside a clip plane
+/// from its leaf's bounds. The face stays in the frame chain, so alternate
+/// frames that reuse the chain see exactly the faces they always did, but the
+/// frame that selected it skips it before any per-face work.
+const PXBSP_CLIP_REJECT: u8 = 0x40;
 /// Index of the near plane in [`FrustumPlanes::planes`]. It is the only plane
 /// whose per-face answer is "does any vertex fail it", rather than "do all".
 const PXBSP_CLIP_NEAR_PLANE: usize = 0;
@@ -1782,8 +1787,16 @@ impl Renderer {
             self.frame_plane_side.fill(0);
         }
         let (first_face, face_end) = selection.range(faces.len(), self.frame_pxbsp_faces.len());
+        let world_pass = matches!(selection, PxbspFaceSelection::VisibleWorld);
         for selection_index in first_face..face_end {
             let face_index = selection.face_index(selection_index, &self.frame_pxbsp_faces);
+            // Proved wholly outside a clip plane by the selection.
+            if world_pass
+                && unsafe { *self.frame_pxbsp_face_clip_mask.get_unchecked(face_index) }
+                    == PXBSP_CLIP_REJECT
+            {
+                continue;
+            }
             let face = unsafe { map.face_ref_unchecked(face_index) };
             let material_index = face.texture();
             let slot = PxbspResolvedMaterial::slot(material_index);
@@ -2746,18 +2759,21 @@ impl Renderer {
                     }
                     let leaf = map.leaves().get(leaf_index).expect("validated node leaf");
                     let start = leaf.first_mark_surface as usize;
-                    let mut end = start + leaf.mark_surface_count as usize;
+                    let end = start + leaf.mark_surface_count as usize;
+                    // Faces from `reject_from` on are wholly outside a plane.
+                    // They are still marked, so the chain a reuse frame draws
+                    // is the one it always was, but with a mask that makes
+                    // this frame skip them. The leaf's sky apertures come
+                    // first and keep the node's mask: the draw loop counts
+                    // those as visible whether or not they are on screen.
+                    let mut reject_from = end;
                     let mut leaf_clip = face_mask;
                     if let Some(bounds) = test_leaves {
                         // `validate_references` checked one record per leaf.
                         let bounds = unsafe { bounds.get_unchecked(leaf_index) };
                         match frustum.cull_leaf_bounds(bounds, face_mask) {
                             Some(residual) => leaf_clip = residual,
-                            // Wholly outside a plane: only the leaf's sky
-                            // apertures, ordered first, are still marked,
-                            // because the draw loop counts those as visible
-                            // whether or not they are on screen.
-                            None => end = start + bounds.sky_marks as usize,
+                            None => reject_from = start + bounds.sky_marks as usize,
                         }
                     }
                     for mark_index in start..end {
@@ -2776,7 +2792,11 @@ impl Renderer {
                                     PXBSP_FRAME_FALLBACK,
                                 );
                                 *self.frame_pxbsp_face_clip_mask.get_unchecked_mut(face) =
-                                    leaf_clip;
+                                    if mark_index >= reject_from {
+                                        PXBSP_CLIP_REJECT
+                                    } else {
+                                        leaf_clip
+                                    };
                             }
                         }
                     }
