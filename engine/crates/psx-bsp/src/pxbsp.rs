@@ -192,8 +192,16 @@ pub mod material_flags {
     /// Parse-only compatibility bit used by the former material-owned cube
     /// sky. New cookers write `SKY_APERTURE` for every sky surface.
     pub const DIRECTIONAL_SKY: u16 = 0x0008;
+    /// The material's texture has transparent texels (a cooked cutout), so
+    /// the scene sky or whatever is drawn behind a face can show through it.
+    /// Cookers that never set this bit write byte-identical maps; a renderer
+    /// that skips the sky pass for views with no sky aperture must still run
+    /// it when a face with this bit is selected. Blended materials show what
+    /// is behind them too, but that follows from `blend_mode` and needs no
+    /// flag.
+    pub const SEE_THROUGH: u16 = 0x0010;
     /// All flags understood by PXBSP version one.
-    pub const KNOWN: u16 = FACE_MASK | SKY_APERTURE | DIRECTIONAL_SKY;
+    pub const KNOWN: u16 = FACE_MASK | SKY_APERTURE | DIRECTIONAL_SKY | SEE_THROUGH;
 }
 
 /// PSoXide material blend codes stored in [`PxbspMaterial::blend_mode`].

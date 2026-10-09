@@ -2330,6 +2330,7 @@ fn resolve_materials(
                 sidedness,
                 animation,
                 true,
+                false,
                 slot,
             )?);
             continue;
@@ -2352,6 +2353,7 @@ fn resolve_materials(
                 key = format!("{key}#page{}x{}", target[0], target[1]);
             }
         }
+        let see_through = texture_has_transparent_texels(&bytes);
         let (texture_asset, texture_size) =
             intern_texture(&mut textures, options.texture_asset_base, slot, key, bytes)?;
         materials.push(pack_material(
@@ -2362,10 +2364,37 @@ fn resolve_materials(
             sidedness,
             animation,
             false,
+            see_through,
             slot,
         )?);
     }
     Ok((materials, textures))
+}
+
+/// Whether any texel of a 4bpp brush texture draws as transparent: it
+/// references a CLUT entry that is raw zero, or palette index zero of a
+/// texture cooked with `INDEX_ZERO_TRANSPARENT`. Such a face shows whatever is
+/// behind it, so a view that selects one cannot skip the sky pass. Anything
+/// unparsable counts as see-through; intern_texture rejects it later anyway.
+fn texture_has_transparent_texels(bytes: &[u8]) -> bool {
+    let Ok(texture) = psx_asset::Texture::from_bytes(bytes) else {
+        return true;
+    };
+    if texture.depth() != Depth::Bit4 {
+        return true;
+    }
+    let mut used = [false; 16];
+    for byte in texture.pixel_bytes() {
+        used[usize::from(byte & 0x0f)] = true;
+        used[usize::from(byte >> 4)] = true;
+    }
+    let clut = texture.clut_bytes();
+    used.iter().enumerate().any(|(index, &used)| {
+        used && ((index == 0 && texture.is_index_zero_transparent())
+            || clut
+                .get(index * 2..index * 2 + 2)
+                .is_none_or(|entry| entry == [0, 0]))
+    })
 }
 
 fn tile_4bpp_texture(bytes: &[u8], target: [u16; 2]) -> Result<Vec<u8>, String> {
@@ -2476,6 +2505,7 @@ fn pack_material(
     sidedness: MaterialFaceSidedness,
     animation: crate::MaterialAnimation,
     sky_aperture: bool,
+    see_through: bool,
     material: Option<ResourceId>,
 ) -> Result<PxbspMaterial, BrushWorldCookError> {
     let flags = match sidedness {
@@ -2484,6 +2514,10 @@ fn pack_material(
         MaterialFaceSidedness::Both => material_flags::FACE_BOTH,
     } | if sky_aperture {
         material_flags::SKY_APERTURE
+    } else {
+        0
+    } | if see_through {
+        material_flags::SEE_THROUGH
     } else {
         0
     };
@@ -2591,6 +2625,36 @@ mod tests {
             source_brush: 0,
             source_face: 0,
         }
+    }
+
+    fn indexed_psxt(clut: &[[u8; 3]], index_zero_transparent: bool, texel: u8) -> Vec<u8> {
+        psxed_tex::encode_indexed_psxt(
+            8,
+            8,
+            Depth::Bit4,
+            &[texel; 64],
+            clut,
+            index_zero_transparent,
+        )
+        .expect("test texture")
+    }
+
+    #[test]
+    fn transparent_texels_make_a_material_see_through() {
+        let palette = [[0, 0, 0], [255, 255, 255]];
+        // Opaque white texels: nothing shows through.
+        assert!(!texture_has_transparent_texels(&indexed_psxt(
+            &palette, false, 1
+        )));
+        // A cutout texture whose texels use palette index zero.
+        assert!(texture_has_transparent_texels(&indexed_psxt(
+            &palette, true, 0
+        )));
+        // A cutout texture that never draws index zero stays opaque.
+        assert!(!texture_has_transparent_texels(&indexed_psxt(
+            &palette, true, 1
+        )));
+        assert!(!texture_has_transparent_texels(&flat_white_psxt()));
     }
 
     #[test]
