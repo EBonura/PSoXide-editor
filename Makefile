@@ -229,7 +229,7 @@ web-stage-disc:
 		--pattern 'demo-disc.cue' --pattern 'web-manifest.txt' \
 		--pattern 'demo-data.bin.gz' --pattern 'track-*.flac' \
 		--dir $(WEB_DIST_DIR)
-	python3 tools/verify-web-dist.py --public-disc $(WEB_DIST_DIR)
+	$(PSOXIDE_DEV) verify-web-dist --public-disc $(WEB_DIST_DIR)
 
 itch-web: web-bundle
 	@command -v $(BUTLER) >/dev/null || { echo "itch-web: butler is required"; exit 1; }
