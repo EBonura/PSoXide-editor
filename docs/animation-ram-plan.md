@@ -351,36 +351,3 @@ hl-psx wrote HMD8 privately in `game/src/model.rs` rather than using
 consumer needed. The fix is to adopt the better format, not to export the
 weaker one: promoting today's 24-byte always-resident `.psxanim` into a shared
 crate would hand hl-psx our problem.
-
-## Dense repair and keyed tracks, 2026-10-08
-
-Two changes landed on the Graybox Reach clips (Aletha, the Light Enemy and the
-two small props). Resident clip bytes went from 641,712 to 305,976, measured on
-the cook's own `Resident assets` line and on the link map (`__bss_end`).
-
-**Dense repair (cook only).** 17 clips shipped as 24 or 20 byte records because
-one pose per clip missed the v4 encoder: one matrix element a rounding LSB past
-4096, or one pose the resampler's matrix lerp had shrunk to 0.99 of unit length.
-`dense_encodable_matrix` rebuilds only the poses the encoder already rejects,
-and only within 64 Q12 units of the original. 153,360 B, worst vertex
-displacement 8.9 model units. Two clips with real animated scale (`Fall`,
-`Braced arch aim bank`, 36 KB) keep v2.
-
-**Keyed tracks, `.psxanim` version 6.** Per-joint tracks of smallest-three
-quaternion keys and variable-bit translation keys, with one segment count per
-track chosen from at most seven per clip. `ProjectDocument::
-animation_track_budget_units` (4 in Graybox Reach, 0 off) bounds the worst
-displacement of any vertex or lever-arm point at any source frame; the encoder
-(`psx-anim-tracks` in the SDK) decodes its own output with the runtime decoder
-and refuses the clip if the bound fails, so a clip that cannot meet it, or is
-not made of rotations, keeps its pose table. 181,896 B on top of the repair.
-Levers: every joint is bounded at 600 units, joints that carry a socket at
-1024 (a Q12 matrix cannot hold a tighter bound), and rotation gets 0.8 of the
-budget because translation keys are integers.
-
-Left on the table: translation keys are as large as rotation keys (about
-123 KB against 128 KB) because each joint's model-space translation spans
-about a thousand units. A joint's translation is determined by its parent's pose
-and its own rotation (`t = t_parent + (R_parent - R) * pivot`), so predicting
-it and storing the residual would remove most of them for one 3x3 product per
-joint at decode, at the price of parents-first evaluation.

@@ -44,7 +44,6 @@
     ),
     bsp_cook_mode: Release,
     animation_error_budget_degrees: 2,
-    animation_track_budget_units: 4,
     scenes: [
         /*[0]*/ (
             name: "Main",
