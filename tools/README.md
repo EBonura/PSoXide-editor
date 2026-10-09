@@ -8,8 +8,9 @@ its lockfile. Run them from the repository root with `cargo run -p <name> --`.
 | [`mkisopsx`](mkisopsx) | Pack a PSX-EXE and optional assets/audio into a bootable BIN/CUE disc. |
 | [`psoxide-link`](psoxide-link) | Hydrate a pinned source tree or an explicit local override for downstream games. |
 | [`psoxide-dev`](psoxide-dev) | Repository checks, numeric policy, profiling reports and asset-generation helpers. |
+| [`psoxide-perf`](psoxide-perf) | PC-line and sample attribution against linker maps and ELFs, static instruction censuses (`pc-line-attribution`, `pc-symbolize`, `instr-census`, `text-census`). |
 
-The Python and shell utilities cover MIPS instruction hazards, guest symbol
+The remaining Python and shell utilities cover MIPS instruction hazards, guest symbol
 checks, hardware capture analysis and web delivery. Use their `--help` where
 provided, or the calling target in the [Makefile](../Makefile).
 

@@ -338,7 +338,7 @@ Measure the fill cost directly with the tooling added today:
 ```bash
 frontend launch --path <disc> --pc-line-log lines.csv --pc-line-start-route-tick 300 \
   --mmio-stall-line-log mmio.csv --dump-hash
-python3 tools/pc_line_attribution.py mmio.csv <guest.map>
+cargo run --release -p psoxide-perf -- pc-line-attribution mmio.csv <guest.map>
 ```
 
 If `FrameBuffer::begin_swap` climbs after the ground plane lands, the feature has
