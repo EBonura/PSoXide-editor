@@ -15,10 +15,11 @@ jobs:
       - run: make verify-components
       - run: make material-audit
       - run: cargo fmt --all -- --check
+      - run: rustfmt --edition 2021 --check emu/crates/frontend/src/editor_assets.rs emu/crates/frontend/src/editor_preview.rs emu/crates/frontend/src/editor_textures.rs emu/crates/frontend/src/embedded_playtest.rs emu/crates/frontend/src/playtest_disc.rs
       - run: cargo fmt --manifest-path engine/Cargo.toml --all -- --check
       - run: cargo fmt --manifest-path engine/examples/editor-playtest/Cargo.toml -- --check
       - run: cargo check --locked --workspace --all-features
-      - run: cargo test --locked --workspace
+      - run: cargo test --locked --workspace --features frontend/editor
       - run: cargo check --locked --manifest-path engine/Cargo.toml --workspace --all-features
       - run: cargo test --locked --manifest-path engine/Cargo.toml -p psx-game-runtime -p psx-render-contract -p psx-chainloader -p psx-goldsrc
       # editor-playtest declares its own [workspace], so none of the commands
