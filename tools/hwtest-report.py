@@ -625,7 +625,8 @@ V2_RECORDS = {
     0x404: ("post_init_reverb", ("volume_left", "volume_right", "work_base")),
     0x41A: ("silence_final", ("flags_0x7f_is_silent", "cd_capture_peak", "voices_with_envelope")),
     0x41B: ("run_info", ("skipped_risky", "steps", "records_taken")),
-    0x41C: ("handoff_baseline", ("irq_mask_baseline", "dpcr_baseline_low_half", "dpcr_baseline_high_half")),
+    0x41C: ("handoff_baseline", ("irq_mask_baseline_bits_0_to_10", "dpcr_baseline_low_half", "dpcr_baseline_high_half")),
+    0x41D: ("handoff_irq_raw", ("irq_baseline_raw_low_half", "irq_baseline_raw_high_half", "irq_last_handoff_raw_high_half")),
     0x420: ("mdec_setup", ("worked_mask", "driver_notes", "failing_steps")),
     0x421: ("mdec_probe", ("words_of_128", "all_equal", "first_word_low")),
     0x422: ("mdec_probe_word", ("first_word_high", "decode_to_request_clocks", "busy_run_words")),
@@ -868,6 +869,23 @@ V2_RECORDS[0x7A2] = (
 V2_RECORDS[0x766] = (
     "rumble_operator",
     ("answers_two_bits_each", "stimuli_asked", "port_tested_and_api_enabled_in_bit_8"),
+)
+for _k, _tag in enumerate(("a", "b", "c")):
+    V2_RECORDS[0x771 + _k] = (
+        f"rumble_answer_buttons_{_tag}",
+        (f"raw_buttons_stimulus_{3 * _k}", f"raw_buttons_stimulus_{3 * _k + 1}", ("raw_buttons_stimulus_%d" % (3 * _k + 2)) if _k < 2 else "questions_with_buttons_never_released_mask"),
+    )
+    V2_RECORDS[0x774 + _k] = (
+        f"rumble_answer_frames_{_tag}",
+        (f"answer_frame_stimulus_{3 * _k}", f"answer_frame_stimulus_{3 * _k + 1}", ("answer_frame_stimulus_%d" % (3 * _k + 2)) if _k < 2 else "questions_with_early_button_mask"),
+    )
+V2_RECORDS[0x777] = (
+    "spu_ram_prescrub",
+    ("fold_0x1010_4kb", "fold_0x3000_6kb", "fold_0x30000_4kb"),
+)
+V2_RECORDS[0x778] = (
+    "spu_ram_postscrub",
+    ("fold_0x1010_4kb", "fold_0x3000_6kb", "fold_0x30000_4kb"),
 )
 for _speed, _speed_tag in enumerate(("1x", "2x")):
     for _size, _size_tag in enumerate(("2048", "2340")):
