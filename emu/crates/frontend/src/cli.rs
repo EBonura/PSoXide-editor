@@ -906,6 +906,8 @@ fn run_headless_launch(
             .as_ref()
             .map(|samples| (samples.len() as u64).saturating_add(args.input_tape_delay_ticks))
     });
+    // Reject a bad --texture-filter before the (possibly long) run, not after.
+    parse_texture_filter(&args.texture_filter)?;
     let capture_gpu_commands = args.dump_hw.is_some() || args.gpu_frame_stats_log.is_some();
 
     let mut cpu = Cpu::new();
