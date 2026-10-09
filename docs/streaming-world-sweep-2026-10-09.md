@@ -179,3 +179,7 @@ seed regions payload_KB max|V| ball  rho/limit(B/u)  peak/avail(KB)  window(B,x)
 #     342   49/50 = 98%
 #     397   49/50 = 98%
 ```
+
+## After merging the guest regions branch (2026-10-09)
+
+The sweep was run again on the merge of this branch with `feat/stream-guest-regions` (the M7 guest work, which reshapes `cook_project_streamed_with` to take cook options and moves the flattening of a streamed world out of the tests). Both grids give the same 49 of 50 as before, row for row: the 16x16 world still fails seed 7 on rho, the 20x20 world seed 27. `cook_project_gated_with` is the options-taking core; `cook_project_gated` keeps the argument list the sweep and `stream-cook` use. 478 `psxed-project` tests pass.
