@@ -117,7 +117,7 @@ selecting by a near-presence rule (`RANKED_NEAR_PRESENCE_Z` / `_SPAN_PX`).
 
 Built from the worktree with the shipping feature set (`cd-stream-bench`),
 exe SHA-256 `1de5e327…16bb`, linker map in the evidence folder. Attribution by
-`tools/pc_line_attribution.py` against that map. Two runs: held forward into
+`psoxide-perf pc-line-attribution` against that map. Two runs: held forward into
 the spawn guardrail (cortex4) and idle (cortex6).
 
 | Symbol | held forward | idle |
@@ -213,7 +213,7 @@ Ordered by measured size, all on the `d812d5bd` shipping build at the 0.4 spawn.
 3. **`Scene::render` body + `draw_pxbsp_faces`, ~28%.** The room path has no
    sub-stage markers, so this is where `--pc-line-log` is the only instrument.
    Next step is a line-level view of `draw_pxbsp_faces` and the inlined body
-   (the `hot lines` table from `pc_line_attribution.py --limit 200`) to find
+   (the `hot lines` table from `psoxide-perf pc-line-attribution --limit 200`) to find
    which loop dominates. Not done today.
 4. **Small, mechanical, cascade-free:** `visible_bounds_mask` field compare
    instead of struct `==` (kills the `memcmp`, ~1%); `memset` of per-frame
@@ -432,8 +432,8 @@ cd <worktree> && PSOXIDE_GUEST_STAGE_ROOT=/tmp/psoxide-psx-guest-survey \
 
 The second build reproduces the identical exe hash (checked: `1de5e327…`), so
 the map matches the disc. The guest output is a PSX-EXE, not an ELF, so
-`tools/pc_symbolize.py` (needs `nm`) does not apply; use
-`tools/pc_line_attribution.py <pc-line.csv> <link.map>` and, for the RAM
+`psoxide-perf pc-symbolize` (needs `nm`) does not apply; use
+`psoxide-perf pc-line-attribution <pc-line.csv> <link.map>` and, for the RAM
 stall log, rename its header to `line_pc,instructions,percent` first.
 
 Attribution run:
@@ -484,7 +484,7 @@ until proven intended.
 | quake-psx | E1M1 chain route (complete level, fixed ticks) | `cargo run --release -p quake-build -- e1m1-chain-bench` (two runs per build, built in) | `full_level_fps_x1000`, `full_level_elapsed_bus_cycles` | 0.122 fps code-layout band (documented in VALIDATION.md / RENDERING.md); reject anything inside it | `vram_fnv1a_64`, `display_fnv1a_64` byte-identical, plus `visual-parity-regress` |
 | quake-psx (collision-heavy) | monster route | `e1m1-monster-route-bench` | same | same | same |
 | hl-psx | Initial tram ride (c0a0), poll-bound tape, gameplay ticks only | `make psoxide-profile` then `python3 tools/perf/tram_bench.py` and `tools/perf/visual_perf_gate.py --gate` | route fps, p05, median, slow windows, flips (RENDER_PIPELINE.md "Measurement contract": 18.26 fps, p05 12.10, median 19.53, 61/122 slow, 11,468 flips) | run each scenario twice (built into `regress`); the gate's own deadline-miss / skipped-vblank / packet-overflow limits | final display + VRAM hash from the same run; build with `emulator-telemetry` only, never `performance-telemetry` for an A/B |
-| Cortex Ignition 0.4 | A route Manny records in the editor (Record button, `<config>/editor/playtest_tapes/<project>.pxtape`), transcribed once to a poll-bound `PXITAPE2` fixture (`--input-tape <pxtape> --input-tape-transcribe <fixture.pxitape.csv>`) and committed under `editor/archive/fixtures/` | `frontend launch --path <cue> --embedded-playtest --input-tape <fixture> --steps 6000000000 --dump-hash --route-log --cpu-cycle-profile-log` (the combat-checkpoint pattern) | bus cycles to tape end, display flips over the tape (fps), `visual_deadline_misses` when a telemetry build links; `--pc-line-log` for attribution | not yet measured: establish it first by building twice with a no-op change and comparing (Quake's 0.122 band came from that); until then treat anything under ~1% as noise | `display_fnv1a_64` / `vram_fnv1a_64` at tape end, `lockstep-visuals` feature for frame-exact A/B, `tools/cortex_30fps_report.py` |
+| Cortex Ignition 0.4 | A route Manny records in the editor (Record button, `<config>/editor/playtest_tapes/<project>.pxtape`), transcribed once to a poll-bound `PXITAPE2` fixture (`--input-tape <pxtape> --input-tape-transcribe <fixture.pxitape.csv>`) and committed under `editor/archive/fixtures/` | `frontend launch --path <cue> --embedded-playtest --input-tape <fixture> --steps 6000000000 --dump-hash --route-log --cpu-cycle-profile-log` (the combat-checkpoint pattern) | bus cycles to tape end, display flips over the tape (fps), `visual_deadline_misses` when a telemetry build links; `--pc-line-log` for attribution | not yet measured: establish it first by building twice with a no-op change and comparing (Quake's 0.122 band came from that); until then treat anything under ~1% as noise | `display_fnv1a_64` / `vram_fnv1a_64` at tape end, `lockstep-visuals` feature for frame-exact A/B, `psoxide-perf cortex-30fps-report` |
 
 Dependency to verify before the Cortex fixture exists: frame-bound `.pxtape`
 replay (and therefore transcription) may need guest frame markers from an
