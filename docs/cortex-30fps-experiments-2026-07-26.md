@@ -2083,6 +2083,6 @@ confirms there is no changed image.
 | C1 | Cooker worst-view 30 FPS/RAM/packet validator | accepted, warning-only | v1/v3 observed maxima 73/551 and 183/639 stay below 390/771 and 364/728; both theoretical packet envelopes correctly warn above 1,536 |
 | H1 | Real-hardware timer, cadence, tear, seam, and near-plane sweep | burn images prepared; awaiting silicon | Structural checks and full no-telemetry tape replays pass; mandatory final gate remains physical |
 
-Run `python3 tools/cortex_30fps_report.py <run-dir>...` for the standard table.
+Run `cargo run --release -p psoxide-perf -- cortex-30fps-report <run-dir>...` for the standard table.
 Pass exactly two lockstep run directories plus `--compare-lockstep` to make any
 guest-frame hash mismatch, missing frame, or extra frame fail the command.
