@@ -161,6 +161,10 @@ pub struct SurfaceSubmit {
     pub packets: u32,
     /// Number of hardware triangles those packets draw.
     pub hardware_triangles: u32,
+    /// Polygons dropped because their ordering-table slot was out of range.
+    /// A dropped polygon leaves a hole in the view, so a caller that skips a
+    /// sky pass behind the surface must not when this is non-zero.
+    pub dropped_polygons: u32,
 }
 
 /// Brightness of a vertex lit by two light styles: each style's level
@@ -374,6 +378,7 @@ struct PacketSink {
     right: i16,
     bottom: i16,
     ot_depth: u16,
+    dropped: u32,
 }
 
 impl PacketSink {
@@ -423,6 +428,7 @@ impl PacketSink {
             ])
         };
         if !self.usable_slot(otz) {
+            self.dropped += 1;
             return;
         }
         let windowed = surface.compact == 0;
@@ -729,12 +735,14 @@ pub unsafe fn submit_surface_batch(
         right: profile.screen_width - 1,
         bottom: profile.screen_height - 1,
         ot_depth: profile.ot_depth,
+        dropped: 0,
     };
     if vertices.is_null() || surfaces.is_null() || output.is_null() || vertex_count == 0 {
         return SurfaceSubmit {
             next_packet: output,
             packets: 0,
             hardware_triangles: 0,
+            dropped_polygons: 0,
         };
     }
     // SAFETY: `vertex_count` initialised records per the contract.
@@ -765,6 +773,7 @@ pub unsafe fn submit_surface_batch(
         next_packet: sink.next,
         packets: sink.packets,
         hardware_triangles: sink.triangles,
+        dropped_polygons: sink.dropped,
     }
 }
 

@@ -913,6 +913,7 @@ pub unsafe fn submit_layered_sky_samples_to_slot(
         next_packet: next,
         packets: (SKY_CELLS * 2 + SKY_WINDOW_PACKET_COUNT) as u32,
         hardware_triangles: (SKY_CELLS * 4) as u32,
+        dropped_polygons: 0,
     }
 }
 
@@ -1214,6 +1215,7 @@ pub unsafe fn submit_view_ray_cube_sky_to_slot(
         next_packet: next,
         packets: packets + CUBE_SKY_WINDOW_PACKET_COUNT as u32,
         hardware_triangles,
+        dropped_polygons: 0,
     }
 }
 

@@ -1681,7 +1681,8 @@ impl BspRuntime {
                 let mut visible_sky_apertures = world.stats.visible_sky_apertures;
                 // A cutout or blended material lets the sky behind it show
                 // without any aperture being in view.
-                let mut sky_shows_through = world.stats.see_through_material_selected;
+                let mut sky_shows_through =
+                    world.stats.see_through_material_selected || world.stats.dropped_polygons != 0;
                 let mut overflowed = world.stats.packet_overflow_avoided;
 
                 for door in self.doors.iter() {
@@ -1705,7 +1706,8 @@ impl BspRuntime {
                         .expect("PXBSP packet count overflow");
                     visible_sky_apertures =
                         visible_sky_apertures.saturating_add(frame.stats.visible_sky_apertures);
-                    sky_shows_through |= frame.stats.see_through_material_selected;
+                    sky_shows_through |= frame.stats.see_through_material_selected
+                        || frame.stats.dropped_polygons != 0;
                     overflowed |= frame.stats.packet_overflow_avoided;
                 }
                 for destructible in self
@@ -1733,7 +1735,8 @@ impl BspRuntime {
                         .expect("PXBSP packet count overflow");
                     visible_sky_apertures =
                         visible_sky_apertures.saturating_add(frame.stats.visible_sky_apertures);
-                    sky_shows_through |= frame.stats.see_through_material_selected;
+                    sky_shows_through |= frame.stats.see_through_material_selected
+                        || frame.stats.dropped_polygons != 0;
                     overflowed |= frame.stats.packet_overflow_avoided;
                 }
                 (

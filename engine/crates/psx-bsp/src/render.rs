@@ -280,6 +280,9 @@ pub struct RenderStats {
     /// face that is not an aperture. Resolved once per material per pass,
     /// when the material cache fills, so the face loop pays nothing for it.
     pub see_through_material_selected: bool,
+    /// Polygons the packet writer dropped for an out-of-range ordering-table
+    /// slot. Each leaves a hole that shows whatever is behind the world.
+    pub dropped_polygons: u32,
     pub surface_batches: u16,
     pub packets: u32,
     pub hardware_triangles: u32,
@@ -1950,6 +1953,9 @@ impl Renderer {
                 stats.hardware_triangles = stats
                     .hardware_triangles
                     .wrapping_add(submitted.hardware_triangles);
+                stats.dropped_polygons = stats
+                    .dropped_polygons
+                    .wrapping_add(submitted.dropped_polygons);
                 batch_vertex_count = 0;
                 batch_surface_count = 0;
                 batch_worst_words = 0;
@@ -2008,6 +2014,9 @@ impl Renderer {
         stats.hardware_triangles = stats
             .hardware_triangles
             .wrapping_add(submitted.hardware_triangles);
+        stats.dropped_polygons = stats
+            .dropped_polygons
+            .wrapping_add(submitted.dropped_polygons);
 
         let packet_words = unsafe { next.offset_from(start) as usize };
         stats.see_through_material_selected = self.pxbsp_see_through_seen;
@@ -3150,6 +3159,7 @@ unsafe fn flush_pxbsp_batch(
             next_packet: output,
             packets: 0,
             hardware_triangles: 0,
+            dropped_polygons: 0,
         };
     }
     // SAFETY: the planes and the batch are the only scratchpad bytes live
