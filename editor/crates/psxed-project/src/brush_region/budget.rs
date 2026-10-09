@@ -99,14 +99,14 @@ mod tests {
 
     #[test]
     fn the_pool_is_the_measured_arithmetic() {
-        // 17,332 - 3,764 + 90,892 - 16,384
-        assert_eq!(P_WORLD_ESTIMATE_BYTES, 88_076);
-        assert_eq!(RAM_BUDGET.world_pool_bytes(), 88_076);
+        // 332,956 - 3,764 + 93,808 - 16,384
+        assert_eq!(P_WORLD_ESTIMATE_BYTES, 406_616);
+        assert_eq!(RAM_BUDGET.world_pool_bytes(), 406_616);
         let more = RamBudget {
             arena_reclaim_bytes: 100_000,
             ..RAM_BUDGET
         };
-        assert_eq!(more.world_pool_bytes(), 188_076);
+        assert_eq!(more.world_pool_bytes(), 506_616);
     }
 
     #[test]
@@ -117,12 +117,13 @@ mod tests {
         assert!(large.region_bytes_that_fit() < small.region_bytes_that_fit());
         assert_eq!(union_regions(3), 23);
         assert_eq!(union_regions(2), 17);
-        // 24 regions of 4 KB do not fit the RAM of today; the shortfall is
-        // exactly what the arena would have to give back.
-        let need = small.reclaim_needed(4096);
+        // 23 regions of 32 KB (the hard cap) do not fit the RAM of today; the
+        // shortfall is exactly what the arena would have to give back.
+        let need = small.reclaim_needed(32_768);
+        assert!(need > 0);
         assert_eq!(
             need,
-            small.required_pool(4096) - u64::from(small.pool_bytes)
+            small.required_pool(32_768) - u64::from(small.pool_bytes)
         );
         let roomy = PoolPlan::derive(
             &RamBudget {
@@ -132,7 +133,7 @@ mod tests {
             100,
             3,
         );
-        assert_eq!(roomy.reclaim_needed(4096), 0);
-        assert!(roomy.region_bytes_that_fit() >= 4096);
+        assert_eq!(roomy.reclaim_needed(32_768), 0);
+        assert!(roomy.region_bytes_that_fit() >= 32_768);
     }
 }

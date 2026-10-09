@@ -68,37 +68,47 @@ pub const SECTOR_BYTES: u32 = 2048;
 /// is a measurement or a labelled estimate, and the pool is derived from them,
 /// never typed in.
 ///
-/// The persistent-asset arena (643,072 B of clips, models and atlases) is the
-/// bulk of the guest's RAM, but model and animation residency is a separate
-/// pass (compressed models), so none of it is counted here. Set
-/// `arena_reclaim_bytes` when that pass lands.
+/// The persistent-asset arena (clips, models and atlases) is the bulk of the
+/// guest's RAM. The compressed-animation passes (dense repair, then keyed
+/// tracks) have landed and the headroom below is measured after them, so the
+/// 153 KB and 182 KB they gave back are already in it. `arena_reclaim_bytes`
+/// is for a pass that has not landed, and is zero.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RamBudget {
     /// Region cap minus the linked static image. [M, link map: cap 1,998,848
-    /// minus image 1,981,516]
+    /// minus image 1,665,892 (`__bss_end` 0x801a6764 less 0x80010000)]
     pub static_headroom_bytes: u32,
     /// Heap in use at gameplay poll 1200. The heap lives inside the headroom,
-    /// so it is not available to the pool. [M, headless emulator RAM dump]
+    /// so it is not available to the pool. [M, headless emulator RAM dump,
+    /// 2026-10-08; not re-measured after the keyed-track clips, which keep
+    /// their data in the arena and not on the heap, so it is expected to
+    /// hold. Re-measure with the next emulator run.]
     pub heap_in_use_bytes: u32,
     /// The baked PXBSP a streamed world stops baking into `.data`; the
-    /// resident skeleton takes some of it back. [M, link map]
+    /// resident skeleton takes some of it back. [M, link map: the
+    /// `PXBSP_WORLD` symbol is 0x16e70]
     pub baked_bsp_image_bytes: u32,
     /// Fragmentation margin, install scratch and growth. [E]
     pub safety_floor_bytes: u32,
-    /// The persistent-asset arena. Information only. [M, cook manifest]
+    /// The persistent-asset arena. Information only. [M, cook manifest:
+    /// 150 pages of 2,048 B]
     pub persistent_asset_arena_bytes: u32,
     /// Part of that arena handed to the world once models are compressed.
     /// Zero today. [E]
     pub arena_reclaim_bytes: u32,
 }
 
-/// Graybox Reach, editor main c08e72d8 (occupancy report, 2026-10-08).
+/// Graybox Reach, the editor-playtest guest linked from editor main 254f7842's
+/// tree (a2d5039d, SDK pin 479d33934), 2026-10-09. The 2026-10-08 figures
+/// (c08e72d8) were headroom 17,332, baked PXBSP 90,892 and arena 643,072: the
+/// headroom grew by 315,624 B (153,360 dense repair and 181,896 keyed
+/// tracks, plus rounding in the link), the PXBSP by 2,916 B (crack fix).
 pub const RAM_BUDGET: RamBudget = RamBudget {
-    static_headroom_bytes: 17_332,
+    static_headroom_bytes: 332_956,
     heap_in_use_bytes: 3_764,
-    baked_bsp_image_bytes: 90_892,
+    baked_bsp_image_bytes: 93_808,
     safety_floor_bytes: 16_384,
-    persistent_asset_arena_bytes: 643_072,
+    persistent_asset_arena_bytes: 307_200,
     arena_reclaim_bytes: 0,
 };
 
@@ -128,7 +138,7 @@ impl RamBudget {
 }
 
 /// Pool for region pages, the design's `P_world`, before the skeleton:
-/// 17,332 - 3,764 + 90,892 - 16,384 = 88,076 B with today's RAM. [D from
+/// 332,956 - 3,764 + 93,808 - 16,384 = 406,616 B with today's RAM. [D from
 /// [`RAM_BUDGET`]]
 pub const P_WORLD_ESTIMATE_BYTES: u32 = RAM_BUDGET.world_pool_bytes();
 
