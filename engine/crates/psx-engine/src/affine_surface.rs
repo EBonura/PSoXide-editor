@@ -366,6 +366,42 @@ const fn screen_word(vertex: &AffineVertex) -> u32 {
     (vertex.screen[0] as u16 as u32) | ((vertex.screen[1] as u16 as u32) << 16)
 }
 
+/// Counts the written polygons the GPU would refuse for their size: any with
+/// vertices more than 1023 pixels apart horizontally or 511 vertically leaves
+/// a hole in the view. Read back from the packets, after the writer, because
+/// the writer has little scratchpad stack to spare.
+///
+/// # Safety
+/// `start..end` must be the packets this writer wrote.
+#[inline(never)]
+unsafe fn count_oversize(start: *const u32, end: *const u32) -> u32 {
+    let mut oversize = 0;
+    let mut packet = start;
+    while packet < end {
+        // SAFETY: packets are contiguous from `start` to `end`.
+        let data = unsafe { *packet } >> 24;
+        // The data words after the tag are a texture window, the polygon's
+        // `TRI_WORDS` or `QUAD_WORDS`, and a window reset when windowed.
+        let corners = (data / 3) as usize;
+        let (mut x0, mut x1, mut y0, mut y1) = (i16::MAX, i16::MIN, i16::MAX, i16::MIN);
+        for corner in 0..corners {
+            // SAFETY: the polygon's vertex words follow the window word.
+            let word = unsafe { *packet.add(3 + corner * 3) };
+            let (x, y) = (word as u16 as i16, (word >> 16) as u16 as i16);
+            x0 = x0.min(x);
+            x1 = x1.max(x);
+            y0 = y0.min(y);
+            y1 = y1.max(y);
+        }
+        if i32::from(x1) - i32::from(x0) > 1023 || i32::from(y1) - i32::from(y0) > 511 {
+            oversize += 1;
+        }
+        // SAFETY: the next tag follows this packet's data words.
+        packet = unsafe { packet.add(1 + data as usize) };
+    }
+    oversize
+}
+
 /// Packet writer for one batch.
 struct PacketSink<const COUNT: bool> {
     next: *mut u32,
@@ -407,24 +443,6 @@ impl<const COUNT: bool> PacketSink<COUNT> {
     unsafe fn polygon(&mut self, surface: &AffineSurface, corners: &[&AffineVertex]) {
         if self.off_screen(corners) {
             return;
-        }
-        if COUNT {
-            // The GPU draws no polygon whose vertices lie more than 1023
-            // pixels apart horizontally or 511 vertically, so such a polygon
-            // is a hole in the view. It is still written, as it always was.
-            // Plain scalars, because this runs inside the writer's tiny
-            // scratchpad stack.
-            let first = corners[0].screen;
-            let (mut x0, mut x1, mut y0, mut y1) = (first[0], first[0], first[1], first[1]);
-            for corner in &corners[1..] {
-                x0 = x0.min(corner.screen[0]);
-                x1 = x1.max(corner.screen[0]);
-                y0 = y0.min(corner.screen[1]);
-                y1 = y1.max(corner.screen[1]);
-            }
-            if i32::from(x1) - i32::from(x0) > 1023 || i32::from(y1) - i32::from(y0) > 511 {
-                self.dropped += 1;
-            }
         }
         let quad = corners.len() == 4;
         let otz = if quad {
@@ -693,6 +711,7 @@ impl<const COUNT: bool> Splitter<'_, COUNT> {
     ///
     /// # Safety
     /// As [`Self::emit_triangle`] for every triangle of the fan.
+    #[inline(never)]
     unsafe fn surface(&mut self, first: usize, count: usize) {
         let fan = |index: usize| first + index;
         let mut corner = 1;
@@ -840,6 +859,10 @@ unsafe fn submit_surface_batch_impl<const COUNT: bool>(
         // SAFETY: range checked above; capacity and scratch per the contract.
         unsafe { splitter.surface(first, count) };
     }
+    if COUNT {
+        // SAFETY: `output..sink.next` is what the splitters just wrote.
+        sink.dropped += unsafe { count_oversize(output, sink.next) };
+    }
     (
         SurfaceSubmit {
             next_packet: sink.next,
@@ -954,6 +977,35 @@ mod tests {
         assert_eq!(m.uv, [254, 1]);
         assert_eq!(m.color, 0x0080_7f20);
         assert_eq!(midpoint(&b, &a), m, "midpoints are symmetric");
+    }
+
+    #[test]
+    fn the_counted_entry_reports_polygons_the_gpu_would_refuse() {
+        configure();
+        // Depth 3000 maps 12000 units to 640 pixels: 1280 wide is too wide for
+        // the GPU, 800 wide is not.
+        for (half, expected) in [(12000, 1), (7500, 0)] {
+            let mut batch = std::vec![
+                vertex([-half, -300, 3000], [0, 0]),
+                vertex([half, -300, 3000], [63, 0]),
+                vertex([half, 300, 3000], [63, 63]),
+                vertex([-half, 300, 3000], [0, 63]),
+            ];
+            batch.extend([AffineVertex::default(); AFFINE_SPLIT_SCRATCH_VERTICES]);
+            let mut words = std::vec![0u32; 4096];
+            let (result, dropped) = unsafe {
+                submit_surface_batch_counted(
+                    batch.as_mut_ptr(),
+                    4,
+                    [surface(0, 4, true)].as_ptr(),
+                    1,
+                    words.as_mut_ptr(),
+                    SurfaceProfile::PXBSP_THIRD_PERSON,
+                )
+            };
+            assert_eq!(result.packets, 1);
+            assert_eq!(dropped, expected, "half width {half}");
+        }
     }
 
     #[test]
