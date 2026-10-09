@@ -207,7 +207,7 @@
     "artifacts": "build/graybox-reach/scarf-opt",
     "build": "Isolated /tmp/psoxide-reach-scarf-folded/stage with identical features and assets. Overlay only the two source files; standard PSX release build, hazard_patch.py, stack_guard.py.",
     "replay": "PSOXIDE_EXPERIMENTAL_DMA_FIFO={0|1} target/release/frontend launch --path <candidate.exe> --disc <frozen-baseline.cue> --embedded-playtest --input-tape editor/projects/graybox-reach/validation/texture-state-user.pxtape --stop-at-poll=3143 --steps=6900000000 --route-log <route.csv> --dump-display <final.ppm>",
-    "measure": "python3 benchmarks/engine-stress/measure_route.py <run-dir> 400 3120"
+    "measure": "psoxide-perf engine-stress measure-route <run-dir> 400 3120"
   },
   "scope": "A/B isolates the scarf from simultaneous camera/enemy work. These timings describe the frozen comparison, not a later rebuilt project with those other changes. No locked 30 fps claim."
 }

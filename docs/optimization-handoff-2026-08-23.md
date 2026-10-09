@@ -232,7 +232,7 @@ Key frontend flags:
 Exact temporal I-cache pairs are ranked with:
 
 ```bash
-python3 /Users/ebonura/Desktop/repos/PSoXide/tools/pc_line_attribution.py \
+cargo run --release -p psoxide-perf -- pc-line-attribution \
   /path/to/pc-lines.csv /path/to/exact-build.map \
   --icache-events /path/to/icache-events.csv
 ```
