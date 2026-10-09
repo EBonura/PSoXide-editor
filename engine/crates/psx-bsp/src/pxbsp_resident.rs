@@ -759,12 +759,13 @@ impl PxbspResidentMap {
     }
 
     /// Check a v7 leaf-bounds lump against the (already validated) leaves,
-    /// marks, faces and vertices: one record per leaf, never inverted, and
-    /// containing every vertex of every face the leaf marks, so a cull from
-    /// the bounds can never drop a face the exact vertex scan would keep. A
-    /// leaf that marks a sky aperture, or marks nothing, must carry the full
-    /// range: the renderer counts a sky aperture as visible whether or not it
-    /// is on screen, and an empty leaf has nothing to bound.
+    /// marks, faces and vertices. One record per leaf; its reserved word is
+    /// zero; the leaf's first `sky_marks` marks are exactly its sky apertures
+    /// (the renderer counts those as visible whether or not they are on
+    /// screen, so a culled leaf still marks them); and the box is never
+    /// inverted and contains every vertex of every other marked face, so a
+    /// cull from it can never drop a face the exact vertex scan would keep. A
+    /// leaf with no such face must carry the full-range box.
     fn validate_leaf_bounds<E>(&self) -> Result<(), PxbspMapLoadError<E>> {
         let leaves = self.leaves();
         let bytes = self.lump_bytes(PxbspLumpKind::LEAF_BOUNDS);
@@ -779,26 +780,27 @@ impl PxbspResidentMap {
         // record decoders cost several times what the checks do.
         let marks = self.mark_surfaces_native();
         for (index, leaf) in leaves.iter().enumerate() {
-            let record = &bytes[index * LeafBounds::SIZE..][..LeafBounds::SIZE];
-            let mut values = [0i16; 6];
-            for (value, pair) in values.iter_mut().zip(record.chunks_exact(2)) {
-                *value = i16::from_le_bytes([pair[0], pair[1]]);
-            }
-            let bounds = LeafBounds {
-                mins: [values[0], values[1], values[2]],
-                maxs: [values[3], values[4], values[5]],
-            };
-            let mut ok = (0..3).all(|axis| bounds.mins[axis] <= bounds.maxs[axis]);
-            let mut sky = false;
+            let bounds = LeafBounds::decode(&bytes[index * LeafBounds::SIZE..][..LeafBounds::SIZE]);
             let first_mark = leaf.first_mark_surface as usize;
-            for mark in first_mark..first_mark + leaf.mark_surface_count as usize {
+            let mark_count = leaf.mark_surface_count as usize;
+            let sky_marks = bounds.sky_marks as usize;
+            let mut ok = bounds.reserved == 0
+                && sky_marks <= mark_count
+                && (0..3).all(|axis| bounds.mins[axis] <= bounds.maxs[axis]);
+            let mut bounded_faces = 0usize;
+            for mark in first_mark..first_mark + mark_count {
                 // SAFETY: every mark names a face (checked above) and every
                 // face's vertex range lies inside the vertex lump, whose base
                 // `validate_references` required to be four-byte aligned.
                 let face = unsafe { self.face_at_unchecked(marks[mark] as usize) };
                 let flags = materials.get(face.texture as usize).map_or(0, |m| m.flags);
-                sky |=
+                let sky =
                     flags & (material_flags::SKY_APERTURE | material_flags::DIRECTIONAL_SKY) != 0;
+                ok &= sky == (mark - first_mark < sky_marks);
+                if sky {
+                    continue;
+                }
+                bounded_faces += 1;
                 let first = face.first_vertex as usize;
                 for vertex in first..first + face.vertex_count as usize {
                     let position = unsafe {
@@ -812,7 +814,7 @@ impl PxbspResidentMap {
                     ok &= bounds.contains(position);
                 }
             }
-            if (sky || leaf.mark_surface_count == 0) && bounds != LeafBounds::FULL {
+            if bounded_faces == 0 && !bounds.is_unbounded_box() {
                 ok = false;
             }
             if !ok {
@@ -1667,7 +1669,7 @@ pub(crate) mod tests {
     /// marks its one face, spanning (1,0,0), (1,1,0), (1,0,1).
     fn v7_lumps(leaf_one: LeafBounds) -> [Vec<u8>; PXBSP_LUMP_COUNT] {
         let mut lumps = valid_lumps();
-        let mut bounds = LeafBounds::FULL.encode().to_vec();
+        let mut bounds = LeafBounds::UNBOUNDED.encode().to_vec();
         bounds.extend_from_slice(&leaf_one.encode());
         lumps[PxbspLumpKind::LEAF_BOUNDS as usize] = bounds;
         lumps
@@ -1680,12 +1682,14 @@ pub(crate) mod tests {
     const FIXTURE_LEAF_BOUNDS: LeafBounds = LeafBounds {
         mins: [1, 0, 0],
         maxs: [1, 1, 1],
+        sky_marks: 0,
+        reserved: 0,
     };
 
     #[test]
     fn v7_maps_expose_their_leaf_bounds_owned_and_static() {
         let bytes = v7_file(&v7_lumps(FIXTURE_LEAF_BOUNDS));
-        let expected = [LeafBounds::FULL, FIXTURE_LEAF_BOUNDS];
+        let expected = [LeafBounds::UNBOUNDED, FIXTURE_LEAF_BOUNDS];
         let owned = load(&bytes).expect("v7 owned map");
         assert_eq!(owned.leaf_bounds(), Some(&expected[..]));
         let in_place =
@@ -1695,10 +1699,11 @@ pub(crate) mod tests {
         load(&v7_file(&v7_lumps(LeafBounds {
             mins: [0, -4, -4],
             maxs: [9, 9, 9],
+            ..FIXTURE_LEAF_BOUNDS
         })))
         .expect("loose bounds");
         // And so is the full range.
-        load(&v7_file(&v7_lumps(LeafBounds::FULL))).expect("full bounds");
+        load(&v7_file(&v7_lumps(LeafBounds::UNBOUNDED))).expect("full bounds");
     }
 
     #[test]
@@ -1728,8 +1733,8 @@ pub(crate) mod tests {
         fails(
             "a marked vertex outside the box",
             &v7_lumps(LeafBounds {
-                mins: [1, 0, 0],
                 maxs: [1, 1, 0],
+                ..FIXTURE_LEAF_BOUNDS
             }),
             1,
         );
@@ -1738,25 +1743,59 @@ pub(crate) mod tests {
             &v7_lumps(LeafBounds {
                 mins: [1, 1, 1],
                 maxs: [1, 0, 0],
+                ..FIXTURE_LEAF_BOUNDS
             }),
             1,
         );
-        // A leaf with nothing marked must carry the full range.
+        fails(
+            "a reserved word that is not zero",
+            &v7_lumps(LeafBounds {
+                reserved: 1,
+                ..FIXTURE_LEAF_BOUNDS
+            }),
+            1,
+        );
+        fails(
+            "more sky marks than the leaf has",
+            &v7_lumps(LeafBounds {
+                sky_marks: 2,
+                ..FIXTURE_LEAF_BOUNDS
+            }),
+            1,
+        );
+        fails(
+            "a sky count that names a face which is not a sky aperture",
+            &v7_lumps(LeafBounds {
+                sky_marks: 1,
+                ..FIXTURE_LEAF_BOUNDS
+            }),
+            1,
+        );
+        // A leaf with nothing to bound must carry the full-range box.
         let mut lumps = v7_lumps(FIXTURE_LEAF_BOUNDS);
         lumps[PxbspLumpKind::LEAF_BOUNDS as usize][..LeafBounds::SIZE]
             .copy_from_slice(&FIXTURE_LEAF_BOUNDS.encode());
         fails("an empty leaf with a tight box", &lumps, 0);
-        // So must a leaf that marks a sky aperture.
+        // A sky aperture is counted, not bounded: with it the leaf has no
+        // other face, so the box must be the full range and the sky count 1.
+        let mut sky = v7_lumps(LeafBounds {
+            sky_marks: 1,
+            ..LeafBounds::UNBOUNDED
+        });
+        sky[PxbspLumpKind::Materials as usize][2..4]
+            .copy_from_slice(&crate::pxbsp::material_flags::SKY_APERTURE.to_le_bytes());
+        load(&v7_file(&sky)).expect("a sky-only leaf");
         let mut lumps = v7_lumps(FIXTURE_LEAF_BOUNDS);
         lumps[PxbspLumpKind::Materials as usize][2..4]
             .copy_from_slice(&crate::pxbsp::material_flags::SKY_APERTURE.to_le_bytes());
-        fails("a sky leaf with a tight box", &lumps, 1);
+        fails("a sky face not counted as a sky mark", &lumps, 1);
         // One record per leaf, no more and no fewer.
         let mut lumps = valid_lumps();
         lumps[PxbspLumpKind::LEAF_BOUNDS as usize] = Vec::new();
         fails("missing bounds", &lumps, 2);
         let mut lumps = v7_lumps(FIXTURE_LEAF_BOUNDS);
-        lumps[PxbspLumpKind::LEAF_BOUNDS as usize].extend_from_slice(&LeafBounds::FULL.encode());
+        lumps[PxbspLumpKind::LEAF_BOUNDS as usize]
+            .extend_from_slice(&LeafBounds::UNBOUNDED.encode());
         fails("extra bounds", &lumps, 2);
     }
 

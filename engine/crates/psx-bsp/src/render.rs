@@ -2744,20 +2744,22 @@ impl Renderer {
                     if !self.pxbsp_leaf_visible(leaf_index) {
                         continue;
                     }
+                    let leaf = map.leaves().get(leaf_index).expect("validated node leaf");
+                    let start = leaf.first_mark_surface as usize;
+                    let mut end = start + leaf.mark_surface_count as usize;
                     let mut leaf_clip = face_mask;
                     if let Some(bounds) = test_leaves {
                         // `validate_references` checked one record per leaf.
-                        match frustum.cull_leaf_bounds(
-                            unsafe { bounds.get_unchecked(leaf_index) },
-                            face_mask,
-                        ) {
+                        let bounds = unsafe { bounds.get_unchecked(leaf_index) };
+                        match frustum.cull_leaf_bounds(bounds, face_mask) {
                             Some(residual) => leaf_clip = residual,
-                            None => continue,
+                            // Wholly outside a plane: only the leaf's sky
+                            // apertures, ordered first, are still marked,
+                            // because the draw loop counts those as visible
+                            // whether or not they are on screen.
+                            None => end = start + bounds.sky_marks as usize,
                         }
                     }
-                    let leaf = map.leaves().get(leaf_index).expect("validated node leaf");
-                    let start = leaf.first_mark_surface as usize;
-                    let end = start + leaf.mark_surface_count as usize;
                     for mark_index in start..end {
                         // `validate_references` checked every mark index
                         // against the face count at load.
@@ -4635,7 +4637,11 @@ mod frustum_tests {
                         }
                     }
                 }
-                let bounds = LeafBounds { mins, maxs };
+                let bounds = LeafBounds {
+                    mins,
+                    maxs,
+                    ..LeafBounds::UNBOUNDED
+                };
                 for mask in 0..32u8 {
                     let scan = |face: usize, clip_mask: u8| {
                         FrustumPlanes::cull_polygon(
