@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Walls and floors close to the third-person camera are now drawn where they
+  really are. The GTE's perspective divide pulled anything nearer than about
+  50 units toward the screen centre, which warped near walls and let sky show
+  through gaps at the screen edge. Faces that close are now projected exactly,
+  and polygons the GPU would drop for their size are clipped instead of lost.
+
 - The game runtime reads the disc through the shared psx-cdstream transport: an
   interrupt-driven, seek-first PIO reader that replaces the polled DMA path.
   CD-DA music now shares the drive through an audio lease, so a data read pauses
