@@ -25,8 +25,10 @@ members = [
     "tools/mkisopsx",
     "tools/psoxide-hazard",
     "tools/psoxide-link",
+    "tools/psoxide-perf",
     "tools/psoxide-pgo",
     "tools/psoxide-dev",
+    "tools/psoxide-hwtest",
     "tools/psoxide-vmcook",
 ]
 # The device-side workspaces live inside this directory tree; cargo
