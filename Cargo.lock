@@ -3343,6 +3343,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "psx-anim-tracks"
+version = "0.1.0"
+dependencies = [
+ "psx-asset",
+ "psxed-format",
+]
+
+[[package]]
 name = "psx-asset"
 version = "0.1.0"
 dependencies = [
@@ -3363,6 +3371,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "psx-cdstream"
+version = "0.1.0"
+dependencies = [
+ "psx-hw",
+ "psx-io",
+ "psx-rt",
+]
+
+[[package]]
 name = "psx-disasm"
 version = "0.1.0"
 
@@ -3371,6 +3388,7 @@ name = "psx-engine"
 version = "0.1.0"
 dependencies = [
  "psx-asset",
+ "psx-cdstream",
  "psx-font",
  "psx-gpu",
  "psx-gte",
@@ -3617,6 +3635,7 @@ version = "0.1.0"
 dependencies = [
  "flate2",
  "image",
+ "psx-anim-tracks",
  "psx-asset",
  "psx-bsp",
  "psx-engine",
