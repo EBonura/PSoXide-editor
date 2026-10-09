@@ -366,6 +366,57 @@ const fn screen_word(vertex: &AffineVertex) -> u32 {
     (vertex.screen[0] as u16 as u32) | ((vertex.screen[1] as u16 as u32) << 16)
 }
 
+/// Margin for the screen positions of split midpoints, which are rounded to
+/// whole world units before projection and so may sit a few pixels off the
+/// segment between their ends.
+const OVERSIZE_MARGIN: i32 = 32;
+
+/// Whether the projected batch is wide enough that some polygon might exceed
+/// the GPU's size limit. Every polygon corner is a batch vertex or a midpoint
+/// between two of them, so a batch whose vertices fit well inside the limit
+/// cannot hold an oversize polygon and the packet walk can be skipped.
+///
+/// # Safety
+/// `vertices` must hold `count` projected records.
+#[inline(never)]
+unsafe fn batch_may_be_oversize(vertices: *const AffineVertex, count: usize) -> bool {
+    let (mut x0, mut x1, mut y0, mut y1) = (i16::MAX, i16::MIN, i16::MAX, i16::MIN);
+    for index in 0..count {
+        // SAFETY: `index < count`.
+        let screen = unsafe { (*vertices.add(index)).screen };
+        x0 = x0.min(screen[0]);
+        x1 = x1.max(screen[0]);
+        y0 = y0.min(screen[1]);
+        y1 = y1.max(screen[1]);
+    }
+    i32::from(x1) - i32::from(x0) > 1023 - OVERSIZE_MARGIN
+        || i32::from(y1) - i32::from(y0) > 511 - OVERSIZE_MARGIN
+}
+
+/// Counts the polygons of a written batch the GPU would refuse for their size,
+/// walking the packets only when the projected batch is wide enough to hold
+/// one.
+///
+/// # Safety
+/// `vertices` holds `count` projected records and `start..end` are the packets
+/// written for them.
+#[inline(never)]
+unsafe fn count_oversize(
+    vertices: *const AffineVertex,
+    count: usize,
+    start: *const u32,
+    end: *const u32,
+) -> u32 {
+    // SAFETY: forwarded.
+    unsafe {
+        if batch_may_be_oversize(vertices, count) {
+            count_oversize_packets(start, end)
+        } else {
+            0
+        }
+    }
+}
+
 /// Counts the written polygons the GPU would refuse for their size: any with
 /// vertices more than 1023 pixels apart horizontally or 511 vertically leaves
 /// a hole in the view. Read back from the packets, after the writer, because
@@ -374,7 +425,7 @@ const fn screen_word(vertex: &AffineVertex) -> u32 {
 /// # Safety
 /// `start..end` must be the packets this writer wrote.
 #[inline(never)]
-unsafe fn count_oversize(start: *const u32, end: *const u32) -> u32 {
+unsafe fn count_oversize_packets(start: *const u32, end: *const u32) -> u32 {
     let mut oversize = 0;
     let mut packet = start;
     while packet < end {
@@ -860,8 +911,9 @@ unsafe fn submit_surface_batch_impl<const COUNT: bool>(
         unsafe { splitter.surface(first, count) };
     }
     if COUNT {
-        // SAFETY: `output..sink.next` is what the splitters just wrote.
-        sink.dropped += unsafe { count_oversize(output, sink.next) };
+        // SAFETY: the batch is projected and `output..sink.next` is what the
+        // splitters just wrote.
+        sink.dropped += unsafe { count_oversize(vertices, vertex_count, output, sink.next) };
     }
     (
         SurfaceSubmit {
