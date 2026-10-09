@@ -367,7 +367,7 @@ const fn screen_word(vertex: &AffineVertex) -> u32 {
 }
 
 /// Packet writer for one batch.
-struct PacketSink {
+struct PacketSink<const COUNT: bool> {
     next: *mut u32,
     packets: u32,
     triangles: u32,
@@ -377,7 +377,7 @@ struct PacketSink {
     dropped: u32,
 }
 
-impl PacketSink {
+impl<const COUNT: bool> PacketSink<COUNT> {
     /// True when every point lies beyond the same screen edge.
     #[inline(always)]
     fn off_screen(&self, points: &[&AffineVertex]) -> bool {
@@ -408,6 +408,24 @@ impl PacketSink {
         if self.off_screen(corners) {
             return;
         }
+        if COUNT {
+            // The GPU draws no polygon whose vertices lie more than 1023
+            // pixels apart horizontally or 511 vertically, so such a polygon
+            // is a hole in the view. It is still written, as it always was.
+            let mut min = [i16::MAX; 2];
+            let mut max = [i16::MIN; 2];
+            for corner in corners {
+                for axis in 0..2 {
+                    min[axis] = min[axis].min(corner.screen[axis]);
+                    max[axis] = max[axis].max(corner.screen[axis]);
+                }
+            }
+            if i32::from(max[0]) - i32::from(min[0]) > 1023
+                || i32::from(max[1]) - i32::from(min[1]) > 511
+            {
+                self.dropped += 1;
+            }
+        }
         let quad = corners.len() == 4;
         let otz = if quad {
             scene::average_cached_z4([
@@ -424,7 +442,9 @@ impl PacketSink {
             ])
         };
         if !self.usable_slot(otz) {
-            self.dropped += 1;
+            if COUNT {
+                self.dropped += 1;
+            }
             return;
         }
         let windowed = surface.compact == 0;
@@ -491,16 +511,16 @@ const EDGE_BC: u8 = 2;
 const EDGE_CA: u8 = 4;
 
 /// Splits one surface's fan triangles into pieces and writes their packets.
-struct Splitter<'a> {
+struct Splitter<'a, const COUNT: bool> {
     vertices: *mut AffineVertex,
     /// Index of the first scratch slot after the batch.
     scratch: usize,
-    sink: &'a mut PacketSink,
+    sink: &'a mut PacketSink<COUNT>,
     surface: AffineSurface,
     bands: [u32; 2],
 }
 
-impl Splitter<'_> {
+impl<const COUNT: bool> Splitter<'_, COUNT> {
     #[inline(always)]
     fn vertex(&self, index: usize) -> &AffineVertex {
         // SAFETY: every index handed out is a batch vertex or a scratch slot.
@@ -726,7 +746,7 @@ pub unsafe fn submit_surface_batch(
 ) -> SurfaceSubmit {
     // SAFETY: the contract is forwarded unchanged.
     unsafe {
-        submit_surface_batch_counted(
+        submit_surface_batch_impl::<false>(
             vertices,
             vertex_count,
             surfaces,
@@ -738,10 +758,11 @@ pub unsafe fn submit_surface_batch(
     .0
 }
 
-/// [`submit_surface_batch`], also returning how many polygons the writer
-/// dropped because their ordering-table slot was out of range. A dropped
-/// polygon leaves a hole in the view, so a caller that skips a sky pass
-/// behind the surface must keep it when the count is non-zero.
+/// [`submit_surface_batch`], also returning how many polygons would leave a
+/// hole in the view: those dropped for an out-of-range ordering-table slot and
+/// those too large for the GPU to draw. A caller that skips a sky pass behind
+/// the surface must keep it when the count is non-zero. The plain entry point
+/// compiles the counting out.
 ///
 /// # Safety
 /// As [`submit_surface_batch`].
@@ -754,7 +775,29 @@ pub unsafe fn submit_surface_batch_counted(
     output: *mut u32,
     profile: SurfaceProfile,
 ) -> (SurfaceSubmit, u32) {
-    let mut sink = PacketSink {
+    // SAFETY: the contract is forwarded unchanged.
+    unsafe {
+        submit_surface_batch_impl::<true>(
+            vertices,
+            vertex_count,
+            surfaces,
+            surface_count,
+            output,
+            profile,
+        )
+    }
+}
+
+#[inline(always)]
+unsafe fn submit_surface_batch_impl<const COUNT: bool>(
+    vertices: *mut AffineVertex,
+    vertex_count: usize,
+    surfaces: *const AffineSurface,
+    surface_count: usize,
+    output: *mut u32,
+    profile: SurfaceProfile,
+) -> (SurfaceSubmit, u32) {
+    let mut sink = PacketSink::<COUNT> {
         next: output,
         packets: 0,
         triangles: 0,
