@@ -551,7 +551,7 @@ hardware-tests:
 	cargo run -q --release --locked -p psoxide-hazard --bin hazard-scan -- $(EXAMPLE_OUT)/hardware-tests.exe
 
 # --- hardware-test pipeline ----------------------------------------------
-# v2.0 is ONE linear run. The disc boots into a four-row menu; row 0 is
+# v2.0 and later are ONE linear run. The disc boots into a five-row menu; row 0 is
 # "RUN HARDWARE TEST". `make hwtest-run` boots it headless, presses CROSS once
 # on that row, lets the run finish and mirrors every PX8 page to the TTY.
 HWTEST_LOG   := build/hwtest-run.log
