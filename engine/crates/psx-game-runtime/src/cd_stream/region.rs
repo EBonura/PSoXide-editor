@@ -150,7 +150,11 @@ impl RegionRead {
                 self.state = State::Failed(STATUS_UNSUPPORTED);
             } else {
                 // A restart resumes at the first sector not yet handed out.
-                cd.begin_run(transport, self.lba + self.landed, self.sectors - self.landed);
+                cd.begin_run(
+                    transport,
+                    self.lba + self.landed,
+                    self.sectors - self.landed,
+                );
                 self.state = State::Reading;
             }
         }

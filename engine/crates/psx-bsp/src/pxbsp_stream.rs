@@ -1477,10 +1477,10 @@ impl PxbspResidentMap {
                         bad = Some("stub leaf is not contents -7 carrying its region");
                     }
                     record[0] = crate::collision::CONTENTS_SOLID as i8 as u8;
-                } else if leaf == 0 || leaf <= rpad {
-                    if record[0] as i8 != crate::collision::CONTENTS_SOLID as i8 {
-                        bad = Some("sentinel or padding leaf is not solid");
-                    }
+                } else if (leaf == 0 || leaf <= rpad)
+                    && record[0] as i8 != crate::collision::CONTENTS_SOLID as i8
+                {
+                    bad = Some("sentinel or padding leaf is not solid");
                 }
             }
             if let Some(what) = bad {
@@ -2057,8 +2057,8 @@ impl PxbspResidentMap {
             stack.push(node.children[0]);
             stack.push(node.children[1]);
         }
-        for r in 0..regions {
-            if state.slot_of_region[r] == NO_SLOT && !stub_seen[r] {
+        for (r, seen) in stub_seen.iter().enumerate().take(regions) {
+            if state.slot_of_region[r] == NO_SLOT && !seen {
                 return Err(err("absent region has no reachable stub", r));
             }
         }
@@ -2220,10 +2220,7 @@ mod tests {
         }
         // Row: every leaf of every listed region.
         let row_bytes = list.len();
-        let mut row = vec![0u8; row_bytes];
-        for rank in 0..list.len() {
-            row[rank] = 0b11;
-        }
+        let row = vec![0b11u8; row_bytes];
         let compressed = compress(&row);
         build.vis = compressed;
         build.leaves.extend(leaf(CONTENTS_EMPTY as i8, 0, 0, 1, 0));

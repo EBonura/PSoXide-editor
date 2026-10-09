@@ -86,10 +86,7 @@ fn publish(bsp: &BspRuntime) {
         slots,
     ];
     let pumps = stats.region_pumps.map(u32::from);
-    let words = words
-        .into_iter()
-        .chain(pumps)
-        .chain([stats.read_restarts]);
+    let words = words.into_iter().chain(pumps).chain([stats.read_restarts]);
     for (i, word) in words.enumerate() {
         // SAFETY: single-threaded guest; the symbol is written only here.
         unsafe { core::ptr::write_volatile(core::ptr::addr_of_mut!(PSX_WORLD_STREAM[i]), word) };
