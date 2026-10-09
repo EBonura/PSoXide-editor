@@ -46,6 +46,9 @@ const PXBSP_NODE_STACK_INDEX: u32 = 0xffff;
 const PXBSP_NODE_STACK_MASK_SHIFT: u32 = 16;
 /// All five clip planes still need testing.
 const PXBSP_CLIP_ALL_PLANES: u8 = 0x1f;
+/// Fewest marks a leaf needs for its bounds to be tested (see the selection
+/// walk).
+const PXBSP_LEAF_CULL_MIN_MARKS: usize = 6;
 /// Face clip mask of a face the selection proved wholly outside a clip plane
 /// from its leaf's bounds. The face stays in the frame chain, so alternate
 /// frames that reuse the chain see exactly the faces they always did, but the
@@ -1010,21 +1013,72 @@ impl FrustumPlanes {
     /// nothing left to test for them (an empty residual is a leaf wholly
     /// inside the frustum, near plane included, whose faces need neither a
     /// scan nor a near clip).
-    #[inline(always)]
+    ///
+    /// Two passes, unlike [`Self::cull_aabb`]: every live plane's outer corner
+    /// first, so a leaf that is rejected (most leaves tested are) never pays
+    /// for the inner corners of the planes ahead of the one that rejects it.
+    #[inline(never)]
     fn cull_leaf_bounds(&self, bounds: &LeafBounds, mask: u8) -> Option<u8> {
-        self.cull_aabb(
-            Vec3I16 {
-                x: bounds.mins[0],
-                y: bounds.mins[1],
-                z: bounds.mins[2],
-            },
-            Vec3I16 {
-                x: bounds.maxs[0],
-                y: bounds.maxs[1],
-                z: bounds.maxs[2],
-            },
-            mask,
-        )
+        let lo = bounds.mins;
+        let hi = bounds.maxs;
+        let bits = self.outer_bits;
+        let side_error = self.side_error;
+        macro_rules! corner {
+            ($index:literal, $farthest:expr) => {{
+                let pick = |axis: usize, low: i16, high: i16| {
+                    let negative = bits & (1 << (3 * $index + axis)) != 0;
+                    if negative == $farthest {
+                        low
+                    } else {
+                        high
+                    }
+                };
+                [
+                    pick(0, lo[0], hi[0]),
+                    pick(1, lo[1], hi[1]),
+                    pick(2, lo[2], hi[2]),
+                ]
+            }};
+        }
+        macro_rules! error {
+            ($index:literal) => {
+                if $index == PXBSP_CLIP_NEAR_PLANE {
+                    0
+                } else {
+                    side_error
+                }
+            };
+        }
+        macro_rules! reject {
+            ($index:literal) => {
+                if mask & (1 << $index) != 0
+                    && self.distance_at($index, corner!($index, true)) < -error!($index)
+                {
+                    return None;
+                }
+            };
+        }
+        reject!(0);
+        reject!(1);
+        reject!(2);
+        reject!(3);
+        reject!(4);
+        let mut residual = mask;
+        macro_rules! clear {
+            ($index:literal) => {
+                if mask & (1 << $index) != 0
+                    && self.distance_at($index, corner!($index, false)) >= error!($index)
+                {
+                    residual &= !(1 << $index);
+                }
+            };
+        }
+        clear!(0);
+        clear!(1);
+        clear!(2);
+        clear!(3);
+        clear!(4);
+        Some(residual)
     }
 
     /// [`Self::aabb_outside`] for a box in `i32` world units, computed on
@@ -2768,7 +2822,11 @@ impl Renderer {
                     // those as visible whether or not they are on screen.
                     let mut reject_from = end;
                     let mut leaf_clip = face_mask;
-                    if let Some(bounds) = test_leaves {
+                    // Testing a leaf costs a few hundred cycles; a leaf with
+                    // only a face or two does not repay it.
+                    if let Some(bounds) =
+                        test_leaves.filter(|_| end - start >= PXBSP_LEAF_CULL_MIN_MARKS)
+                    {
                         // `validate_references` checked one record per leaf.
                         let bounds = unsafe { bounds.get_unchecked(leaf_index) };
                         match frustum.cull_leaf_bounds(bounds, face_mask) {
