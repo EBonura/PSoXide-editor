@@ -625,6 +625,7 @@ V2_RECORDS = {
     0x404: ("post_init_reverb", ("volume_left", "volume_right", "work_base")),
     0x41A: ("silence_final", ("flags_0x7f_is_silent", "cd_capture_peak", "voices_with_envelope")),
     0x41B: ("run_info", ("skipped_risky", "steps", "records_taken")),
+    0x41C: ("handoff_baseline", ("irq_mask_baseline", "dpcr_baseline_low_half", "dpcr_baseline_high_half")),
     0x420: ("mdec_setup", ("worked_mask", "driver_notes", "failing_steps")),
     0x421: ("mdec_probe", ("words_of_128", "all_equal", "first_word_low")),
     0x422: ("mdec_probe_word", ("first_word_high", "decode_to_request_clocks", "busy_run_words")),
@@ -821,6 +822,49 @@ for _port in range(2):
         f"rumble_poll_cost_p{_port + 1}",
         ("poll_cycles_idle", "poll_cycles_motors_on", "polls_each"),
     )
+for _port in range(2):
+    _tag = f"p{_port + 1}"
+    V2_RECORDS[0x769 + 2 * _port] = (
+        f"rumble_enter_a_{_tag}",
+        ("last_attempt_replies_1_2", "replies_3_4", "replies_5_6"),
+    )
+    V2_RECORDS[0x76A + 2 * _port] = (
+        f"rumble_enter_b_{_tag}",
+        ("last_attempt_replies_7_8", "attempts_made", "first_attempt_replies_1_2"),
+    )
+    V2_RECORDS[0x76D + _port] = (
+        f"pad_identity_{_tag}",
+        ("reply_id_and_5a", "reply_buttons", "reply_sticks_01"),
+    )
+    V2_RECORDS[0x76F + _port] = (
+        f"pad_model_{_tag}",
+        ("query_replies_3_4", "query_replies_5_6", "query_replies_7_8"),
+    )
+for _group, _tag in enumerate(("p1_idle", "p1_loaded", "p2_idle", "p2_loaded")):
+    V2_RECORDS[0x6D0 + 3 * _group] = (
+        f"sio_mix_fault_{_tag}",
+        ("round_and_kind", "fault_and_exchange", "exchanges_and_acks"),
+    )
+    V2_RECORDS[0x6D1 + 3 * _group] = (
+        f"sio_mix_fault_prefix_a_{_tag}",
+        ("response_bytes_0_1", "response_bytes_2_3", "response_bytes_4_5"),
+    )
+    V2_RECORDS[0x6D2 + 3 * _group] = (
+        f"sio_mix_fault_prefix_b_{_tag}",
+        ("response_bytes_6_7", "response_bytes_8_9", "failures_of_any_kind"),
+    )
+V2_RECORDS[0x7A0] = (
+    "dma_rekick_first",
+    ("bcr_after_first_high_half", "bcr_after_first_low_half", "flags"),
+)
+V2_RECORDS[0x7A1] = (
+    "dma_rekick_second",
+    ("bcr_after_second_high_half", "bcr_after_second_low_half", "flags"),
+)
+V2_RECORDS[0x7A2] = (
+    "dma_rekick_progress",
+    ("blocks_past_source", "bound_iterations_used", "madr_low_half_at_the_bound"),
+)
 V2_RECORDS[0x766] = (
     "rumble_operator",
     ("answers_two_bits_each", "stimuli_asked", "port_tested_and_api_enabled_in_bit_8"),
