@@ -1,0 +1,127 @@
+{
+  "report_version": 1,
+  "project": "Graybox Valley",
+  "verdict": {
+    "pass": true,
+    "failures": []
+  },
+  "summary": {
+    "regions": 1,
+    "single_region": true,
+    "payload_bytes": 34083,
+    "payload_sectors": 17,
+    "region_bytes_min": 34083,
+    "region_bytes_median": 34083,
+    "region_bytes_max": 34083,
+    "faces": 418,
+    "inline_texture_bytes": 0,
+    "pvs_bytes": 585,
+    "regions_without_faces": 0,
+    "input_faces": 418,
+    "refine_passes": 0,
+    "world_min": [-1056.0, -32.0, -800.0],
+    "world_max": [1056.0, 784.0, 2592.0],
+    "aperture_count": 0,
+    "surfaces_culled_unreachable": 352,
+    "spawns": 3,
+    "hooks": 0,
+    "archetypes": 2,
+    "start_region": 0,
+    "unreachable_regions": [],
+    "dead_regions": 0
+  },
+  "visibility": {
+    "method": "sampled line of sight over brush solids (estimate)",
+    "closure_max": 1,
+    "closure_median": 1,
+    "max_row_bytes": 32,
+    "row_limit_bytes": 1024,
+    "leaf_cap": 256,
+    "rays_cast": 0,
+    "max_need_archetypes": 2
+  },
+  "drive_model": {
+    "run_speed_units_per_s": 375.00,
+    "v_max_units_per_s": 469.0,
+    "region_service_ms": 240.8,
+    "region_service_pessimistic_ms": 723.8,
+    "b_eff_bytes_per_s": 136057,
+    "b_eff_batched_bytes_per_s": 237295,
+    "utilisation_pct": 50,
+    "h_lead_units": 225.9,
+    "h_lead_pessimistic_units": 679.0
+  },
+  "rho": {
+    "limit_bytes_per_unit": 145.05,
+    "limit_batched_bytes_per_unit": 252.98,
+    "worst_bytes_per_unit": 0.00,
+    "edges_checked": 0,
+    "windows_over_limit": 0,
+    "windows_total": 0,
+    "gate_limit_bytes_per_unit": 145.05,
+    "gate_uses_batched": false,
+    "pass": true,
+    "worst_edge": false,
+    "worst_windows": []
+  },
+  "overrides": [],
+  "pool": {
+    "pool_bytes": 213124,
+    "home_pin_bytes": 34083,
+    "peak": {
+      "horizon_units": 225.9,
+      "bytes": 34083,
+      "region": 0,
+      "position": [-608.0, 41.0, 1888.0],
+      "need_regions": 1,
+      "resident_regions": 1
+    },
+    "peak_pessimistic": {
+      "horizon_units": 679.0,
+      "bytes": 34083,
+      "region": 0,
+      "position": [-608.0, 41.0, 1888.0],
+      "need_regions": 1,
+      "resident_regions": 1
+    }
+  },
+  "layout": {
+    "total_sectors": 17,
+    "cost": 0,
+    "baseline_cost": 0,
+    "edges_le_16": 0,
+    "edges_le_128": 0,
+    "edges_le_512": 0,
+    "edges_gt_512": 0,
+    "order": [0]
+  },
+  "regions": [
+    {
+      "id": 0,
+      "min": [-1056.0, -32.0, -800.0],
+      "max": [1056.0, 784.0, 2592.0],
+      "bytes": 34083,
+      "sectors": 17,
+      "faces": 418,
+      "vertices": 1663,
+      "planes": 215,
+      "marks": 707,
+      "leaves": 66,
+      "nodes": 92,
+      "clip_nodes": 447,
+      "pvs_bytes": 585,
+      "inline_texture_bytes": 0,
+      "spawns": 3,
+      "fill_pct": 52,
+      "binding": "bytes",
+      "visible": 1,
+      "visible_ids": [0],
+      "row_bytes": 32,
+      "need_regions": 1,
+      "need_bytes": 40407,
+      "neighbours": [],
+      "start_sector": 0,
+      "unsplittable": false
+    }
+  ]
+}

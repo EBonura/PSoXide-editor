@@ -1,0 +1,19 @@
+Stream partition report v1: Graybox Valley
+Verdict: PASS (0 failure(s))
+World: 2112 x 816 x 3392 units, 418 input faces (352 surfaces culled as unreachable), 3 spawns, 0 hooks, 0 aperture(s)
+Regions: 1 (single region, no cuts)  payload 34,083 B (17 sectors)  per region min/median/max 34,083 / 34,083 / 34,083 B  refine passes 0
+Payload split: 0 B small textures duplicated inline, 585 B dense PVS rows (upper bound); 0 region(s) hold no faces (buried or open air)
+Binding-cap fill: 52% to 52% (target at least 70%; hard cap 65,536 B, slot caps f/v/n/l/m/c 1024/4096/512/256/2048/2048)
+Visibility [estimate: sampled line of sight, 0 rays]: closure max 1 median 1, widest PVS row 32 B of 1024 B (rank rows, leaf cap 256)
+Drive model: v_run 375 u/s [D], v_max 469 u/s (kappa 125% [E]); region service 241 ms (724 ms pessimistic) [M]; B_eff 136057 B/s, batched k=4 237295 B/s; lead horizon 226 u (679 u pessimistic), q=2 [E]
+rho verdict: PASS  worst 0.0 B/unit against limit 145.1 B/unit (unbatched gate, as in the design; U 50% [E]; unbatched 145.1, batched 253.0)  over 0 directed edge(s)
+  0 of 0 crossing windows exceed the limit
+Pool verdict: PASS  peak 34,083 B of 213,124 B pool [E] (inline textures excluded: VRAM) in region 0 (ball needs 1 regions, with lead 1; home pin 34,083 B)
+  pessimistic lead (679 u): peak 34,083 B in region 0
+Layout: 17 sectors; weighted distance 0 (cut-tree order 0); edges by sector gap <=16 0, <=128 0, <=512 0, more 0
+Dead regions (no walkable floor: sky layers, roofs, buried cells): 0
+Archetypes in the largest closure: 2 (pack bytes unmeasured, counted as 0)
+Look at: largest requirement #0 (40,407 B); lowest fill #0 (52%)
+Regions (id: bytes, sectors, faces/leaves/clipnodes, fill, sees, needs B):
+  #0: 34,083 B, 17 sec, 418/66/447, 52% bytes, sees 1, needs 40,407 B
+Notes: cuts are axis-aligned; visibility is estimated, not portal flow; archetype pack bytes and install CPU are unmeasured; collision is costed with the shipping compiler on whole brushes; labels [M] measured, [D] derived, [E] estimate.
