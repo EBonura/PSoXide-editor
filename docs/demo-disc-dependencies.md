@@ -51,7 +51,7 @@ historical inputs; their advancement is a separate runtime update.
 
 ## Source imports and compatibility
 
-The editor and emulator use `tools/bootstrap-components.py` with exact Git
+The editor and emulator use the SDK's Rust `psoxide-components` (`make bootstrap`) with exact Git
 revisions and a per-file content receipt. Generated source is ignored and
 verified before release builds; edits belong in the owning repository.
 `psxed-format` is a neutral SDK package under `crates/psxed-format`.
