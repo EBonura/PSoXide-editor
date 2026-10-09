@@ -48,7 +48,7 @@ and receipt offline. Commit component changes in their owning repositories,
 then update this lock. Local source exports use exact locked commits:
 
 ```sh
-python3 tools/bootstrap-components.py --source sdk=/path/to/PSoXide --source emulator=/path/to/PSoXide-emulator
+make bootstrap COMPONENTS_ARGS="--source sdk=/path/to/PSoXide --source emulator=/path/to/PSoXide-emulator"
 ```
 
 The root host workspace contains the editor/cookers and integrated frontend;

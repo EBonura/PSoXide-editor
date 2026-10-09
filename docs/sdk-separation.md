@@ -36,15 +36,14 @@ workspace and `engine/` device workspace remain separate. The dependency-free
 name and binary layouts are unchanged.
 
 `components.lock.json` selects full SDK and emulator Git revisions.
-`tools/bootstrap-components.py` exports only the declared paths and writes
+`psoxide-components` (the SDK's `tools/psoxide-link`, built by `make bootstrap`
+from the locked SDK revision) exports only the declared paths and writes
 an ignored `.components-receipt.json` with content hashes. It refuses to
 replace edited imported files. `make verify-components` checks the lock and
 receipt offline. Local exports still use the exact locked commit:
 
 ```sh
-python3 tools/bootstrap-components.py \
-  --source sdk=/path/to/PSoXide \
-  --source emulator=/path/to/PSoXide-emulator
+make bootstrap COMPONENTS_ARGS="--source sdk=/path/to/PSoXide --source emulator=/path/to/PSoXide-emulator"
 ```
 
 Develop shared code in its owning repository, commit it there, then update
