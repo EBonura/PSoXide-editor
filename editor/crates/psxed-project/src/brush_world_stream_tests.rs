@@ -981,6 +981,7 @@ fn under_budget_projects_cook_byte_identical_to_the_whole_map_path() {
             mode: BrushWorldCookMode::Draft,
             ambient: [0; 3],
             texture_asset_base: 0,
+            collision_hulls: Default::default(),
         },
     )
     .expect("reference cook");

@@ -5,13 +5,13 @@
 //!
 //! Usage:
 //!   stream-world-sweep [--config CONFIG.ron] [--first SEED] [--count N]
-//!                      [--reclaim BYTES] [--pools R1,R2,...]
+//!                      [--reclaim BYTES] [--pools P1,P2,...]
 //!
 //! The gates are the default design parameters; only the cut target and the
 //! pool the generator names are applied (the same file the generator writes as
 //! `stream-cook.ron`). `--reclaim` sets the RAM scenario (bytes the arena
 //! hands back); the table at the end re-judges the pool gate at other
-//! reclaim values without re-cooking.
+//! pool sizes (`--pools`, bytes) without re-cooking.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -36,6 +36,12 @@ struct Row {
     ball_regions: usize,
     cook_seconds: f64,
     over_budget: usize,
+    /// The worst rho window: bytes entering, crossings it holds, and the
+    /// largest and median region payload of the cook.
+    window_bytes: u64,
+    window_crossings: usize,
+    max_region_bytes: u32,
+    median_region_bytes: u32,
 }
 
 fn main() -> ExitCode {
@@ -45,7 +51,15 @@ fn main() -> ExitCode {
     let mut first = 1u64;
     let mut count = 50u64;
     let mut reclaim: Option<u32> = None;
-    let mut pools: Vec<u32> = vec![0, 50_000, 100_000, 150_000, 200_000, 300_000, 400_000];
+    let mut pools: Vec<u32> = vec![
+        88_076,
+        150_000,
+        200_000,
+        270_076,
+        300_000,
+        350_000,
+        RAM_BUDGET.world_pool_bytes(),
+    ];
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -85,7 +99,7 @@ fn main() -> ExitCode {
         plan.describe(base.region_target_bytes)
             .replace('\n', "\n# ")
     );
-    println!("seed regions payload_KB max|V| ball  rho/limit(B/u)  peak/avail(KB)  failures");
+    println!("seed regions payload_KB max|V| ball  rho/limit(B/u)  peak/avail(KB)  window(B,x)  region max/med(B)  failures");
 
     let mut rows: Vec<Row> = Vec::new();
     for seed in first..first + count {
@@ -133,6 +147,8 @@ fn main() -> ExitCode {
             kinds
         };
         let peak = gate.pool.as_ref().map_or(0, |p| p.bytes);
+        let mut sizes: Vec<u32> = measured.regions.iter().map(|r| r.counts.bytes()).collect();
+        sizes.sort_unstable();
         let row = Row {
             seed,
             regions: measured.regions.len(),
@@ -148,9 +164,16 @@ fn main() -> ExitCode {
             ball_regions: gate.pool.as_ref().map_or(0, |p| p.lead_regions),
             cook_seconds: started.elapsed().as_secs_f64(),
             over_budget: world.stats.over_budget_modules,
+            window_bytes: gate.worst_windows.first().map_or(0, |w| w.bytes),
+            window_crossings: gate
+                .worst_windows
+                .first()
+                .map_or(0, |w| w.path.len().saturating_sub(1)),
+            max_region_bytes: sizes.last().copied().unwrap_or(0),
+            median_region_bytes: sizes.get(sizes.len() / 2).copied().unwrap_or(0),
         };
         println!(
-            "{:>4} {:>7} {:>10.0} {:>5} {:>4}  {:>6.1}/{:<6.1}  {:>6.0}/{:<6.0}  {}{}",
+            "{:>4} {:>7} {:>10.0} {:>5} {:>4}  {:>6.1}/{:<6.1}  {:>6.0}/{:<6.0}  {:>6},{}  {:>6}/{:<6}  {}{}",
             row.seed,
             row.regions,
             row.payload as f64 / 1024.0,
@@ -160,6 +183,10 @@ fn main() -> ExitCode {
             row.rho_limit,
             row.peak as f64 / 1024.0,
             row.pool_available as f64 / 1024.0,
+            row.window_bytes,
+            row.window_crossings,
+            row.max_region_bytes,
+            row.median_region_bytes,
             if row.failures.is_empty() {
                 "PASS".to_string()
             } else {
@@ -210,17 +237,16 @@ fn main() -> ExitCode {
     );
     let mean_seconds = rows.iter().map(|r| r.cook_seconds).sum::<f64>() / n as f64;
     println!("# mean partition + cook time {mean_seconds:.1}s per seed");
-    println!("\n# pass rate if the arena handed back R bytes (the other gates as measured):");
-    println!("# reclaim_KB pool_KB pass_rate");
-    for reclaim in pools {
-        let pool = u64::from(RAM_BUDGET.world_pool_bytes()) + u64::from(reclaim);
+    println!("\n# pass rate at other pool sizes (the other gates as measured):");
+    println!("# pool_KB pass_rate");
+    for pool in pools {
+        let pool = u64::from(pool);
         let ok = rows
             .iter()
             .filter(|r| r.others_ok && r.peak + r.skeleton <= pool)
             .count();
         println!(
-            "# {:>10.0} {:>7.0} {:>4}/{} = {:.0}%",
-            f64::from(reclaim) / 1024.0,
+            "# {:>7.0} {:>4}/{} = {:.0}%",
             pool as f64 / 1024.0,
             ok,
             n,
