@@ -30,9 +30,13 @@ make run
 
 `make run-release` builds the release editor. Cortex's current project is
 `editor/projects/cortex-ignition-tech-demo-0.4b`; earlier versions and assets
-remain in the source history. PS1 release builds require the MIPS binutils
-used by the instruction-hazard scanner. Existing project cooking, guest build
-and disc targets remain available through `make help`.
+remain in the source history. PS1 release builds need no external MIPS
+binutils: the post-link hazard and stack checks decode instructions with the
+in-tree `psx-disasm` crate. Only a few optional analysis scripts
+(`tools/instr_census.py`, `tools/pc_symbolize.py`, `tools/cortex_pgo.sh`) and
+`psx-disasm`'s differential test call a MIPS `objdump` or `nm`. Existing
+project cooking, guest build and disc targets remain available through
+`make help`.
 
 ## Components and downstream games
 
@@ -44,7 +48,7 @@ and receipt offline. Commit component changes in their owning repositories,
 then update this lock. Local source exports use exact locked commits:
 
 ```sh
-python3 tools/bootstrap-components.py --source sdk=/path/to/PSoXide --source emulator=/path/to/PSoXide-emulator
+make bootstrap COMPONENTS_ARGS="--source sdk=/path/to/PSoXide --source emulator=/path/to/PSoXide-emulator"
 ```
 
 The root host workspace contains the editor/cookers and integrated frontend;

@@ -49,6 +49,9 @@ pub struct RegionStreamStats {
     pub last_error: u32,
     /// Pumps that found the region staged but its textures not yet resident.
     pub texture_waits: u32,
+    /// Times a region's read started its run over after the run failed (the
+    /// read's own restarts, not counted in `retries`).
+    pub read_restarts: u32,
     /// Pumps each region took from its first read to its link, in install
     /// order (the first [`PUMP_HISTORY`] regions).
     pub region_pumps: [u16; PUMP_HISTORY],
@@ -108,6 +111,8 @@ pub struct RegionStreamer {
     retries: u8,
     /// Pumps since the region in flight started.
     pumps: u16,
+    /// Restarts of the region's read already added to the stats.
+    restarts_seen: u16,
     stats: RegionStreamStats,
 }
 
@@ -123,6 +128,7 @@ impl RegionStreamer {
             next: 0,
             retries: 0,
             pumps: 0,
+            restarts_seen: 0,
             stats: RegionStreamStats {
                 installed: 0,
                 sectors: 0,
@@ -130,6 +136,7 @@ impl RegionStreamer {
                 retries: 0,
                 last_error: 0,
                 texture_waits: 0,
+                read_restarts: 0,
                 region_pumps: [0; PUMP_HISTORY],
             },
         }
@@ -249,6 +256,9 @@ impl RegionStreamer {
                     };
                     let progress = read.poll(cd, budget, wait, &mut sink);
                     let landed = (read.landed() - before) as usize;
+                    let restarts = read.restarts();
+                    self.stats.read_restarts += u32::from(restarts - self.restarts_seen);
+                    self.restarts_seen = restarts;
                     self.stats.sectors += landed as u32;
                     budget = budget.saturating_sub(landed.max(1));
                     worked |= landed > 0;
@@ -321,6 +331,7 @@ impl RegionStreamer {
         };
         let job = map.begin_install(region, slot).map_err(stream_error_code)?;
         self.job = Some(job);
+        self.restarts_seen = 0;
         self.read
             .start(pack_lba.saturating_add(entry.sector_start), entry.sectors());
         self.phase = Phase::Reading;

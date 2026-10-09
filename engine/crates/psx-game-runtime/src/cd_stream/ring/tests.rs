@@ -182,6 +182,16 @@ impl CdHw for Drive {
 struct Rig {
     engine: Engine<Drive>,
     irqs_per_call: u32,
+    /// Foreground service calls seen, the rig's stand-in for elapsed time.
+    services: u32,
+    /// Service calls the drive stays silent for before it raises anything.
+    silent_services: u32,
+    /// Service calls per VBlank on the rig's display clock; 0 stops the clock.
+    services_per_vblank: u32,
+    /// VBlanks added to the display clock by hand.
+    vblank_bias: u32,
+    /// State queries that answer `Unknown` before the real answer resumes.
+    forget_states: u32,
 }
 
 impl Rig {
@@ -191,10 +201,18 @@ impl Rig {
         Self {
             engine,
             irqs_per_call,
+            services: 0,
+            silent_services: 0,
+            services_per_vblank: 0,
+            vblank_bias: 0,
+            forget_states: 0,
         }
     }
 
     fn pump(&mut self) {
+        if self.services < self.silent_services {
+            return;
+        }
         for _ in 0..self.irqs_per_call {
             if !self.engine.hw_mut().raise() {
                 break;
@@ -215,6 +233,10 @@ impl Transport for Rig {
 
     fn state(&mut self, ticket: Ticket) -> RequestState {
         self.pump();
+        if self.forget_states > 0 {
+            self.forget_states -= 1;
+            return RequestState::Unknown;
+        }
         self.engine.state(ticket)
     }
 
@@ -228,23 +250,18 @@ impl Transport for Rig {
     }
 
     fn service(&mut self) {
+        self.services = self.services.saturating_add(1);
         self.engine.service();
     }
 
     fn begin_transfer(&mut self) {}
-}
 
-impl psx_engine::cd_drive::LeaseSource for Rig {
-    fn request(&mut self) -> LeaseState {
-        self.engine.request_audio_lease()
-    }
-
-    fn take(&mut self) -> bool {
-        self.engine.lease_state() == LeaseState::Granted
-    }
-
-    fn withdraw(&mut self) {
-        let _ = self.engine.release_audio_lease();
+    fn vblank_count(&mut self) -> u32 {
+        self.vblank_bias
+            + self
+                .services
+                .checked_div(self.services_per_vblank)
+                .unwrap_or(0)
     }
 }
 
@@ -443,8 +460,8 @@ fn a_drive_error_resumes_and_the_data_stays_exact_in_every_ring_shape() {
 #[test]
 fn an_unrecoverable_error_fails_the_run() {
     let mut rig = Rig::new(2);
-    // More errors than a request may resume from.
-    for _ in 0..10 {
+    // More errors than a request may resume from, and than the run restarts.
+    for _ in 0..64 {
         rig.engine.hw_mut().error_at.push(4000);
     }
     let mut stage = TestStage::zeroed();
@@ -462,6 +479,101 @@ fn an_unrecoverable_error_fails_the_run() {
         }
     }
     assert_eq!(failure, Some(STATUS_CD_ERROR));
+}
+
+#[test]
+fn a_run_survives_the_transport_losing_a_window() {
+    let mut rig = Rig::new(2);
+    let mut stage = TestStage::zeroed();
+    let mut run = TestRun::ZERO;
+    run.begin(&mut rig, &mut stage, 5000, 24);
+    // Take a few sectors, then the transport forgets the window in flight.
+    for index in 0..5 {
+        loop {
+            match run.next_sector(&mut rig, &mut stage) {
+                Poll::Sector => break,
+                Poll::Pending => rig.service(),
+                other => panic!("sector {index}: {other:?}"),
+            }
+        }
+        assert!(sector_matches(&run, &stage, 5000 + index));
+    }
+    rig.forget_states = 1;
+    for index in 5..24 {
+        let mut spins = 0;
+        loop {
+            match run.next_sector(&mut rig, &mut stage) {
+                Poll::Sector => break,
+                Poll::Pending => {
+                    spins += 1;
+                    assert!(spins < 10_000, "sector {index} never arrived");
+                }
+                other => panic!("sector {index}: {other:?}"),
+            }
+        }
+        assert!(
+            sector_matches(&run, &stage, 5000 + index),
+            "sector {index} holds the wrong words after the restart"
+        );
+    }
+    assert_eq!(run.next_sector(&mut rig, &mut stage), Poll::Done);
+}
+
+#[test]
+fn a_run_that_keeps_losing_its_window_fails_instead_of_looping() {
+    let mut rig = Rig::new(2);
+    rig.forget_states = u32::MAX;
+    let mut stage = TestStage::zeroed();
+    let mut run = TestRun::ZERO;
+    run.begin(&mut rig, &mut stage, 5000, 8);
+    let mut outcome = None;
+    for _ in 0..1_000 {
+        match run.next_sector(&mut rig, &mut stage) {
+            Poll::Failed(status) => {
+                outcome = Some(status);
+                break;
+            }
+            Poll::Sector | Poll::Done => break,
+            Poll::Pending => rig.service(),
+        }
+    }
+    assert_eq!(outcome, Some(crate::cd_stream::STATUS_DATA_TIMEOUT));
+}
+
+#[test]
+fn the_job_gives_up_on_a_silent_drive_by_the_display_clock_not_by_pump_count() {
+    let pack = 20_000;
+    let size = 2 * SECTOR_BYTES;
+    let ids = [1u16];
+    let toc = [toc_entry(
+        1,
+        10,
+        size as u32,
+        disc_checksum(pack + 10, size),
+    )];
+    let mut slots = Slots {
+        rows: [std::vec![0; size], std::vec![], std::vec![]],
+    };
+    let mut job = WorldRoomSlotsReadJob::<3>::new();
+    job.start(pack, &toc, &ids, &[0], &[size]);
+    let mut rig = Rig::new(1);
+    rig.silent_services = u32::MAX;
+    let mut cd = CdController::zeroed();
+    // Far more pumps than the old pump-count limit allowed, all inside the
+    // same VBlank: still waiting.
+    for _ in 0..5_000 {
+        job.poll_into_with(&mut rig, &mut cd, &mut slots, 4);
+    }
+    assert!(!job.is_done(), "a pump count must not fail a read");
+    // The slowest silicon transition plus margin is still waiting.
+    rig.vblank_bias = psx_engine::cd_drive::MOTOR_RESTART_MS * 60 / 1000 + 60;
+    job.poll_into_with(&mut rig, &mut cd, &mut slots, 4);
+    assert!(!job.is_done());
+    // Past the limit it fails with a timeout.
+    rig.vblank_bias = crate::cd_stream::STALL_LIMIT_VBLANKS + 100;
+    job.poll_into_with(&mut rig, &mut cd, &mut slots, 4);
+    assert!(job.is_done());
+    assert_eq!(job.statuses()[0], crate::cd_stream::STATUS_DATA_TIMEOUT);
 }
 
 fn toc_entry(
@@ -510,6 +622,47 @@ fn read_chunk_blocking_verifies_and_lands_the_unpadded_bytes() {
             disc_byte(pack + 4 + (i / SECTOR_BYTES) as u32, i % SECTOR_BYTES)
         );
     }
+}
+
+#[test]
+fn a_blocking_read_waits_out_a_console_music_handoff() {
+    // After audio the first sector takes about a second on a console. The
+    // rig's drive stays silent for that long on its display clock, which is
+    // more foreground spins than the old poll-count bound allowed, and the
+    // read still lands: the bound is time, not spins.
+    let spins_per_vblank = 30_000;
+    let handoff = psx_engine::cd_drive::FIRST_SECTOR_AFTER_AUDIO_MS * 60 / 1000;
+    let size = 2 * SECTOR_BYTES;
+    let pack = 300;
+    let entry = toc_entry(1, 0, size as u32, disc_checksum(pack, size));
+    let mut rig = Rig::new(3);
+    rig.services_per_vblank = spins_per_vblank;
+    rig.silent_services = handoff * spins_per_vblank;
+    assert!(rig.silent_services > 1_000_000);
+    let mut cd = CdController::zeroed();
+    let mut dst = std::vec![0u32; size / 4];
+    let result = read_chunk_blocking_with(&mut rig, &mut cd, pack, &[entry], 1, &mut dst);
+    assert_eq!(result.status, ROOM_CHUNK_STATUS_OK);
+    assert!(rig.vblank_count() >= handoff);
+}
+
+#[test]
+fn a_blocking_wait_on_a_dead_drive_gives_up_on_the_display_clock() {
+    let mut rig = Rig::new(3);
+    rig.services_per_vblank = 1_000;
+    rig.silent_services = u32::MAX;
+    let mut cd = CdController::zeroed();
+    cd.begin_run(&mut rig, 100, 1);
+    assert_eq!(
+        cd.wait_sector(&mut rig),
+        Err(crate::cd_stream::STATUS_DATA_TIMEOUT)
+    );
+    let waited = rig.vblank_count();
+    let deadline = crate::cd_stream::BLOCKING_READ_DEADLINE_VBLANKS;
+    assert!(
+        waited > deadline && waited < deadline + 10,
+        "gave up after {waited} vblanks"
+    );
 }
 
 #[test]
@@ -672,7 +825,7 @@ fn music_never_leaves_a_pending_lease_behind_a_busy_transport() {
     drain(&mut rig, &mut run, &mut stage, 6000, 3);
     // The last sector has landed but the drive is still pausing.
     assert!(!rig.engine.is_idle());
-    assert!(!psx_engine::cd_drive::try_lease(&mut rig));
+    assert!(!rig.engine.try_audio_lease());
     assert_eq!(rig.engine.lease_state(), LeaseState::None);
 
     // The next read starts as soon as the drive stops.
@@ -686,7 +839,7 @@ fn music_takes_an_idle_drive_and_gives_it_back_to_data() {
     let mut rig = Rig::new(1);
     let mut stage = TestStage::zeroed();
     let mut run = TestRun::ZERO;
-    assert!(psx_engine::cd_drive::try_lease(&mut rig));
+    assert!(rig.engine.try_audio_lease());
     assert_eq!(rig.engine.owner(), Owner::Audio);
     // A read queued under the lease waits for it.
     run.begin(&mut rig, &mut stage, 8000, 4);
@@ -808,4 +961,84 @@ fn a_region_read_survives_a_drive_error_and_stays_exact() {
     };
     assert_eq!(progress, RegionReadProgress::Done);
     assert_eq!(lbas.len(), 6);
+}
+
+#[test]
+fn a_region_read_gives_up_on_a_silent_drive_by_the_display_clock_not_by_pump_count() {
+    let mut rig = Rig::new(1);
+    rig.silent_services = u32::MAX;
+    let mut cd = CdController::zeroed();
+    let mut read = RegionRead::new();
+    read.start(9000, 4);
+    let mut sink = |_: &[u8]| Ok(());
+    // Far more pumps than any pump-count limit, all inside one VBlank.
+    for _ in 0..5_000 {
+        assert_eq!(
+            read.poll_with(&mut rig, &mut cd, 4, false, &mut sink),
+            RegionReadProgress::Reading
+        );
+    }
+    // The slowest silicon drive transition plus margin is still waiting.
+    rig.vblank_bias = psx_engine::cd_drive::MOTOR_RESTART_MS * 60 / 1000 + 60;
+    assert_eq!(
+        read.poll_with(&mut rig, &mut cd, 4, false, &mut sink),
+        RegionReadProgress::Reading
+    );
+    // Past the transport's own limit it fails with a timeout.
+    rig.vblank_bias = crate::cd_stream::STALL_LIMIT_VBLANKS + 100;
+    assert_eq!(
+        read.poll_with(&mut rig, &mut cd, 4, false, &mut sink),
+        RegionReadProgress::Failed(crate::cd_stream::STATUS_DATA_TIMEOUT)
+    );
+}
+
+#[test]
+fn a_region_read_restarts_a_failed_run_at_the_first_sector_not_yet_delivered() {
+    let mut rig = Rig::new(1);
+    let mut cd = CdController::zeroed();
+    let mut read = RegionRead::new();
+    read.start(10_000, 20);
+    let mut lbas = Vec::new();
+    let mut sink = |bytes: &[u8]| {
+        let lba = 10_000 + lbas.len() as u32;
+        assert_eq!(bytes[..8], (0..8).map(|i| disc_byte(lba, i)).collect::<Vec<_>>()[..]);
+        lbas.push(lba);
+        Ok(())
+    };
+    // Take a few sectors, then the transport loses its window often enough
+    // that the run itself gives up and the read has to start it over.
+    while read.landed() < 5 {
+        read.poll_with(&mut rig, &mut cd, 1, true, &mut sink);
+    }
+    rig.forget_states = 4;
+    let mut pumps = 0;
+    while read.poll_with(&mut rig, &mut cd, 2, true, &mut sink) == RegionReadProgress::Reading {
+        pumps += 1;
+        assert!(pumps < 10_000, "region read never finished");
+    }
+    assert_eq!(read.landed(), 20);
+    assert_eq!(lbas.len(), 20, "no sector skipped or repeated");
+    assert!(read.restarts() >= 1, "the failure should cost a restart");
+}
+
+#[test]
+fn a_region_read_that_keeps_failing_gives_up_after_its_restarts() {
+    let mut rig = Rig::new(1);
+    rig.forget_states = u32::MAX;
+    let mut cd = CdController::zeroed();
+    let mut read = RegionRead::new();
+    read.start(11_000, 8);
+    let mut sink = |_: &[u8]| Ok(());
+    let mut progress = RegionReadProgress::Reading;
+    for _ in 0..10_000 {
+        progress = read.poll_with(&mut rig, &mut cd, 4, true, &mut sink);
+        if progress != RegionReadProgress::Reading {
+            break;
+        }
+    }
+    assert_eq!(
+        progress,
+        RegionReadProgress::Failed(crate::cd_stream::STATUS_DATA_TIMEOUT)
+    );
+    assert_eq!(read.restarts(), 3);
 }

@@ -12,6 +12,7 @@ psxed-audio  = { path = "../psxed-audio" }
 psxed-gltf   = { path = "../psxed-gltf" }
 psxed-tex    = { path = "../psxed-tex" }
 psx-asset    = { path = "../../../sdk/crates/psx-asset" }
+psx-anim-tracks = { path = "../../../crates/psx-anim-tracks" }
 psx-bsp      = { path = "../../../engine/crates/psx-bsp", features = ["streaming"] }
 psx-engine   = { path = "../../../engine/crates/psx-engine" }
 psx-font     = { path = "../../../sdk/crates/psx-font" }
@@ -34,6 +35,10 @@ path = "src/bin/cook_playtest.rs"
 [[bin]]
 name = "pxbsp-draw-cost"
 path = "src/bin/pxbsp_draw_cost.rs"
+
+[[bin]]
+name = "pxbsp-seam-audit"
+path = "src/bin/pxbsp_seam_audit.rs"
 
 [[bin]]
 name = "gen-stream-world"
