@@ -151,7 +151,7 @@ pub fn build_pxbsp_with_submodels(
             "sound data (the lump slot holds leaf bounds)",
         ));
     }
-    let leaf_bounds = pack_leaf_bounds(&geometry.faces, &geometry.vertices, payloads.materials)?;
+    let leaf_bounds = pack_leaf_bounds(&geometry, payloads.materials)?;
     let mut lumps: [Vec<u8>; PXBSP_LUMP_COUNT] = core::array::from_fn(|_| Vec::new());
     lumps[PxbspLumpKind::TextureData as usize].extend_from_slice(payloads.texture_data);
     lumps[PxbspLumpKind::LEAF_BOUNDS as usize] = leaf_bounds;

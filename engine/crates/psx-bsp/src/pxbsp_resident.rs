@@ -774,9 +774,10 @@ impl PxbspResidentMap {
             return Err(PxbspMapLoadError::BadLeafBounds(leaves.len()));
         }
         let vertices = self.vertex_data();
-        let faces = self.faces();
         let materials = self.materials();
-        let marks = self.mark_surfaces();
+        // Native views: this runs once at boot on the guest, and the byte-wise
+        // record decoders cost several times what the checks do.
+        let marks = self.mark_surfaces_native();
         for (index, leaf) in leaves.iter().enumerate() {
             let record = &bytes[index * LeafBounds::SIZE..][..LeafBounds::SIZE];
             let mut values = [0i16; 6];
@@ -791,20 +792,23 @@ impl PxbspResidentMap {
             let mut sky = false;
             let first_mark = leaf.first_mark_surface as usize;
             for mark in first_mark..first_mark + leaf.mark_surface_count as usize {
-                let face = faces
-                    .get(marks.get(mark).unwrap_or(0) as usize)
-                    .unwrap_or_default();
+                // SAFETY: every mark names a face (checked above) and every
+                // face's vertex range lies inside the vertex lump, whose base
+                // `validate_references` required to be four-byte aligned.
+                let face = unsafe { self.face_at_unchecked(marks[mark] as usize) };
                 let flags = materials.get(face.texture as usize).map_or(0, |m| m.flags);
                 sky |=
                     flags & (material_flags::SKY_APERTURE | material_flags::DIRECTIONAL_SKY) != 0;
                 let first = face.first_vertex as usize;
                 for vertex in first..first + face.vertex_count as usize {
-                    let at = vertex * Vertex::SIZE;
-                    let position = [
-                        i16::from_le_bytes([vertices[at], vertices[at + 1]]),
-                        i16::from_le_bytes([vertices[at + 2], vertices[at + 3]]),
-                        i16::from_le_bytes([vertices[at + 4], vertices[at + 5]]),
-                    ];
+                    let position = unsafe {
+                        core::ptr::read(
+                            vertices
+                                .as_ptr()
+                                .add(vertex * Vertex::SIZE)
+                                .cast::<[i16; 3]>(),
+                        )
+                    };
                     ok &= bounds.contains(position);
                 }
             }
