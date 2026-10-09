@@ -1863,7 +1863,14 @@ mod tests {
             ..StreamWorldConfig::small([8, 8])
         };
         for seed in 1..=3 {
-            let world = generate(&StreamWorldConfig { seed, ..config.clone() }, &donor()).unwrap();
+            let world = generate(
+                &StreamWorldConfig {
+                    seed,
+                    ..config.clone()
+                },
+                &donor(),
+            )
+            .unwrap();
             assert!(world.stats.terrains >= 8, "seed {seed}: terrain modules");
             assert_eq!(world.stats.over_budget_modules, 0, "seed {seed}");
             assert!(world.stats.trimmed_modules > 0, "seed {seed}");
