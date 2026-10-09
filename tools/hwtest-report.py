@@ -627,6 +627,11 @@ V2_RECORDS = {
     0x41B: ("run_info", ("skipped_risky", "steps", "records_taken")),
     0x41C: ("handoff_baseline", ("irq_mask_baseline_bits_0_to_10", "dpcr_baseline_low_half", "dpcr_baseline_high_half")),
     0x41D: ("handoff_irq_raw", ("irq_baseline_raw_low_half", "irq_baseline_raw_high_half", "irq_last_handoff_raw_high_half")),
+    0x41E: ("record_integrity", ("duplicate_ids", "clamped_fields", "dropped_records")),
+    0x41F: ("record_integrity_ids", ("first_clamped_id", "last_clamped_id", "first_duplicate_id")),
+    0x960: ("pad_choice", ("model_code", "raw_buttons", "answer_frame")),
+    0x961: ("pad_choice_second", ("model_code", "raw_buttons", "answer_frame")),
+    0x962: ("pad_passes", ("flags", "config_ports", "answer_flags")),
     0x420: ("mdec_setup", ("worked_mask", "driver_notes", "failing_steps")),
     0x421: ("mdec_probe", ("words_of_128", "all_equal", "first_word_low")),
     0x422: ("mdec_probe_word", ("first_word_high", "decode_to_request_clocks", "busy_run_words")),
@@ -887,6 +892,88 @@ V2_RECORDS[0x778] = (
     "spu_ram_postscrub",
     ("fold_0x1010_4kb", "fold_0x3000_6kb", "fold_0x30000_4kb"),
 )
+# ---- v2.4 -------------------------------------------------------------
+# The 480i draw rule: 75 self-describing records (row mask, descriptor, flags).
+FIELD_RULE_FIRST = 0x800
+FIELD_RULE_COUNT = 83
+FIELD_RULE_TIMED_FROM = 67
+FIELD_RULE_TIMED_UNTIL = 75
+for _k in range(FIELD_RULE_COUNT):
+    if _k < FIELD_RULE_TIMED_FROM or _k >= FIELD_RULE_TIMED_UNTIL:
+        V2_RECORDS[FIELD_RULE_FIRST + _k] = (f"field_rule_{_k}", ("row_mask", "descriptor", "flags"))
+    else:
+        V2_RECORDS[FIELD_RULE_FIRST + _k] = (
+            f"field_rule_cost_{_k - FIELD_RULE_TIMED_FROM}",
+            ("clocks_div8", "descriptor", "flags"),
+        )
+for _k in range(4):
+    V2_RECORDS[0x860 + 2 * _k] = (
+        f"list_abort_{_k}",
+        ("words_of_the_node_landed", "words_of_the_next_node_landed", "flags"),
+    )
+    V2_RECORDS[0x861 + 2 * _k] = (
+        f"list_abort_progress_{_k}",
+        ("madr_words_at_stop", "madr_words_after_wait", "chcr_after_stop_low_half"),
+    )
+for _k in range(6):
+    V2_RECORDS[0x868 + 2 * _k] = (
+        f"block_fifo_{_k}",
+        ("words_landed", "words_sent", "flags"),
+    )
+    V2_RECORDS[0x869 + 2 * _k] = (
+        f"block_fifo_time_{_k}",
+        ("clocks_low_half", "clocks_high_half", "gpustat_high_half_after"),
+    )
+for _port in range(2):
+    _b = 0x880 + 0x20 * _port
+    _t = f"p{_port + 1}"
+    for _i in range(10):
+        V2_RECORDS[_b + _i] = (
+            f"card_proto_head_{_t}_b{_i}",
+            ("ack_rise_cycles", "ack_width_cycles", "byte_done_cycles"),
+        )
+    V2_RECORDS[_b + 0x0A] = (f"card_proto_data_rise_{_t}", ("min_cycles", "median_cycles", "max_cycles"))
+    V2_RECORDS[_b + 0x0B] = (f"card_proto_data_width_{_t}", ("min_cycles", "median_cycles", "max_cycles"))
+    V2_RECORDS[_b + 0x0C] = (f"card_proto_tail_checksum_{_t}", ("ack_rise_cycles", "ack_width_cycles", "byte_done_cycles"))
+    V2_RECORDS[_b + 0x0D] = (f"card_proto_tail_terminator_{_t}", ("ack_rise_cycles", "ack_width_cycles", "byte_done_cycles"))
+    V2_RECORDS[_b + 0x0E] = (f"card_proto_total_{_t}", ("span_low_half", "span_high_half", "flags"))
+    V2_RECORDS[_b + 0x0F] = (f"card_proto_replies_{_t}", ("replies_0_and_1", "replies_2_and_3", "replies_4_and_5"))
+    V2_RECORDS[_b + 0x10] = (f"card_proto_replies_b_{_t}", ("replies_6_and_7", "replies_8_and_9", "replies_138_and_139"))
+    for _i in range(6):
+        V2_RECORDS[_b + 0x11 + _i] = (
+            f"card_proto_write_head_{_t}_b{_i}",
+            ("ack_rise_cycles", "ack_width_cycles", "byte_done_cycles"),
+        )
+    V2_RECORDS[_b + 0x17] = (f"card_proto_write_data_rise_{_t}", ("min_cycles", "median_cycles", "max_cycles"))
+    V2_RECORDS[_b + 0x18] = (f"card_proto_write_data_width_{_t}", ("min_cycles", "median_cycles", "max_cycles"))
+    for _i in range(4):
+        V2_RECORDS[_b + 0x19 + _i] = (
+            f"card_proto_write_tail_{_t}_b{134 + _i}",
+            ("ack_rise_cycles", "ack_width_cycles", "byte_done_cycles"),
+        )
+    V2_RECORDS[_b + 0x1D] = (f"card_proto_write_total_{_t}", ("span_low_half", "span_high_half", "flags"))
+    V2_RECORDS[_b + 0x1E] = (
+        f"card_proto_write_replies_{_t}",
+        ("replies_134_and_135", "replies_136_and_137", "status_after_low_half"),
+    )
+V2_RECORDS[0x8C0] = ("calibration_gpu", ("cycles_low_half", "cycles_high_half", "triangles"))
+V2_RECORDS[0x8C1] = ("calibration_cpu", ("cycles_low_half", "cycles_high_half", "iterations_over_16"))
+V2_RECORDS[0x8C2] = ("calibration_both", ("cycles_low_half", "cycles_high_half", "flags"))
+V2_RECORDS[0x8C3] = ("calibration_both_split", ("cpu_done_low_half", "cpu_done_high_half", "wait_after_cpu_low_half"))
+V2_RECORDS[0x8C4] = ("calibration_frames_one", ("frames_taken", "cycles_low_half", "cycles_high_half"))
+V2_RECORDS[0x8C5] = ("calibration_frames_four", ("frames_taken", "cycles_low_half", "cycles_high_half"))
+UV_WINDOW_FIRST = 0x8E0
+UV_WINDOW_ROWS = 38
+for _k in range(48):
+    V2_RECORDS[UV_WINDOW_FIRST + 2 * _k] = (f"uv_window_{_k}", ("clocks_min", "clocks_med", "clocks_max"))
+    V2_RECORDS[UV_WINDOW_FIRST + 2 * _k + 1] = (
+        f"uv_window_row_{_k}",
+        ("depth_and_window", "uv_span_texels", "origin_u_and_v"),
+    )
+# The second pad's pass repeats 0x760-0x776 at +0x1E0.
+for _id in [i for i in V2_RECORDS if 0x760 <= i <= 0x776]:
+    _name, _fields = V2_RECORDS[_id]
+    V2_RECORDS[_id + 0x1E0] = (_name + "_pass2", _fields)
 for _speed, _speed_tag in enumerate(("1x", "2x")):
     for _size, _size_tag in enumerate(("2048", "2340")):
         for _loop, _loop_tag in enumerate(("lw", "sw")):
@@ -935,6 +1022,12 @@ def v2_verdicts(capture: Capture) -> list[str]:
                 f"area {area}: handoff flags 0x{record.minimum:02X} "
                 f"(clean is 0x{V2_HANDOFF_CLEAN:02X}), busy/active 0x{record.maximum:04X}"
             )
+    integrity = by_id.get(0x41E)
+    if integrity is not None and (integrity.minimum or integrity.median or integrity.maximum):
+        problems.append(
+            f"record integrity: {integrity.minimum} duplicate ids, "
+            f"{integrity.median} clamped fields, {integrity.maximum} dropped records"
+        )
     silence = by_id.get(0x41A)
     if silence is None:
         problems.append("no final silence record")
@@ -2359,6 +2452,297 @@ def emulator_baseline(log: str, git: str, exe_sha: str, steps: str) -> int:
 
 
 
+# ---- v2.4 decode ---------------------------------------------------------
+# One table per new measurement, with the sanity checks that say whether the
+# harness (not the machine) did what it meant to. A failed check is a harness
+# fault; a surprising value that passes every check is a measurement.
+
+FIELD_CMDS = ("fill", "rect", "tris", "texquad", "line", "copy", "upload", "texquad_tpage10")
+FIELD_MODES = ("480i", "480p", "240i", "480i_24bpp")
+FIELD_VARIANTS = (
+    "plain", "clip_top_odd", "offset_odd", "start_y_odd", "at_vblank", "cost_fill", "cost_rect",
+    "display_blanked",
+)
+
+
+def field_rule_expected() -> list[int]:
+    """The descriptor of each field-rule record, in id order, as the guest
+    builds the table (src/field_rule.rs)."""
+
+    def d(cmd, bit10, field, mode=0, outside=0, variant=0):
+        field_bits = {0: 0, 1: 1}.get(field, 3)
+        return cmd | bit10 << 4 | field_bits << 5 | mode << 7 | outside << 9 | variant << 10
+
+    rows = []
+    for bit10 in (0, 1):
+        for field in (0, 1):
+            for cmd in range(7):
+                rows.append(d(cmd, bit10, field))
+    for field in (0, 1):
+        for cmd in (0, 1, 2):
+            rows.append(d(cmd, 0, field, outside=1))
+    for mode in (1, 2, 3):
+        for cmd in range(7):
+            rows.append(d(cmd, 0, 2, mode=mode))
+    for field in (0, 1):
+        rows.append(d(7, 0, field))
+    for variant in (1, 2):
+        for field in (0, 1):
+            rows.append(d(1, 0, field, variant=variant))
+    for field in (0, 1):
+        rows.append(d(0, 0, field, variant=3))
+    for _ in range(4):
+        rows.append(d(0, 0, 2, variant=4))
+    for cmd, variant in ((0, 5), (1, 6)):
+        for bit10 in (0, 1):
+            for field in (0, 1):
+                rows.append(d(cmd, bit10, field, variant=variant))
+    for field in (0, 1):
+        for cmd in (0, 1, 2, 4):
+            rows.append(d(cmd, 0, field, variant=7))
+    return rows
+
+
+def describe_field(descriptor: int) -> str:
+    cmd = FIELD_CMDS[descriptor & 15]
+    bit10 = (descriptor >> 4) & 1
+    field = {0: "0", 1: "1", 3: "any"}.get((descriptor >> 5) & 3, "?")
+    mode = FIELD_MODES[(descriptor >> 7) & 3]
+    place = "outside" if (descriptor >> 9) & 1 else "inside"
+    variant = FIELD_VARIANTS[(descriptor >> 10) & 7]
+    return f"{cmd} bit10={bit10} field={field} {mode} {place} {variant}"
+
+
+def uv_rows_expected() -> list[tuple[int, int, int, int]]:
+    """(depth_and_window, span, origin_u_and_v) per uv-window row, as the
+    guest builds them (src/workload.rs)."""
+    rows = []
+    for depth in range(3):
+        for span in (8, 16, 32, 64, 128, 255):
+            rows.append((depth, span, 0))
+    for depth in range(3):
+        for u, v in ((8, 0), (0, 8), (100, 100), (223, 223)):
+            rows.append((depth, 32, u | v << 8))
+    for depth in (0, 2):
+        for window in (1, 2, 4, 8):
+            rows.append((depth | window << 4, 63, 0))
+    return rows
+
+
+def v24_report(capture: Capture) -> int:
+    """Print the v2.4 measurements and check them. Returns the number of
+    harness faults found."""
+    by_id = {record.record_id: record for record in capture.records}
+    faults: list[str] = []
+
+    def triple(record_id):
+        record = by_id.get(record_id)
+        if record is None:
+            faults.append(f"record {record_id:03X} missing")
+            return None
+        return record.minimum, record.median, record.maximum
+
+    seen = [record.record_id for record in capture.records]
+    for record_id in sorted(set(seen)):
+        if seen.count(record_id) > 1:
+            faults.append(f"record {record_id:03X} appears {seen.count(record_id)} times")
+        if record_id not in V2_RECORDS and record_id not in LABELS and record_id >= 0x400:
+            faults.append(f"record {record_id:03X} has no name in the table")
+
+    print("v24,integrity")
+    t = triple(0x41E)
+    if t is not None:
+        print(f"v24,record_integrity,duplicates={t[0]},clamped_fields={t[1]},dropped={t[2]}")
+        if any(t):
+            faults.append(f"record integrity {t}")
+
+    # ---- the 480i draw rule
+    print("v24,field_rule,id,cmd,bit10,field_asked,mode,place,variant,row_mask,flags")
+    expected = field_rule_expected()
+    for k, want in enumerate(expected):
+        record_id = FIELD_RULE_FIRST + k
+        t = triple(record_id)
+        if t is None:
+            continue
+        mask, descriptor, flags = t
+        if descriptor != want:
+            faults.append(
+                f"field rule {record_id:03X}: descriptor 0x{descriptor:04X}, expected 0x{want:04X}"
+            )
+        timed = FIELD_RULE_TIMED_FROM <= k < FIELD_RULE_TIMED_UNTIL
+        shown = f"clocks_div8={mask}" if timed else f"mask=0x{mask:04X}"
+        s1, s2 = flags & 1, (flags >> 1) & 1
+        attempts, unclean, undrained, unmatched = (
+            ((flags >> 2) & 7) + 1,
+            (flags >> 5) & 1,
+            (flags >> 6) & 1,
+            (flags >> 7) & 1,
+        )
+        print(
+            f"v24,field_rule,{record_id:03X},{describe_field(descriptor).replace(' ', ',')},"
+            f"{shown},field {s1}->{s2} attempts {attempts} bit19={flags >> 8 & 1} bit22={flags >> 9 & 1}"
+            f" bit21={flags >> 10 & 1} bit23={flags >> 11 & 1}{' UNCLEAN' if unclean else ''}{' UNDRAINED' if undrained else ''}"
+            f"{' FIELD_NEVER_MATCHED' if unmatched else ''}"
+        )
+        if unclean or undrained:
+            faults.append(f"field rule {record_id:03X}: unclean={unclean} undrained={undrained}")
+        if not timed and (descriptor & 15) == 6 and mask != 0xFFFF:
+            faults.append(f"field rule {record_id:03X}: the upload control left mask 0x{mask:04X}")
+        if s1 != s2 and not timed:
+            faults.append(f"field rule {record_id:03X}: the field flipped under the command")
+    # the table people will read: mask by command, bit 10 and field asked
+    grid = {}
+    for k, want in enumerate(expected[:28]):
+        t = by_id.get(FIELD_RULE_FIRST + k)
+        if t is not None:
+            grid[(want & 15, (want >> 4) & 1, (want >> 5) & 3)] = t.minimum
+    print("v24,field_rule_table,cmd,bit10=0 field0,bit10=0 field1,bit10=1 field0,bit10=1 field1")
+    for cmd in range(7):
+        cells = [grid.get((cmd, b, f)) for b in (0, 1) for f in (0, 1)]
+        print(
+            f"v24,field_rule_table,{FIELD_CMDS[cmd]},"
+            + ",".join("-" if c is None else f"0x{c:04X}" for c in cells)
+        )
+
+    # ---- stop mid-node, block FIFO
+    print("v24,list_abort,run,delay_clocks,node_words_landed,next_node_words_landed,flags,madr_words_at_stop,madr_words_after")
+    delays = (None, 6000, 20000, 60000)
+    for k in range(4):
+        a, b = triple(0x860 + 2 * k), triple(0x861 + 2 * k)
+        if a is None or b is None:
+            continue
+        flags = a[2]
+        delay = (flags >> 8) * 256
+        print(
+            f"v24,list_abort,{k},{'none' if delays[k] is None else delays[k]}(~{delay}),{a[0]},{a[1]},"
+            f"0x{flags & 0xFF:02X} (A prefix {flags & 1}, B prefix {flags >> 1 & 1}, busy at stop {flags >> 2 & 1}, "
+            f"busy after {flags >> 3 & 1}, gpu idle {flags >> 4 & 1}, dirty {flags >> 5 & 1}, readfail {flags >> 6 & 1}),"
+            f"{b[0]},{b[1]}"
+        )
+        if (flags >> 5) & 3:
+            faults.append(f"list abort {k}: destination dirty or read failed (flags 0x{flags:04X})")
+        if k == 0 and (a[0] != 48 or a[1] != 8):
+            faults.append(f"list abort control landed {a[0]}/48 and {a[1]}/8 words: the list does not complete")
+    print("v24,block_fifo,run,words_sent,block,heavy,words_landed,flags,clocks,gpustat_hi")
+    runs = ((64, 16, 0), (64, 16, 1), (256, 16, 0), (256, 16, 1), (64, 8, 0), (64, 8, 1))
+    for k in range(6):
+        a, b = triple(0x868 + 2 * k), triple(0x869 + 2 * k)
+        if a is None or b is None:
+            continue
+        words, block, heavy = runs[k]
+        flags = a[2]
+        clocks = b[0] | b[1] << 16
+        print(
+            f"v24,block_fifo,{k},{words},{block},{heavy},{a[0]}/{a[1]},"
+            f"prefix={flags & 1} busy_at_bound={flags >> 1 & 1} idle={flags >> 2 & 1},{clocks},0x{b[2]:04X}"
+        )
+        if a[1] != words - 3 or (flags >> 3 & 1) != heavy or (flags >> 4 & 15) * 4 != block:
+            faults.append(f"block fifo {k}: record does not describe run {runs[k]}: {a}")
+
+    # ---- memory card protocol
+    for port in (0, 1):
+        base = 0x880 + 0x20 * port
+        total = triple(base + 0x0E)
+        if total is None:
+            continue
+        flags = total[2]
+        empty = (flags >> 2) & 1
+        print(
+            f"v24,card_proto_p{port + 1},empty={empty},good={flags & 1},checksum={flags >> 1 & 1},"
+            f"terminator_acked={flags >> 3 & 1},flag_byte=0x{flags >> 4 & 0xFF:02X},good_reads={flags >> 12 & 7},"
+            f"span_clocks={total[0] | total[1] << 16}"
+        )
+        if not empty:
+            for i in range(10):
+                h = triple(base + i)
+                print(f"v24,card_proto_p{port + 1}_head_b{i},rise={h[0]},width={h[1]},done={h[2]}")
+            for name, offset in (("data_rise", 0x0A), ("data_width", 0x0B)):
+                h = triple(base + offset)
+                print(f"v24,card_proto_p{port + 1}_{name},min={h[0]},med={h[1]},max={h[2]}")
+            for name, offset in (("checksum", 0x0C), ("terminator", 0x0D)):
+                h = triple(base + offset)
+                print(f"v24,card_proto_p{port + 1}_{name},rise={h[0]},width={h[1]},done={h[2]}")
+            w = triple(base + 0x1D)
+            print(f"v24,card_proto_p{port + 1}_write_total,span={w[0] | w[1] << 16},flags=0x{w[2]:04X}")
+        else:
+            h = triple(base)
+            print(f"v24,card_proto_p{port + 1}_empty_byte0,rise={h[0]},width={h[1]},done={h[2]}")
+
+    # ---- calibration
+    names = ("gpu_only", "cpu_only", "both")
+    values = {}
+    for k, name in enumerate(names):
+        t = triple(0x8C0 + k)
+        if t is not None:
+            values[name] = t[0] | t[1] << 16
+    split = triple(0x8C3)
+    frames = (triple(0x8C4), triple(0x8C5))
+    print(
+        "v24,calibration,"
+        + ",".join(f"{n}={v}" for n, v in values.items())
+        + (f",cpu_done={split[0] | split[1] << 16},wait_after={split[2]}" if split else "")
+    )
+    for label, t in zip(("one_list_per_frame", "four_lists_per_frame"), frames):
+        if t is not None:
+            print(f"v24,calibration_frames,{label},frames={t[0]},clocks={t[1] | t[2] << 16}")
+    if len(values) == 3:
+        g, c, b = values["gpu_only"], values["cpu_only"], values["both"]
+        print(f"v24,calibration_ratio,both/(gpu+cpu)={b / (g + c):.3f},both/max={b / max(g, c):.3f}")
+        if not (0 < g and 0 < c and b >= max(g, c) * 0.9 and b <= (g + c) * 1.1):
+            faults.append(f"calibration times not coherent: gpu {g} cpu {c} both {b}")
+    t = triple(0x8C2)
+    if t is not None and t[2]:
+        faults.append("calibration: a wait for the list ran out")
+
+    # ---- UV windows
+    print("v24,uv_window,row,depth,window,span,origin_u,origin_v,clocks_min,med,max")
+    for k, (depth_window, span, origin) in enumerate(uv_rows_expected()):
+        timing, row = triple(UV_WINDOW_FIRST + 2 * k), triple(UV_WINDOW_FIRST + 2 * k + 1)
+        if timing is None or row is None:
+            continue
+        if row != (depth_window, span, origin):
+            faults.append(f"uv window row {k}: descriptor {row}, expected {(depth_window, span, origin)}")
+        print(
+            f"v24,uv_window,{k},{depth_window & 15},{depth_window >> 4}*8,{span},{origin & 255},{origin >> 8},"
+            f"{timing[0]},{timing[1]},{timing[2]}"
+        )
+        if timing[0] == 0 or timing[2] == 0xFFFF:
+            faults.append(f"uv window row {k}: timing {timing}")
+
+    # ---- pads
+    models = {0: "no answer", 1: "SCPH-1200", 2: "SCPH-110", 3: "other", 4: "none/digital"}
+    for k, offset in enumerate((0x960, 0x961)):
+        t = triple(offset)
+        if t is not None:
+            print(
+                f"v24,pad_choice_{k + 1},model={models.get(t[0], '?')},raw_buttons=0x{t[1]:04X},frame={t[2]}"
+            )
+            if t[0] not in models:
+                faults.append(f"pad choice {offset:03X}: code {t[0]}")
+    t = triple(0x962)
+    if t is not None:
+        print(f"v24,pad_passes,second_ran={t[0] & 1},first_config={t[0] >> 1 & 1},second_config={t[0] >> 2 & 1},ports=0x{t[1]:04X},answer_flags=0x{t[2]:X}")
+        second_present = any(record_id in by_id for record_id in range(0x940, 0x957))
+        if bool(t[0] & 1) != second_present:
+            faults.append("pad passes: second pass flag and second pass records disagree")
+    for pass_index, offset in enumerate((0, 0x1E0)):
+        for base, name in ((0x76D, "identity_p1"), (0x76E, "identity_p2"), (0x766, "operator")):
+            t = triple(base + offset) if pass_index == 0 or by_id.get(base + offset) else None
+            if t is not None:
+                print(f"v24,pad_pass{pass_index + 1}_{name},0x{t[0]:04X},0x{t[1]:04X},0x{t[2]:04X}")
+        for k in range(6):
+            a, b = by_id.get(0x771 + k + offset), None
+            if a is not None:
+                print(
+                    f"v24,pad_pass{pass_index + 1}_answers_{0x771 + k:03X},"
+                    f"{a.minimum},{a.median},{a.maximum}"
+                )
+    for fault in faults:
+        print(f"v24,FAULT,{fault}")
+    print(f"v24,faults,{len(faults)}")
+    return len(faults)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -2402,6 +2786,13 @@ def main() -> int:
         metavar="WAV",
         help="check that the audio the emulator dumped ends in silence",
     )
+    parser.add_argument(
+        "--v24",
+        action="store_true",
+        help="print the v2.4 measurements (draw rule, list abort, block FIFO, card protocol, "
+        "calibration, UV windows, pads) and check that the harness did what it meant to; "
+        "exit non-zero on a harness fault",
+    )
     parser.add_argument("--tail-seconds", type=float, default=3.0)
     parser.add_argument(
         "--emulator-baseline",
@@ -2421,6 +2812,8 @@ def main() -> int:
         if args.emulator_baseline:
             return emulator_baseline(args.emulator_baseline, args.git, args.exe_sha, args.steps)
         capture = parse_capture(payloads_from_paths(args.payload_or_file))
+        if args.v24:
+            return 1 if v24_report(capture) else 0
         baseline = (
             parse_capture(payloads_from_paths([args.baseline]))
             if args.baseline
