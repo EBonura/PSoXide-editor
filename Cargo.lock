@@ -3343,6 +3343,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "psx-anim-tracks"
+version = "0.1.0"
+dependencies = [
+ "psx-asset",
+ "psxed-format",
+]
+
+[[package]]
 name = "psx-asset"
 version = "0.1.0"
 dependencies = [
@@ -3627,6 +3635,7 @@ version = "0.1.0"
 dependencies = [
  "flate2",
  "image",
+ "psx-anim-tracks",
  "psx-asset",
  "psx-bsp",
  "psx-engine",

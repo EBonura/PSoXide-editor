@@ -5,6 +5,13 @@
 //! Unlike [`super::read_chunk_blocking`] there is no destination buffer. The
 //! consumer sees each landed sector in place and writes what it needs into
 //! its final home, so a region install needs no RAM for the payload at all.
+//!
+//! Stall and restart policy is the room job's, not a second one: a pump that
+//! finds no sector gives up on the display clock ([`STALL_LIMIT_VBLANKS`],
+//! counted from the last sector that landed), and a run that fails is
+//! restarted at the first sector not yet handed to the sink
+//! ([`GROUP_RETRIES`] times, refilled by every sector). The ring under both
+//! already restarts a run whose window the transport lost (`Unknown`).
 
 use super::ring::Transport;
 use super::*;
@@ -25,6 +32,9 @@ pub enum RegionReadProgress {
 enum State {
     Idle,
     Armed,
+    /// The run under the read failed; the next poll starts it again at the
+    /// first sector not yet handed out.
+    Restart,
     Reading,
     Done,
     Failed(u32),
@@ -37,7 +47,14 @@ pub struct RegionRead {
     lba: u32,
     sectors: u32,
     landed: u32,
-    empty_pumps: u32,
+    /// The pump found no sector since the last one landed.
+    stalled: bool,
+    /// Display clock when the stall began.
+    stall_since: u32,
+    /// Restarts left; refilled by every sector handed out.
+    retries: u8,
+    /// Restarts since [`Self::start`].
+    restarts: u16,
     state: State,
 }
 
@@ -48,7 +65,10 @@ impl RegionRead {
             lba: 0,
             sectors: 0,
             landed: 0,
-            empty_pumps: 0,
+            stalled: false,
+            stall_since: 0,
+            retries: GROUP_RETRIES,
+            restarts: 0,
             state: State::Idle,
         }
     }
@@ -60,7 +80,10 @@ impl RegionRead {
             lba,
             sectors,
             landed: 0,
-            empty_pumps: 0,
+            stalled: false,
+            stall_since: 0,
+            retries: GROUP_RETRIES,
+            restarts: 0,
             state: if sectors == 0 {
                 State::Done
             } else {
@@ -74,9 +97,14 @@ impl RegionRead {
         self.landed
     }
 
+    /// Times the read started its run over after the run failed.
+    pub const fn restarts(&self) -> u16 {
+        self.restarts
+    }
+
     /// Whether a read is armed or running.
     pub const fn is_active(&self) -> bool {
-        matches!(self.state, State::Armed | State::Reading)
+        matches!(self.state, State::Armed | State::Restart | State::Reading)
     }
 
     /// Stop a read in flight; the transport pauses the drive at the next
@@ -117,11 +145,12 @@ impl RegionRead {
         wait: bool,
         sink: &mut impl FnMut(&[u8]) -> Result<(), u32>,
     ) -> RegionReadProgress {
-        if self.state == State::Armed {
+        if matches!(self.state, State::Armed | State::Restart) {
             if !transport.available() {
                 self.state = State::Failed(STATUS_UNSUPPORTED);
             } else {
-                cd.begin_run(transport, self.lba, self.sectors);
+                // A restart resumes at the first sector not yet handed out.
+                cd.begin_run(transport, self.lba + self.landed, self.sectors - self.landed);
                 self.state = State::Reading;
             }
         }
@@ -135,18 +164,32 @@ impl RegionRead {
             match landed {
                 Ok(()) => {}
                 Err(Stall::Slow) => {
-                    self.empty_pumps = self.empty_pumps.saturating_add(1);
-                    if self.empty_pumps > EMPTY_PUMP_STALL_LIMIT {
+                    // Merely slow: the display clock decides when to give up,
+                    // measured from the last sector (or the read's start).
+                    let now = transport.vblank_count();
+                    if !self.stalled {
+                        self.stalled = true;
+                        self.stall_since = now;
+                    } else if now.wrapping_sub(self.stall_since) > STALL_LIMIT_VBLANKS {
                         self.fail(transport, cd, STATUS_DATA_TIMEOUT);
                     }
                     break;
                 }
                 Err(Stall::Failed(status)) => {
-                    self.fail(transport, cd, status);
+                    if self.retries > 0 {
+                        cd.abort_run(transport);
+                        self.retries -= 1;
+                        self.restarts = self.restarts.saturating_add(1);
+                        self.stalled = false;
+                        self.state = State::Restart;
+                    } else {
+                        self.fail(transport, cd, status);
+                    }
                     break;
                 }
             }
-            self.empty_pumps = 0;
+            self.stalled = false;
+            self.retries = GROUP_RETRIES;
             // SAFETY: the sector the call above just landed is SECTOR_BYTES
             // readable bytes in the controller's staging RAM, untouched until
             // the next read call.

@@ -488,7 +488,7 @@ fn draw_debug_toggles(ui: &mut egui::Ui, state: &mut AppState) {
             ScaleMode::Native => ScaleMode::Window,
         };
     }
-    // Sample-time texture filter: cycle None -> xBR.
+    // Sample-time texture filter: cycle None -> Edge.
     let tex_active = state.texture_filter != app::TextureFilter::None;
     let tex_btn = toggle_button(icons::FILTER, tex_active);
     if ui

@@ -51,7 +51,7 @@ EXE_RELATIVE="build/examples/mipsel-sony-psx/release/editor-playtest.exe"
 # same flags space-separated, so the quotes and commas are dropped.
 DELAY_SLOT_FLAGS="$(sed -n 's/^PSX_DELAY_SLOT_FLAGS := //p' "$ROOT/tools/sdk-examples.mk" | sed -e 's/","/ /g' -e 's/"//g')"
 [ -n "$DELAY_SLOT_FLAGS" ] || {
-    echo "[guest-build] PSX_DELAY_SLOT_FLAGS not found in tools/sdk-examples.mk; run tools/bootstrap-components.py" >&2
+    echo "[guest-build] PSX_DELAY_SLOT_FLAGS not found in tools/sdk-examples.mk; run make bootstrap" >&2
     exit 1
 }
 RUSTFLAGS_VALUE="-Zunstable-options -Cpanic=immediate-abort $DELAY_SLOT_FLAGS -Clink-arg=-T../../../sdk/psoxide.ld -Clink-arg=--oformat=binary"
@@ -109,7 +109,7 @@ patch_and_prove() {
             exit 1
         }
     fi
-    "$hazard_dir/hazard-patch" "$1" >"$3/hazard-patch.txt" 2>&1 || {
+    "$hazard_dir/hazard-patch" --map "$2" "$1" >"$3/hazard-patch.txt" 2>&1 || {
         cat "$3/hazard-patch.txt" >&2
         echo "[guest-build] load-delay hazards remain in $EXE_RELATIVE; refusing to stage it" >&2
         exit 1

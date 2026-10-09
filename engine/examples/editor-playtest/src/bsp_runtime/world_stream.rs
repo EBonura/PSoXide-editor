@@ -58,9 +58,10 @@ impl WorldStream {
 ///
 /// 0 magic `WSTR`; 1 regions; 2 installed; 3 sectors; 4 pumps; 5 retries;
 /// 6 last error; 7 texture waits; 8 stub hits; 9 complete; 10 slot pool bytes;
-/// 11 slot count; 12.. pumps each region took, in install order.
+/// 11 slot count; 12.. pumps each region took, in install order; the word
+/// after those is the number of read restarts.
 #[no_mangle]
-pub static mut PSX_WORLD_STREAM: [u32; 12 + PUMP_HISTORY] = [0; 12 + PUMP_HISTORY];
+pub static mut PSX_WORLD_STREAM: [u32; 13 + PUMP_HISTORY] = [0; 13 + PUMP_HISTORY];
 
 fn publish(bsp: &BspRuntime) {
     let stats = bsp.stream.streamer.stats();
@@ -85,7 +86,11 @@ fn publish(bsp: &BspRuntime) {
         slots,
     ];
     let pumps = stats.region_pumps.map(u32::from);
-    for (i, word) in words.into_iter().chain(pumps).enumerate() {
+    let words = words
+        .into_iter()
+        .chain(pumps)
+        .chain([stats.read_restarts]);
+    for (i, word) in words.enumerate() {
         // SAFETY: single-threaded guest; the symbol is written only here.
         unsafe { core::ptr::write_volatile(core::ptr::addr_of_mut!(PSX_WORLD_STREAM[i]), word) };
     }
