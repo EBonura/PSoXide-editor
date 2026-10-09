@@ -579,7 +579,7 @@ pays for the packet and the transform it saves.
 recovered from `~/Movies/2026-09-23 08-31-55.mov` with `hwtest-video-qr.py`;
 image PSoXide-editor `hwtest/perf-probes` 691680b1, same console as the v1.22
 and v1.23 captures (BIOS 2.2, 1995-12-04), NTSC video. Compare with
-`python3 tools/hwtest-report.py --baseline <emulator pages> <that file>`.
+`psoxide-hwtest report --baseline <emulator pages> <that file>`.
 Every number below is from that capture unless it is labelled as the emulator.
 
 ### Interrupts land on GTE commands, and returning to EPC runs them twice
