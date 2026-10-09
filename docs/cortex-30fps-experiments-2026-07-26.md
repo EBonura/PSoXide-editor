@@ -932,7 +932,7 @@ spending a cortex_v1 run.
 A normal cortex_v3 build was sampled every 64 retired instructions, entirely
 from the emulator, producing 6.13 million samples. Filtering the windowed
 capture from route tick 300 removes boot/menu work and leaves 5.09 million
-gameplay samples. `tools/pc_symbolize.py --min-window-start` now performs this
+gameplay samples. `psoxide-perf pc-symbolize --min-window-start` now performs this
 filter reproducibly.
 
 The hottest gameplay symbols were the vblank-edge spin in `run_scheduled`

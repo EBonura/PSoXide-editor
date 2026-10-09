@@ -3305,6 +3305,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "psoxide-perf"
+version = "0.1.0"
+dependencies = [
+ "regex",
+ "sha2",
+ "tempfile",
+]
+
+[[package]]
 name = "psoxide-pgo"
 version = "0.1.0"
 dependencies = [

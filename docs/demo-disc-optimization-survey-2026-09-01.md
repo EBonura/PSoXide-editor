@@ -117,7 +117,7 @@ selecting by a near-presence rule (`RANKED_NEAR_PRESENCE_Z` / `_SPAN_PX`).
 
 Built from the worktree with the shipping feature set (`cd-stream-bench`),
 exe SHA-256 `1de5e327…16bb`, linker map in the evidence folder. Attribution by
-`tools/pc_line_attribution.py` against that map. Two runs: held forward into
+`psoxide-perf pc-line-attribution` against that map. Two runs: held forward into
 the spawn guardrail (cortex4) and idle (cortex6).
 
 | Symbol | held forward | idle |
@@ -213,7 +213,7 @@ Ordered by measured size, all on the `d812d5bd` shipping build at the 0.4 spawn.
 3. **`Scene::render` body + `draw_pxbsp_faces`, ~28%.** The room path has no
    sub-stage markers, so this is where `--pc-line-log` is the only instrument.
    Next step is a line-level view of `draw_pxbsp_faces` and the inlined body
-   (the `hot lines` table from `pc_line_attribution.py --limit 200`) to find
+   (the `hot lines` table from `psoxide-perf pc-line-attribution --limit 200`) to find
    which loop dominates. Not done today.
 4. **Small, mechanical, cascade-free:** `visible_bounds_mask` field compare
    instead of struct `==` (kills the `memcmp`, ~1%); `memset` of per-frame
@@ -432,8 +432,8 @@ cd <worktree> && PSOXIDE_GUEST_STAGE_ROOT=/tmp/psoxide-psx-guest-survey \
 
 The second build reproduces the identical exe hash (checked: `1de5e327…`), so
 the map matches the disc. The guest output is a PSX-EXE, not an ELF, so
-`tools/pc_symbolize.py` (needs `nm`) does not apply; use
-`tools/pc_line_attribution.py <pc-line.csv> <link.map>` and, for the RAM
+`psoxide-perf pc-symbolize` (needs `nm`) does not apply; use
+`psoxide-perf pc-line-attribution <pc-line.csv> <link.map>` and, for the RAM
 stall log, rename its header to `line_pc,instructions,percent` first.
 
 Attribution run:
