@@ -275,6 +275,11 @@ pub struct RenderStats {
     pub visible_faces: u16,
     /// Visible brush faces that reveal the caller-owned scene sky.
     pub visible_sky_apertures: u16,
+    /// A material that lets what is behind it show (a cutout texture or a
+    /// blend mode) was selected this pass, so the sky can show through a
+    /// face that is not an aperture. Resolved once per material per pass,
+    /// when the material cache fills, so the face loop pays nothing for it.
+    pub see_through_material_selected: bool,
     pub surface_batches: u16,
     pub packets: u32,
     pub hardware_triangles: u32,
@@ -1332,6 +1337,9 @@ pub struct Renderer {
     /// Bumped on entry to every face pass, so a cached entry from an earlier
     /// pass (different animation tick, different binding table) never hits.
     pxbsp_material_epoch: u32,
+    /// Set by [`Self::fill_pxbsp_material_cache`] when the pass selects a
+    /// see-through material; cleared with each new epoch.
+    pxbsp_see_through_seen: bool,
     /// `(vertex lump base, vertex lump length, overflow present)` for the last
     /// PXBSP map drawn: whether any baked vertex colour carries the legacy
     /// grayscale-overflow marker in its high byte. Probed once per map, so a
@@ -1494,6 +1502,7 @@ impl Renderer {
             pxbsp_material_cache: [PxbspResolvedMaterial::default(); PXBSP_MATERIAL_CACHE_SLOTS],
             frame_plane_side: Vec::new(),
             pxbsp_material_epoch: 0,
+            pxbsp_see_through_seen: false,
             pxbsp_baked_overflow: (0, 0, false),
             track_sky_apertures: true,
             light_styles,
@@ -1746,6 +1755,7 @@ impl Renderer {
         // different animation tick or a different binding table cannot hit.
         self.pxbsp_material_epoch = self.pxbsp_material_epoch.wrapping_add(1);
         let epoch = self.pxbsp_material_epoch;
+        self.pxbsp_see_through_seen = false;
         // Each pass has its own camera origin (brush models are drawn in
         // their own space), so the plane-side table starts unknown.
         let plane_side_bytes = map.planes().len().div_ceil(4);
@@ -2000,6 +2010,7 @@ impl Renderer {
             .wrapping_add(submitted.hardware_triangles);
 
         let packet_words = unsafe { next.offset_from(start) as usize };
+        stats.see_through_material_selected = self.pxbsp_see_through_seen;
         RenderFrame {
             stats,
             packet_words,
@@ -2128,6 +2139,12 @@ impl Renderer {
         let binding = materials.get(material_index).copied().flatten();
         if binding.is_some() {
             policy |= pxbsp_material_policy::BOUND;
+            if policy & pxbsp_material_policy::SKY == 0
+                && (material.flags & crate::pxbsp::material_flags::SEE_THROUGH != 0
+                    || material.blend_mode != material_blend::OPAQUE)
+            {
+                self.pxbsp_see_through_seen = true;
+            }
         }
         // A face whose material has no binding, or which is a sky aperture,
         // never reads the state; resolving against a default binding keeps
@@ -3807,6 +3824,77 @@ mod tests {
         assert_eq!(frame.stats.packets, 0);
         assert_eq!(frame.stats.hardware_triangles, 0);
         assert_eq!(frame.packet_words, 0);
+    }
+
+    #[test]
+    fn a_selected_see_through_material_is_reported() {
+        configure_projection();
+        // One triangle in front of the camera; only its material varies.
+        let report = |flags: u16, blend: u8, bound: bool| {
+            let mut lumps = valid_lumps();
+            let mut vertices = Vec::new();
+            for position in [[64i16, -16, -16], [64, 16, -16], [64, 0, 16]] {
+                for component in position {
+                    vertices.extend_from_slice(&component.to_le_bytes());
+                }
+                vertices.extend_from_slice(&[0, 0, 128, 0, 0, 0]);
+            }
+            lumps[PxbspLumpKind::Vertices as usize] = vertices;
+            let mins = [64i16, -16, -16].map(crate::encode_node_bound_min);
+            let maxs = [64i16, 16, 16].map(crate::encode_node_bound_max);
+            lumps[PxbspLumpKind::Nodes as usize][6..9]
+                .copy_from_slice(&mins.map(|value| value as u8));
+            lumps[PxbspLumpKind::Nodes as usize][9..12]
+                .copy_from_slice(&maxs.map(|value| value as u8));
+            lumps[PxbspLumpKind::Materials as usize][2..4].copy_from_slice(&flags.to_le_bytes());
+            lumps[PxbspLumpKind::Materials as usize][7] = blend;
+            let bytes = write_file(&lumps);
+            let mut map = PxbspResidentMap::with_capacity(bytes.len());
+            map.load(10, &mut SliceReader::new(&bytes))
+                .expect("resident map");
+            let camera = Camera {
+                origin: Vec3I32 {
+                    x: 1 << 12,
+                    y: 0,
+                    z: 0,
+                },
+                angles: [0; 3],
+            };
+            let mut packets = [0u32; 256];
+            let mut renderer = Renderer::new_pxbsp_with_nodes(map.faces().len(), map.nodes().len());
+            assert!(renderer.mark_visible_pxbsp_faces(&map, camera.origin));
+            let binding = bound.then(PxbspTextureBinding::default);
+            renderer
+                .draw_pxbsp_world(
+                    &map,
+                    camera,
+                    load_pxbsp_view(camera),
+                    &[binding],
+                    0,
+                    &mut packets,
+                )
+                .stats
+                .see_through_material_selected
+        };
+        assert!(!report(0, material_blend::OPAQUE, true), "opaque");
+        assert!(report(
+            material_flags::SEE_THROUGH,
+            material_blend::OPAQUE,
+            true
+        ));
+        assert!(report(0, material_blend::ADD, true), "blended");
+        assert!(
+            !report(material_flags::SEE_THROUGH, material_blend::OPAQUE, false),
+            "a material with no binding never draws"
+        );
+        assert!(
+            !report(
+                material_flags::SKY_APERTURE | material_flags::SEE_THROUGH,
+                material_blend::ADD,
+                true
+            ),
+            "apertures are counted as apertures"
+        );
     }
 
     #[test]

@@ -1665,7 +1665,7 @@ impl BspRuntime {
             let Some(mut reservation) = primitive_packets.reserve_packet_words(capacity) else {
                 return false;
             };
-            let (used_words, packet_count, visible_sky_apertures, overflowed) = {
+            let (used_words, packet_count, visible_sky_apertures, sky_shows_through, overflowed) = {
                 let packets = reservation.words_mut();
                 let world = self.renderer.draw_pxbsp_world_from_visibility_origin(
                     &self.map,
@@ -1679,6 +1679,9 @@ impl BspRuntime {
                 let mut used_words = world.packet_words;
                 let mut packet_count = world.stats.packets as usize;
                 let mut visible_sky_apertures = world.stats.visible_sky_apertures;
+                // A cutout or blended material lets the sky behind it show
+                // without any aperture being in view.
+                let mut sky_shows_through = world.stats.see_through_material_selected;
                 let mut overflowed = world.stats.packet_overflow_avoided;
 
                 for door in self.doors.iter() {
@@ -1702,6 +1705,7 @@ impl BspRuntime {
                         .expect("PXBSP packet count overflow");
                     visible_sky_apertures =
                         visible_sky_apertures.saturating_add(frame.stats.visible_sky_apertures);
+                    sky_shows_through |= frame.stats.see_through_material_selected;
                     overflowed |= frame.stats.packet_overflow_avoided;
                 }
                 for destructible in self
@@ -1729,9 +1733,16 @@ impl BspRuntime {
                         .expect("PXBSP packet count overflow");
                     visible_sky_apertures =
                         visible_sky_apertures.saturating_add(frame.stats.visible_sky_apertures);
+                    sky_shows_through |= frame.stats.see_through_material_selected;
                     overflowed |= frame.stats.packet_overflow_avoided;
                 }
-                (used_words, packet_count, visible_sky_apertures, overflowed)
+                (
+                    used_words,
+                    packet_count,
+                    visible_sky_apertures,
+                    sky_shows_through,
+                    overflowed,
+                )
             };
             if overflowed && can_grow {
                 // The uncommitted reservation is abandoned, not linked.
@@ -1748,7 +1759,7 @@ impl BspRuntime {
             unsafe {
                 ot.add_committed_tagged_packet_stream_unchecked(stream);
             }
-            return visible_sky_apertures != 0;
+            return visible_sky_apertures != 0 || sky_shows_through;
         }
     }
 
