@@ -3281,6 +3281,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "psoxide-hwtest"
+version = "0.1.0"
+dependencies = [
+ "regex",
+]
+
+[[package]]
 name = "psoxide-jit"
 version = "0.1.0"
 dependencies = [
