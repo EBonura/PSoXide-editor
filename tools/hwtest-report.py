@@ -762,7 +762,7 @@ _LOAD_PHASES = (
     "all_load_pad_irqs_open",
 )
 for _phase, _tag in enumerate(_LOAD_PHASES):
-    _base = 0x720 + 5 * _phase
+    _base = 0x720 + 6 * _phase
     V2_RECORDS[_base] = (f"engine_load_work_{_tag}", ("rounds_avg", "rounds_min", "rounds_max"))
     V2_RECORDS[_base + 1] = (f"engine_load_health_{_tag}", ("pad_faults", "stalls", "spurious"))
     V2_RECORDS[_base + 2] = (
@@ -777,8 +777,12 @@ for _phase, _tag in enumerate(_LOAD_PHASES):
         f"engine_load_mask_{_tag}",
         ("i_mask_after_load_start", "i_mask_at_end", "i_stat_at_end"),
     )
+    V2_RECORDS[_base + 5] = (
+        f"engine_load_totals_{_tag}",
+        ("port1_faults_since_install", "stalls_since_install", "port1_updates_since_install"),
+    )
 for _port in range(2):
-    _base = 0x740 + 3 * _port
+    _base = 0x760 + 3 * _port
     V2_RECORDS[_base] = (
         f"rumble_config_p{_port + 1}",
         ("pad_id_plain", "pad_id_in_config_mode", "config_flags"),
@@ -791,11 +795,11 @@ for _port in range(2):
         f"rumble_after_p{_port + 1}",
         ("id_and_5a_after_motor_poll", "buttons_in_that_poll", "id_after_stop_all"),
     )
-    V2_RECORDS[0x747 + _port] = (
+    V2_RECORDS[0x767 + _port] = (
         f"rumble_poll_cost_p{_port + 1}",
         ("poll_cycles_idle", "poll_cycles_motors_on", "polls_each"),
     )
-V2_RECORDS[0x746] = (
+V2_RECORDS[0x766] = (
     "rumble_operator",
     ("answers_two_bits_each", "stimuli_asked", "port_tested"),
 )
