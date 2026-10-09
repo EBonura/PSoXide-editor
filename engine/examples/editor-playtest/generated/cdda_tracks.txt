@@ -1,0 +1,4 @@
+# PSoXide cooked CD-DA raw track payloads
+# One path per line. Track 2 is the first line, track 3 the second, etc.
+/Users/ebonura/Desktop/repos/PSoXide-editor-wt/cracks/engine/examples/editor-playtest/generated/cdda_tracks/track02.cdda
+/Users/ebonura/Desktop/repos/PSoXide-editor-wt/cracks/engine/examples/editor-playtest/generated/cdda_tracks/track03.cdda
