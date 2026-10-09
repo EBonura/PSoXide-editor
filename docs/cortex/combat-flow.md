@@ -81,3 +81,19 @@ The shared tuning requests 72 units over 18 simulation ticks (0.3 seconds), foll
 Runtime tests cover zero-Energy melee evasion, lateral clip selection, travel and planted recovery, blocked-side fallback, cooldown retention, and committed-action protection. Guest replay evidence belongs in `validation/lateral-evade/` within Graybox Reach; an evade decision alone does not prove the incoming projectile missed.
 
 The normal Play build passed 352 runtime unit tests, five integration tests and the PS1 instruction hazard scan. Guest seeds 1 and 7 completed by enemy death after 7202 and 8030 ticks, with four and six enemy evade attempts. The first two steps were inspected in the recorded replay; the enemy moves laterally and plants before resuming combat. These runs verify integration, not dodge success rate or combat balance.
+
+## Stance swap as a parry
+
+A voluntary stance swap grants 25 ticks of i-frames. If an enemy melee hit or bolt would land within the first `PERFECT_SWAP_TICKS` (12) ticks of the swap, it is a perfect swap: the melee attacker is staggered (the bolt is negated), `PERFECT_SWAP_ENERGY` (one shot, 20) is refunded and the swap cooldown resets. A hit that lands after tick 12 but inside the i-frames is still avoided, but pays nothing. The `no-perfect-swap` editor-playtest feature restores the old 72-tick swap lockout with no window and no bot attempts, so a batch can measure the parry against the same tree. The duel bot attempts a perfect swap on 60% of its opportunities (`PERFECT_SWAP_SKILL_PERCENT` in the editor-playtest `duel.rs`).
+
+The starting values are guesses to be judged by feel. To tune them, edit the constants and rebuild the disc:
+
+| Value | Where |
+|---|---|
+| Perfect swap window, Energy refund | `PERFECT_SWAP_TICKS`, `PERFECT_SWAP_ENERGY` in `engine/crates/psx-game-runtime/src/combat_flow.rs` |
+| Aim/shot/hook lock after a swap (keep equal to the window) | `SWAP_COMMIT_TICKS` in `vitality.rs` |
+| Swap cooldown, swap animation length | `swap_cooldown_ticks`, `swap_duration_ticks` in `CombatStanceConfig::DEFAULT` (`vitality.rs`) |
+| I-frames of the swap and of the sidestep | the player's `roll_invulnerable_frames` in `project.ron` |
+| Opposite-colour poise on enemy / on player | `OPPOSED_POISE_Q12`, `PLAYER_OPPOSED_POISE_Q12` in `combat_flow.rs` |
+
+The 60-seed before/after batches under `validation/combat-feel/` were taken on base 39f40cd2 and have not been repeated on the current base.
