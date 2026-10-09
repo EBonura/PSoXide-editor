@@ -18,6 +18,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 mod animation_pose_correction;
 pub mod animation_resample;
+pub(crate) mod animation_tracks;
 pub mod brush;
 pub mod brush_collision_hulls;
 pub mod brush_compile;
@@ -30,6 +31,8 @@ pub mod brush_portal;
 pub mod brush_primitives;
 pub mod brush_pxbsp;
 pub mod brush_region;
+pub mod brush_region_hulls;
+pub mod brush_seams;
 pub mod brush_transform;
 mod brush_vis;
 pub mod brush_walk;

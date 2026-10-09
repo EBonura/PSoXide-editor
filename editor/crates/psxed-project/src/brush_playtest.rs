@@ -78,7 +78,10 @@ mod tests {
         // duplicate node-face ranges, Quake outside fill removes surfaces
         // seen only by the unreachable exterior, and hull 0 reuses the
         // classified render BSP instead of storing a second point clip tree.
-        assert_eq!(world.bytes.len(), 4_192);
+        // The body hulls are solid-leaf hull BSPs (the default), which are
+        // 264 bytes smaller than the 4,192 the chain compiler needed here.
+        // Conforming T-junctions adds 16 vertices (192 bytes) to this world.
+        assert_eq!(world.bytes.len(), 4_120);
         assert_eq!(world.movers.len(), 1);
         assert_eq!(world.movers[0].model_index, 1);
         assert_eq!(package.rooms.len(), 1);
@@ -236,6 +239,7 @@ mod tests {
                 mode: BrushWorldCookMode::Draft,
                 ambient: [32; 3],
                 texture_asset_base: 0,
+                collision_hulls: Default::default(),
             },
         )
         .expect("compile brush first-playable fixture");
