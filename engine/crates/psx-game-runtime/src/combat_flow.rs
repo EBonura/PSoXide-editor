@@ -4,6 +4,11 @@
 pub const ENERGY_MAX: u16 = 100;
 /// Energy charged per emitted projectile.
 pub const SHOT_COST: u16 = 20;
+/// Energy a charged arch shot costs, twice an ordinary one. It is tied to the
+/// arch: a perched player cannot dodge, loses the attached refill while
+/// charging and holds still for over a second, so the shot is paid for in both
+/// resources and risk.
+pub const CHARGED_SHOT_COST: u16 = 40;
 /// AI rebuilds a useful three-shot reserve before leaving recovery melee.
 pub const AI_RESUME_ENERGY: u16 = 60;
 /// Preserve a contact opportunity through recovery and the stance cooldown.
@@ -133,10 +138,21 @@ impl CombatFlow {
     }
     /// Charge only successfully allocated projectiles, including each burst emitter.
     pub fn spend_shot(&mut self) -> bool {
-        if !self.can_shoot() {
+        self.spend(SHOT_COST)
+    }
+    /// True when energy covers a charged arch shot.
+    pub fn can_shoot_charged(&self) -> bool {
+        self.energy >= CHARGED_SHOT_COST
+    }
+    /// Charge a successfully allocated charged bolt.
+    pub fn spend_charged_shot(&mut self) -> bool {
+        self.spend(CHARGED_SHOT_COST)
+    }
+    fn spend(&mut self, cost: u16) -> bool {
+        if self.energy < cost {
             return false;
         }
-        self.energy -= SHOT_COST;
+        self.energy -= cost;
         self.recharging |= self.energy < SHOT_COST;
         if self.recharging {
             self.ranged_phase = false;
@@ -176,7 +192,8 @@ impl CombatFlow {
         }
     }
     /// The allowance belongs to the whole airborne excursion. Neither another
-    /// arch nor briefly touching ground refreshes it. Shooting pauses recharge.
+    /// arch nor briefly touching ground refreshes it. Shooting, and holding a
+    /// charged arch shot, pause recharge: `firing` covers both.
     pub fn air_tick(&mut self, attached: bool, grounded: bool, firing: bool) -> bool {
         if grounded && !attached {
             self.ground_ticks = self.ground_ticks.saturating_add(1).min(GROUND_REARM_TICKS);
@@ -342,6 +359,18 @@ mod tests {
         );
         f.shot_hit(true);
         assert_eq!(f.preferred_stance(1, true), 0);
+    }
+    #[test]
+    fn a_charged_shot_costs_its_own_energy_and_needs_it_all() {
+        let mut flow = CombatFlow::FULL;
+        flow.energy = CHARGED_SHOT_COST - 1;
+        assert!(flow.can_shoot() && !flow.can_shoot_charged());
+        assert!(!flow.spend_charged_shot());
+        assert_eq!(flow.energy, CHARGED_SHOT_COST - 1);
+        flow.energy = CHARGED_SHOT_COST;
+        assert!(flow.spend_charged_shot());
+        assert_eq!(flow.energy, 0);
+        assert!(!flow.can_shoot());
     }
     #[test]
     fn shots_exhaust_and_only_real_melee_replenishes() {

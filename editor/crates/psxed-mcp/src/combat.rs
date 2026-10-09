@@ -94,7 +94,7 @@ mod flow_rules;
 pub fn flow_rules() -> serde_json::Value {
     use flow_rules::*;
     json!({"status":"prototype","scope":"ranged-equipped editor playtests; legacy entity rules otherwise unchanged",
-        "energy":{"max":ENERGY_MAX,"shot_cost_per_projectile":SHOT_COST,"light_contact_gain":MELEE_GAIN,
+        "energy":{"max":ENERGY_MAX,"shot_cost_per_projectile":SHOT_COST,"charged_arch_shot_cost":CHARGED_SHOT_COST,"light_contact_gain":MELEE_GAIN,
             "heavy_contact_gain":HEAVY_GAIN,"floating_gain_per_second":FLOAT_GAIN_PER_SECOND,
             "floating_pauses_while_firing":true,"passive_ground_regen":false,
             "enemy_uses_same_energy":true,"enemies_can_hook":false},
@@ -113,6 +113,7 @@ pub fn flow_rules() -> serde_json::Value {
             "melee_tell":"first half may turn and step back through collision; second half plants",
             "overhead_empty":"keeps ranged stance and waits for target to become reachable; no free Energy"},
         "arch":{"duration_ticks_60hz":AIR_TICKS,"ground_rearm_ticks":GROUND_REARM_TICKS,
+            "charged_shot":"Zenith, aimed, attached: R2 tap fires an ordinary bolt on release; a 75-tick hold then release fires a charged bolt (3x damage, 30 poise, 1.5x radius, charged_arch_shot_cost Energy); charging pauses the refill",
             "detach_on":"timer, poise break, death, collision, voluntary Circle",
             "rehook_does_not_reset":true},
         "damage":{"matching_percent":100,"opposite_percent":125,"poise_is_shared_between_stances":true},

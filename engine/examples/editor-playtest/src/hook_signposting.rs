@@ -230,11 +230,19 @@ impl Playtest {
             // Three small contact glints replace the former overhead tether.
             if self.hook_attached == Some(index) {
                 for (x, y) in [(0, 0), (4, -58), (18, -66)] {
-                    let r = if self.hook_charge.ready() { 3 } else { 2 };
+                    // The contact glints swell and warm from teal to gold as the
+                    // arch charge builds, and go white-hot when it is full.
+                    let progress = i32::from(self.hook_charge.progress_q12());
+                    let r = if self.hook_charge.ready() {
+                        4
+                    } else {
+                        2 + progress / 2048
+                    };
                     let color = if self.hook_charge.ready() {
                         (255, 245, 210)
                     } else {
-                        (108, 238, 216)
+                        let mix = |from: i32, to: i32| (from + (to - from) * progress / 4096) as u8;
+                        (mix(108, 255), mix(238, 200), mix(216, 96))
                     };
                     hook_tri(
                         [

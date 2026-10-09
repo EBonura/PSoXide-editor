@@ -73,6 +73,13 @@ impl Request {
     pub fn clear(&mut self) {
         self.tag = 0;
     }
+    /// Keep a pending request attached to its action instance when the owner
+    /// delays that action's start tick (hit-stop holds the animation clock).
+    pub fn shift_source(&mut self, ticks: u32) {
+        if self.tag != 0 {
+            self.source_start = self.source_start.wrapping_add(ticks);
+        }
+    }
     /// Accept presses in the arming window, then consume once at permission.
     /// Scope includes the start tick so repeated instances of one action cannot leak input.
     pub fn update(
