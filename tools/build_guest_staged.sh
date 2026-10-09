@@ -109,7 +109,9 @@ patch_and_prove() {
             exit 1
         }
     fi
-    "$hazard_dir/hazard-patch" "$1" >"$3/hazard-patch.txt" 2>&1 || {
+    # The link map bounds the patch to the image's .text (the SDK's patcher
+    # refuses to guess without it).
+    "$hazard_dir/hazard-patch" --map "$2" "$1" >"$3/hazard-patch.txt" 2>&1 || {
         cat "$3/hazard-patch.txt" >&2
         echo "[guest-build] load-delay hazards remain in $EXE_RELATIVE; refusing to stage it" >&2
         exit 1
