@@ -43,14 +43,14 @@ use std::path::Path;
 use psx_bsp::collision::{CollisionHull, CONTENTS_SOLID};
 use psx_bsp::collision_provider::select_body_hull;
 use psx_bsp::pxbsp::{
-    entity_class, entity_flags, PxbspEntity, PxbspLumpKind, PXBSP_LUMP_COUNT,
+    entity_class, entity_flags, PxbspEntity, PxbspIndex, PxbspLumpKind, PXBSP_LUMP_COUNT,
     PXBSP_MAX_VISIBILITY_BYTES,
 };
 use psx_bsp::pxbsp_resident::stream::{
     fnv1a32, RegionBuild, RegionEntry, SlotCaps, StreamingIndex, TopCounts, CONTENTS_UNRESIDENT,
     REGION_HEADER_BYTES, SECTOR_BYTES,
 };
-use psx_bsp::{ClipNode, Plane as WirePlane, RecordSlice, Vec3I16};
+use psx_bsp::{ClipNode, Plane as WirePlane, RecordSlice, SliceReader, Vec3I16};
 use psx_render_contract::CookedDrawSurface;
 
 use super::{
@@ -1602,28 +1602,41 @@ pub fn cook_project_streamed(
     ambient: [u8; 3],
     params: &PartitionParams,
 ) -> Result<CookedWorld, StreamCookError> {
-    cook_project_streamed_with(
-        authored,
+    let options = BrushWorldCookOptions {
         project_root,
         mode,
         ambient,
-        params,
-        StreamPvs::Clustered {
-            reach: params.vis_distance,
-        },
-    )
+        texture_asset_base: 0,
+        collision_hulls: whole_map_hull_strategy(authored),
+    };
+    cook_project_streamed_with(authored, options, params)
 }
 
-/// [`cook_project_streamed`] with an explicit visibility strategy.
+/// The tree builder the whole-map cook uses for this project. A streamed
+/// cook builds each cell's hulls with the spatial chains instead; only the
+/// one-region fallback reads this.
+fn whole_map_hull_strategy(
+    authored: &ProjectDocument,
+) -> crate::brush_collision_hulls::CollisionHullStrategy {
+    if authored.collision_hull_bsp {
+        crate::brush_collision_hulls::CollisionHullStrategy::HullBsp
+    } else {
+        crate::brush_collision_hulls::CollisionHullStrategy::SpatialChains
+    }
+}
+
+/// [`cook_project_streamed`] with explicit cook options, so the playtest cook
+/// can pass the texture asset base its material table is numbered from.
+/// `authored` is the unscaled document; it is scaled to engine units here.
 pub fn cook_project_streamed_with(
     authored: &ProjectDocument,
-    project_root: &Path,
-    mode: BrushWorldCookMode,
-    ambient: [u8; 3],
+    options: BrushWorldCookOptions<'_>,
     params: &PartitionParams,
-    pvs: StreamPvs,
 ) -> Result<CookedWorld, StreamCookError> {
-    Ok(cook_project_gated(authored, project_root, mode, ambient, params, pvs)?.world)
+    let pvs = StreamPvs::Clustered {
+        reach: params.vis_distance,
+    };
+    Ok(cook_project_gated_with(authored, options, params, pvs)?.world)
 }
 
 /// A cook together with the partition that drove it and, for a streamed
@@ -1650,20 +1663,30 @@ pub fn cook_project_gated(
     params: &PartitionParams,
     pvs: StreamPvs,
 ) -> Result<GatedCook, StreamCookError> {
-    let started = std::time::Instant::now();
-    let input = PartitionInput::from_project(authored, project_root)
-        .map_err(|error| StreamCookError::Partition(error.to_string()))?;
-    let plan = partition(&input, params);
-    let partition_seconds = started.elapsed().as_secs_f64();
-    let mut scaled = authored.clone();
-    crate::units::scale_project_to_engine_units(&mut scaled);
     let options = BrushWorldCookOptions {
         project_root,
         mode,
         ambient,
         texture_asset_base: 0,
-        collision_hulls: Default::default(),
+        collision_hulls: whole_map_hull_strategy(authored),
     };
+    cook_project_gated_with(authored, options, params, pvs)
+}
+
+/// [`cook_project_gated`] with explicit cook options.
+pub fn cook_project_gated_with(
+    authored: &ProjectDocument,
+    options: BrushWorldCookOptions<'_>,
+    params: &PartitionParams,
+    pvs: StreamPvs,
+) -> Result<GatedCook, StreamCookError> {
+    let started = std::time::Instant::now();
+    let input = PartitionInput::from_project(authored, options.project_root)
+        .map_err(|error| StreamCookError::Partition(error.to_string()))?;
+    let plan = partition(&input, params);
+    let partition_seconds = started.elapsed().as_secs_f64();
+    let mut scaled = authored.clone();
+    crate::units::scale_project_to_engine_units(&mut scaled);
     let started = std::time::Instant::now();
     if plan.regions.len() <= 1 {
         let world = CookedWorld::Whole(Box::new(compile_brush_world(&scaled, options)?));
@@ -1710,6 +1733,348 @@ pub fn cook_project_gated(
     })
 }
 
+/// How the playtest cook treats world streaming, read from
+/// `PSXED_STREAM_WORLD` (design 2026-10-08, M7).
+///
+/// * unset or anything else: the whole-map cook, unchanged (the default until
+///   the M7 gates pass);
+/// * `ref`: partition and cook the streamed geometry, then flatten it into one
+///   ordinary whole-map container (the reference the streamed build is
+///   compared against);
+/// * `stream`: the streamed form, a top container plus a region pack.
+///
+/// A project that fits one region cooks the whole-map path in every mode.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum StreamWorldMode {
+    Off,
+    Reference,
+    Streamed,
+}
+
+impl StreamWorldMode {
+    pub fn from_env() -> Self {
+        match std::env::var("PSXED_STREAM_WORLD").as_deref() {
+            Ok("ref") | Ok("reference") => Self::Reference,
+            Ok("1") | Ok("stream") | Ok("streamed") => Self::Streamed,
+            _ => Self::Off,
+        }
+    }
+}
+
+/// Partition parameters for the playtest cook: the defaults, with the RON
+/// overrides named by `PSXED_STREAM_PARAMS` applied when set.
+pub fn partition_params_from_env() -> Result<PartitionParams, String> {
+    let mut params = PartitionParams::default();
+    if let Ok(path) = std::env::var("PSXED_STREAM_PARAMS") {
+        let text = std::fs::read_to_string(&path).map_err(|e| format!("{path}: {e}"))?;
+        crate::brush_region::CookOverrides::from_ron_str(&text)
+            .map_err(|e| format!("{path}: {e}"))?
+            .apply(&mut params);
+    }
+    Ok(params)
+}
+
+/// The streamed pieces of a playtest cook that go on the disc.
+pub struct StreamedParts {
+    pub container: Vec<u8>,
+    pub region_pack: Vec<u8>,
+    pub regions: usize,
+}
+
+/// Cook the world for the playtest package under `mode`. The returned
+/// [`CompiledBrushWorld`] always carries a container the legacy loader reads
+/// (for a streamed cook, the flattened whole map of the same geometry); the
+/// second value is the streamed form when `mode` asks for it.
+pub fn cook_playtest_world(
+    authored: &ProjectDocument,
+    options: BrushWorldCookOptions<'_>,
+    mode: StreamWorldMode,
+) -> Result<(CompiledBrushWorld, Option<StreamedParts>), StreamCookError> {
+    let params = partition_params_from_env().map_err(StreamCookError::Partition)?;
+    match cook_project_streamed_with(authored, options, &params)? {
+        CookedWorld::Whole(world) => Ok((*world, None)),
+        CookedWorld::Streamed(world) => {
+            let flat = flatten_streamed(&world);
+            let compiled = CompiledBrushWorld {
+                pxbsp: crate::brush_pxbsp::CompiledPxbsp {
+                    resident_bytes: flat.bytes.len(),
+                    max_visible_faces: flat.max_visible_faces,
+                    bytes: flat.bytes,
+                },
+                textures: world.textures.clone(),
+                movers: Vec::new(),
+                body_hulls: world.body_hulls,
+                leak_path: world.leak_path.clone(),
+                uv_window: world.uv_window,
+            };
+            let parts = (mode == StreamWorldMode::Streamed).then(|| StreamedParts {
+                regions: world.index.regions.len(),
+                container: world.container.clone(),
+                region_pack: world.region_pack.clone(),
+            });
+            Ok((compiled, parts))
+        }
+    }
+}
+
+/// A sparse visible-leaf row as the dense bit row the whole-map format stores.
+fn flat_dense_row(sparse: &[u32], total: usize) -> Vec<u8> {
+    let mut row = vec![0u8; total.div_ceil(8)];
+    for &id in sparse {
+        row[id as usize >> 3] |= 1 << (id & 7);
+    }
+    row
+}
+
+fn flat_rd16(bytes: &[u8], at: usize) -> u16 {
+    u16::from_le_bytes([bytes[at], bytes[at + 1]])
+}
+
+fn flat_wr16(bytes: &mut [u8], at: usize, value: u16) {
+    bytes[at..at + 2].copy_from_slice(&value.to_le_bytes());
+}
+
+/// A streamed world concatenated into one ordinary whole-map PXBSP.
+///
+/// Built from the cooked region tables with plain additive bases and the
+/// dense, slot-free PVS rows the cooker computed before it rewrote them into
+/// the rank layout, independently of the runtime install code. It is the
+/// "whole-map build of the same geometry": the streamed world must draw and
+/// collide exactly like it once every region is resident.
+pub struct FlatWorld {
+    /// A legacy-loadable PXBSP v6 container.
+    pub bytes: Vec<u8>,
+    /// Region and local face of every flat face.
+    pub face_of: Vec<(usize, usize)>,
+    /// Region and local leaf (1-based) of every flat leaf (index 0 unused).
+    pub leaf_of: Vec<(usize, usize)>,
+    /// Most faces any one leaf's PVS makes potentially visible: the bound
+    /// the renderer's face chains are sized from.
+    pub max_visible_faces: usize,
+}
+
+fn flat_lump(container: &[u8], index: &PxbspIndex, kind: PxbspLumpKind) -> Vec<u8> {
+    let r = index.lump(kind);
+    container[r.offset as usize..r.end() as usize].to_vec()
+}
+
+/// Concatenate every region of `world` into a [`FlatWorld`].
+pub fn flatten_streamed(world: &StreamedBrushWorld) -> FlatWorld {
+    let debug = &world.debug;
+    let regions = debug.regions.len();
+    let top = &debug.top;
+    let index = PxbspIndex::read(&mut SliceReader::new(&world.container)).unwrap();
+    let mut lumps: [Vec<u8>; PXBSP_LUMP_COUNT] = core::array::from_fn(|_| Vec::new());
+    lumps[PxbspLumpKind::Materials as usize] =
+        flat_lump(&world.container, &index, PxbspLumpKind::Materials);
+    lumps[PxbspLumpKind::Entities as usize] =
+        flat_lump(&world.container, &index, PxbspLumpKind::Entities);
+
+    // Additive bases, region by region.
+    let mut base = vec![[0usize; 8]; regions]; // planes, vertices, faces, marks, nodes, clip, leaf, vis
+    let top_planes = top.planes.len() / 12;
+    let top_nodes = top.nodes.len() / 16;
+    let top_clip = top.clip_nodes.len() / 6;
+    let mut at = [top_planes, 0, 0, 0, top_nodes, top_clip, 1, 0];
+    for (r, b) in debug.regions.iter().enumerate() {
+        base[r] = at;
+        at[0] += b.planes.len() / 12;
+        at[1] += b.vertices.len() / 12;
+        at[2] += b.faces.len() / 10;
+        at[3] += b.marks.len() / 2;
+        at[4] += b.nodes.len() / 16;
+        at[5] += b.clip_nodes.len() / 6;
+        at[6] += b.leaves.len() / 14;
+    }
+
+    // Region child -> flat child.
+    let render_child = |r: usize, c: i16| -> i16 {
+        if c >= 0 {
+            (c as usize + base[r][4]) as i16
+        } else {
+            let l = (-1 - c) as usize;
+            if l == 0 {
+                c
+            } else {
+                (-1 - (base[r][6] + l - 1) as i32) as i16
+            }
+        }
+    };
+    let clip_child = |r: usize, c: i16| -> i16 {
+        if c >= 0 {
+            (c as usize + base[r][5]) as i16
+        } else {
+            c
+        }
+    };
+
+    let mut planes = top.planes.clone();
+    let mut vertices = Vec::new();
+    let mut faces = Vec::new();
+    let mut marks = Vec::new();
+    let mut nodes = top.nodes.clone();
+    let mut clips = top.clip_nodes.clone();
+    let mut leaves = Vec::new();
+    let mut face_of = Vec::new();
+    let mut leaf_of = vec![(0, 0)];
+    // Sentinel leaf.
+    {
+        let mut sentinel = vec![0u8; 14];
+        sentinel[0] = CONTENTS_SOLID as i8 as u8;
+        sentinel[4..8].copy_from_slice(&(-1i32).to_le_bytes());
+        sentinel[13] = 64;
+        leaves.extend(sentinel);
+    }
+    // Dense visibility, interned.
+    let mut vis = Vec::new();
+    let mut interned = std::collections::BTreeMap::<Vec<u8>, i32>::new();
+    for (r, b) in debug.regions.iter().enumerate() {
+        planes.extend_from_slice(&b.planes);
+        vertices.extend_from_slice(&b.vertices);
+        for (local, face) in b.faces.chunks_exact(10).enumerate() {
+            let mut f = face.to_vec();
+            flat_wr16(&mut f, 0, flat_rd16(face, 0) + base[r][0] as u16);
+            flat_wr16(&mut f, 2, flat_rd16(face, 2) + base[r][1] as u16);
+            faces.extend(f);
+            face_of.push((r, local));
+        }
+        for mark in b.marks.chunks_exact(2) {
+            marks.extend_from_slice(&(flat_rd16(mark, 0) + base[r][2] as u16).to_le_bytes());
+        }
+        for node in b.nodes.chunks_exact(16) {
+            let mut n = node.to_vec();
+            flat_wr16(&mut n, 0, flat_rd16(node, 0) + base[r][0] as u16);
+            for side in 0..2 {
+                flat_wr16(
+                    &mut n,
+                    2 + side * 2,
+                    render_child(r, flat_rd16(node, 2 + side * 2) as i16) as u16,
+                );
+            }
+            nodes.extend(n);
+        }
+        for node in b.clip_nodes.chunks_exact(6) {
+            let mut n = node.to_vec();
+            flat_wr16(&mut n, 0, flat_rd16(node, 0) + base[r][0] as u16);
+            for side in 0..2 {
+                flat_wr16(
+                    &mut n,
+                    2 + side * 2,
+                    clip_child(r, flat_rd16(node, 2 + side * 2) as i16) as u16,
+                );
+            }
+            clips.extend(n);
+        }
+        for (k, leaf) in b.leaves.chunks_exact(14).enumerate() {
+            let mut l = leaf.to_vec();
+            flat_wr16(&mut l, 8, flat_rd16(leaf, 8) + base[r][3] as u16);
+            let row = flat_dense_row(&debug.sparse_rows[r][k], debug.dense_total);
+            let compressed = crate::brush_pack::compress_visibility(&row);
+            let offset = *interned.entry(compressed.clone()).or_insert_with(|| {
+                let at = vis.len() as i32;
+                vis.extend_from_slice(&compressed);
+                at
+            });
+            l[4..8].copy_from_slice(&offset.to_le_bytes());
+            leaves.extend(l);
+            leaf_of.push((r, k + 1));
+        }
+    }
+    // Top nodes: a stub child becomes the region's root.
+    for t in 0..top_nodes {
+        for side in 0..2 {
+            let at = t * 16 + 2 + side * 2;
+            let child = flat_rd16(&nodes, at) as i16;
+            if child < 0 {
+                let r = (-child - 2) as usize;
+                let root = render_child(r, debug.regions[r].render_root);
+                flat_wr16(&mut nodes, at, root as u16);
+            }
+        }
+    }
+    // Top clip nodes: patch each region's two links.
+    for (r, entry) in world.index.regions.iter().enumerate() {
+        for hull in 0..2 {
+            let parent = entry.parents[1 + hull] as usize;
+            let side = entry.side(1 + hull);
+            let root = clip_child(r, debug.regions[r].clip_roots[hull]);
+            flat_wr16(&mut clips, parent * 6 + 2 + side * 2, root as u16);
+        }
+    }
+    let n = top_nodes;
+    let mut model = Vec::new();
+    for v in debug
+        .world_bounds
+        .0
+        .into_iter()
+        .chain(debug.world_bounds.1)
+        .chain([0; 3])
+    {
+        model.extend_from_slice(&v.to_le_bytes());
+    }
+    for head in [0i16, 0, 1, 1 + n as i16] {
+        model.extend_from_slice(&head.to_le_bytes());
+    }
+    model.extend_from_slice(&(debug.dense_total as i16).to_le_bytes());
+    model.extend_from_slice(&0u16.to_le_bytes());
+    model.extend_from_slice(&((faces.len() / 10) as u16).to_le_bytes());
+    lumps[PxbspLumpKind::Vertices as usize] = vertices;
+    lumps[PxbspLumpKind::Planes as usize] = planes;
+    lumps[PxbspLumpKind::Faces as usize] = faces;
+    lumps[PxbspLumpKind::MarkSurfaces as usize] = marks;
+    lumps[PxbspLumpKind::Visibility as usize] = vis;
+    lumps[PxbspLumpKind::Leaves as usize] = leaves;
+    lumps[PxbspLumpKind::Nodes as usize] = nodes;
+    lumps[PxbspLumpKind::ClipNodes as usize] = clips;
+    lumps[PxbspLumpKind::Models as usize] = model;
+    let bytes = write_pxbsp(&lumps).expect("flat container");
+    let max_visible_faces = flat_max_visible_faces(&bytes);
+    FlatWorld {
+        bytes,
+        face_of,
+        leaf_of,
+        max_visible_faces,
+    }
+}
+
+/// The most faces any leaf's PVS shows, measured on the loaded flat map.
+fn flat_max_visible_faces(bytes: &[u8]) -> usize {
+    let mut map = psx_bsp::pxbsp_resident::PxbspResidentMap::with_capacity(bytes.len());
+    map.load(0, &mut psx_bsp::SliceReader::new(bytes))
+        .expect("the flat container loads as a legacy map");
+    let faces = map.faces().len();
+    let mut row = vec![0u8; PXBSP_MAX_VISIBILITY_BYTES];
+    let mut marked = vec![false; faces];
+    let mut best = 0usize;
+    for leaf in 1..map.leaves().len() {
+        let Some(bits) = map.leaf_visibility_into(leaf, &mut row) else {
+            continue;
+        };
+        marked.fill(false);
+        let mut count = 0usize;
+        for bit in 0..bits {
+            if row[bit >> 3] & (1 << (bit & 7)) == 0 {
+                continue;
+            }
+            let Some(visible) = map.leaves().get(bit + 1) else {
+                continue;
+            };
+            let first = visible.first_mark_surface as usize;
+            for mark in first..first + visible.mark_surface_count as usize {
+                if let Some(&face) = map.mark_surfaces_native().get(mark) {
+                    if !marked[face as usize] {
+                        marked[face as usize] = true;
+                        count += 1;
+                    }
+                }
+            }
+        }
+        best = best.max(count);
+    }
+    best
+}
+
 #[cfg(test)]
+#[allow(clippy::print_stdout)]
 #[path = "brush_world_stream_tests.rs"]
 mod tests;

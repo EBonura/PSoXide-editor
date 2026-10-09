@@ -3281,6 +3281,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "psoxide-hwtest"
+version = "0.1.0"
+dependencies = [
+ "regex",
+]
+
+[[package]]
 name = "psoxide-jit"
 version = "0.1.0"
 dependencies = [
@@ -3295,6 +3302,15 @@ name = "psoxide-link"
 version = "0.1.0"
 dependencies = [
  "serde_json",
+]
+
+[[package]]
+name = "psoxide-perf"
+version = "0.1.0"
+dependencies = [
+ "regex",
+ "sha2",
+ "tempfile",
 ]
 
 [[package]]
@@ -3382,6 +3398,14 @@ dependencies = [
 [[package]]
 name = "psx-disasm"
 version = "0.1.0"
+
+[[package]]
+name = "psx-display"
+version = "0.1.0"
+dependencies = [
+ "psx-gpu",
+ "psx-hw",
+]
 
 [[package]]
 name = "psx-engine"
@@ -3521,6 +3545,7 @@ dependencies = [
 name = "psx-settings"
 version = "0.1.0"
 dependencies = [
+ "psx-display",
  "psx-pad",
 ]
 

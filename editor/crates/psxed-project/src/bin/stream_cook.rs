@@ -118,6 +118,22 @@ fn main() -> ExitCode {
                 "slot caps: faces {} vertices {} planes {} marks {} nodes {} clip {} leaves {} vis {} B; widest PVS row {} B of 1024, max |V| {}",
                 c.faces, c.vertices, c.planes, c.marks, c.nodes, c.clip_nodes, c.leaves, c.vis_bytes, s.widest_row_bytes, s.max_vis_count
             );
+            let slot_bytes = c.faces as usize * 10
+                + c.vertices as usize * 12
+                + c.planes as usize * 12
+                + c.marks as usize * 2
+                + c.nodes as usize * 16
+                + c.clip_nodes as usize * 6
+                + c.leaves as usize * 14
+                + c.vis_bytes as usize;
+            println!(
+                "slot {} B x {} regions = pool {} B; payload sum {} B; largest payload {} B",
+                slot_bytes,
+                s.regions.len(),
+                slot_bytes * s.regions.len(),
+                s.regions.iter().map(|r| r.payload_bytes).sum::<usize>(),
+                s.regions.iter().map(|r| r.payload_bytes).max().unwrap_or(0)
+            );
             if !quiet {
                 for r in &s.regions {
                     println!(

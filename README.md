@@ -33,7 +33,7 @@ make run
 remain in the source history. PS1 release builds need no external MIPS
 binutils: the post-link hazard and stack checks decode instructions with the
 in-tree `psx-disasm` crate. Only a few optional analysis scripts
-(`tools/instr_census.py`, `tools/pc_symbolize.py`, `tools/cortex_pgo.sh`) and
+(`psoxide-perf instr-census`, `psoxide-perf pc-symbolize`, `tools/cortex_pgo.sh`) and
 `psx-disasm`'s differential test call a MIPS `objdump` or `nm`. Existing
 project cooking, guest build and disc targets remain available through
 `make help`.

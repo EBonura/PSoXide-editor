@@ -343,7 +343,7 @@ PSOXIDE_EXPERIMENTAL_DMA_FIFO=0 target/release/frontend launch \
   --input-tape editor/projects/graybox-reach/validation/main-orbit.pxtape \
   --stop-at-poll=4250 --steps=8900000000 \
   --route-log build/graybox-reach/replay/route.csv
-python3 benchmarks/engine-stress/measure_route.py build/graybox-reach/replay 650 4230
+psoxide-perf engine-stress measure-route build/graybox-reach/replay 650 4230
 ```
 
 
