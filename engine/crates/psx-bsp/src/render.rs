@@ -4623,14 +4623,14 @@ mod frustum_tests {
                             anchor[2] + spread(),
                         ]
                     };
-                    for slot in 0..counts[face] {
+                    for slot in faces[face].iter_mut().take(counts[face]) {
                         let mut local = || (lcg(&mut state) % 81) as i16 - 40;
                         let p = [
                             centre[0] + local(),
                             centre[1] + local(),
                             centre[2] + local(),
                         ];
-                        faces[face][slot] = p;
+                        *slot = p;
                         for a in 0..3 {
                             mins[a] = mins[a].min(p[a]);
                             maxs[a] = maxs[a].max(p[a]);

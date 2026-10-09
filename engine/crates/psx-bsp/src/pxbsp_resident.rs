@@ -788,15 +788,18 @@ impl PxbspResidentMap {
                 && sky_marks <= mark_count
                 && (0..3).all(|axis| bounds.mins[axis] <= bounds.maxs[axis]);
             let mut bounded_faces = 0usize;
-            for mark in first_mark..first_mark + mark_count {
+            for (ordinal, &mark) in marks[first_mark..first_mark + mark_count]
+                .iter()
+                .enumerate()
+            {
                 // SAFETY: every mark names a face (checked above) and every
                 // face's vertex range lies inside the vertex lump, whose base
                 // `validate_references` required to be four-byte aligned.
-                let face = unsafe { self.face_at_unchecked(marks[mark] as usize) };
+                let face = unsafe { self.face_at_unchecked(mark as usize) };
                 let flags = materials.get(face.texture as usize).map_or(0, |m| m.flags);
                 let sky =
                     flags & (material_flags::SKY_APERTURE | material_flags::DIRECTIONAL_SKY) != 0;
-                ok &= sky == (mark - first_mark < sky_marks);
+                ok &= sky == (ordinal < sky_marks);
                 if sky {
                     continue;
                 }
