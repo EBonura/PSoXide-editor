@@ -728,6 +728,24 @@ for _k, _name in enumerate(_TICK_CASES):
             f"tick_loss_{_name}_{_label}",
             ("reference_hblanks", "ticks_seen_kilo", "ticks_per_hblank_x16"),
         )
+for _group, _tag in enumerate(("spu", "otc", "gpu_block", "gpu_list")):
+    V2_RECORDS[0x780 + 2 * _group] = (
+        f"dma_end_{_tag}",
+        ("timeout_flags", "chcr_high_half", "device_status"),
+    )
+    V2_RECORDS[0x781 + 2 * _group] = (
+        f"dma_end_registers_{_tag}",
+        ("madr_low_half", "bcr_high_half", "bcr_low_half"),
+    )
+V2_RECORDS[0x788] = (
+    "spu_mode_wait",
+    ("iterations_first", "iterations_longest", "mode_never_matched"),
+)
+for _k in range(10):
+    V2_RECORDS[0x790 + _k] = (
+        f"dma_matrix_state_{('cd_1x_2048_lw', 'cd_1x_2048_sw', 'cd_1x_2340_lw', 'cd_1x_2340_sw', 'cd_2x_2048_lw', 'cd_2x_2048_sw', 'cd_2x_2340_lw', 'cd_2x_2340_sw', 'mdec_lw', 'mdec_sw')[_k]}",
+        ("chcr_high_half", "madr_low_half", "device_status"),
+    )
 V2_RECORDS[0x650] = ("timer1_free", ("hblanks_in_window", "frames_in_window", "spins_without_vblank"))
 V2_RECORDS[0x651] = ("timer1_polled", ("hblanks_in_window", "distinct_values_seen", "largest_step_between_reads"))
 V2_RECORDS[0x652] = ("timer1_polled_reads", ("reads_low", "reads_high", "steps_larger_than_one"))
@@ -805,7 +823,7 @@ for _port in range(2):
     )
 V2_RECORDS[0x766] = (
     "rumble_operator",
-    ("answers_two_bits_each", "stimuli_asked", "port_tested"),
+    ("answers_two_bits_each", "stimuli_asked", "port_tested_and_api_enabled_in_bit_8"),
 )
 for _speed, _speed_tag in enumerate(("1x", "2x")):
     for _size, _size_tag in enumerate(("2048", "2340")):
