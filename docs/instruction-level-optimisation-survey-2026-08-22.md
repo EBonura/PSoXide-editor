@@ -132,7 +132,7 @@ Two consequences to keep in front of every proposal:
 | Stale-read tracing | which PC read MAC0/LZCR early | `PSOXIDE_TRACE_STALE=1` (`cpu.rs:1370-1396`) |
 | Hazard repro | force the V0.x commit hazard | `PSOXIDE_GTE_V0X_STALE` (`cpu.rs:368`) |
 | Silicon timing | 129 timing records incl. CPU/GTE/DMA, QR transport | `engine/examples/hardware-tests`, `docs/hardware-test-disc.md` |
-| Machine-code audit | digests of measured instruction spans in the linked EXE | `tools/verify-hwtest-machine-code.py` |
+| Machine-code audit | digests of measured instruction spans in the linked EXE | ``psoxide-hwtest verify-machine-code`` |
 | Static census | this survey's counts | `tools/instr_census.py` (added with this document) |
 | Game gates | hl: `psoxide-profile`, `psoxide-map-smoke`, `psoxide-chart` (`hl-psx/Makefile:95-122`); quake: `visual-parity-regress`, fixed-tick E1M1 route; cortex: Arena/E1M1 route per `docs/shared-engine-standardisation-2026-08-22.md` | |
 
