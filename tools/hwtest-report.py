@@ -748,6 +748,10 @@ for _pacing, _base in (("ack", 0x670), ("timed", 0x678)):
 V2_RECORDS[0x690] = ("engine_card_pad", ("pad_faults", "leased_skips", "card_checksum_errors"))
 V2_RECORDS[0x691] = ("engine_card_ops", ("card_ok", "card_tried", "slot_with_card"))
 V2_RECORDS[0x692] = ("engine_card_wait", ("lease_wait_med_cycles", "lease_wait_max_cycles", "pad_updates"))
+V2_RECORDS[0x694] = (
+    "engine_card_writes",
+    ("writes_ok", "writes_tried", "write_frame_hblanks_med"),
+)
 V2_RECORDS[0x693] = (
     "engine_card_frame",
     ("card_frame_hblanks_min", "card_frame_hblanks_med", "card_frame_hblanks_max"),
