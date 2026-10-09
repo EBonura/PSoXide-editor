@@ -752,9 +752,17 @@ V2_RECORDS[0x693] = (
     "engine_card_frame",
     ("card_frame_hblanks_min", "card_frame_hblanks_med", "card_frame_hblanks_max"),
 )
-_LOAD_PHASES = ("no_ports_all_load", "both_ports_alone", "gpu", "spu", "cd", "all_load")
+_LOAD_PHASES = (
+    "no_ports_all_load",
+    "both_ports_alone",
+    "gpu",
+    "spu",
+    "cd_reader_mask",
+    "cd_pad_irqs_open",
+    "all_load_pad_irqs_open",
+)
 for _phase, _tag in enumerate(_LOAD_PHASES):
-    _base = 0x720 + 4 * _phase
+    _base = 0x720 + 5 * _phase
     V2_RECORDS[_base] = (f"engine_load_work_{_tag}", ("rounds_avg", "rounds_min", "rounds_max"))
     V2_RECORDS[_base + 1] = (f"engine_load_health_{_tag}", ("pad_faults", "stalls", "spurious"))
     V2_RECORDS[_base + 2] = (
@@ -765,17 +773,43 @@ for _phase, _tag in enumerate(_LOAD_PHASES):
         f"engine_load_irq_{_tag}",
         ("longest_load_call_cycles", "load_calls_over_a_byte", "entered_ie_clear_and_pending"),
     )
+    V2_RECORDS[_base + 4] = (
+        f"engine_load_mask_{_tag}",
+        ("i_mask_after_load_start", "i_mask_at_end", "i_stat_at_end"),
+    )
+for _port in range(2):
+    _base = 0x740 + 3 * _port
+    V2_RECORDS[_base] = (
+        f"rumble_config_p{_port + 1}",
+        ("pad_id_plain", "pad_id_in_config_mode", "config_flags"),
+    )
+    V2_RECORDS[_base + 1] = (
+        f"rumble_mapping_p{_port + 1}",
+        ("old_mapping_bytes_0_1", "old_mapping_bytes_2_3", "old_mapping_bytes_4_5"),
+    )
+    V2_RECORDS[_base + 2] = (
+        f"rumble_after_p{_port + 1}",
+        ("id_and_5a_after_motor_poll", "buttons_in_that_poll", "id_after_stop_all"),
+    )
+    V2_RECORDS[0x747 + _port] = (
+        f"rumble_poll_cost_p{_port + 1}",
+        ("poll_cycles_idle", "poll_cycles_motors_on", "polls_each"),
+    )
+V2_RECORDS[0x746] = (
+    "rumble_operator",
+    ("answers_two_bits_each", "stimuli_asked", "port_tested"),
+)
 for _speed, _speed_tag in enumerate(("1x", "2x")):
     for _size, _size_tag in enumerate(("2048", "2340")):
         for _loop, _loop_tag in enumerate(("lw", "sw")):
             V2_RECORDS[0x700 + _speed * 4 + _size * 2 + _loop] = (
                 f"cd_dma_loop_{_speed_tag}_{_size_tag}_{_loop_tag}",
-                ("loop_idle_clocks", "loop_during_clocks", "transfer_clocks"),
+                ("loop_idle_clocks", "loop_during_clocks", "transfer_clocks_div32"),
             )
 for _loop, _loop_tag in enumerate(("lw", "sw")):
     V2_RECORDS[0x708 + _loop] = (
         f"mdec_dma_loop_{_loop_tag}",
-        ("loop_idle_clocks", "loop_during_clocks", "transfer_clocks"),
+        ("loop_idle_clocks", "loop_during_clocks", "transfer_clocks_div32"),
     )
 V2_HANDOFF_CLEAN = 0x3F
 V2_SILENT = 0x7F
