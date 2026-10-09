@@ -111,7 +111,19 @@ patch_and_prove() {
     fi
     # The link map bounds the patch to the image's .text (the SDK's patcher
     # refuses to guess without it).
-    "$hazard_dir/hazard-patch" --map "$2" "$1" >"$3/hazard-patch.txt" 2>&1 || {
+    # One pass can leave a branch whose jump table only resolves once the
+    # others are rerouted (the SDK's patcher reports it as still hazardous and
+    # exits non-zero); a second pass over the patched image finishes it. Three
+    # is a bound, not an expectation.
+    : >"$3/hazard-patch.txt"
+    patched_ok=0
+    for _pass in 1 2 3; do
+        if "$hazard_dir/hazard-patch" --map "$2" "$1" >>"$3/hazard-patch.txt" 2>&1; then
+            patched_ok=1
+            break
+        fi
+    done
+    [ "$patched_ok" = 1 ] || {
         cat "$3/hazard-patch.txt" >&2
         echo "[guest-build] load-delay hazards remain in $EXE_RELATIVE; refusing to stage it" >&2
         exit 1
