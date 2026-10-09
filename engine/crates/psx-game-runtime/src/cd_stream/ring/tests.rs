@@ -1001,7 +1001,10 @@ fn a_region_read_restarts_a_failed_run_at_the_first_sector_not_yet_delivered() {
     let mut lbas = Vec::new();
     let mut sink = |bytes: &[u8]| {
         let lba = 10_000 + lbas.len() as u32;
-        assert_eq!(bytes[..8], (0..8).map(|i| disc_byte(lba, i)).collect::<Vec<_>>()[..]);
+        assert_eq!(
+            bytes[..8],
+            (0..8).map(|i| disc_byte(lba, i)).collect::<Vec<_>>()[..]
+        );
         lbas.push(lba);
         Ok(())
     };

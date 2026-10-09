@@ -419,7 +419,10 @@ pub(crate) fn limit(kind: &'static str, count: usize, max: usize) -> Result<(), 
     }
 }
 
-pub(crate) fn intern_plane(planes: &mut Vec<[u8; 14]>, record: [u8; 14]) -> Result<i16, BrushPackError> {
+pub(crate) fn intern_plane(
+    planes: &mut Vec<[u8; 14]>,
+    record: [u8; 14],
+) -> Result<i16, BrushPackError> {
     let index = planes
         .iter()
         .position(|plane| *plane == record)

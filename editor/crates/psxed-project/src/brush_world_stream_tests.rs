@@ -12,7 +12,7 @@
 use std::path::PathBuf;
 
 use psx_bsp::collision::{CONTENTS_EMPTY, CONTENTS_SOLID};
-use psx_bsp::pxbsp::{PxbspIndex, PxbspLumpKind, PXBSP_LUMP_COUNT};
+use psx_bsp::pxbsp::{PxbspIndex, PxbspLumpKind};
 use psx_bsp::pxbsp_resident::stream::{RegionLoader, StreamError};
 use psx_bsp::pxbsp_resident::PxbspResidentMap;
 use psx_bsp::render::{configure_projection, load_pxbsp_view, Camera, Renderer};
@@ -164,7 +164,7 @@ fn compare_views_with(
                 z: origin[2],
             },
             angles: [
-                (lcg(&mut state) % 4096) as i16 - 2048 + 1024 * 0,
+                (lcg(&mut state) % 4096) as i16 - 2048,
                 (lcg(&mut state) % 4096) as i16,
                 0,
             ],
@@ -282,9 +282,11 @@ fn graybox_reach_streamed_equals_whole_over_sampled_views() {
 fn the_guest_install_draws_in_the_same_order_as_the_whole_map() {
     let (project, root) = graybox();
     // The partition the M7 guest build uses: three regions of about 16 sectors.
-    let mut params = PartitionParams::default();
-    params.region_target_bytes = 40_000;
-    params.region_hard_cap_bytes = 80_000;
+    let params = PartitionParams {
+        region_target_bytes: 40_000,
+        region_hard_cap_bytes: 80_000,
+        ..PartitionParams::default()
+    };
     let world = cook(&project, &root, &params);
     assert_eq!(world.index.regions.len(), 3);
     let sampled = compare_views_with(
@@ -458,7 +460,7 @@ fn random_install_orders_on_a_cooked_world_never_dangle() {
         for _ in 0..150 {
             let region = (lcg(&mut state) % u32::from(regions)) as u16;
             if map.streaming().unwrap().is_resident(region) {
-                if lcg(&mut state) % 2 == 0 {
+                if lcg(&mut state).is_multiple_of(2) {
                     map.uninstall_region(region).unwrap();
                     ops += 1;
                 }
@@ -517,17 +519,19 @@ fn cook_is_deterministic_and_regions_fit_their_declared_shape() {
 fn under_budget_projects_cook_byte_identical_to_the_whole_map_path() {
     let (project, root) = graybox();
     // A pool and region size no partition needs to cut for.
-    let mut params = PartitionParams::default();
-    params.region_target_bytes = 64 * 1024 * 1024;
-    params.region_hard_cap_bytes = 64 * 1024 * 1024;
-    params.pool_bytes = u32::MAX;
-    params.caps = crate::brush_region::SlotCaps {
-        faces: u32::MAX,
-        vertices: u32::MAX,
-        nodes: u32::MAX,
-        leaves: u32::MAX,
-        mark_surfaces: u32::MAX,
-        clip_nodes: u32::MAX,
+    let params = PartitionParams {
+        region_target_bytes: 64 * 1024 * 1024,
+        region_hard_cap_bytes: 64 * 1024 * 1024,
+        pool_bytes: u32::MAX,
+        caps: crate::brush_region::SlotCaps {
+            faces: u32::MAX,
+            vertices: u32::MAX,
+            nodes: u32::MAX,
+            leaves: u32::MAX,
+            mark_surfaces: u32::MAX,
+            clip_nodes: u32::MAX,
+        },
+        ..PartitionParams::default()
     };
     let cooked = cook_project_streamed(&project, &root, BrushWorldCookMode::Draft, [0; 3], &params)
         .expect("cook");
