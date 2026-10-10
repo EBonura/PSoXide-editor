@@ -75,9 +75,10 @@ fn dense_variant_is_rejected_by_the_cook_gates() {
     assert!(!has(&tight(&base_config), "rho"), "base passes at {util}%");
     assert!(has(&tight(&dense_config), "rho"), "dense fails at {util}%");
 
-    // pool: exactly what the base world's peak and skeleton need, which the
-    // dense world's larger peak does not fit.
-    let pool = (base_pool + base.gate.skeleton_bytes) as u32;
+    // pool: exactly what the base world's peak and skeleton (paid twice: the
+    // baked container and its heap copy) need, which the dense world's larger
+    // peak does not fit.
+    let pool = (base_pool + 2 * base.gate.skeleton_bytes) as u32;
     let sized = |part_config: &StreamWorldConfig| {
         gate_run(part_config, |p| {
             p.pool_bytes = pool;

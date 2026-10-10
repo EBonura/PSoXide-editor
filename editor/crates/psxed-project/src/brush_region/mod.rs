@@ -78,16 +78,22 @@ pub struct RamBudget {
     /// Region cap minus the linked static image. [M, link map: cap 1,998,848
     /// minus image 1,665,892 (`__bss_end` 0x801a6764 less 0x80010000)]
     pub static_headroom_bytes: u32,
-    /// Heap in use at gameplay poll 1200. The heap lives inside the headroom,
-    /// so it is not available to the pool. [M, headless emulator RAM dump,
-    /// 2026-10-08; not re-measured after the keyed-track clips, which keep
-    /// their data in the arena and not on the heap, so it is expected to
-    /// hold. Re-measure with the next emulator run.]
+    /// Heap in use at gameplay, apart from the region pool itself. The heap
+    /// lives inside the headroom, so it is not available to the pool. [M,
+    /// headless emulator RAM dump of the streamed guest at poll 1500,
+    /// 2026-10-10: 107,466 B in use, less the 102,477 B pool image and the
+    /// 708 B top container copy; the whole-map guest holds 3,761 B]
     pub heap_in_use_bytes: u32,
     /// The baked PXBSP a streamed world stops baking into `.data`; the
     /// resident skeleton takes some of it back. [M, link map: the
     /// `PXBSP_WORLD` symbol is 0x16e70]
     pub baked_bsp_image_bytes: u32,
+    /// Static RAM the streamed guest spends beyond the whole-map one, apart
+    /// from the world it no longer bakes: the region reader and streamer code,
+    /// their buffers and counters. [M, link maps, 2026-10-10: the whole-map
+    /// headroom 331,676 B plus the 93,808 B image, less the streamed guest's
+    /// 389,340 B headroom and its 708 B baked container]
+    pub stream_overhead_bytes: u32,
     /// Fragmentation margin, install scratch and growth. [E]
     pub safety_floor_bytes: u32,
     /// The persistent-asset arena. Information only. [M, cook manifest:
@@ -98,15 +104,17 @@ pub struct RamBudget {
     pub arena_reclaim_bytes: u32,
 }
 
-/// Graybox Reach, the editor-playtest guest linked from editor main 254f7842's
-/// tree (a2d5039d, SDK pin 479d33934), 2026-10-09. The 2026-10-08 figures
-/// (c08e72d8) were headroom 17,332, baked PXBSP 90,892 and arena 643,072: the
-/// headroom grew by 315,624 B (153,360 dense repair and 181,896 keyed
-/// tracks, plus rounding in the link), the PXBSP by 2,916 B (crack fix).
+/// Graybox Reach, the editor-playtest guest linked from editor main 1974d8e1's
+/// tree (SDK pin be42239a5), 2026-10-10, whole-map and streamed
+/// (`world-stream`, three regions). The 2026-10-09 figures (a2d5039d) were
+/// headroom 332,956 and heap 3,764, with no streamed guest to measure; the
+/// streamed guest turned out to cost 35,436 B of static RAM that the model had
+/// not counted.
 pub const RAM_BUDGET: RamBudget = RamBudget {
-    static_headroom_bytes: 332_956,
-    heap_in_use_bytes: 3_764,
+    static_headroom_bytes: 331_676,
+    heap_in_use_bytes: 4_281,
     baked_bsp_image_bytes: 93_808,
+    stream_overhead_bytes: 35_436,
     safety_floor_bytes: 16_384,
     persistent_asset_arena_bytes: 307_200,
     arena_reclaim_bytes: 0,
@@ -115,22 +123,25 @@ pub const RAM_BUDGET: RamBudget = RamBudget {
 impl RamBudget {
     /// Bytes for region pages before the resident skeleton is paid for:
     /// headroom minus the heap in use, plus the image no longer baked, plus
-    /// what the arena gives back, minus the safety floor. [D]
+    /// what the arena gives back, minus the streaming code's static cost and
+    /// the safety floor. [D]
     pub const fn world_pool_bytes(&self) -> u32 {
         self.static_headroom_bytes - self.heap_in_use_bytes
             + self.baked_bsp_image_bytes
             + self.arena_reclaim_bytes
+            - self.stream_overhead_bytes
             - self.safety_floor_bytes
     }
 
     /// The arithmetic as a line for the report.
     pub fn describe(&self) -> String {
         format!(
-            "{} headroom - {} heap in use + {} baked PXBSP no longer baked + {} arena reclaimed - {} safety floor = {} B",
+            "{} headroom - {} heap in use + {} baked PXBSP no longer baked + {} arena reclaimed - {} streaming code - {} safety floor = {} B",
             self.static_headroom_bytes,
             self.heap_in_use_bytes,
             self.baked_bsp_image_bytes,
             self.arena_reclaim_bytes,
+            self.stream_overhead_bytes,
             self.safety_floor_bytes,
             self.world_pool_bytes()
         )
@@ -138,8 +149,8 @@ impl RamBudget {
 }
 
 /// Pool for region pages, the design's `P_world`, before the skeleton:
-/// 332,956 - 3,764 + 93,808 - 16,384 = 406,616 B with today's RAM. [D from
-/// [`RAM_BUDGET`]]
+/// 331,676 - 4,281 + 93,808 - 35,436 - 16,384 = 369,383 B with today's RAM.
+/// [D from [`RAM_BUDGET`]]
 pub const P_WORLD_ESTIMATE_BYTES: u32 = RAM_BUDGET.world_pool_bytes();
 
 /// Bytes the resident skeleton of a streamed world occupies in RAM, from the
@@ -237,6 +248,13 @@ pub struct PartitionParams {
     pub aperture_samples: usize,
     /// Re-split passes after the estimate-driven tree. [E]
     pub max_refine_passes: u32,
+    /// A cut that leaves a child thinner than this along its axis is a
+    /// sliver and ranks behind every cut that leaves none (see `cuts`). [E]
+    pub min_sliver_extent: f64,
+    /// Further cook passes after the measured drive gate has failed on rho:
+    /// three with another sliver extent, then cuts of the region the worst
+    /// window enters; the cook keeps the best tree. [E]
+    pub max_rho_passes: u32,
 
     // ---- visibility (design 3.4, estimated) -----------------------------
     /// Furthest anything is ever drawn, `D_vis`. [D, design 3.1]
@@ -301,6 +319,8 @@ impl Default for PartitionParams {
             max_cut_candidates: 32,
             aperture_samples: 144,
             max_refine_passes: 3,
+            min_sliver_extent: 256.0,
+            max_rho_passes: 5,
             vis_distance: 2860.0,
             viewer_samples: 6,
             target_samples: 8,
@@ -521,8 +541,18 @@ pub fn cook_stream_report(
 
 /// Partition `input` under `params`.
 pub fn partition(input: &PartitionInput, params: &PartitionParams) -> Partition {
+    partition_from(input, params, cuts::build_tree(input, params))
+}
+
+/// [`partition`] starting from a given cut tree, which the estimate-driven
+/// re-splits then refine as usual. The cook uses it to cut a region further
+/// once the measured drive gate has judged the tree.
+pub fn partition_from(
+    input: &PartitionInput,
+    params: &PartitionParams,
+    mut tree: CutTree,
+) -> Partition {
     let run_speed = input.run_speed.unwrap_or(params.default_run_speed);
-    let mut tree = cuts::build_tree(input, params);
     let mut cache = account::AccountCache::new();
     let mut passes = 0;
     loop {

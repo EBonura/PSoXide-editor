@@ -921,6 +921,17 @@ fn build_module(
                 0.5,
             )
             .map_err(|e| format!("terrain at module {index}: {e}"))?;
+            let mut patch = patch;
+            // Level rim: the doors open onto the patch's edge, and a walker
+            // must be able to step in from the flat floor of the next module.
+            let stride = pick + 1;
+            for z in 0..stride {
+                for x in 0..stride {
+                    if x == 0 || z == 0 || x == pick || z == pick {
+                        patch.heights[z * stride + x] = 0.0;
+                    }
+                }
+            }
             model += cost(pick);
             terrain = Some(patch);
         }
@@ -1339,15 +1350,28 @@ fn door_crossing(
     let side = DOOR_W / 2 + BAFFLE_OVERHANG + 24;
     let near = WALL + 40;
     let clear = WALL + VESTIBULE_DEPTH + BAFFLE_T + 40;
-    let at = |inward: i32| -> [i32; 3] {
-        // `inward` runs from the door back into `from` (negative: into `to`).
-        [0, 1, 2].map(|a| door[a] - forward * normal[a] * inward + lateral[a] * side)
+    // `inward` runs from the door back into `from` (negative: into `to`);
+    // `offset` is the lateral shift, `side` clear of the baffle or 0 in line
+    // with the door.
+    let at = |inward: i32, offset: i32| -> [i32; 3] {
+        [0, 1, 2].map(|a| door[a] - forward * normal[a] * inward + lateral[a] * offset)
     };
     let mut points = vec![module_centre(layout, config, from)];
     if config.dense {
         points.push(door);
     } else {
-        points.extend([at(clear), at(near), door, at(-near), at(-clear)]);
+        // Round the baffle on the side, then in between the wall and the baffle
+        // to the door: a straight line from beside the baffle to the door would
+        // cut the door jamb.
+        points.extend([
+            at(clear, side),
+            at(near, side),
+            at(near, 0),
+            door,
+            at(-near, 0),
+            at(-near, side),
+            at(-clear, side),
+        ]);
     }
     points.push(module_centre(layout, config, to));
     points

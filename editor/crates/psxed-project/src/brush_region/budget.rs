@@ -46,6 +46,9 @@ impl PoolPlan {
     pub fn derive(ram: &RamBudget, regions: usize, max_door_degree: u32) -> Self {
         let skeleton = skeleton_bytes(regions, regions * (1 + max_door_degree as usize));
         let pool = ram.world_pool_bytes();
+        // The guest bakes the top container into `.data` and copies it onto
+        // the heap, so the skeleton is paid twice. [M, 259 regions: container
+        // 24,032 B against 26,140 B estimated for 256]
         Self {
             ram: *ram,
             regions,
@@ -53,7 +56,7 @@ impl PoolPlan {
             union_regions: union_regions(max_door_degree),
             skeleton_bytes: skeleton,
             pool_bytes: pool,
-            pool_available: u64::from(pool).saturating_sub(skeleton),
+            pool_available: u64::from(pool).saturating_sub(2 * skeleton),
         }
     }
 
@@ -64,7 +67,7 @@ impl PoolPlan {
 
     /// The pool a world of regions up to `region_bytes` needs. [D]
     pub fn required_pool(&self, region_bytes: u32) -> u64 {
-        u64::from(self.union_regions) * u64::from(region_bytes) + self.skeleton_bytes
+        u64::from(self.union_regions) * u64::from(region_bytes) + 2 * self.skeleton_bytes
     }
 
     /// What the arena must give back for `region_bytes` regions to fit. [D]
@@ -99,14 +102,14 @@ mod tests {
 
     #[test]
     fn the_pool_is_the_measured_arithmetic() {
-        // 332,956 - 3,764 + 93,808 - 16,384
-        assert_eq!(P_WORLD_ESTIMATE_BYTES, 406_616);
-        assert_eq!(RAM_BUDGET.world_pool_bytes(), 406_616);
+        // 331,676 - 4,281 + 93,808 - 35,436 - 16,384
+        assert_eq!(P_WORLD_ESTIMATE_BYTES, 369_383);
+        assert_eq!(RAM_BUDGET.world_pool_bytes(), 369_383);
         let more = RamBudget {
             arena_reclaim_bytes: 100_000,
             ..RAM_BUDGET
         };
-        assert_eq!(more.world_pool_bytes(), 506_616);
+        assert_eq!(more.world_pool_bytes(), 469_383);
     }
 
     #[test]

@@ -350,8 +350,8 @@ struct Cut {
     axis: usize,
     position: f64,
     open_area: f64,
-    /// Score tuple, lower is better.
-    key: (u32, u32, u64),
+    /// Score tuple, lower is better: sliver, open-area class, splits, imbalance.
+    key: (u32, u32, u32, u64),
 }
 
 fn partition_members(items: &[Item], members: &[u32], cut: &Cut) -> (Vec<u32>, Vec<u32>) {
@@ -498,11 +498,22 @@ fn best_cut(
                 let open_area = open_cross_section(input, params, bounds, axis, position);
                 let class = (1.0 + open_area / AREA_UNIT).log2().ceil() as u32;
                 let imbalance = (low_bytes_at(position) - total.bytes * 0.5).abs() as u64;
+                // A cut that leaves a child thinner than `min_sliver_extent` cuts
+                // off a sliver: a door wall and its vestibule sliced from a
+                // module, say. Such a cut is cheap (the door is nearly free) but
+                // a region that thin sees through both its sides, so the crossing
+                // into it newly needs most of what the module beyond needs and
+                // the drive gate trips. Any cut without a sliver ranks ahead of
+                // every cut with one. [E]
+                let sliver = u32::from(
+                    position - bounds.min[axis] < params.min_sliver_extent
+                        || bounds.max[axis] - position < params.min_sliver_extent,
+                );
                 let candidate = Cut {
                     axis,
                     position,
                     open_area,
-                    key: (class, splits, imbalance),
+                    key: (sliver, class, splits, imbalance),
                 };
                 let better = match &best {
                     None => true,
