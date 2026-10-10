@@ -80,8 +80,8 @@ use crate::brush_pxbsp::{
 };
 use crate::brush_region::geometry::{polygon_on_axis_plane, Aabb};
 use crate::brush_region::{
-    clip_surfaces_indexed, partition, CookMeasured, CutNode, CutTree, Partition, PartitionInput,
-    PartitionParams,
+    clip_surfaces_indexed, partition, CookMeasured, CutNode, CutTree, GateFailure, Partition,
+    PartitionInput, PartitionParams,
 };
 use crate::brush_vis::{
     clustered_portal_rows, quake_portal_fast_rows, quake_portal_flow_rows, ClusterFlow,
@@ -1683,7 +1683,7 @@ pub fn cook_project_gated_with(
     let started = std::time::Instant::now();
     let input = PartitionInput::from_project(authored, options.project_root)
         .map_err(|error| StreamCookError::Partition(error.to_string()))?;
-    let plan = partition(&input, params);
+    let mut plan = partition(&input, params);
     let partition_seconds = started.elapsed().as_secs_f64();
     let mut scaled = authored.clone();
     crate::units::scale_project_to_engine_units(&mut scaled);
@@ -1699,30 +1699,87 @@ pub fn cook_project_gated_with(
             cook_seconds: started.elapsed().as_secs_f64(),
         });
     }
-    let world =
-        compile_brush_world_streamed(&scaled, options, &plan.tree, &plan.layout.order, pvs)?;
-    let measured = plan.with_measured(
-        &input,
-        &CookMeasured {
-            visible: (0..world.index.regions.len())
-                .map(|r| {
-                    world
-                        .index
-                        .vis_list(r)
-                        .iter()
-                        .map(|&q| u32::from(q))
-                        .collect()
-                })
-                .map(|mut list: Vec<u32>| {
-                    list.sort_unstable();
-                    list
-                })
-                .collect(),
-            payload_bytes: world.payloads.iter().map(|p| p.len() as u32).collect(),
-            container_bytes: world.container.len() as u64,
-            leaf_cap: u32::from(world.index.caps.leaves),
-        },
-    );
+    // Cook, judge the cook's own numbers, and while the drive gate fails on
+    // rho cook again with another sliver extent (the one choice in the cut
+    // search that moves how many regions a crossing newly needs). The gate is
+    // a property of the cut tree, so the best tree seen wins.
+    let mut best: Option<(Partition, StreamedBrushWorld, Partition)> = None;
+    let mut rho_passes = 0;
+    let mut attempt_params = params.clone();
+    loop {
+        let world =
+            compile_brush_world_streamed(&scaled, options, &plan.tree, &plan.layout.order, pvs)?;
+        let measured = plan.with_measured(
+            &input,
+            &CookMeasured {
+                visible: (0..world.index.regions.len())
+                    .map(|r| {
+                        world
+                            .index
+                            .vis_list(r)
+                            .iter()
+                            .map(|&q| u32::from(q))
+                            .collect()
+                    })
+                    .map(|mut list: Vec<u32>| {
+                        list.sort_unstable();
+                        list
+                    })
+                    .collect(),
+                payload_bytes: world.payloads.iter().map(|p| p.len() as u32).collect(),
+                container_bytes: world.container.len() as u64,
+                leaf_cap: u32::from(world.index.caps.leaves),
+            },
+        );
+        let rho_failed = measured
+            .gate
+            .failures
+            .iter()
+            .any(|f| matches!(f, GateFailure::RhoExceeded { .. }));
+        // Fewer failures first, then the lower worst rho.
+        let score = |m: &Partition| (m.gate.failures.len(), m.gate.rho_worst().to_bits());
+        if best
+            .as_ref()
+            .is_none_or(|(_, _, held)| score(&measured) < score(held))
+        {
+            best = Some((plan, world, measured));
+        }
+        if !rho_failed || rho_passes >= params.max_rho_passes {
+            break;
+        }
+        rho_passes += 1;
+        if rho_passes <= 3 {
+            // No sliver rule at all, then a lower and a higher bar.
+            attempt_params.min_sliver_extent = [0.0, 128.0, 384.0][rho_passes as usize - 1];
+            plan = partition(&input, &attempt_params);
+        } else {
+            // Cut the heaviest region the worst window of the best tree enters:
+            // a long crossing is bytes over its own length, so fewer bytes
+            // behind its far side lowers the rate.
+            let Some((_, _, held)) = best.as_ref() else {
+                break;
+            };
+            let path = held.gate.failures.iter().find_map(|f| match f {
+                GateFailure::RhoExceeded { path, .. } => Some(path.clone()),
+                _ => None,
+            });
+            let Some(path) = path else { break };
+            let mut entered: Vec<u32> = path.iter().skip(1).copied().collect();
+            entered.sort_by_key(|&r| std::cmp::Reverse(held.regions[r as usize].counts.bytes()));
+            let mut tree = held.tree.clone();
+            let cut = entered
+                .iter()
+                .any(|&r| crate::brush_region::cuts::resplit(&input, params, &mut tree, &[r]));
+            if !cut {
+                break;
+            }
+            plan = crate::brush_region::partition_from(&input, params, tree);
+        }
+        if plan.regions.len() <= 1 {
+            break;
+        }
+    }
+    let (plan, world, measured) = best.expect("one cook pass ran");
     Ok(GatedCook {
         world: CookedWorld::Streamed(Box::new(world)),
         input,

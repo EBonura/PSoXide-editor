@@ -615,7 +615,7 @@ impl StreamReport {
             Some(pk) => {
                 let _ = writeln!(
                     t,
-                    "Pool verdict: {}  peak {} B of {} B available [{} B pool - {} B {} skeleton] (inline textures excluded: VRAM) in region {} (ball needs {} regions, with lead {}; home pin {} B)",
+                    "Pool verdict: {}  peak {} B of {} B available [{} B pool - 2 x {} B {} skeleton] (inline textures excluded: VRAM) in region {} (ball needs {} regions, with lead {}; home pin {} B)",
                     if pk.bytes <= gate.pool_available { "PASS" } else { "FAIL" },
                     grouped(pk.bytes),
                     grouped(gate.pool_available),

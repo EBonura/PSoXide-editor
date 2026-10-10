@@ -5,13 +5,15 @@
 //!
 //! Usage:
 //!   stream-world-sweep [--config CONFIG.ron] [--first SEED] [--count N]
-//!                      [--reclaim BYTES] [--pools P1,P2,...]
+//!                      [--reclaim BYTES] [--pools P1,P2,...] [--walk]
 //!
 //! The gates are the default design parameters; only the cut target and the
 //! pool the generator names are applied (the same file the generator writes as
 //! `stream-cook.ron`). `--reclaim` sets the RAM scenario (bytes the arena
 //! hands back); the table at the end re-judges the pool gate at other
-//! pool sizes (`--pools`, bytes) without re-cooking.
+//! pool sizes (`--pools`, bytes) without re-cooking. `--walk` also traces the
+//! player hull along every generated route through the cooked world and counts
+//! a seed with a blocked route as failing (`walk`).
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -51,6 +53,7 @@ fn main() -> ExitCode {
     let mut first = 1u64;
     let mut count = 50u64;
     let mut reclaim: Option<u32> = None;
+    let mut walk = false;
     let mut pools: Vec<u32> = vec![
         88_076,
         150_000,
@@ -67,6 +70,7 @@ fn main() -> ExitCode {
             "--first" => first = args.next().and_then(|v| v.parse().ok()).unwrap_or(first),
             "--count" => count = args.next().and_then(|v| v.parse().ok()).unwrap_or(count),
             "--reclaim" => reclaim = args.next().and_then(|v| v.parse().ok()),
+            "--walk" => walk = true,
             "--pools" => {
                 pools = args
                     .next()
@@ -142,6 +146,29 @@ fn main() -> ExitCode {
         let gate = &measured.gate;
         let failures: Vec<&'static str> = {
             let mut kinds: Vec<&'static str> = gate.failures.iter().map(|f| f.kind()).collect();
+            if walk {
+                match psxed_project::stream_walk::check_routes(streamed, &world.routes) {
+                    Ok(report) => {
+                        println!(
+                            "#   walk seed {seed}: {} routes, {} segments at height {}, {} door passages blocked ({} waypoints in walls), {} centre legs blocked",
+                            report.routes,
+                            report.segments,
+                            report.height,
+                            report.blocked.len(),
+                            report.waypoints_in_walls,
+                            report.blocked_at_centres
+                        );
+                        if let Some(first) = report.blocked.first() {
+                            println!("#   first blocked: {first:?}");
+                            kinds.push("walk");
+                        }
+                    }
+                    Err(error) => {
+                        println!("#   walk seed {seed}: {error}");
+                        kinds.push("walk");
+                    }
+                }
+            }
             kinds.sort_unstable();
             kinds.dedup();
             kinds
