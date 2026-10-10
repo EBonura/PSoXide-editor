@@ -103,6 +103,22 @@ __pycache__/
 /emu/crates/psoxide-settings
 /emu/crates/psoxide-validation
 /emu/crates/psx-gpu-render
+# The shared frontend is hydrated from the emulator; only the editor-owned
+# files beside it (editor_*, embedded_playtest, playtest_disc, lucide.ttf) are tracked.
+/emu/crates/frontend/*
+!/emu/crates/frontend/assets/
+/emu/crates/frontend/assets/*
+!/emu/crates/frontend/assets/fonts/
+/emu/crates/frontend/assets/fonts/*
+!/emu/crates/frontend/assets/fonts/lucide.ttf
+!/emu/crates/frontend/src/
+/emu/crates/frontend/src/*
+!/emu/crates/frontend/src/editor_assets.rs
+!/emu/crates/frontend/src/editor_preview.rs
+!/emu/crates/frontend/src/editor_preview/
+!/emu/crates/frontend/src/editor_textures.rs
+!/emu/crates/frontend/src/embedded_playtest.rs
+!/emu/crates/frontend/src/playtest_disc.rs
 /tools/sdk-examples.mk
 
 # Perf evidence folders: large PNG/CSV captures kept locally beside their

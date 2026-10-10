@@ -63,7 +63,7 @@ done
 PROJECT="$PROJECT_DIR/$(basename "$SOURCE_PROJECT")"
 
 echo "cortex-bench: frontend"
-(cd emu && cargo build -p frontend --release --quiet)
+(cd emu && cargo build -p frontend --features editor --release --quiet)
 
 # A reused stage root can hand the disc a stale guest executable: the staged
 # sources are rsynced with their mtimes, so cargo may keep an older rlib or

@@ -84,7 +84,7 @@ rm -rf "$WORK"
 mkdir -p "$WORK"
 
 echo "cortex-pgo: frontend"
-(cd "$ROOT/emu" && cargo build -p frontend --release --quiet)
+(cd "$ROOT/emu" && cargo build -p frontend --features editor --release --quiet)
 
 build_disc() {
     (cd "$ROOT/emu" && PSOXIDE_GUEST_EXTRA_RUSTFLAGS="$1" PSOXIDE_GUEST_LINK_MAP="$2" \
