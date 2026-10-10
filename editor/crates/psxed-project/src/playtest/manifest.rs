@@ -151,7 +151,10 @@ pub fn write_package(package: &PlaytestPackage, generated_dir: &Path) -> std::io
             bytes,
         )?;
     }
-    if let Some((chunk_id, bytes)) = region_pack_chunk(package) {
+    for (chunk_id, bytes) in container_chunk(package)
+        .into_iter()
+        .chain(region_pack_chunk(package))
+    {
         std::fs::write(
             ui_stream_chunks_dir.join(format!("ui_{chunk_id:03}.psxt")),
             bytes,
@@ -273,6 +276,7 @@ pub fn render_manifest_source(package: &PlaytestPackage) -> String {
         .filter(|(_, asset)| asset.streamed_class == StreamedClass::Gameplay)
         .filter(|(index, _)| !cube_sky_assets.contains(index))
         .map(|(_, asset)| asset.bytes.len())
+        .chain(container_chunk(package).map(|(_, bytes)| bytes.len()))
         .max()
         .unwrap_or(0);
     let persistent_asset_slot_count = package.assets.len().max(1);
@@ -322,13 +326,20 @@ pub fn render_manifest_source(package: &PlaytestPackage) -> String {
         "pub const PXBSP_FACE_CHAIN_CAPACITY: usize = {};",
         world.max_visible_faces,
     );
-    write_aligned_asset_bytes_static(
-        &mut out,
-        "PXBSP_WORLD",
-        crate::brush_playtest::BRUSH_WORLD_FILENAME,
-    );
-    // Streamed world (design 2026-10-08, M7): `PXBSP_WORLD` is then the
-    // resident top container and the regions live in this UI.PAK chunk.
+    if world.stream.is_some() {
+        // A streamed world's top container is a UI.PAK chunk the guest reads
+        // at boot (see `container_chunk`): linking a copy would keep the
+        // skeleton in RAM twice for the whole session.
+        out.push_str("pub static PXBSP_WORLD: &[u8] = &[];\n");
+    } else {
+        write_aligned_asset_bytes_static(
+            &mut out,
+            "PXBSP_WORLD",
+            crate::brush_playtest::BRUSH_WORLD_FILENAME,
+        );
+    }
+    // Streamed world (design 2026-10-08, M7): the resident top container and
+    // the region pack are UI.PAK chunks.
     let _ = writeln!(
         out,
         "pub const PXBSP_STREAMED: bool = {};",
@@ -1902,6 +1913,7 @@ fn ui_pack_chunks(package: &PlaytestPackage) -> Vec<(u32, &[u8])> {
         .filter(|(_, asset)| asset.is_streamed())
         .map(|(index, asset)| (index as u32, asset.bytes.as_slice()))
         .chain(ui_sfx_pack_chunks(package))
+        .chain(container_chunk(package))
         .chain(region_pack_chunk(package))
         .collect()
 }
@@ -1910,6 +1922,25 @@ fn ui_pack_chunks(package: &PlaytestPackage) -> Vec<(u32, &[u8])> {
 /// every asset index and UI SFX sample.
 fn region_pack_chunk_id(package: &PlaytestPackage) -> u32 {
     ui_sfx_pack_first_chunk(package) + package.ui_sfx_samples.len() as u32
+}
+
+/// UI.PAK chunk id of the streamed world's top container: the id after the
+/// region pack's. The guest derives it the same way (`PXBSP_STREAM_PACK_CHUNK
+/// + 1`), so a whole-map manifest gains no new constant. The container counts
+/// toward `GAMEPLAY_PACK_MAX_CHUNK_BYTES`, which sizes the staging scratch it
+/// is read into.
+fn container_chunk_id(package: &PlaytestPackage) -> u32 {
+    region_pack_chunk_id(package) + 1
+}
+
+/// The streamed world's top container as a UI.PAK chunk. It sits before the
+/// region pack on the disc, so the boot read is a short seek.
+fn container_chunk(package: &PlaytestPackage) -> Option<(u32, &[u8])> {
+    package
+        .world_geometry
+        .stream
+        .as_ref()
+        .map(|stream| (container_chunk_id(package), stream.container.as_slice()))
 }
 
 /// The region pack as a UI.PAK chunk, when the world is streamed.

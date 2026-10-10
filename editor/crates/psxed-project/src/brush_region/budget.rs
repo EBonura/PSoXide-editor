@@ -46,9 +46,10 @@ impl PoolPlan {
     pub fn derive(ram: &RamBudget, regions: usize, max_door_degree: u32) -> Self {
         let skeleton = skeleton_bytes(regions, regions * (1 + max_door_degree as usize));
         let pool = ram.world_pool_bytes();
-        // The guest bakes the top container into `.data` and copies it onto
-        // the heap, so the skeleton is paid twice. [M, 259 regions: container
-        // 24,032 B against 26,140 B estimated for 256]
+        // The guest reads the top container off the disc into scratch and
+        // keeps one resident copy on the heap, so the skeleton is paid once.
+        // [M, 259 regions: container 24,032 B against 26,140 B estimated
+        // for 256]
         Self {
             ram: *ram,
             regions,
@@ -56,7 +57,7 @@ impl PoolPlan {
             union_regions: union_regions(max_door_degree),
             skeleton_bytes: skeleton,
             pool_bytes: pool,
-            pool_available: u64::from(pool).saturating_sub(2 * skeleton),
+            pool_available: u64::from(pool).saturating_sub(skeleton),
         }
     }
 
@@ -67,7 +68,7 @@ impl PoolPlan {
 
     /// The pool a world of regions up to `region_bytes` needs. [D]
     pub fn required_pool(&self, region_bytes: u32) -> u64 {
-        u64::from(self.union_regions) * u64::from(region_bytes) + 2 * self.skeleton_bytes
+        u64::from(self.union_regions) * u64::from(region_bytes) + self.skeleton_bytes
     }
 
     /// What the arena must give back for `region_bytes` regions to fit. [D]

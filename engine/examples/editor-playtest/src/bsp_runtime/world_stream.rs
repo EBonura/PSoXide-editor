@@ -10,16 +10,19 @@
 
 use psx_bsp::pxbsp_resident::PxbspResidentMap;
 use psx_bsp::render::PxbspTextureBinding;
-use psx_bsp::{SliceReader, Vec3I32};
+use psx_bsp::Vec3I32;
 use psx_engine::RoomPoint;
-use psx_game_runtime::cd_stream::{world_pack_chunk, CdController};
+use psx_game_runtime::cd_stream::{
+    read_chunk_blocking, world_pack_chunk, CdController, ROOM_CHUNK_STATUS_OK,
+};
 use psx_game_runtime::region_stream::{RegionStreamer, StreamStatus, PUMP_HISTORY};
 use psx_level::MAX_ROOM_MATERIALS;
 
 use super::{resolve_material_binding, BspRuntime, BspRuntimeInitError};
 use crate::generated::{
-    PXBSP_STREAM_PACK_CHUNK, PXBSP_STREAM_REGIONS, PXBSP_WORLD, UI_PACK_START_LBA, UI_PACK_TOC,
+    PXBSP_STREAM_PACK_CHUNK, PXBSP_STREAM_REGIONS, UI_PACK_START_LBA, UI_PACK_TOC,
 };
+use crate::runtime_arenas::{cd_arena, font_scratch_arena};
 
 /// Sectors one pump reads and installs. Small enough that the CPU work of a
 /// pump (checksum, checks, relocation of 4 x 2 KiB) stays a fraction of a
@@ -93,19 +96,48 @@ fn publish(bsp: &BspRuntime) {
     }
 }
 
+/// UI.PAK chunk of the top container: the cook places it right after the
+/// region pack's id (`container_chunk_id` in the manifest writer).
+const PXBSP_STREAM_CONTAINER_CHUNK: u32 = PXBSP_STREAM_PACK_CHUNK + 1;
+
 /// Load the cooked top container into a slotted map, every region absent.
+///
+/// The container is read off UI.PAK into the font/sky staging scratch, which
+/// is idle at gameplay entry, and copied once into the map's image. Nothing
+/// else holds it afterwards: it is not linked into the executable, the
+/// streaming index is parsed straight out of the staged bytes, and the image
+/// keeps no copy of that lump.
 pub(super) fn load_streamed_world() -> Result<(PxbspResidentMap, WorldStream), BspRuntimeInitError>
 {
     let chunk = world_pack_chunk(UI_PACK_TOC, PXBSP_STREAM_PACK_CHUNK)
         .ok_or(BspRuntimeInitError::MissingRegionPack)?;
+    let container = world_pack_chunk(UI_PACK_TOC, PXBSP_STREAM_CONTAINER_CHUNK)
+        .ok_or(BspRuntimeInitError::MissingRegionPack)?;
+    let scratch = font_scratch_arena();
+    let stage = scratch
+        .stage_words_mut(container.byte_size.div_ceil(4))
+        .ok_or(BspRuntimeInitError::ContainerRead { status: 0 })?;
+    let result = read_chunk_blocking(
+        cd_arena(),
+        UI_PACK_START_LBA,
+        UI_PACK_TOC,
+        PXBSP_STREAM_CONTAINER_CHUNK,
+        stage,
+    );
+    if result.status != ROOM_CHUNK_STATUS_OK
+        || result.bytes != container.byte_size
+    {
+        return Err(BspRuntimeInitError::ContainerRead {
+            status: result.status,
+        });
+    }
+    let bytes = scratch
+        .staged_bytes(result.bytes)
+        .ok_or(BspRuntimeInitError::ContainerRead { status: 0 })?;
     let mut map = PxbspResidentMap::with_capacity(0);
     // One slot per region: the pool is the whole world, nothing is evicted.
-    map.load_streamed_exact(
-        0,
-        &mut SliceReader::<'_>::new(PXBSP_WORLD),
-        PXBSP_STREAM_REGIONS as u16,
-    )
-    .map_err(BspRuntimeInitError::StreamLoad)?;
+    map.load_streamed_exact_from_slice(0, bytes, PXBSP_STREAM_REGIONS as u16)
+        .map_err(BspRuntimeInitError::StreamLoad)?;
     let mut streamer = RegionStreamer::new();
     if !streamer.begin(&map) {
         return Err(BspRuntimeInitError::MissingRegionPack);
@@ -143,6 +175,7 @@ pub(super) fn record_init_error(error: &BspRuntimeInitError) {
             },
         ),
         E::MissingRegionPack => (7, 0),
+        E::ContainerRead { status } => (18, *status),
         E::Doors(_) => (8, 0),
         E::Destructibles(_) => (9, 0),
         E::InvalidDestructibleTarget { .. } => (10, 0),
