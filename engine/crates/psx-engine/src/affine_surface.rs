@@ -341,6 +341,51 @@ unsafe fn project_vertices(vertices: *mut AffineVertex, count: usize) {
     }
 }
 
+/// [`project_vertices`], reporting which vertices the GTE could not place.
+///
+/// The GTE sets FLAG bit 17 when its perspective divide saturates
+/// (`H >= 2 * SZ`) for any vertex of a command, so one `CFC2` per triple names
+/// the exact condition. Bit `i` of the result is set for every vertex of a
+/// triple (or the single vertex) that tripped it.
+///
+/// # Safety
+/// As [`project_vertices`]; `count` is at most 32.
+unsafe fn project_vertices_flagged(vertices: *mut AffineVertex, count: usize) -> u32 {
+    const DIVIDE_OVERFLOW: u32 = 1 << 17;
+    let mut flagged = 0u32;
+    let mut index = 0;
+    while index + 3 <= count {
+        // SAFETY: `index + 2 < count`.
+        let (a, b, c) = unsafe {
+            (
+                &mut *vertices.add(index),
+                &mut *vertices.add(index + 1),
+                &mut *vertices.add(index + 2),
+            )
+        };
+        let projected =
+            scene::project_triangle_scheduled(vec3(a.position), vec3(b.position), vec3(c.position));
+        if scene::error_flags() & DIVIDE_OVERFLOW != 0 {
+            flagged |= 0b111 << index;
+        }
+        store_projection(a, projected[0]);
+        store_projection(b, projected[1]);
+        store_projection(c, projected[2]);
+        index += 3;
+    }
+    while index < count {
+        // SAFETY: `index < count`.
+        let vertex = unsafe { &mut *vertices.add(index) };
+        let projected = scene::project_vertex_scheduled(vec3(vertex.position));
+        if scene::error_flags() & DIVIDE_OVERFLOW != 0 {
+            flagged |= 1 << index;
+        }
+        store_projection(vertex, projected);
+        index += 1;
+    }
+    flagged
+}
+
 /// Midpoint of two working vertices, symmetric in its arguments: positions,
 /// UVs and each colour channel are averaged (rounding down).
 #[inline(always)]
@@ -458,6 +503,10 @@ trait Reproject: Copy {
     /// Whether polygons are clipped to the GPU's window before they are written.
     const CLIPS: bool;
 
+    /// Whether surfaces with a vertex the GTE divide saturates on are left
+    /// unwritten and reported to the caller.
+    const SCREENS: bool = false;
+
     /// The end of the packet storage a clipped polygon may write up to.
     fn limit(self) -> *mut u32;
 
@@ -502,6 +551,23 @@ impl Reproject for NearBatch<'_> {
             }
         }
     }
+}
+
+/// The shared batch with surfaces the GTE cannot place left to the caller.
+#[derive(Copy, Clone)]
+struct Screened;
+
+impl Reproject for Screened {
+    const CLIPS: bool = false;
+    const SCREENS: bool = true;
+
+    #[inline(always)]
+    fn limit(self) -> *mut u32 {
+        core::ptr::null_mut()
+    }
+
+    #[inline(always)]
+    unsafe fn fix(self, _vertices: *mut AffineVertex, _count: usize) {}
 }
 
 /// Packet writer for one batch.
@@ -1197,8 +1263,38 @@ pub unsafe fn submit_surface_batch(
             surfaces,
             surface_count,
             output,
-            profile,
+            &profile,
             (),
+        )
+        .0
+    }
+}
+
+/// [`submit_surface_batch`] for a batch some of whose surfaces may sit inside
+/// the GTE's divide-saturation zone: such a surface is left unwritten, and its
+/// index is bit `i` of the returned mask. Its vertices stay in the batch for
+/// the caller to hand to [`submit_surface_batch_near`].
+///
+/// # Safety
+/// As [`submit_surface_batch`], and `surface_count` is at most 32.
+pub unsafe fn submit_surface_batch_screened(
+    vertices: *mut AffineVertex,
+    vertex_count: usize,
+    surfaces: *const AffineSurface,
+    surface_count: usize,
+    output: *mut u32,
+    profile: &SurfaceProfile,
+) -> (SurfaceSubmit, u32) {
+    // SAFETY: the caller's contract is the inner function's.
+    unsafe {
+        submit_surface_batch_with(
+            vertices,
+            vertex_count,
+            surfaces,
+            surface_count,
+            output,
+            profile,
+            Screened,
         )
     }
 }
@@ -1229,9 +1325,10 @@ pub unsafe fn submit_surface_batch_near(
             surfaces,
             surface_count,
             output,
-            profile,
+            &profile,
             (view, end),
         )
+        .0
     }
 }
 
@@ -1242,9 +1339,9 @@ unsafe fn submit_surface_batch_with<R: Reproject>(
     surfaces: *const AffineSurface,
     surface_count: usize,
     output: *mut u32,
-    profile: SurfaceProfile,
+    profile: &SurfaceProfile,
     view: R,
-) -> SurfaceSubmit {
+) -> (SurfaceSubmit, u32) {
     let mut sink = PacketSink {
         next: output,
         packets: 0,
@@ -1254,17 +1351,25 @@ unsafe fn submit_surface_batch_with<R: Reproject>(
         ot_depth: profile.ot_depth,
     };
     if vertices.is_null() || surfaces.is_null() || output.is_null() || vertex_count == 0 {
-        return SurfaceSubmit {
+        let none = SurfaceSubmit {
             next_packet: output,
             packets: 0,
             hardware_triangles: 0,
         };
+        return (none, 0);
     }
     // SAFETY: `vertex_count` initialised records per the contract.
-    unsafe {
-        project_vertices(vertices, vertex_count);
+    let flagged = unsafe {
+        let flagged = if R::SCREENS {
+            project_vertices_flagged(vertices, vertex_count)
+        } else {
+            project_vertices(vertices, vertex_count);
+            0
+        };
         view.fix(vertices, vertex_count);
-    }
+        flagged
+    };
+    let mut deferred = 0u32;
     let bands = [
         u32::from(profile.split_once_below),
         u32::from(profile.split_twice_below.min(profile.split_once_below)),
@@ -1277,6 +1382,15 @@ unsafe fn submit_surface_batch_with<R: Reproject>(
         if count < 3 || first + count > vertex_count {
             continue;
         }
+        if R::SCREENS && flagged != 0 {
+            // A flagged triple may belong to a neighbour: keep the surface
+            // unless one of its own vertices is the one the divide clamped.
+            let span = ((1u32 << count) - 1) << first;
+            if flagged & span != 0 && unsafe { saturates_any(vertices.add(first), count) } {
+                deferred |= 1 << index;
+                continue;
+            }
+        }
         let mut splitter = Splitter {
             vertices,
             scratch: vertex_count,
@@ -1288,11 +1402,27 @@ unsafe fn submit_surface_batch_with<R: Reproject>(
         // SAFETY: range checked above; capacity and scratch per the contract.
         unsafe { splitter.surface(first, count) };
     }
-    SurfaceSubmit {
+    let submitted = SurfaceSubmit {
         next_packet: sink.next,
         packets: sink.packets,
         hardware_triangles: sink.triangles,
-    }
+    };
+    (submitted, deferred)
+}
+
+/// Whether any of `count` projected vertices has the depth at which the GTE
+/// divide saturates (`H >= 2 * SZ`, with `H` the projection plane loaded).
+///
+/// # Safety
+/// `vertices` must hold `count` initialised records.
+#[inline(never)]
+unsafe fn saturates_any(vertices: *const AffineVertex, count: usize) -> bool {
+    let h = psx_gte::read_control!(26) as i32;
+    (0..count).any(|index| {
+        // SAFETY: `index < count`.
+        let depth = unsafe { (*vertices.add(index)).depth };
+        h >= 2 * depth as i32
+    })
 }
 
 #[cfg(test)]
@@ -1378,6 +1508,56 @@ mod tests {
         }
         assert_eq!(offset, used);
         (result, packets)
+    }
+
+    #[test]
+    fn a_screened_batch_defers_exactly_the_surfaces_with_a_saturating_vertex() {
+        // H = 160 saturates the divide at SZ <= 80. Triples run (0,1,2),
+        // (3,4,5), (6,7), so the far surface A shares one with the near B.
+        let far = |x: i16, y: i16| vertex([x, y, 400], [0, 0]);
+        let near = |x: i16, y: i16| vertex([x, y, 40], [0, 0]);
+        let vertices = [
+            far(-50, -50),
+            far(50, -50),
+            far(50, 50),
+            far(-50, 50),
+            near(-5, -5),
+            near(5, -5),
+            near(5, 5),
+            near(-5, 5),
+        ];
+        let surfaces = [surface(0, 4, false), surface(4, 4, false)];
+        configure();
+        let mut batch = vertices.to_vec();
+        batch.extend([AffineVertex::default(); AFFINE_SPLIT_SCRATCH_VERTICES]);
+        let mut words = std::vec![0u32; 4096];
+        let (screened, deferred) = unsafe {
+            submit_surface_batch_screened(
+                batch.as_mut_ptr(),
+                vertices.len(),
+                surfaces.as_ptr(),
+                surfaces.len(),
+                words.as_mut_ptr(),
+                &SurfaceProfile::PXBSP_THIRD_PERSON,
+            )
+        };
+        assert_eq!(deferred, 0b10, "only the near surface is left");
+        // The far surface is written exactly as the plain writer writes it.
+        let (plain, _) = submit(&vertices[..4], &surfaces[..1]);
+        assert_eq!(screened.packets, plain.packets);
+        assert!(screened.packets > 0);
+        // A batch with nothing near defers nothing.
+        let (_, none) = unsafe {
+            submit_surface_batch_screened(
+                batch.as_mut_ptr(),
+                4,
+                surfaces.as_ptr(),
+                1,
+                words.as_mut_ptr(),
+                &SurfaceProfile::PXBSP_THIRD_PERSON,
+            )
+        };
+        assert_eq!(none, 0);
     }
 
     #[test]
@@ -1646,6 +1826,52 @@ mod tests {
             }
         }
         assert!(clipped_count > 100, "only {clipped_count} clips exercised");
+    }
+
+    #[test]
+    fn exact_projection_agrees_with_the_gte_where_it_does_not_saturate() {
+        // The PXBSP view: rotation scaled by 3, H = 320.
+        let scale = 0x3000;
+        scene::set_screen_offset(160 << 16, 120 << 16);
+        scene::set_projection_plane(320);
+        scene::load_rotation(&Mat3I16 {
+            m: [[scale, 0, 0], [0, scale, 0], [0, 0, scale]],
+        });
+        scene::load_translation(Vec3I32::ZERO);
+        let view = NearView {
+            rows: [[scale, 0, 0], [0, scale, 0], [0, 0, scale]],
+            translation: [0, 0, 0],
+            focal_length: 320,
+            center: [160, 120],
+        };
+        let mut state = 0x7e57_0001u32;
+        let mut axis = |span: i32| -> i16 {
+            state = state.wrapping_mul(1_103_515_245).wrapping_add(12_345);
+            (((state >> 8) % (2 * span as u32)) as i32 - span) as i16
+        };
+        let mut compared = 0;
+        for _ in 0..20_000 {
+            let position = [axis(400), axis(400), axis(600).abs() + 1];
+            let projected = scene::project_vertex(vec3(position));
+            let depth = u32::from(projected.sz);
+            if view.saturates(depth) || depth == u32::from(u16::MAX) {
+                continue;
+            }
+            // Skip vertices the GTE clamps to its screen range.
+            if projected.sx.unsigned_abs() >= 0x3ff || projected.sy.unsigned_abs() >= 0x3ff {
+                continue;
+            }
+            let exact = view.project(position).expect("positive depth");
+            assert!(
+                (i32::from(exact[0]) - i32::from(projected.sx)).abs() <= 1
+                    && (i32::from(exact[1]) - i32::from(projected.sy)).abs() <= 1,
+                "{position:?} exact {exact:?} gte ({}, {})",
+                projected.sx,
+                projected.sy
+            );
+            compared += 1;
+        }
+        assert!(compared > 1000, "only {compared} compared");
     }
 
     #[test]

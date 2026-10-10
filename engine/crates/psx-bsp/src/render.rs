@@ -14,8 +14,8 @@ use psx_engine::{
         AttributedClipPlane, ClipTraversal,
     },
     compose_model_view_transform, materialize_baked_surface_vertices, materialize_surface_vertices,
-    submit_surface_batch, submit_surface_batch_near, AffineSurface, AffineVertex, NearView,
-    SurfaceProfile, SurfaceSourceVertex, SurfaceSubmit,
+    submit_surface_batch_near, submit_surface_batch_screened, AffineSurface, AffineVertex,
+    NearView, SurfaceProfile, SurfaceSourceVertex, SurfaceSubmit,
 };
 use psx_gte::math::{Mat3I16, Vec3I16 as GteVec3I16, Vec3I32 as GteVec3I32};
 use psx_gte::scene;
@@ -46,17 +46,6 @@ const PXBSP_NODE_STACK_INDEX: u32 = 0xffff;
 const PXBSP_NODE_STACK_MASK_SHIFT: u32 = 16;
 /// All five clip planes still need testing.
 const PXBSP_CLIP_ALL_PLANES: u8 = 0x1f;
-/// Residual-mask bit for the saturation zone: the face may have a vertex so
-/// close to the camera plane that the GTE's perspective divide saturates (see
-/// [`FrustumPlanes::in_saturation_zone`]). Kept apart from the five planes so
-/// a face with no live plane still costs nothing to draw.
-const PXBSP_CLIP_ZONE: u8 = 0x40;
-/// Depth, in view (`SZ`) units, past the saturation zone that a node box must
-/// be before its faces drop the zone bit. A reuse frame keeps the selection's
-/// bits while the camera moves; 120 units is 40 world units at the PXBSP view
-/// scale, several times what the camera covers in one frame for any face
-/// inside the frustum.
-const PXBSP_ZONE_MARGIN: i32 = 120;
 /// Index of the near plane in [`FrustumPlanes::planes`]. It is the only plane
 /// whose per-face answer is "does any vertex fail it", rather than "do all".
 const PXBSP_CLIP_NEAR_PLANE: usize = 0;
@@ -371,9 +360,10 @@ pub fn configure_projection() {
 /// The zone is `H / (2 * S)` units deep: 26 at H = 160, 53 at the third-person
 /// camera's H = 320. The GTE pulls a vertex that close toward the screen
 /// centre, so a wall or floor inside it was drawn warped and left holes at the
-/// screen edge. A face with a vertex in the zone is therefore drawn on its own,
-/// with those vertices projected exactly (see `psx_engine::NearView`) and any
-/// polygon the GPU would drop clipped to its window instead.
+/// screen edge. The GTE flags the divide that saturates, so the shared batch writer
+/// leaves such a surface to be drawn on its own, with its vertices projected
+/// exactly (see `psx_engine::NearView`) and any polygon the GPU would
+/// drop clipped to its window instead.
 pub const PXBSP_VIEW_SCALE_Q12: i32 = 0x3000;
 
 /// True view depth at which a flat PXBSP surface reaches OT slot `ot_depth`,
@@ -549,14 +539,6 @@ pub struct FrustumPlanes {
     side_scale: [i32; 2],
     focal_length: i32,
     near_view: i32,
-    /// Deepest `SZ` the GTE's perspective divide saturates at (`H / 2`), or
-    /// `i32::MIN` when the near plane already lies beyond it.
-    zone_view: i32,
-    /// The near-plane distance below which a vertex is in the saturation
-    /// zone (`i32::MIN` when there is none): the same test as
-    /// [`Self::in_saturation_zone`], on the distance the face scan has.
-    #[cfg_attr(not(target_arch = "mips"), allow(dead_code))]
-    zone_distance: i32,
     /// Far cull depth in view units, `i32::MAX` when disabled.
     far_view: i32,
     /// Bit `3 * plane + axis` set when that plane normal's component is
@@ -681,44 +663,8 @@ impl FrustumPlanes {
             side_scale: [kx, ky],
             focal_length: h,
             near_view,
-            zone_view: if h / 2 >= near_view { h / 2 } else { i32::MIN },
-            zone_distance: if h / 2 >= near_view {
-                (h / 2 + 1 - near_view) << 12
-            } else {
-                i32::MIN
-            },
             far_view,
         }
-    }
-
-    /// Whether the GTE's perspective divide saturates for a vertex at
-    /// `position` (`H >= 2 * SZ`): its screen position would be pulled toward
-    /// the centre, not where its perspective image is.
-    #[inline]
-    fn in_saturation_zone(&self, position: [i16; 3]) -> bool {
-        let row = self.view_rows[2];
-        let dot = row[0] as i32 * position[0] as i32
-            + row[1] as i32 * position[1] as i32
-            + row[2] as i32 * position[2] as i32;
-        (dot >> 12).saturating_add(self.view_translation[2]) <= self.zone_view
-    }
-
-    /// True when every point of the box is beyond the saturation zone by
-    /// [`PXBSP_ZONE_MARGIN`], so a reuse frame, drawn from this frame's
-    /// selection, still finds no vertex of it in the zone.
-    #[inline]
-    fn aabb_beyond_zone(&self, mins: Vec3I16, maxs: Vec3I16) -> bool {
-        let row = self.view_rows[2];
-        let nearest = [
-            if row[0] >= 0 { mins.x } else { maxs.x },
-            if row[1] >= 0 { mins.y } else { maxs.y },
-            if row[2] >= 0 { mins.z } else { maxs.z },
-        ];
-        let dot = row[0] as i32 * nearest[0] as i32
-            + row[1] as i32 * nearest[1] as i32
-            + row[2] as i32 * nearest[2] as i32;
-        (dot >> 12).saturating_add(self.view_translation[2])
-            > self.zone_view.saturating_add(PXBSP_ZONE_MARGIN)
     }
 
     /// The loaded view, for [`submit_surface_batch_near`].
@@ -1539,8 +1485,7 @@ impl Renderer {
         );
         renderer.frame_pxbsp_faces = frame_pxbsp_faces;
         renderer.frame_pxbsp_face_state = vec![0; face_count.div_ceil(4)];
-        renderer.frame_pxbsp_face_clip_mask =
-            vec![PXBSP_CLIP_ALL_PLANES | PXBSP_CLIP_ZONE; face_count];
+        renderer.frame_pxbsp_face_clip_mask = vec![PXBSP_CLIP_ALL_PLANES; face_count];
         renderer.pxbsp_node_visible = vec![0; node_count.div_ceil(8)];
         renderer.pxbsp_node_discovered = vec![0; node_count.div_ceil(8)];
         renderer.pxbsp_node_count = node_count;
@@ -1655,10 +1600,7 @@ impl Renderer {
                     face as usize,
                     PXBSP_FRAME_FALLBACK,
                 );
-                // The selection's zone bit stays: it was proven for a camera
-                // one frame back, with a margin that covers the move since.
-                let mask = &mut self.frame_pxbsp_face_clip_mask[face as usize];
-                *mask = PXBSP_CLIP_ALL_PLANES | (*mask & PXBSP_CLIP_ZONE);
+                self.frame_pxbsp_face_clip_mask[face as usize] = PXBSP_CLIP_ALL_PLANES;
             }
             true
         } else {
@@ -1819,6 +1761,12 @@ impl Renderer {
         // On the guest they go to the head of the scratchpad, which is a
         // constant address and one-cycle reads; on the host a local copy
         // addressed off `sp`.
+        // Built from the caller's planes so `frustum_local` is never borrowed
+        // by the flushes: its fields stay in registers through the face loop.
+        let near_view = frustum.projection_view([
+            self.view_projection.half_width,
+            self.view_projection.half_height,
+        ]);
         let frustum_local = *frustum;
         let side_error = frustum_local.side_error;
         #[cfg(target_arch = "mips")]
@@ -1922,50 +1870,24 @@ impl Renderer {
                 PxbspFaceSelection::VisibleWorld => unsafe {
                     *self.frame_pxbsp_face_clip_mask.get_unchecked(face_index)
                 },
-                PxbspFaceSelection::ModelRange { .. } => PXBSP_CLIP_ALL_PLANES | PXBSP_CLIP_ZONE,
+                PxbspFaceSelection::ModelRange { .. } => PXBSP_CLIP_ALL_PLANES,
             };
-            let plane_mask = clip_mask & PXBSP_CLIP_ALL_PLANES;
-            // Bit 0: the near plane clips the face. Bit 1: a vertex is in the
-            // saturation zone. Bit 2: the scan above saw every vertex, so
-            // bit 1 is the whole answer.
-            let classified = if plane_mask == 0 {
-                0
+            let needs_near_clip = if clip_mask == 0 {
+                false
             } else {
                 #[cfg(target_arch = "mips")]
                 let classified = unsafe {
-                    // Most faces cannot reach the zone: they run the scan
-                    // without its extra compare.
-                    if clip_mask & PXBSP_CLIP_ZONE != 0 {
-                        Self::pxbsp_face_clip_gte::<true>(
-                            source_base,
-                            face,
-                            clip_planes,
-                            side_error,
-                            plane_mask,
-                            frustum_local.zone_distance,
-                        )
-                    } else {
-                        Self::pxbsp_face_clip_gte::<false>(
-                            source_base,
-                            face,
-                            clip_planes,
-                            side_error,
-                            plane_mask,
-                            frustum_local.zone_distance,
-                        )
-                    }
+                    Self::pxbsp_face_clip_gte(source_base, face, clip_planes, side_error, clip_mask)
                 };
                 #[cfg(not(target_arch = "mips"))]
                 let classified = unsafe {
-                    Self::pxbsp_face_clip(source_base, face, clip_planes, side_error, plane_mask)
-                }
-                .map(u8::from);
-                let Some(classified) = classified else {
+                    Self::pxbsp_face_clip(source_base, face, clip_planes, side_error, clip_mask)
+                };
+                let Some(needs_near_clip) = classified else {
                     continue;
                 };
-                classified
+                needs_near_clip
             };
-            let needs_near_clip = classified & 1 != 0;
             let state = resolved.state;
             let compact_surface = face_flags & FACE_PAGE_LOCAL_UV != 0
                 && policy & pxbsp_material_policy::COMPACT != 0;
@@ -2003,92 +1925,6 @@ impl Renderer {
                 } else {
                     WORST_WINDOWED_PACKET_WORDS_PER_TRIANGLE
                 };
-            // A face with a vertex in the saturation zone cannot go through
-            // the shared GTE batch: the divide would put that vertex in the
-            // wrong place. Submit it on its own, with the zone vertices
-            // projected exactly and any polygon the GPU would drop clipped
-            // to its window instead.
-            if clip_mask & PXBSP_CLIP_ZONE != 0
-                && (classified & 2 != 0
-                    || (classified & 4 == 0
-                        && unsafe { face_in_saturation_zone(source_base, face, &frustum_local) }))
-            {
-                // The packets of the faces before this one must precede its
-                // own, as they would in the shared batch.
-                if batch_surface_count != 0 {
-                    stats.surface_batches = stats.surface_batches.saturating_add(1);
-                }
-                let submitted = unsafe {
-                    flush_pxbsp_batch(
-                        batch_vertices,
-                        batch_vertex_count,
-                        &batch_surfaces,
-                        batch_surface_count,
-                        next,
-                    )
-                };
-                next = submitted.next_packet;
-                stats.packets = stats.packets.wrapping_add(submitted.packets);
-                stats.hardware_triangles = stats
-                    .hardware_triangles
-                    .wrapping_add(submitted.hardware_triangles);
-                batch_vertex_count = 0;
-                batch_surface_count = 0;
-                batch_worst_words = 0;
-                if !packet_capacity(next, end, face_worst_words) {
-                    stats.packet_overflow_avoided = true;
-                    break;
-                }
-                let mut zone_vertices =
-                    [AffineVertex::default(); PXBSP_AFFINE_BATCH_VERTEX_CAPACITY];
-                if needs_near_clip {
-                    zone_vertices[..vertex_count].copy_from_slice(&clip_scratch[..vertex_count]);
-                } else {
-                    unsafe {
-                        self.materialize_pxbsp_face(
-                            source_base,
-                            face,
-                            uv_offset,
-                            state.color_scale_q7,
-                            baked_overflow,
-                            &mut zone_vertices[..vertex_count],
-                        );
-                    }
-                }
-                let surface = AffineSurface {
-                    first_vertex: 0,
-                    vertex_count: vertex_count as u16,
-                    tpage: state.texture_page,
-                    clut: resolved.clut,
-                    uv_offset: [0; 2],
-                    compact: u8::from(compact_surface),
-                    texture_window_word: resolved.texture_window_word,
-                    color_command_word: state.color_command_word,
-                };
-                let projection = self.view_projection;
-                let view =
-                    frustum_local.projection_view([projection.half_width, projection.half_height]);
-                let submitted = unsafe {
-                    submit_surface_batch_near(
-                        zone_vertices.as_mut_ptr(),
-                        vertex_count,
-                        &surface,
-                        1,
-                        next,
-                        end,
-                        PXBSP_RENDER_PROFILE,
-                        &view,
-                    )
-                };
-                next = submitted.next_packet;
-                stats.surface_batches = stats.surface_batches.saturating_add(1);
-                stats.packets = stats.packets.wrapping_add(submitted.packets);
-                stats.hardware_triangles = stats
-                    .hardware_triangles
-                    .wrapping_add(submitted.hardware_triangles);
-                stats.visible_faces = stats.visible_faces.saturating_add(1);
-                continue;
-            }
             if batch_vertex_count + vertex_count > PXBSP_BATCH_MAX_VERTICES
                 || batch_surface_count == PXBSP_BATCH_MAX_SURFACES
                 || !packet_capacity(next, end, batch_worst_words + face_worst_words)
@@ -2097,12 +1933,14 @@ impl Renderer {
                     stats.surface_batches = stats.surface_batches.saturating_add(1);
                 }
                 let submitted = unsafe {
-                    flush_pxbsp_batch(
+                    flush_pxbsp_batch_zone(
                         batch_vertices,
                         batch_vertex_count,
                         &batch_surfaces,
                         batch_surface_count,
                         next,
+                        end,
+                        &near_view,
                     )
                 };
                 next = submitted.next_packet;
@@ -2155,12 +1993,14 @@ impl Renderer {
             stats.surface_batches = stats.surface_batches.saturating_add(1);
         }
         let submitted = unsafe {
-            flush_pxbsp_batch(
+            flush_pxbsp_batch_zone(
                 batch_vertices,
                 batch_vertex_count,
                 &batch_surfaces,
                 batch_surface_count,
                 next,
+                end,
+                &near_view,
             )
         };
         next = submitted.next_packet;
@@ -2342,14 +2182,13 @@ impl Renderer {
     /// loaded `planes` since the last light or colour matrix write.
     #[cfg(target_arch = "mips")]
     #[inline(always)]
-    unsafe fn pxbsp_face_clip_gte<const ZONE: bool>(
+    unsafe fn pxbsp_face_clip_gte(
         source_base: *const SurfaceSourceVertex,
         face: FaceRef,
         planes: &[([i32; 3], i32); 5],
         side_error: i32,
         clip_mask: u8,
-        zone_distance: i32,
-    ) -> Option<u8> {
+    ) -> Option<bool> {
         const NEAR: u8 = 1 << PXBSP_CLIP_NEAR_PLANE;
         let count = face.vertex_count();
         if count == 0 {
@@ -2370,7 +2209,6 @@ impl Renderer {
         let mut wholly_outside = clip_mask;
         let near_tested = clip_mask & NEAR != 0;
         let mut near_any_outside = false;
-        let mut in_zone = false;
         let mut index = 0usize;
         // Phase one: every masked plane is still undecided, so each vertex
         // pays for the full plane set.
@@ -2380,11 +2218,7 @@ impl Renderer {
             let z = unsafe { core::ptr::read(base.add(1).cast::<i16>()) } as i32 as u32;
             let (d0, d1, d2) = unsafe { gte_dot3::<MVMVA_LLM_V0_SF0>(xy, z) };
             // The near band is zero, so that plane keeps its exact answers.
-            let near_distance = d0.wrapping_add(constants[0]);
-            if ZONE {
-                in_zone |= near_distance < zone_distance;
-            }
-            if near_distance >= 0 {
+            if d0.wrapping_add(constants[0]) >= 0 {
                 wholly_outside &= !NEAR;
             } else {
                 near_any_outside = true;
@@ -2419,25 +2253,14 @@ impl Renderer {
                 let xy = unsafe { core::ptr::read(base) };
                 let z = unsafe { core::ptr::read(base.add(1).cast::<i16>()) } as i32 as u32;
                 let d0 = unsafe { gte_dot_one::<MVMVA_LLM_V0_SF0, MFC2_MAC1>(xy, z) };
-                let near_distance = d0.wrapping_add(constants[0]);
-                if ZONE {
-                    in_zone |= near_distance < zone_distance;
-                }
-                if near_distance < 0 {
+                if d0.wrapping_add(constants[0]) < 0 {
                     near_any_outside = true;
                     break;
                 }
                 index += 1;
             }
         }
-        // Whether the zone answer saw every vertex: phase two ran to the end,
-        // or the face crosses the near plane and so has a vertex in the zone.
-        let zone_known = near_tested;
-        Some(
-            u8::from(near_tested && near_any_outside)
-                | (u8::from(in_zone) << 1)
-                | (u8::from(zone_known) << 2),
-        )
+        Some(near_tested && near_any_outside)
     }
 
     /// [`front_facing_pxbsp`] through the per-pass plane-side table: the
@@ -2935,8 +2758,7 @@ impl Renderer {
                     face as usize,
                     PXBSP_FRAME_FALLBACK,
                 );
-                self.frame_pxbsp_face_clip_mask[face as usize] =
-                    PXBSP_CLIP_ALL_PLANES | PXBSP_CLIP_ZONE;
+                self.frame_pxbsp_face_clip_mask[face as usize] = PXBSP_CLIP_ALL_PLANES;
             }
             self.frame_pxbsp_faces
                 .extend_from_slice(&self.visible_pxbsp_faces);
@@ -2964,12 +2786,11 @@ impl Renderer {
         #[cfg(target_arch = "mips")]
         load_gte_clip_planes(&frustum.planes);
         self.pxbsp_node_stack.clear();
-        let root_mask = PXBSP_CLIP_ZONE
-            | if frustum.far_view == i32::MAX {
-                PXBSP_CLIP_ALL_PLANES
-            } else {
-                PXBSP_CLIP_ALL_PLANES | PXBSP_CLIP_FAR
-            };
+        let root_mask = if frustum.far_view == i32::MAX {
+            PXBSP_CLIP_ALL_PLANES
+        } else {
+            PXBSP_CLIP_ALL_PLANES | PXBSP_CLIP_FAR
+        };
         self.pxbsp_node_stack
             .push(root as u32 | (root_mask as u32) << PXBSP_NODE_STACK_MASK_SHIFT);
         while let Some(entry) = self.pxbsp_node_stack.pop() {
@@ -3000,15 +2821,6 @@ impl Renderer {
                         None => {}
                     }
                 }
-                // A box wholly beyond the saturation zone has no face with a
-                // vertex in it, but only while the node bounds are proven to
-                // enclose their faces.
-                if inherit_clip
-                    && mask & PXBSP_CLIP_ZONE != 0
-                    && frustum.aabb_beyond_zone(mins, maxs)
-                {
-                    mask &= !PXBSP_CLIP_ZONE;
-                }
                 if mask & PXBSP_CLIP_ALL_PLANES != 0 {
                     if !inherit_clip {
                         if frustum.aabb_outside(mins, maxs) {
@@ -3020,14 +2832,14 @@ impl Renderer {
                         else {
                             continue;
                         };
-                        mask = residual | (mask & (PXBSP_CLIP_FAR | PXBSP_CLIP_ZONE));
+                        mask = residual | (mask & PXBSP_CLIP_FAR);
                     }
                 }
             }
             let child_tag = (mask as u32) << PXBSP_NODE_STACK_MASK_SHIFT;
             // Faces only ever see the five clip planes; the far bit stays in
             // the walk.
-            let face_mask = mask & (PXBSP_CLIP_ALL_PLANES | PXBSP_CLIP_ZONE);
+            let face_mask = mask & PXBSP_CLIP_ALL_PLANES;
 
             let plane = planes
                 .get(node.plane as usize)
@@ -3102,8 +2914,7 @@ impl Renderer {
                         face as usize,
                         PXBSP_FRAME_FALLBACK,
                     );
-                    self.frame_pxbsp_face_clip_mask[face as usize] =
-                        PXBSP_CLIP_ALL_PLANES | PXBSP_CLIP_ZONE;
+                    self.frame_pxbsp_face_clip_mask[face as usize] = PXBSP_CLIP_ALL_PLANES;
                 }
             }
         }
@@ -3424,22 +3235,12 @@ fn packet_capacity(next: *mut u32, end: *mut u32, needed_words: usize) -> bool {
     remaining >= 0 && needed_words <= remaining as usize
 }
 
-/// Whether any vertex of `face` lies in the GTE's divide-saturation zone.
-///
-/// # Safety
-/// `source_base` must be the base of the map's vertex lump, as for
-/// [`Renderer::materialize_pxbsp_face`].
-unsafe fn face_in_saturation_zone(
-    source_base: *const SurfaceSourceVertex,
-    face: FaceRef,
-    frustum: &FrustumPlanes,
-) -> bool {
-    let source = unsafe { source_base.add(face.first_vertex()) };
-    (0..face.vertex_count()).any(|index| {
-        // SAFETY: the face's vertex range lies inside the lump.
-        let vertex = unsafe { &*source.add(index) };
-        frustum.in_saturation_zone(vertex.position)
-    })
+/// What a flushed batch wrote, and the surfaces it left for the zone path.
+struct FlushedBatch {
+    submitted: SurfaceSubmit,
+    /// Bit `i` is set when surface `i` has a vertex the GTE divide saturates
+    /// on, so the writer left it for [`flush_pxbsp_batch_zone`].
+    deferred: u32,
 }
 
 unsafe fn flush_pxbsp_batch(
@@ -3448,29 +3249,113 @@ unsafe fn flush_pxbsp_batch(
     surfaces: &[AffineSurface],
     surface_count: usize,
     output: *mut u32,
-) -> SurfaceSubmit {
+) -> FlushedBatch {
     if vertex_count == 0 || surface_count == 0 {
-        return SurfaceSubmit {
-            next_packet: output,
-            packets: 0,
-            hardware_triangles: 0,
+        return FlushedBatch {
+            submitted: SurfaceSubmit {
+                next_packet: output,
+                packets: 0,
+                hardware_triangles: 0,
+            },
+            deferred: 0,
         };
     }
     // SAFETY: the planes and the batch are the only scratchpad bytes live
     // around the flush (see PxbspWriterStack), the writer installs no
     // exception handler, and tools/stack_guard.py proves its call tree fits.
-    unsafe {
+    let (submitted, deferred) = unsafe {
         PxbspWriterStack::run(|| {
-            submit_surface_batch(
+            submit_surface_batch_screened(
                 vertices.as_mut_ptr(),
                 vertex_count,
                 surfaces.as_ptr(),
                 surface_count,
                 output,
-                PXBSP_RENDER_PROFILE,
+                &PXBSP_RENDER_PROFILE,
             )
         })
+    };
+    FlushedBatch {
+        submitted,
+        deferred,
     }
+}
+
+/// Flush a batch, then draw the surfaces the writer left because the GTE
+/// cannot place one of their vertices: each is projected exactly and any
+/// polygon the GPU would drop is clipped to its window instead.
+///
+/// # Safety
+/// As [`flush_pxbsp_batch`]; `end` is the end of the packet storage `output`
+/// lies in.
+#[inline(always)]
+unsafe fn flush_pxbsp_batch_zone(
+    vertices: &mut [AffineVertex],
+    vertex_count: usize,
+    surfaces: &[AffineSurface],
+    surface_count: usize,
+    output: *mut u32,
+    end: *mut u32,
+    view: &NearView,
+) -> SurfaceSubmit {
+    let FlushedBatch {
+        submitted,
+        deferred,
+    } = unsafe { flush_pxbsp_batch(vertices, vertex_count, surfaces, surface_count, output) };
+    if deferred == 0 {
+        return submitted;
+    }
+    unsafe { draw_zone_surfaces(vertices, surfaces, deferred, submitted, end, view) }
+}
+
+/// Draw the surfaces of a flushed batch the writer left for the zone path.
+///
+/// # Safety
+/// As [`flush_pxbsp_batch_zone`]; `deferred` names surfaces of `surfaces`.
+#[inline(never)]
+unsafe fn draw_zone_surfaces(
+    vertices: &[AffineVertex],
+    surfaces: &[AffineSurface],
+    mut deferred: u32,
+    mut submitted: SurfaceSubmit,
+    end: *mut u32,
+    view: &NearView,
+) -> SurfaceSubmit {
+    while deferred != 0 {
+        let index = deferred.trailing_zeros() as usize;
+        deferred &= deferred - 1;
+        let surface = surfaces[index];
+        let first = usize::from(surface.first_vertex);
+        let count = usize::from(surface.vertex_count);
+        let mut zone_vertices = [AffineVertex::default(); PXBSP_AFFINE_BATCH_VERTEX_CAPACITY];
+        zone_vertices[..count].copy_from_slice(&vertices[first..first + count]);
+        let own = AffineSurface {
+            first_vertex: 0,
+            ..surface
+        };
+        // SAFETY: the vertices are the surface's own, and `end` bounds the
+        // storage the batch reserved room in.
+        let drawn = unsafe {
+            submit_surface_batch_near(
+                zone_vertices.as_mut_ptr(),
+                count,
+                &own,
+                1,
+                submitted.next_packet,
+                end,
+                PXBSP_RENDER_PROFILE,
+                view,
+            )
+        };
+        submitted = SurfaceSubmit {
+            next_packet: drawn.next_packet,
+            packets: submitted.packets.wrapping_add(drawn.packets),
+            hardware_triangles: submitted
+                .hardware_triangles
+                .wrapping_add(drawn.hardware_triangles),
+        };
+    }
+    submitted
 }
 
 /// `MVMVA(mx=LLM, vx=V0, cv=none, sf=0, lm=0)`: three plane dots at once.
@@ -5239,126 +5124,6 @@ mod frustum_tests {
             undecided * 20 < checked,
             "{undecided} of {checked} plane tests were undecided"
         );
-    }
-
-    fn gte_depth(position: [i16; 3]) -> u32 {
-        u32::from(scene::project_vertex(GteVec3I16::new(position[0], position[1], position[2])).sz)
-    }
-
-    fn random_position(state: &mut u32, span: i32) -> [i16; 3] {
-        let mut axis = || (lcg(state) % (2 * span as u32)) as i32 - span;
-        [axis() as i16, axis() as i16, axis() as i16]
-    }
-
-    #[test]
-    fn saturation_zone_is_exactly_where_the_gte_divide_saturates() {
-        let (planes, _) = planes_for([37, 70, 273], 1024, 100);
-        scene::set_projection_plane(320);
-        let mut state = 0x5eed_1234u32;
-        let (mut inside, mut outside) = (0usize, 0usize);
-        for _ in 0..20_000 {
-            let position = random_position(&mut state, 400);
-            let depth = gte_depth(position);
-            if depth == 0 || depth == u32::from(u16::MAX) {
-                continue;
-            }
-            let saturates = 320 >= 2 * depth as i32;
-            assert_eq!(
-                planes.in_saturation_zone(position),
-                saturates,
-                "{position:?} depth {depth}"
-            );
-            if saturates {
-                inside += 1;
-            } else {
-                outside += 1;
-            }
-        }
-        assert!(inside > 100 && outside > 100, "{inside} {outside}");
-    }
-
-    #[test]
-    fn the_scan_distance_threshold_is_the_vertex_zone_test() {
-        let (planes, _) = planes_for([37, 70, 273], 1024, 100);
-        let mut state = 0x0dd5_eed5u32;
-        for _ in 0..20_000 {
-            let position = random_position(&mut state, 400);
-            let distance = FrustumPlanes::distance(&planes.planes[PXBSP_CLIP_NEAR_PLANE], position);
-            assert_eq!(
-                distance < planes.zone_distance,
-                planes.in_saturation_zone(position),
-                "{position:?} distance {distance}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_box_beyond_the_zone_has_no_corner_in_it() {
-        let (planes, _) = planes_for([37, 70, 273], 1024, 100);
-        let mut state = 0x0b0b_0b0bu32;
-        let mut beyond = 0usize;
-        for _ in 0..4_000 {
-            let a = random_position(&mut state, 500);
-            let b = random_position(&mut state, 500);
-            let mins = Vec3I16 {
-                x: a[0].min(b[0]),
-                y: a[1].min(b[1]),
-                z: a[2].min(b[2]),
-            };
-            let maxs = Vec3I16 {
-                x: a[0].max(b[0]),
-                y: a[1].max(b[1]),
-                z: a[2].max(b[2]),
-            };
-            if !planes.aabb_beyond_zone(mins, maxs) {
-                continue;
-            }
-            beyond += 1;
-            for corner in 0..8 {
-                let pick =
-                    |bit: usize, lo: i16, hi: i16| if corner >> bit & 1 == 0 { lo } else { hi };
-                let position = [
-                    pick(0, mins.x, maxs.x),
-                    pick(1, mins.y, maxs.y),
-                    pick(2, mins.z, maxs.z),
-                ];
-                assert!(!planes.in_saturation_zone(position), "{position:?}");
-            }
-        }
-        assert!(beyond > 200, "only {beyond} boxes beyond the zone");
-    }
-
-    #[test]
-    fn exact_projection_agrees_with_the_gte_where_it_does_not_saturate() {
-        let (planes, _) = planes_for([37, 70, 273], 1024, 100);
-        scene::set_projection_plane(320);
-        scene::set_screen_offset(160 << 16, 120 << 16);
-        let view = planes.projection_view([160, 120]);
-        let mut state = 0x7e57_0001u32;
-        let mut compared = 0usize;
-        for _ in 0..20_000 {
-            let position = random_position(&mut state, 600);
-            let projected =
-                scene::project_vertex(GteVec3I16::new(position[0], position[1], position[2]));
-            let depth = u32::from(projected.sz);
-            if view.saturates(depth) || depth == u32::from(u16::MAX) {
-                continue;
-            }
-            // Skip vertices the GTE clamps to its screen range.
-            if projected.sx.unsigned_abs() >= 0x3ff || projected.sy.unsigned_abs() >= 0x3ff {
-                continue;
-            }
-            let exact = view.project(position).expect("positive depth");
-            assert!(
-                (i32::from(exact[0]) - i32::from(projected.sx)).abs() <= 1
-                    && (i32::from(exact[1]) - i32::from(projected.sy)).abs() <= 1,
-                "{position:?} exact {exact:?} gte ({}, {})",
-                projected.sx,
-                projected.sy
-            );
-            compared += 1;
-        }
-        assert!(compared > 1000, "only {compared} compared");
     }
 
     #[test]
