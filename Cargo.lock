@@ -1481,6 +1481,7 @@ dependencies = [
  "objc2-foundation 0.3.2",
  "pollster 0.3.0",
  "psoxide-debug-ui",
+ "psoxide-jit",
  "psoxide-settings",
  "psoxide-validation",
  "psx-asset",
