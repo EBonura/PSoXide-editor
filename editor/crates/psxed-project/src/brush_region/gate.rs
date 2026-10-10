@@ -424,8 +424,9 @@ pub(crate) fn evaluate(
     let skeleton_bytes = measured
         .map(|m| m.skeleton_bytes)
         .unwrap_or_else(|| super::skeleton_bytes(n, closure.visible.iter().map(Vec::len).sum()));
-    // Baked into `.data` and copied onto the heap: paid twice.
-    let pool_available = u64::from(params.pool_bytes).saturating_sub(2 * skeleton_bytes);
+    // One resident copy on the heap: the guest stages the container from the
+    // disc and links none.
+    let pool_available = u64::from(params.pool_bytes).saturating_sub(skeleton_bytes);
     if let Some(p) = &pool {
         if p.bytes > pool_available {
             failures.push(GateFailure::PoolExceeded {

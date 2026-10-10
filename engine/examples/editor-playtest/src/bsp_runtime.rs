@@ -260,6 +260,12 @@ pub(super) enum BspRuntimeInitError {
     StreamLoad(psx_bsp::pxbsp_resident::stream::StreamLoadError<SliceReadError>),
     #[cfg(feature = "world-stream")]
     MissingRegionPack,
+    /// The top container could not be read off UI.PAK into the staging
+    /// scratch (`status` is the chunk reader's status, 0 when it did not fit).
+    #[cfg(feature = "world-stream")]
+    ContainerRead {
+        status: u32,
+    },
     Doors(BrushDoorSetError),
     Destructibles(BrushDestructibleSetError),
     InvalidDestructibleTarget {
@@ -305,6 +311,10 @@ impl fmt::Display for BspRuntimeInitError {
             #[cfg(feature = "world-stream")]
             Self::MissingRegionPack => {
                 formatter.write_str("the region pack is not in the UI.PAK table of contents")
+            }
+            #[cfg(feature = "world-stream")]
+            Self::ContainerRead { status } => {
+                write!(formatter, "the streamed world's container read failed: {status}")
             }
             Self::Doors(error) => write!(formatter, "PXBSP mover load failed: {error:?}"),
             Self::Destructibles(error) => {
@@ -485,7 +495,8 @@ impl BspRuntime {
 
     fn load_manifest_checked() -> Result<Self, BspRuntimeInitError> {
         crate::game_trace("editor-playtest: bsp manifest begin");
-        if PXBSP_WORLD.is_empty() {
+        // A streamed world links no container: it is read off the disc.
+        if PXBSP_WORLD.is_empty() && !PXBSP_STREAMED {
             return Err(BspRuntimeInitError::EmptyWorld);
         }
         if PXBSP_MOVER_NODE_IDS.len() != PXBSP_MOVER_MODEL_INDICES.len() {
