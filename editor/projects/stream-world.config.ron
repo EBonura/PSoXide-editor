@@ -1,29 +1,43 @@
 // World-streaming stress world (M8). gen-stream-world turns this into
 // editor/projects/stream-world (untracked, regenerate on demand).
-// Units are engine units unless noted.
+// Units are engine units unless noted. See stream_world.rs for what each
+// density rule bounds; the pool and the cook parameters are not set here, they
+// derive from the guest's measured RAM (brush_region::RAM_BUDGET).
 (
     seed: 31,
-    grid: (15, 15),
+    // 400 modules: about 4.6 MB of regions, over ten times the 406 KB pool
+    // (the design asks the stress world for at least that).
+    grid: (20, 20),
     module_units: 768,
-    // bsp_patch_extent written into the World node, authored units (1024 is
-    // the cooker's minimum and the densest; 4096 the maximum and the sparsest).
-    patch_extent_authored: 2048,
-    corridor_pct: 25,
+    // The cooker's coarsest surface subdivision (4096 authored = 256 units)
+    // and a texture scale that lets it bind (see uv_scale_q8 in the source).
+    patch_extent_authored: 4096,
+    uv_scale_q8: 512,
+    corridor_pct: 20,
     interior_pct: 20,
-    courtyard_pct: 6,
-    terrain_pct: 3,
+    courtyard_pct: 8,
+    terrain_pct: 6,
     loop_pct: 3,
     enemy_pct: 35,
-    // Rooms with a hook platform (level cap is 32 hook points).
+    // Hook rooms are dead ends (level cap is 32 hook points).
     max_hooks: 12,
     // Minimum spacing between hook rooms, in modules.
     hook_spacing: 4,
     dense: false,
-    // Page pool the stress run assumes (see stream_world.rs). The design's
-    // own P_world estimate is 213124; the world is about 25x that and about
-    // 10x this pool. The seed was picked from a sweep that passes the cook
-    // gates with the overrides gen-stream-world writes to stream-cook.ron.
-    cook_pool_bytes: 524288,
+    // Doors per module: bounds how many regions a region sees.
+    max_door_degree: 3,
+    // Finest terrain patch per module side that the budget allows.
+    terrain_cells: 3,
+    // Cut target in the cut search's byte model; every module is built under
+    // it. Seven sectors holds a 768 unit module with its door walls and
+    // vestibules. The drive gate (rho) prices a crossing at the median region,
+    // so a target above this lets the heavy modules push a crossing over it.
+    region_target_bytes: 14336,
+    // Interior detail a module may add to its shell, same bytes.
+    detail_bytes: 1024,
+    // RAM scenario: bytes the model pass is assumed to hand the world. Zero is
+    // the guest as it is today.
+    arena_reclaim_bytes: 0,
     shortest_routes: 6,
     random_walks: 8,
     walk_steps: 120,
