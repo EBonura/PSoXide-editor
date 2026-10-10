@@ -369,7 +369,12 @@ const FONT_PACK_U16: usize = MAX_RUNTIME_UI_FONTS * 64 * FONT_ATLAS_MAX_ROWS;
 pub(super) const FONT_PACK_SCRATCH_LEN: usize = {
     let sky_u16 = (GAMEPLAY_PACK_MAX_CHUNK_BYTES + 1) / 2;
     let sfx_u16 = (UI_SFX_MAX_SAMPLE_BYTES + 3) / 4 * 2;
+    // A streamed world's top container is staged here at gameplay entry.
+    let container_u16 = (crate::generated::PXBSP_STREAM_CONTAINER_BYTES + 3) / 4 * 2;
     let mut len = FONT_PACK_U16;
+    if container_u16 > len {
+        len = container_u16;
+    }
     if sky_u16 > len {
         len = sky_u16;
     }
