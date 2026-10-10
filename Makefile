@@ -148,10 +148,10 @@ help:
 	@echo "    make run-hardware-tests - build + boot the visual hardware test suite"
 
 run:
-	cd emu && cargo run -p frontend
+	cd emu && cargo run -p frontend --features editor
 
 run-fast:
-	cd emu && cargo run -p frontend --profile run-fast
+	cd emu && cargo run -p frontend --features editor --profile run-fast
 
 EDITOR_UI_PROJECT ?= editor/projects/default
 EDITOR_UI_VIEW ?= animation
@@ -160,7 +160,7 @@ EDITOR_UI_OUT ?= /tmp/psoxide-editor-ui.png
 EDITOR_UI_FRAME_SELECTED ?= 0
 
 editor-ui-screenshot:
-	cargo run -p frontend -- dump-editor-ui \
+	cargo run -p frontend --features editor -- dump-editor-ui \
 		--project "$(EDITOR_UI_PROJECT)" \
 		--view "$(EDITOR_UI_VIEW)" \
 		$(if $(strip $(EDITOR_UI_RESOURCE)),--resource "$(EDITOR_UI_RESOURCE)",) \
@@ -168,7 +168,7 @@ editor-ui-screenshot:
 		--out "$(EDITOR_UI_OUT)"
 
 run-release:
-	cd emu && cargo run -p frontend --release
+	cd emu && cargo run -p frontend --features editor --release
 
 # CI and the web deploy deliberately skip PGO: rustc's PGO does not
 # target wasm (browsers JIT-optimize at runtime instead), and no CI
@@ -189,13 +189,13 @@ ifndef PGO_GAME
 endif
 	rm -rf $(PGO_DIR)
 	cd emu && RUSTFLAGS="-Cprofile-generate=$(abspath $(PGO_DIR))" \
-		cargo build -p frontend --release --features mcp
+		cargo build -p frontend --release --features editor,mcp
 	target/release/frontend launch --path "$(PGO_GAME)" --steps 500000000
 	target/release/frontend launch --path "$(PGO_GAME)" --steps 150000000
 	"$$(rustc --print sysroot)"/lib/rustlib/*/bin/llvm-profdata merge \
 		-o $(PGO_DIR)/merged.profdata $(PGO_DIR)/*.profraw
 	cd emu && RUSTFLAGS="-Cprofile-use=$(abspath $(PGO_DIR))/merged.profdata" \
-		cargo build -p frontend --release --features mcp
+		cargo build -p frontend --release --features editor,mcp
 	@echo "PGO build ready: target/release/frontend"
 
 # Serve the emulator-only wasm build locally (optimized) at http://127.0.0.1:8080.
@@ -236,13 +236,13 @@ itch-web: web-bundle
 	$(BUTLER) push $(WEB_DIST_DIR) $(ITCH_WEB_CHANNEL) --userversion "$(ITCH_WEB_VERSION)"
 
 validate:
-	cd emu && cargo run -p frontend --release -- validate --manifest ../validation/suite.ron
+	cd emu && cargo run -p frontend --features editor --release -- validate --manifest ../validation/suite.ron
 
 validate-repeat:
-	cd emu && cargo run -p frontend --release -- validate --manifest ../validation/suite.ron --repeat 3
+	cd emu && cargo run -p frontend --features editor --release -- validate --manifest ../validation/suite.ron --repeat 3
 
 validate-bless:
-	cd emu && cargo run -p frontend --release -- validate --manifest ../validation/suite.ron --bless
+	cd emu && cargo run -p frontend --features editor --release -- validate --manifest ../validation/suite.ron --bless
 
 check:
 	cargo check --workspace --all-features
@@ -250,7 +250,7 @@ check:
 	cd sdk && cargo check --workspace --all-features
 
 test:
-	cargo test --workspace
+	cargo test --workspace --features frontend/editor
 	cd engine && cargo test --workspace
 	cd sdk && cargo test --workspace
 # `editor-playtest` declares its own `[workspace]`, so the three lines above
@@ -260,10 +260,16 @@ test:
 	cd engine/examples/editor-playtest && cargo test
 
 canaries:
-	cargo test --workspace -- --ignored
+	cargo test --workspace --features frontend/editor -- --ignored
+
+# The editor-owned frontend modules sit under the hydrated emulator frontend,
+# which marks them `#[rustfmt::skip]` (its own repository cannot see them), so
+# `cargo fmt --all` never reaches these files; format them directly.
+FRONTEND_EDITOR_RS := $(addprefix emu/crates/frontend/src/,editor_assets.rs editor_preview.rs editor_textures.rs embedded_playtest.rs playtest_disc.rs)
 
 fmt:
 	cargo fmt --all
+	rustfmt --edition 2021 $(FRONTEND_EDITOR_RS)
 	cd engine && cargo fmt --all
 	cd sdk && cargo fmt --all
 	cd engine/examples/editor-playtest && cargo fmt
@@ -453,7 +459,7 @@ hello-pack-disc: hello-pack hello-pack-fixture
 # fixture chunks, then assert its TTY verdict (the dump shows the banner too).
 # Homebrew launches use the built-in runtime and print guest TTY to stdout.
 verify-hello-pack: hello-pack-disc
-	cd emu && cargo run -p frontend --release -- launch \
+	cd emu && cargo run -p frontend --features editor --release -- launch \
 		--path ../$(EXAMPLE_OUT)/hello-pack.cue \
 		--embedded-playtest \
 		--steps $(HELLO_PACK_STEPS) \
@@ -578,7 +584,7 @@ HWTEST_STEPS    := 480000000
 # capture encodes; booting the CUE directly produces no guest TTY at all.
 hwtest-capture: hardware-tests-disc
 	@mkdir -p $(dir $(HWTEST_CAPTURE))
-	cd emu && cargo run -q -p frontend --release -- launch \
+	cd emu && cargo run -q -p frontend --features editor --release -- launch \
 		--path ../$(EXAMPLE_OUT)/hardware-tests.exe \
 		--disc ../$(EXAMPLE_OUT)/hardware-tests.cue \
 		--steps $(HWTEST_STEPS) --pad-pulses '0x4000@25+3' > ../$(HWTEST_CAPTURE)
@@ -621,7 +627,7 @@ HWTEST_AUDIO_PAGES := build/hwtest-audio-pages.txt
 # characterisation capture is several times that).
 hwtest-audio: hardware-tests-disc
 	@mkdir -p $(dir $(HWTEST_WAV))
-	cd emu && cargo run -q -p frontend --release -- launch \
+	cd emu && cargo run -q -p frontend --features editor --release -- launch \
 		--path ../$(EXAMPLE_OUT)/hardware-tests.exe \
 		--disc ../$(EXAMPLE_OUT)/hardware-tests.cue \
 		--steps 1200000000 --pad-pulses '0x4000@25+3,0x8000@1900+6' \
@@ -670,7 +676,7 @@ HWTEST_FULL_STEPS    := 700000000
 
 hwtest-capture-full: hardware-tests-disc
 	@mkdir -p $(dir $(HWTEST_FULL_CAPTURE))
-	cd emu && cargo run -q -p frontend --release -- launch \
+	cd emu && cargo run -q -p frontend --features editor --release -- launch \
 		--path ../$(EXAMPLE_OUT)/hardware-tests.exe \
 		--disc ../$(EXAMPLE_OUT)/hardware-tests.cue \
 		--steps $(HWTEST_FULL_STEPS) --pad-pulses '$(HWTEST_FULL_PULSES)' > ../$(HWTEST_FULL_CAPTURE)
@@ -719,7 +725,7 @@ HWTEST_PERF_STEPS   := 300000000
 
 hwtest-capture-perf: hardware-tests-disc
 	@mkdir -p $(dir $(HWTEST_PERF_CAPTURE))
-	cd emu && cargo run -q -p frontend --release -- launch \
+	cd emu && cargo run -q -p frontend --features editor --release -- launch \
 		--path ../$(EXAMPLE_OUT)/hardware-tests.exe \
 		--disc ../$(EXAMPLE_OUT)/hardware-tests.cue \
 		--steps $(HWTEST_PERF_STEPS) --pad-pulses '$(HWTEST_PERF_PULSES)' > ../$(HWTEST_PERF_CAPTURE)
@@ -770,7 +776,7 @@ hwtest-probe-capture: hardware-tests-disc
 	@pulses="0x40@30+2,0x40@38+2,0x40@46+2,0x40@54+2,0x40@62+2,0x40@70+2,0x40@78+2,0x4000@90+2"; \
 	t=100; i=0; while [ $$i -lt $(ROW) ]; do pulses="$$pulses,0x40@$$t+2"; t=$$((t+8)); i=$$((i+1)); done; \
 	pulses="$$pulses,0x4000@$$((t+10))+2"; \
-	cd emu && cargo run -q -p frontend --release -- launch \
+	cd emu && cargo run -q -p frontend --features editor --release -- launch \
 		--path ../$(EXAMPLE_OUT)/hardware-tests.exe \
 		--disc ../$(EXAMPLE_OUT)/hardware-tests.cue \
 		--steps $(HWTEST_PROBE_STEPS) --pad-pulses "$$pulses" > ../build/hwtest-probe-$(ROW).log
@@ -796,7 +802,7 @@ SB4_STEPS    := 500000000
 
 hwtest-sb4-capture: hardware-tests-disc
 	@mkdir -p $(dir $(SB4_CAPTURE))
-	cd emu && cargo run -q -p frontend --release -- launch \
+	cd emu && cargo run -q -p frontend --features editor --release -- launch \
 		--path ../$(EXAMPLE_OUT)/hardware-tests.exe \
 		--disc ../$(EXAMPLE_OUT)/hardware-tests.cue \
 		--steps $(SB4_STEPS) --pad-pulses '$(SB4_PULSES)' > ../$(SB4_CAPTURE)
@@ -961,13 +967,13 @@ editor-blank-playtest-check:
 	PSOXIDE_EDITOR_BLANK_PROJECT_OUT="$$project_dir" cargo test -p psxed-ui tests::project_workspace::bsp_blank_slate_commands_preserve_rooted_prop_door_and_portal_contract -- --exact --nocapture; \
 	cd ..; \
 	cd emu; \
-	EDITOR_PLAYTEST_FEATURES='cd-stream-bench emulator-telemetry' cargo run -p frontend --release -- build-project-disc --project "$$project_file"; \
+	EDITOR_PLAYTEST_FEATURES='cd-stream-bench emulator-telemetry' cargo run -p frontend --features editor --release -- build-project-disc --project "$$project_file"; \
 	for replay in a b; do \
 		case "$$replay" in \
 			a) replay_log="$$log_a"; replay_gpu="$$gpu_a" ;; \
 			b) replay_log="$$log_b"; replay_gpu="$$gpu_b" ;; \
 		esac; \
-		if ! cargo run -p frontend --release -- launch \
+		if ! cargo run -p frontend --features editor --release -- launch \
 			--path "$$cue" \
 			--embedded-playtest \
 			--hold-forward \
@@ -1013,8 +1019,8 @@ editor-bsp-liquid-check:
 	cd editor; \
 	cargo run -p psxed-project --bin gen-brush-liquid-runtime -- "$$project_dir"; \
 	cd ../emu; \
-	EDITOR_PLAYTEST_FEATURES='cd-stream-bench emulator-telemetry' cargo run -p frontend --release -- build-project-disc --project "$$project_file"; \
-	if ! cargo run -p frontend --release -- launch \
+	EDITOR_PLAYTEST_FEATURES='cd-stream-bench emulator-telemetry' cargo run -p frontend --features editor --release -- build-project-disc --project "$$project_file"; \
+	if ! cargo run -p frontend --features editor --release -- launch \
 		--path "$$cue" \
 		--embedded-playtest \
 		--press 30:up:90 \
@@ -1058,7 +1064,7 @@ profile-demo3-disc-stream:
 		--ui-pack-dir ../../engine/examples/editor-playtest/generated/ui_stream_chunks \
 		--ui-pack-order-file ../../engine/examples/editor-playtest/generated/ui_pack_order.txt \
 		--cdda-track-list $(EDITOR_PLAYTEST_GENERATED_FROM_MKISOPSX)/cdda_tracks.txt
-	cd emu && cargo run -p frontend --release -- launch \
+	cd emu && cargo run -p frontend --features editor --release -- launch \
 		--path ../$(EXAMPLE_OUT)/editor-playtest.cue \
 		--embedded-playtest \
 		--guest-visual-frames $(PROFILE_DEMO3_DISC_STREAM_VISUAL_FRAMES) \
@@ -1081,7 +1087,7 @@ profile-demo3-disc-stream-forward:
 		--ui-pack-dir ../../engine/examples/editor-playtest/generated/ui_stream_chunks \
 		--ui-pack-order-file ../../engine/examples/editor-playtest/generated/ui_pack_order.txt \
 		--cdda-track-list $(EDITOR_PLAYTEST_GENERATED_FROM_MKISOPSX)/cdda_tracks.txt
-	cd emu && cargo run -p frontend --release -- launch \
+	cd emu && cargo run -p frontend --features editor --release -- launch \
 		--path ../$(EXAMPLE_OUT)/editor-playtest.cue \
 		--embedded-playtest \
 		--guest-visual-frames $(PROFILE_DEMO3_DISC_STREAM_FORWARD_VISUAL_FRAMES) \
@@ -1105,7 +1111,7 @@ profile-demo7-camera-sweep:
 		--ui-pack-dir ../../engine/examples/editor-playtest/generated/ui_stream_chunks \
 		--ui-pack-order-file ../../engine/examples/editor-playtest/generated/ui_pack_order.txt \
 		--cdda-track-list $(EDITOR_PLAYTEST_GENERATED_FROM_MKISOPSX)/cdda_tracks.txt
-	cd emu && cargo run -p frontend --release -- launch \
+	cd emu && cargo run -p frontend --features editor --release -- launch \
 		--path ../$(EXAMPLE_OUT)/editor-playtest.cue \
 		--embedded-playtest \
 		--guest-visual-frames $(PROFILE_DEMO7_CAMERA_SWEEP_VISUAL_FRAMES) \
@@ -1133,7 +1139,7 @@ probe-warp:
 		--ui-pack-dir ../../engine/examples/editor-playtest/generated/ui_stream_chunks \
 		--ui-pack-order-file ../../engine/examples/editor-playtest/generated/ui_pack_order.txt \
 		--cdda-track-list $(EDITOR_PLAYTEST_GENERATED_FROM_MKISOPSX)/cdda_tracks.txt
-	cd emu && cargo run -p frontend --release -- launch \
+	cd emu && cargo run -p frontend --features editor --release -- launch \
 		--path ../$(EXAMPLE_OUT)/editor-playtest.cue \
 		--embedded-playtest \
 		--guest-frames $(WARP_PROBE_GUEST_FRAMES) \
@@ -1202,56 +1208,56 @@ examples: $(PUBLIC_EXAMPLE_DISCS)
 # artifact can be launched in emulators or burned to CD-R.
 
 run-tri: hello-tri-disc
-	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-tri.cue" cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-tri.cue" cargo run -p frontend --features editor --release
 
 run-input: hello-input-disc
-	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-input.cue" cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-input.cue" cargo run -p frontend --features editor --release
 
 run-ot: hello-ot-disc
-	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-ot.cue" cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-ot.cue" cargo run -p frontend --features editor --release
 
 run-tex: hello-tex-disc
-	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-tex.cue" cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-tex.cue" cargo run -p frontend --features editor --release
 
 run-gte: hello-gte-disc
-	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-gte.cue" cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-gte.cue" cargo run -p frontend --features editor --release
 
 run-audio: hello-audio-disc
-	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-audio.cue" cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-audio.cue" cargo run -p frontend --features editor --release
 
 run-cdda: hello-cdda-disc
-	cd emu && PSOXIDE_AUTORUN=1 PSOXIDE_AUDIO_TRACE=1 PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-cdda.cue" cargo run -p frontend --release
+	cd emu && PSOXIDE_AUTORUN=1 PSOXIDE_AUDIO_TRACE=1 PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-cdda.cue" cargo run -p frontend --features editor --release
 
 probe-cdda-audio: hello-cdda-disc
 	cd emu && PSOXIDE_EXE="$(CURDIR)/$(EXAMPLE_OUT)/hello-cdda.exe" PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-cdda.cue" cargo run -p emulator-core --example probe_cdda_wav --release
 
 run-showcase-text: showcase-text-disc
-	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/showcase-text.cue" cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/showcase-text.cue" cargo run -p frontend --features editor --release
 
 run-game-pong: game-pong-disc
-	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/game-pong.cue" cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/game-pong.cue" cargo run -p frontend --features editor --release
 
 run-game-magikaaaaaarp-pong: game-magikaaaaaarp-pong-disc
-	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/game-magikaaaaaarp-pong.cue" cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/game-magikaaaaaarp-pong.cue" cargo run -p frontend --features editor --release
 
 probe-magikaaaaaarp-pong-audio: game-magikaaaaaarp-pong-disc
 	cd emu && PSOXIDE_EXE="$(CURDIR)/$(EXAMPLE_OUT)/game-magikaaaaaarp-pong.exe" PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/game-magikaaaaaarp-pong.cue" PSOXIDE_WAV=/tmp/psoxide_magikaaaaaarp_pong.wav PSOXIDE_AUDIO_SECONDS=6 cargo run -p emulator-core --example probe_cdda_wav --release
 
 cortex-ignition-v1-project-disc:
-	cd emu && cargo run -p frontend --release -- build-project-disc --project ../$(CORTEX_IGNITION_V1_PROJECT)
+	cd emu && cargo run -p frontend --features editor --release -- build-project-disc --project ../$(CORTEX_IGNITION_V1_PROJECT)
 
 cortex-ignition-v1-project-disc-boot-trace:
-	cd emu && EDITOR_PLAYTEST_FEATURES='cd-stream-bench boot-trace' cargo run -p frontend --release -- build-project-disc --project ../$(CORTEX_IGNITION_V1_PROJECT)
+	cd emu && EDITOR_PLAYTEST_FEATURES='cd-stream-bench boot-trace' cargo run -p frontend --features editor --release -- build-project-disc --project ../$(CORTEX_IGNITION_V1_PROJECT)
 
 cortex-ignition-v1-hardware-diagnostic-disc:
-	cd emu && EDITOR_PLAYTEST_CARGO_FEATURE_FLAGS='--no-default-features --features "$(EDITOR_PLAYTEST_HARDWARE_FEATURES) hardware-boot-visual"' cargo run -p frontend --release -- build-project-disc --project ../$(CORTEX_IGNITION_V1_PROJECT)
+	cd emu && EDITOR_PLAYTEST_CARGO_FEATURE_FLAGS='--no-default-features --features "$(EDITOR_PLAYTEST_HARDWARE_FEATURES) hardware-boot-visual"' cargo run -p frontend --features editor --release -- build-project-disc --project ../$(CORTEX_IGNITION_V1_PROJECT)
 
 cortex-ignition-v1-preburn-local: cortex-ignition-v1-preburn-struct cortex-ignition-v1-preburn-disc-reads cortex-ignition-v1-preburn-internal cortex-ignition-v1-preburn-cdda-audio cortex-ignition-v1-preburn-streaming-guard
 	@echo "cortex_ignition_v1 pre-burn local checks complete -> $(CORTEX_IGNITION_V1_PREBURN_OUT)"
 
 cortex-ignition-v1-preburn-struct: cortex-ignition-v1-project-disc
 	@mkdir -p $(CORTEX_IGNITION_V1_PREBURN_OUT)
-	cd emu && cargo run -p frontend --release -- preburn-check \
+	cd emu && cargo run -p frontend --features editor --release -- preburn-check \
 		--cue "$(CORTEX_IGNITION_V1_CUE)" \
 		--exe "$(EXAMPLE_OUT)/editor-playtest.exe" \
 		--volume $(CORTEX_IGNITION_V1_VOLUME) \
@@ -1275,11 +1281,11 @@ cortex-ignition-v1-preburn-disc-reads: cortex-ignition-v1-project-disc
 
 cortex-ignition-v1-preburn-internal:
 	@mkdir -p $(CORTEX_IGNITION_V1_PREBURN_OUT) $(CORTEX_IGNITION_V1_PREBURN_INTERNAL_DISC_DIR)
-	cd emu && EDITOR_PLAYTEST_FEATURES='$(CORTEX_IGNITION_V1_PREBURN_FEATURES)' cargo run -p frontend --release -- build-project-disc --project ../$(CORTEX_IGNITION_V1_PROJECT)
+	cd emu && EDITOR_PLAYTEST_FEATURES='$(CORTEX_IGNITION_V1_PREBURN_FEATURES)' cargo run -p frontend --features editor --release -- build-project-disc --project ../$(CORTEX_IGNITION_V1_PROJECT)
 	@cp "$(CORTEX_IGNITION_V1_CUE)" "$(CORTEX_IGNITION_V1_PREBURN_INTERNAL_CUE)"
 	@cp "$(CORTEX_IGNITION_V1_BIN)" "$(CORTEX_IGNITION_V1_PREBURN_INTERNAL_BIN)"
 	@$(MAKE) cortex-ignition-v1-project-disc
-	@(cd emu && cargo run -p frontend --release -- launch \
+	@(cd emu && cargo run -p frontend --features editor --release -- launch \
 		--path ../$(CORTEX_IGNITION_V1_PREBURN_INTERNAL_CUE) \
 		--embedded-playtest \
 		--pad-pulses "$(CORTEX_IGNITION_V1_PREBURN_PAD_PULSES)" \
@@ -1319,31 +1325,31 @@ cortex-ignition-v1-burn-candidate: cortex-ignition-v1-preburn-local
 	@echo "cortex_ignition_v1 burn candidate passed -> $(CORTEX_IGNITION_V1_BRINGUP_REPORT)"
 
 run-game-breakout: game-breakout-disc
-	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/game-breakout.cue" cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/game-breakout.cue" cargo run -p frontend --features editor --release
 
 run-game-invaders: game-invaders-disc
-	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/game-invaders.cue" cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/game-invaders.cue" cargo run -p frontend --features editor --release
 
 run-showcase-3d: showcase-3d-disc
-	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/showcase-3d.cue" cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/showcase-3d.cue" cargo run -p frontend --features editor --release
 
 run-showcase-model: showcase-model-disc
-	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/showcase-model.cue" cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/showcase-model.cue" cargo run -p frontend --features editor --release
 
 run-showcase-lights: showcase-lights-disc
-	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/showcase-lights.cue" cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/showcase-lights.cue" cargo run -p frontend --features editor --release
 
 run-showcase-fog: showcase-fog-disc
-	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/showcase-fog.cue" cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/showcase-fog.cue" cargo run -p frontend --features editor --release
 
 run-showcase-particles: showcase-particles-disc
-	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/showcase-particles.cue" cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/showcase-particles.cue" cargo run -p frontend --features editor --release
 
 run-hardware-tests: hardware-tests-disc
-	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hardware-tests.cue" cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hardware-tests.cue" cargo run -p frontend --features editor --release
 
 run-hello-engine: hello-engine-disc
-	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-engine.cue" cargo run -p frontend --release
+	cd emu && PSOXIDE_DISC="$(CURDIR)/$(EXAMPLE_OUT)/hello-engine.cue" cargo run -p frontend --features editor --release
 
 # ---------------------------------------------------------------------------
 # cortex_anim: the AI-generated locomotion/attack pack on Aletha.
@@ -1378,7 +1384,7 @@ cortex-anim-disc:
 
 cortex-anim-shots: cortex-anim-disc
 	rm -rf $(CORTEX_ANIM_SHOT_DIR) && mkdir -p $(CORTEX_ANIM_SHOT_DIR)
-	cd emu && cargo run -p frontend --release -- launch \
+	cd emu && cargo run -p frontend --features editor --release -- launch \
 		--path ../$(EXAMPLE_OUT)/editor-playtest.cue \
 		--embedded-playtest \
 		--steps $(CORTEX_ANIM_STEPS) \

@@ -224,7 +224,7 @@ echo "editor-souls-bsp-check: disc"
 # (its counters print as "unknown") and can false-red or false-green the
 # counter assertions. Incremental cargo makes this free when up to date.
 echo "editor-souls-bsp-check: building frontend"
-(cd emu && cargo build -p frontend --release --quiet)
+(cd emu && cargo build -p frontend --features editor --release --quiet)
 
 assert_poll_clock "$PROJECT/souls-canonical.pxitape.csv"
 assert_poll_clock "$PROJECT/souls-negative.pxitape.csv"
