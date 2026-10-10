@@ -51,6 +51,12 @@ const PXBSP_CLIP_ALL_PLANES: u8 = 0x1f;
 /// [`FrustumPlanes::in_saturation_zone`]). Kept apart from the five planes so
 /// a face with no live plane still costs nothing to draw.
 const PXBSP_CLIP_ZONE: u8 = 0x40;
+/// Depth, in view (`SZ`) units, past the saturation zone that a node box must
+/// be before its faces drop the zone bit. A reuse frame keeps the selection's
+/// bits while the camera moves; 120 units is 40 world units at the PXBSP view
+/// scale, several times what the camera covers in one frame for any face
+/// inside the frustum.
+const PXBSP_ZONE_MARGIN: i32 = 120;
 /// Index of the near plane in [`FrustumPlanes::planes`]. It is the only plane
 /// whose per-face answer is "does any vertex fail it", rather than "do all".
 const PXBSP_CLIP_NEAR_PLANE: usize = 0;
@@ -697,7 +703,9 @@ impl FrustumPlanes {
         (dot >> 12).saturating_add(self.view_translation[2]) <= self.zone_view
     }
 
-    /// True when every point of the box is beyond the saturation zone.
+    /// True when every point of the box is beyond the saturation zone by
+    /// [`PXBSP_ZONE_MARGIN`], so a reuse frame, drawn from this frame's
+    /// selection, still finds no vertex of it in the zone.
     #[inline]
     fn aabb_beyond_zone(&self, mins: Vec3I16, maxs: Vec3I16) -> bool {
         let row = self.view_rows[2];
@@ -706,7 +714,11 @@ impl FrustumPlanes {
             if row[1] >= 0 { mins.y } else { maxs.y },
             if row[2] >= 0 { mins.z } else { maxs.z },
         ];
-        !self.in_saturation_zone(nearest)
+        let dot = row[0] as i32 * nearest[0] as i32
+            + row[1] as i32 * nearest[1] as i32
+            + row[2] as i32 * nearest[2] as i32;
+        (dot >> 12).saturating_add(self.view_translation[2])
+            > self.zone_view.saturating_add(PXBSP_ZONE_MARGIN)
     }
 
     /// The loaded view, for [`submit_surface_batch_near`].
@@ -1643,8 +1655,10 @@ impl Renderer {
                     face as usize,
                     PXBSP_FRAME_FALLBACK,
                 );
-                self.frame_pxbsp_face_clip_mask[face as usize] =
-                    PXBSP_CLIP_ALL_PLANES | PXBSP_CLIP_ZONE;
+                // The selection's zone bit stays: it was proven for a camera
+                // one frame back, with a margin that covers the move since.
+                let mask = &mut self.frame_pxbsp_face_clip_mask[face as usize];
+                *mask = PXBSP_CLIP_ALL_PLANES | (*mask & PXBSP_CLIP_ZONE);
             }
             true
         } else {
@@ -1919,14 +1933,27 @@ impl Renderer {
             } else {
                 #[cfg(target_arch = "mips")]
                 let classified = unsafe {
-                    Self::pxbsp_face_clip_gte(
-                        source_base,
-                        face,
-                        clip_planes,
-                        side_error,
-                        plane_mask,
-                        frustum_local.zone_distance,
-                    )
+                    // Most faces cannot reach the zone: they run the scan
+                    // without its extra compare.
+                    if clip_mask & PXBSP_CLIP_ZONE != 0 {
+                        Self::pxbsp_face_clip_gte::<true>(
+                            source_base,
+                            face,
+                            clip_planes,
+                            side_error,
+                            plane_mask,
+                            frustum_local.zone_distance,
+                        )
+                    } else {
+                        Self::pxbsp_face_clip_gte::<false>(
+                            source_base,
+                            face,
+                            clip_planes,
+                            side_error,
+                            plane_mask,
+                            frustum_local.zone_distance,
+                        )
+                    }
                 };
                 #[cfg(not(target_arch = "mips"))]
                 let classified = unsafe {
@@ -2315,7 +2342,7 @@ impl Renderer {
     /// loaded `planes` since the last light or colour matrix write.
     #[cfg(target_arch = "mips")]
     #[inline(always)]
-    unsafe fn pxbsp_face_clip_gte(
+    unsafe fn pxbsp_face_clip_gte<const ZONE: bool>(
         source_base: *const SurfaceSourceVertex,
         face: FaceRef,
         planes: &[([i32; 3], i32); 5],
@@ -2354,7 +2381,9 @@ impl Renderer {
             let (d0, d1, d2) = unsafe { gte_dot3::<MVMVA_LLM_V0_SF0>(xy, z) };
             // The near band is zero, so that plane keeps its exact answers.
             let near_distance = d0.wrapping_add(constants[0]);
-            in_zone |= near_distance < zone_distance;
+            if ZONE {
+                in_zone |= near_distance < zone_distance;
+            }
             if near_distance >= 0 {
                 wholly_outside &= !NEAR;
             } else {
@@ -2391,7 +2420,9 @@ impl Renderer {
                 let z = unsafe { core::ptr::read(base.add(1).cast::<i16>()) } as i32 as u32;
                 let d0 = unsafe { gte_dot_one::<MVMVA_LLM_V0_SF0, MFC2_MAC1>(xy, z) };
                 let near_distance = d0.wrapping_add(constants[0]);
-                in_zone |= near_distance < zone_distance;
+                if ZONE {
+                    in_zone |= near_distance < zone_distance;
+                }
                 if near_distance < 0 {
                     near_any_outside = true;
                     break;

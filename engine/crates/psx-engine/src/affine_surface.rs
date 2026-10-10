@@ -406,26 +406,29 @@ impl NearView {
         // A Q12 row against `i16` positions stays inside `i32`, and so does
         // the product with the divisor once it is split at 16 bits: the PS1
         // has no 64-bit arithmetic to spare.
-        let view = |axis: usize| -> i32 {
-            let row = self.rows[axis];
-            ((i32::from(row[0]) * i32::from(position[0])
-                + i32::from(row[1]) * i32::from(position[1])
-                + i32::from(row[2]) * i32::from(position[2]))
-                >> 12)
-                .saturating_add(self.translation[axis])
+        let (x, y, z) = (
+            i32::from(position[0]),
+            i32::from(position[1]),
+            i32::from(position[2]),
+        );
+        let dot = |row: &[i16; 3]| {
+            (i32::from(row[0]) * x + i32::from(row[1]) * y + i32::from(row[2]) * z) >> 12
         };
-        let depth = view(2).clamp(0, i32::from(u16::MAX)) as u32;
-        if depth == 0 {
+        let depth = dot(&self.rows[2]) + self.translation[2];
+        if depth <= 0 {
             return None;
         }
+        let depth = depth.min(i32::from(u16::MAX)) as u32;
         // `H << 16 / depth`, rounded: `H` is a 16-bit register, so it fits.
         let divisor = (((self.focal_length as u32) << 16) + depth / 2) / depth;
         // `IR * divisor >> 16` as `IR * high + (IR * low >> 16)`, exact for
-        // the floor shift, with no product past 31 bits.
+        // the floor shift, with no product past 31 bits (`high` is at most
+        // `H` and `IR` fits 16 bits).
         let (high, low) = ((divisor >> 16) as i32, (divisor & 0xffff) as i32);
         let offset = |axis: usize| -> i32 {
-            let ir = view(axis).clamp(i32::from(i16::MIN), i32::from(i16::MAX));
-            ir.saturating_mul(high).saturating_add((ir * low) >> 16)
+            let ir = (dot(&self.rows[axis]) + self.translation[axis])
+                .clamp(i32::from(i16::MIN), i32::from(i16::MAX));
+            ir * high + ((ir * low) >> 16)
         };
         // The GTE saturates a screen coordinate at 11 bits, which bends the
         // edges of a polygon that leaves the screen. Keep the exact offset
@@ -688,6 +691,28 @@ fn gpu_draws(corners: [&AffineVertex; 3]) -> bool {
     })
 }
 
+/// Whether the GPU draws every triangle of a polygon with these corners: a
+/// bounding box inside its 11-bit coordinates and under the 1024 by 512 span.
+/// Sufficient for both halves of a quad; a failing quad is judged per triangle.
+#[inline(always)]
+fn within_gpu_limits(corners: &[&AffineVertex]) -> bool {
+    let (mut left, mut right) = (i32::MAX, i32::MIN);
+    let (mut top, mut bottom) = (i32::MAX, i32::MIN);
+    for corner in corners {
+        let (x, y) = (i32::from(corner.screen[0]), i32::from(corner.screen[1]));
+        left = left.min(x);
+        right = right.max(x);
+        top = top.min(y);
+        bottom = bottom.max(y);
+    }
+    left >= -1024
+        && right <= 1023
+        && top >= -1024
+        && bottom <= 1023
+        && right - left <= 1023
+        && bottom - top <= 511
+}
+
 /// The corner where segment `from -> to` crosses the line `axis = bound`
 /// (axis 0 is x, 1 is y). Attributes interpolate linearly in screen space,
 /// as the GPU does along an edge. The crossing point is rounded away from the
@@ -801,7 +826,36 @@ fn clip_to_window(triangle: [ClipCorner; 3]) -> ([ClipCorner; 8], usize) {
 
 impl PacketSink {
     /// [`Self::polygon`] for surfaces projected without the GTE's divide
-    /// limits: a polygon the GPU would drop whole (a span of 1024 columns or
+    /// limits: a polygon the GPU draws is written as it stands, and only one
+    /// it would drop goes to [`Self::polygon_clipped`].
+    ///
+    /// # Safety
+    /// As [`Self::polygon_clipped`].
+    #[inline(always)]
+    unsafe fn polygon_near(
+        &mut self,
+        surface: &AffineSurface,
+        corners: &[&AffineVertex],
+        limit: *mut u32,
+    ) {
+        if self.off_screen(corners) {
+            return;
+        }
+        let otz = Self::average_depth(corners);
+        if !self.usable_slot(otz) {
+            return;
+        }
+        if within_gpu_limits(corners) {
+            // SAFETY: the caller reserved room for the polygon's packet.
+            unsafe { self.write(surface, corners, otz) };
+        } else {
+            // SAFETY: as above.
+            unsafe { self.polygon_clipped(surface, corners, otz, limit) };
+        }
+    }
+
+    /// Clip a polygon the GPU would drop to the window, for surfaces
+    /// projected without the GTE's divide limits: a polygon the GPU would drop whole (a span of 1024 columns or
     /// 512 rows, or a corner outside its 11-bit coordinates) is clipped to the
     /// window instead of lost. Polygons the GPU draws are written untouched.
     ///
@@ -818,19 +872,13 @@ impl PacketSink {
         &mut self,
         surface: &AffineSurface,
         corners: &[&AffineVertex],
+        otz: u16,
         limit: *mut u32,
     ) {
         // The longest packet: a windowed quad with its tag and both windows.
         const MOST_WORDS: isize = 15;
         // SAFETY: both pointers lie in the storage the caller reserved.
         let room = |next: *mut u32| unsafe { limit.offset_from(next) >= MOST_WORDS };
-        if self.off_screen(corners) {
-            return;
-        }
-        let otz = Self::average_depth(corners);
-        if !self.usable_slot(otz) {
-            return;
-        }
         let quad = corners.len() == 4;
         let first = [corners[0], corners[1], corners[2]];
         let first_ok = gpu_draws(first);
@@ -993,7 +1041,7 @@ impl<R: Reproject> Splitter<'_, R> {
         unsafe {
             if R::CLIPS {
                 self.sink
-                    .polygon_clipped(&self.surface, &corners, self.view.limit())
+                    .polygon_near(&self.surface, &corners, self.view.limit())
             } else {
                 self.sink.polygon(&self.surface, &corners)
             }
@@ -1021,7 +1069,7 @@ impl<R: Reproject> Splitter<'_, R> {
         unsafe {
             if R::CLIPS {
                 self.sink
-                    .polygon_clipped(&self.surface, &corners, self.view.limit())
+                    .polygon_near(&self.surface, &corners, self.view.limit())
             } else {
                 self.sink.polygon(&self.surface, &corners)
             }
