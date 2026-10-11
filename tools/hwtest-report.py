@@ -530,6 +530,20 @@ LABELS = {
     0x313: "cdmotor_stop_ack_at_once_done_code",
     0x314: "cdmotor_stop_complete_motor_off_settled_done",
     0x315: "cdmotor_flags_recovered_first_at_once",
+    # v2.5 warm cached-RAM store/load interaction, 16 distinct A/B pairs.
+    0x8D0: "store_load_gap0_T00",
+    0x8D1: "store_load_gap0_T10",
+    0x8D2: "store_load_gap0_T01",
+    0x8D3: "store_load_gap0_T11",
+    0x8D4: "store_load_gap2_T00",
+    0x8D5: "store_load_gap2_T10",
+    0x8D6: "store_load_gap2_T01",
+    0x8D7: "store_load_gap2_T11",
+    0x8D8: "store_load_gap6_T00",
+    0x8D9: "store_load_gap6_T10",
+    0x8DA: "store_load_gap6_T01",
+    0x8DB: "store_load_gap6_T11",
+    0x8DC: "store_load_address_check",
     # v1.21 register A/B group. Present only in a PERF A/B capture.
     0xDC: "ab_ramsize_uncached_loads_control",
     0xDD: "ab_ramsize_uncached_loads_bit7_flipped",
@@ -561,6 +575,7 @@ LAYOUT_IMMUNE_RECORDS = (
     | frozenset(range(0xED, 0xF6))
     | frozenset(range(0xF7, 0xFE))
     | frozenset(range(0x120, 0x137))
+    | frozenset(range(0x8D0, 0x8DC))
 )
 
 # Records timed on Timer 1's HBlank clock rather than Timer 2's system clock.
@@ -1547,6 +1562,7 @@ WORK_BY_ID = {
     0x221: 16,
     0x222: 16,
     0x223: 16,
+    **{record_id: 16 for record_id in range(0x8D0, 0x8DD)},
     **{record_id: 0 for record_id in LABELS if 0x200 <= record_id < 0x2B0},
     **{record_id: 0 for record_id in LABELS if 0x2C0 <= record_id < 0x320},
     0x72: 128,
