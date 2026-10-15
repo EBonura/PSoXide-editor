@@ -501,6 +501,24 @@ LABELS = {
     0x2E1: "xa_loop_gap_ms",
     0x2E2: "xa_loop_period_ms",
     0x2E3: "xa_first_start_ms_positions_max_stall_ms",
+    # v2.6 XA MEASURE (src/xa_measure.rs): start, filter switch, resume after a
+    # data read, clock drift against the HBlank clock. xa_measure_rows() names
+    # the fields.
+    0x320: "xa_start_to_sound_ms",
+    0x321: "xa_start_to_head_ms",
+    0x322: "xa_play_call_x10_ms",
+    0x323: "xa_setfilter_to_sound_ms",
+    0x324: "xa_setfilter_ack_x10_ms",
+    0x325: "xa_restart_switch_to_sound_ms",
+    0x326: "xa_resume_after_read_to_sound_ms",
+    0x327: "xa_restart_after_read_to_sound_ms",
+    0x328: "cdda_play_after_read_to_sound_ms",
+    0x329: "xa_data_read_64_sectors_ms",
+    0x32A: "xa_resume_head_moved_ms_signed",
+    0x32B: "xa_trials_ok_starts_switches_resumes",
+    0x32C: "xa_clock_head_minus_sysclk_ms_60_120_180s_signed",
+    0x32D: "xa_clock_flags_seconds_polls",
+    0x32E: "xa_clock_head_positions_stall_ms_line_clocks_x100_less_2000",
     # v1.28 CD STREAM cases (src/cdstream_cases.rs): the transport's cost, the
     # CD-DA hand-off, the motor after Pause and Stop. console_rows() names the
     # fields.
@@ -1124,7 +1142,68 @@ def console_rows(capture: Capture) -> list[str]:
         rows.append(f"console_xa,first_start_ms,{first}")
         rows.append(f"console_xa,head_positions_seen,{positions}")
         rows.append(f"console_xa,longest_unchanged_head_ms,{stall}")
+    rows.extend(xa_measure_rows(by_id))
     rows.extend(cdstream_rows(by_id))
+    return rows
+
+
+def xa_measure_rows(by_id) -> list[str]:
+    """The v2.6 XA MEASURE case, unpacked. The sound times come from the SPU
+    CD capture buffer, not from the drive's status, so they are what a player
+    would hear; the emulator's values only show that the case runs."""
+    rows = []
+    if not any(0x320 + k in by_id for k in range(15)):
+        return rows
+
+    def signed(value):
+        return value - 0x10000 if value >= 0x8000 else value
+
+    def spread(record_id, scale=1, is_signed=False):
+        record = by_id.get(record_id)
+        if record is None:
+            return "missing"
+        values = (record.minimum, record.median, record.maximum)
+        if values[0] == 0xFFFF and not is_signed:
+            return "none"
+        if is_signed:
+            values = tuple(signed(v) for v in values)
+        low, med, high = (v / scale for v in values)
+        return f"min={low:g} med={med:g} max={high:g}"
+
+    rows.append("console_xa_measure,field,value")
+    rows.append(f"console_xa_measure,start_to_sound_ms,{spread(0x320)}")
+    rows.append(f"console_xa_measure,start_to_head_ms,{spread(0x321)}")
+    rows.append(f"console_xa_measure,play_call_ms,{spread(0x322, 10)}")
+    rows.append(f"console_xa_measure,setfilter_switch_to_sound_ms,{spread(0x323)}")
+    rows.append(f"console_xa_measure,setfilter_ack_ms,{spread(0x324, 10)}")
+    rows.append(f"console_xa_measure,restart_switch_to_sound_ms,{spread(0x325)}")
+    rows.append(f"console_xa_measure,xa_resume_after_read_to_sound_ms,{spread(0x326)}")
+    rows.append(f"console_xa_measure,xa_restart_after_read_to_sound_ms,{spread(0x327)}")
+    rows.append(f"console_xa_measure,cdda_play_after_read_to_sound_ms,{spread(0x328)}")
+    rows.append(f"console_xa_measure,data_read_64_sectors_ms,{spread(0x329)}")
+    rows.append(f"console_xa_measure,resume_head_moved_ms,{spread(0x32A, 1, True)}")
+    if 0x32B in by_id:
+        r = by_id[0x32B]
+        rows.append(f"console_xa_measure,starts_ok_of_5,{r.minimum}")
+        rows.append(f"console_xa_measure,filter_switches_ok_of_6,{r.median}")
+        rows.append(f"console_xa_measure,xa_resumes_ok_of_3,{r.maximum}")
+    if 0x32C in by_id:
+        r = by_id[0x32C]
+        for label, value in zip(("60s", "120s", "180s"), (r.minimum, r.median, r.maximum)):
+            text = "none" if value == 0xFFFF else str(signed(value))
+            rows.append(f"console_xa_measure,head_minus_sysclk_ms_at_{label},{text}")
+    if 0x32D in by_id:
+        r = by_id[0x32D]
+        names = ("clock_file_found", "play_refused", "head_in_song", "ran_180s", "songs_file_missing")
+        for bit, name in enumerate(names):
+            rows.append(f"console_xa_measure,{name},{(r.minimum >> bit) & 1}")
+        rows.append(f"console_xa_measure,clock_seconds_run,{r.median}")
+        rows.append(f"console_xa_measure,clock_polls,{r.maximum}")
+    if 0x32E in by_id:
+        r = by_id[0x32E]
+        rows.append(f"console_xa_measure,head_positions_seen,{r.minimum}")
+        rows.append(f"console_xa_measure,longest_unchanged_head_ms,{r.median}")
+        rows.append(f"console_xa_measure,sysclocks_per_hblank_line,{(r.maximum + 200000) / 100:g}")
     return rows
 
 
@@ -1564,7 +1643,7 @@ WORK_BY_ID = {
     0x223: 16,
     **{record_id: 16 for record_id in range(0x8D0, 0x8DD)},
     **{record_id: 0 for record_id in LABELS if 0x200 <= record_id < 0x2B0},
-    **{record_id: 0 for record_id in LABELS if 0x2C0 <= record_id < 0x320},
+    **{record_id: 0 for record_id in LABELS if 0x2C0 <= record_id < 0x330},
     0x72: 128,
     0x73: 128,
     0x74: 64,

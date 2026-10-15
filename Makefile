@@ -656,13 +656,26 @@ $(HWTEST_XA):
 		$(HWTEST_XA_DIR)/song2_blips.wav $(HWTEST_XA_DIR)/song3_whistle.wav \
 		--manifest $(HWTEST_XA_DIR)/songs.json
 
-hardware-tests-disc: hardware-tests $(HWTEST_CDDA) $(HWTEST_XA)
+# HWCLOCK.XA for the XA clock drift case: one 190 s song (the pad of the
+# generated set, alone in its file as file number 2) that the case plays for
+# 180 s. 14,250 sectors, 33 MB: the length of the song is the point.
+HWTEST_XA_CLOCK := $(HWTEST_XA_DIR)/HWCLOCK.XA
+
+$(HWTEST_XA_CLOCK):
+	@[ -n "$(PSOXIDE_SDK)" ] || { echo "HWCLOCK.XA: set PSOXIDE_SDK to a PSoXide checkout (its psx-audio-cook encodes the songs)" >&2; exit 1; }
+	@mkdir -p $(HWTEST_XA_DIR)/clock
+	$(HWTEST_XA_COOK) --example xa_demo_songs -- "$(HWTEST_XA_DIR)/clock" 190
+	$(HWTEST_XA_COOK) -- xa-encode $@ $(HWTEST_XA_DIR)/clock/song0_pad.wav --file 2 \
+		--manifest $(HWTEST_XA_DIR)/clock.json
+
+hardware-tests-disc: hardware-tests $(HWTEST_CDDA) $(HWTEST_XA) $(HWTEST_XA_CLOCK)
 	cd tools/mkisopsx && cargo run --release -- \
 		--exe ../../$(EXAMPLE_OUT)/hardware-tests.exe \
 		--out ../../$(EXAMPLE_OUT)/hardware-tests.bin \
 		--volume PSOXIDE \
 		--cdtest-sectors 460 \
 		--xa-file ../../$(HWTEST_XA) \
+		--xa-file ../../$(HWTEST_XA_CLOCK) \
 		--cdda-track ../../$(HWTEST_CDDA)
 
 $(foreach example,$(DATA_DISC_EXAMPLES),$(eval $(call build_data_disc,$(example))))
