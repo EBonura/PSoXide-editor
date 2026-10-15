@@ -82,7 +82,8 @@ mod tests {
         // duplicate node-face ranges, Quake outside fill removes surfaces
         // seen only by the unreachable exterior, and hull 0 reuses the
         // classified render BSP instead of storing a second point clip tree.
-        assert_eq!(world.bytes.len(), 4_192);
+        // Identical collision-node subtrees share their wire records.
+        assert_eq!(world.bytes.len(), 4_180);
         assert_eq!(world.movers.len(), 1);
         assert_eq!(world.movers[0].model_index, 1);
         assert_eq!(package.rooms.len(), 1);

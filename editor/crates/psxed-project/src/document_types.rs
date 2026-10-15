@@ -442,6 +442,17 @@ pub struct ProjectDocument {
     /// in the project keeps GUI and CLI cooks on one deterministic policy.
     #[serde(default)]
     pub bsp_cook_mode: crate::brush_world::BrushWorldCookMode,
+    /// Optional render T-junction repair. Disabled for older projects to
+    /// preserve their geometry and packet budgets; preview and cook agree.
+    #[serde(default)]
+    pub bsp_render_edge_repair: crate::brush_compile::SurfaceEdgeRepair,
+    /// Collision partition target shared by editor Build/Play and CLI cooks.
+    /// Legacy projects default to 48; 32 trades collision RAM for shorter walks.
+    #[serde(default)]
+    pub bsp_collision_leaf_target: crate::brush_collision_hulls::CollisionLeafTarget,
+    /// Optional exact solid-cell proof metadata. Legacy projects keep full paths.
+    #[serde(default)]
+    pub bsp_solid_cell_proofs: bool,
     /// Worst-case joint rotation error, in whole degrees, that the cook may
     /// introduce by resampling animation clips to a lower rate. `0` disables
     /// resampling and cooks every clip at its authored rate.
@@ -535,6 +546,9 @@ impl ProjectDocument {
             animation_error_budget_degrees: 0,
             animation_trim_still_percent: 0,
             bsp_cook_mode: crate::brush_world::BrushWorldCookMode::default(),
+            bsp_render_edge_repair: crate::brush_compile::SurfaceEdgeRepair::default(),
+            bsp_collision_leaf_target: crate::brush_collision_hulls::CollisionLeafTarget::default(),
+            bsp_solid_cell_proofs: false,
             runtime_depth_sort_mode: RuntimeDepthSortMode::default(),
             runtime_texture_split_mode: RuntimeTextureSplitMode::default(),
             runtime_room_draw_order_mode: RuntimeRoomDrawOrderMode::default(),

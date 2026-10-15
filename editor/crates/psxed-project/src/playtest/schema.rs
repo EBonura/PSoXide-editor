@@ -126,6 +126,8 @@ pub enum PlaytestWorldGeometry {
 /// by normal gameplay logic.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlaytestPxbspWorld {
+    /// Optional exact solid-cell implication certificates; absent cells use full paths.
+    pub solid_cell_proofs: crate::solid_cell_proofs::SolidCellProofs,
     /// Complete PXBSP file emitted by the brush compiler.
     pub bytes: Vec<u8>,
     /// Cooker-proven upper bound for both runtime PVS face chains.
@@ -2115,6 +2117,11 @@ pub struct PlaytestPackage {
     /// Structural brush geometry lives directly in PXBSP; model instances
     /// already use the same PVS authority through their animated bounds.
     pub world_objects: Vec<PlaytestWorldObject>,
+    /// Static registry leaf slices: [first, count]; count MAX retains AABB fallback.
+    pub world_object_leaf_ranges: Vec<[u16; 2]>,
+    pub world_object_leaves: Vec<u16>,
+    /// Verified directed parent edge per render BSP node; empty disables certificates.
+    pub solid_cell_parents: Vec<u16>,
     /// Placed flat image props, room-local coordinates.
     pub image_props: Vec<PlaytestImageProp>,
     /// Placed editable box props, room-local coordinates.

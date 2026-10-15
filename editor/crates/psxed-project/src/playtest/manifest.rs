@@ -630,6 +630,15 @@ pub fn render_manifest_source(package: &PlaytestPackage) -> String {
     out.push_str("    bytes: Bytes,\n");
     out.push_str("}\n\n");
 
+    let empty_proofs = crate::solid_cell_proofs::SolidCellProofs::default();
+    let proofs = match &package.world_geometry {
+        PlaytestWorldGeometry::Pxbsp(world) => &world.solid_cell_proofs,
+        PlaytestWorldGeometry::Grid => &empty_proofs,
+    };
+    let _ = writeln!(out, "pub const SOLID_CELL_PROOF_DOMAIN: [[i32; 3]; 2] = {:?};", proofs.domain);
+    let _ = writeln!(out, "pub static SOLID_CELL_PROOF_INDEX: &[[u16; 3]] = &{:?};", proofs.index);
+    let _ = writeln!(out, "pub static SOLID_CELL_PROOF_DATA: &[u8] = &{:?};", proofs.data);
+
     match &package.world_geometry {
         PlaytestWorldGeometry::Grid => {
             out.push_str("pub const PLAYTEST_USES_PXBSP: bool = false;\n");
@@ -1596,6 +1605,19 @@ pub fn render_manifest_source(package: &PlaytestPackage) -> String {
         );
     }
     out.push_str("];\n\n");
+
+    let _ = writeln!(
+        out,
+        "pub static WORLD_OBJECT_LEAF_RANGES: &[[u16; 2]] = &{:?};",
+        package.world_object_leaf_ranges,
+    );
+    let _ = writeln!(
+        out,
+        "pub static WORLD_OBJECT_LEAVES: &[u16] = &{:?};\n",
+        package.world_object_leaves,
+    );
+
+    let _ = writeln!(out, "pub static SOLID_CELL_PARENTS: &[u16] = &{:?};\n", package.solid_cell_parents);
 
     out.push_str("/// Placed flat image props, room-local coordinates.\n");
     out.push_str("pub static IMAGE_PROPS: &[LevelImagePropRecord] = &[\n");

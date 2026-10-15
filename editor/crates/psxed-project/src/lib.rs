@@ -19,6 +19,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 mod animation_pose_correction;
 pub mod animation_resample;
 pub mod brush;
+mod solid_cell_constraints;
+pub mod solid_cell_proofs;
 pub mod brush_collision_hulls;
 pub mod brush_compile;
 pub mod brush_convex;

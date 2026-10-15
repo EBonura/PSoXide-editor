@@ -4959,3 +4959,63 @@ fn fractional_world_gravity_survives_authoring_units_and_legacy_defaults() {
         );
     }
 }
+
+#[test]
+fn collision_leaf_policy_defaults_and_roundtrips() {
+    use crate::brush_collision_hulls::CollisionLeafTarget;
+    let mut project = ProjectDocument::new("collision policy");
+    assert_eq!(
+        project.bsp_collision_leaf_target,
+        CollisionLeafTarget::Brushes48
+    );
+    let serialized = project.to_ron_string().unwrap();
+    let legacy = serialized
+        .lines()
+        .filter(|line| !line.contains("bsp_collision_leaf_target:"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert_eq!(
+        ProjectDocument::from_ron_str(&legacy)
+            .unwrap()
+            .bsp_collision_leaf_target,
+        CollisionLeafTarget::Brushes48
+    );
+    project.bsp_collision_leaf_target = CollisionLeafTarget::Brushes32;
+    let serialized = project.to_ron_string().unwrap();
+    assert_eq!(
+        ProjectDocument::from_ron_str(&serialized)
+            .unwrap()
+            .bsp_collision_leaf_target,
+        CollisionLeafTarget::Brushes32
+    );
+    assert!(ProjectDocument::from_ron_str(&serialized.replace("Brushes32", "Brushes0")).is_err());
+}
+
+#[test]
+fn local_face_repair_defaults_and_roundtrips() {
+    use crate::brush::BrushFace;
+    use crate::brush_compile::SurfaceEdgeRepair;
+    let mut face = BrushFace::from_points([[0, 0, 0], [16, 0, 0], [0, 0, 16]]);
+    let legacy = ron::ser::to_string(&face).unwrap();
+    assert!(!legacy.contains("edge_repair"));
+    assert_eq!(ron::from_str::<BrushFace>(&legacy).unwrap().edge_repair, None);
+    for policy in [SurfaceEdgeRepair::All, SurfaceEdgeRepair::None] {
+        face.edge_repair = Some(policy);
+        let local = ron::ser::to_string(&face).unwrap();
+        assert_eq!(ron::from_str::<BrushFace>(&local).unwrap(), face);
+    }
+}
+
+#[test]
+fn solid_cell_proofs_are_explicit_opt_in_for_legacy_and_new_projects() {
+    let mut project = ProjectDocument::new("proof policy");
+    assert!(!project.bsp_solid_cell_proofs);
+    let serialized = project.to_ron_string().unwrap();
+    let legacy = serialized.lines().filter(|line| !line.contains("bsp_solid_cell_proofs:")).collect::<Vec<_>>().join("\n");
+    assert!(!ProjectDocument::from_ron_str(&legacy).unwrap().bsp_solid_cell_proofs);
+    project.bsp_solid_cell_proofs = true;
+    let serialized = project.to_ron_string().unwrap();
+    assert!(ProjectDocument::from_ron_str(&serialized).unwrap().bsp_solid_cell_proofs);
+    assert!(ProjectDocument::from_ron_str(&serialized.replace("bsp_solid_cell_proofs: true", "bsp_solid_cell_proofs: 1")).is_err());
+    assert_eq!(crate::solid_cell_proofs::SolidCellProofs::default().resident_bytes(),0);
+}

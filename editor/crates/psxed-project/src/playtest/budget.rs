@@ -451,9 +451,17 @@ pub fn cooked_playtest_budgets(
     let stream_bytes = streamed_room_chunk_memory_report(package)
         .map(|stream| stream.totals.stream_bytes)
         .unwrap_or(0);
+    let proof_bytes = match &package.world_geometry {
+        PlaytestWorldGeometry::Pxbsp(world) => world.solid_cell_proofs.resident_bytes(),
+        PlaytestWorldGeometry::Grid => 0,
+    };
     let ram_bytes = bsp_bytes
+        .saturating_add(proof_bytes)
         .saturating_add(non_texture_bytes)
-        .saturating_add(stream_bytes);
+        .saturating_add(stream_bytes)
+        .saturating_add(package.world_object_leaf_ranges.len() * 4)
+        .saturating_add(package.world_object_leaves.len() * 2)
+        .saturating_add(package.solid_cell_parents.len() * 2);
     let ram_asset_slots = package
         .assets
         .iter()

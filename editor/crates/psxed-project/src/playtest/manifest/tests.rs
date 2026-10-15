@@ -1040,3 +1040,21 @@ fn i32_at(bytes: &[u8], offset: usize) -> i32 {
         bytes[offset + 3],
     ])
 }
+
+#[test]
+fn manifest_emits_packed_static_leaf_links_and_fallback_marker() {
+    let empty = render_manifest_source(&PlaytestPackage::default());
+    assert!(empty.contains("pub static WORLD_OBJECT_LEAF_RANGES: &[[u16; 2]] = &[];"));
+    assert!(empty.contains("pub static WORLD_OBJECT_LEAVES: &[u16] = &[];"));
+    assert!(empty.contains("pub static SOLID_CELL_PARENTS: &[u16] = &[];"));
+    let package = PlaytestPackage {
+        world_object_leaf_ranges: vec![[0, 2], [0, u16::MAX]],
+        world_object_leaves: vec![1, 9],
+        solid_cell_parents: vec![u16::MAX, 0, 1],
+        ..PlaytestPackage::default()
+    };
+    let source = render_manifest_source(&package);
+    assert!(source.contains("pub static WORLD_OBJECT_LEAF_RANGES: &[[u16; 2]] = &[[0, 2], [0, 65535]];"));
+    assert!(source.contains("pub static WORLD_OBJECT_LEAVES: &[u16] = &[1, 9];"));
+    assert!(source.contains("pub static SOLID_CELL_PARENTS: &[u16] = &[65535, 0, 1];"));
+}
