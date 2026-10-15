@@ -13,8 +13,7 @@
 #   graybox-reach   large mixed outdoor/interior traversal fixture
 #
 # Superseded level projects (0.2, 0.3, 0.4, null-choir-texture-kit, mantis,
-# tech-demo) and in-progress ones (cortex-ignition-0.5) are local-only, same
-# arrangement as editor/archive/legacy-grid/.
+# tech-demo) are local-only, same arrangement as editor/archive/legacy-grid/.
 !default/
 !default/**
 !graybox-valley/
