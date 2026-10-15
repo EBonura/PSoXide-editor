@@ -567,7 +567,7 @@
                 /*[12]*/ (id: (25), parent: Some((15)), children: [], name: "Target Zenith Name", kind: Label(rect: (x: 202, y: 84, width: 18, height: 8, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), text: "ZTH", random_message: false, messages: [], tag: "", align: Left, wrap: false, font: Spleen5x8, font_scale: 0.75, letter_spacing: 0, color: (67, 169, 154), gradient: Some((to: (121, 225, 200), direction: Horizontal)), effect: None), visible_when: Always),
                 /*[13]*/ (id: (26), parent: Some((15)), children: [], name: "Target Stance Swap Progress", kind: Bar(rect: (x: 100, y: 82, width: 14, height: 2, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), value: TargetStanceSwapProgress, max: ConstantQ12(4096), texture: None, frame_count: 0, fill: (215, 211, 194), fill_gradient: Some((to: (89, 203, 181), direction: Horizontal)), background: (13, 10, 14), background_gradient: None), visible_when: Always),
                 /*[14]*/ (id: (28), parent: Some((1)), children: [], name: "Runtime Cross Prompt", kind: Image(rect: (x: 0, y: 0, width: 16, height: 16, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), texture: Some((174)), tag: "prompt.cross.runtime", tint: (128, 58, 34), effect: None), visible_when: Always),
-                /*[15]*/ (id: (33), parent: Some((1)), children: [], name: "Combat Music", kind: Music(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/audio/cdda/cortex_boss.wav", volume: 80, volume_option: Some((3)), playback_speed_q12: 4096, loop_track: true, trigger: Combat), visible_when: Always),
+                /*[15]*/ (id: (33), parent: Some((1)), children: [], name: "Combat Music", kind: Music(wav_path: "../graybox-reach/assets/audio/cdda/cortex_boss.wav", volume: 80, volume_option: Some((3)), playback_speed_q12: 4096, loop_track: true, trigger: Combat), visible_when: Always),
             ],
         ),
         /*[1]*/ (
@@ -591,10 +591,10 @@
                 /*[2]*/ (id: (9), parent: Some((1)), children: [], name: "Menu Main Piece", kind: Image(rect: (x: 26, y: 17, width: 291, height: 204, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), texture: Some((68)), tag: "", tint: (81, 24, 24), effect: SoftPulse), visible_when: Always),
                 /*[3]*/ (id: (10), parent: Some((1)), children: [], name: "Menu Frame Overlay", kind: Image(rect: (x: 0, y: 0, width: 320, height: 240, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), texture: Some((69)), tag: "", tint: (110, 56, 56), effect: None), visible_when: Always),
                 /*[4]*/ (id: (2), parent: Some((6)), children: [], name: "Title", kind: Label(rect: (x: -2, y: 29, width: 170, height: 22, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), text: "IGNITION", random_message: false, messages: [], tag: "", align: Left, wrap: false, font: DrippySpace, font_scale: 1.0, letter_spacing: 4, color: (214, 75, 48), gradient: Some((to: (248, 126, 72), direction: Vertical)), effect: None), visible_when: Always),
-                /*[5]*/ (id: (3), parent: Some((1)), children: [], name: "New Game", kind: Button(rect: (x: 22, y: 157, width: 126, height: 16, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "  NEW GAME", tag: "ui.menu.new_game", align: Left, font: KenneyPixel, font_scale: 1.0, letter_spacing: 1, color: (58, 12, 16), background_gradient: Some((to: (104, 28, 22), direction: Vertical)), text_color: (236, 226, 216), text_gradient: Some((to: (255, 142, 92), direction: Horizontal)), transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 4, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (92, 20, 16), border_gradient: Some((to: (220, 92, 58), direction: Horizontal)))), action: StartGameplay, sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_confirm.wav", volume: 54, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
-                /*[6]*/ (id: (4), parent: Some((1)), children: [], name: "System", kind: Button(rect: (x: 22, y: 177, width: 126, height: 16, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "  SYSTEM", tag: "ui.menu.system", align: Left, font: KenneyPixel, font_scale: 1.0, letter_spacing: 1, color: (50, 10, 15), background_gradient: Some((to: (82, 20, 18), direction: Vertical)), text_color: (236, 226, 216), text_gradient: Some((to: (255, 142, 92), direction: Horizontal)), transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 4, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (82, 18, 15), border_gradient: Some((to: (194, 72, 48), direction: Horizontal)))), action: GotoScene((2)), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_confirm.wav", volume: 54, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
-                /*[7]*/ (id: (46), parent: Some((1)), children: [], name: "Credits", kind: Button(rect: (x: 22, y: 197, width: 126, height: 16, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "  CREDITS", tag: "ui.menu.credits", align: Left, font: KenneyPixel, font_scale: 1.0, letter_spacing: 1, color: (50, 10, 15), background_gradient: Some((to: (82, 20, 18), direction: Vertical)), text_color: (236, 226, 216), text_gradient: Some((to: (255, 142, 92), direction: Horizontal)), transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 4, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (82, 18, 15), border_gradient: Some((to: (194, 72, 48), direction: Horizontal)))), action: GotoScene((14)), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_confirm.wav", volume: 54, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
-                /*[8]*/ (id: (5), parent: Some((1)), children: [], name: "Menu Music", kind: Music(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/audio/cdda/menu2.wav", volume: 76, volume_option: Some((3)), playback_speed_q12: 4096, loop_track: true, trigger: Always), visible_when: Always),
+                /*[5]*/ (id: (3), parent: Some((1)), children: [], name: "New Game", kind: Button(rect: (x: 22, y: 157, width: 126, height: 16, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "  NEW GAME", tag: "ui.menu.new_game", align: Left, font: KenneyPixel, font_scale: 1.0, letter_spacing: 1, color: (58, 12, 16), background_gradient: Some((to: (104, 28, 22), direction: Vertical)), text_color: (236, 226, 216), text_gradient: Some((to: (255, 142, 92), direction: Horizontal)), transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 4, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (92, 20, 16), border_gradient: Some((to: (220, 92, 58), direction: Horizontal)))), action: StartGameplay, sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "../default/assets/audio/ui/ui_confirm.wav", volume: 54, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
+                /*[6]*/ (id: (4), parent: Some((1)), children: [], name: "System", kind: Button(rect: (x: 22, y: 177, width: 126, height: 16, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "  SYSTEM", tag: "ui.menu.system", align: Left, font: KenneyPixel, font_scale: 1.0, letter_spacing: 1, color: (50, 10, 15), background_gradient: Some((to: (82, 20, 18), direction: Vertical)), text_color: (236, 226, 216), text_gradient: Some((to: (255, 142, 92), direction: Horizontal)), transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 4, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (82, 18, 15), border_gradient: Some((to: (194, 72, 48), direction: Horizontal)))), action: GotoScene((2)), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "../default/assets/audio/ui/ui_confirm.wav", volume: 54, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
+                /*[7]*/ (id: (46), parent: Some((1)), children: [], name: "Credits", kind: Button(rect: (x: 22, y: 197, width: 126, height: 16, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "  CREDITS", tag: "ui.menu.credits", align: Left, font: KenneyPixel, font_scale: 1.0, letter_spacing: 1, color: (50, 10, 15), background_gradient: Some((to: (82, 20, 18), direction: Vertical)), text_color: (236, 226, 216), text_gradient: Some((to: (255, 142, 92), direction: Horizontal)), transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 4, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (82, 18, 15), border_gradient: Some((to: (194, 72, 48), direction: Horizontal)))), action: GotoScene((14)), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "../default/assets/audio/ui/ui_confirm.wav", volume: 54, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
+                /*[8]*/ (id: (5), parent: Some((1)), children: [], name: "Menu Music", kind: Music(wav_path: "../graybox-reach/assets/audio/cdda/menu2.wav", volume: 76, volume_option: Some((3)), playback_speed_q12: 4096, loop_track: true, trigger: Always), visible_when: Always),
                 /*[9]*/ (id: (6), parent: Some((1)), children: [(2), (47)], name: "CORTEX", kind: Label(rect: (x: -108, y: -63, width: 170, height: 37, anchor: Center, rotation_degrees: 0, flip_x: false, flip_y: false), text: "CORTEX", random_message: false, messages: [], tag: "", align: Left, wrap: false, font: DrippySpace, font_scale: 1.25, letter_spacing: 0, color: (67, 169, 154), gradient: Some((to: (121, 225, 200), direction: Vertical)), effect: None), visible_when: Always),
                 /*[10]*/ (id: (47), parent: Some((6)), children: [], name: "Tech Demo", kind: Label(rect: (x: 4, y: 57, width: 170, height: 10, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), text: "TECH DEMO", random_message: false, messages: [], tag: "ui.title.tech_demo", align: Left, wrap: false, font: KenneyPixel, font_scale: 1.0, letter_spacing: 4, color: (96, 60, 58), gradient: Some((to: (168, 104, 96), direction: Vertical)), effect: None), visible_when: Always),
             ],
@@ -617,21 +617,21 @@
             nodes: [
                 /*[0]*/ (id: (1), parent: None, children: [(12), (3), (4), (7), (8), (14), (15), (16), (17), (9), (10), (18), (19), (20), (21), (5), (6), (13)], name: "Canvas", kind: Canvas(width: 320, height: 240), visible_when: Always),
                 /*[1]*/ (id: (3), parent: Some((1)), children: [], name: "Screen X Label", kind: Label(rect: (x: -104, y: -42, width: 104, height: 11, anchor: Center, rotation_degrees: 0, flip_x: false, flip_y: false), text: "SCREEN X", random_message: false, messages: [], tag: "ui.settings.screen_x", align: Left, wrap: true, font: KenneyPixel, font_scale: 1.0, letter_spacing: 0, color: (236, 226, 216), gradient: None, focus_with_next_control: true, effect: None), visible_when: Always),
-                /*[2]*/ (id: (4), parent: Some((1)), children: [], name: "Screen X", kind: Slider(rect: (x: 0, y: -40, width: 120, height: 6, anchor: Center, rotation_degrees: 0, flip_x: false, flip_y: false), option: (1), track: (30, 34, 44), track_gradient: None, fill: (180, 80, 80), fill_gradient: Some((to: (32, 4, 4), direction: Horizontal)), knob: (210, 218, 232), knob_gradient: Some((to: (250, 252, 255), direction: Vertical)), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 36, pitch_q12: 4096)], limit: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_limit.wav", volume: 44, pitch_q12: 4096)])), visible_when: Always),
+                /*[2]*/ (id: (4), parent: Some((1)), children: [], name: "Screen X", kind: Slider(rect: (x: 0, y: -40, width: 120, height: 6, anchor: Center, rotation_degrees: 0, flip_x: false, flip_y: false), option: (1), track: (30, 34, 44), track_gradient: None, fill: (180, 80, 80), fill_gradient: Some((to: (32, 4, 4), direction: Horizontal)), knob: (210, 218, 232), knob_gradient: Some((to: (250, 252, 255), direction: Vertical)), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 36, pitch_q12: 4096)], limit: [(wav_path: "../default/assets/audio/ui/ui_limit.wav", volume: 44, pitch_q12: 4096)])), visible_when: Always),
                 /*[3]*/ (id: (7), parent: Some((1)), children: [], name: "Screen Y Label", kind: Label(rect: (x: -104, y: -26, width: 104, height: 11, anchor: Center, rotation_degrees: 0, flip_x: false, flip_y: false), text: "SCREEN Y", random_message: false, messages: [], tag: "ui.settings.screen_y", align: Left, wrap: true, font: KenneyPixel, font_scale: 1.0, letter_spacing: 0, color: (236, 226, 216), gradient: None, focus_with_next_control: true, effect: None), visible_when: Always),
-                /*[4]*/ (id: (8), parent: Some((1)), children: [], name: "Screen Y", kind: Slider(rect: (x: 0, y: -24, width: 120, height: 6, anchor: Center, rotation_degrees: 0, flip_x: false, flip_y: false), option: (2), track: (30, 34, 44), track_gradient: None, fill: (180, 80, 80), fill_gradient: Some((to: (32, 4, 4), direction: Horizontal)), knob: (210, 218, 232), knob_gradient: Some((to: (250, 252, 255), direction: Vertical)), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 36, pitch_q12: 4096)], limit: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_limit.wav", volume: 44, pitch_q12: 4096)])), visible_when: Always),
+                /*[4]*/ (id: (8), parent: Some((1)), children: [], name: "Screen Y", kind: Slider(rect: (x: 0, y: -24, width: 120, height: 6, anchor: Center, rotation_degrees: 0, flip_x: false, flip_y: false), option: (2), track: (30, 34, 44), track_gradient: None, fill: (180, 80, 80), fill_gradient: Some((to: (32, 4, 4), direction: Horizontal)), knob: (210, 218, 232), knob_gradient: Some((to: (250, 252, 255), direction: Vertical)), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 36, pitch_q12: 4096)], limit: [(wav_path: "../default/assets/audio/ui/ui_limit.wav", volume: 44, pitch_q12: 4096)])), visible_when: Always),
                 /*[5]*/ (id: (14), parent: Some((1)), children: [], name: "Brightness Label", kind: Label(rect: (x: -104, y: -10, width: 104, height: 10, anchor: Center, rotation_degrees: 0, flip_x: false, flip_y: false), text: "BRIGHTNESS", random_message: false, messages: [], tag: "ui.settings.brightness", align: Left, wrap: true, font: KenneyPixel, font_scale: 1.0, letter_spacing: 0, color: (236, 226, 216), gradient: None, focus_with_next_control: true, effect: None), visible_when: Always),
-                /*[6]*/ (id: (15), parent: Some((1)), children: [], name: "Brightness", kind: Slider(rect: (x: 0, y: -8, width: 120, height: 6, anchor: Center, rotation_degrees: 0, flip_x: false, flip_y: false), option: (6), track: (30, 34, 44), track_gradient: None, fill: (180, 80, 80), fill_gradient: Some((to: (32, 4, 4), direction: Horizontal)), knob: (210, 218, 232), knob_gradient: Some((to: (250, 252, 255), direction: Vertical)), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 36, pitch_q12: 4096)], limit: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_limit.wav", volume: 44, pitch_q12: 4096)])), visible_when: Always),
+                /*[6]*/ (id: (15), parent: Some((1)), children: [], name: "Brightness", kind: Slider(rect: (x: 0, y: -8, width: 120, height: 6, anchor: Center, rotation_degrees: 0, flip_x: false, flip_y: false), option: (6), track: (30, 34, 44), track_gradient: None, fill: (180, 80, 80), fill_gradient: Some((to: (32, 4, 4), direction: Horizontal)), knob: (210, 218, 232), knob_gradient: Some((to: (250, 252, 255), direction: Vertical)), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 36, pitch_q12: 4096)], limit: [(wav_path: "../default/assets/audio/ui/ui_limit.wav", volume: 44, pitch_q12: 4096)])), visible_when: Always),
                 /*[7]*/ (id: (16), parent: Some((1)), children: [], name: "Deadzone Label", kind: Label(rect: (x: -104, y: 6, width: 104, height: 10, anchor: Center, rotation_degrees: 0, flip_x: false, flip_y: false), text: "STICK DEADZONE", random_message: false, messages: [], tag: "ui.settings.deadzone", align: Left, wrap: true, font: KenneyPixel, font_scale: 1.0, letter_spacing: 0, color: (236, 226, 216), gradient: None, focus_with_next_control: true, effect: None), visible_when: Always),
-                /*[8]*/ (id: (17), parent: Some((1)), children: [], name: "Stick Deadzone", kind: Slider(rect: (x: 0, y: 8, width: 120, height: 6, anchor: Center, rotation_degrees: 0, flip_x: false, flip_y: false), option: (5), track: (30, 34, 44), track_gradient: None, fill: (180, 80, 80), fill_gradient: Some((to: (32, 4, 4), direction: Horizontal)), knob: (210, 218, 232), knob_gradient: Some((to: (250, 252, 255), direction: Vertical)), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 36, pitch_q12: 4096)], limit: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_limit.wav", volume: 44, pitch_q12: 4096)])), visible_when: Always),
+                /*[8]*/ (id: (17), parent: Some((1)), children: [], name: "Stick Deadzone", kind: Slider(rect: (x: 0, y: 8, width: 120, height: 6, anchor: Center, rotation_degrees: 0, flip_x: false, flip_y: false), option: (5), track: (30, 34, 44), track_gradient: None, fill: (180, 80, 80), fill_gradient: Some((to: (32, 4, 4), direction: Horizontal)), knob: (210, 218, 232), knob_gradient: Some((to: (250, 252, 255), direction: Vertical)), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 36, pitch_q12: 4096)], limit: [(wav_path: "../default/assets/audio/ui/ui_limit.wav", volume: 44, pitch_q12: 4096)])), visible_when: Always),
                 /*[9]*/ (id: (9), parent: Some((1)), children: [], name: "Music Volume Label", kind: Label(rect: (x: -104, y: 22, width: 104, height: 10, anchor: Center, rotation_degrees: 0, flip_x: false, flip_y: false), text: "MUSIC VOLUME", random_message: false, messages: [], tag: "ui.settings.music_volume", align: Left, wrap: true, font: KenneyPixel, font_scale: 1.0, letter_spacing: 0, color: (236, 226, 216), gradient: None, focus_with_next_control: true, effect: None), visible_when: Always),
-                /*[10]*/ (id: (10), parent: Some((1)), children: [], name: "Music Volume", kind: Slider(rect: (x: 0, y: 24, width: 120, height: 6, anchor: Center, rotation_degrees: 0, flip_x: false, flip_y: false), option: (3), track: (30, 34, 44), track_gradient: None, fill: (180, 80, 80), fill_gradient: Some((to: (32, 4, 4), direction: Horizontal)), knob: (210, 218, 232), knob_gradient: Some((to: (250, 252, 255), direction: Vertical)), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 36, pitch_q12: 4096)], limit: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_limit.wav", volume: 44, pitch_q12: 4096)])), visible_when: Always),
+                /*[10]*/ (id: (10), parent: Some((1)), children: [], name: "Music Volume", kind: Slider(rect: (x: 0, y: 24, width: 120, height: 6, anchor: Center, rotation_degrees: 0, flip_x: false, flip_y: false), option: (3), track: (30, 34, 44), track_gradient: None, fill: (180, 80, 80), fill_gradient: Some((to: (32, 4, 4), direction: Horizontal)), knob: (210, 218, 232), knob_gradient: Some((to: (250, 252, 255), direction: Vertical)), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 36, pitch_q12: 4096)], limit: [(wav_path: "../default/assets/audio/ui/ui_limit.wav", volume: 44, pitch_q12: 4096)])), visible_when: Always),
                 /*[11]*/ (id: (18), parent: Some((1)), children: [], name: "SFX Volume Label", kind: Label(rect: (x: -104, y: 38, width: 104, height: 10, anchor: Center, rotation_degrees: 0, flip_x: false, flip_y: false), text: "SFX VOLUME", random_message: false, messages: [], tag: "ui.settings.sfx_volume", align: Left, wrap: true, font: KenneyPixel, font_scale: 1.0, letter_spacing: 0, color: (236, 226, 216), gradient: None, focus_with_next_control: true, effect: None), visible_when: Always),
-                /*[12]*/ (id: (19), parent: Some((1)), children: [], name: "SFX Volume", kind: Slider(rect: (x: 0, y: 40, width: 120, height: 6, anchor: Center, rotation_degrees: 0, flip_x: false, flip_y: false), option: (4), track: (30, 34, 44), track_gradient: None, fill: (180, 80, 80), fill_gradient: Some((to: (32, 4, 4), direction: Horizontal)), knob: (210, 218, 232), knob_gradient: Some((to: (250, 252, 255), direction: Vertical)), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 36, pitch_q12: 4096)], limit: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_limit.wav", volume: 44, pitch_q12: 4096)])), visible_when: Always),
+                /*[12]*/ (id: (19), parent: Some((1)), children: [], name: "SFX Volume", kind: Slider(rect: (x: 0, y: 40, width: 120, height: 6, anchor: Center, rotation_degrees: 0, flip_x: false, flip_y: false), option: (4), track: (30, 34, 44), track_gradient: None, fill: (180, 80, 80), fill_gradient: Some((to: (32, 4, 4), direction: Horizontal)), knob: (210, 218, 232), knob_gradient: Some((to: (250, 252, 255), direction: Vertical)), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 36, pitch_q12: 4096)], limit: [(wav_path: "../default/assets/audio/ui/ui_limit.wav", volume: 44, pitch_q12: 4096)])), visible_when: Always),
                 /*[13]*/ (id: (20), parent: Some((1)), children: [], name: "Language Label", kind: Label(rect: (x: -104, y: 54, width: 104, height: 10, anchor: Center, rotation_degrees: 0, flip_x: false, flip_y: false), text: "LANGUAGE", random_message: false, messages: [], tag: "ui.settings.language", align: Left, wrap: true, font: KenneyPixel, font_scale: 1.0, letter_spacing: 0, color: (236, 226, 216), gradient: None, focus_with_next_control: true, effect: None), visible_when: Always),
-                /*[14]*/ (id: (21), parent: Some((1)), children: [], name: "Language Value", kind: Button(rect: (x: 0, y: 52, width: 120, height: 13, anchor: Center, rotation_degrees: 0, flip_x: false, flip_y: false), label: "ENGLISH", tag: "ui.settings.language.value", align: Left, font: KenneyPixel, font_scale: 1.0, letter_spacing: 0, color: (50, 10, 15), background_gradient: None, text_color: (236, 226, 216), text_gradient: None, transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 3, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (82, 18, 15), border_gradient: None)), action: Game(400), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_confirm.wav", volume: 54, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
-                /*[15]*/ (id: (5), parent: Some((1)), children: [], name: "Back", kind: Button(rect: (x: -104, y: 78, width: 120, height: 16, anchor: Center, rotation_degrees: 0, flip_x: false, flip_y: false), label: "BACK", tag: "ui.settings.back", align: Left, font: KenneyPixel, font_scale: 1.0, letter_spacing: 1, color: (50, 10, 15), background_gradient: None, text_color: (236, 226, 216), text_gradient: None, transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 4, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (82, 18, 15), border_gradient: None)), action: Back, sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_back.wav", volume: 54, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
-                /*[16]*/ (id: (6), parent: Some((1)), children: [], name: "Menu Music", kind: Music(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/audio/cdda/menu2.wav", volume: 25, volume_option: Some((3)), playback_speed_q12: 4096, loop_track: true, trigger: Always), visible_when: Always),
+                /*[14]*/ (id: (21), parent: Some((1)), children: [], name: "Language Value", kind: Button(rect: (x: 0, y: 52, width: 120, height: 13, anchor: Center, rotation_degrees: 0, flip_x: false, flip_y: false), label: "ENGLISH", tag: "ui.settings.language.value", align: Left, font: KenneyPixel, font_scale: 1.0, letter_spacing: 0, color: (50, 10, 15), background_gradient: None, text_color: (236, 226, 216), text_gradient: None, transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 3, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (82, 18, 15), border_gradient: None)), action: Game(400), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "../default/assets/audio/ui/ui_confirm.wav", volume: 54, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
+                /*[15]*/ (id: (5), parent: Some((1)), children: [], name: "Back", kind: Button(rect: (x: -104, y: 78, width: 120, height: 16, anchor: Center, rotation_degrees: 0, flip_x: false, flip_y: false), label: "BACK", tag: "ui.settings.back", align: Left, font: KenneyPixel, font_scale: 1.0, letter_spacing: 1, color: (50, 10, 15), background_gradient: None, text_color: (236, 226, 216), text_gradient: None, transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 4, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (82, 18, 15), border_gradient: None)), action: Back, sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "../default/assets/audio/ui/ui_back.wav", volume: 54, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
+                /*[16]*/ (id: (6), parent: Some((1)), children: [], name: "Menu Music", kind: Music(wav_path: "../graybox-reach/assets/audio/cdda/menu2.wav", volume: 25, volume_option: Some((3)), playback_speed_q12: 4096, loop_track: true, trigger: Always), visible_when: Always),
                 /*[17]*/ (id: (12), parent: Some((1)), children: [], name: "Menu Frame Overlay", kind: Image(rect: (x: 0, y: 0, width: 320, height: 240, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), texture: Some((69)), tag: "", tint: (110, 56, 56), effect: None), visible_when: Always),
                 /*[18]*/ (id: (13), parent: Some((1)), children: [], name: "Title", kind: Label(rect: (x: -104, y: -80, width: 224, height: 22, anchor: Center, rotation_degrees: 0, flip_x: false, flip_y: false), text: "SETTINGS", random_message: false, messages: [], tag: "ui.settings.title", align: Left, wrap: false, font: DrippySpace, font_scale: 1.0, letter_spacing: 4, color: (125, 0, 0), gradient: Some((to: (255, 167, 163), direction: Vertical)), effect: None), visible_when: Always),
             ],
@@ -800,26 +800,26 @@
                 /*[2]*/ (id: (61), parent: Some((1)), children: [], name: "Live World Quarter Scrim", kind: Rect(rect: (x: 0, y: 0, width: 320, height: 240, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), color: (0, 0, 0), gradient: None, transparent: false, shape: Some((semi_transparent_fill: true, corner_cut: 0, cut_top_left: false, cut_top_right: false, cut_bottom_right: false, cut_bottom_left: false, border_width: 0, border_color: (0, 0, 0), border_gradient: None))), visible_when: Always),
                 /*[3]*/ (id: (3), parent: Some((1)), children: [], name: "Inventory Tab Rail", kind: Rect(rect: (x: 184, y: 8, width: 127, height: 29, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), color: (8, 9, 11), gradient: Some((to: (24, 23, 22), direction: Horizontal)), transparent: false, shape: Some((semi_transparent_fill: false, corner_cut: 5, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (79, 77, 73), border_gradient: None))), visible_when: Always),
                 /*[4]*/ (id: (5), parent: Some((1)), children: [], name: "Assignment Prompt", kind: Label(rect: (x: 15, y: 40, width: 290, height: 8, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), text: "ASSIGN MODULE: CHOOSE SLOT", random_message: false, messages: [], tag: "boost.assignment.prompt", align: Center, wrap: false, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (238, 190, 168), gradient: Some((to: (104, 204, 187), direction: Horizontal)), effect: None), visible_when: Always),
-                /*[5]*/ (id: (7), parent: Some((1)), children: [], name: "Horizon Empty Boost", kind: Button(rect: (x: 86, y: 49, width: 63, height: 21, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "E // NONE", tag: "boost.horizon.empty", align: Center, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (70, 14, 17), background_gradient: Some((to: (18, 8, 11), direction: Horizontal)), text_color: (255, 221, 204), text_gradient: Some((to: (255, 130, 72), direction: Horizontal)), transparent: false, focus_chrome: false, shape: Some((semi_transparent_fill: false, corner_cut: 4, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (146, 39, 28), border_gradient: Some((to: (80, 24, 22), direction: Horizontal)))), action: Game(200), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_socket.wav", volume: 58, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
+                /*[5]*/ (id: (7), parent: Some((1)), children: [], name: "Horizon Empty Boost", kind: Button(rect: (x: 86, y: 49, width: 63, height: 21, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "E // NONE", tag: "boost.horizon.empty", align: Center, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (70, 14, 17), background_gradient: Some((to: (18, 8, 11), direction: Horizontal)), text_color: (255, 221, 204), text_gradient: Some((to: (255, 130, 72), direction: Horizontal)), transparent: false, focus_chrome: false, shape: Some((semi_transparent_fill: false, corner_cut: 4, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (146, 39, 28), border_gradient: Some((to: (80, 24, 22), direction: Horizontal)))), action: Game(200), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "../default/assets/audio/ui/ui_socket.wav", volume: 58, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
                 /*[6]*/ (id: (8), parent: Some((1)), children: [], name: "Horizon Label", kind: Label(rect: (x: 15, y: 75, width: 131, height: 8, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), text: "HORIZON", random_message: false, messages: [], tag: "ui.inventory.horizon", align: Right, wrap: false, font: Spleen5x8, font_scale: 1.0, letter_spacing: 1, color: (255, 120, 56), gradient: None, effect: None), visible_when: Always),
-                /*[7]*/ (id: (12), parent: Some((1)), children: [], name: "Horizon Full Boost", kind: Button(rect: (x: 15, y: 49, width: 63, height: 21, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "F // NONE", tag: "boost.horizon.full", align: Center, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (72, 16, 19), background_gradient: Some((to: (166, 48, 32), direction: Horizontal)), text_color: (246, 213, 198), text_gradient: Some((to: (255, 120, 56), direction: Horizontal)), transparent: false, focus_chrome: false, shape: Some((semi_transparent_fill: false, corner_cut: 4, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (132, 34, 28), border_gradient: Some((to: (232, 92, 48), direction: Horizontal)))), action: Game(201), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_socket.wav", volume: 58, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
-                /*[8]*/ (id: (13), parent: Some((1)), children: [], name: "Zenith Empty Boost", kind: Button(rect: (x: 171, y: 49, width: 63, height: 21, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "E // NONE", tag: "boost.zenith.empty", align: Center, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (8, 56, 56), background_gradient: Some((to: (6, 14, 16), direction: Horizontal)), text_color: (208, 242, 241), text_gradient: Some((to: (112, 232, 208), direction: Horizontal)), transparent: false, focus_chrome: false, shape: Some((semi_transparent_fill: false, corner_cut: 4, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (38, 146, 136), border_gradient: Some((to: (20, 68, 66), direction: Horizontal)))), action: Game(202), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_socket.wav", volume: 58, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
+                /*[7]*/ (id: (12), parent: Some((1)), children: [], name: "Horizon Full Boost", kind: Button(rect: (x: 15, y: 49, width: 63, height: 21, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "F // NONE", tag: "boost.horizon.full", align: Center, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (72, 16, 19), background_gradient: Some((to: (166, 48, 32), direction: Horizontal)), text_color: (246, 213, 198), text_gradient: Some((to: (255, 120, 56), direction: Horizontal)), transparent: false, focus_chrome: false, shape: Some((semi_transparent_fill: false, corner_cut: 4, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (132, 34, 28), border_gradient: Some((to: (232, 92, 48), direction: Horizontal)))), action: Game(201), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "../default/assets/audio/ui/ui_socket.wav", volume: 58, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
+                /*[8]*/ (id: (13), parent: Some((1)), children: [], name: "Zenith Empty Boost", kind: Button(rect: (x: 171, y: 49, width: 63, height: 21, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "E // NONE", tag: "boost.zenith.empty", align: Center, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (8, 56, 56), background_gradient: Some((to: (6, 14, 16), direction: Horizontal)), text_color: (208, 242, 241), text_gradient: Some((to: (112, 232, 208), direction: Horizontal)), transparent: false, focus_chrome: false, shape: Some((semi_transparent_fill: false, corner_cut: 4, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (38, 146, 136), border_gradient: Some((to: (20, 68, 66), direction: Horizontal)))), action: Game(202), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "../default/assets/audio/ui/ui_socket.wav", volume: 58, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
                 /*[9]*/ (id: (14), parent: Some((1)), children: [], name: "Zenith Label", kind: Label(rect: (x: 174, y: 75, width: 131, height: 8, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), text: "ZENITH", random_message: false, messages: [], tag: "ui.inventory.zenith", align: Left, wrap: false, font: Spleen5x8, font_scale: 1.0, letter_spacing: 1, color: (112, 224, 200), gradient: None, effect: None), visible_when: Always),
-                /*[10]*/ (id: (18), parent: Some((1)), children: [], name: "Zenith Full Boost", kind: Button(rect: (x: 242, y: 49, width: 63, height: 21, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "F // NONE", tag: "boost.zenith.full", align: Center, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (17, 70, 74), background_gradient: Some((to: (34, 138, 132), direction: Horizontal)), text_color: (208, 242, 241), text_gradient: Some((to: (87, 200, 195), direction: Horizontal)), transparent: false, focus_chrome: false, shape: Some((semi_transparent_fill: false, corner_cut: 4, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (54, 156, 151), border_gradient: Some((to: (114, 222, 204), direction: Horizontal)))), action: Game(203), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_socket.wav", volume: 58, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
+                /*[10]*/ (id: (18), parent: Some((1)), children: [], name: "Zenith Full Boost", kind: Button(rect: (x: 242, y: 49, width: 63, height: 21, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "F // NONE", tag: "boost.zenith.full", align: Center, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (17, 70, 74), background_gradient: Some((to: (34, 138, 132), direction: Horizontal)), text_color: (208, 242, 241), text_gradient: Some((to: (87, 200, 195), direction: Horizontal)), transparent: false, focus_chrome: false, shape: Some((semi_transparent_fill: false, corner_cut: 4, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (54, 156, 151), border_gradient: Some((to: (114, 222, 204), direction: Horizontal)))), action: Game(203), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "../default/assets/audio/ui/ui_socket.wav", volume: 58, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
                 /*[11]*/ (id: (19), parent: Some((1)), children: [], name: "Collected Module Panel", kind: Rect(rect: (x: 15, y: 88, width: 112, height: 136, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), color: (40, 10, 14), gradient: Some((to: (6, 8, 11), direction: Horizontal)), transparent: false, shape: Some((semi_transparent_fill: false, corner_cut: 5, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (128, 36, 27), border_gradient: Some((to: (28, 22, 23), direction: Horizontal))))), visible_when: Always),
                 /*[12]*/ (id: (57), parent: Some((1)), children: [], name: "Collected Module Inset Rail", kind: Rect(rect: (x: 15, y: 88, width: 112, height: 22, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), color: (126, 34, 26), gradient: Some((to: (40, 9, 13), direction: Horizontal)), transparent: false, shape: Some((semi_transparent_fill: false, corner_cut: 5, cut_top_left: true, cut_top_right: false, cut_bottom_right: false, cut_bottom_left: false, border_width: 1, border_color: (128, 36, 27), border_gradient: Some((to: (28, 22, 23), direction: Horizontal))))), visible_when: Always),
                 /*[13]*/ (id: (58), parent: Some((1)), children: [], name: "Collected Module Inset Rail Rule", kind: Rect(rect: (x: 15, y: 109, width: 112, height: 1, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), color: (142, 45, 34), gradient: Some((to: (48, 15, 18), direction: Horizontal)), transparent: false, shape: None), visible_when: Always),
                 /*[14]*/ (id: (20), parent: Some((1)), children: [], name: "Collected Module Caption", kind: Label(rect: (x: 23, y: 95, width: 96, height: 8, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), text: "MODULES", random_message: false, messages: [], tag: "ui.inventory.modules", align: Left, wrap: false, font: Spleen5x8, font_scale: 1.0, letter_spacing: 1, color: (225, 165, 140), gradient: Some((to: (158, 85, 68), direction: Horizontal)), effect: None), visible_when: Always),
-                /*[15]*/ (id: (21), parent: Some((1)), children: [], name: "Inventory Item Slot 1", kind: Button(rect: (x: 23, y: 116, width: 96, height: 17, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "MODULE 01", tag: "inventory.item.0", align: Left, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (68, 15, 18), background_gradient: Some((to: (13, 9, 12), direction: Horizontal)), text_color: (250, 200, 181), text_gradient: Some((to: (245, 92, 54), direction: Horizontal)), transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 3, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (142, 41, 31), border_gradient: Some((to: (51, 23, 24), direction: Horizontal)))), action: Game(210), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_confirm.wav", volume: 54, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
-                /*[16]*/ (id: (22), parent: Some((1)), children: [], name: "Inventory Item Slot 2", kind: Button(rect: (x: 23, y: 139, width: 96, height: 17, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "MODULE 02", tag: "inventory.item.1", align: Left, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (68, 15, 18), background_gradient: Some((to: (13, 9, 12), direction: Horizontal)), text_color: (250, 200, 181), text_gradient: Some((to: (245, 92, 54), direction: Horizontal)), transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 3, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (142, 41, 31), border_gradient: Some((to: (51, 23, 24), direction: Horizontal)))), action: Game(211), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_confirm.wav", volume: 54, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
-                /*[17]*/ (id: (23), parent: Some((1)), children: [], name: "Inventory Item Slot 3", kind: Button(rect: (x: 23, y: 162, width: 96, height: 17, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "MODULE 03", tag: "inventory.item.2", align: Left, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (68, 15, 18), background_gradient: Some((to: (13, 9, 12), direction: Horizontal)), text_color: (250, 200, 181), text_gradient: Some((to: (245, 92, 54), direction: Horizontal)), transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 3, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (142, 41, 31), border_gradient: Some((to: (51, 23, 24), direction: Horizontal)))), action: Game(212), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_confirm.wav", volume: 54, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
+                /*[15]*/ (id: (21), parent: Some((1)), children: [], name: "Inventory Item Slot 1", kind: Button(rect: (x: 23, y: 116, width: 96, height: 17, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "MODULE 01", tag: "inventory.item.0", align: Left, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (68, 15, 18), background_gradient: Some((to: (13, 9, 12), direction: Horizontal)), text_color: (250, 200, 181), text_gradient: Some((to: (245, 92, 54), direction: Horizontal)), transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 3, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (142, 41, 31), border_gradient: Some((to: (51, 23, 24), direction: Horizontal)))), action: Game(210), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "../default/assets/audio/ui/ui_confirm.wav", volume: 54, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
+                /*[16]*/ (id: (22), parent: Some((1)), children: [], name: "Inventory Item Slot 2", kind: Button(rect: (x: 23, y: 139, width: 96, height: 17, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "MODULE 02", tag: "inventory.item.1", align: Left, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (68, 15, 18), background_gradient: Some((to: (13, 9, 12), direction: Horizontal)), text_color: (250, 200, 181), text_gradient: Some((to: (245, 92, 54), direction: Horizontal)), transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 3, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (142, 41, 31), border_gradient: Some((to: (51, 23, 24), direction: Horizontal)))), action: Game(211), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "../default/assets/audio/ui/ui_confirm.wav", volume: 54, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
+                /*[17]*/ (id: (23), parent: Some((1)), children: [], name: "Inventory Item Slot 3", kind: Button(rect: (x: 23, y: 162, width: 96, height: 17, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "MODULE 03", tag: "inventory.item.2", align: Left, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (68, 15, 18), background_gradient: Some((to: (13, 9, 12), direction: Horizontal)), text_color: (250, 200, 181), text_gradient: Some((to: (245, 92, 54), direction: Horizontal)), transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 3, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (142, 41, 31), border_gradient: Some((to: (51, 23, 24), direction: Horizontal)))), action: Game(212), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "../default/assets/audio/ui/ui_confirm.wav", volume: 54, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
                 /*[18]*/ (id: (36), parent: Some((1)), children: [], name: "Module Analysis Panel", kind: Rect(rect: (x: 133, y: 88, width: 172, height: 136, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), color: (10, 8, 10), gradient: Some((to: (38, 10, 14), direction: Horizontal)), transparent: false, shape: Some((semi_transparent_fill: false, corner_cut: 5, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (66, 24, 25), border_gradient: Some((to: (150, 42, 30), direction: Horizontal))))), visible_when: Always),
                 /*[19]*/ (id: (59), parent: Some((1)), children: [], name: "Module Analysis Inset Rail", kind: Rect(rect: (x: 133, y: 88, width: 172, height: 22, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), color: (118, 30, 25), gradient: Some((to: (40, 9, 13), direction: Horizontal)), transparent: false, shape: Some((semi_transparent_fill: false, corner_cut: 5, cut_top_left: true, cut_top_right: false, cut_bottom_right: false, cut_bottom_left: false, border_width: 1, border_color: (142, 41, 31), border_gradient: Some((to: (51, 23, 24), direction: Horizontal))))), visible_when: Always),
                 /*[20]*/ (id: (60), parent: Some((1)), children: [], name: "Module Analysis Inset Rail Rule", kind: Rect(rect: (x: 133, y: 109, width: 172, height: 1, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), color: (142, 45, 34), gradient: Some((to: (48, 15, 18), direction: Horizontal)), transparent: false, shape: None), visible_when: Always),
                 /*[21]*/ (id: (24), parent: Some((1)), children: [], name: "Selected Module Name", kind: Label(rect: (x: 141, y: 95, width: 156, height: 8, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), text: "SELECT A MODULE", random_message: false, messages: [], tag: "boost.inventory.selected.name", align: Left, wrap: false, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (250, 205, 184), gradient: Some((to: (246, 96, 58), direction: Horizontal)), effect: None), visible_when: Always),
                 /*[22]*/ (id: (25), parent: Some((1)), children: [], name: "Selected Module Base Effect", kind: Label(rect: (x: 141, y: 118, width: 156, height: 8, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), text: "FINAL STATS", random_message: false, messages: [], tag: "boost.selected.base", align: Left, wrap: false, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (240, 174, 148), gradient: Some((to: (255, 93, 53), direction: Horizontal)), effect: None), visible_when: Always),
-                /*[23]*/ (id: (41), parent: Some((1)), children: [], name: "Inventory Player Tab", kind: Button(rect: (x: 218, y: 10, width: 27, height: 25, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "", tag: "tab.player.selected", align: Center, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (55, 19, 20), background_gradient: Some((to: (31, 24, 24), direction: Vertical)), text_color: (0, 0, 0), text_gradient: None, transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 3, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (164, 66, 48), border_gradient: None)), action: Game(304), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [], limit: [])), visible_when: Always),
-                /*[24]*/ (id: (43), parent: Some((1)), children: [], name: "Inventory System Tab", kind: Button(rect: (x: 258, y: 10, width: 27, height: 25, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "", tag: "tab.system", align: Center, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (20, 20, 22), background_gradient: Some((to: (33, 32, 31), direction: Vertical)), text_color: (0, 0, 0), text_gradient: None, transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 4, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (63, 61, 58), border_gradient: None)), action: GotoState((13)), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [], limit: [])), visible_when: Always),
+                /*[23]*/ (id: (41), parent: Some((1)), children: [], name: "Inventory Player Tab", kind: Button(rect: (x: 218, y: 10, width: 27, height: 25, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "", tag: "tab.player.selected", align: Center, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (55, 19, 20), background_gradient: Some((to: (31, 24, 24), direction: Vertical)), text_color: (0, 0, 0), text_gradient: None, transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 3, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (164, 66, 48), border_gradient: None)), action: Game(304), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [], limit: [])), visible_when: Always),
+                /*[24]*/ (id: (43), parent: Some((1)), children: [], name: "Inventory System Tab", kind: Button(rect: (x: 258, y: 10, width: 27, height: 25, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "", tag: "tab.system", align: Center, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (20, 20, 22), background_gradient: Some((to: (33, 32, 31), direction: Vertical)), text_color: (0, 0, 0), text_gradient: None, transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 4, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (63, 61, 58), border_gradient: None)), action: GotoState((13)), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [], limit: [])), visible_when: Always),
                 /*[25]*/ (id: (44), parent: Some((1)), children: [], name: "Inventory Player Icon Head", kind: Rect(rect: (x: 228, y: 15, width: 7, height: 6, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), color: (222, 151, 122), gradient: Some((to: (126, 68, 61), direction: Vertical)), transparent: false, shape: Some((semi_transparent_fill: true, corner_cut: 2, cut_top_left: true, cut_top_right: true, cut_bottom_right: true, cut_bottom_left: true, border_width: 0, border_color: (0, 0, 0), border_gradient: None))), visible_when: Always),
                 /*[26]*/ (id: (45), parent: Some((1)), children: [], name: "Inventory Player Icon Body", kind: Rect(rect: (x: 225, y: 22, width: 13, height: 8, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), color: (176, 86, 68), gradient: Some((to: (87, 47, 45), direction: Vertical)), transparent: false, shape: Some((semi_transparent_fill: true, corner_cut: 2, cut_top_left: true, cut_top_right: true, cut_bottom_right: false, cut_bottom_left: false, border_width: 0, border_color: (0, 0, 0), border_gradient: None))), visible_when: Always),
                 /*[27]*/ (id: (48), parent: Some((1)), children: [], name: "Inventory System Icon Horizontal", kind: Rect(rect: (x: 265, y: 20, width: 13, height: 5, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), color: (151, 146, 138), gradient: Some((to: (77, 75, 72), direction: Horizontal)), transparent: false, shape: Some((semi_transparent_fill: true, corner_cut: 1, cut_top_left: true, cut_top_right: true, cut_bottom_right: true, cut_bottom_left: true, border_width: 0, border_color: (0, 0, 0), border_gradient: None))), visible_when: Always),
@@ -1053,8 +1053,8 @@
                 /*[2]*/ (id: (31), parent: Some((1)), children: [], name: "System World Quarter Scrim", kind: Rect(rect: (x: 0, y: 0, width: 320, height: 240, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), color: (0, 0, 0), gradient: None, transparent: false, shape: Some((semi_transparent_fill: true, corner_cut: 0, cut_top_left: false, cut_top_right: false, cut_bottom_right: false, cut_bottom_left: false, border_width: 0, border_color: (0, 0, 0), border_gradient: None))), visible_when: Always),
                 /*[3]*/ (id: (3), parent: Some((1)), children: [], name: "Screen X Label", kind: Label(rect: (x: 24, y: 77, width: 62, height: 8, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), text: "SCREEN X", random_message: false, messages: [], tag: "ui.settings.screen_x", align: Left, wrap: false, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (220, 170, 150), gradient: Some((to: (126, 64, 58), direction: Horizontal)), effect: None), visible_when: Always),
                 /*[4]*/ (id: (4), parent: Some((1)), children: [], name: "System Tab Rail", kind: Rect(rect: (x: 184, y: 8, width: 127, height: 29, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), color: (8, 9, 11), gradient: Some((to: (24, 23, 22), direction: Horizontal)), transparent: false, shape: Some((semi_transparent_fill: false, corner_cut: 5, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (79, 77, 73), border_gradient: None))), visible_when: Always),
-                /*[5]*/ (id: (5), parent: Some((1)), children: [], name: "System Player Tab", kind: Button(rect: (x: 218, y: 10, width: 27, height: 25, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "", tag: "tab.player", align: Center, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (20, 20, 22), background_gradient: Some((to: (33, 32, 31), direction: Vertical)), text_color: (0, 0, 0), text_gradient: None, transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 3, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (63, 61, 58), border_gradient: None)), action: GotoState((7)), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [], limit: [])), visible_when: Always),
-                /*[6]*/ (id: (6), parent: Some((1)), children: [], name: "System Tab", kind: Button(rect: (x: 258, y: 10, width: 27, height: 25, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "", tag: "tab.system.selected", align: Center, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (17, 70, 74), background_gradient: Some((to: (34, 138, 132), direction: Vertical)), text_color: (0, 0, 0), text_gradient: None, transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 4, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (54, 156, 151), border_gradient: Some((to: (114, 222, 204), direction: Horizontal)))), action: Game(303), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [], limit: [])), visible_when: Always),
+                /*[5]*/ (id: (5), parent: Some((1)), children: [], name: "System Player Tab", kind: Button(rect: (x: 218, y: 10, width: 27, height: 25, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "", tag: "tab.player", align: Center, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (20, 20, 22), background_gradient: Some((to: (33, 32, 31), direction: Vertical)), text_color: (0, 0, 0), text_gradient: None, transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 3, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (63, 61, 58), border_gradient: None)), action: GotoState((7)), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [], limit: [])), visible_when: Always),
+                /*[6]*/ (id: (6), parent: Some((1)), children: [], name: "System Tab", kind: Button(rect: (x: 258, y: 10, width: 27, height: 25, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "", tag: "tab.system.selected", align: Center, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (17, 70, 74), background_gradient: Some((to: (34, 138, 132), direction: Vertical)), text_color: (0, 0, 0), text_gradient: None, transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 4, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (54, 156, 151), border_gradient: Some((to: (114, 222, 204), direction: Horizontal)))), action: Game(303), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [], limit: [])), visible_when: Always),
                 /*[7]*/ (id: (7), parent: Some((1)), children: [], name: "System Player Icon Head", kind: Rect(rect: (x: 228, y: 15, width: 7, height: 6, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), color: (151, 146, 138), gradient: Some((to: (93, 90, 86), direction: Vertical)), transparent: false, shape: Some((semi_transparent_fill: true, corner_cut: 2, cut_top_left: true, cut_top_right: true, cut_bottom_right: true, cut_bottom_left: true, border_width: 0, border_color: (0, 0, 0), border_gradient: None))), visible_when: Always),
                 /*[8]*/ (id: (8), parent: Some((1)), children: [], name: "System Player Icon Body", kind: Rect(rect: (x: 225, y: 22, width: 13, height: 8, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), color: (116, 111, 105), gradient: Some((to: (69, 67, 65), direction: Vertical)), transparent: false, shape: Some((semi_transparent_fill: true, corner_cut: 2, cut_top_left: true, cut_top_right: true, cut_bottom_right: false, cut_bottom_left: false, border_width: 0, border_color: (0, 0, 0), border_gradient: None))), visible_when: Always),
                 /*[9]*/ (id: (9), parent: Some((1)), children: [], name: "System Icon Horizontal", kind: Rect(rect: (x: 265, y: 20, width: 13, height: 5, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), color: (112, 224, 200), gradient: Some((to: (34, 138, 132), direction: Horizontal)), transparent: false, shape: Some((semi_transparent_fill: true, corner_cut: 1, cut_top_left: true, cut_top_right: true, cut_bottom_right: true, cut_bottom_left: true, border_width: 0, border_color: (0, 0, 0), border_gradient: None))), visible_when: Always),
@@ -1066,18 +1066,18 @@
                 /*[15]*/ (id: (18), parent: Some((1)), children: [], name: "System Inset Rail", kind: Rect(rect: (x: 15, y: 49, width: 290, height: 22, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), color: (126, 34, 26), gradient: Some((to: (40, 9, 13), direction: Horizontal)), transparent: false, shape: Some((semi_transparent_fill: false, corner_cut: 5, cut_top_left: true, cut_top_right: false, cut_bottom_right: false, cut_bottom_left: false, border_width: 1, border_color: (128, 36, 27), border_gradient: Some((to: (28, 22, 23), direction: Horizontal))))), visible_when: Always),
                 /*[16]*/ (id: (19), parent: Some((1)), children: [], name: "System Inset Rail Rule", kind: Rect(rect: (x: 15, y: 70, width: 290, height: 1, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), color: (142, 45, 34), gradient: Some((to: (48, 15, 18), direction: Horizontal)), transparent: false, shape: None), visible_when: Always),
                 /*[17]*/ (id: (20), parent: Some((1)), children: [], name: "System Title", kind: Label(rect: (x: 23, y: 56, width: 274, height: 8, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), text: "SYSTEM", random_message: false, messages: [], tag: "ui.system.title", align: Left, wrap: false, font: Spleen5x8, font_scale: 1.0, letter_spacing: 1, color: (225, 165, 140), gradient: Some((to: (158, 85, 68), direction: Horizontal)), effect: None), visible_when: Always),
-                /*[18]*/ (id: (21), parent: Some((1)), children: [], name: "Screen X", kind: Slider(rect: (x: 94, y: 78, width: 201, height: 6, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), option: (1), track: (18, 8, 11), track_gradient: None, fill: (180, 54, 40), fill_gradient: Some((to: (86, 19, 20), direction: Horizontal)), knob: (246, 213, 198), knob_gradient: Some((to: (255, 120, 56), direction: Vertical)), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 36, pitch_q12: 4096)], limit: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_limit.wav", volume: 44, pitch_q12: 4096)])), visible_when: Always),
+                /*[18]*/ (id: (21), parent: Some((1)), children: [], name: "Screen X", kind: Slider(rect: (x: 94, y: 78, width: 201, height: 6, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), option: (1), track: (18, 8, 11), track_gradient: None, fill: (180, 54, 40), fill_gradient: Some((to: (86, 19, 20), direction: Horizontal)), knob: (246, 213, 198), knob_gradient: Some((to: (255, 120, 56), direction: Vertical)), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 36, pitch_q12: 4096)], limit: [(wav_path: "../default/assets/audio/ui/ui_limit.wav", volume: 44, pitch_q12: 4096)])), visible_when: Always),
                 /*[19]*/ (id: (22), parent: Some((1)), children: [], name: "Screen Y Label", kind: Label(rect: (x: 24, y: 100, width: 62, height: 8, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), text: "SCREEN Y", random_message: false, messages: [], tag: "ui.settings.screen_y", align: Left, wrap: false, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (220, 170, 150), gradient: Some((to: (126, 64, 58), direction: Horizontal)), effect: None), visible_when: Always),
-                /*[20]*/ (id: (23), parent: Some((1)), children: [], name: "Screen Y", kind: Slider(rect: (x: 94, y: 101, width: 201, height: 6, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), option: (2), track: (18, 8, 11), track_gradient: None, fill: (180, 54, 40), fill_gradient: Some((to: (86, 19, 20), direction: Horizontal)), knob: (246, 213, 198), knob_gradient: Some((to: (255, 120, 56), direction: Vertical)), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 36, pitch_q12: 4096)], limit: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_limit.wav", volume: 44, pitch_q12: 4096)])), visible_when: Always),
+                /*[20]*/ (id: (23), parent: Some((1)), children: [], name: "Screen Y", kind: Slider(rect: (x: 94, y: 101, width: 201, height: 6, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), option: (2), track: (18, 8, 11), track_gradient: None, fill: (180, 54, 40), fill_gradient: Some((to: (86, 19, 20), direction: Horizontal)), knob: (246, 213, 198), knob_gradient: Some((to: (255, 120, 56), direction: Vertical)), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 36, pitch_q12: 4096)], limit: [(wav_path: "../default/assets/audio/ui/ui_limit.wav", volume: 44, pitch_q12: 4096)])), visible_when: Always),
                 /*[21]*/ (id: (24), parent: Some((1)), children: [], name: "Brightness Label", kind: Label(rect: (x: 24, y: 123, width: 62, height: 8, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), text: "BRIGHTNESS", random_message: false, messages: [], tag: "ui.settings.brightness", align: Left, wrap: false, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (220, 170, 150), gradient: Some((to: (126, 64, 58), direction: Horizontal)), effect: None), visible_when: Always),
-                /*[22]*/ (id: (25), parent: Some((1)), children: [], name: "Brightness", kind: Slider(rect: (x: 94, y: 124, width: 201, height: 6, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), option: (6), track: (18, 8, 11), track_gradient: None, fill: (180, 54, 40), fill_gradient: Some((to: (86, 19, 20), direction: Horizontal)), knob: (246, 213, 198), knob_gradient: Some((to: (255, 120, 56), direction: Vertical)), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 36, pitch_q12: 4096)], limit: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_limit.wav", volume: 44, pitch_q12: 4096)])), visible_when: Always),
+                /*[22]*/ (id: (25), parent: Some((1)), children: [], name: "Brightness", kind: Slider(rect: (x: 94, y: 124, width: 201, height: 6, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), option: (6), track: (18, 8, 11), track_gradient: None, fill: (180, 54, 40), fill_gradient: Some((to: (86, 19, 20), direction: Horizontal)), knob: (246, 213, 198), knob_gradient: Some((to: (255, 120, 56), direction: Vertical)), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 36, pitch_q12: 4096)], limit: [(wav_path: "../default/assets/audio/ui/ui_limit.wav", volume: 44, pitch_q12: 4096)])), visible_when: Always),
                 /*[23]*/ (id: (26), parent: Some((1)), children: [], name: "Deadzone Label", kind: Label(rect: (x: 24, y: 146, width: 62, height: 8, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), text: "DEADZONE", random_message: false, messages: [], tag: "ui.system.deadzone", align: Left, wrap: false, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (220, 170, 150), gradient: Some((to: (126, 64, 58), direction: Horizontal)), effect: None), visible_when: Always),
-                /*[24]*/ (id: (27), parent: Some((1)), children: [], name: "Stick Deadzone", kind: Slider(rect: (x: 94, y: 147, width: 201, height: 6, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), option: (5), track: (18, 8, 11), track_gradient: None, fill: (180, 54, 40), fill_gradient: Some((to: (86, 19, 20), direction: Horizontal)), knob: (246, 213, 198), knob_gradient: Some((to: (255, 120, 56), direction: Vertical)), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 36, pitch_q12: 4096)], limit: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_limit.wav", volume: 44, pitch_q12: 4096)])), visible_when: Always),
+                /*[24]*/ (id: (27), parent: Some((1)), children: [], name: "Stick Deadzone", kind: Slider(rect: (x: 94, y: 147, width: 201, height: 6, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), option: (5), track: (18, 8, 11), track_gradient: None, fill: (180, 54, 40), fill_gradient: Some((to: (86, 19, 20), direction: Horizontal)), knob: (246, 213, 198), knob_gradient: Some((to: (255, 120, 56), direction: Vertical)), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 36, pitch_q12: 4096)], limit: [(wav_path: "../default/assets/audio/ui/ui_limit.wav", volume: 44, pitch_q12: 4096)])), visible_when: Always),
                 /*[25]*/ (id: (28), parent: Some((1)), children: [], name: "Music Volume Label", kind: Label(rect: (x: 24, y: 169, width: 62, height: 8, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), text: "MUSIC", random_message: false, messages: [], tag: "ui.system.music", align: Left, wrap: false, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (220, 170, 150), gradient: Some((to: (126, 64, 58), direction: Horizontal)), effect: None), visible_when: Always),
-                /*[26]*/ (id: (29), parent: Some((1)), children: [], name: "Music Volume", kind: Slider(rect: (x: 94, y: 170, width: 201, height: 6, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), option: (3), track: (18, 8, 11), track_gradient: None, fill: (180, 54, 40), fill_gradient: Some((to: (86, 19, 20), direction: Horizontal)), knob: (246, 213, 198), knob_gradient: Some((to: (255, 120, 56), direction: Vertical)), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 36, pitch_q12: 4096)], limit: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_limit.wav", volume: 44, pitch_q12: 4096)])), visible_when: Always),
+                /*[26]*/ (id: (29), parent: Some((1)), children: [], name: "Music Volume", kind: Slider(rect: (x: 94, y: 170, width: 201, height: 6, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), option: (3), track: (18, 8, 11), track_gradient: None, fill: (180, 54, 40), fill_gradient: Some((to: (86, 19, 20), direction: Horizontal)), knob: (246, 213, 198), knob_gradient: Some((to: (255, 120, 56), direction: Vertical)), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 36, pitch_q12: 4096)], limit: [(wav_path: "../default/assets/audio/ui/ui_limit.wav", volume: 44, pitch_q12: 4096)])), visible_when: Always),
                 /*[27]*/ (id: (30), parent: Some((1)), children: [], name: "SFX Volume Label", kind: Label(rect: (x: 24, y: 192, width: 62, height: 8, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), text: "SFX", random_message: false, messages: [], tag: "", align: Left, wrap: false, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (220, 170, 150), gradient: Some((to: (126, 64, 58), direction: Horizontal)), effect: None), visible_when: Always),
-                /*[28]*/ (id: (32), parent: Some((1)), children: [], name: "SFX Volume", kind: Slider(rect: (x: 94, y: 193, width: 201, height: 6, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), option: (4), track: (18, 8, 11), track_gradient: None, fill: (180, 54, 40), fill_gradient: Some((to: (86, 19, 20), direction: Horizontal)), knob: (246, 213, 198), knob_gradient: Some((to: (255, 120, 56), direction: Vertical)), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 36, pitch_q12: 4096)], limit: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_limit.wav", volume: 44, pitch_q12: 4096)])), visible_when: Always),
-                /*[29]*/ (id: (37), parent: Some((1)), children: [], name: "Return To Title", kind: Button(rect: (x: 94, y: 201, width: 201, height: 18, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "RETURN TO TITLE", tag: "ui.system.return", align: Center, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (68, 15, 18), background_gradient: Some((to: (13, 9, 12), direction: Horizontal)), text_color: (250, 200, 181), text_gradient: Some((to: (245, 92, 54), direction: Horizontal)), transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 3, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (142, 41, 31), border_gradient: Some((to: (51, 23, 24), direction: Horizontal)))), action: GotoState((1)), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_back.wav", volume: 54, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
+                /*[28]*/ (id: (32), parent: Some((1)), children: [], name: "SFX Volume", kind: Slider(rect: (x: 94, y: 193, width: 201, height: 6, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), option: (4), track: (18, 8, 11), track_gradient: None, fill: (180, 54, 40), fill_gradient: Some((to: (86, 19, 20), direction: Horizontal)), knob: (246, 213, 198), knob_gradient: Some((to: (255, 120, 56), direction: Vertical)), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [], nudge: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 36, pitch_q12: 4096)], limit: [(wav_path: "../default/assets/audio/ui/ui_limit.wav", volume: 44, pitch_q12: 4096)])), visible_when: Always),
+                /*[29]*/ (id: (37), parent: Some((1)), children: [], name: "Return To Title", kind: Button(rect: (x: 94, y: 201, width: 201, height: 18, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "RETURN TO TITLE", tag: "ui.system.return", align: Center, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (68, 15, 18), background_gradient: Some((to: (13, 9, 12), direction: Horizontal)), text_color: (250, 200, 181), text_gradient: Some((to: (245, 92, 54), direction: Horizontal)), transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 3, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (142, 41, 31), border_gradient: Some((to: (51, 23, 24), direction: Horizontal)))), action: GotoState((1)), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "../default/assets/audio/ui/ui_back.wav", volume: 54, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
             ],
         ),
         /*[11]*/ (
@@ -1110,8 +1110,8 @@
                 /*[11]*/ (id: (12), parent: Some((1)), children: [], name: "Alberto Role", kind: Label(rect: (x: 28, y: 147, width: 264, height: 8, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), text: "3D ARTIST", random_message: false, messages: [], tag: "ui.credits.artist", align: Left, wrap: false, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (174, 126, 112), gradient: None, effect: None), visible_when: Always),
                 /*[12]*/ (id: (13), parent: Some((1)), children: [], name: "Carmelo Miceli", kind: Label(rect: (x: 28, y: 163, width: 264, height: 8, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), text: "CARMELO MICELI", random_message: false, messages: [], tag: "", align: Left, wrap: false, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (240, 195, 176), gradient: Some((to: (224, 88, 56), direction: Horizontal)), effect: None), visible_when: Always),
                 /*[13]*/ (id: (14), parent: Some((1)), children: [], name: "Carmelo Role", kind: Label(rect: (x: 28, y: 175, width: 264, height: 8, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), text: "MUSIC", random_message: false, messages: [], tag: "ui.credits.music", align: Left, wrap: false, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (174, 126, 112), gradient: None, effect: None), visible_when: Always),
-                /*[14]*/ (id: (15), parent: Some((1)), children: [], name: "Back", kind: Button(rect: (x: 97, y: 202, width: 126, height: 16, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "  BACK", tag: "ui.settings.back", align: Left, font: Basic, font_scale: 1.0, letter_spacing: 1, color: (50, 10, 15), background_gradient: Some((to: (82, 20, 18), direction: Vertical)), text_color: (236, 226, 216), text_gradient: Some((to: (255, 142, 92), direction: Horizontal)), transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 4, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (82, 18, 15), border_gradient: Some((to: (194, 72, 48), direction: Horizontal)))), action: Back, sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_back.wav", volume: 54, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
-                /*[15]*/ (id: (16), parent: Some((1)), children: [], name: "Menu Music", kind: Music(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/audio/cdda/menu2.wav", volume: 76, volume_option: Some((3)), playback_speed_q12: 4096, loop_track: true, trigger: Always), visible_when: Always),
+                /*[14]*/ (id: (15), parent: Some((1)), children: [], name: "Back", kind: Button(rect: (x: 97, y: 202, width: 126, height: 16, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "  BACK", tag: "ui.settings.back", align: Left, font: Basic, font_scale: 1.0, letter_spacing: 1, color: (50, 10, 15), background_gradient: Some((to: (82, 20, 18), direction: Vertical)), text_color: (236, 226, 216), text_gradient: Some((to: (255, 142, 92), direction: Horizontal)), transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 4, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (82, 18, 15), border_gradient: Some((to: (194, 72, 48), direction: Horizontal)))), action: Back, sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "../default/assets/audio/ui/ui_back.wav", volume: 54, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
+                /*[15]*/ (id: (16), parent: Some((1)), children: [], name: "Menu Music", kind: Music(wav_path: "../graybox-reach/assets/audio/cdda/menu2.wav", volume: 76, volume_option: Some((3)), playback_speed_q12: 4096, loop_track: true, trigger: Always), visible_when: Always),
             ],
         ),
         /*[12]*/ (
@@ -1136,7 +1136,7 @@
                 /*[3]*/ (id: (4), parent: Some((1)), children: [], name: "Ending Subject", kind: Label(rect: (x: 26, y: 73, width: 268, height: 8, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), text: "CORTEX IGNITION TECH DEMO", random_message: false, messages: [], tag: "ui.ending.subject", align: Left, wrap: false, font: Spleen5x8, font_scale: 1.0, letter_spacing: 1, color: (245, 205, 184), gradient: Some((to: (246, 96, 58), direction: Horizontal)), effect: None), visible_when: Always),
                 /*[4]*/ (id: (5), parent: Some((1)), children: [], name: "Ending Thanks", kind: Label(rect: (x: 28, y: 98, width: 264, height: 12, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), text: "THANK YOU FOR PLAYING", random_message: false, messages: [], tag: "ui.ending.head", align: Center, wrap: false, font: Basic, font_scale: 1.0, letter_spacing: 1, color: (240, 195, 176), gradient: Some((to: (255, 112, 68), direction: Horizontal)), effect: None), visible_when: Always),
                 /*[5]*/ (id: (6), parent: Some((1)), children: [], name: "Ending Message", kind: Label(rect: (x: 30, y: 126, width: 260, height: 16, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), text: "STAY TUNED FOR MORE UPDATES.", random_message: false, messages: [], tag: "ui.ending.body", align: Center, wrap: true, font: Spleen5x8, font_scale: 1.0, letter_spacing: 0, color: (205, 156, 138), gradient: None, effect: None), visible_when: Always),
-                /*[6]*/ (id: (7), parent: Some((1)), children: [], name: "Ending Back", kind: Button(rect: (x: 97, y: 174, width: 126, height: 16, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "  MAIN MENU", tag: "ui.ending.back", align: Left, font: Spleen5x8, font_scale: 1.0, letter_spacing: 1, color: (50, 10, 15), background_gradient: Some((to: (82, 20, 18), direction: Vertical)), text_color: (236, 226, 216), text_gradient: Some((to: (255, 142, 92), direction: Horizontal)), transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 4, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (82, 18, 15), border_gradient: Some((to: (194, 72, 48), direction: Horizontal)))), action: GotoScene((3)), sfx: (focus: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/audio/ui/ui_confirm.wav", volume: 54, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
+                /*[6]*/ (id: (7), parent: Some((1)), children: [], name: "Ending Back", kind: Button(rect: (x: 97, y: 174, width: 126, height: 16, anchor: TopLeft, rotation_degrees: 0, flip_x: false, flip_y: false), label: "  MAIN MENU", tag: "ui.ending.back", align: Left, font: Spleen5x8, font_scale: 1.0, letter_spacing: 1, color: (50, 10, 15), background_gradient: Some((to: (82, 20, 18), direction: Vertical)), text_color: (236, 226, 216), text_gradient: Some((to: (255, 142, 92), direction: Horizontal)), transparent: false, focus_chrome: true, shape: Some((semi_transparent_fill: true, corner_cut: 4, cut_top_left: true, cut_top_right: false, cut_bottom_right: true, cut_bottom_left: false, border_width: 1, border_color: (82, 18, 15), border_gradient: Some((to: (194, 72, 48), direction: Horizontal)))), action: GotoScene((3)), sfx: (focus: [(wav_path: "../default/assets/audio/ui/ui_navigate.wav", volume: 38, pitch_q12: 4096)], activate: [(wav_path: "../default/assets/audio/ui/ui_confirm.wav", volume: 54, pitch_q12: 4096)], nudge: [], limit: [])), visible_when: Always),
             ],
         ),
     ],
@@ -1328,7 +1328,7 @@
             name: "Kit / architecture_industrial_v3",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/cortex-two-area-level/source_assets/ground-v3/structure_peeling_v3_128.psxt"),
+                psxt_path: Some("source_assets/ground-v3/structure_peeling_v3_128.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 64, base_color: (72, 84, 96), noise_enabled: true, noise_color: (188, 208, 224), noise: (seed: 1, feature_size: 24, octaves: 3, contrast: 176), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -1379,7 +1379,7 @@
             name: "Kit / structure_floor_128",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/cortex-two-area-level/source_assets/ground-v3/structure_floor_readable_128.psxt"),
+                psxt_path: Some("source_assets/ground-v3/structure_floor_readable_128.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 64, base_color: (72, 84, 96), noise_enabled: true, noise_color: (188, 208, 224), noise: (seed: 1, feature_size: 24, octaves: 3, contrast: 176), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -1464,7 +1464,7 @@
             name: "Kit / terrain_sand",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/cortex-two-area-level/source_assets/ground-v3/terrain_sand_soft_ripples_v2_64.psxt"),
+                psxt_path: Some("source_assets/ground-v3/terrain_sand_soft_ripples_v2_64.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 64, base_color: (72, 84, 96), noise_enabled: true, noise_color: (188, 208, 224), noise: (seed: 1, feature_size: 24, octaves: 3, contrast: 176), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -1719,7 +1719,7 @@
             name: "DP Fog City Cube Sky",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/sky/dp_fog_city_cube_4bpp.psxt"),
+                psxt_path: Some("../default/assets/textures/sky/dp_fog_city_cube_4bpp.psxt"),
                 blend_mode: Opaque,
                 tint: (255, 255, 255),
                 generated: (size: 64, base_color: (72, 84, 96), noise_enabled: true, noise_color: (188, 208, 224), noise: (seed: 1, feature_size: 24, octaves: 3, contrast: 176), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -1768,7 +1768,7 @@
             name: "Aletha Crystal",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/textures/aletha_mirror_128_4bit.psxt"),
+                psxt_path: Some("../graybox-reach/assets/textures/aletha_mirror_128_4bit.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 64, base_color: (28, 36, 46), noise_enabled: true, noise_color: (180, 200, 216), noise: (seed: 41, feature_size: 24, octaves: 1, contrast: 240), noise_uv: (scale_u_q8: 1024, scale_v_q8: 1024, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -1784,9 +1784,9 @@
             id: (26),
             name: "Light Enemy / Artigli",
             data: Model((
-                model_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/models/light_body_v1/light.psxmdl",
+                model_path: "../graybox-reach/assets/models/light_body_v1/light.psxmdl",
                 source_path: None,
-                texture_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/models/shared_enemy_01/shared_enemy_01.psxt"),
+                texture_path: Some("../default/assets/models/shared_enemy_01/shared_enemy_01.psxt"),
                 skeleton: Some((22)),
                 world_height: 1024,
                 collision_radius: 192,
@@ -1799,9 +1799,9 @@
             id: (27),
             name: "Aletha Closed Fists 458",
             data: Model((
-                model_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/models/aletha_closed_458/aletha_mirror_458.psxmdl",
+                model_path: "../graybox-reach/assets/models/aletha_closed_458/aletha_mirror_458.psxmdl",
                 source_path: Some("source_assets/characters/aletha_closed_458/Aletha-closed-458.glb"),
-                texture_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/models/aletha_delivered/aletha_delivered.psxt"),
+                texture_path: Some("../graybox-reach/assets/models/aletha_delivered/aletha_delivered.psxt"),
                 skeleton: Some((23)),
                 world_height: 1024,
                 collision_radius: 192,
@@ -1814,7 +1814,7 @@
             id: (199),
             name: "Aletha / Wake Up",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/aletha_delivered/aletha_wake_up.psxanim",
+                psxanim_path: "../default/assets/animations/aletha_delivered/aletha_wake_up.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: None,
@@ -1828,7 +1828,7 @@
             id: (200),
             name: "Aletha / Wake Up — Take 2",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/aletha_delivered/aletha_wake_up_take2.psxanim",
+                psxanim_path: "../default/assets/animations/aletha_delivered/aletha_wake_up_take2.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: None,
@@ -1842,7 +1842,7 @@
             id: (201),
             name: "Aletha / Wake Up — Take 3",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/aletha_delivered/aletha_wake_up_take3.psxanim",
+                psxanim_path: "../default/assets/animations/aletha_delivered/aletha_wake_up_take3.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: None,
@@ -1856,9 +1856,9 @@
             id: (28),
             name: "Sword1 Light Energy",
             data: Model((
-                model_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/models/sword1_light/sword1_light.psxmdl",
-                source_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/source_assets/props/sword1_light.glb"),
-                texture_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/models/weapon_energy/weapon_energy_noise_v1.psxt"),
+                model_path: "../default/assets/models/sword1_light/sword1_light.psxmdl",
+                source_path: Some("../default/source_assets/props/sword1_light.glb"),
+                texture_path: Some("../default/assets/models/weapon_energy/weapon_energy_noise_v1.psxt"),
                 skeleton: Some((24)),
                 world_height: 566,
                 collision_radius: 106,
@@ -1871,9 +1871,9 @@
             id: (29),
             name: "Sword1 Heavy Energy",
             data: Model((
-                model_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/models/sword1_heavy/sword1_heavy.psxmdl",
-                source_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/source_assets/props/sword1_heavy.glb"),
-                texture_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/models/weapon_energy/weapon_energy_noise_v1.psxt"),
+                model_path: "../default/assets/models/sword1_heavy/sword1_heavy.psxmdl",
+                source_path: Some("../default/source_assets/props/sword1_heavy.glb"),
+                texture_path: Some("../default/assets/models/weapon_energy/weapon_energy_noise_v1.psxt"),
                 skeleton: Some((24)),
                 world_height: 768,
                 collision_radius: 144,
@@ -1916,7 +1916,7 @@
             id: (32),
             name: "Light Enemy / Idle",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/light_stalk_v2/idle.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/light_stalk_v2/idle.psxanim",
                 skeleton: Some((22)),
                 source: None,
                 bake: Retargeted,
@@ -1931,7 +1931,7 @@
             name: "Light Enemy / Walk",
             data: AnimationClip((
                 preserve_samples: true,
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/light_walk_v5/walk.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/light_walk_v5/walk.psxanim",
                 skeleton: Some((22)),
                 source: None,
                 bake: Retargeted,
@@ -1946,7 +1946,7 @@
             name: "Light Enemy / Run",
             data: AnimationClip((
                 preserve_samples: true,
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/light_motion_v1/run.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/light_motion_v1/run.psxanim",
                 skeleton: Some((22)),
                 source: None,
                 bake: Retargeted,
@@ -1960,7 +1960,7 @@
             id: (36),
             name: "aletha_dash_fwd",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/aletha_delivered/aletha_dash_fwd.psxanim",
+                psxanim_path: "../default/assets/animations/aletha_delivered/aletha_dash_fwd.psxanim",
                 skeleton: Some((23)),
                 source: None,
                 bake: LegacyShared,
@@ -1973,7 +1973,7 @@
             id: (39),
             name: "aletha_death",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/aletha_delivered/aletha_death.psxanim",
+                psxanim_path: "../default/assets/animations/aletha_delivered/aletha_death.psxanim",
                 skeleton: Some((23)),
                 source: None,
                 bake: LegacyShared,
@@ -1986,7 +1986,7 @@
             id: (43),
             name: "aletha_hurt_a",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/aletha_delivered/aletha_hurt_a.psxanim",
+                psxanim_path: "../default/assets/animations/aletha_delivered/aletha_hurt_a.psxanim",
                 skeleton: Some((23)),
                 source: None,
                 bake: LegacyShared,
@@ -1999,7 +1999,7 @@
             id: (45),
             name: "aletha_idle",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/aletha_delivered/aletha_idle.psxanim",
+                psxanim_path: "../default/assets/animations/aletha_delivered/aletha_idle.psxanim",
                 skeleton: Some((23)),
                 source: None,
                 bake: LegacyShared,
@@ -2012,7 +2012,7 @@
             id: (49),
             name: "aletha_rest_pose",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/aletha_delivered/aletha_rest_pose.psxanim",
+                psxanim_path: "../default/assets/animations/aletha_delivered/aletha_rest_pose.psxanim",
                 skeleton: Some((23)),
                 source: None,
                 bake: LegacyShared,
@@ -2025,7 +2025,7 @@
             id: (50),
             name: "aletha_run_bwd",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/aletha_delivered/aletha_run_bwd.psxanim",
+                psxanim_path: "../default/assets/animations/aletha_delivered/aletha_run_bwd.psxanim",
                 skeleton: Some((23)),
                 source: None,
                 bake: LegacyShared,
@@ -2038,7 +2038,7 @@
             id: (51),
             name: "aletha_run_fwd",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/aletha_delivered/aletha_run_fwd.psxanim",
+                psxanim_path: "../default/assets/animations/aletha_delivered/aletha_run_fwd.psxanim",
                 skeleton: Some((23)),
                 source: None,
                 bake: LegacyShared,
@@ -2051,7 +2051,7 @@
             id: (52),
             name: "aletha_run_lft",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/aletha_delivered/aletha_run_lft.psxanim",
+                psxanim_path: "../default/assets/animations/aletha_delivered/aletha_run_lft.psxanim",
                 skeleton: Some((23)),
                 source: None,
                 bake: LegacyShared,
@@ -2064,7 +2064,7 @@
             id: (53),
             name: "aletha_run_rgt",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/aletha_delivered/aletha_run_rgt.psxanim",
+                psxanim_path: "../default/assets/animations/aletha_delivered/aletha_run_rgt.psxanim",
                 skeleton: Some((23)),
                 source: None,
                 bake: LegacyShared,
@@ -2078,7 +2078,7 @@
             name: "Aletha / Poise Break + Recovery",
             data: AnimationClip((
                 preserve_samples: true,
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/player_reactions_v3/poise.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/player_reactions_v3/poise.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: None,
@@ -2093,7 +2093,7 @@
             id: (55),
             name: "aletha_stun_recovery",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/aletha_delivered/aletha_stun_recovery.psxanim",
+                psxanim_path: "../default/assets/animations/aletha_delivered/aletha_stun_recovery.psxanim",
                 skeleton: Some((23)),
                 source: None,
                 bake: LegacyShared,
@@ -2106,7 +2106,7 @@
             id: (56),
             name: "aletha_walk_bkw",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/aletha_delivered/aletha_walk_bkw.psxanim",
+                psxanim_path: "../default/assets/animations/aletha_delivered/aletha_walk_bkw.psxanim",
                 skeleton: Some((23)),
                 source: None,
                 bake: LegacyShared,
@@ -2119,7 +2119,7 @@
             id: (57),
             name: "aletha_walk_fwd",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/aletha_delivered/aletha_walk_fwd.psxanim",
+                psxanim_path: "../default/assets/animations/aletha_delivered/aletha_walk_fwd.psxanim",
                 skeleton: Some((23)),
                 source: None,
                 bake: LegacyShared,
@@ -2132,7 +2132,7 @@
             id: (58),
             name: "aletha_walk_lft",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/aletha_delivered/aletha_walk_lft.psxanim",
+                psxanim_path: "../default/assets/animations/aletha_delivered/aletha_walk_lft.psxanim",
                 skeleton: Some((23)),
                 source: None,
                 bake: LegacyShared,
@@ -2145,7 +2145,7 @@
             id: (59),
             name: "aletha_walk_rgt",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/aletha_delivered/aletha_walk_rgt.psxanim",
+                psxanim_path: "../default/assets/animations/aletha_delivered/aletha_walk_rgt.psxanim",
                 skeleton: Some((23)),
                 source: None,
                 bake: LegacyShared,
@@ -2247,7 +2247,7 @@
             name: "Light Enemy / Turn In Place",
             data: AnimationClip((
                 preserve_samples: true,
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/light_motion_v1/turn.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/light_motion_v1/turn.psxanim",
                 skeleton: Some((22)),
                 source: None,
                 bake: Retargeted,
@@ -2262,7 +2262,7 @@
             name: "Light Enemy / Alert",
             data: AnimationClip((
                 preserve_samples: true,
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/light_motion_v1/alert.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/light_motion_v1/alert.psxanim",
                 skeleton: Some((22)),
                 source: None,
                 bake: Retargeted,
@@ -2277,7 +2277,7 @@
             name: "MENU_MAIN_PIECE_FULL",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/menu_main_piece_full.psxt"),
+                psxt_path: Some("../default/assets/textures/menu_main_piece_full.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 64, base_color: (72, 84, 96), noise_enabled: true, noise_color: (188, 208, 224), noise: (seed: 1, feature_size: 24, octaves: 3, contrast: 176), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -2294,7 +2294,7 @@
             name: "MENU_FRAME_OVERLAY_FULL",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/menu_frame_overlay_full.psxt"),
+                psxt_path: Some("../default/assets/textures/menu_frame_overlay_full.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 64, base_color: (72, 84, 96), noise_enabled: true, noise_color: (188, 208, 224), noise: (seed: 1, feature_size: 24, octaves: 3, contrast: 176), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -2311,7 +2311,7 @@
             name: "MENU_GRID_FLOOR_FULL",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/menu_grid_floor_full.psxt"),
+                psxt_path: Some("../default/assets/textures/menu_grid_floor_full.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 64, base_color: (72, 84, 96), noise_enabled: true, noise_color: (188, 208, 224), noise: (seed: 1, feature_size: 24, octaves: 3, contrast: 176), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -2328,7 +2328,7 @@
             name: "Light Enemy / Strafe Left",
             data: AnimationClip((
                 preserve_samples: true,
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/light_directional_v1/strafe_left.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/light_directional_v1/strafe_left.psxanim",
                 skeleton: Some((22)),
                 source: None,
                 bake: Retargeted,
@@ -2343,7 +2343,7 @@
             name: "Light Enemy / Strafe Right",
             data: AnimationClip((
                 preserve_samples: true,
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/light_directional_v1/strafe_right.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/light_directional_v1/strafe_right.psxanim",
                 skeleton: Some((22)),
                 source: None,
                 bake: Retargeted,
@@ -2357,7 +2357,7 @@
             id: (73),
             name: "gen_walk_fwd",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/gen/walk_fwd.psxanim",
+                psxanim_path: "../default/assets/animations/gen/walk_fwd.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: Some((202)),
@@ -2373,7 +2373,7 @@
             name: "gen_walk_fwd_windup",
             data: AnimationClip((
                 preserve_samples: true,
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/gen/walk_fwd_windup.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/gen/walk_fwd_windup.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: Some((212)),
@@ -2389,7 +2389,7 @@
             name: "gen_walk_fwd_winddown",
             data: AnimationClip((
                 preserve_samples: true,
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/gen/walk_fwd_winddown.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/gen/walk_fwd_winddown.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: Some((213)),
@@ -2405,7 +2405,7 @@
             name: "gen_walk_fwd_winddown_mirror",
             data: AnimationClip((
                 preserve_samples: true,
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/gen/walk_fwd_winddown_mirror.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/gen/walk_fwd_winddown_mirror.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: Some((214)),
@@ -2420,7 +2420,7 @@
             id: (77),
             name: "gen_run_fwd",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/gen/run_fwd.psxanim",
+                psxanim_path: "../default/assets/animations/gen/run_fwd.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: None,
@@ -2434,7 +2434,7 @@
             id: (78),
             name: "gen_run_fwd_winddown_mirror",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/gen/run_fwd_winddown_mirror.psxanim",
+                psxanim_path: "../default/assets/animations/gen/run_fwd_winddown_mirror.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: None,
@@ -2448,7 +2448,7 @@
             id: (79),
             name: "gen_run_fwd_windup",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/gen/run_fwd_windup.psxanim",
+                psxanim_path: "../default/assets/animations/gen/run_fwd_windup.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: None,
@@ -2462,7 +2462,7 @@
             id: (80),
             name: "gen_run_fwd_winddown",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/gen/run_fwd_winddown.psxanim",
+                psxanim_path: "../default/assets/animations/gen/run_fwd_winddown.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: None,
@@ -2476,7 +2476,7 @@
             id: (81),
             name: "gen_walk_bwd",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/gen/walk_bwd.psxanim",
+                psxanim_path: "../default/assets/animations/gen/walk_bwd.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: Some((209)),
@@ -2491,7 +2491,7 @@
             id: (82),
             name: "gen_walk_lft",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/gen/walk_lft.psxanim",
+                psxanim_path: "../default/assets/animations/gen/walk_lft.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: Some((210)),
@@ -2506,7 +2506,7 @@
             id: (83),
             name: "gen_walk_rgt",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/gen/walk_rgt.psxanim",
+                psxanim_path: "../default/assets/animations/gen/walk_rgt.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: Some((211)),
@@ -2521,7 +2521,7 @@
             id: (84),
             name: "gen_light_attack",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/gen/light_attack.psxanim",
+                psxanim_path: "../default/assets/animations/gen/light_attack.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: Some((203)),
@@ -2536,7 +2536,7 @@
             id: (85),
             name: "gen_heavy_attack",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/gen/heavy_attack.psxanim",
+                psxanim_path: "../default/assets/animations/gen/heavy_attack.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: Some((208)),
@@ -2552,7 +2552,7 @@
             name: "Aletha / Hit Reaction",
             data: AnimationClip((
                 preserve_samples: true,
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/player_reactions_v3/hit.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/player_reactions_v3/hit.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: None,
@@ -2567,7 +2567,7 @@
             id: (88),
             name: "gen_vert_light_attack",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/gen/vert_light_attack.psxanim",
+                psxanim_path: "../default/assets/animations/gen/vert_light_attack.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: None,
@@ -2581,7 +2581,7 @@
             id: (89),
             name: "gen_vert_heavy_attack",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/gen/vert_heavy_attack.psxanim",
+                psxanim_path: "../default/assets/animations/gen/vert_heavy_attack.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: None,
@@ -2596,7 +2596,7 @@
             name: "Light Enemy / Death",
             data: AnimationClip((
                 preserve_samples: true,
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/light_death_v2/death.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/light_death_v2/death.psxanim",
                 skeleton: Some((22)),
                 source: None,
                 bake: Retargeted,
@@ -2611,7 +2611,7 @@
             name: "Light Enemy / Hit React",
             data: AnimationClip((
                 preserve_samples: true,
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/light_hit_v1/hit.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/light_hit_v1/hit.psxanim",
                 skeleton: Some((22)),
                 source: None,
                 bake: Retargeted,
@@ -2625,7 +2625,7 @@
             id: (93),
             name: "Light Enemy / Zenith Light",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/mantis_combat/zenith_light.psxanim",
+                psxanim_path: "../default/assets/animations/mantis_combat/zenith_light.psxanim",
                 skeleton: Some((22)),
                 source: Some((94)),
                 bake: Retargeted,
@@ -2638,7 +2638,7 @@
             id: (94),
             name: "Light Enemy / Zenith Light Source",
             data: AnimationSource((
-                source_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/source_assets/animations/light_enemy/zenith_light.glb",
+                source_path: "../default/source_assets/animations/light_enemy/zenith_light.glb",
                 clip_name: "Zenith Light",
                 provider: Mixamo,
                 skeleton: Some((22)),
@@ -2718,9 +2718,9 @@
             id: (97),
             name: "Heavy Enemy Model",
             data: Model((
-                model_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/models/enemy_reduced/heavy.psxmdl",
+                model_path: "../graybox-reach/assets/models/enemy_reduced/heavy.psxmdl",
                 source_path: None,
-                texture_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/models/shared_enemy_01/shared_enemy_01.psxt"),
+                texture_path: Some("../default/assets/models/shared_enemy_01/shared_enemy_01.psxt"),
                 skeleton: Some((96)),
                 world_height: 1536,
                 collision_radius: 288,
@@ -2733,7 +2733,7 @@
             id: (98),
             name: "Heavy Enemy / Idle",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/tank_boss_ai/idle.psxanim",
+                psxanim_path: "../default/assets/animations/tank_boss_ai/idle.psxanim",
                 skeleton: Some((96)),
                 target_model: Some((97)),
                 source: None,
@@ -2747,7 +2747,7 @@
             id: (99),
             name: "Heavy Enemy / Walk Forward",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/tank_boss_ai/walk_fwd.psxanim",
+                psxanim_path: "../default/assets/animations/tank_boss_ai/walk_fwd.psxanim",
                 skeleton: Some((96)),
                 target_model: Some((97)),
                 source: None,
@@ -2776,7 +2776,7 @@
             id: (101),
             name: "Heavy Enemy / Walk Backward",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/tank_boss_ai/walk_bwd.psxanim",
+                psxanim_path: "../default/assets/animations/tank_boss_ai/walk_bwd.psxanim",
                 skeleton: Some((96)),
                 target_model: Some((97)),
                 source: None,
@@ -2790,7 +2790,7 @@
             id: (102),
             name: "Heavy Enemy / Strafe Left",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/tank_boss_ai/walk_lft.psxanim",
+                psxanim_path: "../default/assets/animations/tank_boss_ai/walk_lft.psxanim",
                 skeleton: Some((96)),
                 target_model: Some((97)),
                 source: None,
@@ -2804,7 +2804,7 @@
             id: (103),
             name: "Heavy Enemy / Strafe Right",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/tank_boss_ai/walk_rgt.psxanim",
+                psxanim_path: "../default/assets/animations/tank_boss_ai/walk_rgt.psxanim",
                 skeleton: Some((96)),
                 target_model: Some((97)),
                 source: None,
@@ -2819,7 +2819,7 @@
             name: "Light Enemy / Walk Backward",
             data: AnimationClip((
                 preserve_samples: true,
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/light_directional_v1/walk_backward.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/light_directional_v1/walk_backward.psxanim",
                 skeleton: Some((22)),
                 source: None,
                 bake: Retargeted,
@@ -2833,7 +2833,7 @@
             id: (105),
             name: "Heavy Enemy / Death",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/tank_boss_ai/death.psxanim",
+                psxanim_path: "../default/assets/animations/tank_boss_ai/death.psxanim",
                 skeleton: Some((96)),
                 target_model: Some((97)),
                 source: None,
@@ -2847,7 +2847,7 @@
             id: (106),
             name: "Heavy Enemy / Hit React",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/tank_boss_ai/hit_react.psxanim",
+                psxanim_path: "../default/assets/animations/tank_boss_ai/hit_react.psxanim",
                 skeleton: Some((96)),
                 target_model: Some((97)),
                 source: None,
@@ -2861,7 +2861,7 @@
             id: (107),
             name: "Heavy Enemy / Heavy Attack",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/tank_boss_ai/heavy_attack.psxanim",
+                psxanim_path: "../default/assets/animations/tank_boss_ai/heavy_attack.psxanim",
                 skeleton: Some((96)),
                 target_model: Some((97)),
                 source: None,
@@ -2876,7 +2876,7 @@
             name: "Light Enemy / Stun + Recovery",
             data: AnimationClip((
                 preserve_samples: true,
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/light_reaction_v1/stun.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/light_reaction_v1/stun.psxanim",
                 skeleton: Some((22)),
                 source: None,
                 bake: Retargeted,
@@ -2890,7 +2890,7 @@
             id: (109),
             name: "Heavy Enemy / Stun + Recovery",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/tank_boss_ai/stun_recovery.psxanim",
+                psxanim_path: "../default/assets/animations/tank_boss_ai/stun_recovery.psxanim",
                 skeleton: Some((96)),
                 target_model: Some((97)),
                 source: None,
@@ -2924,9 +2924,9 @@
             id: (111),
             name: "Light Enemy / Clawless Body",
             data: Model((
-                model_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/models/light_body_v1/light_clawless.psxmdl",
+                model_path: "../graybox-reach/assets/models/light_body_v1/light_clawless.psxmdl",
                 source_path: None,
-                texture_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/models/shared_enemy_01/shared_enemy_01.psxt"),
+                texture_path: Some("../default/assets/models/shared_enemy_01/shared_enemy_01.psxt"),
                 skeleton: Some((22)),
                 world_height: 1024,
                 collision_radius: 192,
@@ -2995,9 +2995,9 @@
             id: (133),
             name: "Sword1 Light",
             data: Model((
-                model_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/models/sword1_light/sword1_light.psxmdl",
-                source_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/source_assets/props/sword1_light.glb"),
-                texture_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/models/shared_enemy_01/shared_enemy_01.psxt"),
+                model_path: "../default/assets/models/sword1_light/sword1_light.psxmdl",
+                source_path: Some("../default/source_assets/props/sword1_light.glb"),
+                texture_path: Some("../default/assets/models/shared_enemy_01/shared_enemy_01.psxt"),
                 skeleton: Some((24)),
                 world_height: 566,
                 collision_radius: 106,
@@ -3010,9 +3010,9 @@
             id: (134),
             name: "Sword1 Heavy",
             data: Model((
-                model_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/models/sword1_heavy/sword1_heavy.psxmdl",
-                source_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/source_assets/props/sword1_heavy.glb"),
-                texture_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/models/shared_enemy_01/shared_enemy_01.psxt"),
+                model_path: "../default/assets/models/sword1_heavy/sword1_heavy.psxmdl",
+                source_path: Some("../default/source_assets/props/sword1_heavy.glb"),
+                texture_path: Some("../default/assets/models/shared_enemy_01/shared_enemy_01.psxt"),
                 skeleton: Some((24)),
                 world_height: 768,
                 collision_radius: 144,
@@ -3055,7 +3055,7 @@
             id: (137),
             name: "Heavy Enemy / Light Attack",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/tank_boss_ai/light_attack.psxanim",
+                psxanim_path: "../default/assets/animations/tank_boss_ai/light_attack.psxanim",
                 skeleton: Some((96)),
                 target_model: Some((97)),
                 source: None,
@@ -3069,7 +3069,7 @@
             id: (138),
             name: "Heavy Enemy / Ranged Attack",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/tank_boss_ai/ranged_attack.psxanim",
+                psxanim_path: "../default/assets/animations/tank_boss_ai/ranged_attack.psxanim",
                 skeleton: Some((96)),
                 target_model: Some((97)),
                 source: None,
@@ -3084,7 +3084,7 @@
             name: "Light Enemy / Heavy Overhead Claw",
             data: AnimationClip((
                 preserve_samples: true,
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/light_heavy_v1/heavy.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/light_heavy_v1/heavy.psxanim",
                 skeleton: Some((22)),
                 source: None,
                 bake: Retargeted,
@@ -3098,7 +3098,7 @@
             id: (140),
             name: "Light Enemy / Horizon Light Source",
             data: AnimationSource((
-                source_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/source_assets/animations/light_enemy/horizon_light.glb",
+                source_path: "../default/source_assets/animations/light_enemy/horizon_light.glb",
                 clip_name: "Horizon Light",
                 provider: Mixamo,
                 skeleton: Some((22)),
@@ -3113,7 +3113,7 @@
             name: "Light Enemy / Horizon Light (Single Strike)",
             data: AnimationClip((
                 preserve_samples: true,
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/light_attack_v2/strike.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/light_attack_v2/strike.psxanim",
                 skeleton: Some((22)),
                 source: None,
                 bake: Retargeted,
@@ -3127,7 +3127,7 @@
             id: (142),
             name: "Light Enemy / Horizon Heavy Source",
             data: AnimationSource((
-                source_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/source_assets/animations/light_enemy/horizon_heavy.glb",
+                source_path: "../default/source_assets/animations/light_enemy/horizon_heavy.glb",
                 clip_name: "Horizon Heavy",
                 provider: Mixamo,
                 skeleton: Some((22)),
@@ -3142,7 +3142,7 @@
             name: "Graybox / Ground 64",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/textures/picotron-grid-64.psxt"),
+                psxt_path: Some("../graybox-reach/assets/textures/picotron-grid-64.psxt"),
                 blend_mode: Opaque,
                 tint: (100, 112, 128),
                 generated: (size: 64, base_color: (72, 84, 96), noise_enabled: true, noise_color: (188, 208, 224), noise: (seed: 1, feature_size: 24, octaves: 3, contrast: 176), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3159,7 +3159,7 @@
             name: "Graybox / Original 64",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/textures/picotron-grid-64.psxt"),
+                psxt_path: Some("../graybox-reach/assets/textures/picotron-grid-64.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 64, base_color: (72, 84, 96), noise_enabled: true, noise_color: (188, 208, 224), noise: (seed: 1, feature_size: 24, octaves: 3, contrast: 176), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3176,7 +3176,7 @@
             name: "Graybox / Cliff 64",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/textures/picotron-grid-64.psxt"),
+                psxt_path: Some("../graybox-reach/assets/textures/picotron-grid-64.psxt"),
                 blend_mode: Opaque,
                 tint: (80, 92, 112),
                 generated: (size: 64, base_color: (72, 84, 96), noise_enabled: true, noise_color: (188, 208, 224), noise: (seed: 1, feature_size: 24, octaves: 3, contrast: 176), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3193,7 +3193,7 @@
             name: "DP City / Dense Teal Light Bay",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/dp_city_kit/dp_city_teal_light_bay.psxt"),
+                psxt_path: Some("../default/assets/textures/dp_city_kit/dp_city_teal_light_bay.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 64, base_color: (72, 84, 96), noise_enabled: true, noise_color: (188, 208, 224), noise: (seed: 1, feature_size: 24, octaves: 3, contrast: 176), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3210,7 +3210,7 @@
             name: "DP City / Bright Green Signal",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/dp_city_kit/dp_city_signal_green.psxt"),
+                psxt_path: Some("../default/assets/textures/dp_city_kit/dp_city_signal_green.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 64, base_color: (72, 84, 96), noise_enabled: true, noise_color: (188, 208, 224), noise: (seed: 1, feature_size: 24, octaves: 3, contrast: 176), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3227,7 +3227,7 @@
             name: "DP City / Bright Blue Signal",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/dp_city_kit/dp_city_signal_blue.psxt"),
+                psxt_path: Some("../default/assets/textures/dp_city_kit/dp_city_signal_blue.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 64, base_color: (72, 84, 96), noise_enabled: true, noise_color: (188, 208, 224), noise: (seed: 1, feature_size: 24, octaves: 3, contrast: 176), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3244,7 +3244,7 @@
             name: "DP City / Cable Run (Average)",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/dp_city_kit/dp_city_cable_run.psxt"),
+                psxt_path: Some("../default/assets/textures/dp_city_kit/dp_city_cable_run.psxt"),
                 blend_mode: Average,
                 tint: (128, 128, 128),
                 generated: (size: 64, base_color: (72, 84, 96), noise_enabled: true, noise_color: (188, 208, 224), noise: (seed: 1, feature_size: 24, octaves: 3, contrast: 176), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3261,7 +3261,7 @@
             name: "DP City / Hanging Lattice (Average)",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/dp_city_kit/dp_city_hanging_lattice.psxt"),
+                psxt_path: Some("../default/assets/textures/dp_city_kit/dp_city_hanging_lattice.psxt"),
                 blend_mode: Average,
                 tint: (128, 128, 128),
                 generated: (size: 64, base_color: (72, 84, 96), noise_enabled: true, noise_color: (188, 208, 224), noise: (seed: 1, feature_size: 24, octaves: 3, contrast: 176), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3278,7 +3278,7 @@
             name: "DP City / Ceiling Underside",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/dp_city_kit/dp_city_ceiling_underside.psxt"),
+                psxt_path: Some("../default/assets/textures/dp_city_kit/dp_city_ceiling_underside.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 64, base_color: (72, 84, 96), noise_enabled: true, noise_color: (188, 208, 224), noise: (seed: 1, feature_size: 24, octaves: 3, contrast: 176), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3295,7 +3295,7 @@
             name: "DP City / Structural Beam",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/dp_city_kit/dp_city_structural_beam.psxt"),
+                psxt_path: Some("../default/assets/textures/dp_city_kit/dp_city_structural_beam.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 64, base_color: (72, 84, 96), noise_enabled: true, noise_color: (188, 208, 224), noise: (seed: 1, feature_size: 24, octaves: 3, contrast: 176), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3312,7 +3312,7 @@
             name: "DP City / Guardrail (Cutout)",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/dp_city_kit/dp_city_guardrail.psxt"),
+                psxt_path: Some("../default/assets/textures/dp_city_kit/dp_city_guardrail.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 64, base_color: (72, 84, 96), noise_enabled: true, noise_color: (188, 208, 224), noise: (seed: 1, feature_size: 24, octaves: 3, contrast: 176), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3363,7 +3363,7 @@
             name: "UI Prompt: Cross (Monochrome)",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/ui/prompts/kenney_ps_cross_16.psxt"),
+                psxt_path: Some("../default/assets/textures/ui/prompts/kenney_ps_cross_16.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 16, base_color: (128, 128, 128), noise_enabled: false, noise_color: (128, 128, 128), noise: (seed: 1, feature_size: 8, octaves: 1, contrast: 128), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3380,7 +3380,7 @@
             name: "UI Prompt: Square (Monochrome)",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/ui/prompts/kenney_ps_square_16.psxt"),
+                psxt_path: Some("../default/assets/textures/ui/prompts/kenney_ps_square_16.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 16, base_color: (128, 128, 128), noise_enabled: false, noise_color: (128, 128, 128), noise: (seed: 1, feature_size: 8, octaves: 1, contrast: 128), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3397,7 +3397,7 @@
             name: "UI Prompt: Circle (Monochrome)",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/ui/prompts/kenney_ps_circle_16.psxt"),
+                psxt_path: Some("../default/assets/textures/ui/prompts/kenney_ps_circle_16.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 16, base_color: (128, 128, 128), noise_enabled: false, noise_color: (128, 128, 128), noise: (seed: 1, feature_size: 8, octaves: 1, contrast: 128), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3414,7 +3414,7 @@
             name: "UI Prompt: Triangle (Monochrome)",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/ui/prompts/kenney_ps_triangle_16.psxt"),
+                psxt_path: Some("../default/assets/textures/ui/prompts/kenney_ps_triangle_16.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 16, base_color: (128, 128, 128), noise_enabled: false, noise_color: (128, 128, 128), noise: (seed: 1, feature_size: 8, octaves: 1, contrast: 128), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3431,7 +3431,7 @@
             name: "UI Prompt: L1 (Monochrome)",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/ui/prompts/kenney_ps_l1_16.psxt"),
+                psxt_path: Some("../default/assets/textures/ui/prompts/kenney_ps_l1_16.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 16, base_color: (128, 128, 128), noise_enabled: false, noise_color: (128, 128, 128), noise: (seed: 1, feature_size: 8, octaves: 1, contrast: 128), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3448,7 +3448,7 @@
             name: "UI Prompt: L2 (Monochrome)",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/ui/prompts/kenney_ps_l2_16.psxt"),
+                psxt_path: Some("../default/assets/textures/ui/prompts/kenney_ps_l2_16.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 16, base_color: (128, 128, 128), noise_enabled: false, noise_color: (128, 128, 128), noise: (seed: 1, feature_size: 8, octaves: 1, contrast: 128), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3465,7 +3465,7 @@
             name: "UI Prompt: R1 (Monochrome)",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/ui/prompts/kenney_ps_r1_16.psxt"),
+                psxt_path: Some("../default/assets/textures/ui/prompts/kenney_ps_r1_16.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 16, base_color: (128, 128, 128), noise_enabled: false, noise_color: (128, 128, 128), noise: (seed: 1, feature_size: 8, octaves: 1, contrast: 128), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3482,7 +3482,7 @@
             name: "UI Prompt: R2 (Monochrome)",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/ui/prompts/kenney_ps_r2_16.psxt"),
+                psxt_path: Some("../default/assets/textures/ui/prompts/kenney_ps_r2_16.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 16, base_color: (128, 128, 128), noise_enabled: false, noise_color: (128, 128, 128), noise: (seed: 1, feature_size: 8, octaves: 1, contrast: 128), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3499,7 +3499,7 @@
             name: "UI Prompt: L3 (Monochrome)",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/ui/prompts/kenney_ps_l3_16.psxt"),
+                psxt_path: Some("../default/assets/textures/ui/prompts/kenney_ps_l3_16.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 16, base_color: (128, 128, 128), noise_enabled: false, noise_color: (128, 128, 128), noise: (seed: 1, feature_size: 8, octaves: 1, contrast: 128), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3516,7 +3516,7 @@
             name: "UI Prompt: R3 (Monochrome)",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/ui/prompts/kenney_ps_r3_16.psxt"),
+                psxt_path: Some("../default/assets/textures/ui/prompts/kenney_ps_r3_16.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 16, base_color: (128, 128, 128), noise_enabled: false, noise_color: (128, 128, 128), noise: (seed: 1, feature_size: 8, octaves: 1, contrast: 128), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3533,7 +3533,7 @@
             name: "UI Prompt: Start (Monochrome)",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/ui/prompts/kenney_ps_start_40x16.psxt"),
+                psxt_path: Some("../default/assets/textures/ui/prompts/kenney_ps_start_40x16.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 16, base_color: (128, 128, 128), noise_enabled: false, noise_color: (128, 128, 128), noise: (seed: 1, feature_size: 8, octaves: 1, contrast: 128), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3550,7 +3550,7 @@
             name: "UI Prompt: Select (Monochrome)",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/ui/prompts/kenney_ps_select_44x16.psxt"),
+                psxt_path: Some("../default/assets/textures/ui/prompts/kenney_ps_select_44x16.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 16, base_color: (128, 128, 128), noise_enabled: false, noise_color: (128, 128, 128), noise: (seed: 1, feature_size: 8, octaves: 1, contrast: 128), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3567,7 +3567,7 @@
             name: "UI Prompt: D-Pad (Monochrome)",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/ui/prompts/kenney_ps_dpad_16.psxt"),
+                psxt_path: Some("../default/assets/textures/ui/prompts/kenney_ps_dpad_16.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 16, base_color: (128, 128, 128), noise_enabled: false, noise_color: (128, 128, 128), noise: (seed: 1, feature_size: 8, octaves: 1, contrast: 128), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3584,7 +3584,7 @@
             name: "UI Prompt: D-Pad Up (Monochrome)",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/ui/prompts/kenney_ps_dpad_up_16.psxt"),
+                psxt_path: Some("../default/assets/textures/ui/prompts/kenney_ps_dpad_up_16.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 16, base_color: (128, 128, 128), noise_enabled: false, noise_color: (128, 128, 128), noise: (seed: 1, feature_size: 8, octaves: 1, contrast: 128), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3601,7 +3601,7 @@
             name: "UI Prompt: D-Pad Right (Monochrome)",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/ui/prompts/kenney_ps_dpad_right_16.psxt"),
+                psxt_path: Some("../default/assets/textures/ui/prompts/kenney_ps_dpad_right_16.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 16, base_color: (128, 128, 128), noise_enabled: false, noise_color: (128, 128, 128), noise: (seed: 1, feature_size: 8, octaves: 1, contrast: 128), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3618,7 +3618,7 @@
             name: "UI Prompt: D-Pad Down (Monochrome)",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/ui/prompts/kenney_ps_dpad_down_16.psxt"),
+                psxt_path: Some("../default/assets/textures/ui/prompts/kenney_ps_dpad_down_16.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 16, base_color: (128, 128, 128), noise_enabled: false, noise_color: (128, 128, 128), noise: (seed: 1, feature_size: 8, octaves: 1, contrast: 128), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3635,7 +3635,7 @@
             name: "UI Prompt: D-Pad Left (Monochrome)",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/ui/prompts/kenney_ps_dpad_left_16.psxt"),
+                psxt_path: Some("../default/assets/textures/ui/prompts/kenney_ps_dpad_left_16.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 16, base_color: (128, 128, 128), noise_enabled: false, noise_color: (128, 128, 128), noise: (seed: 1, feature_size: 8, octaves: 1, contrast: 128), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3652,7 +3652,7 @@
             name: "UI Prompt: D-Pad Press (Monochrome)",
             data: Material((
                 texture_mode: SimpleImage,
-                psxt_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/textures/ui/prompts/kenney_ps_dpad_press_16.psxt"),
+                psxt_path: Some("../default/assets/textures/ui/prompts/kenney_ps_dpad_press_16.psxt"),
                 blend_mode: Opaque,
                 tint: (128, 128, 128),
                 generated: (size: 16, base_color: (128, 128, 128), noise_enabled: false, noise_color: (128, 128, 128), noise: (seed: 1, feature_size: 8, octaves: 1, contrast: 128), noise_uv: (scale_u_q8: 256, scale_v_q8: 256, offset_u: 0, offset_v: 0, rotation_quarters: 0)),
@@ -3668,7 +3668,7 @@
             id: (192),
             name: "Light Enemy / Charged Shot",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/mantis_combat/charge_volley.psxanim",
+                psxanim_path: "../default/assets/animations/mantis_combat/charge_volley.psxanim",
                 skeleton: Some((22)),
                 target_model: Some((26)),
                 source: Some((193)),
@@ -3682,7 +3682,7 @@
             id: (193),
             name: "Light Enemy / Charged Shot Source",
             data: AnimationSource((
-                source_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/source_assets/animations/light_enemy/charge_volley.glb",
+                source_path: "../default/source_assets/animations/light_enemy/charge_volley.glb",
                 clip_name: "Mantis Charged Shot",
                 provider: Other,
                 skeleton: Some((22)),
@@ -3696,7 +3696,7 @@
             id: (194),
             name: "Heavy Enemy / Alert",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/tank_boss_ai/alert.psxanim",
+                psxanim_path: "../default/assets/animations/tank_boss_ai/alert.psxanim",
                 skeleton: Some((96)),
                 target_model: Some((97)),
                 source: Some((196)),
@@ -3710,7 +3710,7 @@
             id: (196),
             name: "Heavy Enemy / Alert Source",
             data: AnimationSource((
-                source_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/source_assets/animations/heavy_enemy/alert.glb",
+                source_path: "../default/source_assets/animations/heavy_enemy/alert.glb",
                 clip_name: "Heavy Alert",
                 provider: Other,
                 skeleton: Some((96)),
@@ -3724,7 +3724,7 @@
             id: (195),
             name: "Heavy Enemy / Turn",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/tank_boss_ai/turn.psxanim",
+                psxanim_path: "../default/assets/animations/tank_boss_ai/turn.psxanim",
                 skeleton: Some((96)),
                 target_model: Some((97)),
                 source: Some((197)),
@@ -3738,7 +3738,7 @@
             id: (197),
             name: "Heavy Enemy / Turn Source",
             data: AnimationSource((
-                source_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/source_assets/animations/heavy_enemy/turn.glb",
+                source_path: "../default/source_assets/animations/heavy_enemy/turn.glb",
                 clip_name: "Heavy Turn",
                 provider: Other,
                 skeleton: Some((96)),
@@ -3808,7 +3808,7 @@
             id: (202),
             name: "Aletha / Cybernetic Walk Source",
             data: AnimationSource((
-                source_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/source_assets/animations/player/cybernetic_walk/walk_fwd.glb",
+                source_path: "../default/source_assets/animations/player/cybernetic_walk/walk_fwd.glb",
                 clip_name: "aletha_cybernetic_walk_v7",
                 provider: Other,
                 skeleton: Some((23)),
@@ -3822,7 +3822,7 @@
             id: (203),
             name: "Aletha / Cybernetic Light Attack Source",
             data: AnimationSource((
-                source_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/source_assets/animations/player/cybernetic_light_combo_review_v12/light_attack.glb",
+                source_path: "../default/source_assets/animations/player/cybernetic_light_combo_review_v12/light_attack.glb",
                 clip_name: "Animation",
                 provider: Other,
                 skeleton: Some((23)),
@@ -3836,7 +3836,7 @@
             id: (204),
             name: "gen_light_attack_followup",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/gen/light_attack_followup.psxanim",
+                psxanim_path: "../default/assets/animations/gen/light_attack_followup.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: Some((206)),
@@ -3851,7 +3851,7 @@
             id: (205),
             name: "gen_light_attack_finisher",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/assets/animations/gen/light_attack_finisher.psxanim",
+                psxanim_path: "../default/assets/animations/gen/light_attack_finisher.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: Some((207)),
@@ -3866,7 +3866,7 @@
             id: (206),
             name: "Aletha / light_attack_followup source v12",
             data: AnimationSource((
-                source_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/source_assets/animations/player/cybernetic_light_combo_review_v12/light_attack_followup.glb",
+                source_path: "../default/source_assets/animations/player/cybernetic_light_combo_review_v12/light_attack_followup.glb",
                 clip_name: "Animation",
                 provider: Other,
                 skeleton: Some((23)),
@@ -3880,7 +3880,7 @@
             id: (207),
             name: "Aletha / light_attack_finisher source v3",
             data: AnimationSource((
-                source_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/source_assets/animations/player/cybernetic_light_combo/light_attack_finisher.glb",
+                source_path: "../default/source_assets/animations/player/cybernetic_light_combo/light_attack_finisher.glb",
                 clip_name: "aletha_light_attack_finisher_v3",
                 provider: Other,
                 skeleton: Some((23)),
@@ -3894,7 +3894,7 @@
             id: (208),
             name: "Aletha / Cybernetic Heavy Attack Source v2",
             data: AnimationSource((
-                source_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/source_assets/animations/player/cybernetic_heavy_attack_review_v2/heavy_attack.glb",
+                source_path: "../default/source_assets/animations/player/cybernetic_heavy_attack_review_v2/heavy_attack.glb",
                 clip_name: "Animation",
                 provider: Other,
                 skeleton: Some((23)),
@@ -3908,7 +3908,7 @@
             id: (209),
             name: "Aletha / Cybernetic Backward Walk Source v3",
             data: AnimationSource((
-                source_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/source_assets/animations/player/cybernetic_back_walk_review_v3/walk_bwd.glb",
+                source_path: "../default/source_assets/animations/player/cybernetic_back_walk_review_v3/walk_bwd.glb",
                 clip_name: "Animation",
                 provider: Other,
                 skeleton: Some((23)),
@@ -3922,7 +3922,7 @@
             id: (210),
             name: "Aletha / Cybernetic Left Strafe Source v2",
             data: AnimationSource((
-                source_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/source_assets/animations/player/cybernetic_strafe_review_v2/walk_lft.glb",
+                source_path: "../default/source_assets/animations/player/cybernetic_strafe_review_v2/walk_lft.glb",
                 clip_name: "Animation",
                 provider: Other,
                 skeleton: Some((23)),
@@ -3936,7 +3936,7 @@
             id: (211),
             name: "Aletha / Cybernetic Right Strafe Source v2",
             data: AnimationSource((
-                source_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/default/source_assets/animations/player/cybernetic_strafe_review_v2/walk_rgt.glb",
+                source_path: "../default/source_assets/animations/player/cybernetic_strafe_review_v2/walk_rgt.glb",
                 clip_name: "Animation",
                 provider: Other,
                 skeleton: Some((23)),
@@ -3992,7 +3992,7 @@
             id: (215),
             name: "Aletha / Zenith aim",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/zenith_ranged_v1/aim.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/zenith_ranged_v1/aim.psxanim",
                 skeleton: Some((23)),
                 source: None,
                 bake: ModelNative,
@@ -4006,7 +4006,7 @@
             id: (216),
             name: "Aletha / Zenith walk",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/zenith_ranged_v1/walk.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/zenith_ranged_v1/walk.psxanim",
                 skeleton: Some((23)),
                 source: None,
                 bake: ModelNative,
@@ -4020,7 +4020,7 @@
             id: (217),
             name: "Aletha / Zenith backward",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/zenith_ranged_v1/backward.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/zenith_ranged_v1/backward.psxanim",
                 skeleton: Some((23)),
                 source: None,
                 bake: ModelNative,
@@ -4034,7 +4034,7 @@
             id: (218),
             name: "Aletha / Zenith left",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/zenith_ranged_v1/left.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/zenith_ranged_v1/left.psxanim",
                 skeleton: Some((23)),
                 source: None,
                 bake: ModelNative,
@@ -4048,7 +4048,7 @@
             id: (219),
             name: "Aletha / Zenith right",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/zenith_ranged_v1/right.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/zenith_ranged_v1/right.psxanim",
                 skeleton: Some((23)),
                 source: None,
                 bake: ModelNative,
@@ -4062,7 +4062,7 @@
             id: (220),
             name: "Aletha / Zenith fire",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/zenith_ranged_v1/fire.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/zenith_ranged_v1/fire.psxanim",
                 skeleton: Some((23)),
                 source: None,
                 bake: ModelNative,
@@ -4076,9 +4076,9 @@
             id: (221),
             name: "Zenith Projector Body",
             data: Model((
-                model_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/models/zenith_projector/projector.psxmdl",
+                model_path: "../graybox-reach/assets/models/zenith_projector/projector.psxmdl",
                 source_path: None,
-                texture_path: Some("/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/models/zenith_projector/iris-crystal.psxt"),
+                texture_path: Some("../graybox-reach/assets/models/zenith_projector/iris-crystal.psxt"),
                 skeleton: Some((223)),
                 world_height: 128,
                 collision_radius: 48,
@@ -4117,7 +4117,7 @@
             id: (224),
             name: "Iris counter rotation",
             data: AnimationClip((
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/models/zenith_projector/iris-spin.psxanim",
+                psxanim_path: "../graybox-reach/assets/models/zenith_projector/iris-spin.psxanim",
                 skeleton: Some((223)),
                 source: None,
                 bake: ModelNative,
@@ -4132,7 +4132,7 @@
             name: "Aletha / Hook launch",
             data: AnimationClip((
                 preserve_samples: true,
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/hook_flight_v2/launch.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/hook_flight_v2/launch.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: None,
@@ -4147,7 +4147,7 @@
             name: "Aletha / Braced arch aim bank",
             data: AnimationClip((
                 preserve_samples: true,
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/arch_perch_v2/perch_a.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/arch_perch_v2/perch_a.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: None,
@@ -4163,7 +4163,7 @@
             name: "Aletha / Fall",
             data: AnimationClip((
                 preserve_samples: true,
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/fall_land_v1/fall.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/fall_land_v1/fall.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: None,
@@ -4179,7 +4179,7 @@
             name: "Aletha / Land",
             data: AnimationClip((
                 preserve_samples: true,
-                psxanim_path: "/Users/ebonura/Desktop/repos/PSoXide-editor/editor/projects/graybox-reach/assets/animations/fall_land_v1/land.psxanim",
+                psxanim_path: "../graybox-reach/assets/animations/fall_land_v1/land.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
                 source: None,

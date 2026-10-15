@@ -22,8 +22,8 @@
 !graybox-reach/**
 # cortex-two-area-level: only the project, its own cooked textures and the two
 # layout sources are tracked. review/ (candidate discs and screenshots, 8 GB),
-# the generator scripts, the Blender files and the ground-paint/ground-v3
-# texture studies stay local.
+# the generator scripts, the Blender files and the ground-paint
+# and ground-v3 texture studies stay local.
 !cortex-two-area-level/
 !cortex-two-area-level/project.ron
 !cortex-two-area-level/assets/
@@ -31,6 +31,15 @@
 !cortex-two-area-level/source_assets/
 !cortex-two-area-level/source_assets/layout.json
 !cortex-two-area-level/source_assets/integrated.json
+# The five cooked ground textures project.ron reads; the rest of ground-v3
+# (source PNGs, prompts) stays local.
+!cortex-two-area-level/source_assets/ground-v3/
+cortex-two-area-level/source_assets/ground-v3/*
+!cortex-two-area-level/source_assets/ground-v3/structure_floor_readable_128.psxt
+!cortex-two-area-level/source_assets/ground-v3/structure_peeling_v3_128.psxt
+!cortex-two-area-level/source_assets/ground-v3/terrain_rock_fractured_128.psxt
+!cortex-two-area-level/source_assets/ground-v3/terrain_road_worn_128.psxt
+!cortex-two-area-level/source_assets/ground-v3/terrain_sand_soft_ripples_v2_64.psxt
 # Config for the generated world-streaming stress project (stream-world/ itself
 # is regenerated on demand by gen-stream-world and stays untracked).
 !stream-world.config.ron
