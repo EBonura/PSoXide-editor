@@ -87,9 +87,8 @@ pub(crate) fn build_embedded_playtest_disc(volume_id: &str) -> Result<PathBuf, S
     let exe_bytes = std::fs::read(&exe_path).map_err(|e| format!("{}: {e}", exe_path.display()))?;
     let world_pack = embedded_world_pack_payload()?;
     let ui_pack = embedded_ui_pack_payload()?;
-    let mut image = embedded_playtest_disc_image(volume_id, exe_bytes, world_pack, ui_pack)?;
-    let cdda_payloads = embedded_cdda_track_payloads()?;
-    let cdda_tracks = append_cdda_tracks_to_image(&mut image, &cdda_payloads)?;
+    let music = embedded_xa_music_files()?;
+    let image = embedded_playtest_disc_image(volume_id, exe_bytes, world_pack, ui_pack, &music)?;
 
     let cue_path = editor_playtest_disc_path();
     let bin_path = cue_path.with_extension("bin");
@@ -98,83 +97,35 @@ pub(crate) fn build_embedded_playtest_disc(volume_id: &str) -> Result<PathBuf, S
         .ok_or_else(|| format!("invalid playtest disc path: {}", cue_path.display()))?;
     std::fs::create_dir_all(dir).map_err(|e| format!("mkdir {}: {e}", dir.display()))?;
     std::fs::write(&bin_path, image).map_err(|e| format!("write {}: {e}", bin_path.display()))?;
-    write_cue(&cue_path, &bin_path, &cdda_tracks)?;
+    write_cue(&cue_path, &bin_path)?;
     Ok(cue_path)
 }
 
 #[cfg(feature = "editor")]
 fn write_single_data_track_cue(cue_path: &Path, bin_path: &Path) -> Result<(), String> {
-    write_cue(cue_path, bin_path, &[])
+    write_cue(cue_path, bin_path)
 }
 
+/// One data track: the disc carries its music as XA files inside the data
+/// track, so there are no audio tracks to list.
 #[cfg(feature = "editor")]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct CddaCueTrack {
-    number: u8,
-    index0_sector: u32,
-    index1_sector: u32,
-}
-
-#[cfg(feature = "editor")]
-fn write_cue(cue_path: &Path, bin_path: &Path, cdda_tracks: &[CddaCueTrack]) -> Result<(), String> {
+fn write_cue(cue_path: &Path, bin_path: &Path) -> Result<(), String> {
     let file_name = bin_path
         .file_name()
         .and_then(|name| name.to_str())
         .ok_or_else(|| format!("invalid BIN path for CUE: {}", bin_path.display()))?
         .replace('"', "'");
-    let mut cue =
-        format!("FILE \"{file_name}\" BINARY\n  TRACK 01 MODE2/2352\n    INDEX 01 00:00:00\n");
-    for track in cdda_tracks {
-        cue.push_str(&format!(
-            "  TRACK {:02} AUDIO\n    INDEX 00 {}\n    INDEX 01 {}\n",
-            track.number,
-            cue_msf(track.index0_sector),
-            cue_msf(track.index1_sector)
-        ));
-    }
+    let cue = format!("FILE \"{file_name}\" BINARY\n  TRACK 01 MODE2/2352\n    INDEX 01 00:00:00\n");
     std::fs::write(cue_path, cue).map_err(|e| format!("write {}: {e}", cue_path.display()))
 }
 
+/// One cooked XA music file for the disc: its root-directory name, its raw
+/// 2336-byte sectors, and the sector the cooked music table expects it on.
 #[cfg(feature = "editor")]
-fn cue_msf(frames: u32) -> String {
-    format!(
-        "{:02}:{:02}:{:02}",
-        frames / (60 * 75),
-        (frames / 75) % 60,
-        frames % 75
-    )
-}
-
-#[cfg(feature = "editor")]
-fn append_cdda_tracks_to_image(
-    image: &mut Vec<u8>,
-    payloads: &[PathBuf],
-) -> Result<Vec<CddaCueTrack>, String> {
-    const CDDA_PREGAP_SECTORS: usize = 150;
-    let mut cue_tracks = Vec::with_capacity(payloads.len());
-    for (index, payload) in payloads.iter().enumerate() {
-        if index >= 98 {
-            return Err("CUE sheets can only address tracks 01 through 99".to_string());
-        }
-        let cdda =
-            std::fs::read(payload).map_err(|e| format!("read {}: {e}", payload.display()))?;
-        if cdda.is_empty() || cdda.len() % SECTOR_BYTES != 0 {
-            return Err(format!(
-                "{} is not a non-empty whole number of 2352-byte CD-DA sectors",
-                payload.display()
-            ));
-        }
-        let index0_sector = (image.len() / SECTOR_BYTES) as u32;
-        image.resize(image.len() + CDDA_PREGAP_SECTORS * SECTOR_BYTES, 0);
-        let index1_sector = (image.len() / SECTOR_BYTES) as u32;
-        image.extend_from_slice(&cdda);
-        cue_tracks.push(CddaCueTrack {
-            number: (index + 2) as u8,
-            index0_sector,
-            index1_sector,
-        });
-    }
-    Ok(cue_tracks)
+struct XaMusicFile {
+    name: String,
+    raw: Vec<u8>,
+    expected_lba: u32,
 }
 
 #[cfg(feature = "editor")]
@@ -183,6 +134,7 @@ fn embedded_playtest_disc_image(
     exe_bytes: Vec<u8>,
     world_pack: Option<Vec<u8>>,
     ui_pack: Option<Vec<u8>>,
+    music: &[XaMusicFile],
 ) -> Result<Vec<u8>, String> {
     Exe::parse(&exe_bytes).map_err(|e| format!("parse EXE: {e:?}"))?;
     let mut builder = IsoBuilder::new().volume_id(volume_id);
@@ -201,6 +153,27 @@ fn embedded_playtest_disc_image(
     // stays close to a retail/homebrew boot layout.
     psx_iso::add_playtest_files(&mut builder, exe_bytes, world_pack, ui_pack, None)
         .map_err(|error| format!("playtest disc layout: {error:?}"))?;
+    // The music files go after UI.PAK, where the cooked music table says they
+    // are.
+    for file in music {
+        builder
+            .add_xa_file(&file.name, file.raw.clone())
+            .ok_or_else(|| format!("{}: not a whole number of XA sectors", file.name))?;
+    }
+    let extents = builder.file_extents();
+    for file in music {
+        let landed = extents
+            .iter()
+            .find(|(name, _, _)| *name == file.name)
+            .map(|&(_, lba, _)| lba);
+        if landed != Some(file.expected_lba) {
+            return Err(format!(
+                "{} lands on sector {landed:?} but the cooked music table expects {}; \
+                 recook the project",
+                file.name, file.expected_lba
+            ));
+        }
+    }
     Ok(builder.build_bin())
 }
 
@@ -259,21 +232,39 @@ fn editor_playtest_generated_dir() -> PathBuf {
 }
 
 #[cfg(feature = "editor")]
-fn embedded_cdda_track_payloads() -> Result<Vec<PathBuf>, String> {
-    let tracks_file =
-        editor_playtest_generated_dir().join(psxed_project::playtest::CDDA_TRACKS_FILENAME);
-    if !tracks_file.is_file() {
+fn embedded_xa_music_files() -> Result<Vec<XaMusicFile>, String> {
+    let list_file =
+        editor_playtest_generated_dir().join(psxed_project::playtest::XA_MUSIC_FILENAME);
+    if !list_file.is_file() {
         return Ok(Vec::new());
     }
-    let text = std::fs::read_to_string(&tracks_file)
-        .map_err(|e| format!("read {}: {e}", tracks_file.display()))?;
+    let text = std::fs::read_to_string(&list_file)
+        .map_err(|e| format!("read {}: {e}", list_file.display()))?;
     let mut out = Vec::new();
     for line in text.lines() {
         let trimmed = line.trim();
         if trimmed.is_empty() || trimmed.starts_with('#') {
             continue;
         }
-        out.push(PathBuf::from(trimmed));
+        let (path, lba) = trimmed
+            .rsplit_once('\t')
+            .ok_or_else(|| format!("{}: expected `path<TAB>sector`: {trimmed}", list_file.display()))?;
+        let expected_lba = lba
+            .trim()
+            .parse::<u32>()
+            .map_err(|_| format!("{}: bad sector in: {trimmed}", list_file.display()))?;
+        let path = PathBuf::from(path);
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| format!("{}: no file name", path.display()))?
+            .to_ascii_uppercase();
+        let raw = std::fs::read(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
+        out.push(XaMusicFile {
+            name,
+            raw,
+            expected_lba,
+        });
     }
     Ok(out)
 }
@@ -663,7 +654,7 @@ mod tests {
         exe.extend_from_slice(&[1, 2, 3, 4]);
 
         let world_pack = psx_iso::build_world_pack(&[(0, b"room-zero".as_slice())]);
-        let image = embedded_playtest_disc_image("DEMO_10", exe, Some(world_pack), None)
+        let image = embedded_playtest_disc_image("DEMO_10", exe, Some(world_pack), None, &[])
             .expect("disc image builds");
         let disc = Disc::from_bin(image);
         let boot = psx_iso::load_boot_exe_from_disc(&disc).expect("disc boots");
@@ -686,6 +677,55 @@ mod tests {
         );
     }
 
+    fn test_exe() -> Vec<u8> {
+        let mut exe = vec![0u8; psx_iso::EXE_HEADER_BYTES];
+        exe[..8].copy_from_slice(b"PS-X EXE");
+        exe[0x10..0x14].copy_from_slice(&0x8001_2340u32.to_le_bytes());
+        exe[0x18..0x1C].copy_from_slice(&0x8001_0000u32.to_le_bytes());
+        exe
+    }
+
+    #[test]
+    #[cfg(feature = "editor")]
+    fn xa_music_files_land_after_ui_pack_where_the_cooked_table_says() {
+        let world_pack = build_world_pack(&[]);
+        let ui_pack = build_world_pack(&[(1, b"sky-panorama".as_slice())]);
+        let packs = (world_pack.len() + ui_pack.len()) / psx_iso::iso9660::SECTOR_SIZE;
+        let expected_lba = psx_iso::WORLD_PACK_DEFAULT_START_LBA + packs as u32;
+        let music = |expected_lba| {
+            vec![XaMusicFile {
+                name: "MUSIC1.XA".to_string(),
+                raw: vec![0; 3 * psx_iso::XA_SECTOR_SIZE],
+                expected_lba,
+            }]
+        };
+
+        let image = embedded_playtest_disc_image(
+            "XA_MUSIC",
+            test_exe(),
+            Some(world_pack.clone()),
+            Some(ui_pack.clone()),
+            &music(expected_lba),
+        )
+        .expect("a music file at the expected sector builds");
+        let disc = Disc::from_bin(image);
+        assert!(
+            disc.read_sector_user(expected_lba + 2).is_some(),
+            "the three XA sectors are on the disc"
+        );
+
+        // A table baked for another layout is refused, not played wrong.
+        let error = embedded_playtest_disc_image(
+            "XA_MUSIC",
+            test_exe(),
+            Some(world_pack),
+            Some(ui_pack),
+            &music(expected_lba + 1),
+        )
+        .expect_err("a table for another layout is refused");
+        assert!(error.contains("MUSIC1.XA lands on sector"), "{error}");
+    }
+
     #[test]
     #[cfg(feature = "editor")]
     fn pxbsp_empty_world_pack_keeps_streamed_ui_pack_at_the_manifest_lba() {
@@ -706,7 +746,7 @@ mod tests {
         exe[0x10..0x14].copy_from_slice(&0x8001_2340u32.to_le_bytes());
         exe[0x18..0x1C].copy_from_slice(&0x8001_0000u32.to_le_bytes());
         let ui_pack = build_world_pack(&[(1, b"sky-panorama".as_slice())]);
-        let image = embedded_playtest_disc_image("PXBSP_SKY", exe, Some(world_pack), Some(ui_pack))
+        let image = embedded_playtest_disc_image("PXBSP_SKY", exe, Some(world_pack), Some(ui_pack), &[])
             .expect("PXBSP playtest disc builds");
         let disc = Disc::from_bin(image);
         let world_sector = disc

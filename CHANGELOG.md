@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Music nodes now play XA-ADPCM from the disc instead of CD-DA tracks. The cook
+  encodes each Music WAV to 37.8 kHz stereo XA, four songs to a file
+  (`MUSIC1.XA`, ...), and writes a song table the engine plays by track number,
+  so existing Music nodes keep their meaning. Discs carry one data track and no
+  audio tracks. A looping song restarts by seeking, so each loop has a short
+  gap. Fades are unchanged; a data read still pauses the song and restarts it
+  from the point the head had reached.
+
 - Walls and floors close to the third-person camera are now drawn where they
   really are. The GTE's perspective divide pulled anything nearer than about
   50 units toward the screen centre, which warped near walls and let sky show
