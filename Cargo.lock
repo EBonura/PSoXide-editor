@@ -3278,6 +3278,7 @@ name = "psoxide-hazard"
 version = "0.1.0"
 dependencies = [
  "psx-disasm",
+ "psx-residency",
  "regex",
 ]
 
@@ -3303,6 +3304,7 @@ name = "psoxide-link"
 version = "0.1.0"
 dependencies = [
  "serde_json",
+ "toml",
 ]
 
 [[package]]
@@ -3535,6 +3537,13 @@ name = "psx-render-contract"
 version = "0.1.0"
 
 [[package]]
+name = "psx-residency"
+version = "0.1.0"
+dependencies = [
+ "psx-rt",
+]
+
+[[package]]
 name = "psx-rt"
 version = "0.1.0"
 dependencies = [
@@ -3552,9 +3561,10 @@ dependencies = [
 
 [[package]]
 name = "psx-sfx"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "psx-asset",
+ "psx-math",
  "psx-spu",
 ]
 
