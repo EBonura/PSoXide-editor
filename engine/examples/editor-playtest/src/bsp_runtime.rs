@@ -57,6 +57,9 @@ use crate::{
 #[cfg(feature = "world-stream")]
 mod world_stream;
 
+#[cfg(feature = "grid-world")]
+mod grid_world;
+
 pub(super) const MAX_BSP_DOORS: usize = 16;
 pub(super) const MAX_BSP_DESTRUCTIBLES: usize = psx_level::MAX_DESTRUCTIBLES;
 pub(super) const MAX_BSP_DYNAMIC_MODELS: usize = MAX_BSP_DOORS + MAX_BSP_DESTRUCTIBLES;
@@ -658,6 +661,9 @@ pub(super) struct BspRuntime {
     /// The region streamer and its bookkeeping (streamed worlds only).
     #[cfg(feature = "world-stream")]
     stream: world_stream::WorldStream,
+    /// Open-hall experiment: the grid renderer that replaces the PXBSP face pass.
+    #[cfg(feature = "grid-world")]
+    grid: grid_world::GridWorld,
 }
 
 impl BspRuntime {
@@ -816,7 +822,7 @@ impl BspRuntime {
         // whole Cortex level. Measured on the whole-level tape over the
         // 32-unit node grid: 1200 units -1.3% cycles, 800 -3.8%, 500 -6.4%,
         // all with visible pops since the level has no fog.
-        const FAR_CULL_WORLD: Option<i32> = None;
+        const FAR_CULL_WORLD: Option<i32> = parse_far_cull(option_env!("OPEN_HALL_FAR_WORLD"));
         renderer.set_view_projection(psx_bsp::render::ViewProjection {
             focal_length: PROJECTION.focal_length,
             half_width: i32::from(PROJECTION.screen_x),
@@ -857,6 +863,8 @@ impl BspRuntime {
             camera_traces: 0,
             #[cfg(feature = "world-stream")]
             stream,
+            #[cfg(feature = "grid-world")]
+            grid: grid_world::GridWorld::load(),
         })
     }
 
@@ -1369,6 +1377,8 @@ impl BspRuntime {
     /// it. Call whenever the gameplay VRAM those bindings point at is released.
     pub(super) fn invalidate_materials(&mut self) {
         self.materials_latched = false;
+        #[cfg(feature = "grid-world")]
+        self.grid.unbind();
         for binding in self.materials.iter_mut() {
             *binding = None;
         }
@@ -2029,19 +2039,61 @@ impl BspRuntime {
             };
             let (used_words, packet_count, visible_sky_apertures, overflowed) = {
                 let packets = reservation.words_mut();
-                let world = self.renderer.draw_pxbsp_world_from_visibility_origin(
-                    &self.map,
-                    camera,
-                    visibility_origin,
-                    view,
-                    &self.materials,
-                    material_tick,
-                    packets,
-                );
-                let mut used_words = world.packet_words;
-                let mut packet_count = world.stats.packets as usize;
-                let mut visible_sky_apertures = world.stats.visible_sky_apertures;
-                let mut overflowed = world.stats.packet_overflow_avoided;
+                #[cfg(not(feature = "grid-world"))]
+                let (mut used_words, mut packet_count, mut visible_sky_apertures, mut overflowed) = {
+                    let world = self.renderer.draw_pxbsp_world_from_visibility_origin(
+                        &self.map,
+                        camera,
+                        visibility_origin,
+                        view,
+                        &self.materials,
+                        material_tick,
+                        packets,
+                    );
+                    telemetry::counter(telemetry::counter::ROOM_SURFACES_CONSIDERED, u32::from(world.stats.visible_faces));
+                    telemetry::counter(telemetry::counter::ROOM_SURFACE_PACKETS, world.stats.packets);
+                    telemetry::counter(telemetry::counter::ROOM_SURFACE_COMMANDS, world.stats.hardware_triangles);
+                    (
+                        world.packet_words,
+                        world.stats.packets as usize,
+                        world.stats.visible_sky_apertures,
+                        world.stats.packet_overflow_avoided,
+                    )
+                };
+                #[cfg(feature = "grid-world")]
+                let (mut used_words, mut packet_count, mut visible_sky_apertures, mut overflowed) = {
+                    let frustum = FrustumPlanes::from_view(
+                        &view.rotation,
+                        view.translation,
+                        [camera.origin.x >> 12, camera.origin.y >> 12, camera.origin.z >> 12],
+                        self.renderer.view_projection(),
+                    );
+                    let world = self.grid.draw(
+                        self.map.materials(),
+                        &self.materials,
+                        &frustum,
+                        &view,
+                        [camera.origin.x >> 12, camera.origin.y >> 12, camera.origin.z >> 12],
+                        [projection.half_width * 2, projection.half_height * 2],
+                        projection.focal_length,
+                        packets,
+                    );
+                    telemetry::counter(telemetry::counter::ROOM_SURFACES_CONSIDERED, u32::from(world.quads_visible));
+                    telemetry::counter(telemetry::counter::ROOM_SURFACE_PACKETS, world.packets);
+                    telemetry::counter(telemetry::counter::ROOM_PROJECTED_VERTICES, u32::from(world.vertices_projected));
+                    telemetry::counter(telemetry::counter::ROOM_SURF_SPLIT_TRIS, u32::from(world.robust_quads));
+                    telemetry::counter(telemetry::counter::ROOM_SURFACE_COMMANDS, u32::from(world.cells_visible));
+                    telemetry::counter(telemetry::counter::ROOM_SURF_BACKFACE_CULLED, u32::from(world.backface_culled));
+                    telemetry::counter(telemetry::counter::ROOM_SURF_SCREEN_CULLED, u32::from(world.screen_culled));
+                    telemetry::counter(telemetry::counter::ROOM_SUBMIT_FALLBACK_CALLS, u32::from(world.material_missing));
+                    telemetry::counter(telemetry::counter::ROOM_SURF_TR_SUBDIVISION_CANDIDATES, u32::from(world.depth_skipped));
+                    (
+                        world.packet_words,
+                        world.packets as usize,
+                        u16::from(world.sky_visible),
+                        world.overflowed,
+                    )
+                };
 
                 for door in self.doors.iter() {
                     let Some(frame) = self.renderer.draw_pxbsp_model(
@@ -2842,4 +2894,24 @@ mod tests {
             }
         }
     }
+}
+
+/// Build-time far cull for the open-hall fork, in PXBSP world units.
+const fn parse_far_cull(value: Option<&str>) -> Option<i32> {
+    let Some(value) = value else { return None };
+    let bytes = value.as_bytes();
+    if bytes.is_empty() {
+        return None;
+    }
+    let mut out = 0i32;
+    let mut i = 0;
+    while i < bytes.len() {
+        let digit = bytes[i];
+        if digit < b'0' || digit > b'9' {
+            return None;
+        }
+        out = out * 10 + (digit - b'0') as i32;
+        i += 1;
+    }
+    if out == 0 { None } else { Some(out) }
 }

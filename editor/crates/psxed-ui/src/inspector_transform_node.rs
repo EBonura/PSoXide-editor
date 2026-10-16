@@ -541,7 +541,7 @@ pub(crate) fn draw_world_settings(
     ui.horizontal(|ui| {
         ui.label(RichText::new("BSP Patch Extent").color(STUDIO_TEXT_WEAK));
         changed |= ui.add(egui::DragValue::new(&mut culling.bsp_patch_extent)
-            .speed(256.0).range(1024..=4096)).on_hover_text(
+            .speed(256.0).range(576..=4096)).on_hover_text(
                 "Smaller patches improve vertex-light detail and near-plane clipping; larger patches use less resident RAM. Requires recooking.").changed();
     });
         });
