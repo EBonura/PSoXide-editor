@@ -263,3 +263,15 @@ fn the_place_tool_stands_on_the_floor_height_under_the_pointer_in_3d() {
     let t = node.transform.translation;
     assert_eq!((t[0], t[2]), (2.5 * S, 2.5 * S));
 }
+
+#[test]
+fn in_a_grid_world_wasd_only_flies_the_free_camera_while_looking() {
+    let mut rig = GridRig::persp("persp-wasd", flat_project(3, 3, false));
+    let before = rig.ws.camera_rig.free_position;
+    rig.move_to(Pos2::new(400.0, 300.0), egui::Modifiers::NONE);
+    rig.key(egui::Key::W);
+    assert_eq!(rig.ws.grid.tool, GridTool::Wall, "W is the Wall tool");
+    assert_eq!(rig.ws.camera_rig.free_position, before, "and does not fly");
+    rig.key(egui::Key::D);
+    assert_eq!(rig.ws.grid.tool, GridTool::Split);
+}

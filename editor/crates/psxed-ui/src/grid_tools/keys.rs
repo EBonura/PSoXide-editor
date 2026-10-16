@@ -75,8 +75,10 @@ impl EditorWorkspace {
         if pressed(ctx, egui::Key::Delete) || pressed(ctx, egui::Key::Backspace) {
             clipboard_tool::delete_selection(self);
         }
+        // With the free camera's look button held, W and D fly the camera.
+        let flying = ctx.input(|i| i.pointer.secondary_down());
         for tool in GridTool::ALL {
-            if pressed(ctx, tool.key()) {
+            if !flying && pressed(ctx, tool.key()) {
                 self.set_grid_tool(tool);
             }
         }

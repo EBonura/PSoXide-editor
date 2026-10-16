@@ -268,6 +268,14 @@ impl EditorWorkspace {
                         }
                         if top_view && self.is_grid_world() {
                             self.draw_grid_overlay_2d(&painter, transform);
+                        } else if self.is_grid_world() {
+                            painter.text(
+                                rect.center_top() + Vec2::new(0.0, 14.0),
+                                Align2::CENTER_TOP,
+                                "Grid worlds are edited in the Top and 3D views",
+                                FontId::proportional(13.0),
+                                STUDIO_TEXT_WEAK,
+                            );
                         }
                         draw_viewport_overlay(
                             &painter,

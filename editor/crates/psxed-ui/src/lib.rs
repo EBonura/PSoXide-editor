@@ -3632,6 +3632,11 @@ impl EditorWorkspace {
                 self.renaming = None;
                 self.saved_project_name = project.name.clone();
                 self.project = project;
+                // Grid caches and selection describe the old document.
+                self.grid.abandon();
+                self.grid.selection.clear();
+                self.grid.rev = self.grid.rev.wrapping_add(1);
+                self.grid.fit_pending = true;
                 self.selection.selected_node = NodeId::ROOT;
                 self.selection.selected_nodes.clear();
                 self.selection.node_selection_anchor = None;

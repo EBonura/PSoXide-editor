@@ -340,6 +340,11 @@ impl EditorWorkspace {
         if self.camera_rig.mode != ViewportCameraMode::Free {
             return;
         }
+        // In a grid world W, A, S, D are tool keys (Wall, Split) too, so the
+        // free camera only listens to them while the look button is held.
+        if self.is_grid_world() && !ui.input(|input| input.pointer.secondary_down()) {
+            return;
+        }
         if ui.ctx().memory(|memory| memory.focused().is_some()) {
             return;
         }
