@@ -46,6 +46,9 @@ pub(super) fn preview_scene_depth_range(
             include_bounds(surface.bounds.min, surface.bounds.max);
         }
     });
+    if let Some((min, max)) = grid_world_bounds(project) {
+        include_bounds(min, max);
+    }
     for entity in entities {
         if !hidden.contains(&entity.node) {
             include_bounds(

@@ -41,6 +41,7 @@ mod backdrop;
 mod bsp_support;
 mod camera;
 mod depth;
+mod grid;
 mod overlays;
 mod particles;
 mod poi;
@@ -51,6 +52,7 @@ use backdrop::*;
 use bsp_support::*;
 use camera::*;
 use depth::*;
+use grid::*;
 use overlays::*;
 use particles::*;
 use poi::*;
@@ -404,7 +406,11 @@ pub fn build_phase1_frame_reusing(
         .resolved_for_room(false, [0; 3]);
     let preview_tick = preview_elapsed_vblanks();
     let visible_sky_aperture = visible_sky_aperture(project, world_camera, hidden_scene_nodes);
-    let sky_visible = resolved_sky.visibility == SkyVisibility::Always || visible_sky_aperture;
+    // A grid world has no sky-aperture surfaces: its open ceilings show the
+    // scene sky directly.
+    let grid_world = project.active_scene().world.grid().is_some();
+    let sky_visible =
+        resolved_sky.visibility == SkyVisibility::Always || visible_sky_aperture || grid_world;
     push_clear(&mut scratch, resolved_sky.lower_color);
     if sky_visible {
         match resolved_sky.mode {
@@ -433,13 +439,18 @@ pub fn build_phase1_frame_reusing(
     );
     // World-space brushes render once, against the camera GTE state
     // installed above (rooms and their local offsets do not apply).
-    walk_brushes(
-        project,
-        textures,
-        world_camera,
-        hidden_scene_nodes,
-        &mut scratch,
-    );
+    if grid_world {
+        walk_grid(project, textures, world_camera, &mut scratch);
+    }
+    if !grid_world || !project.active_scene().brushes.is_empty() {
+        walk_brushes(
+            project,
+            textures,
+            world_camera,
+            hidden_scene_nodes,
+            &mut scratch,
+        );
+    }
     // Box, Cylinder and Image props, from the geometry the cook emits.
     walk_props(
         project,
@@ -2635,6 +2646,74 @@ mod tests {
             .iter()
             .map(|entry| format!("{entry:?}"))
             .collect()
+    }
+
+    /// A grid scene with one room of `size` x `size` flat sectors, a floor,
+    /// a ceiling, or both, at the default scale (1344 editor units a sector).
+    fn grid_project(floor: bool, ceiling: bool) -> ProjectDocument {
+        use psxed_project::grid::{GridRoom, GridSurface, GridWorld, SceneWorld};
+        let mut room = GridRoom::new("hall", 2, 2);
+        for x in 0..2 {
+            for z in 0..2 {
+                let sector = room.sector_or_insert(x, z).unwrap();
+                if floor {
+                    sector.floor = Some(GridSurface::flat(0, None));
+                }
+                if ceiling {
+                    sector.ceiling = Some(GridSurface::flat(1024, None));
+                }
+            }
+        }
+        let mut project = ProjectDocument::new("grid-preview");
+        project.active_scene_mut().world = SceneWorld::Grid(GridWorld {
+            rooms: vec![room],
+            ..GridWorld::new()
+        });
+        project
+    }
+
+    #[test]
+    fn grid_floors_draw_from_above_and_ceilings_are_culled_from_above() {
+        let empty = preview_commands(&grid_project(false, false), &HashSet::new());
+        let floor = preview_commands(&grid_project(true, false), &HashSet::new());
+        let ceiling = preview_commands(&grid_project(false, true), &HashSet::new());
+        assert!(
+            floor.len() > empty.len(),
+            "floor drew {} commands against {} for an empty grid",
+            floor.len(),
+            empty.len()
+        );
+        assert_eq!(
+            ceiling, empty,
+            "a ceiling faces down and must not draw for a camera above it"
+        );
+    }
+
+    #[test]
+    fn grid_lighting_reaches_the_preview_commands() {
+        let mut project = grid_project(true, false);
+        let unlit = preview_commands(&project, &HashSet::new());
+        let root = project.active_scene().root;
+        let lamp = project.active_scene_mut().add_node(
+            root,
+            "Lamp",
+            NodeKind::PointLight {
+                color: [255, 200, 120],
+                intensity: 2.0,
+                radius: 4.0,
+            },
+        );
+        project
+            .active_scene_mut()
+            .node_mut(lamp)
+            .unwrap()
+            .transform
+            .translation = [600.0, 700.0, 600.0];
+        let lit = preview_commands(&project, &HashSet::new());
+        assert_ne!(
+            unlit, lit,
+            "a lamp over the floor did not change its colours"
+        );
     }
 
     #[test]

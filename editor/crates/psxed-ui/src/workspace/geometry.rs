@@ -9,17 +9,21 @@ fn project_center_half_2d(
 }
 
 impl EditorWorkspace {
+    /// Whether the active scene has a world to frame: brushes or a grid.
+    pub(crate) fn has_world_geometry(&self) -> bool {
+        let scene = self.project.active_scene();
+        !scene.brushes.is_empty() || scene.world.grid().is_some_and(|g| g.sector_count() > 0)
+    }
+
     /// Give BSP-only projects created before camera authoring metadata a usable
     /// first 3D view. The exact default-state checks keep authored cameras and
     /// any in-session camera movement untouched.
     pub(crate) fn frame_bsp_camera_if_uninitialized(&mut self) -> bool {
         let default_camera = EditorCameraState::default();
-        if self.project.active_scene().brushes.is_empty()
-            || self.current_editor_camera_state() != default_camera
-        {
+        if !self.has_world_geometry() || self.current_editor_camera_state() != default_camera {
             return false;
         }
-        let Some((center, half)) = self.all_brush_frame_bounds_3d() else {
+        let Some((center, half)) = self.all_world_frame_bounds_3d() else {
             return false;
         };
 
@@ -35,7 +39,7 @@ impl EditorWorkspace {
             .into_iter()
             .all(|value| value.abs() <= f32::EPSILON);
         let untouched_zoom = (self.viewport_zoom - DEFAULT_VIEWPORT_ZOOM).abs() <= f32::EPSILON;
-        if !self.project.active_scene().brushes.is_empty() && untouched_focus && untouched_zoom {
+        if self.has_world_geometry() && untouched_focus && untouched_zoom {
             self.frame_viewport();
             return true;
         }
@@ -1481,7 +1485,7 @@ impl EditorWorkspace {
 
     pub(crate) fn current_frame_bounds_3d(&self) -> Option<([f32; 3], [f32; 3])> {
         self.selected_frame_bounds_3d()
-            .or_else(|| self.all_brush_frame_bounds_3d())
+            .or_else(|| self.all_world_frame_bounds_3d())
     }
 
     pub(crate) fn selected_frame_bounds_3d(&self) -> Option<([f32; 3], [f32; 3])> {
@@ -1550,7 +1554,7 @@ impl EditorWorkspace {
         Some((center, half))
     }
 
-    fn all_brush_frame_bounds_3d(&self) -> Option<([f32; 3], [f32; 3])> {
+    fn all_world_frame_bounds_3d(&self) -> Option<([f32; 3], [f32; 3])> {
         let mut bounds = None;
         for brush in &self.project.active_scene().brushes {
             let solved = brush.solve();
@@ -1566,6 +1570,17 @@ impl EditorWorkspace {
                 center[axis] = ((solved.min[axis] + solved.max[axis]) * 0.5) as f32;
                 half[axis] = ((solved.max[axis] - solved.min[axis]) * 0.5) as f32;
             }
+            merge_bounds_3d(&mut bounds, center, half);
+        }
+        if let Some(grid) = self
+            .project
+            .active_scene()
+            .world
+            .grid()
+            .and_then(|g| g.editor_bounds())
+        {
+            let center = core::array::from_fn(|i| (grid.min[i] as f32 + grid.max[i] as f32) * 0.5);
+            let half = core::array::from_fn(|i| (grid.max[i] as f32 - grid.min[i] as f32) * 0.5);
             merge_bounds_3d(&mut bounds, center, half);
         }
         bounds.map(bounds_3d_to_center_half)
@@ -1626,7 +1641,7 @@ impl EditorWorkspace {
         // The World root has a point transform but no useful geometry bounds.
         // In a BSP-only scene frame all authored brushes instead; retain the
         // root point as the final fallback for a truly empty scene.
-        self.all_brush_frame_bounds_3d()
+        self.all_world_frame_bounds_3d()
             .map(|(center, half)| project_center_half_2d(self.orthographic_view, center, half))
             .or(selected_node_bounds)
     }

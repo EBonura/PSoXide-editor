@@ -4,6 +4,7 @@
 //! the in-memory authoring document they manipulate.
 
 mod gizmo;
+mod grid_view;
 mod history;
 mod icons;
 mod material_lab;

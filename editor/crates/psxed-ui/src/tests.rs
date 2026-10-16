@@ -6,6 +6,7 @@ mod brush_tools;
 mod consistency;
 mod entity_resources;
 mod geometry_resources;
+mod grid_world;
 mod interaction_rig;
 mod orthographic_brush;
 mod project_workspace;

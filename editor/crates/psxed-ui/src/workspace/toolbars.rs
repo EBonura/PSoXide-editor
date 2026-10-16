@@ -182,6 +182,12 @@ impl EditorWorkspace {
                             .show_brush_surface_grid
                             .then_some(self.snap_units.max(1) as f32);
 
+                        if top_view {
+                            if let Some(world) = self.project.active_scene().world.grid() {
+                                crate::grid_view::draw_grid_world(&painter, transform, world, true);
+                            }
+                        }
+
                         let hits = if top_view {
                             draw_scene_viewport(
                                 &painter,
