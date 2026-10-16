@@ -82,6 +82,39 @@ fn cell_corners_xz(world: &GridWorld, cell: [i32; 2]) -> [[f32; 2]; 4] {
     ]
 }
 
+/// Cells a ghost draws one by one; bigger rectangles show their outline only.
+const GHOST_CELL_LIMIT: usize = 2048;
+
+/// Colour of a rectangle ghost and a warning when it cannot be made: a
+/// create that would take the room past the size cap shows red.
+fn rect_ghost(world: &GridWorld, g: &RectGesture, rect: CellRect) -> (Color32, Option<String>) {
+    if g.erase {
+        return (ERASE, None);
+    }
+    if let Some(room) = world.rooms.get(g.room) {
+        let side = psxed_project::grid::limits::MAX_ROOM_SIDE as i32;
+        let low = [
+            room.origin[0].min(rect.min[0]),
+            room.origin[1].min(rect.min[1]),
+        ];
+        let high = [
+            (room.origin[0] + room.width as i32 - 1).max(rect.max[0]),
+            (room.origin[1] + room.depth as i32 - 1).max(rect.max[1]),
+        ];
+        let (w, d) = (high[0] - low[0] + 1, high[1] - low[1] + 1);
+        if w > side || d > side {
+            return (
+                ERASE,
+                Some(format!(
+                    "room would be {} sectors: the cap is {side}",
+                    w.max(d)
+                )),
+            );
+        }
+    }
+    (CREATE, None)
+}
+
 /// A short label on a dark chip so it reads over any picture.
 fn label_chip(painter: &egui::Painter, at: Pos2, align: Align2, text: &str) {
     let galley =
@@ -264,16 +297,18 @@ impl EditorWorkspace {
         match &self.grid.gesture {
             Gesture::Rect(g) => {
                 let rect = CellRect::from_corners(g.anchor, g.current);
-                let color = if g.erase { ERASE } else { CREATE };
-                for cell in rect.cells() {
-                    let r = cell_rect(cell);
-                    painter.rect_filled(r, 0.0, fill(color, 56));
-                    painter.rect_stroke(
-                        r,
-                        0.0,
-                        Stroke::new(1.0, fill(color, 160)),
-                        StrokeKind::Inside,
-                    );
+                let (color, warning) = rect_ghost(world, g, rect);
+                if rect.count() <= GHOST_CELL_LIMIT {
+                    for cell in rect.cells() {
+                        let r = cell_rect(cell);
+                        painter.rect_filled(r, 0.0, fill(color, 56));
+                        painter.rect_stroke(
+                            r,
+                            0.0,
+                            Stroke::new(1.0, fill(color, 160)),
+                            StrokeKind::Inside,
+                        );
+                    }
                 }
                 let outer = Rect::from_two_pos(cell_rect(rect.min).min, cell_rect(rect.max).max);
                 painter.rect_stroke(outer, 0.0, Stroke::new(2.5, color), StrokeKind::Inside);
@@ -281,7 +316,7 @@ impl EditorWorkspace {
                     painter,
                     outer.center_top() - Vec2::new(0.0, 6.0),
                     Align2::CENTER_BOTTOM,
-                    &format!("{} x {}", rect.width(), rect.depth()),
+                    &warning.unwrap_or_else(|| format!("{} x {}", rect.width(), rect.depth())),
                 );
             }
             Gesture::Walls(g) => {
@@ -486,14 +521,16 @@ impl EditorWorkspace {
             Gesture::Rect(g) => {
                 let r = CellRect::from_corners(g.anchor, g.current);
                 if let Some(quad) = rect_quad(g.room, r, g.height) {
-                    let color = if g.erase { ERASE } else { CREATE };
+                    let (color, warning) = rect_ghost(world, g, r);
                     polygon(&quad, color, 70, 2.5);
                     // Cell grid inside the ghost.
-                    for cell in r.cells() {
-                        if let Some(q) =
-                            rect_quad(g.room, CellRect::from_corners(cell, cell), g.height)
-                        {
-                            polygon(&q, fill(color, 140), 0, 1.0);
+                    if r.count() <= GHOST_CELL_LIMIT {
+                        for cell in r.cells() {
+                            if let Some(q) =
+                                rect_quad(g.room, CellRect::from_corners(cell, cell), g.height)
+                            {
+                                polygon(&q, fill(color, 140), 0, 1.0);
+                            }
                         }
                     }
                     let mid = [
@@ -506,12 +543,14 @@ impl EditorWorkspace {
                             painter,
                             s,
                             Align2::CENTER_CENTER,
-                            &format!(
-                                "{} x {}   height {:+.2}",
-                                r.width(),
-                                r.depth(),
-                                g.height as f32 / psxed_project::grid::CLICK_UNITS as f32
-                            ),
+                            &warning.unwrap_or_else(|| {
+                                format!(
+                                    "{} x {}   height {:+.2}",
+                                    r.width(),
+                                    r.depth(),
+                                    g.height as f32 / psxed_project::grid::CLICK_UNITS as f32
+                                )
+                            }),
                         );
                     }
                 }

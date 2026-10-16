@@ -46,8 +46,38 @@ fn cell_under(
     Some(cell_at_editor(world.scale, p[0], p[2]))
 }
 
+/// Room-relative height of the `kind` surface under a 3D pointer, when the
+/// pointer is over one in the target room.
+fn height_under(
+    ws: &EditorWorkspace,
+    ptr: &GridPointer,
+    kind: SurfaceKind,
+    room: usize,
+) -> Option<i32> {
+    let GridView::Persp(rect) = ptr.view else {
+        return None;
+    };
+    let hit = ws.pick_face_3d(rect, ptr.pos)?;
+    if hit.face.room != room
+        || hit.face.target != psxed_project::grid::edit::FaceTarget::Surface(kind)
+    {
+        return None;
+    }
+    let world = ws.project.active_scene().world.grid()?;
+    let heights = hit.face.surface(world)?.heights;
+    Some(heights.iter().sum::<i32>() / 4)
+}
+
 pub(super) fn hover(ws: &mut EditorWorkspace, ptr: &GridPointer, kind: SurfaceKind) {
     let (room, y_offset) = room_offset(ws);
+    // Pointing at an existing surface of the same kind adopts its height, so
+    // extending a platform or a ceiling continues at the same level.
+    if let Some(height) = height_under(ws, ptr, kind, room) {
+        match kind {
+            SurfaceKind::Floor => ws.grid.floor_height = height,
+            SurfaceKind::Ceiling => ws.grid.ceiling_height = height,
+        }
+    }
     let height = default_height(ws, kind);
     ws.grid.hover = match cell_under(ws, ptr, y_offset, height) {
         Some(cell) => GridHover::Cell { room, cell, height },

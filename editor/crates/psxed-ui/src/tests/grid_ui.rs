@@ -165,3 +165,29 @@ fn grid_edits_do_not_start_the_brush_leak_check() {
         "a grid world has no brushes to seal"
     );
 }
+
+#[test]
+fn a_rectangle_that_would_overfill_the_room_says_so_instead_of_freezing() {
+    let ctx = full_context();
+    let mut ws =
+        EditorWorkspace::with_project(test_temp_dir("grid-oversize"), flat_project(3, 3, false));
+    ws.last_viewport_size = Vec2::new(1200.0, 700.0);
+    // Two hundred sectors across, dragged in one go.
+    ws.apply_grid_pose("tool=floor;rect=floor:0,0:200,3")
+        .unwrap();
+    for view_2d in [true, false] {
+        let output = draw_editor(&mut ws, &ctx, view_2d);
+        let text: String = output
+            .shapes
+            .iter()
+            .filter_map(|s| match &s.shape {
+                egui::epaint::Shape::Text(t) => Some(t.galley.text().to_string()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        if view_2d {
+            assert!(text.contains("the cap is 128"), "{text}");
+        }
+    }
+}

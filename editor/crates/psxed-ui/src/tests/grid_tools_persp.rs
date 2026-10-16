@@ -275,3 +275,25 @@ fn in_a_grid_world_wasd_only_flies_the_free_camera_while_looking() {
     rig.key(egui::Key::D);
     assert_eq!(rig.ws.grid.tool, GridTool::Split);
 }
+
+#[test]
+fn pointing_at_an_existing_floor_makes_the_next_rectangle_continue_at_its_height() {
+    let mut project = flat_project(3, 3, false);
+    for sector in project.active_scene_mut().world.grid_mut().unwrap().rooms[0]
+        .sectors
+        .iter_mut()
+        .flatten()
+    {
+        sector.floor = Some(psxed_project::grid::GridSurface::flat(512, None));
+    }
+    let mut rig = GridRig::persp("persp-continue-height", project);
+    rig.tool(GridTool::Floor);
+    assert_eq!(rig.ws.grid.floor_height, 0);
+    // Hover the platform: its height is adopted.
+    rig.move_to(ground(&rig, 1.5, 1.5, 512.0), egui::Modifiers::NONE);
+    assert_eq!(rig.ws.grid.floor_height, 512);
+    // Drag out over the void next to it: the new cells are level with it.
+    rig.drag(ground(&rig, 2.5, 1.5, 512.0), ground(&rig, 4.5, 1.5, 512.0));
+    assert_eq!(floor_heights(rig.world(), 0, [3, 1]), Some([512; 4]));
+    assert_eq!(floor_heights(rig.world(), 0, [4, 1]), Some([512; 4]));
+}
