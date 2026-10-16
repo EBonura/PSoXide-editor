@@ -104,35 +104,39 @@ impl EditorWorkspace {
             return;
         }
         let mut open = true;
+        let sections: [(&str, Rows); 7] = [
+            ("Select (V)", SELECT),
+            ("Floor (F) and Ceiling (C)", FLOOR),
+            ("Wall (W)", WALL),
+            ("Height (H)", HEIGHT),
+            ("Paint (P)", PAINT),
+            ("More", OTHER),
+            ("Camera and project", VIEW),
+        ];
         egui::Window::new("Grid editor keys")
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
-            .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
+            .fade_in(false)
+            .anchor(egui::Align2::CENTER_TOP, Vec2::new(0.0, 96.0))
             .show(ctx, |ui| {
-                ui.set_max_width(640.0);
+                ui.set_width(1040.0_f32.min(ctx.screen_rect().width() - 80.0));
                 ui.label(
                     RichText::new("Tools: V Select, F Floor, C Ceiling, W Wall, H Height, P Paint, D Split, O Place")
                         .color(STUDIO_TEXT_WEAK),
                 );
                 ui.add_space(4.0);
-                egui::ScrollArea::vertical().max_height(520.0).show(ui, |ui| {
-                    for (title, rows) in [
-                        ("Select (V)", SELECT),
-                        ("Floor (F) and Ceiling (C)", FLOOR),
-                        ("Wall (W)", WALL),
-                        ("Height (H)", HEIGHT),
-                        ("Paint (P)", PAINT),
-                        ("More", OTHER),
-                        ("Camera and project", VIEW),
-                    ] {
+                // Two columns of sections: the first four on the left.
+                ui.columns(2, |columns| {
+                    for (index, (title, rows)) in sections.iter().enumerate() {
+                        let ui = &mut columns[usize::from(index >= 4)];
                         ui.add_space(4.0);
-                        ui.label(RichText::new(title).strong().color(STUDIO_TEXT));
+                        ui.label(RichText::new(*title).strong().color(STUDIO_TEXT));
                         egui::Grid::new(format!("grid_help_{title}"))
                             .num_columns(2)
-                            .spacing([16.0, 2.0])
+                            .spacing([12.0, 2.0])
                             .show(ui, |ui| {
-                                for (gesture, what) in rows {
+                                for (gesture, what) in rows.iter() {
                                     ui.label(RichText::new(*gesture).monospace().color(STUDIO_ACCENT));
                                     ui.label(*what);
                                     ui.end_row();

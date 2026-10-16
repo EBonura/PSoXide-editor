@@ -9,7 +9,8 @@
 //! Commands (cells are world sectors, `x,z`):
 //!
 //! * `tool=select|floor|ceiling|wall|height|paint|split|place`
-//! * `room=N` the active room
+//! * `room=N` the active room; `hide=N` hides room N
+//! * `help` opens the key help overlay
 //! * `select=cells:x0,z0:x1,z1`, `select=floors:...`, `select=ceilings:...`,
 //!   `select=walls:...`, `select=vertex:x,z,corner`, `select=edge:x,z,edge`
 //! * `rect=floor|ceiling:x0,z0:x1,z1[:clicks][:erase]`
@@ -86,6 +87,11 @@ impl EditorWorkspace {
                 self.grid_active_room = Some(index);
                 self.grid.last_room = index;
             }
+            "hide" => {
+                let index = value.parse::<usize>().map_err(|e| e.to_string())?;
+                self.grid_hidden_rooms.insert(index);
+            }
+            "help" => self.grid.help_open = true,
             "select" => self.pose_select(room, &parts)?,
             "rect" => {
                 let kind = match parts.first().copied() {

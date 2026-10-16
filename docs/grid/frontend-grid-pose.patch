@@ -1,0 +1,24 @@
+--- emu/crates/frontend/src/cli.rs
++++ emu/crates/frontend/src/cli.rs
+@@ -688,6 +688,11 @@
+     /// Pointer position `X,Y` for the capture (hover cursor and tooltip).
+     #[arg(long, value_parser = parse_editor_ui_point)]
+     pub pointer: Option<(f32, f32)>,
++    /// Put the grid editor in a scripted state before the capture: a tool, a
++    /// selection, a half-dragged rectangle or wall run, a paste ghost, a
++    /// camera. See `psxed-ui/src/grid_tools/pose.rs` for the commands.
++    #[arg(long)]
++    pub grid_pose: Option<String>,
+ }
+ 
+ #[cfg(feature = "editor")]
+@@ -3480,6 +3485,9 @@
+     }
+ 
+     apply_headless_editor_pre_capture_actions(&mut editor, args.frame_selected);
++    if let Some(pose) = args.grid_pose.as_deref() {
++        editor.apply_grid_pose(pose)?;
++    }
+ 
+     let ctx = egui::Context::default();
+     crate::theme::apply(&ctx);
