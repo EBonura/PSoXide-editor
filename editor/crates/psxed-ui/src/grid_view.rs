@@ -120,6 +120,44 @@ fn draw_walls(painter: &egui::Painter, corners: [Pos2; 4], sector: &GridSector, 
     }
 }
 
+/// Which rooms the Top view shows and emphasises.
+///
+/// Rooms can overlap in plan (that is how floors stack), so rooms draw from
+/// the lowest `y_offset` up and a room above another is drawn translucent.
+/// With an active room, every other room fades so the active one reads on top.
+#[derive(Clone, Copy)]
+pub(crate) struct GridRoomView<'a> {
+    pub(crate) hidden: &'a HashSet<usize>,
+    pub(crate) active: Option<usize>,
+}
+
+impl GridRoomView<'_> {
+    /// Visible room indices, bottom of the stack first, the active room last.
+    pub(crate) fn draw_order(&self, world: &GridWorld) -> Vec<usize> {
+        let mut order: Vec<usize> = (0..world.rooms.len())
+            .filter(|i| !self.hidden.contains(i))
+            .collect();
+        order.sort_by_key(|i| (self.active == Some(*i), world.rooms[*i].y_offset, *i));
+        order
+    }
+
+    /// Opacity factor of a room's fills.
+    pub(crate) fn fade(&self, world: &GridWorld, room: usize) -> f32 {
+        match self.active {
+            Some(active) if active != room => 0.4,
+            Some(_) => 1.0,
+            None => {
+                let lowest = world.rooms.iter().map(|r| r.y_offset).min().unwrap_or(0);
+                if world.rooms[room].y_offset > lowest {
+                    0.75
+                } else {
+                    1.0
+                }
+            }
+        }
+    }
+}
+
 /// Draw `world` in the Top view: all sector fills first, then the walls on
 /// top of them (a neighbour's fill must not cover this sector's walls), then
 /// the room outlines.
@@ -128,13 +166,17 @@ pub(crate) fn draw_grid_world(
     transform: ViewportTransform,
     world: &GridWorld,
     show_labels: bool,
+    view: &GridRoomView,
 ) {
     let (low, high) = floor_range(world);
     let span = (high - low).max(1) as f32;
     let font = egui::FontId::proportional(10.0);
     let visible = painter.clip_rect();
-    let mut frames: Vec<Option<Rect>> = Vec::with_capacity(world.rooms.len());
-    for room in &world.rooms {
+    let order = view.draw_order(world);
+    let mut frames: Vec<Option<Rect>> = vec![None; world.rooms.len()];
+    for &room_index in &order {
+        let room = &world.rooms[room_index];
+        let fade = view.fade(world, room_index);
         let mut bounds: Option<Rect> = None;
         for (x, z, sector) in room.iter() {
             let (rect, corners) = sector_screen_rect(world, room, transform, x, z);
@@ -147,7 +189,7 @@ pub(crate) fn draw_grid_world(
                 None if sector.ceiling.is_some() => CEILING_ONLY,
                 None => WALLS_ONLY,
             };
-            painter.rect_filled(rect, 0.0, fill);
+            painter.rect_filled(rect, 0.0, fill.gamma_multiply(fade));
             let size = rect.width().min(rect.height());
             if size >= MIN_OUTLINE_PIXELS {
                 painter.rect_stroke(
@@ -179,9 +221,10 @@ pub(crate) fn draw_grid_world(
                 }
             }
         }
-        frames.push(bounds);
+        frames[room_index] = bounds;
     }
-    for room in &world.rooms {
+    for &room_index in &order {
+        let room = &world.rooms[room_index];
         for (x, z, sector) in room.iter() {
             if sector.wall_count() == 0 {
                 continue;
@@ -194,12 +237,19 @@ pub(crate) fn draw_grid_world(
             draw_walls(painter, corners, sector, (size * 0.1).clamp(2.0, 4.5));
         }
     }
-    for (room_index, (room, frame)) in world.rooms.iter().zip(frames).enumerate() {
-        let Some(rect) = frame else { continue };
+    for &room_index in &order {
+        let room = &world.rooms[room_index];
+        let Some(rect) = frames[room_index] else {
+            continue;
+        };
+        let active = view.active == Some(room_index);
         painter.rect_stroke(
             rect,
             0.0,
-            egui::Stroke::new(1.5, ROOM_OUTLINE),
+            egui::Stroke::new(
+                if active { 2.5 } else { 1.5 },
+                if active { STUDIO_ACCENT } else { ROOM_OUTLINE },
+            ),
             egui::StrokeKind::Outside,
         );
         if show_labels {
@@ -215,6 +265,83 @@ pub(crate) fn draw_grid_world(
                 egui::FontId::proportional(11.0),
                 ROOM_LABEL,
             );
+        }
+    }
+}
+
+impl EditorWorkspace {
+    /// Room chips in the corner of the Top view when a grid world has more
+    /// than one room: an eye toggles a room's visibility, the name makes it
+    /// the active room (click again to clear).
+    pub(crate) fn draw_grid_room_chips(&mut self, parent: &mut egui::Ui, rect: Rect) {
+        let Some(world) = self.project.active_scene().world.grid() else {
+            return;
+        };
+        if world.rooms.len() < 2 {
+            return;
+        }
+        let rooms: Vec<(String, i32)> = world
+            .rooms
+            .iter()
+            .enumerate()
+            .map(|(i, r)| {
+                let name = if r.name.is_empty() {
+                    format!("Room {i}")
+                } else {
+                    r.name.clone()
+                };
+                (name, r.y_offset)
+            })
+            .collect();
+        // A child ui over the viewport's top-right corner. It is not an
+        // `egui::Area`, so it shows on the first frame (an Area spends one
+        // frame measuring itself, which a single headless capture misses).
+        const CHIP_WIDTH: f32 = 200.0;
+        let chip_rect = Rect::from_min_size(
+            rect.right_top() + Vec2::new(-CHIP_WIDTH - 12.0, 12.0),
+            Vec2::new(CHIP_WIDTH, 40.0 + 24.0 * rooms.len() as f32),
+        );
+        let mut ui = parent.new_child(
+            egui::UiBuilder::new()
+                .max_rect(chip_rect)
+                .layout(egui::Layout::top_down(egui::Align::Min)),
+        );
+        let ui = &mut ui;
+        {
+            {
+                egui::Frame::new()
+                    .fill(STUDIO_PANEL_HEADER)
+                    .stroke(egui::Stroke::new(1.0, STUDIO_BORDER))
+                    .inner_margin(egui::Margin::same(6))
+                    .show(ui, |ui| {
+                        ui.label(
+                            egui::RichText::new("Rooms")
+                                .color(STUDIO_TEXT_WEAK)
+                                .size(11.0),
+                        );
+                        for (index, (name, y_offset)) in rooms.iter().enumerate() {
+                            ui.horizontal(|ui| {
+                                let mut shown = !self.grid_hidden_rooms.contains(&index);
+                                if ui.checkbox(&mut shown, "").changed() {
+                                    if shown {
+                                        self.grid_hidden_rooms.remove(&index);
+                                    } else {
+                                        self.grid_hidden_rooms.insert(index);
+                                    }
+                                }
+                                let label = if *y_offset == 0 {
+                                    name.clone()
+                                } else {
+                                    format!("{name}  (y {y_offset:+})")
+                                };
+                                let active = self.grid_active_room == Some(index);
+                                if ui.selectable_label(active, label).clicked() {
+                                    self.grid_active_room = (!active).then_some(index);
+                                }
+                            });
+                        }
+                    });
+            }
         }
     }
 }

@@ -825,6 +825,10 @@ pub struct EditorWorkspace {
     /// location, grid scale, or selection context.
     orthographic_view: OrthographicView,
     orthographic_focus: [f32; 3],
+    /// Grid rooms hidden in the Top view (editor-only, not saved).
+    grid_hidden_rooms: HashSet<usize>,
+    /// Grid room the Top view emphasises when rooms overlap in plan.
+    grid_active_room: Option<usize>,
     active_workspace: WorkspaceView,
     left_dock_open: bool,
     inspector_open: bool,
@@ -3058,6 +3062,8 @@ impl EditorWorkspace {
             view_2d: false,
             orthographic_view: OrthographicView::Top,
             orthographic_focus: [0.0; 3],
+            grid_hidden_rooms: HashSet::new(),
+            grid_active_room: None,
             active_workspace: WorkspaceView::from_project(editor_workspace.active),
             left_dock_open: true,
             inspector_open: true,

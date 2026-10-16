@@ -184,8 +184,21 @@ impl EditorWorkspace {
 
                         if top_view {
                             if let Some(world) = self.project.active_scene().world.grid() {
-                                crate::grid_view::draw_grid_world(&painter, transform, world, true);
+                                crate::grid_view::draw_grid_world(
+                                    &painter,
+                                    transform,
+                                    world,
+                                    true,
+                                    &crate::grid_view::GridRoomView {
+                                        hidden: &self.grid_hidden_rooms,
+                                        active: self.grid_active_room,
+                                    },
+                                );
                             }
+                        }
+
+                        if top_view {
+                            self.draw_grid_room_chips(ui, rect);
                         }
 
                         let hits = if top_view {

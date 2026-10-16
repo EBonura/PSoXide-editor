@@ -123,7 +123,17 @@ fn the_top_view_draws_every_sector_and_wall_of_a_grid_world() {
                 0.05,
             );
             let painter = ui.painter_at(rect);
-            crate::grid_view::draw_grid_world(&painter, transform, &world, true);
+            let hidden = HashSet::new();
+            crate::grid_view::draw_grid_world(
+                &painter,
+                transform,
+                &world,
+                true,
+                &crate::grid_view::GridRoomView {
+                    hidden: &hidden,
+                    active: None,
+                },
+            );
             drawn = world.sector_count();
         });
     });
@@ -155,4 +165,33 @@ fn opening_a_grid_project_frames_the_whole_world_in_the_top_view() {
         zoom > 0.0 && 4032.0 * zoom <= 1280.0 && 2688.0 * zoom <= 700.0,
         "zoom {zoom}"
     );
+}
+
+#[test]
+fn stacked_rooms_draw_bottom_up_with_the_active_room_last_and_hidden_ones_skipped() {
+    use crate::grid_view::GridRoomView;
+    let mut world = GridWorld::new();
+    for (name, y) in [("high", 2048), ("low", 0), ("mid", 1024)] {
+        let mut room = GridRoom::new(name, 1, 1);
+        room.y_offset = y;
+        world.rooms.push(room);
+    }
+    let none = HashSet::new();
+    let view = GridRoomView {
+        hidden: &none,
+        active: None,
+    };
+    assert_eq!(view.draw_order(&world), vec![1, 2, 0]);
+    // Rooms above the lowest are translucent so the ones beneath show.
+    assert_eq!(view.fade(&world, 1), 1.0);
+    assert!(view.fade(&world, 0) < 1.0);
+
+    let hidden = HashSet::from([2usize]);
+    let view = GridRoomView {
+        hidden: &hidden,
+        active: Some(1),
+    };
+    assert_eq!(view.draw_order(&world), vec![0, 1]);
+    assert_eq!(view.fade(&world, 1), 1.0);
+    assert!(view.fade(&world, 0) < 1.0);
 }
