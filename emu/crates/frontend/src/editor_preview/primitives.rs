@@ -582,6 +582,7 @@ pub(crate) fn push_textured_material_tri_split(
         return left || right;
     }
     if scratch.tex_used >= TRI_CAP {
+        scratch.dropped = scratch.dropped.saturating_add(1);
         return false;
     }
     let idx = scratch.tex_used;
@@ -631,6 +632,7 @@ pub(crate) fn push_tri_split(
         return left || right;
     }
     if scratch.used >= TRI_CAP {
+        scratch.dropped = scratch.dropped.saturating_add(1);
         return false;
     }
     let idx = scratch.used;

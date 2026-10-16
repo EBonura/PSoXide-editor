@@ -59,11 +59,13 @@ use poi::*;
 use primitives::*;
 use props::*;
 
-/// Maximum sectors we'll attempt to render in one preview pass.
-/// 64×64 grid would already be enormous for PSX (~16 MiB cooked); a
-/// 4096-cap caps the per-frame primitive count at a comfortable
-/// number for the host renderer.
-const TRI_CAP: usize = 4096;
+/// Most triangles of each kind the preview submits in one frame. A grid
+/// world can put its whole face budget (16,383 faces, two triangles each at
+/// worst) in front of the camera at once, so this is sized for that; the
+/// scratch size is asserted against the 16 MiB OT window below. Anything
+/// beyond it is counted in `PreviewScratch::dropped` and reported loudly
+/// through `psxed_ui::report_preview_overflow`, never dropped silently.
+const TRI_CAP: usize = 16384;
 const SKY_QUAD_CAP: usize = psxed_project::SKY_CYCLORAMA_QUAD_MAX;
 const PROJECTED_SKY_PACKET_WORDS: usize =
     if psx_bsp::sky::VIEW_RAY_SKY_PACKET_WORDS > psx_bsp::sky::VIEW_RAY_CUBE_SKY_PACKET_WORDS {
@@ -168,6 +170,9 @@ struct PreviewScratch {
     /// `0` = next free slot in `tris` (flat-shaded);
     /// `tex_used` = next free slot in `tex_tris`.
     used: usize,
+    /// Primitives or whole cells the frame could not take because a pool was
+    /// full. Reported to the editor at the end of the frame.
+    dropped: u32,
     sky_used: usize,
     far_vista_used: usize,
     tex_used: usize,
@@ -258,6 +263,7 @@ fn new_preview_scratch() -> Box<PreviewScratch> {
         std::ptr::addr_of_mut!((*ptr).model_joint_transforms)
             .write([psx_engine::JointViewTransform::ZERO; PREVIEW_JOINT_CAP]);
         std::ptr::addr_of_mut!((*ptr).used).write(0);
+        std::ptr::addr_of_mut!((*ptr).dropped).write(0);
         std::ptr::addr_of_mut!((*ptr).sky_used).write(0);
         std::ptr::addr_of_mut!((*ptr).far_vista_used).write(0);
         std::ptr::addr_of_mut!((*ptr).tex_used).write(0);
@@ -387,6 +393,7 @@ pub fn build_phase1_frame_reusing(
         .lock()
         .expect("editor preview scratch mutex");
     scratch.used = 0;
+    scratch.dropped = 0;
     scratch.sky_used = 0;
     scratch.far_vista_used = 0;
     scratch.tex_used = 0;
@@ -545,6 +552,7 @@ pub fn build_phase1_frame_reusing(
     output
         .overlay_lines
         .extend_from_slice(&scratch.overlay_lines);
+    psxed_ui::report_preview_overflow(scratch.dropped);
     output
 }
 
@@ -1420,6 +1428,7 @@ fn walk_brushes_with_culling(
         with_cached_csg_surfaces(project, hidden_scene_nodes, |surfaces| {
             for cached in surfaces {
                 if scratch.geometry_full() {
+                    scratch.dropped = scratch.dropped.saturating_add(1);
                     break;
                 }
                 if cull_brush_bounds && !preview_brush_bounds_visible(camera, cached.bounds) {
@@ -1472,6 +1481,7 @@ fn walk_brushes_with_culling(
     }
     for lit_surface in &cache.surfaces {
         if scratch.geometry_full() {
+            scratch.dropped = scratch.dropped.saturating_add(1);
             break;
         }
         if cull_brush_bounds && !preview_brush_bounds_visible(camera, lit_surface.bounds) {

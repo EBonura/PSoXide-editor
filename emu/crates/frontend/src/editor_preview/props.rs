@@ -21,6 +21,7 @@ pub(super) fn walk_props(
     let scene = project.active_scene();
     for node in scene.nodes() {
         if scratch.geometry_full() {
+            scratch.dropped = scratch.dropped.saturating_add(1);
             break;
         }
         if scene_node_hidden(scene, hidden_scene_nodes, node.id) {

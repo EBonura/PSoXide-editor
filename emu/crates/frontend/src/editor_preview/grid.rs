@@ -112,13 +112,16 @@ pub(super) fn walk_grid(
     let mut faces = Vec::new();
     for (room_index, room) in world.rooms.iter().enumerate() {
         for (x, z, sector) in room.iter() {
-            if scratch.geometry_full() {
-                return;
-            }
             let Some(bounds) = cell_bounds(world, room, x, z, sector) else {
                 continue;
             };
             if !preview_brush_bounds_visible(camera, bounds) {
+                continue;
+            }
+            if scratch.geometry_full() {
+                // A visible sector that no longer fits: count it, keep
+                // counting so the report says how much is missing.
+                scratch.dropped = scratch.dropped.saturating_add(1);
                 continue;
             }
             faces.clear();
