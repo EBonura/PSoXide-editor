@@ -102,6 +102,13 @@ impl EditorWorkspace {
                 .color(STUDIO_TEXT_WEAK)
                 .size(11.0),
         );
+        if ui
+            .selectable_label(self.grid.help_open, "?")
+            .on_hover_text("Every tool key and gesture (?)")
+            .clicked()
+        {
+            self.grid.help_open = !self.grid.help_open;
+        }
     }
 
     /// Key hints for the active tool.

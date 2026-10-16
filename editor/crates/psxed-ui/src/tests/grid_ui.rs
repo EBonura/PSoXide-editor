@@ -191,3 +191,142 @@ fn a_rectangle_that_would_overfill_the_room_says_so_instead_of_freezing() {
         }
     }
 }
+
+fn shapes_text(output: &egui::FullOutput) -> String {
+    output
+        .shapes
+        .iter()
+        .filter_map(|s| match &s.shape {
+            egui::epaint::Shape::Text(t) => Some(t.galley.text().to_string()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn draw_with_events(
+    ws: &mut EditorWorkspace,
+    ctx: &egui::Context,
+    events: Vec<egui::Event>,
+) -> egui::FullOutput {
+    let texture = ctx.load_texture(
+        "grid-ui-events",
+        egui::ColorImage::new([1, 1], egui::Color32::BLACK),
+        egui::TextureOptions::NEAREST,
+    );
+    let viewport = EditorViewport3dPresentation::edit(texture.id(), Vec::new());
+    ws.view_2d = true;
+    ws.active_workspace = WorkspaceView::Room;
+    let input = egui::RawInput {
+        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1600.0, 900.0))),
+        events,
+        ..egui::RawInput::default()
+    };
+    ctx.run(input, |ctx| {
+        ws.draw(ctx, viewport.clone(), EditorPlaytestStatus::Idle);
+    })
+}
+
+#[test]
+fn the_rooms_panel_lists_rooms_and_hiding_one_reaches_the_preview() {
+    let ctx = full_context();
+    let mut ws =
+        EditorWorkspace::with_project(test_temp_dir("grid-rooms-panel"), flat_project(3, 3, false));
+    ws.grid_add_room();
+    let output = draw_editor(&mut ws, &ctx, true);
+    let text = shapes_text(&output);
+    assert!(text.contains("Rooms"), "{text}");
+    assert!(text.contains("hall"), "{text}");
+    assert!(text.contains("Room 1"), "{text}");
+    assert!(crate::grid_preview_hidden_rooms().is_empty());
+    ws.grid_hidden_rooms.insert(1);
+    draw_editor(&mut ws, &ctx, false);
+    assert_eq!(crate::grid_preview_hidden_rooms(), vec![1]);
+    // A brush world publishes nothing hidden.
+    ws.project.active_scene_mut().world = psxed_project::grid::SceneWorld::Brushes;
+    draw_editor(&mut ws, &ctx, false);
+    assert!(crate::grid_preview_hidden_rooms().is_empty());
+}
+
+#[test]
+fn the_question_mark_opens_the_key_help_and_escape_closes_it() {
+    let ctx = full_context();
+    let mut ws =
+        EditorWorkspace::with_project(test_temp_dir("grid-help"), flat_project(3, 3, false));
+    let key = |key, pressed, shift| egui::Event::Key {
+        key,
+        physical_key: Some(key),
+        pressed,
+        repeat: false,
+        modifiers: egui::Modifiers {
+            shift,
+            ..egui::Modifiers::NONE
+        },
+    };
+    let closed = shapes_text(&draw_editor(&mut ws, &ctx, true));
+    assert!(!closed.contains("Grid editor keys"));
+    let open = shapes_text(&draw_with_events(
+        &mut ws,
+        &ctx,
+        vec![
+            key(egui::Key::Slash, true, true),
+            key(egui::Key::Slash, false, true),
+        ],
+    ));
+    assert!(ws.grid.help_open);
+    // egui sizes a new window invisibly first; the next frame shows it.
+    drop(open);
+    let open = shapes_text(&draw_editor(&mut ws, &ctx, true));
+    assert!(open.contains("Grid editor keys"), "{open}");
+    assert!(open.contains("Shift+drag"), "{open}");
+    draw_with_events(
+        &mut ws,
+        &ctx,
+        vec![
+            key(egui::Key::Escape, true, false),
+            key(egui::Key::Escape, false, false),
+        ],
+    );
+    assert!(!ws.grid.help_open);
+}
+
+#[test]
+fn brush_menus_are_hidden_for_grid_projects_and_kept_for_brush_projects() {
+    let ctx = full_context();
+    let mut ws =
+        EditorWorkspace::with_project(test_temp_dir("grid-menus"), flat_project(2, 2, false));
+    let grid_text = shapes_text(&draw_editor(&mut ws, &ctx, true));
+    assert!(grid_text.contains("Edit"), "{grid_text}");
+    assert!(!grid_text.contains("Brush"), "{grid_text}");
+    ws.project.active_scene_mut().world = psxed_project::grid::SceneWorld::Brushes;
+    let brush_text = shapes_text(&draw_editor(&mut ws, &ctx, true));
+    assert!(brush_text.contains("Brush"), "{brush_text}");
+}
+
+#[test]
+fn new_grid_project_makes_a_playable_starter_and_opens_it() {
+    let projects = psxed_project::projects_dir();
+    let name = format!("Test Grid Starter {}", std::process::id());
+    let dir = projects.join(psxed_project::project_file_stem(&name));
+    let mut ws =
+        EditorWorkspace::with_project(test_temp_dir("grid-new"), flat_project(2, 2, false));
+    let result = ws.create_and_open_grid_project(&name);
+    let world_rooms = ws
+        .project
+        .active_scene()
+        .world
+        .grid()
+        .map(|w| (w.rooms.len(), w.sector_count()));
+    let had_player = ws
+        .project
+        .active_scene()
+        .nodes()
+        .iter()
+        .any(|n| matches!(n.kind, NodeKind::Entity));
+    let again = ws.create_and_open_grid_project(&name);
+    let _ = std::fs::remove_dir_all(&dir);
+    result.expect("the starter is created");
+    assert_eq!(world_rooms, Some((1, 36)));
+    assert!(had_player, "the Graybox Reach player is in the scene");
+    assert!(again.unwrap_err().contains("already exists"));
+}

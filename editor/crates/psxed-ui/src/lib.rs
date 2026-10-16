@@ -5,6 +5,7 @@
 
 mod gizmo;
 mod grid_tools;
+pub use grid_tools::grid_preview_hidden_rooms;
 mod preview_overflow;
 pub use preview_overflow::report_preview_overflow;
 mod grid_view;
@@ -1770,6 +1771,8 @@ enum Modal {
         cook_mode: psxed_project::brush_world::BrushWorldCookMode,
         error: Option<String>,
     },
+    /// File → New Grid Project: the name and the last submit error.
+    NewGridProject { name: String, error: Option<String> },
     /// Delete the current project. Carries the last delete error, if any.
     DeleteProject { error: Option<String> },
     /// The project has unsaved edits and the user asked for something that
@@ -3814,6 +3817,35 @@ impl EditorWorkspace {
         opened.retire_egui_textures(self.drain_live_egui_textures());
         *self = opened;
         self.status = format!("Created {}", short_path(&self.project_dir));
+        Ok(())
+    }
+
+    /// Create a grid project with the starter room and open it.
+    pub fn create_and_open_grid_project(&mut self, name: &str) -> Result<(), String> {
+        let trimmed = name.trim();
+        if trimmed.is_empty() {
+            return Err("Project name cannot be empty".to_string());
+        }
+        let projects = psxed_project::projects_dir();
+        let target = projects.join(psxed_project::project_file_stem(trimmed));
+        if target.exists() {
+            return Err(format!("{} already exists", short_path(&target)));
+        }
+        let base = projects.join(psxed_project::grid::starter::STARTER_BASE);
+        psxed_project::grid::starter::create_project(&base, &target, trimmed)
+            .map_err(|error| error.to_string())?;
+        let mut opened = Self::open_directory(&target)?;
+        opened.active_workspace = WorkspaceView::Room;
+        opened.view_2d = false;
+        opened.set_grid_tool(grid_tools::GridTool::Floor);
+        opened.frame_viewport();
+        opened.portable_geometry_clipboard = self.portable_geometry_clipboard.clone();
+        opened.retire_egui_textures(self.drain_live_egui_textures());
+        *self = opened;
+        self.status = format!(
+            "Created {}; press Play to walk the starter room",
+            short_path(&self.project_dir)
+        );
         Ok(())
     }
 

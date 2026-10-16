@@ -143,6 +143,9 @@ impl EditorWorkspace {
                 if self.active_workspace == WorkspaceView::Ui {
                     self.draw_ui_tree_panel(ui);
                 } else {
+                    if self.is_grid_world() && self.active_workspace == WorkspaceView::Room {
+                        self.draw_grid_rooms_panel(ui);
+                    }
                     self.draw_scene_tree_panel(ui);
                 }
             },

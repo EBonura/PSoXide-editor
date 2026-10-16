@@ -18,8 +18,6 @@ impl EditorWorkspace {
         self.draw_grid_palette(ui);
         ui.add_space(6.0);
         self.draw_grid_face_inspector(ui);
-        ui.add_space(6.0);
-        self.draw_grid_room_inspector(ui);
         ui.add_space(8.0);
         ui.separator();
     }
@@ -50,10 +48,15 @@ impl EditorWorkspace {
 
     fn draw_grid_palette(&mut self, ui: &mut egui::Ui) {
         self.refresh_texture_thumbs(ui.ctx());
-        let materials = self.project.material_options();
+        let materials =
+            psxed_project::grid::palette::palette_materials(&self.project, self.grid.palette_all);
         egui::CollapsingHeader::new(RichText::new("Materials").strong())
             .default_open(true)
             .show(ui, |ui| {
+                ui.checkbox(&mut self.grid.palette_all, "Show all project materials")
+                    .on_hover_text(
+                        "Off: only wall, floor and ceiling images. On: also HUD, menu, sky and character images.",
+                    );
                 if materials.is_empty() {
                     ui.label(RichText::new("No materials in this project").color(STUDIO_TEXT_WEAK));
                     return;
@@ -378,86 +381,6 @@ impl EditorWorkspace {
                 }
             }
             // The Inspector records the undo step, coalescing a drag.
-            if self.project != before {
-                self.grid_changed();
-            }
-        }
-    }
-
-    fn draw_grid_room_inspector(&mut self, ui: &mut egui::Ui) {
-        let room = self.grid_target_room();
-        let Some(world) = self.project.active_scene().world.grid() else {
-            return;
-        };
-        let Some(r) = world.rooms.get(room) else {
-            return;
-        };
-        let (mut y_clicks, mut ambient, mut name) = (
-            r.y_offset as f32 / psxed_project::grid::CLICK_UNITS as f32,
-            r.ambient,
-            r.name.clone(),
-        );
-        let room_count = world.rooms.len();
-        let (mut add_room, mut delete_room) = (false, false);
-        let before = self.project.clone();
-        let mut changed = false;
-        egui::CollapsingHeader::new(RichText::new(format!("Room {room}")).strong())
-            .default_open(false)
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Name");
-                    changed |= ui.text_edit_singleline(&mut name).changed();
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Raise");
-                    changed |= ui
-                        .add(
-                            egui::DragValue::new(&mut y_clicks)
-                                .speed(0.1)
-                                .suffix(" clicks")
-                                .max_decimals(2),
-                        )
-                        .on_hover_text("Vertical offset of the whole room")
-                        .changed();
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Ambient");
-                    for c in &mut ambient {
-                        changed |= ui.add(egui::DragValue::new(c).range(0..=255)).changed();
-                    }
-                });
-                ui.horizontal(|ui| {
-                    add_room = ui
-                        .button("Add room")
-                        .on_hover_text("A new empty room, raised one storey above the highest")
-                        .clicked();
-                    delete_room = ui
-                        .add_enabled(room_count > 1, egui::Button::new("Delete room"))
-                        .on_hover_text("Remove this room and everything in it")
-                        .clicked();
-                });
-            });
-        if add_room {
-            self.grid_add_room();
-        }
-        if delete_room {
-            self.grid_delete_room(room);
-        }
-        if changed {
-            if let Some(r) = self
-                .project
-                .active_scene_mut()
-                .world
-                .grid_mut()
-                .and_then(|w| w.rooms.get_mut(room))
-            {
-                r.name = name;
-                r.ambient = ambient;
-                r.y_offset = psxed_project::grid::units::snap_to(
-                    (y_clicks * psxed_project::grid::CLICK_UNITS as f32).round() as i32,
-                    psxed_project::grid::FINE_UNITS,
-                );
-            }
             if self.project != before {
                 self.grid_changed();
             }

@@ -340,7 +340,12 @@ impl EditorWorkspace {
                         self.handle_animation_viewer_action(action);
                     }
                 } else {
-                    ui.horizontal(|ui| self.draw_viewport_toolbar(ui));
+                    if self.is_grid_world() {
+                        // The grid strip wraps instead of running off a narrow viewport.
+                        ui.horizontal_wrapped(|ui| self.draw_viewport_toolbar(ui));
+                    } else {
+                        ui.horizontal(|ui| self.draw_viewport_toolbar(ui));
+                    }
                 }
             });
     }

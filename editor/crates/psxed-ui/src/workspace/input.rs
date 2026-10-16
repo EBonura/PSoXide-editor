@@ -1016,6 +1016,14 @@ impl EditorWorkspace {
                 self.open_new_project_dialog();
                 ui.close_menu();
             }
+            if ui
+                .button("New Grid Project...")
+                .on_hover_text("A sector-grid project with a starter room that Plays immediately")
+                .clicked()
+            {
+                self.open_new_grid_project_dialog();
+                ui.close_menu();
+            }
             ui.menu_button(icons::label(icons::FOLDER, "Project"), |ui| {
                 self.draw_project_switch_menu(ui);
             });
@@ -1148,7 +1156,7 @@ impl EditorWorkspace {
                 ui.close_menu();
             }
         });
-        if self.active_workspace == WorkspaceView::Room {
+        if self.active_workspace == WorkspaceView::Room && !self.is_grid_world() {
             ui.menu_button("Brush", |ui| {
                 let can_extrude = self.brush_edit_mode == BrushEditMode::Face
                     && self.selected_brush.is_some()

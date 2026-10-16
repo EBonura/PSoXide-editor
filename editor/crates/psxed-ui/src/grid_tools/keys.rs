@@ -23,6 +23,7 @@ fn pressed_shift(ctx: &egui::Context, key: egui::Key) -> bool {
 impl EditorWorkspace {
     /// Handle this frame's grid shortcuts. Call before the generic ones.
     pub(crate) fn handle_grid_shortcuts(&mut self, ctx: &egui::Context, focus_taken: bool) {
+        self.handle_grid_help_key(ctx, focus_taken);
         if !self.is_grid_world() || self.active_workspace != WorkspaceView::Room || focus_taken {
             return;
         }

@@ -1078,6 +1078,13 @@ impl EditorWorkspace {
         };
     }
 
+    pub(crate) fn open_new_grid_project_dialog(&mut self) {
+        self.modal = Modal::NewGridProject {
+            name: String::new(),
+            error: None,
+        };
+    }
+
     pub(crate) fn open_texture_import_dialog(&mut self) {
         self.texture_import_dialog.open = true;
         self.texture_import_dialog.status = None;

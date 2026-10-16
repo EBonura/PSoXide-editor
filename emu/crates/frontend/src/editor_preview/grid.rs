@@ -109,8 +109,14 @@ pub(super) fn walk_grid(
         return;
     };
     let lights = collect_bsp_preview_bake_lights(project);
+    // Rooms the author hid in the Rooms panel; a view setting the workspace
+    // publishes, since the preview only sees the project.
+    let hidden = psxed_ui::grid_preview_hidden_rooms();
     let mut faces = Vec::new();
     for (room_index, room) in world.rooms.iter().enumerate() {
+        if hidden.contains(&room_index) {
+            continue;
+        }
         for (x, z, sector) in room.iter() {
             let Some(bounds) = cell_bounds(world, room, x, z, sector) else {
                 continue;

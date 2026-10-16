@@ -24,6 +24,7 @@ mod clipboard_tool;
 pub(crate) mod events;
 mod face_tools;
 mod height_tool;
+mod help;
 mod keys;
 mod overlay;
 mod panels;
@@ -31,6 +32,7 @@ pub(crate) mod pick;
 mod place_tool;
 mod pose;
 mod rect_tool;
+mod rooms;
 mod select_tool;
 mod strip;
 pub(crate) mod view;
@@ -38,6 +40,7 @@ mod wall_tool;
 
 pub(crate) use events::{grid_tool_2d, grid_tool_3d};
 use pick::PickCache;
+pub use rooms::grid_preview_hidden_rooms;
 use view::{GridPointer, GridView};
 
 /// The eight grid tools, in strip order.
@@ -305,6 +308,12 @@ pub(crate) struct GridEditState {
     pub view_rect: std::cell::Cell<Option<Rect>>,
     /// A scripted hover (see `pose`) stays until a real pointer replaces it.
     pub hover_pinned: bool,
+    /// The key and gesture help overlay (`?`) is open.
+    pub help_open: bool,
+    /// The palette lists every project material, not only world surfaces.
+    pub palette_all: bool,
+    /// The room whose name is being edited in the Rooms panel.
+    pub renaming_room: Option<usize>,
 }
 
 impl Default for GridEditState {
@@ -329,6 +338,9 @@ impl Default for GridEditState {
             fit_pending: true,
             view_rect: std::cell::Cell::new(None),
             hover_pinned: false,
+            help_open: false,
+            palette_all: false,
+            renaming_room: None,
         }
     }
 }
