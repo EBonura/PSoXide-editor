@@ -579,12 +579,12 @@ HWTEST_STEPS := 12000000000
 # pulse is the only input.
 hwtest-run: hardware-tests-disc
 	@mkdir -p $(dir $(HWTEST_LOG))
-	cd emu && cargo run -q -p frontend --release -- launch \
+	cd emu && cargo run -q -p frontend --features editor --release -- launch \
 		--path ../$(EXAMPLE_OUT)/hardware-tests.exe \
 		--disc ../$(EXAMPLE_OUT)/hardware-tests.cue \
 		--steps $(HWTEST_STEPS) --pad-pulses '0x4000@25+3' \
 		--dump-audio ../$(HWTEST_WAV) > ../$(HWTEST_LOG)
-	@python3 tools/hwtest-report.py $(HWTEST_LOG) > /dev/null || { \
+	@$(PSOXIDE_HWTEST) report $(HWTEST_LOG) > /dev/null || { \
 		echo "hwtest-run: incomplete capture (raise HWTEST_STEPS?)"; exit 2; }
 	@grep -q 'run complete, every area clean, silent' $(HWTEST_LOG) || { \
 		echo "hwtest-run: the run did not finish clean and silent; see $(HWTEST_LOG)"; exit 2; }
@@ -599,7 +599,8 @@ hwtest-verify-code: hardware-tests
 		echo "hwtest-verify-code: $(HWTEST_CODE_BASELINE) does not exist."; \
 		echo "  The suite version bumped without a machine-code baseline."; \
 		echo "  Review the spans, then pin them with:"; \
-		echo "    python3 tools/verify-hwtest-machine-code.py $(EXAMPLE_OUT)/hardware-tests.exe --baseline <previous version's file> | grep -v '^# drift' | cut -d, -f1-4 > $(HWTEST_CODE_BASELINE)"; \
+		echo "    $(PSOXIDE_HWTEST) verify-machine-code $(EXAMPLE_OUT)/hardware-tests.exe --baseline <previous version's file> | grep -v '^# drift' | cut -d, -f1-4 > $(HWTEST_CODE_BASELINE)"; \
+		echo "  (--baseline carries the probe names over by id; name any probe_NN rows by hand.)"; \
 		exit 2; }
 	$(PSOXIDE_HWTEST) verify-machine-code $(EXAMPLE_OUT)/hardware-tests.exe \
 		--baseline $(HWTEST_CODE_BASELINE) --fail-on-change
@@ -608,9 +609,9 @@ hwtest-verify-code: hardware-tests
 # emulator baseline fails the build and is named in the output; the silence of
 # the capture pages is checked on the audio the emulator dumped.
 hwtest-diff: hwtest-verify-code hwtest-run
-	python3 tools/hwtest-report.py --baseline $(HWTEST_BASELINE) \
+	$(PSOXIDE_HWTEST) report --baseline $(HWTEST_BASELINE) \
 		--layout-immune-timing-only --fail-on-change $(HWTEST_LOG)
-	python3 tools/hwtest-report.py --check-silence $(HWTEST_WAV)
+	$(PSOXIDE_HWTEST) check-silence $(HWTEST_WAV)
 
 # THE command for a recording or a page file: decode it (a video goes through
 # the QR extractor first) and diff it against the last silicon baselines.
@@ -621,12 +622,12 @@ hwtest-diff: hwtest-verify-code hwtest-run
 # for an emulator capture, the records the emulator still gets wrong.
 INPUT ?= $(HWTEST_LOG)
 hwtest-compare:
-	python3 tools/hwtest-report.py --compare "$(INPUT)"
+	$(PSOXIDE_HWTEST) compare "$(INPUT)"
 
 # Deliberate re-baseline of the emulator. Review hwtest-diff output BEFORE
 # running this: it pins whatever the emulator does today.
 hwtest-baseline: hwtest-run
-	@python3 tools/hwtest-report.py --emulator-baseline $(HWTEST_LOG) \
+	@$(PSOXIDE_HWTEST) emulator-baseline $(HWTEST_LOG) \
 		--git "$$(git describe --always --dirty)" \
 		--exe-sha "$$(shasum -a 256 $(EXAMPLE_OUT)/hardware-tests.exe | cut -c1-16)" \
 		--steps $(HWTEST_STEPS) > $(HWTEST_BASELINE)
