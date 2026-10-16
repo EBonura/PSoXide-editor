@@ -1,0 +1,410 @@
+//! The grid world editing tools.
+//!
+//! One strip of eight tools (Select, Floor, Ceiling, Wall, Height, Paint,
+//! Split, Place), each written once and driven from both the Top view and
+//! the 3D view through [`view::GridPointer`]. The document edits themselves
+//! are the pure functions in `psxed_project::grid::edit`; this module owns
+//! the gestures, the picking, the overlays and the panels around them.
+//!
+//! State lives in one [`GridEditState`] on the workspace, so the headless
+//! tests drive exactly what the window does.
+//!
+//! * [`view`]: the pointer, projection and ray helpers.
+//! * [`pick`]: picking faces, edges, vertices, cells and wall lines.
+//! * [`events`]: routing pointer events from both views to the tools.
+
+use super::*;
+
+use std::cell::RefCell;
+
+use psxed_project::grid::edit::{GridClipboard, GridSelection, HeightDrag, SurfaceKind};
+use psxed_project::grid::WallEdge;
+
+mod clipboard_tool;
+pub(crate) mod events;
+mod face_tools;
+mod height_tool;
+mod keys;
+mod overlay;
+mod panels;
+pub(crate) mod pick;
+mod place_tool;
+mod pose;
+mod rect_tool;
+mod select_tool;
+mod strip;
+pub(crate) mod view;
+mod wall_tool;
+
+pub(crate) use events::{grid_tool_2d, grid_tool_3d};
+use pick::PickCache;
+use view::{GridPointer, GridView};
+
+/// The eight grid tools, in strip order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum GridTool {
+    /// Pick, range-select, box-select, shift-drag heights.
+    Select,
+    /// Drag a rectangle of floor.
+    Floor,
+    /// Drag a rectangle of ceiling.
+    Ceiling,
+    /// Drag a run of walls along edges.
+    Wall,
+    /// Raise and lower vertices, edges and faces.
+    Height,
+    /// Apply the palette material to clicked faces.
+    Paint,
+    /// Flip a floor or ceiling's diagonal.
+    Split,
+    /// Place lights, spawns and actors on the grid.
+    Place,
+}
+
+impl GridTool {
+    pub(crate) const ALL: [Self; 8] = [
+        Self::Select,
+        Self::Floor,
+        Self::Ceiling,
+        Self::Wall,
+        Self::Height,
+        Self::Paint,
+        Self::Split,
+        Self::Place,
+    ];
+
+    pub(crate) const fn label(self) -> &'static str {
+        match self {
+            Self::Select => "Select",
+            Self::Floor => "Floor",
+            Self::Ceiling => "Ceiling",
+            Self::Wall => "Wall",
+            Self::Height => "Height",
+            Self::Paint => "Paint",
+            Self::Split => "Split",
+            Self::Place => "Place",
+        }
+    }
+
+    pub(crate) const fn key(self) -> egui::Key {
+        match self {
+            Self::Select => egui::Key::V,
+            Self::Floor => egui::Key::F,
+            Self::Ceiling => egui::Key::C,
+            Self::Wall => egui::Key::W,
+            Self::Height => egui::Key::H,
+            Self::Paint => egui::Key::P,
+            Self::Split => egui::Key::D,
+            Self::Place => egui::Key::O,
+        }
+    }
+
+    pub(crate) const fn key_label(self) -> &'static str {
+        match self {
+            Self::Select => "V",
+            Self::Floor => "F",
+            Self::Ceiling => "C",
+            Self::Wall => "W",
+            Self::Height => "H",
+            Self::Paint => "P",
+            Self::Split => "D",
+            Self::Place => "O",
+        }
+    }
+
+    pub(crate) const fn icon(self) -> char {
+        match self {
+            Self::Select => icons::POINTER,
+            Self::Floor => icons::SQUARE,
+            Self::Ceiling => icons::LAYERS,
+            Self::Wall => icons::BRICK_WALL,
+            Self::Height => icons::MOVE,
+            Self::Paint => icons::PALETTE,
+            Self::Split => icons::SCAN,
+            Self::Place => icons::MAP_PIN,
+        }
+    }
+
+    pub(crate) const fn tooltip(self) -> &'static str {
+        match self {
+            Self::Select => {
+                "Click a vertex, edge or face. Shift extends a range, Ctrl toggles, drag boxes, Shift-drag raises and lowers."
+            }
+            Self::Floor => "Drag a rectangle to create floor. Shift sets the height. Ctrl deletes.",
+            Self::Ceiling => {
+                "Drag a rectangle to create ceiling. Shift sets the height. Ctrl deletes."
+            }
+            Self::Wall => {
+                "Drag along an edge to place a run of walls. R turns the direction, Ctrl removes."
+            }
+            Self::Height => "Drag a vertex, edge or face up and down. Alt snaps finer. L unlinks.",
+            Self::Paint => "Click faces to apply the material chosen in the palette. Ctrl samples.",
+            Self::Split => "Click a floor or ceiling to flip its diagonal.",
+            Self::Place => "Click to place the chosen node at a sector centre on the floor.",
+        }
+    }
+}
+
+/// Direction of the next wall: the edge nearest the pointer, or a fixed one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum WallDirection {
+    /// The cardinal edge of the sector nearest the pointer.
+    Auto,
+    /// Always this edge, diagonals included.
+    Edge(WallEdge),
+}
+
+impl WallDirection {
+    pub(crate) fn next(self) -> Self {
+        match self {
+            Self::Auto => Self::Edge(WallEdge::North),
+            Self::Edge(WallEdge::North) => Self::Edge(WallEdge::East),
+            Self::Edge(WallEdge::East) => Self::Edge(WallEdge::South),
+            Self::Edge(WallEdge::South) => Self::Edge(WallEdge::West),
+            Self::Edge(WallEdge::West) => Self::Edge(WallEdge::Nwse),
+            Self::Edge(WallEdge::Nwse) => Self::Edge(WallEdge::Nesw),
+            Self::Edge(WallEdge::Nesw) => Self::Auto,
+        }
+    }
+
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Edge(edge) => edge.label(),
+        }
+    }
+}
+
+/// A floor or ceiling rectangle being dragged.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct RectGesture {
+    pub kind: SurfaceKind,
+    pub room: usize,
+    pub anchor: [i32; 2],
+    pub current: [i32; 2],
+    /// Room-relative height of the surface being made, grid units.
+    pub height: i32,
+    /// Pointer height and surface height at the moment Shift was pressed.
+    pub adjust: Option<(f32, i32)>,
+    pub erase: bool,
+}
+
+/// A run of walls being dragged.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct WallGesture {
+    pub room: usize,
+    pub edge: WallEdge,
+    pub anchor: [i32; 2],
+    pub current: [i32; 2],
+    /// Room-relative height that picked the gap, `None` in the Top view.
+    pub pick_y: Option<i32>,
+    pub erase: bool,
+    /// Camera position `[x, z]` in world grid units when started in 3D, so
+    /// each wall faces the side it was placed from.
+    pub viewer: Option<[i64; 2]>,
+}
+
+/// A height drag in progress.
+#[derive(Clone, Debug)]
+pub(crate) struct HeightGesture {
+    pub drag: HeightDrag,
+    pub press_y: f32,
+    pub pixels_per_unit: f32,
+    pub delta: i32,
+    /// The document before the drag, recorded for undo at the first change.
+    pub before: Option<Box<ProjectDocument>>,
+}
+
+/// The one gesture in flight, if any.
+#[derive(Clone, Debug, Default)]
+pub(crate) enum Gesture {
+    #[default]
+    Idle,
+    Rect(RectGesture),
+    Walls(WallGesture),
+    Height(HeightGesture),
+    /// A marquee over the view, from `start` to `current`.
+    Marquee {
+        start: Pos2,
+        current: Pos2,
+        additive: bool,
+    },
+    /// Painting faces by dragging; one undo step for the stroke.
+    Paint {
+        undo_pushed: bool,
+    },
+    /// A node (light, spawn, actor) stroke handed to the node tools.
+    Node,
+}
+
+/// What the pointer is over, for hover highlights and ghosts.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) enum GridHover {
+    #[default]
+    None,
+    /// A sector, with the room-relative height of the plane it was found on.
+    Cell {
+        room: usize,
+        cell: [i32; 2],
+        height: i32,
+    },
+    /// A wall about to be placed, with its heights or `None` when covered.
+    Wall {
+        room: usize,
+        cell: [i32; 2],
+        edge: WallEdge,
+        heights: Option<[i32; 4]>,
+    },
+    /// A selectable element.
+    Elements(Vec<psxed_project::grid::edit::GridElement>),
+    /// A face and triangle for painting and splitting.
+    Face {
+        face: psxed_project::grid::edit::FaceRef,
+        tri: Option<u8>,
+    },
+    /// A sector centre and height where a node would land.
+    Spot { position: [f32; 3] },
+}
+
+/// A clipboard ghost following the pointer.
+#[derive(Clone, Debug)]
+pub(crate) struct PasteGhost {
+    pub clip: GridClipboard,
+    pub at: Option<[i32; 2]>,
+}
+
+/// All grid editing state of the workspace. Not saved with the project.
+pub(crate) struct GridEditState {
+    pub tool: GridTool,
+    pub selection: GridSelection,
+    pub hover: GridHover,
+    pub gesture: Gesture,
+    /// Material the Paint tool and new surfaces use.
+    pub material: Option<ResourceId>,
+    /// Room-relative height of new floors, grid units.
+    pub floor_height: i32,
+    /// Room-relative height of new ceilings, grid units.
+    pub ceiling_height: i32,
+    /// Whether coincident corners move together.
+    pub link: bool,
+    pub wall_dir: WallDirection,
+    pub clipboard: Option<GridClipboard>,
+    pub paste: Option<PasteGhost>,
+    /// The room tools create in when none is marked active.
+    pub last_room: usize,
+    /// Bumped by every document change; the pick cache and budget follow it.
+    pub rev: u64,
+    pub cache: RefCell<Option<PickCache>>,
+    /// Palette entry to scroll into view next frame.
+    pub palette_scroll_to: Option<ResourceId>,
+    /// Material counts for the status bar, per revision.
+    pub budget: RefCell<Option<(u64, psxed_project::grid::GridBudget)>>,
+    /// The Top view still has to fit the world to the real pane size.
+    pub fit_pending: bool,
+}
+
+impl Default for GridEditState {
+    fn default() -> Self {
+        Self {
+            tool: GridTool::Select,
+            selection: GridSelection::new(),
+            hover: GridHover::None,
+            gesture: Gesture::Idle,
+            material: None,
+            floor_height: 0,
+            ceiling_height: 3 * psxed_project::grid::SECTOR_UNITS,
+            link: true,
+            wall_dir: WallDirection::Auto,
+            clipboard: None,
+            paste: None,
+            last_room: 0,
+            rev: 1,
+            cache: RefCell::new(None),
+            palette_scroll_to: None,
+            budget: RefCell::new(None),
+            fit_pending: true,
+        }
+    }
+}
+
+impl GridEditState {
+    /// Forget any in-flight gesture and ghost (a document swap, a tool change).
+    pub(crate) fn abandon(&mut self) {
+        self.gesture = Gesture::Idle;
+        self.paste = None;
+        self.hover = GridHover::None;
+    }
+}
+
+impl EditorWorkspace {
+    /// Whether the active scene is a grid world.
+    pub(crate) fn is_grid_world(&self) -> bool {
+        self.project.active_scene().world.grid().is_some()
+    }
+
+    /// The room tools create in.
+    pub(crate) fn grid_target_room(&self) -> usize {
+        let count = self
+            .project
+            .active_scene()
+            .world
+            .grid()
+            .map_or(0, |w| w.rooms.len());
+        let room = self.grid_active_room.unwrap_or(self.grid.last_room);
+        room.min(count.saturating_sub(1))
+    }
+
+    /// Switch the grid tool, abandoning any ghost, and keep the shared tool
+    /// state the node tools and the brush strip read in step.
+    pub(crate) fn set_grid_tool(&mut self, tool: GridTool) {
+        if self.grid.tool != tool {
+            self.grid.abandon();
+        }
+        self.grid.tool = tool;
+        self.active_tool = match tool {
+            GridTool::Select => ViewTool::Select,
+            GridTool::Place => ViewTool::Place,
+            _ => ViewTool::Select,
+        };
+        self.status = format!("Tool: {} ({})", tool.label(), tool.key_label());
+        self.mark_shortcut_group_changed(ShortcutGroup::Tool);
+    }
+
+    /// A grid edit just happened: stale caches, dirty document.
+    pub(crate) fn grid_changed(&mut self) {
+        self.mark_dirty();
+    }
+}
+
+impl EditorWorkspace {
+    /// Centre and half extents, editor units, of the selected grid elements
+    /// (what `.` frames). `None` without a grid selection.
+    pub(crate) fn grid_selection_bounds(&self) -> Option<([f32; 3], [f32; 3])> {
+        let world = self.project.active_scene().world.grid()?;
+        let corners = self.grid.selection.corners(world);
+        let mut min = [f32::MAX; 3];
+        let mut max = [f32::MIN; 3];
+        let mut any = false;
+        for corner in corners {
+            let Some(g) = corner.grid_pos(world) else {
+                continue;
+            };
+            let p = [
+                world.scale.to_editor(g[0]) as f32,
+                world.scale.to_editor(g[1]) as f32,
+                world.scale.to_editor(g[2]) as f32,
+            ];
+            for axis in 0..3 {
+                min[axis] = min[axis].min(p[axis]);
+                max[axis] = max[axis].max(p[axis]);
+            }
+            any = true;
+        }
+        any.then(|| {
+            (
+                core::array::from_fn(|i| (min[i] + max[i]) * 0.5),
+                core::array::from_fn(|i| ((max[i] - min[i]) * 0.5).max(64.0)),
+            )
+        })
+    }
+}

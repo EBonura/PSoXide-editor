@@ -87,6 +87,9 @@ impl EditorWorkspace {
         let consume_redo = !text_field_focused && consume_command_shift_shortcut(ctx, egui::Key::Z);
         let consume_undo = !text_field_focused && consume_command_shortcut(ctx, egui::Key::Z);
         let focus_taken = widget_owns_keyboard_shortcuts(ctx);
+        // Grid worlds give the editing keys their own meaning; consumed here
+        // so the generic handlers below never see them.
+        self.handle_grid_shortcuts(ctx, focus_taken);
         let consume_ungroup = !focus_taken
             && self.active_workspace == WorkspaceView::Room
             && consume_command_shift_shortcut(ctx, egui::Key::G);

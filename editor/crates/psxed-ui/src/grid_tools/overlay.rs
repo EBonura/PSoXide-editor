@@ -1,0 +1,558 @@
+//! Drawing the grid tools over the views: selection and hover highlights,
+//! ghost previews of what a gesture will create, the marquee.
+//!
+//! The 3D view is the emulator's picture in a texture, so these are egui
+//! shapes on top of it. They are clipped to the camera's near plane and
+//! drawn without a depth test, which is why faces that point away from the
+//! camera are left out of the highlights.
+
+use super::pick::Cam;
+use super::view::{editor_xz, editor_y};
+use super::*;
+
+use psxed_project::grid::edit::{CellRect, CornerRef, EdgeRef, FaceRef, FaceTarget, GridElement};
+use psxed_project::grid::{GridWorld, SECTOR_UNITS};
+use std::collections::BTreeSet;
+
+/// Draws a polygon given as editor-space points: colour, fill alpha, line width.
+type PolygonFn<'a> = dyn Fn(&[[f32; 3]], Color32, u8, f32) + 'a;
+
+const SELECT: Color32 = Color32::from_rgb(255, 214, 64);
+const HOVER: Color32 = Color32::from_rgb(110, 220, 255);
+const CREATE: Color32 = Color32::from_rgb(96, 232, 132);
+const ERASE: Color32 = Color32::from_rgb(244, 96, 84);
+const GHOST: Color32 = Color32::from_rgb(240, 240, 250);
+
+fn fill(c: Color32, alpha: u8) -> Color32 {
+    Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), alpha)
+}
+
+/// Editor-space position of a corner.
+fn corner_pos(world: &GridWorld, corner: &CornerRef) -> Option<[f32; 3]> {
+    let g = corner.grid_pos(world)?;
+    Some([
+        world.scale.to_editor(g[0]) as f32,
+        world.scale.to_editor(g[1]) as f32,
+        world.scale.to_editor(g[2]) as f32,
+    ])
+}
+
+fn edge_ends(world: &GridWorld, edge: &EdgeRef) -> Option<([f32; 3], [f32; 3])> {
+    let [a, b] = edge.corners();
+    Some((corner_pos(world, &a)?, corner_pos(world, &b)?))
+}
+
+/// Faces an element stands for.
+fn element_faces(world: &GridWorld, element: &GridElement) -> Vec<FaceRef> {
+    match element {
+        GridElement::Cell { room, cell } => {
+            psxed_project::grid::edit::faces_of_cell(world, *room, *cell)
+        }
+        GridElement::Face(f) => vec![*f],
+        GridElement::Edge(_) | GridElement::Vertex(_) => Vec::new(),
+    }
+}
+
+/// Plan-view outline of a cell in editor units: `[nw, ne, se, sw]`.
+fn cell_corners_xz(world: &GridWorld, cell: [i32; 2]) -> [[f32; 2]; 4] {
+    let s = world.scale;
+    let (x0, z0) = (cell[0] * SECTOR_UNITS, cell[1] * SECTOR_UNITS);
+    [
+        editor_xz(s, x0, z0),
+        editor_xz(s, x0 + SECTOR_UNITS, z0),
+        editor_xz(s, x0 + SECTOR_UNITS, z0 + SECTOR_UNITS),
+        editor_xz(s, x0, z0 + SECTOR_UNITS),
+    ]
+}
+
+impl EditorWorkspace {
+    fn erase_held(painter: &egui::Painter) -> bool {
+        painter
+            .ctx()
+            .input(|i| i.modifiers.command || i.modifiers.ctrl)
+    }
+
+    // ---- Top view ----
+
+    /// Highlights and ghosts over the Top view.
+    pub(crate) fn draw_grid_overlay_2d(
+        &self,
+        painter: &egui::Painter,
+        transform: ViewportTransform,
+    ) {
+        let Some(world) = self.project.active_scene().world.grid() else {
+            return;
+        };
+        let screen = |p: [f32; 2]| transform.world_to_screen(p);
+        let cell_rect = |cell: [i32; 2]| {
+            let c = cell_corners_xz(world, cell);
+            Rect::from_two_pos(screen(c[0]), screen(c[2]))
+        };
+        let line = |a: [f32; 2], b: [f32; 2], color: Color32, width: f32| {
+            painter.line_segment([screen(a), screen(b)], Stroke::new(width, color));
+        };
+        let wall_line =
+            |room: usize, cell: [i32; 2], edge: WallEdge, color: Color32, width: f32| {
+                let _ = room;
+                let (a, b) = edge.endpoints();
+                let at = |p: [i32; 2]| {
+                    editor_xz(
+                        world.scale,
+                        (cell[0] + p[0]) * SECTOR_UNITS,
+                        (cell[1] + p[1]) * SECTOR_UNITS,
+                    )
+                };
+                line(at(a), at(b), color, width);
+            };
+        // Selection.
+        for element in self.grid.selection.items() {
+            match element {
+                GridElement::Cell { cell, .. } => {
+                    let r = cell_rect(*cell);
+                    painter.rect_filled(r, 0.0, fill(SELECT, 70));
+                    painter.rect_stroke(r, 0.0, Stroke::new(2.0, SELECT), StrokeKind::Inside);
+                }
+                GridElement::Face(f) => match f.target {
+                    FaceTarget::Surface(_) => {
+                        let r = cell_rect(f.cell);
+                        painter.rect_filled(r, 0.0, fill(SELECT, 70));
+                        painter.rect_stroke(r, 0.0, Stroke::new(2.0, SELECT), StrokeKind::Inside);
+                    }
+                    FaceTarget::Wall { edge, .. } => wall_line(f.room, f.cell, edge, SELECT, 4.0),
+                },
+                GridElement::Edge(e) => {
+                    if let Some((a, b)) = edge_ends(world, e) {
+                        line([a[0], a[2]], [b[0], b[2]], SELECT, 4.0);
+                    }
+                }
+                GridElement::Vertex(v) => {
+                    if let Some(p) = corner_pos(world, v) {
+                        painter.circle_filled(screen([p[0], p[2]]), 5.0, SELECT);
+                    }
+                }
+            }
+        }
+        // Hover and ghosts.
+        let erase = Self::erase_held(painter);
+        match &self.grid.hover {
+            GridHover::Cell { cell, .. } => {
+                let color = if erase { ERASE } else { CREATE };
+                let r = cell_rect(*cell);
+                painter.rect_filled(r, 0.0, fill(color, 60));
+                painter.rect_stroke(r, 0.0, Stroke::new(2.0, color), StrokeKind::Inside);
+            }
+            GridHover::Wall {
+                cell,
+                edge,
+                heights,
+                room,
+            } => {
+                let color = match (erase, heights) {
+                    (true, _) => ERASE,
+                    (false, Some(_)) => CREATE,
+                    (false, None) => Color32::from_rgb(150, 150, 160),
+                };
+                wall_line(*room, *cell, *edge, color, 4.0);
+            }
+            GridHover::Elements(list) => {
+                for element in list {
+                    match element {
+                        GridElement::Cell { cell, .. } => {
+                            let r = cell_rect(*cell);
+                            painter.rect_stroke(
+                                r,
+                                0.0,
+                                Stroke::new(2.0, HOVER),
+                                StrokeKind::Inside,
+                            );
+                        }
+                        GridElement::Face(f) => match f.target {
+                            FaceTarget::Surface(_) => {
+                                painter.rect_stroke(
+                                    cell_rect(f.cell),
+                                    0.0,
+                                    Stroke::new(2.0, HOVER),
+                                    StrokeKind::Inside,
+                                );
+                            }
+                            FaceTarget::Wall { edge, .. } => {
+                                wall_line(f.room, f.cell, edge, HOVER, 4.0)
+                            }
+                        },
+                        GridElement::Edge(e) => {
+                            if let Some((a, b)) = edge_ends(world, e) {
+                                line([a[0], a[2]], [b[0], b[2]], HOVER, 4.0);
+                            }
+                        }
+                        GridElement::Vertex(v) => {
+                            if let Some(p) = corner_pos(world, v) {
+                                painter.circle_stroke(
+                                    screen([p[0], p[2]]),
+                                    6.0,
+                                    Stroke::new(2.0, HOVER),
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            GridHover::Face { face, .. } => {
+                painter.rect_stroke(
+                    cell_rect(face.cell),
+                    0.0,
+                    Stroke::new(2.0, HOVER),
+                    StrokeKind::Inside,
+                );
+                if let Some(s) = face.surface(world) {
+                    let c = cell_corners_xz(world, face.cell);
+                    let (a, b) = match s.split {
+                        psxed_project::grid::GridSplit::NwSe => (c[0], c[2]),
+                        psxed_project::grid::GridSplit::NeSw => (c[1], c[3]),
+                    };
+                    line(a, b, HOVER, 2.0);
+                }
+            }
+            GridHover::Spot { position } => {
+                let p = screen([position[0], position[2]]);
+                painter.circle_stroke(p, 7.0, Stroke::new(2.0, CREATE));
+                painter.line_segment(
+                    [p - Vec2::new(10.0, 0.0), p + Vec2::new(10.0, 0.0)],
+                    Stroke::new(1.5, CREATE),
+                );
+                painter.line_segment(
+                    [p - Vec2::new(0.0, 10.0), p + Vec2::new(0.0, 10.0)],
+                    Stroke::new(1.5, CREATE),
+                );
+            }
+            GridHover::None => {}
+        }
+        match &self.grid.gesture {
+            Gesture::Rect(g) => {
+                let rect = CellRect::from_corners(g.anchor, g.current);
+                let color = if g.erase { ERASE } else { CREATE };
+                for cell in rect.cells() {
+                    let r = cell_rect(cell);
+                    painter.rect_filled(r, 0.0, fill(color, 56));
+                    painter.rect_stroke(
+                        r,
+                        0.0,
+                        Stroke::new(1.0, fill(color, 160)),
+                        StrokeKind::Inside,
+                    );
+                }
+                let outer = Rect::from_two_pos(cell_rect(rect.min).min, cell_rect(rect.max).max);
+                painter.rect_stroke(outer, 0.0, Stroke::new(2.5, color), StrokeKind::Inside);
+                painter.text(
+                    outer.center_top() - Vec2::new(0.0, 6.0),
+                    Align2::CENTER_BOTTOM,
+                    format!("{} x {}", rect.width(), rect.depth()),
+                    FontId::monospace(12.0),
+                    color,
+                );
+            }
+            Gesture::Walls(g) => {
+                let color = if g.erase { ERASE } else { CREATE };
+                for cell in psxed_project::grid::edit::wall_run_cells(g.anchor, g.current, g.edge) {
+                    wall_line(g.room, cell, g.edge, color, 5.0);
+                }
+            }
+            Gesture::Marquee { start, current, .. } => {
+                draw_viewport_box_select_marquee(
+                    painter,
+                    Some(Rect::from_two_pos(*start, *current)),
+                );
+            }
+            _ => {}
+        }
+        if let Some(ghost) = &self.grid.paste {
+            if let Some(at) = ghost.at {
+                for (offset, _) in ghost.clip.sectors() {
+                    let cell = [at[0] + offset[0], at[1] + offset[1]];
+                    let r = cell_rect(cell);
+                    painter.rect_filled(r, 0.0, fill(GHOST, 50));
+                    painter.rect_stroke(r, 0.0, Stroke::new(1.5, GHOST), StrokeKind::Inside);
+                }
+            }
+        }
+    }
+
+    // ---- 3D view ----
+
+    /// Highlights and ghosts over the 3D view.
+    pub(crate) fn draw_grid_overlay_3d(&self, painter: &egui::Painter, rect: Rect) {
+        let Some(world) = self.project.active_scene().world.grid() else {
+            return;
+        };
+        let camera = self.viewport_3d_camera();
+        let cam = Cam::new(camera, rect);
+        let eye = camera.position_f32();
+        let erase = Self::erase_held(painter);
+
+        let segment = |a: [f32; 3], b: [f32; 3], color: Color32, width: f32| {
+            if let Some([pa, pb]) = view::project_segment(camera, rect, a, b) {
+                painter.line_segment([pa, pb], Stroke::new(width, color));
+            }
+        };
+        let polygon = |points: &[[f32; 3]], color: Color32, fill_alpha: u8, width: f32| {
+            let projected: Vec<Pos2> = points
+                .iter()
+                .filter_map(|p| cam.project(*p).map(|(s, _)| s))
+                .collect();
+            if projected.len() == points.len() && fill_alpha > 0 && points.len() >= 3 {
+                painter.add(egui::Shape::convex_polygon(
+                    projected,
+                    fill(color, fill_alpha),
+                    Stroke::NONE,
+                ));
+            }
+            for i in 0..points.len() {
+                segment(points[i], points[(i + 1) % points.len()], color, width);
+            }
+        };
+
+        // Faces of the selection and of the hover, from the pick cache.
+        let mut selected: BTreeSet<FaceRef> = BTreeSet::new();
+        for element in self.grid.selection.items() {
+            selected.extend(element_faces(world, element));
+        }
+        let mut hovered: BTreeSet<FaceRef> = BTreeSet::new();
+        match &self.grid.hover {
+            GridHover::Elements(list) => {
+                for element in list {
+                    hovered.extend(element_faces(world, element));
+                }
+            }
+            GridHover::Face { face, .. } => {
+                hovered.insert(*face);
+            }
+            _ => {}
+        }
+        if !selected.is_empty() || !hovered.is_empty() {
+            self.with_pick_cache(|cache| {
+                for pf in &cache.faces {
+                    let (is_sel, is_hover) =
+                        (selected.contains(&pf.face), hovered.contains(&pf.face));
+                    if !is_sel && !is_hover {
+                        continue;
+                    }
+                    let n = pf.points.len() as f32;
+                    let centre = pf.points.iter().fold([0.0; 3], |acc, p| {
+                        [acc[0] + p[0] / n, acc[1] + p[1] / n, acc[2] + p[2] / n]
+                    });
+                    let to_eye = [eye[0] - centre[0], eye[1] - centre[1], eye[2] - centre[2]];
+                    let facing = pf.normal[0] * to_eye[0]
+                        + pf.normal[1] * to_eye[1]
+                        + pf.normal[2] * to_eye[2];
+                    if facing <= 0.0 && !pf.double_sided {
+                        continue;
+                    }
+                    if is_sel {
+                        polygon(&pf.points, SELECT, 64, 2.0);
+                    } else {
+                        polygon(&pf.points, HOVER, 36, 1.5);
+                    }
+                }
+            });
+        }
+        // Edges and vertices.
+        let mark = |element: &GridElement, color: Color32| match element {
+            GridElement::Edge(e) => {
+                if let Some((a, b)) = edge_ends(world, e) {
+                    segment(a, b, color, 4.0);
+                }
+            }
+            GridElement::Vertex(v) => {
+                if let Some(p) = corner_pos(world, v) {
+                    if let Some((s, _)) = cam.project(p) {
+                        painter.circle_filled(s, 5.5, color);
+                        painter.circle_stroke(s, 6.5, Stroke::new(1.5, Color32::BLACK));
+                    }
+                }
+            }
+            _ => {}
+        };
+        for element in self.grid.selection.items() {
+            mark(element, SELECT);
+        }
+        if let GridHover::Elements(list) = &self.grid.hover {
+            for element in list {
+                mark(element, HOVER);
+            }
+        }
+
+        // Ghosts.
+        let rect_quad = |room: usize, r: CellRect, height: i32| -> Option<[[f32; 3]; 4]> {
+            let y_offset = world.rooms.get(room).map_or(0, |ro| ro.y_offset);
+            let y = editor_y(world, y_offset, height);
+            let s = world.scale;
+            let (x0, z0) = (r.min[0] * SECTOR_UNITS, r.min[1] * SECTOR_UNITS);
+            let (x1, z1) = ((r.max[0] + 1) * SECTOR_UNITS, (r.max[1] + 1) * SECTOR_UNITS);
+            let p = |x: i32, z: i32| [s.to_editor(x) as f32, y, s.to_editor(z) as f32];
+            Some([p(x0, z0), p(x1, z0), p(x1, z1), p(x0, z1)])
+        };
+        match &self.grid.hover {
+            GridHover::Cell { room, cell, height }
+                if matches!(self.grid.gesture, Gesture::Idle) =>
+            {
+                if let Some(quad) = rect_quad(*room, CellRect::from_corners(*cell, *cell), *height)
+                {
+                    let color = if erase { ERASE } else { CREATE };
+                    polygon(&quad, color, 70, 2.0);
+                }
+            }
+            GridHover::Wall {
+                room,
+                cell,
+                edge,
+                heights,
+            } if matches!(self.grid.gesture, Gesture::Idle) => {
+                self.draw_wall_ghost_3d(&polygon, world, *room, *cell, *edge, *heights, erase);
+            }
+            GridHover::Spot { position } => {
+                let top = [position[0], position[1] + 600.0, position[2]];
+                segment(*position, top, CREATE, 2.5);
+                if let Some((s, _)) = cam.project(top) {
+                    painter.circle_filled(s, 5.0, CREATE);
+                }
+                let r = 160.0;
+                let ring = [
+                    [position[0] - r, position[1], position[2] - r],
+                    [position[0] + r, position[1], position[2] - r],
+                    [position[0] + r, position[1], position[2] + r],
+                    [position[0] - r, position[1], position[2] + r],
+                ];
+                polygon(&ring, CREATE, 40, 1.5);
+            }
+            _ => {}
+        }
+        match &self.grid.gesture {
+            Gesture::Rect(g) => {
+                let r = CellRect::from_corners(g.anchor, g.current);
+                if let Some(quad) = rect_quad(g.room, r, g.height) {
+                    let color = if g.erase { ERASE } else { CREATE };
+                    polygon(&quad, color, 70, 2.5);
+                    // Cell grid inside the ghost.
+                    for cell in r.cells() {
+                        if let Some(q) =
+                            rect_quad(g.room, CellRect::from_corners(cell, cell), g.height)
+                        {
+                            polygon(&q, fill(color, 140), 0, 1.0);
+                        }
+                    }
+                    let mid = [
+                        (quad[0][0] + quad[2][0]) / 2.0,
+                        quad[0][1],
+                        (quad[0][2] + quad[2][2]) / 2.0,
+                    ];
+                    if let Some((s, _)) = cam.project(mid) {
+                        painter.text(
+                            s,
+                            Align2::CENTER_CENTER,
+                            format!(
+                                "{} x {}  h {:+.2}",
+                                r.width(),
+                                r.depth(),
+                                g.height as f32 / psxed_project::grid::CLICK_UNITS as f32
+                            ),
+                            FontId::monospace(12.0),
+                            Color32::WHITE,
+                        );
+                    }
+                }
+            }
+            Gesture::Walls(g) => {
+                let color = if g.erase { ERASE } else { CREATE };
+                let room = g.room;
+                for cell in psxed_project::grid::edit::wall_run_cells(g.anchor, g.current, g.edge) {
+                    let heights = world.rooms.get(room).and_then(|r| {
+                        let sector = r
+                            .local(cell)
+                            .and_then(|[x, z]| r.sector(x, z))
+                            .cloned()
+                            .unwrap_or_default();
+                        psxed_project::grid::edit::next_wall_heights(
+                            &sector,
+                            g.edge,
+                            psxed_project::grid::edit::walls::room_height_bounds(r),
+                            g.pick_y,
+                        )
+                    });
+                    let _ = color;
+                    self.draw_wall_ghost_3d(&polygon, world, room, cell, g.edge, heights, g.erase);
+                }
+            }
+            Gesture::Marquee { start, current, .. } => {
+                draw_viewport_box_select_marquee(
+                    painter,
+                    Some(Rect::from_two_pos(*start, *current)),
+                );
+            }
+            _ => {}
+        }
+        if let Some(ghost) = &self.grid.paste {
+            self.draw_paste_ghost_3d(&polygon, world, ghost);
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn draw_wall_ghost_3d(
+        &self,
+        polygon: &PolygonFn,
+        world: &GridWorld,
+        room: usize,
+        cell: [i32; 2],
+        edge: WallEdge,
+        heights: Option<[i32; 4]>,
+        erase: bool,
+    ) {
+        let y_offset = world.rooms.get(room).map_or(0, |r| r.y_offset);
+        let (a, b) = edge.endpoints();
+        let at = |p: [i32; 2], h: i32| {
+            [
+                world.scale.to_editor((cell[0] + p[0]) * SECTOR_UNITS) as f32,
+                editor_y(world, y_offset, h),
+                world.scale.to_editor((cell[1] + p[1]) * SECTOR_UNITS) as f32,
+            ]
+        };
+        match heights {
+            Some(h) => {
+                let quad = [at(a, h[0]), at(b, h[1]), at(b, h[2]), at(a, h[3])];
+                polygon(&quad, if erase { ERASE } else { CREATE }, 80, 2.5);
+            }
+            None => {
+                let quad = [at(a, 0), at(b, 0), at(b, 256), at(a, 256)];
+                polygon(&quad, Color32::from_rgb(150, 150, 160), 30, 1.5);
+            }
+        }
+    }
+
+    fn draw_paste_ghost_3d(&self, polygon: &PolygonFn, world: &GridWorld, ghost: &PasteGhost) {
+        let Some(at) = ghost.at else { return };
+        let room = self.grid_target_room();
+        let Some(target) = world.rooms.get(room) else {
+            return;
+        };
+        let mut temp = psxed_project::grid::GridRoom::new("ghost", 1, 1);
+        temp.origin = at;
+        temp.y_offset = target.y_offset;
+        let size = ghost.clip.size();
+        temp.grow_to_include(i64::from(size[0] - 1), i64::from(size[1] - 1));
+        for (offset, sector) in ghost.clip.sectors() {
+            if let Some(slot) = temp.sector_or_insert(offset[0] as usize, offset[1] as usize) {
+                *slot = sector.clone();
+            }
+        }
+        let temp_world = GridWorld {
+            scale: world.scale,
+            rooms: vec![temp],
+        };
+        for face in psxed_project::grid::faces::all_faces(&temp_world) {
+            let points: Vec<[f32; 3]> = face
+                .points
+                .iter()
+                .map(|p| [p[0] as f32, p[1] as f32, p[2] as f32])
+                .collect();
+            polygon(&points, GHOST, 36, 1.5);
+        }
+    }
+}

@@ -14,6 +14,7 @@ mod selection;
 pub(crate) mod terrain;
 mod toolbars;
 pub(crate) mod tools;
+pub(crate) mod tools2d;
 mod ui_scene;
 pub(crate) mod uv_canvas;
 mod viewport;

@@ -82,6 +82,12 @@ impl EditorWorkspace {
                             ui.allocate_exact_size(size, Sense::click_and_drag());
                         surrender_stale_focus_on_viewport_pointer(ui.ctx(), &response);
                         self.last_viewport_size = rect.size();
+                        if self.grid.fit_pending && self.is_grid_world() {
+                            // The open-time framing guessed the pane size; fit
+                            // the world to the real one, once.
+                            self.grid.fit_pending = false;
+                            self.frame_viewport();
+                        }
                         #[cfg(test)]
                         {
                             self.last_orthographic_viewport_rect = rect;
@@ -172,7 +178,7 @@ impl EditorWorkspace {
                         }
                         let painter = ui.painter_at(rect);
                         painter.rect_filled(rect, 0.0, STUDIO_VIEWPORT);
-                        if self.show_grid {
+                        if self.show_grid && !self.is_grid_world() {
                             draw_world_grid(&painter, transform, self.snap_units.max(1) as f32);
                         }
                         // Background and projected surface grids are independent:
@@ -226,175 +232,43 @@ impl EditorWorkspace {
                         if !primary_down {
                             self.interaction.take_box_select_2d();
                         }
-                        let brush_edit_active = matches!(self.active_tool, ViewTool::Brush)
-                            || (matches!(self.active_tool, ViewTool::Select)
-                                && self.selected_brush.is_some());
-                        if !dnd_active && brush_edit_active {
-                            self.selection.hovered_brush_handle = None;
-                            if response.hovered() {
-                                if let Some(world) = pointer_world {
-                                    let tolerance = 8.0 / self.viewport_zoom.max(f32::EPSILON);
-                                    self.selection.hovered_brush_handle = self
-                                        .pick_brush_elements_2d(world, tolerance)
-                                        .first()
-                                        .copied();
-                                }
-                            }
-                            if response.hovered() && matches!(self.active_tool, ViewTool::Brush) {
-                                ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
-                            } else if response.hovered()
-                                && pointer_world.is_some_and(|world| {
-                                    self.brush_edit_mode != BrushEditMode::Move
-                                        || self.pick_brush_face_for_move_at_2d(world).is_some()
-                                })
-                            {
-                                ui.ctx().set_cursor_icon(match self.brush_edit_mode {
-                                    BrushEditMode::Move => egui::CursorIcon::Grab,
-                                    BrushEditMode::Face => egui::CursorIcon::ResizeHorizontal,
-                                    BrushEditMode::Edge
-                                    | BrushEditMode::Vertex
-                                    | BrushEditMode::Clip => egui::CursorIcon::Crosshair,
-                                });
-                            }
-                            if response.hovered()
-                                && self
-                                    .brush_drag
-                                    .is_some_and(|drag| drag.stage == BrushCreateStage::Height)
-                            {
-                                ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
-                            }
-                            if response.hovered() {
-                                self.brush_tool_keyboard(ui);
-                            }
-                            if response.drag_started_by(egui::PointerButton::Primary) {
-                                let modifiers = ui.input(|input| input.modifiers);
-                                let additive_select = matches!(self.active_tool, ViewTool::Select)
-                                    && (modifiers.shift || modifiers.command || modifiers.ctrl);
-                                if !additive_select {
-                                    if let Some(pos) = ui
-                                        .input(|input| input.pointer.press_origin())
-                                        .or_else(|| response.interact_pointer_pos())
-                                    {
-                                        if !self.begin_brush_height_drag(pos.y) {
-                                            let world = transform.screen_to_world(pos);
-                                            let tolerance = 8.0 / self.viewport_zoom;
-                                            if matches!(self.active_tool, ViewTool::Brush) {
-                                                self.begin_brush_drag_2d(world);
-                                            } else if self.brush_edit_mode == BrushEditMode::Move {
-                                                self.begin_brush_move_2d(world);
-                                            } else {
-                                                match self.brush_edit_mode {
-                                                    BrushEditMode::Move => unreachable!(),
-                                                    // Clip is click-driven; a drag
-                                                    // starts nothing.
-                                                    BrushEditMode::Clip => false,
-                                                    BrushEditMode::Face => {
-                                                        self.begin_brush_resize_2d(world, tolerance)
-                                                    }
-                                                    BrushEditMode::Edge => self
-                                                        .begin_brush_edge_drag_2d(world, tolerance),
-                                                    BrushEditMode::Vertex => self
-                                                        .begin_brush_vertex_drag_2d(
-                                                            world, tolerance,
-                                                        ),
-                                                };
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            if response.dragged_by(egui::PointerButton::Primary) {
-                                if let Some(pos) =
-                                    response.interact_pointer_pos().or(response.hover_pos())
-                                {
-                                    if self.brush_drag.is_some_and(|drag| {
-                                        drag.stage == BrushCreateStage::Height
-                                            && drag.height_dragging
-                                    }) {
-                                        self.update_brush_height_drag(pos.y);
-                                    } else {
-                                        let world = transform.screen_to_world(pos);
-                                        if self.brush_move.is_some() {
-                                            self.update_brush_move_2d(world);
-                                        } else if self.brush_vertex_drag.is_some() {
-                                            self.update_brush_vertex_drag_2d(world);
-                                        } else if self.brush_extrude.is_some() {
-                                            self.update_brush_resize_2d(world);
-                                        } else {
-                                            self.update_brush_drag_2d(world);
-                                        }
-                                    }
-                                }
-                            }
-                            if response.drag_stopped_by(egui::PointerButton::Primary) {
-                                self.commit_brush_gesture_2d();
-                            }
-                        }
                         let bsp_brush_marquee = !self.project.active_scene().brushes.is_empty();
-                        if !dnd_active
-                            && matches!(self.active_tool, ViewTool::Select)
-                            && self.brush_move.is_none()
-                            && self.brush_vertex_drag.is_none()
-                            && self.brush_extrude.is_none()
-                            && response.drag_started_by(egui::PointerButton::Primary)
-                        {
-                            let can_box_select = bsp_brush_marquee;
-                            if can_box_select {
-                                if let Some(start) = ui
-                                    .input(|input| input.pointer.press_origin())
-                                    .or_else(|| response.interact_pointer_pos())
-                                {
-                                    let modifiers = ui.input(|input| input.modifiers);
-                                    self.begin_viewport_box_select(start, modifiers);
-                                }
-                            }
+                        let tool_frame = tools2d::ToolFrame2d {
+                            rect,
+                            transform,
+                            top_view,
+                            pointer_world,
+                            pointer_interact: response.interact_pointer_pos(),
+                            press_origin: ui.input(|input| input.pointer.press_origin()),
+                            modifiers: ui.input(|input| input.modifiers),
+                            hits: &hits,
+                            hovered: response.hovered(),
+                            dnd_active,
+                            drag_started: response.drag_started_by(egui::PointerButton::Primary),
+                            dragged: response.dragged_by(egui::PointerButton::Primary),
+                            drag_stopped: response.drag_stopped_by(egui::PointerButton::Primary),
+                            clicked: response.clicked_by(egui::PointerButton::Primary),
+                            double_clicked: response
+                                .double_clicked_by(egui::PointerButton::Primary),
+                        };
+                        let tool2d = tools2d::tool_impl_2d(self);
+                        tool2d.hover(self, ui, &tool_frame);
+                        if tool_frame.drag_started {
+                            tool2d.primary_pressed(self, ui, &tool_frame);
                         }
-                        if !dnd_active
-                            && matches!(self.active_tool, ViewTool::Select)
-                            && response.dragged_by(egui::PointerButton::Primary)
-                        {
-                            if let Some(current) =
-                                response.interact_pointer_pos().or(response.hover_pos())
-                            {
-                                self.update_viewport_box_select(current, transform);
-                            }
+                        if tool_frame.dragged {
+                            tool2d.primary_dragged(self, ui, &tool_frame);
                         }
-                        if top_view
-                            && !dnd_active
-                            && self.interaction.box_select_2d().is_none()
-                            && self.brush_move.is_none()
-                            && self.brush_vertex_drag.is_none()
-                            && self.brush_extrude.is_none()
-                            && self.brush_drag.is_none()
-                            && response.dragged_by(egui::PointerButton::Primary)
-                        {
-                            self.drag_selected_node(ui.input(|input| input.pointer.delta()));
+                        if tool_frame.drag_stopped {
+                            tool2d.primary_released(self, ui, &tool_frame);
                         }
-                        if !response.dragged_by(egui::PointerButton::Primary) {
-                            self.end_node_drag_2d();
+                        tool2d.frame_end(self, &tool_frame);
+                        if tool_frame.clicked {
+                            tool2d.primary_clicked(self, ui, &tool_frame);
                         }
-
-                        if !dnd_active && response.clicked_by(egui::PointerButton::Primary) {
-                            if self
-                                .brush_drag
-                                .is_some_and(|drag| drag.stage == BrushCreateStage::Height)
-                            {
-                                self.commit_brush_drag();
-                            } else if matches!(self.active_tool, ViewTool::Brush) {
-                                // Draw owns the pointer exclusively. Selection and
-                                // sub-element editing belong to Select mode.
-                            } else if let Some(pos) = response.interact_pointer_pos() {
-                                let world = transform.screen_to_world(pos);
-                                let modifiers = ui.input(|input| input.modifiers);
-                                let group_double_click = response
-                                    .double_clicked_by(egui::PointerButton::Primary)
-                                    && self.handle_group_double_click_2d(world, &hits);
-                                if !group_double_click {
-                                    self.handle_viewport_click(world, &hits, modifiers);
-                                }
-                            }
+                        if top_view && self.is_grid_world() {
+                            self.draw_grid_overlay_2d(&painter, transform);
                         }
-
                         draw_viewport_overlay(
                             &painter,
                             rect,
@@ -402,6 +276,7 @@ impl EditorWorkspace {
                             self.viewport_zoom,
                             self.snap_units,
                             orthographic_view,
+                            self.is_grid_world(),
                         );
                         draw_viewport_box_select_marquee(
                             &painter,
@@ -527,21 +402,26 @@ impl EditorWorkspace {
             return;
         }
 
-        self.draw_bsp_mode_strip(ui);
-        self.draw_bsp_add_menu(ui);
-        ui.menu_button("Terrain", |ui| {
-            if ui.button("Generate terrain…").clicked() {
-                self.open_terrain_editor(false);
-                ui.close_menu();
-            }
-            if ui.button("Edit selected terrain…").clicked() {
-                self.open_terrain_editor(true);
-                ui.close_menu();
-            }
-        });
-        self.draw_bsp_context_controls(ui);
-        ui.separator();
-        self.draw_grid_controls(ui);
+        if self.is_grid_world() {
+            self.draw_grid_tool_strip(ui);
+            self.draw_grid_context_controls(ui);
+        } else {
+            self.draw_bsp_mode_strip(ui);
+            self.draw_bsp_add_menu(ui);
+            ui.menu_button("Terrain", |ui| {
+                if ui.button("Generate terrain…").clicked() {
+                    self.open_terrain_editor(false);
+                    ui.close_menu();
+                }
+                if ui.button("Edit selected terrain…").clicked() {
+                    self.open_terrain_editor(true);
+                    ui.close_menu();
+                }
+            });
+            self.draw_bsp_context_controls(ui);
+            ui.separator();
+            self.draw_grid_controls(ui);
+        }
         ui.separator();
         toolbar_group_menu_icon_only(
             ui,
@@ -667,7 +547,7 @@ impl EditorWorkspace {
         }
     }
 
-    fn draw_bsp_add_menu(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn draw_bsp_add_menu(&mut self, ui: &mut egui::Ui) {
         let button = egui::Button::new(icons::text(icons::PLUS, 15.0))
             .selected(self.active_tool == ViewTool::Place)
             .min_size(Vec2::new(28.0, 23.0));

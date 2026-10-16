@@ -197,7 +197,11 @@ impl EditorWorkspace {
                 modifiers: ui.input(|input| input.modifiers),
                 pointer_target,
             };
-            let tool = tools::tool_impl_3d(self.active_tool);
+            let tool = if self.is_grid_world() {
+                crate::grid_tools::grid_tool_3d()
+            } else {
+                tools::tool_impl_3d(self.active_tool)
+            };
             if response.drag_started_by(egui::PointerButton::Primary) {
                 let press_pointer = ui
                     .input(|input| input.pointer.press_origin())
@@ -231,6 +235,10 @@ impl EditorWorkspace {
             self.selection.hovered_entity_node = None;
         }
 
+        if self.is_grid_world() && !dnd_active {
+            let modifiers = ui.input(|input| input.modifiers);
+            crate::grid_tools::events::hover_3d(self, rect, response.hover_pos(), modifiers);
+        }
         if response.hovered() {
             self.brush_tool_keyboard(ui);
             self.update_free_camera_keyboard(ui);
@@ -274,6 +282,25 @@ impl EditorWorkspace {
         self.draw_node_gizmo(&painter, rect, hovered_node_handle);
         draw_viewport_box_select_marquee(&painter, self.viewport_3d_box_select_rect());
         self.draw_brush_overlay(&painter, rect);
+        if self.is_grid_world() {
+            self.draw_grid_overlay_3d(&painter, rect);
+        }
+        if let Some(message) = crate::preview_overflow::preview_overflow_message(
+            crate::preview_overflow::preview_overflow(),
+        ) {
+            let banner = Rect::from_min_size(
+                rect.left_top() + Vec2::new(8.0, 8.0),
+                Vec2::new(rect.width() - 16.0, 26.0),
+            );
+            painter.rect_filled(banner, 3.0, Color32::from_rgb(168, 36, 28));
+            painter.text(
+                banner.center(),
+                Align2::CENTER_CENTER,
+                message,
+                FontId::proportional(13.0),
+                Color32::WHITE,
+            );
+        }
         if resource_drop_hovered {
             painter.rect_stroke(
                 rect.shrink(2.0),

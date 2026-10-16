@@ -1232,6 +1232,8 @@ impl EditorWorkspace {
 
     pub(crate) fn mark_dirty(&mut self) {
         self.dirty = true;
+        // Grid caches (picking, budget) follow the document revision.
+        self.grid.rev = self.grid.rev.wrapping_add(1);
         // Any authoring change makes the exact last-cook numbers stale. The
         // Play menu immediately falls back to a fresh authored estimate until
         // Build/Play replaces it with another exact package report.
@@ -1374,6 +1376,7 @@ impl EditorWorkspace {
         self.cancel_brush_gestures();
         self.interaction = Interaction::Idle;
         self.node_drag_2d = None;
+        self.grid.abandon();
     }
 
     pub(crate) fn do_undo(&mut self) {
@@ -1489,6 +1492,9 @@ impl EditorWorkspace {
     }
 
     pub(crate) fn selected_frame_bounds_3d(&self) -> Option<([f32; 3], [f32; 3])> {
+        if let Some(bounds) = self.grid_selection_bounds() {
+            return Some(bounds);
+        }
         // Brushes select through Select and Brush alike, so `.` frames
         // them from either tool.
         if matches!(self.active_tool, ViewTool::Brush | ViewTool::Select) {
@@ -1587,6 +1593,9 @@ impl EditorWorkspace {
     }
 
     pub(crate) fn current_frame_bounds_2d(&self) -> Option<([f32; 2], [f32; 2])> {
+        if let Some((center, half)) = self.grid_selection_bounds() {
+            return Some(project_center_half_2d(self.orthographic_view, center, half));
+        }
         if self.active_tool == ViewTool::Brush {
             if let Some((center, half)) = self.selected_brush_frame_bounds_3d() {
                 return Some(project_center_half_2d(self.orthographic_view, center, half));

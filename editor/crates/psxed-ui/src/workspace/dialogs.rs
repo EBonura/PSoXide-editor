@@ -63,6 +63,12 @@ impl EditorWorkspace {
             }
             _ => self.draw_inspector(ctx, camera_preview, playtest_status.is_playing()),
         }
+        if self.is_grid_world()
+            && self.active_workspace == WorkspaceView::Room
+            && !playtest_status.is_playing()
+        {
+            self.draw_grid_status_bar(ctx);
+        }
         self.draw_content_browser(ctx);
         self.draw_viewport(ctx, viewport_3d, playtest_status);
         self.draw_clipboard_notice(ctx);

@@ -7,6 +7,7 @@ pub(crate) fn draw_viewport_overlay(
     zoom: f32,
     snap_units: u16,
     view: OrthographicView,
+    grid_world: bool,
 ) {
     let overlay = Rect::from_min_size(
         rect.left_top() + Vec2::new(12.0, 12.0),
@@ -25,7 +26,15 @@ pub(crate) fn draw_viewport_overlay(
     );
     let lines = [
         format!("{} Orthographic", view.label()),
-        format!("Grid: {snap_units} units"),
+        if grid_world {
+            format!(
+                "Snap {} (Alt {})",
+                psxed_project::grid::CLICK_UNITS,
+                psxed_project::grid::FINE_UNITS
+            )
+        } else {
+            format!("Grid: {snap_units} units")
+        },
         format!("{} nodes", project.active_scene().nodes().len()),
         format!("{} resources", project.resources.len()),
         format_viewport_zoom(zoom),

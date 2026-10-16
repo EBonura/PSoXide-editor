@@ -1834,6 +1834,11 @@ impl EditorWorkspace {
                                     // controls; selecting a brush must never hide the
                                     // only numeric move/resize path.
                                     if self.active_workspace == WorkspaceView::Room
+                                        && self.is_grid_world()
+                                    {
+                                        self.draw_grid_panels(ui);
+                                    }
+                                    if self.active_workspace == WorkspaceView::Room
                                         && self.selected_brush.is_some()
                                     {
                                         self.draw_brush_inspector(ui);

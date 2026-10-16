@@ -4,6 +4,9 @@
 //! the in-memory authoring document they manipulate.
 
 mod gizmo;
+mod grid_tools;
+mod preview_overflow;
+pub use preview_overflow::report_preview_overflow;
 mod grid_view;
 mod history;
 mod icons;
@@ -829,6 +832,8 @@ pub struct EditorWorkspace {
     grid_hidden_rooms: HashSet<usize>,
     /// Grid room the Top view emphasises when rooms overlap in plan.
     grid_active_room: Option<usize>,
+    /// Grid editing tools, selection and gestures (not saved).
+    grid: grid_tools::GridEditState,
     active_workspace: WorkspaceView,
     left_dock_open: bool,
     inspector_open: bool,
@@ -3064,6 +3069,7 @@ impl EditorWorkspace {
             orthographic_focus: [0.0; 3],
             grid_hidden_rooms: HashSet::new(),
             grid_active_room: None,
+            grid: grid_tools::GridEditState::default(),
             active_workspace: WorkspaceView::from_project(editor_workspace.active),
             left_dock_open: true,
             inspector_open: true,

@@ -203,7 +203,7 @@ impl EditorWorkspace {
     /// while the character motor stands its feet exactly on the floor plane,
     /// so a lifted anchor produces a volume that starts one unit above the
     /// player and can never fire.
-    fn bsp_place_height_offset(&self) -> f32 {
+    pub(crate) fn bsp_place_height_offset(&self) -> f32 {
         match self.place_kind {
             PlaceKind::PointLightMarker => 256.0,
             PlaceKind::Logic => 0.0,
@@ -211,7 +211,7 @@ impl EditorWorkspace {
         }
     }
 
-    fn place_bsp_at_world_hit(&mut self, hit: [f32; 3]) -> bool {
+    pub(crate) fn place_bsp_at_world_hit(&mut self, hit: [f32; 3]) -> bool {
         let Some(root) = self.bsp_authoring_root() else {
             self.status = "Place needs a BSP brush world".to_string();
             return false;

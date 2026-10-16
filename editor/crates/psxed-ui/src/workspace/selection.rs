@@ -524,6 +524,11 @@ impl EditorWorkspace {
         // phase the user is looking at.
         self.clear_uv_edit_transaction();
         self.reconcile_brush_selection();
+        if let Some(world) = self.project.active_scene().world.grid() {
+            self.grid.selection.retain_valid(world);
+        } else {
+            self.grid.selection.clear();
+        }
         let valid_nodes: HashSet<NodeId> = self
             .project
             .active_scene()
