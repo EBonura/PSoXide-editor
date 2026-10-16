@@ -2,7 +2,7 @@
 //!
 //! Usage:
 //!   import-bonnie32-level <level.ron> <texture-pack-dir> <out-dir> [--spawn X,Z] [--yaw DEG]
-//!                         [--base <project-dir>] [--enemies N] [--perch X,Z]...
+//!                         [--base <project-dir>] [--enemies N] [--perch X,Z]... [--lid-clearance UNITS]
 //!
 //! With `--base`, the base project supplies characters, camera, sky and UI:
 //! its world brushes and every top-level node except the player and the
@@ -166,6 +166,11 @@ struct Args {
     base: Option<PathBuf>,
     enemies: usize,
     perches: Vec<(usize, usize)>,
+    /// Minimum headroom, in editor units, between the highest floor and the
+    /// sky lid. Levels whose walls are lower than the 1024 unit character
+    /// (bonnie's 1200 unit player at 9/16) would otherwise be capped by the lid
+    /// and trap the player.
+    lid_clearance: Option<i32>,
 }
 
 fn parse_args() -> Args {
@@ -175,6 +180,7 @@ fn parse_args() -> Args {
     let mut base = None;
     let mut enemies = 2;
     let mut perches = Vec::new();
+    let mut lid_clearance = None;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -189,6 +195,9 @@ fn parse_args() -> Args {
                 let value = args.next().expect("--perch X,Z");
                 let (x, z) = value.split_once(',').expect("--perch X,Z");
                 perches.push((x.parse().expect("perch x"), z.parse().expect("perch z")));
+            }
+            "--lid-clearance" => {
+                lid_clearance = Some(args.next().expect("--lid-clearance UNITS").parse().expect("lid clearance"))
             }
             "--enemies" => enemies = args.next().expect("--enemies N").parse().expect("enemies"),
             _ => positional.push(PathBuf::from(arg)),
@@ -209,6 +218,7 @@ fn parse_args() -> Args {
         base,
         enemies,
         perches,
+        lid_clearance,
     }
 }
 
@@ -261,7 +271,21 @@ fn main() {
     let [sx, sz] = cell_center(spawn_cell.0, spawn_cell.1);
     let spawn = [sx, spawn_floor + 64, sz];
 
-    if let Some(lid) = sky_lid(&project, &brushes) {
+    let lid_floor = args.lid_clearance.map(|clearance| {
+        let highest = level
+            .rooms
+            .iter()
+            .flat_map(|r| {
+                let oy = scale(r.position.y);
+                r.sectors.iter().flatten().flatten().filter_map(move |s| {
+                    s.floor.as_ref().map(|f| oy + scale(f.heights.iter().cloned().fold(f32::MIN, f32::max)))
+                })
+            })
+            .max()
+            .expect("level has a floor");
+        highest + clearance
+    });
+    if let Some(lid) = sky_lid(&project, &brushes, lid_floor) {
         brushes.push(lid);
     }
     let scene = project.active_scene_mut();
@@ -333,7 +357,7 @@ const LEVEL_TEXTURES: &str = "level_textures";
 /// A sky-aperture slab over the whole level at its highest point. bonnie
 /// levels leave roofs open; the runtime draws sky only through aperture
 /// surfaces, and the lid also closes the hull for the leak check.
-fn sky_lid(project: &ProjectDocument, brushes: &[Brush]) -> Option<Brush> {
+fn sky_lid(project: &ProjectDocument, brushes: &[Brush], min_top: Option<i32>) -> Option<Brush> {
     let sky = project.resources.iter().find_map(|r| match &r.data {
         ResourceData::Material(m) if m.sky_aperture => Some(r.id),
         _ => None,
@@ -347,7 +371,7 @@ fn sky_lid(project: &ProjectDocument, brushes: &[Brush]) -> Option<Brush> {
             max[axis] = max[axis].max(solved.max[axis]);
         }
     }
-    let top = max[1].ceil() as i32;
+    let top = (max[1].ceil() as i32).max(min_top.unwrap_or(i32::MIN));
     let mut lid = Brush::cuboid(
         [min[0].floor() as i32, top, min[2].floor() as i32],
         [max[0].ceil() as i32, top + SLAB_THICKNESS, max[2].ceil() as i32],
