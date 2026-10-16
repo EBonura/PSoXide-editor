@@ -219,7 +219,7 @@ pub(super) fn click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
 
 pub(super) fn commit(ws: &mut EditorWorkspace, g: &WallGesture) {
     let before = ws.project.clone();
-    let material = ws.grid.material;
+    let material = ws.grid_new_material(g.room, true);
     let Some(world) = ws.project.active_scene_mut().world.grid_mut() else {
         return;
     };

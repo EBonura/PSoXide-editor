@@ -152,7 +152,7 @@ fn apply(
     height: i32,
     erase: bool,
 ) {
-    let material = ws.grid.material;
+    let material = ws.grid_new_material(room, false);
     let before = ws.project.clone();
     let Some(world) = ws.project.active_scene_mut().world.grid_mut() else {
         return;

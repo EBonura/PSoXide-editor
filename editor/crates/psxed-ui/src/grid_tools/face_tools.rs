@@ -6,9 +6,24 @@ use super::*;
 use psxed_project::grid::edit::{
     material_of, set_material, toggle_split, FaceRef, FaceTarget, GridElement,
 };
-use psxed_project::grid::{GridSplit, SECTOR_UNITS};
+use psxed_project::grid::{GridSplit, GridWorld, SECTOR_UNITS};
 
-/// The face (and triangle of a split surface) the pointer is over.
+/// Which triangle of `face` a point (editor units) is in, from where it
+/// falls against the diagonal.
+pub(super) fn tri_at(world: &GridWorld, face: FaceRef, x: f32, z: f32) -> Option<u8> {
+    let surface = face.surface(world)?;
+    let size = world.scale.sector_editor_units() as f32;
+    let u = (x - world.scale.to_editor(face.cell[0] * SECTOR_UNITS) as f32) / size;
+    let v = (z - world.scale.to_editor(face.cell[1] * SECTOR_UNITS) as f32) / size;
+    let first = match surface.split {
+        GridSplit::NwSe => u >= v,
+        GridSplit::NeSw => u + v <= 1.0,
+    };
+    Some(u8::from(!first))
+}
+
+/// The face (and triangle of a split surface) the pointer is over. Holding
+/// Shift names the triangle even on a flat quad, so one half can be painted.
 pub(super) fn face_under(
     ws: &EditorWorkspace,
     ptr: &GridPointer,
@@ -16,7 +31,13 @@ pub(super) fn face_under(
     match ptr.view {
         GridView::Persp(rect) => {
             let hit = ws.pick_face_3d(rect, ptr.pos)?;
-            Some((vec![hit.face], hit.tri))
+            let world = ws.project.active_scene().world.grid()?;
+            let tri = hit.tri.or_else(|| {
+                ptr.shift()
+                    .then(|| tri_at(world, hit.face, hit.point[0], hit.point[2]))
+                    .flatten()
+            });
+            Some((vec![hit.face], tri))
         }
         GridView::Top(transform) => {
             let world = ws.project.active_scene().world.grid()?;
@@ -41,21 +62,11 @@ pub(super) fn face_under(
             } else {
                 FaceRef::floor(room, cell)
             };
-            // Which triangle: fractions inside the cell against the diagonal.
-            let size = world.scale.sector_editor_units() as f32;
-            let (u, v) = (
-                (wx - world.scale.to_editor(cell[0] * SECTOR_UNITS) as f32) / size,
-                (wz - world.scale.to_editor(cell[1] * SECTOR_UNITS) as f32) / size,
-            );
             let tri = face.surface(world).and_then(|s| {
                 let split = !s.is_planar() || s.heights_b.is_some() || s.tri_b.is_some();
-                split.then(|| {
-                    let first = match s.split {
-                        GridSplit::NwSe => u >= v,
-                        GridSplit::NeSw => u + v <= 1.0,
-                    };
-                    u8::from(!first)
-                })
+                (split || ptr.shift())
+                    .then(|| tri_at(world, face, wx, wz))
+                    .flatten()
             });
             Some((vec![face], tri))
         }

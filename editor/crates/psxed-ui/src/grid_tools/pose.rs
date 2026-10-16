@@ -16,6 +16,8 @@
 //! * `walls=north|east|south|west|nwse|nesw:x0,z0:x1,z1`
 //! * `hover=cell:x,z`, `hover=wall:edge:x,z`, `hover=face:floor|ceiling:x,z`,
 //!   `hover=vertex:x,z,corner`, `hover=spot:x,z`
+//! * `raise=x,z,corner,clicks` raise a floor corner, like a finished drag
+//! * `material=N` the Nth material of the palette
 //! * `copy` copies the selection; `paste=x,z` shows the ghost at `x,z`
 //! * `marquee=x0,y0:x1,y1` a screen-space box
 //! * `camera=yaw,pitch,radius,tx,ty,tz` an orbit camera (editor units)
@@ -126,7 +128,41 @@ impl EditorWorkspace {
                     viewer: None,
                 });
             }
-            "hover" => self.pose_hover(room, &parts)?,
+            "hover" => {
+                self.pose_hover(room, &parts)?;
+                self.grid.hover_pinned = true;
+            }
+            "raise" => {
+                let v = ints(value)?;
+                let [x, z, n, clicks] = v[..] else {
+                    return Err("expected x,z,corner,clicks".to_string());
+                };
+                let corner = CornerRef {
+                    face: FaceRef::floor(room, [x, z]),
+                    layer: 0,
+                    corner: n as u8,
+                };
+                let link = self.grid.link;
+                let world = self
+                    .project
+                    .active_scene_mut()
+                    .world
+                    .grid_mut()
+                    .ok_or("no grid world")?;
+                psxed_project::grid::edit::nudge(world, &[corner], clicks * CLICK_UNITS, link);
+                self.grid.selection.replace(GridElement::Vertex(corner));
+                self.grid_changed();
+            }
+            "material" => {
+                let index = value.parse::<usize>().map_err(|e| e.to_string())?;
+                let (id, _) = *self
+                    .project
+                    .material_options()
+                    .get(index)
+                    .ok_or("no such material")?;
+                self.grid.material = Some(id);
+                self.grid.palette_scroll_to = Some(id);
+            }
             "copy" => {
                 let world = self
                     .project

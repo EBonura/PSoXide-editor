@@ -153,3 +153,15 @@ fn dot_frames_the_selection_in_both_views() {
     ws.frame_viewport();
     assert!((ws.camera_rig.target[0] as f32 - 7.0 * 1024.0).abs() < 2.0);
 }
+
+#[test]
+fn grid_edits_do_not_start_the_brush_leak_check() {
+    let mut ws =
+        EditorWorkspace::with_project(test_temp_dir("grid-no-leak"), flat_project(2, 2, false));
+    ws.apply_grid_pose("raise=0,0,0,1").unwrap();
+    assert!(ws.dirty);
+    assert!(
+        ws.bsp_leak_refresh_due.is_none(),
+        "a grid world has no brushes to seal"
+    );
+}

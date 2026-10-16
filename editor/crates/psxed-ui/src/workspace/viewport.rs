@@ -237,7 +237,13 @@ impl EditorWorkspace {
 
         if self.is_grid_world() && !dnd_active {
             let modifiers = ui.input(|input| input.modifiers);
-            crate::grid_tools::events::hover_3d(self, rect, response.hover_pos(), modifiers);
+            crate::grid_tools::events::hover_3d(
+                self,
+                ui.ctx(),
+                rect,
+                response.hover_pos(),
+                modifiers,
+            );
         }
         if response.hovered() {
             self.brush_tool_keyboard(ui);

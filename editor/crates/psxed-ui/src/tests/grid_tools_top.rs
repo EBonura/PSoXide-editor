@@ -576,3 +576,70 @@ fn undo_during_a_gesture_abandons_it_and_stale_selection_is_pruned() {
     assert!(rig.ws.grid.selection.is_empty());
     let _ = FaceRef::floor(0, [0, 0]);
 }
+
+#[test]
+fn shift_paints_one_triangle_of_a_flat_quad() {
+    let mut rig = GridRig::top("grid-paint-tri", flat_project(3, 1, false));
+    let (brick, moss) = two_materials(&mut rig);
+    rig.tool(GridTool::Paint);
+    rig.ws.grid.material = Some(brick);
+    // NW-SE diagonal: the north-east half is triangle 0, the south-west
+    // half triangle 1.
+    rig.click_with(rig.top_at(1.8 * S, 0.2 * S), shift());
+    rig.ws.grid.material = Some(moss);
+    rig.click_with(rig.top_at(1.2 * S, 0.8 * S), shift());
+    let floor = rig.room(0).sector(1, 0).unwrap().floor.clone().unwrap();
+    assert_eq!(floor.tri_a.material, Some(brick));
+    assert_eq!(floor.tri_b.map(|t| t.material), Some(Some(moss)));
+    // The neighbour is untouched.
+    assert!(rig
+        .room(0)
+        .sector(0, 0)
+        .unwrap()
+        .floor
+        .as_ref()
+        .unwrap()
+        .tri_b
+        .is_none());
+    // Without Shift the whole quad takes the material and merges again.
+    rig.click(rig.cell_centre(1, 0));
+    let floor = rig.room(0).sector(1, 0).unwrap().floor.clone().unwrap();
+    assert_eq!(floor.tri_a.material, Some(moss));
+    assert!(floor.tri_b.is_none());
+}
+
+#[test]
+fn new_surfaces_and_walls_take_the_materials_already_in_the_room() {
+    let mut rig = GridRig::top("grid-new-material", flat_project(3, 3, true));
+    let (brick, _) = two_materials(&mut rig);
+    // Texture the existing floors, then extend the room.
+    rig.tool(GridTool::Select);
+    rig.key_with(egui::Key::A, ctrl());
+    assert!(rig.ws.apply_grid_material_to_selection(brick) > 0);
+    rig.ws.grid.material = None;
+    rig.ws.grid.selection.clear();
+    rig.tool(GridTool::Floor);
+    rig.click(rig.cell_centre(4, 1));
+    let new_floor = rig.room(0).sector(4, 1).unwrap().floor.clone().unwrap();
+    assert_eq!(new_floor.tri_a.material, Some(brick));
+    rig.tool(GridTool::Wall);
+    rig.click(rig.top_at(1.5 * S, 1.08 * S));
+    let walls = walls_on(rig.world(), 0, [1, 1], WallEdge::North);
+    assert_eq!(walls[0].material, Some(brick));
+}
+
+#[test]
+fn the_cursor_tells_what_the_tool_will_do() {
+    use egui::CursorIcon as C;
+    let mut rig = GridRig::top("grid-cursor", flat_project(3, 3, false));
+    rig.tool(GridTool::Floor);
+    assert_eq!(rig.ws.grid_cursor(), C::Crosshair);
+    rig.tool(GridTool::Select);
+    rig.move_to(rig.top_at(-300.0 * S, 0.0), egui::Modifiers::NONE);
+    assert_eq!(rig.ws.grid_cursor(), C::Default);
+    rig.move_to(rig.cell_centre(1, 1), egui::Modifiers::NONE);
+    assert_eq!(rig.ws.grid_cursor(), C::PointingHand);
+    rig.tool(GridTool::Height);
+    rig.move_to(rig.cell_centre(1, 1), egui::Modifiers::NONE);
+    assert_eq!(rig.ws.grid_cursor(), C::ResizeVertical);
+}

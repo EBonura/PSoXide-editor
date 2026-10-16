@@ -152,9 +152,19 @@ impl EditorWorkspace {
                         FaceTarget::Wall { .. } => walls += 1,
                     }
                 }
+                let plural = |n: usize, one: &str| {
+                    if n == 1 {
+                        format!("{n} {one}")
+                    } else {
+                        format!("{n} {one}s")
+                    }
+                };
                 ui.label(format!(
-                    "{} faces: {floors} floors, {ceilings} ceilings, {walls} walls",
-                    faces.len()
+                    "{}: {}, {}, {}",
+                    plural(faces.len(), "face"),
+                    plural(floors, "floor"),
+                    plural(ceilings, "ceiling"),
+                    plural(walls, "wall"),
                 ));
                 self.draw_primary_face_controls(ui, primary, &faces);
             });
@@ -203,8 +213,7 @@ impl EditorWorkspace {
         if let Some(h) = heights {
             ui.label(
                 RichText::new(format!("heights {} {} {} {}", h[0], h[1], h[2], h[3]))
-                    .monospace()
-                    .size(11.0)
+                    .size(11.5)
                     .color(STUDIO_TEXT_WEAK),
             );
         }

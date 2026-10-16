@@ -123,6 +123,36 @@ impl EditorWorkspace {
         }
     }
 
+    /// Faces facing the camera with their centre inside the 3D view: a cheap
+    /// stand-in for how much the preview has to draw.
+    fn grid_faces_in_view(&self) -> Option<usize> {
+        if self.view_2d {
+            return None;
+        }
+        let rect = self.grid.view_rect.get()?;
+        let camera = self.viewport_3d_camera();
+        let cam = pick::Cam::new(camera, rect);
+        let eye = camera.position_f32();
+        self.with_pick_cache(|cache| {
+            cache
+                .faces
+                .iter()
+                .filter(|pf| {
+                    let n = pf.points.len() as f32;
+                    let centre = pf.points.iter().fold([0.0; 3], |a, p| {
+                        [a[0] + p[0] / n, a[1] + p[1] / n, a[2] + p[2] / n]
+                    });
+                    let to_eye = [eye[0] - centre[0], eye[1] - centre[1], eye[2] - centre[2]];
+                    let facing = pf.normal[0] * to_eye[0]
+                        + pf.normal[1] * to_eye[1]
+                        + pf.normal[2] * to_eye[2];
+                    (facing > 0.0 || pf.double_sided)
+                        && cam.project(centre).is_some_and(|(p, _)| rect.contains(p))
+                })
+                .count()
+        })
+    }
+
     fn grid_budget(&self) -> Option<GridBudget> {
         let world = self.project.active_scene().world.grid()?;
         let mut slot = self.grid.budget.borrow_mut();
@@ -152,6 +182,7 @@ impl EditorWorkspace {
                 )
             })
             .unwrap_or_default();
+        let in_view = self.grid_faces_in_view();
         let percent = budget.faces_percent();
         let hot = percent >= 85;
         egui::TopBottomPanel::bottom("psxed_grid_status_bar")
@@ -170,8 +201,9 @@ impl EditorWorkspace {
                             .size(11.0),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let view_text = in_view.map_or(String::new(), |n| format!("   in view: {n} faces"));
                         let budget_text = format!(
-                            "room {room}{}: {room_sectors} sectors   world: {} rooms, {} faces / {MAX_WORLD_FACES} ({percent}%)",
+                            "room {room}{}: {room_sectors} sectors   world: {} rooms, {} faces / {MAX_WORLD_FACES} ({percent}%){view_text}",
                             if room_name.is_empty() { String::new() } else { format!(" {room_name}") },
                             room_count,
                             budget.faces,

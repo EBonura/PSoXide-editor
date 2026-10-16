@@ -1240,7 +1240,11 @@ impl EditorWorkspace {
         self.last_playtest_budget = None;
         self.clear_validation_issues();
         self.brush_overlap_report = None;
-        self.schedule_bsp_leak_refresh();
+        // The leak check is a brush-world concept; a grid world has no
+        // brushes to seal, and its banner would only be noise.
+        if !self.is_grid_world() {
+            self.schedule_bsp_leak_refresh();
+        }
     }
 
     pub(crate) fn commit_resource_rename(&mut self, id: ResourceId, name: String) {

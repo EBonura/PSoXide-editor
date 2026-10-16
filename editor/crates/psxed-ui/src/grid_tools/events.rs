@@ -129,18 +129,22 @@ impl GridTool2d {
 }
 
 impl ViewportTool2d for GridTool2d {
-    fn hover(&self, ws: &mut EditorWorkspace, _ui: &egui::Ui, f: &ToolFrame2d) {
+    fn hover(&self, ws: &mut EditorWorkspace, ui: &egui::Ui, f: &ToolFrame2d) {
         if !Self::editable(f) {
             return;
+        }
+        if f.hovered {
+            ui.ctx().set_cursor_icon(ws.grid_cursor());
         }
         if matches!(ws.grid.gesture, Gesture::Idle | Gesture::Node) && f.hovered {
             if let Some(pos) = f
                 .pointer_interact
                 .or_else(|| f.pointer_world.map(|w| f.transform.world_to_screen(w)))
             {
+                ws.grid.hover_pinned = false;
                 dispatch(ws, Ev::Hover, Self::pointer(f, pos, None));
             }
-        } else if !f.hovered {
+        } else if !f.hovered && !ws.grid.hover_pinned {
             ws.grid.hover = GridHover::None;
         }
     }
@@ -294,14 +298,18 @@ impl ViewportTool3d for GridTool3d {
 /// Hover in the 3D view, called every frame the pointer is over it.
 pub(crate) fn hover_3d(
     ws: &mut EditorWorkspace,
+    ctx: &egui::Context,
     rect: Rect,
     pos: Option<Pos2>,
     modifiers: egui::Modifiers,
 ) {
     let Some(pos) = pos else {
-        ws.grid.hover = GridHover::None;
+        if !ws.grid.hover_pinned {
+            ws.grid.hover = GridHover::None;
+        }
         return;
     };
+    ws.grid.hover_pinned = false;
     if !matches!(ws.grid.gesture, Gesture::Idle) {
         return;
     }
@@ -312,4 +320,5 @@ pub(crate) fn hover_3d(
         modifiers,
     };
     dispatch(ws, Ev::Hover, ptr);
+    ctx.set_cursor_icon(ws.grid_cursor());
 }

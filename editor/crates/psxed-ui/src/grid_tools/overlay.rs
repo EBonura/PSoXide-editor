@@ -53,6 +53,23 @@ fn element_faces(world: &GridWorld, element: &GridElement) -> Vec<FaceRef> {
     }
 }
 
+/// The three corners (editor units) of triangle `tri` of a floor or ceiling.
+fn tri_corners(world: &GridWorld, face: FaceRef, tri: u8) -> Option<[[f32; 3]; 3]> {
+    let surface = face.surface(world)?;
+    let room = world.rooms.get(face.room)?;
+    let heights = surface.heights_for(usize::from(tri));
+    let offsets = [[0, 0], [1, 0], [1, 1], [0, 1]];
+    let ids = surface.split.triangle(usize::from(tri));
+    Some(ids.map(|i| {
+        let o = offsets[i];
+        [
+            world.scale.to_editor((face.cell[0] + o[0]) * SECTOR_UNITS) as f32,
+            editor_y(world, room.y_offset, heights[i]),
+            world.scale.to_editor((face.cell[1] + o[1]) * SECTOR_UNITS) as f32,
+        ]
+    }))
+}
+
 /// Plan-view outline of a cell in editor units: `[nw, ne, se, sw]`.
 fn cell_corners_xz(world: &GridWorld, cell: [i32; 2]) -> [[f32; 2]; 4] {
     let s = world.scale;
@@ -63,6 +80,17 @@ fn cell_corners_xz(world: &GridWorld, cell: [i32; 2]) -> [[f32; 2]; 4] {
         editor_xz(s, x0 + SECTOR_UNITS, z0 + SECTOR_UNITS),
         editor_xz(s, x0, z0 + SECTOR_UNITS),
     ]
+}
+
+/// A short label on a dark chip so it reads over any picture.
+fn label_chip(painter: &egui::Painter, at: Pos2, align: Align2, text: &str) {
+    let galley =
+        painter.layout_no_wrap(text.to_string(), FontId::proportional(13.0), Color32::WHITE);
+    let rect = align
+        .anchor_size(at, galley.size())
+        .expand2(Vec2::new(6.0, 3.0));
+    painter.rect_filled(rect, 3.0, Color32::from_rgba_unmultiplied(12, 16, 22, 215));
+    painter.galley(rect.min + Vec2::new(6.0, 3.0), galley, Color32::WHITE);
 }
 
 impl EditorWorkspace {
@@ -196,7 +224,14 @@ impl EditorWorkspace {
                     }
                 }
             }
-            GridHover::Face { face, .. } => {
+            GridHover::Face { face, tri } => {
+                if let Some(points) = tri.and_then(|t| tri_corners(world, *face, t)) {
+                    painter.add(egui::Shape::convex_polygon(
+                        points.iter().map(|p| screen([p[0], p[2]])).collect(),
+                        fill(HOVER, 90),
+                        Stroke::NONE,
+                    ));
+                }
                 painter.rect_stroke(
                     cell_rect(face.cell),
                     0.0,
@@ -242,12 +277,11 @@ impl EditorWorkspace {
                 }
                 let outer = Rect::from_two_pos(cell_rect(rect.min).min, cell_rect(rect.max).max);
                 painter.rect_stroke(outer, 0.0, Stroke::new(2.5, color), StrokeKind::Inside);
-                painter.text(
+                label_chip(
+                    painter,
                     outer.center_top() - Vec2::new(0.0, 6.0),
                     Align2::CENTER_BOTTOM,
-                    format!("{} x {}", rect.width(), rect.depth()),
-                    FontId::monospace(12.0),
-                    color,
+                    &format!("{} x {}", rect.width(), rect.depth()),
                 );
             }
             Gesture::Walls(g) => {
@@ -283,6 +317,7 @@ impl EditorWorkspace {
         let Some(world) = self.project.active_scene().world.grid() else {
             return;
         };
+        self.grid.view_rect.set(Some(rect));
         let camera = self.viewport_3d_camera();
         let cam = Cam::new(camera, rect);
         let eye = camera.position_f32();
@@ -353,6 +388,28 @@ impl EditorWorkspace {
                     }
                 }
             });
+        }
+        if let GridHover::Face { face, tri } = &self.grid.hover {
+            if let Some(points) = tri.and_then(|t| tri_corners(world, *face, t)) {
+                polygon(&points, HOVER, 120, 2.5);
+            }
+            // The diagonal, so a split click shows what it will flip.
+            if let (Some(surface), Some(room)) = (face.surface(world), world.rooms.get(face.room)) {
+                let at = |i: usize| {
+                    let o = [[0, 0], [1, 0], [1, 1], [0, 1]][i];
+                    let h = surface.heights[i];
+                    [
+                        world.scale.to_editor((face.cell[0] + o[0]) * SECTOR_UNITS) as f32,
+                        editor_y(world, room.y_offset, h),
+                        world.scale.to_editor((face.cell[1] + o[1]) * SECTOR_UNITS) as f32,
+                    ]
+                };
+                let (a, b) = match surface.split {
+                    psxed_project::grid::GridSplit::NwSe => (0, 2),
+                    psxed_project::grid::GridSplit::NeSw => (1, 3),
+                };
+                segment(at(a), at(b), HOVER, 3.0);
+            }
         }
         // Edges and vertices.
         let mark = |element: &GridElement, color: Color32| match element {
@@ -445,17 +502,16 @@ impl EditorWorkspace {
                         (quad[0][2] + quad[2][2]) / 2.0,
                     ];
                     if let Some((s, _)) = cam.project(mid) {
-                        painter.text(
+                        label_chip(
+                            painter,
                             s,
                             Align2::CENTER_CENTER,
-                            format!(
-                                "{} x {}  h {:+.2}",
+                            &format!(
+                                "{} x {}   height {:+.2}",
                                 r.width(),
                                 r.depth(),
                                 g.height as f32 / psxed_project::grid::CLICK_UNITS as f32
                             ),
-                            FontId::monospace(12.0),
-                            Color32::WHITE,
                         );
                     }
                 }

@@ -301,6 +301,10 @@ pub(crate) struct GridEditState {
     pub budget: RefCell<Option<(u64, psxed_project::grid::GridBudget)>>,
     /// The Top view still has to fit the world to the real pane size.
     pub fit_pending: bool,
+    /// Where the 3D view was drawn last, for the in-view face count.
+    pub view_rect: std::cell::Cell<Option<Rect>>,
+    /// A scripted hover (see `pose`) stays until a real pointer replaces it.
+    pub hover_pinned: bool,
 }
 
 impl Default for GridEditState {
@@ -323,6 +327,8 @@ impl Default for GridEditState {
             palette_scroll_to: None,
             budget: RefCell::new(None),
             fit_pending: true,
+            view_rect: std::cell::Cell::new(None),
+            hover_pinned: false,
         }
     }
 }
@@ -332,6 +338,7 @@ impl GridEditState {
     pub(crate) fn abandon(&mut self) {
         self.gesture = Gesture::Idle;
         self.paste = None;
+        self.hover_pinned = false;
         self.hover = GridHover::None;
     }
 }
@@ -406,5 +413,63 @@ impl EditorWorkspace {
                 core::array::from_fn(|i| ((max[i] - min[i]) * 0.5).max(64.0)),
             )
         })
+    }
+}
+
+impl EditorWorkspace {
+    /// The mouse cursor the active tool wants over the viewport.
+    pub(crate) fn grid_cursor(&self) -> egui::CursorIcon {
+        use egui::CursorIcon as C;
+        if self.grid.paste.is_some() {
+            return C::Move;
+        }
+        match &self.grid.gesture {
+            Gesture::Height(_) => return C::ResizeVertical,
+            Gesture::Rect(_) | Gesture::Walls(_) | Gesture::Marquee { .. } => return C::Crosshair,
+            Gesture::Paint { .. } => return C::Crosshair,
+            _ => {}
+        }
+        let over = !matches!(self.grid.hover, GridHover::None);
+        match self.grid.tool {
+            GridTool::Select if over => C::PointingHand,
+            GridTool::Select => C::Default,
+            GridTool::Height if over => C::ResizeVertical,
+            GridTool::Height => C::Default,
+            GridTool::Split if over => C::PointingHand,
+            GridTool::Split => C::Default,
+            GridTool::Floor
+            | GridTool::Ceiling
+            | GridTool::Wall
+            | GridTool::Paint
+            | GridTool::Place => C::Crosshair,
+        }
+    }
+
+    /// The material a new surface or wall takes: the palette choice, else
+    /// the first one already used in the room, so new geometry matches its
+    /// surroundings instead of showing the untextured fallback.
+    pub(crate) fn grid_new_material(&self, room: usize, wall: bool) -> Option<ResourceId> {
+        if self.grid.material.is_some() {
+            return self.grid.material;
+        }
+        let world = self.project.active_scene().world.grid()?;
+        let r = world.rooms.get(room)?;
+        for (_, _, sector) in r.iter() {
+            let from_walls = || {
+                WallEdge::ALL
+                    .iter()
+                    .find_map(|e| sector.walls(*e).iter().find_map(|w| w.material))
+            };
+            let from_floor = || sector.floor.as_ref().and_then(|f| f.tri_a.material);
+            let found = if wall {
+                from_walls().or_else(from_floor)
+            } else {
+                from_floor().or_else(from_walls)
+            };
+            if found.is_some() {
+                return found;
+            }
+        }
+        None
     }
 }
