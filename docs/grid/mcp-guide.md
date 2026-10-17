@@ -57,6 +57,7 @@ The world's scale turns grid units into **editor units**: 5/4 for a new project,
 | Rooms | `grid_add_room`, `grid_delete_room`, `grid_set_room` (name, raise, ambient, wall material, open wall height, clean overrides), `grid_convert_room`, `grid_set_shading` |
 | Surfaces | `grid_add_surface` (floor or ceiling over a rectangle at a height), `grid_remove_surface`, `grid_set_heights` (corners, one edge for a slope, absolute or relative, optional weld to neighbours), `grid_set_split` (flip, set, or `auto` to let surfaces choose their own diagonal from their heights), `grid_set_walkable` (ghost floors and ceilings) |
 | Level verbs | `grid_raise` (the Raise tool: offset or level, ceilings follow), `grid_ramp` (the Ramp tool: `keep` a side, `rise` or `walkable`), `grid_stairs` (the Stairs tool: a path, riser option, ramp option) |
+| Natural terrain | `grid_polygon` (a polygon or corridor of floors, optional roof, 45 degree corner cuts), `grid_chamfer`, `grid_crack` (a triangle at its own height), `grid_void` (half a cell empty), `grid_set_wall` (an authored wall's four heights, an open top crumbled), `grid_break`, `grid_rough`, `grid_paint_rules` |
 | Walls | `grid_place_wall`, `grid_remove_wall` (authored runs), `grid_wall_override` (hide, ghost, repaint a derived wall; reset) |
 | Look | `grid_paint`, `grid_paint_wall` (a wall or its whole run), `grid_tiling` (World density or Fit N x M, turns, flips, offset, scale), `grid_material_tiling` (a material's default) |
 | Bands | `grid_band_cut`, `grid_band_move`, `grid_band_delete`, `grid_band_set` (material, tiling and V per band; scope `run` or `room`) |
@@ -84,7 +85,20 @@ A route becomes a poll-bound input tape: sample N is what the guest reads at its
 
 Without a `route`, `playtest` runs the older fixed schedule (tap CROSS through the menus, optionally walk forward) for `polls` polls.
 
+## Natural terrain: caves, canyons, rock
+
+The tools above make axis-aligned rooms and slopes. These make rock. They write ordinary grid data, so everything stays hand-editable and every other tool still applies.
+
+* **Diagonal geometry.** A surface whose two triangles sit at different heights is *split-level*; in a derived room its fold diagonal grows a derived wall (a riser, or a drop for a ceiling), seen from the lower triangle, listed by `grid_walls` as `diagonal NW-SE riser`. A step taller than the character climbs (40 runtime units, 3 clicks at the default scale) also cooks a one-sided cliff wall: rays, the camera arm and a body below the cliff stop at it, a body on the ledge can still walk off. A *void* triangle draws nothing; the other half of the cell closes itself with a solid diagonal wall, and the neighbours across the cardinal edges of the void half close themselves too. `grid_crack` makes the first, `grid_void` the second. `grid_sector` prints both.
+* **Outlines.** `grid_polygon` takes points in *sector coordinates* (numbers; cell `[3, 2]` has its centre at `[3.5, 2.5]`), kind `room` (the closed polygon), `corridor` (the polyline, `width` sectors) or `region` (report only), `floor_height` and, for a cave, `ceiling_height`. With `chamfer: corners` (default) every convex staircase corner, a cell with exactly two adjacent neighbours missing, is cut: its outer triangle is voided, so a run of unit steps becomes one 45 degree wall. Steps wider than one sector stay steps. `grid_chamfer` does only the corner cut on floors that exist (`void`, `crack` for a plateau corner, `restore`).
+* **Break.** `grid_break` (region: `from`/`to`, `brush {centre, radius}`, `path {points, width}` or `polygon`) adds detail to walls (plateau lips crumble, edges are bitten into diagonal cracks, open wall tops get ragged), floors (interior vertices tilt, tiles crack along a diagonal) and ceilings. `intensity` 0 to 100 (about 10 to 20 is the Cathedral's sparse hand-made look, 40 the default, 70 and up rubble and gaps), `seed` repeats a result, `amplitude` is the largest change at intensity 100 in fine steps of 64 grid units. With `keep_walkable` (default) each change is checked against the walkability analysis, the motor's own numbers: nothing that adds a floor too steep to stand on, a step the character cannot climb or too little headroom survives, and the reply lists what was refused and the walkability before and after. A checkpoint `before-break` is taken first; `reroll: true` restores it and breaks again with the next seed, `dry_run: true` only reports. Nothing about the break is stored but its result.
+* **Rough.** `grid_rough` paints a level 0 to 3 over a region and sets the room's seed, amplitudes (`amp`, grid units at levels 1, 2, 3) and brightness `tint`. It moves the plan position of face corners by a hash of the lattice point, never the height, so the surface stays watertight and the preview and Play agree. Collision stays on the grid: the default amplitudes are 1, 2 and 4 runtime units, and anything above 4 (a third of the character's radius) is a `grid_budget` warning because the rock would clip the model.
+* **Look rules.** `grid_paint_rules` sets floor material by slope class and by height, the wall material, strata (wall material by height, made the room's default band set with an absolute line per threshold) and the trim; with a region it applies the floor rules now. Rules run inside the verbs on floors not painted by hand.
+
 ## Recipes
+
+* **A cave**: `grid_polygon` an irregular outline with `floor_height` 0 and `ceiling_height` 2048, `grid_raise` or `grid_ramp` a few areas, `grid_break` on the whole thing (walls, floor, ceiling), `grid_rough` level 2 over it, `grid_paint_rules` for scree low and rock high, then `grid_walkability`, `screenshot` from three poses and `playtest` a route.
+* **A canyon**: the same polygon with no ceiling and `grid_set_room` `open_wall` for the rock walls (their tops are what `grid_break` ragges), raised rims, `grid_break` targets walls and floor.
 
 * **A platform**: `grid_set_heights` on its rectangle with `height: 512`. In a derived room the risers appear by themselves; `grid_walls` lists them.
 * **A pit**: `grid_remove_surface` on the floor, leaving the ceiling. A floorless sector makes no wall at its edge, so cross it with a plane.
@@ -103,7 +117,7 @@ An edit is atomic: it runs on a copy of the world and an error leaves the docume
 
 ## What is not here yet
 
-Added with the verbs they belong to, each as a wrapper over that verb's own edit function: Sculpt, Room and Corridor, Opening, Stamps. Raise and Lower, Ramp and Stairs are here (`grid_raise`, `grid_ramp`, `grid_stairs`) with the two overlays as reads (`grid_walkability`, `grid_heatmap`). A region is a rectangle of sectors in the MCP (the editor also has a brush and a path; a path is `grid_stairs`' `path`).
+Added with the verbs they belong to, each as a wrapper over that verb's own edit function: Sculpt, Opening, Stamps, arches and vaults, scatter (see `natural-terrain.md`). Raise and Lower, Ramp and Stairs are here (`grid_raise`, `grid_ramp`, `grid_stairs`) with the two overlays as reads (`grid_walkability`, `grid_heatmap`). A region is a rectangle of sectors in the MCP (the editor also has a brush and a path; a path is `grid_stairs`' `path`).
 
 ## The proof
 
