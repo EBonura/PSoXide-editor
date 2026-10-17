@@ -15,6 +15,7 @@ mod grid_tiling;
 mod grid_tools_persp;
 mod grid_tools_top;
 mod grid_ui;
+mod grid_verbs;
 mod grid_world;
 mod project_workspace;
 mod scene_tree_selection;

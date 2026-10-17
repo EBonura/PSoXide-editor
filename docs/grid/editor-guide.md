@@ -38,7 +38,7 @@ Lists the materials the world already uses, the images imported with a level (`l
 
 ## Tools
 
-The strip has ten tools. Wrapped to a second line when the window is narrow. Keys work in the 3D and Top views.
+The strip has eleven tools in three groups (PICK, DRAW, BUILD). Wrapped to a second line when the window is narrow. Keys work in the 3D and Top views.
 
 | Tool | Key | Gesture |
 | --- | --- | --- |
@@ -53,7 +53,9 @@ The strip has ten tools. Wrapped to a second line when the window is narrow. Key
 | Place | O | Click to put the chosen node (light, spawn, actor...) at a sector centre; Alt places freely. |
 | Bands | E | Hover a wall and a rule previews where a click would cut it; click cuts the wall run there, drag a line to move it, Delete removes it, Shift+click picks a band for the palette. See Wall bands below. |
 
-Letters kept free for the level verbs that come next: U Raise, S Sculpt, A Ramp, T Stairs, B Room, K Corridor, I Opening, Y Stamps (N is the Plane tool, E the Bands tool), and Alt+W and Alt+P for the walkability and performance overlays.
+| Raise | U | Pick a region, then press on it and drag up or down. See Level verbs below. |
+
+Letters kept free for the level verbs that come next: S Sculpt, A Ramp, T Stairs, B Room, K Corridor, I Opening, Y Stamps (N is the Plane tool, E the Bands tool, U Raise), and Alt+W and Alt+P for the walkability and performance overlays.
 
 Also: Ctrl/Cmd+C copies the selected faces, Ctrl/Cmd+V shows a ghost (click stamps, Shift keeps stamping, H and V flip, R turns), Esc cancels a drag, a ghost or the selection, Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z undo and redo, `.` frames the selection, Ctrl/Cmd+S saves.
 
@@ -62,6 +64,15 @@ Also: Ctrl/Cmd+C copies the selected faces, Ctrl/Cmd+V shows a ghost (click stam
 Snapping is one rule in every tool: a click (256) by default, **Alt** for the fine step (64), **Shift+Alt** for free movement where a tool can leave the lattice (planes, Place; heights always stay on the 64 lattice).
 
 Units: a sector is 1024 grid units, a click 256, the fine step 64. A project's scale maps grid units to editor units (File > New Grid Project uses 5/4, so a sector is 1280 editor units; the imported levels keep the scale their import chose. `GridScale::DEFAULT`, still 21/16, moves to 5/4 with the next phase). Walls belong to the sector edge they are on, with a front side (the interior) and an optional back or both.
+
+## Level verbs
+
+A verb shapes a **region** of sectors. The interaction is always the same: pick the region, press the verb's key, drag an amount, release. Everything a verb writes is an ordinary field (corner heights, wall and floor materials), so it stays hand-editable, and the walls on the new edges are derived, so they appear as you drag.
+
+* **Region**: a **Marquee** (drag a rectangle, or click one sector), a **Brush** (paint sectors with a disc; `[` and `]` change the radius) or a **Path** (click waypoints, Enter finishes; `[` and `]` change the width). Shift adds to the region. It stays after a verb, so verbs chain, until Esc. With the Select tool's sectors picked, switching to a verb takes them as the region.
+* **Raise (U)**: press on the region and drag up or down. One click of travel is 256 units (Alt for 64; heights always stay on that lattice). **Offset** moves every corner by the amount and keeps the shape; **Level** sets every corner to the height under the pointer at press plus the amount; Tab switches, Auto picks Level on a flat region and Offset otherwise. Corners on the region's border move with it and the sectors outside keep theirs, so a cliff appears and its walls derive. **Follow ceiling** moves each ceiling by the same delta as the floor under it; off, a floor is held one click under its ceiling and the status line says so. Sectors with no floor are skipped and counted. Esc during a drag puts the document back exactly; the **Amount** field and **Apply** raise by a typed number in one undo step.
+* **Auto split**: a floor or ceiling made by a verb or the Floor and Ceiling tools chooses its own diagonal when its heights change: the diagonal whose two end corners are closest in height wins, so the fold runs level and the odd corner pops out of it. A tie keeps the current split. Surfaces from before this (every reference level) keep their diagonals, the Split tool turns a surface's automatic choice off, and flat or planar cells never flip.
+* **Paint rules** (Rooms panel, Paint rules): optional materials for flat, slope and steep floors, for the walls of shaped sectors and for a foot trim. They run only inside verbs, only on a floor whose slope class the verb changed, and never on a face you painted by hand (the Paint tool and the palette mark it). The palette's current material wins for the walls of shaped sectors.
 
 ## Tiling
 

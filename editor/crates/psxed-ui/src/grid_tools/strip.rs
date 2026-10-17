@@ -8,7 +8,19 @@ use psxed_project::grid::{GridBudget, CLICK_UNITS, FINE_UNITS};
 impl EditorWorkspace {
     /// The eight tool buttons.
     pub(crate) fn draw_grid_tool_strip(&mut self, ui: &mut egui::Ui) {
+        let mut group = None;
         for tool in GridTool::ALL {
+            if group != Some(tool.group()) {
+                if group.is_some() {
+                    ui.separator();
+                }
+                group = Some(tool.group());
+                ui.label(
+                    RichText::new(tool.group().label())
+                        .color(STUDIO_TEXT_WEAK)
+                        .size(9.5),
+                );
+            }
             let selected = self.grid.tool == tool;
             let response = ui
                 .add(
@@ -122,6 +134,7 @@ impl EditorWorkspace {
                 );
             }
             GridTool::Split => {}
+            GridTool::Raise => self.draw_verb_options(ui),
             GridTool::Bands => {
                 use psxed_project::grid::edit::bands::BandScope;
                 ui.label(RichText::new("Scope").color(STUDIO_TEXT_WEAK).size(11.0));
@@ -188,6 +201,7 @@ impl EditorWorkspace {
             GridTool::Paint => "Click or drag paint | Ctrl sample | pick in the palette",
             GridTool::Split => "Click a floor or ceiling | Click again for the ceiling in Top",
             GridTool::Bands => "Hover a wall, click to cut | Drag a line | Del removes it | Shift+click picks a band | Esc cancel",
+            GridTool::Raise => "Pick sectors | Press on them, drag up/down | Tab Offset/Level | Alt fine | Shift add | Esc cancel",
             GridTool::Place => "Click to place at the sector centre | Alt 64 | Shift+Alt free",
         }
     }

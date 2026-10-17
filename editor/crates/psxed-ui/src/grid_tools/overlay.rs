@@ -15,7 +15,7 @@ use psxed_project::grid::{GridWorld, SECTOR_UNITS};
 use std::collections::BTreeSet;
 
 /// Draws a polygon given as editor-space points: colour, fill alpha, line width.
-type PolygonFn<'a> = dyn Fn(&[[f32; 3]], Color32, u8, f32) + 'a;
+pub(super) type PolygonFn<'a> = dyn Fn(&[[f32; 3]], Color32, u8, f32) + 'a;
 
 pub(super) const SELECT: Color32 = Color32::from_rgb(255, 214, 64);
 pub(super) const HOVER: Color32 = Color32::from_rgb(110, 220, 255);
@@ -350,6 +350,7 @@ impl EditorWorkspace {
             }
         }
         self.draw_plane_overlay_2d(painter, transform);
+        self.draw_verb_overlay_2d(painter, transform);
     }
 
     // ---- 3D view ----
@@ -586,6 +587,7 @@ impl EditorWorkspace {
         }
         self.draw_plane_overlay_3d(painter, rect);
         self.draw_band_overlay_3d(painter, rect);
+        self.draw_verb_overlay_3d(painter, rect);
     }
 
     #[allow(clippy::too_many_arguments)]

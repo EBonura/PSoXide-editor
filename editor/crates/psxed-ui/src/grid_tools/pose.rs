@@ -20,6 +20,9 @@
 //! * `walls=north|east|south|west|nwse|nesw:x0,z0:x1,z1`
 //! * `hover=cell:x,z`, `hover=wall:edge:x,z`, `hover=face:floor|ceiling:x,z`,
 //!   `hover=vertex:x,z,corner`, `hover=spot:x,z`
+//! * `region=x0,z0:x1,z1` the level verbs' region (a marquee, committed)
+//! * `verb-drag=clicks` a level verb's amount drag in flight at `clicks`
+//!   (the active verb tool and its region)
 //! * `raise=x,z,corner,clicks` raise a floor corner, like a finished drag
 //! * `material=N` the Nth material of the palette
 //! * `copy` copies the selection; `paste=x,z` shows the ghost at `x,z`
@@ -99,6 +102,20 @@ impl EditorWorkspace {
                 self.grid_hidden_rooms.insert(index);
             }
             "help" => self.grid.help_open = true,
+            "region" => {
+                let (a, b) = (
+                    cell(parts.first().ok_or("missing x0,z0")?)?,
+                    cell(parts.get(1).ok_or("missing x1,z1")?)?,
+                );
+                self.grid.verb.region = Some(psxed_project::grid::edit::Region::from_rect(
+                    room,
+                    CellRect::from_corners(a, b),
+                ));
+            }
+            "verb-drag" => {
+                let clicks = value.parse::<f32>().map_err(|e| e.to_string())?;
+                verb_tool::pose_drag(self, (clicks * CLICK_UNITS as f32).round() as i32)?;
+            }
             "select" => self.pose_select(room, &parts)?,
             "rect" => {
                 let kind = match parts.first().copied() {

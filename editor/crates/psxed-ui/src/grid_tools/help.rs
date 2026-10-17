@@ -117,6 +117,24 @@ const BANDS: Rows = &[
     ),
     ("Inspector", "Lines, bands, materials and tiling per band"),
 ];
+const RAISE: Rows = &[
+    (
+        "Drag, click (Marquee)",
+        "Pick a rectangle of sectors, or one with a click; Shift adds to the region",
+    ),
+    (
+        "Brush, Path (option row)",
+        "Paint sectors with a disc, or click waypoints and press Enter; [ and ] change the radius or width",
+    ),
+    (
+        "Press on the region, drag",
+        "Up raises, down lowers (256 units a step, Alt for 64); the sides appear live, release commits",
+    ),
+    ("Tab", "Switch Offset (keep the shape) and Level (flatten to the height under the pointer)"),
+    ("Follow ceiling", "Ceilings move with the floors; off holds a floor a click under its ceiling"),
+    ("Esc", "Cancel the drag exactly; again to forget the region"),
+    ("Amount, Apply", "A typed amount in clicks, applied as one undo step"),
+];
 const OTHER: Rows = &[
     ("Split (D)", "Click a floor or ceiling to flip its diagonal"),
     (
@@ -134,9 +152,18 @@ const OTHER: Rows = &[
 ];
 const SNAP: Rows = &[
     ("Alt", "Fine snap: 64 units (every tool, planes included)"),
-    ("Shift+Alt", "Free movement where a tool can leave the lattice (planes, Place)"),
-    ("U S A T B K I Y", "Reserved for the level verbs: Raise, Sculpt, Ramp, Stairs, Room, Corridor, Opening, Stamps"),
-    ("Alt+W, Alt+P", "Reserved for the walkability and performance overlays"),
+    (
+        "Shift+Alt",
+        "Free movement where a tool can leave the lattice (planes, Place)",
+    ),
+    (
+        "S B K I Y",
+        "Reserved for the level verbs still to come: Sculpt, Room, Corridor, Opening, Stamps",
+    ),
+    (
+        "Alt+W, Alt+P",
+        "Reserved for the walkability and performance overlays",
+    ),
 ];
 const VIEW: Rows = &[
     ("Middle or right drag", "Orbit the 3D camera"),
@@ -176,7 +203,7 @@ impl EditorWorkspace {
             return;
         }
         let mut open = true;
-        let sections: [(&str, Rows); 10] = [
+        let sections: [(&str, Rows); 11] = [
             ("Select (V)", SELECT),
             ("Floor (F) and Ceiling (C)", FLOOR),
             ("Wall (W)", WALL),
@@ -184,6 +211,7 @@ impl EditorWorkspace {
             ("Height (H)", HEIGHT),
             ("Paint (P)", PAINT),
             ("Bands (E)", BANDS),
+            ("Raise (U)", RAISE),
             ("More", OTHER),
             ("Snapping and reserved keys", SNAP),
             ("Camera and project", VIEW),
@@ -197,14 +225,14 @@ impl EditorWorkspace {
             .show(ctx, |ui| {
                 ui.set_width(1040.0_f32.min(ctx.screen_rect().width() - 80.0));
                 ui.label(
-                    RichText::new("Tools: V Select, F Floor, C Ceiling, W Wall, N Plane, H Height, P Paint, D Split, O Place, E Bands")
+                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, P Paint, D Split, O Place, E Bands | U Raise")
                         .color(STUDIO_TEXT_WEAK),
                 );
                 ui.add_space(4.0);
-                // Two columns of sections: the first five on the left.
+                // Two columns of sections: the first six on the left.
                 ui.columns(2, |columns| {
                     for (index, (title, rows)) in sections.iter().enumerate() {
-                        let ui = &mut columns[usize::from(index >= 5)];
+                        let ui = &mut columns[usize::from(index >= 6)];
                         ui.add_space(4.0);
                         ui.label(RichText::new(*title).strong().color(STUDIO_TEXT));
                         egui::Grid::new(format!("grid_help_{title}"))

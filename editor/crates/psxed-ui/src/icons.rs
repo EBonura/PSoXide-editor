@@ -8,6 +8,7 @@
 
 use egui::{FontFamily, FontId, RichText};
 
+pub const ARROW_UP_FROM_LINE: char = '\u{e45a}';
 pub const AUDIO_LINES: char = '\u{e2b2}';
 pub const BLEND: char = '\u{e59c}';
 pub const BOX: char = '\u{e061}';

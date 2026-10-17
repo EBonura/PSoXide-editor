@@ -19,6 +19,8 @@ impl EditorWorkspace {
         ui.add_space(6.0);
         if self.plane_primary().is_some() {
             self.draw_plane_inspector(ui);
+        } else if self.grid.tool.is_verb() {
+            self.draw_verb_inspector(ui);
         } else {
             self.draw_grid_face_inspector(ui);
         }

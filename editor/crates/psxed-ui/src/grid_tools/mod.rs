@@ -1,7 +1,8 @@
 //! The grid world editing tools.
 //!
-//! One strip of ten tools (Select, Floor, Ceiling, Wall, Plane, Height,
-//! Paint, Split, Place, Bands), each written once and driven from both the Top view and
+//! One strip of tools in three groups (Pick, Draw, Build: Select, Height;
+//! Floor, Ceiling, Wall, Plane, Paint, Split, Place, Bands; Raise and the
+//! other level verbs), each written once and driven from both the Top view and
 //! the 3D view through [`view::GridPointer`]. The document edits themselves
 //! are the pure functions in `psxed_project::grid::edit`; this module owns
 //! the gestures, the picking, the overlays and the panels around them.
@@ -44,10 +45,15 @@ mod pose;
 mod rect_tool;
 mod rooms;
 mod rooms_walls;
+mod rules_panel;
 mod select_tool;
 mod shading_panel;
 mod strip;
 mod tiling_panel;
+mod verb_overlay;
+mod verb_panel;
+pub(crate) mod verb_state;
+pub(crate) mod verb_tool;
 pub(crate) mod view;
 mod wall_tool;
 
@@ -79,21 +85,61 @@ pub(crate) enum GridTool {
     Place,
     /// Cut wall runs into horizontal bands.
     Bands,
+    /// Raise or lower a region of sectors.
+    Raise,
+}
+
+/// The strip's groups, in order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ToolGroup {
+    /// Choosing and moving what exists.
+    Pick,
+    /// Drawing by hand.
+    Draw,
+    /// The level verbs: region, then verb, then amount.
+    Build,
+}
+
+impl ToolGroup {
+    pub(crate) const fn label(self) -> &'static str {
+        match self {
+            Self::Pick => "PICK",
+            Self::Draw => "DRAW",
+            Self::Build => "BUILD",
+        }
+    }
 }
 
 impl GridTool {
-    pub(crate) const ALL: [Self; 10] = [
+    /// Every tool, in strip order (grouped).
+    pub(crate) const ALL: [Self; 11] = [
         Self::Select,
+        Self::Height,
         Self::Floor,
         Self::Ceiling,
         Self::Wall,
         Self::Plane,
-        Self::Height,
         Self::Paint,
         Self::Split,
         Self::Place,
         Self::Bands,
+        Self::Raise,
     ];
+
+    /// The strip group of the tool.
+    pub(crate) const fn group(self) -> ToolGroup {
+        match self {
+            Self::Select | Self::Height => ToolGroup::Pick,
+            Self::Raise => ToolGroup::Build,
+            _ => ToolGroup::Draw,
+        }
+    }
+
+    /// Whether the tool is one of the level verbs (region, then verb, then
+    /// amount).
+    pub(crate) const fn is_verb(self) -> bool {
+        matches!(self, Self::Raise)
+    }
 
     pub(crate) const fn label(self) -> &'static str {
         match self {
@@ -107,6 +153,7 @@ impl GridTool {
             Self::Split => "Split",
             Self::Place => "Place",
             Self::Bands => "Bands",
+            Self::Raise => "Raise",
         }
     }
 
@@ -122,6 +169,7 @@ impl GridTool {
             Self::Split => egui::Key::D,
             Self::Place => egui::Key::O,
             Self::Bands => egui::Key::E,
+            Self::Raise => egui::Key::U,
         }
     }
 
@@ -137,6 +185,7 @@ impl GridTool {
             Self::Split => "D",
             Self::Place => "O",
             Self::Bands => "E",
+            Self::Raise => "U",
         }
     }
 
@@ -152,6 +201,7 @@ impl GridTool {
             Self::Split => icons::SCAN,
             Self::Place => icons::MAP_PIN,
             Self::Bands => icons::ROWS_3,
+            Self::Raise => icons::ARROW_UP_FROM_LINE,
         }
     }
 
@@ -176,6 +226,9 @@ impl GridTool {
             Self::Place => "Click to place the chosen node at a sector centre on the floor.",
             Self::Bands => {
                 "Hover a wall, click to cut it into bands at the rule. Drag a line to move it, Delete removes it, Shift+click picks a band for the palette."
+            }
+            Self::Raise => {
+                "Pick sectors (marquee, brush or path), then press on them and drag up or down. Tab switches Offset and Level, Alt snaps finer, Esc cancels."
             }
         }
     }
@@ -275,6 +328,10 @@ pub(crate) enum Gesture {
     Plane(plane_tool::PlaneGesture),
     /// A band line being dragged.
     Band(bands_tool::BandDrag),
+    /// A level verb's region being picked.
+    Region(verb_state::RegionGesture),
+    /// A level verb's amount being dragged.
+    Verb(verb_state::VerbGesture),
 }
 
 /// What the pointer is over, for hover highlights and ghosts.
@@ -377,6 +434,8 @@ pub(crate) struct GridEditState {
     pub band_line: Option<(psxed_project::grid::edit::FaceRef, usize)>,
     /// The band picked with Shift+click, for the palette to paint.
     pub band_sel: Option<(psxed_project::grid::edit::FaceRef, usize)>,
+    /// The level verbs: region, options and the last readout.
+    pub verb: verb_state::VerbState,
     /// The room tools create in when none is marked active.
     pub last_room: usize,
     /// Bumped by every document change; the pick cache and budget follow it.
@@ -426,6 +485,7 @@ impl Default for GridEditState {
             band_scope: psxed_project::grid::edit::bands::BandScope::Run,
             band_line: None,
             band_sel: None,
+            verb: verb_state::VerbState::default(),
             last_room: 0,
             rev: 1,
             cache: RefCell::new(None),
@@ -451,6 +511,8 @@ impl GridEditState {
         self.cycle.reset();
         self.band_line = None;
         self.band_sel = None;
+        self.verb.path.clear();
+        self.verb.preview.clear();
         self.hover_pinned = false;
         self.hover = GridHover::None;
     }
@@ -486,6 +548,7 @@ impl EditorWorkspace {
             GridTool::Place => ViewTool::Place,
             _ => ViewTool::Select,
         };
+        verb_tool::on_tool_changed(self);
         self.status = format!("Tool: {} ({})", tool.label(), tool.key_label());
         self.mark_shortcut_group_changed(ShortcutGroup::Tool);
     }
@@ -545,6 +608,8 @@ impl EditorWorkspace {
             Gesture::Plane(_) => return C::Grabbing,
             Gesture::Paint { .. } => return C::Crosshair,
             Gesture::Band(_) => return C::ResizeVertical,
+            Gesture::Verb(_) => return C::ResizeVertical,
+            Gesture::Region(_) => return C::Crosshair,
             _ => {}
         }
         let over = !matches!(self.grid.hover, GridHover::None);
@@ -557,7 +622,9 @@ impl EditorWorkspace {
             GridTool::Split => C::Default,
             GridTool::Bands if over => C::PointingHand,
             GridTool::Bands => C::Default,
+            GridTool::Raise if self.grid.verb.region.is_some() => C::ResizeVertical,
             GridTool::Floor
+            | GridTool::Raise
             | GridTool::Ceiling
             | GridTool::Wall
             | GridTool::Plane
