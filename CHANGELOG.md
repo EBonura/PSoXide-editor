@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- `psxed-audio` can cook sounds straight from WAV files or in-memory bytes
+  (`cook_sounds`, `import_files`), sharing the decode, resample, normalize and
+  encode path with `import_pack`, so the `.psau` output is byte-identical.
+  Callers that already hold the WAVs no longer have to build a zip archive and
+  a manifest first. The zip sound-pack importer now sits behind the default-on
+  `pack` feature, so those callers can drop the zip dependency.
+
 - Walls and floors close to the third-person camera are now drawn where they
   really are. The GTE's perspective divide pulled anything nearer than about
   50 units toward the screen centre, which warped near walls and let sky show
