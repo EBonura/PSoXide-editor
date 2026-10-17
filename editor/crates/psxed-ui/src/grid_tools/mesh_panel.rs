@@ -465,9 +465,12 @@ impl EditorWorkspace {
                 );
                 ui.separator();
                 for (i, slot) in slots.iter().enumerate() {
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
                         ui.label(RichText::new(slot).color(STUDIO_TEXT_WEAK));
                         ui.label(RichText::new(&names[i]).color(STUDIO_ACCENT));
+                    });
+                    ui.horizontal(|ui| {
+                        ui.add_space(12.0);
                         if ui
                             .small_button("Use palette")
                             .on_hover_text(format!("Apply {palette_name} to this slot"))
