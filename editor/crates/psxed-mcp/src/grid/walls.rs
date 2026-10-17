@@ -149,11 +149,9 @@ pub fn resolve_wall(world: &GridWorld, wall: &WallRef) -> Result<FaceRef, String
     let room = pick_room(world, wall.room)?;
     let edge = parse_edge(&wall.edge)?;
     let r = &world.rooms[room];
-    let derived: Vec<_> = if edge.is_diagonal() {
-        Vec::new()
-    } else {
-        derive::edge_walls(r, wall.cell, edge)
-    };
+    // A diagonal derived face (a split-level riser, a void closure) is
+    // addressed by its host cell, the diagonal and its kind.
+    let derived: Vec<_> = derive::edge_walls(r, wall.cell, edge);
     let authored = r
         .local(wall.cell)
         .and_then(|[x, z]| r.sector(x, z))
@@ -232,6 +230,10 @@ pub struct WallOverrideReq {
     /// Derived walls: forget everything set on this segment ("Back to
     /// automatic").
     pub reset: Option<bool>,
+    /// A derived closure wall of a floor with no ceiling: offset its top, grid
+    /// units, at the two ends of its segment (in +X or +Z order for a
+    /// cardinal edge): the crumbled top of an open rock wall. `[0, 0]` clears.
+    pub top_delta: Option<[i32; 2]>,
 }
 
 /// Apply [`WallOverrideReq`].
@@ -272,6 +274,20 @@ pub fn wall_override(
         set_material(world, face, None, material);
         notes.push(format!("material {}", mats.label(material)));
     }
+    if let Some(delta) = req.top_delta {
+        if !derived {
+            return Err("top_delta applies to derived closure walls; use grid_set_wall to change an authored wall's heights".to_string());
+        }
+        let to_i16 = |v: i32| {
+            i16::try_from(v).map_err(|_| format!("top_delta {v} is out of range (at most 32767)"))
+        };
+        psxed_project::grid::edit::derived::set_top_delta(
+            world,
+            face,
+            [to_i16(delta[0])?, to_i16(delta[1])?],
+        );
+        notes.push(format!("top offset {delta:?}"));
+    }
     if let Some(facing) = &req.facing {
         if derived {
             return Err("facing applies to authored walls".to_string());
@@ -281,7 +297,10 @@ pub fn wall_override(
         notes.push(format!("facing {facing:?}"));
     }
     if notes.is_empty() {
-        return Err("nothing to change: give hidden, solid, material, facing or reset".to_string());
+        return Err(
+            "nothing to change: give hidden, solid, material, facing, top_delta or reset"
+                .to_string(),
+        );
     }
     Ok(format!(
         "room {} {:?} {}: {}",
@@ -321,6 +340,7 @@ mod tests {
                 material: None,
                 facing: None,
                 reset: None,
+                top_delta: None,
             },
         )
         .unwrap();
@@ -337,6 +357,7 @@ mod tests {
                 material: None,
                 facing: None,
                 reset: Some(true),
+                top_delta: None,
             },
         )
         .unwrap();

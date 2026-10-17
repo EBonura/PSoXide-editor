@@ -8,6 +8,7 @@
 mod bands;
 mod combat;
 mod geometry;
+mod natural;
 mod nodes;
 mod planes;
 mod project;
@@ -53,6 +54,7 @@ impl EditorServer {
             + Self::bands_router()
             + Self::planes_router()
             + Self::verbs_router()
+            + Self::natural_router()
             + Self::verify_router();
         Self {
             workspace: Arc::new(Mutex::new(workspace)),

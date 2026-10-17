@@ -17,6 +17,7 @@
 
 pub mod bands;
 pub mod build;
+pub mod natural;
 pub mod paint;
 pub mod plan;
 pub mod planes;

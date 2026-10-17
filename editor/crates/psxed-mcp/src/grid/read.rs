@@ -27,6 +27,17 @@ fn surface_line(surface: &GridSurface, mats: &Materials<'_>) -> String {
     if let Some(b) = surface.heights_b {
         let _ = write!(out, ", second triangle at {b:?}");
     }
+    if surface.void != 0 {
+        let _ = write!(
+            out,
+            ", VOID triangle(s) {}",
+            match surface.void & 3 {
+                1 => "A",
+                2 => "B",
+                _ => "A and B",
+            }
+        );
+    }
     let a = surface.tri(0);
     let _ = write!(out, ", material {}", mats.label(a.material));
     if let Some(b) = &surface.tri_b {
@@ -188,9 +199,10 @@ pub fn sector(
             });
         let _ = writeln!(
             out,
-            "derived wall {} {}: heights {:?}, owner {:?}, material {}, hidden {}, solid {:?}{tiling}",
+            "derived wall {} {}{}: heights {:?}, owner {:?}, material {}, hidden {}, solid {:?}{tiling}",
             wall.edge.label(),
             wall.kind.label(),
+            if wall.back { " (seen from the back)" } else { "" },
             wall.heights,
             wall.owner,
             mats.label(wall.material),
@@ -422,6 +434,7 @@ pub fn walls(
         )
     });
     check_rect(&rect)?;
+    let cook_units = psxed_project::grid::cook::RuntimeUnits::new(world.scale).ok();
     let mut derived = Vec::new();
     let mut authored = Vec::new();
     for cell in rect.cells() {
@@ -473,7 +486,20 @@ pub fn walls(
                 flags.push("own tiling".to_string());
             }
             if !wall.blocks() {
-                flags.push("no wall record (step rule)".to_string());
+                let cliff = cook_units.as_ref().is_some_and(|u| {
+                    psxed_project::grid::cook::collision::is_cliff_wall(u, r.y_offset, wall)
+                });
+                flags.push(
+                    if cliff {
+                        "one-sided cliff wall (taller than a step)"
+                    } else {
+                        "no wall record (step rule)"
+                    }
+                    .to_string(),
+                );
+            }
+            if wall.back {
+                flags.push("seen from the back of the diagonal".to_string());
             }
             let _ = writeln!(
                 out,
