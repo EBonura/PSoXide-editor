@@ -1,5 +1,7 @@
 # Natural terrain and architecture on the grid (2026-10-17)
 
+> N1 (diagonal geometry), N4 (outlines), N3 (Break v1) and N2 (Rough) are built on `grid/natural`; what landed and the deviations are in `level-tools-design.md` section 21. The text below is the original audit and design.
+
 Status: audit plus design addendum to `level-tools-design.md`. Written read-only against branch `grid/main` (HEAD c581c6c7) and, for T5 to T7, against the uncommitted `grid/tools` worktree (`grid-runtime`, merge 581de480 plus staged Stairs and heatmap files). No cargo, no builds, nothing was run; every "OK" below is from reading code and the Cathedral data, not from a test I executed.
 
 Manny's direction (the contract): "I'll need to create environments which look as natural as possible, so no straight walls, mix between different slopes of different sizes, being able to do diagonals (which are what make the cathedral so nice looking), be sure to include all of this into the MCP server and into the engine." Plus two later requirements: a **Break** verb (quickly add detail by auto-breaking a raised wall or a floor, "like in the cathedral where I created those manually") and **architecture** generators (arches, vaults).
