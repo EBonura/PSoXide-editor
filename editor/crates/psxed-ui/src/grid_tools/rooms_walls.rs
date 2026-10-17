@@ -71,6 +71,8 @@ impl EditorWorkspace {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("Wall").color(STUDIO_TEXT_WEAK).size(11.0));
                     ui.label(RichText::new(default_name).color(STUDIO_ACCENT));
+                });
+                ui.horizontal(|ui| {
                     if ui
                         .add_enabled(palette.is_some(), egui::Button::new("Use palette"))
                         .on_hover_text("Make the chosen palette material the room's wall material")

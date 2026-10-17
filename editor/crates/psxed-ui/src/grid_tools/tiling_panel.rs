@@ -138,14 +138,14 @@ pub(super) fn draw_tiling(
     ui.horizontal(|ui| {
         ui.label("Turn");
         if ui
-            .button("\u{21b6}")
+            .button("<")
             .on_hover_text("Turn the texture a quarter counter-clockwise")
             .clicked()
         {
             ops.push(UvOp::Turn(false));
         }
         if ui
-            .button("\u{21b7}")
+            .button(">")
             .on_hover_text("Turn the texture a quarter clockwise")
             .clicked()
         {

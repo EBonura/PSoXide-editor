@@ -196,7 +196,7 @@ fn shapes_text(output: &egui::FullOutput) -> String {
         .join("\n")
 }
 
-fn draw_with_events(
+pub(super) fn draw_with_events(
     ws: &mut EditorWorkspace,
     ctx: &egui::Context,
     events: Vec<egui::Event>,
