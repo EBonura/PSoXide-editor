@@ -38,7 +38,7 @@ Lists the materials the world already uses, the images imported with a level (`l
 
 ## Tools
 
-The strip has fifteen tools in three groups (PICK, DRAW, BUILD). Wrapped to a second line when the window is narrow. Keys work in the 3D and Top views.
+The strip has sixteen tools in three groups (PICK, DRAW, BUILD). Wrapped to a second line when the window is narrow. Keys work in the 3D and Top views.
 
 | Tool | Key | Gesture |
 | --- | --- | --- |
@@ -47,6 +47,7 @@ The strip has fifteen tools in three groups (PICK, DRAW, BUILD). Wrapped to a se
 | Ceiling | C | Same as Floor, for ceilings. |
 | Wall | W | Drag along an edge to place a run of walls; they fill the gap up to the ceiling or the next wall. R turns the direction (auto, N, E, S, W, two diagonals). Ctrl/Cmd+drag removes. |
 | Plane | N | Click a surface to put a free plane on it, drag to size it. Click a plane to select it, then use its handles (see Free planes below). |
+| Mesh | Shift+N | Pick a mesh in the Meshes palette, click a floor to place it; drag to move, R turns a quarter, [ and ] 15 degrees, Delete removes. See Meshes below. |
 | Height | H | Drag a vertex, edge or face up and down in 256 unit clicks, Alt for 64. **Alt+drag on a floor or ceiling face moves one triangle** (see Natural terrain below). L unlinks corners that share a position. PgUp/PgDn or ]/[ nudge the selection. |
 | Paint | P | Click or drag faces to apply the palette material. Ctrl/Cmd+click samples a face's material. |
 | Split | D | Click a floor or ceiling to flip its diagonal. **Shift+click voids or restores the triangle under the pointer** (see Natural terrain below). |
@@ -59,7 +60,7 @@ The strip has fifteen tools in three groups (PICK, DRAW, BUILD). Wrapped to a se
 | Break | X | Pick a region, press on it and drag up for the intensity (0 to 100). Tab changes the target, Shift+X re-rolls the seed, Enter commits, Esc cancels. See Natural terrain below. |
 | Rough | M | Pick a region, press on it and drag up for the rock level (0 to 3). See Natural terrain below. |
 
-Letters kept free for the level verbs that come next: S Sculpt, B Room, K Corridor, I Opening, Y Stamps, G Vault (N is the Plane tool, E the Bands tool, U Raise, A Ramp, T Stairs, X Break, M Rough). Alt+W is the walkability overlay and Alt+P the performance heatmap (below).
+Letters kept free for the level verbs that come next: S Sculpt, B Room, K Corridor, I Opening, Y Stamps, G Vault (N is the Plane tool and Shift+N the Mesh tool, E the Bands tool, U Raise, A Ramp, T Stairs, X Break, M Rough). L toggles Link and R turns, so no plain letter was left for Mesh. Alt+W is the walkability overlay and Alt+P the performance heatmap (below).
 
 Also: Ctrl/Cmd+C copies the selected faces, Ctrl/Cmd+V shows a ghost (click stamps, Shift keeps stamping, H and V flip, R turns), Esc cancels a drag, a ghost or the selection, Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z undo and redo, `.` frames the selection, Ctrl/Cmd+S saves.
 
@@ -68,6 +69,16 @@ Also: Ctrl/Cmd+C copies the selected faces, Ctrl/Cmd+V shows a ghost (click stam
 Snapping is one rule in every tool: a click (256) by default, **Alt** for the fine step (64), **Shift+Alt** for free movement where a tool can leave the lattice (planes, Place; heights always stay on the 64 lattice).
 
 Units: a sector is 1024 grid units, a click 256, the fine step 64. A project's scale maps grid units to editor units (File > New Grid Project uses 5/4, so a sector is 1280 editor units; the imported levels keep the scale their import chose. `GridScale::DEFAULT`, still 21/16, moves to 5/4 with the next phase). Walls belong to the sector edge they are on, with a front side (the interior) and an optional back or both.
+
+## Meshes
+
+Static meshes are arches, columns, rubble and imported props: not grid geometry, but assets the world keeps once and rooms place copies of (`docs/grid/meshes.md`). Their one home is the **Meshes** palette in the right dock, below Materials, shown with the Mesh tool (Shift+N) and while a mesh is selected.
+
+* **Palette**: one row per asset (click to choose it for placing). **+ Arch**, **+ Column**, **+ Rubble** make a default asset and choose it; **Import OBJ** reads a `.obj` (quads and triangles with their UVs, `usemtl` names become material slots, one OBJ unit is one sector, the origin moves to the floor under the middle). Below the list, the chosen asset's **recipe**: an arch's profile (round, segmental, pointed, flat), span, rise, spring, thickness, depth, segments and the hook socket at the crown; a column's radius, height, sides, plinth and capital; rubble's size, stones and seed. Every placed copy follows an edit.
+* **Place**: with an asset chosen, click a floor. The mesh stands on the floor under the pointer at the 256 lattice (Alt 64, Shift+Alt free), turned to the heading shown in the option row (R turns it a quarter, `[` and `]` 15 degrees when nothing is selected). A ghost box follows the pointer in both views.
+* **Select, move, turn**: click a mesh (the Top view picks by footprint, the 3D view by its box). Drag it; it follows the floor. R, `[` and `]` turn it. Delete removes it. The Top view draws every footprint (orange, the selection yellow, hover white-ish) and a ring at each hook socket; the 3D view draws the mesh itself and boxes the selection.
+* **Inspector** (a mesh selected): asset, position and turn as numbers, scale (uniform in percent, or x y z), a material per slot with Use palette and Clear (clicking a swatch applies it to every slot), Collides, Fullbright, Enabled, Delete. The Inspector wraps a drag in one undo step.
+* **What the cook does with it**: draws it with the room's free planes, collides it (piers and columns block, flat tops and the arch crown are surfaces to stand on), spawns a hook point under an arch's crown. The 3D preview and Play bake the same light, except that the preview casts no shadows.
 
 ## Walkability overlay
 

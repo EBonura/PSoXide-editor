@@ -1,0 +1,23 @@
+# A unit crate for the grid mesh importer (docs/grid/meshes.md).
+# One OBJ unit is one sector at the importer's default scale; the planks and
+# the lid are two material slots. Counter-clockwise from outside.
+v 0 0 0
+v 1 0 0
+v 1 1 0
+v 0 1 0
+v 0 0 1
+v 1 0 1
+v 1 1 1
+v 0 1 1
+vt 0 0
+vt 1 0
+vt 1 1
+vt 0 1
+usemtl planks
+f 5/1 6/2 7/3 8/4
+f 2/1 1/2 4/3 3/4
+f 1/1 5/2 8/3 4/4
+f 6/1 2/2 3/3 7/4
+usemtl lid
+f 8/1 7/2 3/3 4/4
+f 1/1 2/2 6/3 5/4

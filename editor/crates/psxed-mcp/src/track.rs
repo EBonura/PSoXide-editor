@@ -79,6 +79,66 @@ pub fn parse(output: &str, route_csv: &str) -> Vec<Sample> {
     out
 }
 
+/// Guest debug lines worth reporting by name, with the route poll each landed
+/// on: the hook runtime's `arch:attached`, `arch:drop`, `arch:blocked` and
+/// `arch:timeout` (a perch, its end, a flight that hit something, a perch that
+/// ran out of air time).
+pub fn events(output: &str, route_csv: &str) -> Vec<(u64, String)> {
+    let mut lines = route_csv.lines();
+    let Some(header) = lines.next() else {
+        return Vec::new();
+    };
+    let cols: Vec<&str> = header.split(',').collect();
+    let (Some(cycle_col), Some(poll_col)) = (
+        cols.iter().position(|c| *c == "bus_cycles"),
+        cols.iter().position(|c| *c == "port1_polls"),
+    ) else {
+        return Vec::new();
+    };
+    let ticks: Vec<(i64, u64)> = lines
+        .filter_map(|line| {
+            let cells: Vec<&str> = line.split(',').collect();
+            Some((
+                cells.get(cycle_col)?.parse().ok()?,
+                cells.get(poll_col)?.parse().ok()?,
+            ))
+        })
+        .collect();
+    let mut out = Vec::new();
+    for line in output.lines() {
+        let Some(name) = line.split("] arch:").nth(1).map(str::trim) else {
+            continue;
+        };
+        let Some(cycles) = line
+            .split(" c")
+            .nth(1)
+            .and_then(|s| s.split(']').next())
+            .and_then(|s| s.parse::<i64>().ok())
+        else {
+            continue;
+        };
+        let at = ticks.partition_point(|(c, _)| *c <= cycles);
+        let poll = at.checked_sub(1).map_or(0, |i| ticks[i].1);
+        out.push((poll, format!("arch:{name}")));
+    }
+    out
+}
+
+/// The events as report lines, polls relative to the route start.
+pub fn describe_events(events: &[(u64, String)], from_poll: u64) -> String {
+    if events.is_empty() {
+        return String::new();
+    }
+    let mut out = String::from("hook events (route poll):");
+    for (poll, name) in events {
+        let _ = write!(out, " {} at {}", name, poll.saturating_sub(from_poll));
+        out.push(',');
+    }
+    out.pop();
+    out.push('\n');
+    out
+}
+
 /// The sample at or after `poll`, else the last one.
 pub fn at_poll(samples: &[Sample], poll: u64) -> Option<Sample> {
     samples
@@ -154,6 +214,20 @@ pub fn describe(samples: &[Sample], from_poll: u64, wanted: &[u64]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hook_events_land_on_their_polls() {
+        let route = "route_tick,bus_cycles,port1_polls\n0,0,0\n1,1000,10\n2,2000,20\n3,3000,30\n";
+        let log = "[guest f1 c2500] arch:attached\n[guest f3 c2999] camera-pose,1\n[guest f3 c3999] arch:drop\n";
+        let events = events(log, route);
+        assert_eq!(
+            events,
+            vec![(20, "arch:attached".to_string()), (30, "arch:drop".to_string())]
+        );
+        let text = describe_events(&events, 10);
+        assert_eq!(text, "hook events (route poll): arch:attached at 10, arch:drop at 20\n");
+        assert!(describe_events(&[], 0).is_empty());
+    }
 
     #[test]
     fn pose_lines_land_on_their_polls_in_editor_units() {

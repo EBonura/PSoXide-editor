@@ -387,6 +387,8 @@ A `Vault` verb writes ceiling heights along an arc across a span.
 
 ### 4.4 A3: Free-standing pieces from planes
 
+*Built as static meshes instead (2026-10-17, `docs/grid/meshes.md`): `grid_arch_span` makes a round, segmental, pointed or flat arch between two floor points with piers, per-piece collision and a perch socket; columns, rubble and imported OBJ props are the same asset kind. Planes stay for ribs, lintels and leaning buttresses.*
+
 **Spanning arch, rib, buttress, lintel, flying buttress** from `span`, `rise`, `thickness`, `segments`. One plane per voussoir segment (a rectangle `thickness` by `depth`), each placed by the existing from/to placement (`grid_add_plane` has a `from`/`to` span mode, `M/tools/planes.rs`).
 
 * **Collision classes:** a plane steeper than normal.y 0.7 is solid and the shape is a box around the plane for leans between 0.35 and 0.7 (G2), so a round arch's flanks are blockers (boxes) and the crown segments with normal.y at least 0.7 are walkable platforms. **An arch top is walkable** where the crown segments are flat enough, which is what a grapple mechanic needs.
@@ -472,7 +474,7 @@ Canyon: `grid_polygon` an irregular floor with no ceilings, `grid_raise` the rim
 6. **Arch cut collision before partial spans (T10).** Recommend shipping v0 (`grid_arch_wall`, one segment per sector) now and the profile cut after T10, rather than inventing a second partial-span encoding.
 7. **Plane cap.** Do not raise `MAX_PLANES_PER_ROOM` (64) blindly: the per-frame box test cost is unmeasured. Recommend scatter as ordinary quads (no cap pressure) and ArchProp for arches; raise the cap only after a measurement.
 8. **Keys.** Break `X`; Vault `G` (proposal; V is taken, G is in the "kept free" list of 7.12); Arch spans live in the Plane tool (N) as a mode. Recommend approving X and G, and Shift+X for re-roll.
-9. **Is ArchProp usable in grid levels?** The playtest runtime collects arch-prop blockers (`box_props.rs:70`) but I found no grid cook or MCP reference. Recommend a one-line check by whoever has the cook running: place an ArchProp node in a grid project and cook it. If it works, extend its curve enum and expose it; if not, the plane route is the fallback.
+9. **Is ArchProp usable in grid levels?** *(Answered 2026-10-17, `meshes.md` section 1: it cooks in a grid world (test), but the MCP cannot create one and a free-standing arch is now a static mesh with its own generator, profiles, collision and a crown hook socket.)* The playtest runtime collects arch-prop blockers (`box_props.rs:70`) but I found no grid cook or MCP reference. Recommend a one-line check by whoever has the cook running: place an ArchProp node in a grid project and cook it. If it works, extend its curve enum and expose it; if not, the plane route is the fallback.
 10. **Preview shadows** (N11): recommend building it, because AO and shadow looks cannot otherwise be reviewed through the MCP `screenshot`, which Manny's workflow depends on.
 11. **Break and the quadtree before T9:** recommend shipping Break v1 on whole sectors now (it already reproduces the Cathedral style, which is sector-granular) rather than waiting.
 

@@ -235,6 +235,10 @@ impl EditorServer {
             let samples = track::parse(&run.log, &run.route_csv);
             let polls: Vec<u64> = wanted.iter().map(|p| u64::from(*p)).collect();
             text.push_str(&track::describe(&samples, u64::from(built.start), &polls));
+            text.push_str(&track::describe_events(
+                &track::events(&run.log, &run.route_csv),
+                u64::from(built.start),
+            ));
         }
         let mut blocks = vec![ContentBlock::text(String::new())];
         let mut seen = std::collections::BTreeSet::new();

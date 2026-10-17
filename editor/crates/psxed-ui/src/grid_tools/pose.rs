@@ -16,7 +16,10 @@
 //!   `select=walls:...`, `select=derived:...` (the derived walls hosted by
 //!   those sectors), `select=vertex:x,z,corner`, `select=edge:x,z,edge`,
 //!   `select=plane:i[,j...]` planes of the active room by index
-//! * `hover=plane:i` a plane under the pointer
+//! * `select=mesh:ID` a placed mesh by its stable id; `mesh-asset=N` the asset
+//!   the Mesh tool places; `mesh-turn=degrees` the heading of the next one
+//! * `hover=plane:i` a plane under the pointer; `hover=meshspot:gx,gz` where
+//!   the Mesh tool would place its asset (grid units, on the floor)
 //! * `rect=floor|ceiling:x0,z0:x1,z1[:clicks][:erase]`
 //! * `walls=north|east|south|west|nwse|nesw:x0,z0:x1,z1`
 //! * `hover=cell:x,z`, `hover=wall:edge:x,z`, `hover=face:floor|ceiling:x,z`,
@@ -119,6 +122,12 @@ impl EditorWorkspace {
         let parts: Vec<&str> = value.split(':').collect();
         match name {
             "tool" => self.set_grid_tool(parse_tool(value)?),
+            "mesh-asset" => {
+                self.grid.mesh_asset = Some(value.parse::<u16>().map_err(|e| e.to_string())?);
+            }
+            "mesh-turn" => {
+                self.grid.mesh_turn = value.parse::<i32>().map_err(|e| e.to_string())?;
+            }
             "room" => {
                 let index = value.parse::<usize>().map_err(|e| e.to_string())?;
                 self.grid_active_room = Some(index);
@@ -457,6 +466,11 @@ impl EditorWorkspace {
 
     fn pose_select(&mut self, room: usize, parts: &[&str]) -> Result<(), String> {
         let kind = *parts.first().ok_or("missing kind")?;
+        if kind == "mesh" {
+            let id = ints(parts.get(1).ok_or("missing id")?)?[0];
+            self.grid.mesh_sel = Some(u16::try_from(id).map_err(|e| e.to_string())?);
+            return Ok(());
+        }
         if kind == "plane" {
             let ids: Vec<psxed_project::grid::edit::PlaneId> =
                 ints(parts.get(1).ok_or("missing i")?)?
@@ -599,6 +613,21 @@ impl EditorWorkspace {
             "plane" => {
                 let index = ints(parts.get(1).ok_or("missing i")?)?[0] as usize;
                 GridHover::Plane(psxed_project::grid::edit::PlaneId { room, index })
+            }
+            "meshspot" => {
+                let g = ints(parts.get(1).ok_or("missing gx,gz")?)?;
+                let [gx, gz] = g[..] else {
+                    return Err("expected gx,gz".to_string());
+                };
+                let s = world.scale;
+                let y = world
+                    .floor_height_at(s.to_editor(gx), s.to_editor(gz), i32::MAX / 2)
+                    .map_or(0, |f| s.to_grid(f))
+                    - world.rooms.get(room).map_or(0, |r| r.y_offset);
+                GridHover::MeshSpot {
+                    room,
+                    position: [gx, y, gz],
+                }
             }
             "spot" => {
                 let c = cell(parts.get(1).ok_or("missing x,z")?)?;

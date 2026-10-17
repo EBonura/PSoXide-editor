@@ -859,3 +859,8 @@ Header 32 B to 52 B; the Cathedral core goes from 120 B to the size printed in t
 
 **Scratchpad stack.** The collision path runs on the 1 KiB scratchpad stack whose worst call tree is proved after every link (`stack-guard`): the body trace chain measured 960 of 1004 bytes before and 992 after; keep new state out of `scan_column`, `point_blocked` and the point trace frames (a lookup that returns a plain slice, no iterator).
 
+
+
+### 9.4d Static meshes: no format change (2026-10-17)
+
+Placed meshes (`docs/grid/meshes.md`) add nothing to `PGL` or `PGRM`. The cook writes an instance's faces as one run of quads flagged `QUAD_PLANE` with one `PlaneRef` (the same record a free plane gets), its collision proxies as `ColPlane` records after the room's planes (ids continue from the plane count, `u8`), and its hook socket as an `EntityRecord`. Version stays 4. Two things moved in the entity record's reserved `flags`: `entity_flags::HOOK_SWAY` (the prototype sideways-moving perches, previously picked by slot number) and `HOOK_BARE` (a socket hook: no floating ruin drawn).
