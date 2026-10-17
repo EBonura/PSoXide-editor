@@ -57,9 +57,6 @@ cortex-two-area-level/source_assets/ground-v3/*
 !cortex-two-area-level/source_assets/ground-v3/terrain_rock_fractured_128.psxt
 !cortex-two-area-level/source_assets/ground-v3/terrain_road_worn_128.psxt
 !cortex-two-area-level/source_assets/ground-v3/terrain_sand_soft_ripples_v2_64.psxt
-# Config for the generated world-streaming stress project (stream-world/ itself
-# is regenerated on demand by gen-stream-world and stays untracked).
-!stream-world.config.ron
 # The per-user editor view file inside a tracked project stays local.
 **/.psxed-view.ron
 

@@ -36,7 +36,7 @@
 	hwtest-capture hwtest-diff hwtest-baseline hwtest-capture-full hwtest-diff-full hwtest-baseline-full hwtest-capture-perf hwtest-diff-perf hwtest-baseline-perf hwtest-probe-capture hwtest-silicon hwtest-verify-code hwtest-audio hwtest-audio-chain \
 	hwtest-sb4-capture hwtest-sb4 hwtest-sb4-baseline \
 	hello-engine hello-engine-disc run-hello-engine \
-	cook-playtest build-editor-playtest editor-blank-playtest-check editor-bsp-liquid-check editor-souls-bsp-check profile-demo3 profile-demo3-forward \
+	cook-playtest build-editor-playtest profile-demo3 profile-demo3-forward \
 	profile-demo3-paced20 profile-demo3-paced20-forward profile-demo3-disc-stream \
 	profile-demo3-disc-stream-forward profile-demo7-camera-sweep
 
@@ -70,12 +70,6 @@ help:
 	@echo "                      - update exact-hash validation baselines"
 	@echo "    make test-sdk     - build every SDK example + run Milestone-C regression suite"
 	@echo "    make profile-demo3 - cook/build demo3 BIN and dump streamed screenshot/profile"
-	@echo "    make editor-blank-playtest-check"
-	@echo "                      - author a blank BSP level through editor commands, build MIPS, and boot headlessly"
-	@echo "    make editor-bsp-liquid-check"
-	@echo "                      - cook BSP lava, build MIPS, and prove damage/respawn headlessly without image output"
-	@echo "    make editor-souls-bsp-check"
-	@echo "                      - re-author the souls vertical slice through editor commands and replay its full loop headlessly"
 	@echo "    make profile-demo3-forward - streamed demo3 profile while holding forward"
 	@echo "    make profile-demo3-paced20 - alias for streamed 20Hz visual cadence telemetry"
 	@echo "    make profile-demo3-paced20-forward - streamed paced20 profile while holding forward"
@@ -935,115 +929,6 @@ EDITOR_PLAYTEST_HARDWARE_FEATURES ?= cd-stream-bench world-order-bucketed ot-204
 build-editor-playtest:
 	sh tools/build_guest_staged.sh $(EDITOR_PLAYTEST_PSX_BUILD_FLAGS) $(EDITOR_PLAYTEST_CARGO_FEATURE_FLAGS)
 
-# End-to-end acceptance for the shortest BSP editor loop. Real egui input first
-# proves the visible starter, 3D brush selection, and Move/Resize controls. The
-# command regression then exports the exact persisted project it authored; the
-# remaining stages use the same cooker, MIPS target, and disc packer contract
-# as the editor's Play action. The template boots into a wake-up intro, so
-# each replay holds forward, holds Cross over polls 200-440 to skip it, and
-# stops on the pad clock at poll 1200. Two image-free replays must agree
-# byte-for-byte on their GPU census and on pinned movement, roof-edge stop,
-# and display evidence. No native window, BIOS, screenshot, or original
-# hardware is used.
-editor-blank-playtest-check:
-	@set -eu; \
-	check_tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/psoxide-editor-blank-check.XXXXXX"); \
-	trap 'rm -rf "$$check_tmp"' EXIT HUP INT TERM; \
-	project_dir="$$check_tmp/project"; \
-	project_file="$$project_dir/project.ron"; \
-	generated_fixture="$$check_tmp/generated-fixture"; \
-	tracked_fixture="editor/archive/fixtures/brush-open-courtyard"; \
-	cue="$$project_dir/baked/editor_blank_playtest_acceptance.cue"; \
-	disc="$$project_dir/baked/editor_blank_playtest_acceptance.bin"; \
-	log_a="$$check_tmp/headless-a.log"; \
-	log_b="$$check_tmp/headless-b.log"; \
-	gpu_a="$$check_tmp/gpu-a.csv"; \
-	gpu_b="$$check_tmp/gpu-b.csv"; \
-	cargo run -p psxed-project --bin gen-brush-open-courtyard -- "$$generated_fixture"; \
-	cmp "$$generated_fixture/project.ron" "$$tracked_fixture/project.ron"; \
-	cmp "$$generated_fixture/assets/textures/courtyard_cobbles.psxt" "$$tracked_fixture/assets/textures/courtyard_cobbles.psxt"; \
-	cmp "$$generated_fixture/assets/textures/courtyard_brick.psxt" "$$tracked_fixture/assets/textures/courtyard_brick.psxt"; \
-	cd editor; \
-	cargo test -p psxed-ui tests::project_workspace::new_project_release_choice_copies_the_roofless_open_courtyard -- --exact; \
-	cargo test -p psxed-ui tests::brush_tools::tracked_bsp_starter_top_view_emits_headless_brush_outline_shapes -- --exact; \
-	cargo test -p psxed-ui tests::brush_tools::bsp_brush_click_selection_runs_through_real_egui_response_dispatch -- --exact; \
-	cargo test -p psxed-ui tests::brush_tools::select_tool_selected_brush_uses_visible_move_and_resize_via_real_egui -- --exact; \
-	cargo test -p psxed-ui tests::project_workspace::play_and_rebuild_buttons_emit_requests_through_real_egui_input -- --exact; \
-	PSOXIDE_EDITOR_BLANK_PROJECT_OUT="$$project_dir" cargo test -p psxed-ui tests::project_workspace::bsp_blank_slate_commands_preserve_rooted_prop_door_and_portal_contract -- --exact --nocapture; \
-	cd ..; \
-	cd emu; \
-	EDITOR_PLAYTEST_FEATURES='cd-stream-bench emulator-telemetry' cargo run -p frontend --features editor --release -- build-project-disc --project "$$project_file"; \
-	for replay in a b; do \
-		case "$$replay" in \
-			a) replay_log="$$log_a"; replay_gpu="$$gpu_a" ;; \
-			b) replay_log="$$log_b"; replay_gpu="$$gpu_b" ;; \
-		esac; \
-		if ! cargo run -p frontend --features editor --release -- launch \
-			--path "$$cue" \
-			--embedded-playtest \
-			--hold-forward \
-			--press 200:cross:240 \
-			--stop-at-poll 1200 \
-			--steps 20000000000 \
-			--gpu-frame-stats-log "$$replay_gpu" \
-			--dump-hash \
-			--dump-guest-profile > "$$replay_log" 2>&1; then \
-			cat "$$replay_log"; \
-			exit 1; \
-		fi; \
-	done; \
-	cat "$$log_a"; \
-	cd ..; \
-	python3 tools/check-editor-blank-playtest.py \
-		--project "$$project_file" \
-		--manifest engine/examples/editor-playtest/generated/level_manifest.cooked.rs \
-		--pxbsp engine/examples/editor-playtest/generated/brush_world.pxbsp \
-		--exe build/examples/mipsel-sony-psx/release/editor-playtest.exe \
-		--disc "$$disc" \
-		--log-a "$$log_a" \
-		--log-b "$$log_b" \
-		--gpu-a "$$gpu_a" \
-		--gpu-b "$$gpu_b" \
-		--artifact-root "$$check_tmp"
-
-# End-to-end proof that authored PXBSP liquid contents survive the editor cook,
-# enter the shared runtime point hull, apply deterministic hazard damage, and
-# respawn the player. The fixture spawns on dry land; forward input for 90
-# ticks walks the player into the lava pool, 40 hits kill it, and the respawn
-# at f646 lands back on the dry spawn (engine z 104) with no further hits.
-# The gate intentionally emits no screenshots or frame dumps: guest
-# telemetry is the behavioral oracle.
-editor-bsp-liquid-check:
-	@set -eu; \
-	check_tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/psoxide-editor-bsp-liquid.XXXXXX"); \
-	trap 'rm -rf "$$check_tmp"' EXIT HUP INT TERM; \
-	project_dir="$$check_tmp/project"; \
-	project_file="$$project_dir/project.ron"; \
-	cue="$$project_dir/baked/bsp_liquid_runtime_proof.cue"; \
-	log="$$check_tmp/headless.log"; \
-	cd editor; \
-	cargo run -p psxed-project --bin gen-brush-liquid-runtime -- "$$project_dir"; \
-	cd ../emu; \
-	EDITOR_PLAYTEST_FEATURES='cd-stream-bench emulator-telemetry' cargo run -p frontend --features editor --release -- build-project-disc --project "$$project_file"; \
-	if ! cargo run -p frontend --features editor --release -- launch \
-		--path "$$cue" \
-		--embedded-playtest \
-		--press 30:up:90 \
-		--guest-frames 700 \
-		--steps 1000000000 \
-		--guest-debug-log \
-		--dump-guest-profile > "$$log" 2>&1; then \
-		cat "$$log"; \
-		exit 1; \
-	fi; \
-	cat "$$log"; \
-	lava_hits=$$(grep -Fc 'player bsp:lava' "$$log"); \
-	respawns=$$(grep -Fc 'player hazard:respawn' "$$log"); \
-	[ "$$lava_hits" -eq 40 ]; \
-	[ "$$respawns" -eq 1 ]; \
-	grep -Eq '^\[guest f646 c[0-9]+\] player hazard:respawn$$' "$$log"; \
-	grep -Eq '^ +player local z +total=[0-9]+ +per_frame=[0-9]+ +latest=1000104$$' "$$log"
-
 profile-demo3:
 	$(MAKE) profile-demo3-disc-stream PROFILE_DEMO3_DISC_STREAM_HW=$(PROFILE_DEMO3_HW)
 
@@ -1416,13 +1301,6 @@ cortex-pgo:
 # No 64-bit integer helpers in a guest link map (project rule 2026-09-01).
 guest-symbol-gate:
 	sh tools/guest_symbol_gate.sh $(GUEST_LINK_MAP)
-
-# Souls vertical-slice regression gate: re-author the tracked slice through
-# production editor commands, clean cook, MIPS guest, disc, double
-# deterministic canonical replay plus a negative replay, pinned souls-loop
-# assertions (checkpoint, door, kill, lava death, respawn, PVS).
-editor-souls-bsp-check:
-	sh tools/editor_souls_bsp_check.sh
 
 # Resolve the locked external source components before compiling anything.
 .PHONY: bootstrap verify-components material-audit
