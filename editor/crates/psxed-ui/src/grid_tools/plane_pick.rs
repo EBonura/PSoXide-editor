@@ -142,16 +142,16 @@ impl EditorWorkspace {
         }
     }
 
-    /// The plane the pointer is on in the Top view: inside its outline or
-    /// within `pixels` of it. The highest one wins.
-    pub(crate) fn top_plane_at(
+    /// The planes the pointer is on in the Top view: inside the outline or
+    /// within `pixels` of it. The highest comes first.
+    pub(crate) fn top_planes_at(
         &self,
         transform: ViewportTransform,
         pos: Pos2,
         pixels: f32,
-    ) -> Option<PlaneId> {
+    ) -> Vec<PlaneId> {
         self.with_pick_cache(|cache| {
-            let mut best: Option<(f32, PlaneId)> = None;
+            let mut found: Vec<(f32, PlaneId)> = Vec::new();
             for pp in &cache.planes {
                 if self.grid_hidden_rooms.contains(&pp.id.room) {
                     continue;
@@ -167,25 +167,24 @@ impl EditorWorkspace {
                     continue;
                 }
                 let top = pp.points.iter().map(|p| p[1]).fold(f32::MIN, f32::max);
-                if best.is_none_or(|(y, _)| top > y) {
-                    best = Some((top, pp.id));
-                }
+                found.push((top, pp.id));
             }
-            best.map(|(_, id)| id)
+            found.sort_by(|a, b| b.0.total_cmp(&a.0));
+            found.into_iter().map(|(_, id)| id).collect()
         })
-        .flatten()
+        .unwrap_or_default()
     }
 
     /// The plane a pointer is over, in whichever view, when it is in front of
-    /// the faces behind it.
+    /// the faces behind it. In the Top view a repeated click takes the next
+    /// thing down (see `cycle`), so a plane only answers when it is the one
+    /// the pointer's cycle step reaches.
     pub(crate) fn plane_under(&self, ptr: &GridPointer) -> Option<PlaneId> {
         match ptr.view {
-            GridView::Top(transform) => {
-                if ptr.alt() {
-                    return None;
-                }
-                self.top_plane_at(transform, ptr.pos, 6.0)
-            }
+            GridView::Top(_) => match self.top_choice(ptr) {
+                cycle::TopChoice::Plane(id) => Some(id),
+                cycle::TopChoice::Layer(_) => None,
+            },
             GridView::Persp(rect) => {
                 let plane = self.pick_plane_3d(rect, ptr.pos)?;
                 match self.pick_face_3d(rect, ptr.pos) {

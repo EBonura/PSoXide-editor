@@ -62,16 +62,22 @@ fn fit_reports_tiles_and_the_cook_cut() {
     let text = inspector_text(&mut ws);
     assert!(text.contains("effective: 1 x 1 on this face"), "{text}");
     assert!(!text.contains("cuts this face"), "{text}");
+    // A primitive repeats its texture up to four times per axis through the
+    // texture window, so 2x2 and 4x4 are not cut.
     set_floor_uv(&mut ws, UvMode::fit(2, 2));
     let text = inspector_text(&mut ws);
     assert!(text.contains("effective: 2 x 2 on this face"), "{text}");
+    assert!(!text.contains("cuts this face"), "{text}");
+    set_floor_uv(&mut ws, UvMode::fit(4, 4));
+    let text = inspector_text(&mut ws);
+    assert!(text.contains("effective: 4 x 4 on this face"), "{text}");
+    assert!(!text.contains("cuts this face"), "{text}");
+    set_floor_uv(&mut ws, UvMode::fit(8, 8));
+    let text = inspector_text(&mut ws);
     assert!(
         text.contains("cuts this face into 4 primitives (+3)"),
         "{text}"
     );
-    set_floor_uv(&mut ws, UvMode::fit(4, 4));
-    let text = inspector_text(&mut ws);
-    assert!(text.contains("16 primitives (+15)"), "{text}");
 }
 
 #[test]
@@ -97,7 +103,7 @@ fn a_derived_wall_reports_its_whole_run() {
     ws.grid_changed();
     let text = inspector_text(&mut ws);
     assert!(text.contains("effective: 8 x 1 on this face"), "{text}");
-    assert!(text.contains("8 primitives (+7)"), "{text}");
+    assert!(text.contains("2 primitives (+1)"), "{text}");
 }
 
 #[test]
@@ -125,7 +131,7 @@ fn the_fine_controls_stay_beside_the_model() {
     {
         let world = ws.project.active_scene_mut().world.grid_mut().unwrap();
         let face = FaceRef::floor(0, [2, 2]);
-        edit_uv(world, face, None, UvOp::SetMode(UvMode::fit(2, 2)));
+        edit_uv(world, face, None, UvOp::SetMode(UvMode::fit(4, 4)));
         edit_uv(world, face, None, UvOp::Turn(true));
         edit_uv(world, face, None, UvOp::ToggleFlip(0));
         edit_uv(world, face, None, UvOp::SetOffset([20, 0]));
@@ -133,7 +139,7 @@ fn the_fine_controls_stay_beside_the_model() {
     ws.grid_changed();
     let text = inspector_text(&mut ws);
     assert!(text.contains("90 deg"), "{text}");
-    // Offset 20 texels makes a 2x2 face cross tile edges: more cuts.
+    // Offset 20 texels makes a 4x4 face cross a fifth tile: one more cut.
     assert!(text.contains("primitives"), "{text}");
     let uv: FaceUv = psxed_project::grid::edit::uv_of(
         ws.project.active_scene().world.grid().unwrap(),

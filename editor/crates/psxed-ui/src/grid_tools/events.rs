@@ -28,7 +28,8 @@ pub(crate) enum Ev {
 }
 
 /// Send one event to the active tool.
-pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, ptr: GridPointer) {
+pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
+    ptr.cycle = ws.cycle_for(ev, &ptr);
     if ws.grid.paste.is_some() {
         match ev {
             Ev::Hover | Ev::Drag => clipboard_tool::hover(ws, &ptr),
@@ -139,6 +140,7 @@ impl GridTool2d {
             pos,
             press,
             modifiers: f.modifiers,
+            cycle: 0,
         }
     }
 
@@ -256,6 +258,7 @@ impl GridTool3d {
             pos,
             press,
             modifiers: f.modifiers,
+            cycle: 0,
         }
     }
 
@@ -338,6 +341,7 @@ pub(crate) fn hover_3d(
         pos,
         press: None,
         modifiers,
+        cycle: 0,
     };
     dispatch(ws, Ev::Hover, ptr);
     ctx.set_cursor_icon(ws.grid_cursor());

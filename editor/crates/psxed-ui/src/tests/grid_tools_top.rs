@@ -346,11 +346,14 @@ fn the_split_tool_flips_the_diagonal_with_one_undo_step() {
         }
     };
     assert_eq!(split(&rig, false), GridSplit::NeSw);
-    rig.ws.do_undo();
-    assert_eq!(split(&rig, false), GridSplit::NwSe);
-    // Alt targets the ceiling in the Top view.
-    rig.click_with(rig.cell_centre(0, 0), egui::Modifiers::ALT);
+    // Clicking the same spot again takes the ceiling under the floor in the
+    // Top view (Alt no longer does: it is the fine snap).
+    rig.click(rig.cell_centre(0, 0));
     assert_eq!(split(&rig, true), GridSplit::NeSw);
+    assert_eq!(split(&rig, false), GridSplit::NeSw);
+    rig.ws.do_undo();
+    assert_eq!(split(&rig, true), GridSplit::NwSe);
+    rig.ws.do_undo();
     assert_eq!(split(&rig, false), GridSplit::NwSe);
 }
 

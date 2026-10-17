@@ -23,6 +23,7 @@ use psxed_project::grid::edit::{
 use psxed_project::grid::{GridPlane, PlaneCollision, WallEdge};
 
 mod clipboard_tool;
+mod cycle;
 pub(crate) mod events;
 mod face_tools;
 mod height_tool;
@@ -42,6 +43,7 @@ mod rect_tool;
 mod rooms;
 mod rooms_walls;
 mod select_tool;
+mod shading_panel;
 mod strip;
 mod tiling_panel;
 pub(crate) mod view;
@@ -344,6 +346,8 @@ pub(crate) struct GridEditState {
     pub new_plane: NewPlane,
     /// The last press was taken by a plane, so its click is too.
     pub plane_press: bool,
+    /// Which thing a repeated Top view click takes next.
+    pub cycle: cycle::CycleState,
     /// The room tools create in when none is marked active.
     pub last_room: usize,
     /// Bumped by every document change; the pick cache and budget follow it.
@@ -389,6 +393,7 @@ impl Default for GridEditState {
                 double_sided: false,
             },
             plane_press: false,
+            cycle: cycle::CycleState::default(),
             last_room: 0,
             rev: 1,
             cache: RefCell::new(None),
@@ -411,6 +416,7 @@ impl GridEditState {
         self.paste = None;
         self.plane_paste = None;
         self.plane_press = false;
+        self.cycle.reset();
         self.hover_pinned = false;
         self.hover = GridHover::None;
     }

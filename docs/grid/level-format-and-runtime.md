@@ -335,7 +335,7 @@ Only walls with `solid` on (`GridWall::solid`) are cooked into this table. A dra
 | 34 | 3 | `n` [i8; 3], Q7 normal |
 | 37 | 1 | `material` u8, level-global material index |
 | 38 | 1 | `flags` u8 |
-| 39 | 1 | reserved |
+| 39 | 1 | `flags2` u8 (version 3): bit 0 `REPEAT`, bit 1 `MULTI` (reserved for the cook merge) |
 
 The saving is `d` from `i32` to `i16`: `n` is Q7 so `n . p` can reach 127 x 32767 = 4.16M, which an `i16` cannot hold, so the compare shifts the dot product right by 7 (one extra ALU op per tested quad) and stores `d` in plain runtime units. Axis-aligned quads keep the multiply-free path and store the plane coordinate in `d` directly.
 
@@ -683,6 +683,13 @@ By cook-time classification of the plane normal (`ny` = normal y component), wit
 * **Blocker** otherwise: the plane's conservative AABB, handed to the existing `CharacterCollisionAabb` layer. It over-blocks and says so; the cook warns once per such plane.
 
 A plane overlapping several cells is copied into each cell's run (28 B each; a 3x3 platform is 252 B) and carries an `id` so a trace that crosses two cells counts it once.
+
+### 9.4b Format version 3: texture-window repeat (2026-10-17)
+
+* `Material.tex_shape` and `Quad.flags2` replace two reserved fields; `VERSION` and `MIN_READER` are 3 and the layout hash mixes both offsets. A version 2 level core or chunk is refused (`FormatError::BadVersion`, whose message says to cook again): cook and guest ship together. Golden bytes of a small version 3 level are in `engine/crates/psx-grid/tests/fixtures/`.
+* A quad with `QUAD2_REPEAT` draws through its material's GP0(E2) texture window with **raw** UVs: the material's page-local origin is not added, the window wraps the UVs back onto the texture. On the straight path the packet's own window word (slot 1, which every packet carries, reset for an ordinary quad) is the material's `window_word`, so no packet grows; on the near-plane path the repeating quad takes the windowed packet shape (window word in front, reset behind). A repeating quad on a material without a window placement is skipped, not drawn wrong (`frame.material_missing`).
+* The cook sets `REPEAT` when some axis of a primitive spans more than one 64 texel tile and the material has a `tex_shape`; every other quad is byte identical to version 2 apart from `flags2 = 0`. A primitive holds up to four tiles per axis (UV bytes: four tiles end at 256, whose last texel clamps to 255, a 0.4 percent shift); a face that spans more is cut at tile lines into the fewest primitives, the first ending at the fourth tile line counted from the tile its lowest texel lies in. Legacy faces (the 32 texels per sector mapping) are cut like any other, so a tall sloped wall draws what the editor preview shows. `PSXED_GRID_NO_REPEAT=1` cooks one tile per primitive again for A/B runs.
+* The merged LOD quads never carry `REPEAT` (their candidates exclude it).
 
 ### 9.4a As built (2026-10-17)
 

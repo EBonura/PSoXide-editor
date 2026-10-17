@@ -13,7 +13,7 @@
 use super::*;
 
 use psxed_project::grid::faces::{cell_faces_with, GridFace};
-use psxed_project::grid::light::bake_face_corners;
+use psxed_project::grid::light::{bake_face_corners, FacingShade};
 use psxed_project::grid::plane_faces::plane_faces_with;
 use psxed_project::grid::uv::ProjectUvDefaults;
 use psxed_project::grid::uv_split;
@@ -65,6 +65,7 @@ fn emit_grid_face(
     face: &GridFace,
     ambient: [u8; 3],
     lights: &[psxed_project::grid::light::GridLight],
+    facing: FacingShade,
     scratch: &mut PreviewScratch,
 ) {
     if face.points.len() > PREVIEW_FACE_VERTEX_CAP
@@ -91,7 +92,7 @@ fn emit_grid_face(
         FaceShade::Flat { rgb, .. } => [rgb.0, rgb.1, rgb.2],
         FaceShade::Textured { tint, .. } => [tint.0, tint.1, tint.2],
     };
-    let colors: Vec<(u8, u8, u8)> = bake_face_corners(face, tint, ambient, lights)
+    let colors: Vec<(u8, u8, u8)> = bake_face_corners(face, tint, ambient, lights, facing)
         .into_iter()
         .map(|c| (c[0], c[1], c[2]))
         .collect();
@@ -120,14 +121,19 @@ fn emit_cut_face(
     face: &GridFace,
     ambient: [u8; 3],
     lights: &[psxed_project::grid::light::GridLight],
+    facing: FacingShade,
     scratch: &mut PreviewScratch,
 ) {
-    if uv_split::wants_split(face) {
-        for piece in uv_split::split(face, scale) {
-            emit_grid_face(project, textures, camera, &piece, ambient, lights, scratch);
+    // The preview draws through the same texture window a Play build uses,
+    // so it cuts at the same four-tile pieces.
+    if uv_split::wants_split(face, true) {
+        for piece in uv_split::split(face, scale, true) {
+            emit_grid_face(
+                project, textures, camera, &piece, ambient, lights, facing, scratch,
+            );
         }
     } else {
-        emit_grid_face(project, textures, camera, face, ambient, lights, scratch);
+        emit_grid_face(project, textures, camera, face, ambient, lights, facing, scratch);
     }
 }
 
@@ -175,6 +181,7 @@ pub(super) fn walk_grid(
                     face,
                     room.ambient,
                     &lights,
+                    world.shading,
                     scratch,
                 );
             }
@@ -201,6 +208,7 @@ pub(super) fn walk_grid(
                     face,
                     room.ambient,
                     &lights,
+                    world.shading,
                     scratch,
                 );
             }

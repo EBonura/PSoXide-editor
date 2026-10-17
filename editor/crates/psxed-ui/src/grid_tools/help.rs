@@ -11,6 +11,10 @@ type Rows = &'static [(&'static str, &'static str)];
 
 const SELECT: Rows = &[
     ("Click", "Pick the vertex, edge or face under the pointer"),
+    (
+        "Click again, same spot (Top view)",
+        "Take the next thing under it: plane, then the sector (Paint and Split go on to the ceiling)",
+    ),
     ("Shift+click", "Extend to a range"),
     ("Ctrl/Cmd+click", "Toggle one element in the selection"),
     ("Drag", "Box select"),

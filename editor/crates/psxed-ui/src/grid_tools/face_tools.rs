@@ -56,7 +56,13 @@ pub(super) fn face_under(
             let cell = cell_at_editor(world.scale, wx, wz);
             let room = ws.top_room_at(cell)?;
             let sector = FaceRef::floor(room, cell).sector(world)?;
-            let face = if ptr.alt() || sector.floor.is_none() {
+            // A repeated click takes the next layer down (see `cycle`): the
+            // floor, then the ceiling. A sector with only one has only it.
+            let layer = match ws.top_choice(ptr) {
+                super::cycle::TopChoice::Layer(layer) => layer,
+                super::cycle::TopChoice::Plane(_) => 0,
+            };
+            let face = if layer == 1 && sector.ceiling.is_some() || sector.floor.is_none() {
                 sector.ceiling.as_ref()?;
                 FaceRef::ceiling(room, cell)
             } else {

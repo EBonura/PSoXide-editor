@@ -637,6 +637,7 @@ impl EditorWorkspace {
         let temp_world = GridWorld {
             scale: world.scale,
             rooms: vec![temp],
+            ..GridWorld::default()
         };
         for face in psxed_project::grid::faces::all_faces(&temp_world) {
             let points: Vec<[f32; 3]> = face

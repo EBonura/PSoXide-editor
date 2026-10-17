@@ -206,6 +206,7 @@ impl EditorWorkspace {
                 r.y_offset = snap_to((clicks * CLICK_UNITS as f32).round() as i32, FINE_UNITS);
             });
         }
+        self.draw_grid_shading(ui);
     }
 
     /// Apply `edit` to room `index`. The caller's inspector transaction

@@ -48,6 +48,7 @@ pub(crate) fn flat_project(width: usize, depth: usize, ceiling: bool) -> Project
     project.active_scene_mut().world = SceneWorld::Grid(GridWorld {
         scale: GridScale { num: 1, den: 1 },
         rooms: vec![room],
+        ..GridWorld::default()
     });
     project
 }
@@ -58,6 +59,7 @@ pub(crate) fn empty_project() -> ProjectDocument {
     project.active_scene_mut().world = SceneWorld::Grid(GridWorld {
         scale: GridScale { num: 1, den: 1 },
         rooms: Vec::new(),
+        ..GridWorld::default()
     });
     project
 }

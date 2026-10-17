@@ -30,6 +30,9 @@ pub(crate) struct GridPointer {
     pub press: Option<Pos2>,
     /// Modifier keys.
     pub modifiers: egui::Modifiers,
+    /// Which of the things under the pointer a Top view click takes, 0 the
+    /// topmost (see `cycle`). Always 0 in the 3D view.
+    pub cycle: usize,
 }
 
 impl GridPointer {
@@ -56,7 +59,8 @@ impl GridPointer {
         self.modifiers.command || self.modifiers.ctrl
     }
 
-    /// Whether Alt is held: the fine snap (64 units) of the one snap rule.
+    /// Whether Alt is held: the fine snap (64 units) of the one snap rule,
+    /// and nothing else.
     pub fn alt(&self) -> bool {
         self.modifiers.alt
     }
