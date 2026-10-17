@@ -64,7 +64,7 @@ fn build_cache(world: &GridWorld, rev: u64) -> PickCache {
             GridFaceKind::Wall { edge, index } => (FaceTarget::Wall { edge, index }, None),
             GridFaceKind::Derived { edge, kind } => (FaceTarget::Derived { edge, kind }, None),
             // Free planes have their own entries below.
-            GridFaceKind::Plane { .. } => continue,
+            GridFaceKind::Plane { .. } | GridFaceKind::Mesh { .. } => continue,
         };
         faces.push(PickFace {
             face: FaceRef {
