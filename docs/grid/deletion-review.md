@@ -8,6 +8,23 @@ Legend. **KEEP** is needed by a grid-world game. **DELETE** is brush/BSP authori
 
 ---
 
+## Status (2026-10-17): executed on `grid/delete`
+
+The review was carried out in the order below on branch `grid/delete`, with these differences from the plan:
+
+* `psx-goldsrc`, the engine-stress runner, the brush fixtures and the brush projects (`graybox-valley`, `cortex-two-area-level`) are gone, not kept for consumers: quake-psx and hl-psx pin editor revisions on the `main` lineage, so removing them here cannot break them.
+* `psx-bsp` is an empty placeholder crate. The pinned emulator frontend manifest (hydrated, not editable here) still lists it as an optional dependency of its `editor` feature.
+* `default` and `graybox-reach` keep their characters, enemies, animations, audio and UI; only their world was replaced by the starter room.
+* The bonnie importer and `brotli` are gone; the six reference levels are tracked projects.
+* The toolchain probe was ported to the grid collision (`psx_grid::toolchain_probe`) instead of being deleted.
+* The BSP and brush documents moved to `docs/archive-bsp/`.
+
+Net effect against `grid/main` at `540d1728`: 765 files, 205,227 lines deleted and 17,145 added, of which 118,866 deleted and 3,743 added are Rust.
+
+Known red: the hydrated frontend test `cli::press_script_tests::editor_frame_selection_is_applied_before_preview_extraction` frames brush content from the removed `brush-first-playable` fixture and needs a change in the emulator repository.
+
+---
+
 ## 0. Summary
 
 1. About 40k of psxed-project's 98k source lines are brush, BSP, streamed-brush-world or bonnie-import code that the grid world does not use, with more inside mixed files (section 3.1, **[derived]** from `wc`). About 17.5k lines of psxed-ui are wholly brush authoring plus an estimated 5k to 8k inside mixed files. About 3k of psxed-mcp's 6.8k are brush tools.

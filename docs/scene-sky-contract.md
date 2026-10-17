@@ -1,7 +1,7 @@
 # Scene sky contract
 
 PSoXide exposes one sky definition per scene. The World node owns the choice;
-brush materials only decide where that sky may be seen.
+materials only decide where that sky may be seen.
 
 ## Authoring
 
@@ -11,13 +11,13 @@ The World node selects:
 - visibility: `Always` or `ThroughSkySurfaces`;
 - one source material for texture-backed projections.
 
-A brush material exposes only `sky_aperture`. An aperture contributes geometry
-to BSP visibility and clipping, but it does not select a texture, projection, or
+A material exposes only `sky_aperture`. An aperture contributes geometry
+to the renderer's sky-visibility result, but it does not select a texture, projection, or
 animation. The cooker omits its ordinary face texture binding.
 
 Old `layered_sky` and `directional_sky` material fields remain parse-only. On
-load they migrate to a World projection/source plus `sky_aperture`, and are not
-written back.
+load they fold into `sky_aperture` and are not written back; the World node
+holds the projection and source.
 
 Far-vista geometry is deliberately separate. It is authored world scenery, not
 another sky projection.
@@ -26,7 +26,7 @@ another sky projection.
 
 `LevelSkyRecord` is the game-neutral contract. Its flags identify one
 projection and the visibility policy; `texture_asset` identifies its one source.
-BSP reports whether a visible aperture exists, but never chooses the sky.
+The world renderer reports whether a visible aperture exists, but never chooses the sky.
 
 `draw_scene_sky` owns the shared dispatch:
 
@@ -46,8 +46,8 @@ projection from becoming a second implementation.
 ## Adoption by quake-psx and hl-psx
 
 The reusable boundary is the cooked/runtime contract, not PSoXide's editor data.
-Each game can translate its existing map or BSP sky declaration into a
-`LevelSkyRecord`, report visible apertures from its BSP traversal, and use the
+Each game can translate its existing map or sky declaration into a
+`LevelSkyRecord`, report visible apertures from its world traversal, and use the
 shared dispatcher/residency owner. This can be adopted incrementally:
 
 1. Share `SkyTextureKind` and VRAM upload/residency policy.

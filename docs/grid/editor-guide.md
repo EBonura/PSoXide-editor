@@ -4,7 +4,7 @@ How to run the grid editor from this worktree, open a grid project, use every to
 
 ## Run it
 
-From the worktree root (`/Users/ebonura/Desktop/repos/PSoXide-editor-wt/grid-editor`):
+From the repository root:
 
 ```bash
 cargo run --release -p frontend --features editor -- --editor --windowed --editor-project editor/projects/grid-cathedral
@@ -18,11 +18,7 @@ Play and Build shell out to `make build-editor-playtest`, which runs `make boots
 
 * File > Project lists every project under `editor/projects`. A grid project opens in the 3D view with the grid tool strip across the top.
 * File > New Grid Project... asks for a name and makes `editor/projects/<name>/`: a 6 by 6 sector room with a floor, a ceiling, walls on the whole outline, one lamp and the Graybox Reach player in the middle. It borrows the player, camera, sky and UI from `editor/projects/graybox-reach` (the project's `assets` folder links to it), so that project has to exist. Press Play and you are walking in it.
-* Levels from bonnie-32 come in with the command line importer only, there is no menu item for it:
-
-```bash
-cargo run --release -p psxed-project --bin import-bonnie32-grid -- <level.ron> ~/Desktop/repos/bonnie-32/assets/samples/texture-packs/ editor/projects/<name>
-```
+* The six reference levels (`grid-cathedral`, `grid-level008`, `grid-dungeon`, `grid-cave`, `grid-sewers`, `grid-west`) are tracked projects. They came from bonnie-32 maps; the importer is gone, so the projects are now the source of truth.
 
 ## The screen
 

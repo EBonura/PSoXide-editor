@@ -1769,8 +1769,8 @@ fn align_up_to(value: u16, boundary: u16) -> u16 {
 mod tests {
     use super::{
         align_up_to, model_atlas_clut_entry, opaque_room_clut_entry, preview_clut_entry,
-        preview_texture_upload_plan, EditorTextures, MODEL_CLUT_FIRST_Y,
-        SHADOW_CLUT_X, SHADOW_CLUT_Y, SHADOW_TPAGE_X, SHADOW_TPAGE_Y,
+        preview_texture_upload_plan, EditorTextures, MODEL_CLUT_FIRST_Y, SHADOW_CLUT_X,
+        SHADOW_CLUT_Y, SHADOW_TPAGE_X, SHADOW_TPAGE_Y,
     };
     use psx_gpu::material::TextureWindow;
     use psx_gpu_render::VRAM_WIDTH;

@@ -115,7 +115,8 @@ fn write_cue(cue_path: &Path, bin_path: &Path) -> Result<(), String> {
         .and_then(|name| name.to_str())
         .ok_or_else(|| format!("invalid BIN path for CUE: {}", bin_path.display()))?
         .replace('"', "'");
-    let cue = format!("FILE \"{file_name}\" BINARY\n  TRACK 01 MODE2/2352\n    INDEX 01 00:00:00\n");
+    let cue =
+        format!("FILE \"{file_name}\" BINARY\n  TRACK 01 MODE2/2352\n    INDEX 01 00:00:00\n");
     std::fs::write(cue_path, cue).map_err(|e| format!("write {}: {e}", cue_path.display()))
 }
 
@@ -246,9 +247,12 @@ fn embedded_xa_music_files() -> Result<Vec<XaMusicFile>, String> {
         if trimmed.is_empty() || trimmed.starts_with('#') {
             continue;
         }
-        let (path, lba) = trimmed
-            .rsplit_once('\t')
-            .ok_or_else(|| format!("{}: expected `path<TAB>sector`: {trimmed}", list_file.display()))?;
+        let (path, lba) = trimmed.rsplit_once('\t').ok_or_else(|| {
+            format!(
+                "{}: expected `path<TAB>sector`: {trimmed}",
+                list_file.display()
+            )
+        })?;
         let expected_lba = lba
             .trim()
             .parse::<u32>()
@@ -746,8 +750,9 @@ mod tests {
         exe[0x10..0x14].copy_from_slice(&0x8001_2340u32.to_le_bytes());
         exe[0x18..0x1C].copy_from_slice(&0x8001_0000u32.to_le_bytes());
         let ui_pack = build_world_pack(&[(1, b"sky-panorama".as_slice())]);
-        let image = embedded_playtest_disc_image("RESIDENT_SKY", exe, Some(world_pack), Some(ui_pack), &[])
-            .expect("resident playtest disc builds");
+        let image =
+            embedded_playtest_disc_image("RESIDENT_SKY", exe, Some(world_pack), Some(ui_pack), &[])
+                .expect("resident playtest disc builds");
         let disc = Disc::from_bin(image);
         let world_sector = disc
             .read_sector_user(psx_iso::WORLD_PACK_DEFAULT_START_LBA)

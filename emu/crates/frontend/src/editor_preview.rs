@@ -37,7 +37,6 @@ use crate::editor_textures::{EditorTextures, MaterialSlot};
 use psxed_ui::ViewportCameraState;
 
 mod backdrop;
-mod shading;
 mod camera;
 mod depth;
 mod grid;
@@ -46,9 +45,9 @@ mod particles;
 mod poi;
 mod primitives;
 mod props;
+mod shading;
 
 use backdrop::*;
-use shading::*;
 use camera::*;
 use depth::*;
 use grid::*;
@@ -57,6 +56,7 @@ use particles::*;
 use poi::*;
 use primitives::*;
 use props::*;
+use shading::*;
 
 /// Most triangles of each kind the preview submits in one frame. A grid
 /// world can put its whole face budget (16,383 faces, two triangles each at
@@ -66,12 +66,13 @@ use props::*;
 /// through `psxed_ui::report_preview_overflow`, never dropped silently.
 const TRI_CAP: usize = 16384;
 const SKY_QUAD_CAP: usize = psxed_project::SKY_CYCLORAMA_QUAD_MAX;
-const PROJECTED_SKY_PACKET_WORDS: usize =
-    if psx_engine::sky::VIEW_RAY_SKY_PACKET_WORDS > psx_engine::sky::VIEW_RAY_CUBE_SKY_PACKET_WORDS {
-        psx_engine::sky::VIEW_RAY_SKY_PACKET_WORDS
-    } else {
-        psx_engine::sky::VIEW_RAY_CUBE_SKY_PACKET_WORDS
-    };
+const PROJECTED_SKY_PACKET_WORDS: usize = if psx_engine::sky::VIEW_RAY_SKY_PACKET_WORDS
+    > psx_engine::sky::VIEW_RAY_CUBE_SKY_PACKET_WORDS
+{
+    psx_engine::sky::VIEW_RAY_SKY_PACKET_WORDS
+} else {
+    psx_engine::sky::VIEW_RAY_CUBE_SKY_PACKET_WORDS
+};
 const PROJECTED_SKY_PACKET_SLOTS: usize =
     PROJECTED_SKY_PACKET_WORDS.div_ceil(PRIMITIVE_PACKET_SLOT_WORDS);
 const FAR_VISTA_QUAD_CAP: usize = 16;
@@ -488,12 +489,7 @@ pub fn build_phase1_frame_reusing(
     // would project entity bound lines into junk.
     let _ = setup_gte_for_camera(camera);
     if preview_bounds {
-        walk_entity_bounds(
-            entity_bounds,
-            selected,
-            hovered_entity_node,
-            &mut scratch,
-        );
+        walk_entity_bounds(entity_bounds, selected, hovered_entity_node, &mut scratch);
     }
     if let Some((center, half_extents)) = selected_bounds {
         if !selected_node_is_image_prop(project, selected) {

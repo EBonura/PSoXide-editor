@@ -7,7 +7,7 @@ and the other Bonnie Studios PlayStation demos. Standalone downloads are availab
 for testing just this project.
 
 The PlayStation editor, runtime engine and Cortex Ignition live together here.
-Author scenes, BSP geometry, materials, animation, audio and UI, then cook a
+Author sector-grid levels, materials, animation, audio and UI, then cook a
 project into a PS1 disc and playtest it with the integrated emulator.
 
 [The SDK](https://github.com/EBonura/PSoXide) retains the original repository

@@ -1,8 +1,9 @@
 # Editor / Runtime Coordinate Conventions
 
 > **Historical grid-format note:** the `.psxw` cooker described below has been
-> removed from the live editor. Current projects cook BSP brushes to PXBSP.
-> This page remains only to document old asset coordinates.
+> removed from the live editor. Current projects cook the sector grid to the
+> PGL format (`docs/grid/level-format-and-runtime.md`). This page remains only
+> to document old asset coordinates.
 
 The editor and the compact runtime room format intentionally use
 different naming conventions for the Z axis. The cooker is the only
