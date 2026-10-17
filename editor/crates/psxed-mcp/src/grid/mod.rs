@@ -17,6 +17,7 @@
 
 pub mod bands;
 pub mod build;
+pub mod meshes;
 pub mod natural;
 pub mod paint;
 pub mod plan;

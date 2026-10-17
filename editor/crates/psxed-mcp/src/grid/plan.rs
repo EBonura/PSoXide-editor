@@ -548,6 +548,7 @@ pub fn render(
     }
     // Planes: footprint polygon, coloured by collision class.
     let mut plane_lines = String::new();
+    let mut mesh_lines = String::new();
     for &ri in &order {
         let r = &world.rooms[ri];
         for (pi, plane) in r.planes.iter().enumerate() {
@@ -580,6 +581,45 @@ pub fn render(
                 plane_lines,
                 "plane {pi} (room {ri}): {:?} {:?}, centre {:?}",
                 plane.collision, plane.size, plane.center
+            );
+        }
+    }
+    // Static meshes: the placed footprint in orange (crown sockets as a dot),
+    // numbered by stable id.
+    for &ri in &order {
+        let r = &world.rooms[ri];
+        for mesh in &r.meshes {
+            let Some(placed) = psxed_project::grid::mesh_faces::placed(world, ri, r.meshes.iter().position(|m| m.id == mesh.id).unwrap_or(0)) else {
+                continue;
+            };
+            let Some(foot) = mesh.footprint(&placed.built) else {
+                continue;
+            };
+            let c = if mesh.collide { [255, 170, 60] } else { [200, 160, 110] };
+            let pts: Vec<(f32, f32)> = foot.iter().map(|p| (gx(p[0] as f32), gz(p[1] as f32))).collect();
+            canvas.fill_polygon(&pts, c, 0.35);
+            for k in 0..4 {
+                let (a, b) = (pts[k], pts[(k + 1) % 4]);
+                canvas.line((a.0 as i32, a.1 as i32), (b.0 as i32, b.1 as i32), c, 2);
+            }
+            let cx = pts.iter().map(|p| p.0).sum::<f32>() / 4.0;
+            let cy = pts.iter().map(|p| p.1).sum::<f32>() / 4.0;
+            canvas.text(cx as i32 - 3, cy as i32 - 4, &mesh.id.to_string(), 2, [0, 0, 0]);
+            for socket in &placed.built.sockets {
+                let psxed_project::grid::mesh::Socket::Hook { anchor, .. } = *socket;
+                let g = mesh.place(anchor);
+                canvas.ring(gx(g[0] as f32) as i32, gz(g[2] as f32) as i32, 3, [255, 255, 255]);
+            }
+            let _ = writeln!(
+                mesh_lines,
+                "mesh {} (room {ri}): {} at {:?}, rotation {:?}",
+                mesh.id,
+                world
+                    .mesh_assets
+                    .get(usize::from(mesh.asset))
+                    .map_or("?", |a| a.name.as_str()),
+                mesh.position,
+                mesh.rotation
             );
         }
     }
@@ -634,8 +674,11 @@ pub fn render(
     }
     text.push_str(
         "wall lines: white = closure (room edge), light blue = riser, purple = drop, yellow = ghost closure, dim = hidden, orange = authored wall\n\
-         room outlines are numbered; planes: green = walkable, red = solid, lavender = decor\n",
+         room outlines are numbered; planes: green = walkable, red = solid, lavender = decor; meshes: orange footprint numbered by id, white ring = hook socket\n",
     );
+    if !mesh_lines.is_empty() {
+        text.push_str(&mesh_lines);
+    }
     if !plane_lines.is_empty() {
         text.push_str(&plane_lines);
     }

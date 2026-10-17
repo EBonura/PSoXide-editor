@@ -398,3 +398,110 @@ fn the_level_verbs_and_the_two_overlays_answer_over_the_protocol() {
     assert!(heat.contains("PERFORMANCE MODEL"), "{heat}");
     assert!(heat.contains("worst spot"), "{heat}");
 }
+
+#[test]
+fn meshes_are_generated_placed_read_changed_and_cook() {
+    let tmp = std::env::temp_dir().join(format!("psxed-mcp-meshes-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    let project = new_project(&tmp);
+    let mut c = Client::start(&["--project", project.to_str().unwrap()], &[], &repo_root());
+
+    // The tools are registered and the instructions name them.
+    let names: Vec<String> = c
+        .tools()
+        .iter()
+        .filter_map(|t| t["name"].as_str().map(str::to_string))
+        .collect();
+    for tool in [
+        "grid_meshes",
+        "grid_place_mesh",
+        "grid_set_mesh",
+        "grid_delete_mesh",
+        "grid_arch_span",
+    ] {
+        assert!(names.iter().any(|n| n == tool), "{tool} in {names:?}");
+        assert!(c.instructions.contains(tool), "{tool} not in the instructions");
+    }
+    assert!(c.ok("grid_meshes", json!({})).text.contains("no mesh assets yet"));
+
+    // An arch between two floor points: the numbers come back and so does
+    // the hook the player perches on.
+    let arch = c
+        .ok(
+            "grid_arch_span",
+            json!({"from": [1024, 0, 3072], "to": [3072, 0, 3072], "material": "Graybox / Cliff 64"}),
+        )
+        .text;
+    assert!(arch.contains("span 2048"), "{arch}");
+    assert!(arch.contains("hook socket"), "{arch}");
+    // A pointed arch that is too low is refused with the rule, and nothing is
+    // staged by the refusal.
+    let refused = c
+        .call(
+            "grid_arch_span",
+            json!({"from": [1024, 0, 1024], "to": [3072, 0, 1024], "profile": "pointed", "rise": 300}),
+        )
+        .expect_err("a pointed arch rises at least half its span");
+    assert!(format!("{refused:?}").contains("at least half"), "{refused:?}");
+
+    // A column and rubble from recipes; a second equal column shares the asset.
+    for (x, z) in [(512, 512), (4608, 512)] {
+        let placed = c
+            .ok(
+                "grid_place_mesh",
+                json!({"recipe": {"kind": "column", "height": 2048}, "position": [x, 0, z], "yaw": 45}),
+            )
+            .text;
+        assert!(placed.contains("placed mesh"), "{placed}");
+    }
+    c.ok(
+        "grid_place_mesh",
+        json!({"recipe": {"kind": "rubble", "seed": 3}, "position": [2560, 0, 4608], "scale": [1.5], "collide": false}),
+    );
+    let listing = c.ok("grid_meshes", json!({})).text;
+    assert!(listing.contains("asset 0"), "{listing}");
+    assert!(listing.contains("column"), "{listing}");
+    assert!(listing.contains("placed 2 time(s)"), "{listing}");
+    assert!(listing.contains("mesh 4"), "{listing}");
+    assert!(listing.contains("no collision"), "{listing}");
+    // Exactly three assets for four instances.
+    assert_eq!(listing.matches("\nasset ").count() + usize::from(listing.starts_with("asset ")), 3, "{listing}");
+
+    // Changing the asset recipe changes every copy; ids never move.
+    let taller = c
+        .ok(
+            "grid_set_mesh",
+            json!({"id": 2, "asset_recipe": {"kind": "column", "height": 3072}}),
+        )
+        .text;
+    assert!(taller.contains("updated"), "{taller}");
+    assert!(c.ok("grid_meshes", json!({})).text.contains("height 3072"));
+    let moved = c
+        .ok("grid_set_mesh", json!({"id": 3, "position": [4608, 0, 1024], "yaw": 90}))
+        .text;
+    assert!(moved.contains("[4608, 0, 1024]"), "{moved}");
+    assert!(c.call("grid_set_mesh", json!({"id": 99, "yaw": 5})).is_err());
+
+    // The plan draws them and the real cook accepts the world.
+    let plan = c.ok("grid_plan", json!({}));
+    assert!(plan.text.contains("mesh 1"), "{}", plan.text);
+    assert!(!plan.images.is_empty());
+    let cook = c.ok("cook_check", json!({})).text;
+    assert!(cook.contains("cook: OK"), "{cook}");
+    let budget = c.ok("grid_budget", json!({})).text;
+    assert!(!budget.contains("mesh"), "no mesh finding on a valid world: {budget}");
+
+    // Delete: the other ids stay, the assets stay.
+    let gone = c.ok("grid_delete_mesh", json!({"ids": [2]})).text;
+    assert!(gone.contains("removed 1"), "{gone}");
+    let after = c.ok("grid_meshes", json!({})).text;
+    assert!(!after.contains("\nmesh 2 "), "{after}");
+    assert!(after.contains("mesh 3 ") && after.contains("mesh 4 "), "{after}");
+    assert!(c.call("grid_delete_mesh", json!({"ids": [2]})).is_err());
+
+    // Saved and reopened, the instances and assets come back.
+    c.ok("save", json!({}));
+    let mut again = Client::start(&["--project", project.to_str().unwrap()], &[], &repo_root());
+    let reopened = again.ok("grid_meshes", json!({})).text;
+    assert!(reopened.contains("mesh 1 ") && reopened.contains("mesh 4 "), "{reopened}");
+}

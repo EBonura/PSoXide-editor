@@ -8,6 +8,7 @@
 mod bands;
 mod combat;
 mod geometry;
+mod meshes;
 mod natural;
 mod nodes;
 mod planes;
@@ -53,6 +54,7 @@ impl EditorServer {
             + Self::surfaces_router()
             + Self::bands_router()
             + Self::planes_router()
+            + Self::meshes_router()
             + Self::verbs_router()
             + Self::natural_router()
             + Self::verify_router();
