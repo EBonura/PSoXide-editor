@@ -261,10 +261,13 @@ pub fn set_heights(world: &mut GridWorld, req: &SetHeightsReq) -> Result<String,
     let mut changed = 0usize;
     if relative {
         // The editor's own height drag: welded corners ride along when linked.
-        let n = targets.len();
-        if psxed_project::grid::edit::nudge(world, &targets, value, link) {
-            changed = n;
-        }
+        let before: Vec<Option<i32>> = targets.iter().map(|c| c.height(world)).collect();
+        psxed_project::grid::edit::nudge(world, &targets, value, link);
+        changed = targets
+            .iter()
+            .zip(&before)
+            .filter(|(c, b)| c.height(world) != **b)
+            .count();
     } else {
         let y_offset = world.rooms[room].y_offset;
         let index = link.then(|| WeldIndex::build(world));
@@ -451,6 +454,61 @@ mod tests {
         assert_eq!(h(&flat, 3, 3)[0], 256, "linked: the shared corner follows");
         assert_eq!(h(&flat, 3, 2)[3], 256);
         assert_eq!(h(&flat, 2, 3)[1], 256);
+    }
+
+    #[test]
+    fn a_relative_move_counts_the_corners_it_moved() {
+        let (_, mut w) = fixture();
+        let out = set_heights(
+            &mut w,
+            &SetHeightsReq {
+                scene: None,
+                room: None,
+                kind: Surface::Floor,
+                cells: Cells {
+                    from: [1, 1],
+                    to: Some([2, 1]),
+                },
+                corners: None,
+                edge: Some("north".into()),
+                height: None,
+                delta: Some(256),
+                snap: None,
+                link: None,
+                layer: None,
+            },
+        )
+        .unwrap();
+        assert!(out.contains("raised by 256"), "{out}");
+        assert!(out.contains("4 corner height(s) changed"), "{out}");
+        let heights = w.rooms[0]
+            .sector(1, 1)
+            .unwrap()
+            .floor
+            .as_ref()
+            .unwrap()
+            .heights;
+        assert_eq!(heights, [256, 256, 0, 0], "only the north edge rose");
+        assert!(set_heights(
+            &mut w,
+            &SetHeightsReq {
+                scene: None,
+                room: None,
+                kind: Surface::Floor,
+                cells: Cells {
+                    from: [1, 1],
+                    to: None
+                },
+                corners: None,
+                edge: None,
+                height: Some(0),
+                delta: Some(256),
+                snap: None,
+                link: None,
+                layer: None,
+            },
+        )
+        .is_err());
     }
 
     #[test]
