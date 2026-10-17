@@ -52,11 +52,26 @@ The strip has nine tools. Wrapped to a second line when the window is narrow. Ke
 | Split | D | Click a floor or ceiling to flip its diagonal. |
 | Place | O | Click to put the chosen node (light, spawn, actor...) at a sector centre; Alt places freely. |
 
+Letters kept free for the level verbs that come next: U Raise, S Sculpt, A Ramp, T Stairs, B Room, K Corridor, I Opening, E Bands, Y Stamps (N is the Plane tool), and Alt+W and Alt+P for the walkability and performance overlays.
+
 Also: Ctrl/Cmd+C copies the selected faces, Ctrl/Cmd+V shows a ghost (click stamps, Shift keeps stamping, H and V flip, R turns), Esc cancels a drag, a ghost or the selection, Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z undo and redo, `.` frames the selection, Ctrl/Cmd+S saves.
 
 3D camera: middle or right drag orbits, with Shift it pans, scroll zooms, and with the free camera W A S D fly while the right button is held.
 
+Snapping is one rule in every tool: a click (256) by default, **Alt** for the fine step (64), **Shift+Alt** for free movement where a tool can leave the lattice (planes, Place; heights always stay on the 64 lattice).
+
 Units: a sector is 1024 grid units, a click 256, the fine step 64. A project's scale maps grid units to editor units (File > New Grid Project uses 5/4, so a sector is 1280 editor units; the imported levels keep the scale their import chose. `GridScale::DEFAULT`, still 21/16, moves to 5/4 with the next phase). Walls belong to the sector edge they are on, with a front side (the interior) and an optional back or both.
+
+## Tiling
+
+Every face (floor, ceiling, authored wall, derived wall, plane) is textured by one model, edited in the Tiling section of the Inspector:
+
+* **World**: the texture follows the world, so neighbouring faces line up and a bigger face tiles more. The number is texels per sector along each axis; 32 (half a 64 texel tile per sector) is how every face made before this behaves, bit for bit.
+* **Fit**: a fixed number of tiles across the whole face, whatever its size. 2 x 2 is "2x2 on this face"; the one-click presets are 1x1, 2x2 and 4x4, the fields take any value in 1/16 tile steps up to 16 per axis. The frame a fit is measured against is the logical face: the sector square of a floor or ceiling, the wall record of an authored wall, the whole run of a derived wall (so 8x1 repeats eight times along the whole run, not once per sector) and the plane rectangle.
+* **Default**: the material's own tiling (Material tab, Grid tiling: Legacy, World or Fit; a swatch in the palette carries a badge when it has one), else the legacy world mapping. A face that names its own mode ignores the material.
+* **Turn** (quarter turns, clockwise) and **Flip** (H, V) act on the face as you see it, and **Offset**, **Angle** and **Scale** stay as fine adjustments after the mode.
+
+The Inspector always prints what the setting comes to ("effective: 2 x 2 on this face", "0.5 x 0.5 tiles on this face") and warns when the cook has to cut the face: a primitive holds one tile per axis for now, so a 4x4 face becomes 16 primitives (+15). The cook counts the extra primitives in its report. Faces on the plain legacy mapping are left whole exactly as before (see `uv_split::SPLIT_LEGACY`), so levels made before the model cook the same.
 
 ## Derived walls
 
@@ -78,10 +93,11 @@ A free plane is a flat textured quad that is not tied to the sector grid: a brid
 
 * **Place**: click a floor, a wall or empty ground. The plane lies on that surface facing out of it, lifted a hair so it never fights the surface, snapped to the 256 lattice, one sector square. Drag instead of clicking to size it: the press point is one corner, the size snaps to the lattice. The strip's "New plane" menu sets the collision class and sidedness a new plane starts with.
 * **Select**: click a plane with the Plane or the Select tool (Shift extends, Ctrl/Cmd toggles). In the Top view a plane picks by its outline or inside it; hold Alt to click through to the sector under it. The Inspector then shows one context, the plane.
-* **Handles** of the selected plane: the four corners and four edges stretch it (the opposite edges stay put); the green ring knob turns it about the vertical axis in 15 degree steps; the blue arrow tip tilts the front up and down; dragging the body slides it in its own plane, Shift moves it up and down. Ctrl/Cmd snaps finer (64 units, 5 degrees), Alt is free. Moves snap the plane's edge or centre onto the lattice, whichever is nearest, so edges land on grid lines. Roll and exact numbers are in the Inspector.
+* **Handles** of the selected plane: the four corners and four edges stretch it (the opposite edges stay put); the green ring knob turns it about the vertical axis in 15 degree steps; the blue arrow tip tilts the front up and down; dragging the body slides it in its own plane, Shift moves it up and down. Alt snaps finer (64 units, 5 degrees), Shift+Alt is free. Moves snap the plane's edge or centre onto the lattice, whichever is nearest, so edges land on grid lines. Roll and exact numbers are in the Inspector.
 * **Keys**: R quarter turn, PgUp/PgDn or ]/[ nudge up and down a click (Shift: 64), Delete removes, Ctrl/Cmd+C and V copy and paste with a ghost (R turns, H flips, click stamps), Esc during a drag puts the plane back, Ctrl/Cmd+Z undoes.
 * **Material**: the palette applies to the selected planes, the Paint tool paints a plane under the pointer (Ctrl/Cmd+click samples its material). Blend mode and alpha cutout (palette index 0 transparent) come from the material, so a banner or grate is a plane with the right material and "Both sides" ticked.
-* **Inspector**: position (grid units), size, yaw/pitch/roll, Wall/Floor/Ceiling orientation presets, mapping (Tile repeats every sector from the top-left corner, Stretch puts one whole texture across), texture offset, scale, angle and flips, both sides, fullbright, enabled, and the collision class.
+* **Inspector**: position (grid units), size, yaw/pitch/roll, Wall/Floor/Ceiling orientation presets, the Tiling section (below; Tile repeats every sector from the top-left corner, Stretch puts one whole texture across), both sides, fullbright, enabled, the collision class and the camera setting.
+* **Camera**: the third-person camera passes through a plane that is translucent or alpha-cut (a banner, a grate, foliage) and stops at an opaque one. The Camera row of the Inspector overrides it per plane (passes through / blocks). The character itself still collides with the plane per its collision class either way.
 
 Collision class decides what the cook writes, from the plane's normal: None (decor) is drawn only. Walkable and Solid both collide, and the shape follows the lean: at least 0.7 up or down (flatter than 45 degrees) is a platform the character stands on, at most 0.35 is a vertical wall segment that blocks from both sides, anything between is a box around the plane (it over-blocks and the cook warns). A Walkable plane too steep to stand on reports a warning and blocks instead. A plane has to lie inside its room's sector rectangle; the editor grows the room to hold it, and the cook refuses a plane outside it.
 
@@ -101,5 +117,5 @@ The cook warns when a texture is not 64 by 64, when faces have no material the c
 ## Known gaps
 
 * Camera and character: the starter and imported levels use the Graybox Reach character, which costs most of the frame.
-* Free planes: the camera does not pass through them (a solid plane blocks the camera arm like a wall), they are not yet in the psxed-mcp tools, and translucent planes follow the engine's ordering of blended packets.
+* Free planes: they are not yet in the psxed-mcp tools, and translucent planes follow the engine's ordering of blended packets.
 * Brush and BSP authoring still exist for brush projects and are hidden for grid ones; the PXBSP cook is only a transitional bridge for collision.

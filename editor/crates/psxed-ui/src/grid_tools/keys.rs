@@ -12,6 +12,23 @@ use psxed_project::grid::{CLICK_UNITS, FINE_UNITS};
 
 use super::{clipboard_tool, height_tool, plane_tool, select_tool};
 
+/// Keys the level verbs (design: `docs/grid/level-tools-design.md`, 7.12)
+/// will take, kept free of other meanings now: U Raise, S Sculpt, A Ramp,
+/// T Stairs, B Room, K Corridor, I Opening, E Bands, Y Stamps. Alt+W and
+/// Alt+P are the overlays; N is the Plane tool.
+#[cfg(test)]
+pub(crate) const RESERVED_VERB_KEYS: [egui::Key; 9] = [
+    egui::Key::U,
+    egui::Key::S,
+    egui::Key::A,
+    egui::Key::T,
+    egui::Key::B,
+    egui::Key::K,
+    egui::Key::I,
+    egui::Key::E,
+    egui::Key::Y,
+];
+
 fn pressed(ctx: &egui::Context, key: egui::Key) -> bool {
     ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, key))
 }
@@ -128,5 +145,23 @@ impl EditorWorkspace {
                 height_tool::nudge_selection(self, sign * FINE_UNITS);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn no_tool_takes_a_key_the_level_verbs_reserve() {
+        for tool in GridTool::ALL {
+            assert!(
+                !RESERVED_VERB_KEYS.contains(&tool.key()),
+                "{} uses a reserved verb key",
+                tool.label()
+            );
+        }
+        // N stays the Plane tool.
+        assert_eq!(GridTool::Plane.key(), egui::Key::N);
     }
 }

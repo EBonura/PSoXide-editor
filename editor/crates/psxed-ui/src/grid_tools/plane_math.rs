@@ -37,12 +37,13 @@ impl Snap {
     /// 256 grid units, the default click.
     pub const CLICK: Self = Self(Some(CLICK_UNITS));
 
-    /// The step the held modifiers ask for: Alt is free, Ctrl or Cmd is the
-    /// fine step, otherwise a click.
+    /// The step the held modifiers ask for, the one rule every grid tool
+    /// shares: Alt is the fine step (64 units), Shift+Alt is free,
+    /// otherwise a click.
     pub fn from_modifiers(modifiers: egui::Modifiers) -> Self {
-        if modifiers.alt {
+        if modifiers.alt && modifiers.shift {
             Self(None)
-        } else if modifiers.command || modifiers.ctrl {
+        } else if modifiers.alt {
             Self(Some(FINE_UNITS))
         } else {
             Self::CLICK
@@ -520,10 +521,12 @@ mod tests {
     #[test]
     fn modifiers_choose_the_snap() {
         assert_eq!(Snap::from_modifiers(egui::Modifiers::NONE), Snap::CLICK);
-        assert_eq!(Snap::from_modifiers(egui::Modifiers::ALT), Snap(None));
+        assert_eq!(Snap::from_modifiers(egui::Modifiers::ALT), Snap(Some(64)));
         assert_eq!(
-            Snap::from_modifiers(egui::Modifiers::COMMAND),
-            Snap(Some(64))
+            Snap::from_modifiers(egui::Modifiers::ALT | egui::Modifiers::SHIFT),
+            Snap(None)
         );
+        // Ctrl and Cmd no longer change the snap.
+        assert_eq!(Snap::from_modifiers(egui::Modifiers::COMMAND), Snap::CLICK);
     }
 }

@@ -2,7 +2,8 @@
 //!
 //! The position snaps to the centre of the sector under the pointer and to
 //! the floor height there, so a placed actor stands on the floor, however
-//! the floor slopes or which room it is in. Alt places freely.
+//! the floor slopes or which room it is in. Alt snaps to the fine lattice
+//! (64 units) and Shift+Alt places freely.
 
 use super::view::cell_at_editor;
 use super::*;
@@ -25,8 +26,18 @@ pub(super) fn spot(ws: &EditorWorkspace, ptr: &GridPointer) -> Option<[f32; 3]> 
             [x, f32::MAX, z]
         }
     };
-    let centre = if ptr.alt() {
+    let centre = if ptr.free() {
         [point[0], point[2]]
+    } else if ptr.alt() {
+        // The fine lattice: 64 grid units.
+        let fine = |v: f32| {
+            let grid = world.scale.to_grid(v.round() as i32);
+            world.scale.to_editor(psxed_project::grid::units::snap_to(
+                grid,
+                psxed_project::grid::FINE_UNITS,
+            )) as f32
+        };
+        [fine(point[0]), fine(point[2])]
     } else {
         let cell = cell_at_editor(world.scale, point[0], point[2]);
         let half = SECTOR_UNITS / 2;

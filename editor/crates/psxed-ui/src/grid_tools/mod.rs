@@ -43,6 +43,7 @@ mod rooms;
 mod rooms_walls;
 mod select_tool;
 mod strip;
+mod tiling_panel;
 pub(crate) mod view;
 mod wall_tool;
 

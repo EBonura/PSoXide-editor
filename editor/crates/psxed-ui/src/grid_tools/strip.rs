@@ -128,7 +128,7 @@ impl EditorWorkspace {
             && !self.grid.plane_sel.is_empty()
             || self.grid.tool == GridTool::Plane
         {
-            format!("Snap {CLICK_UNITS} (Ctrl {FINE_UNITS}, Alt free)")
+            format!("Snap {CLICK_UNITS} (Alt {FINE_UNITS}, Shift+Alt free)")
         } else {
             format!("Snap {CLICK_UNITS} (Alt {FINE_UNITS})")
         };
@@ -153,11 +153,11 @@ impl EditorWorkspace {
         if !self.grid.plane_sel.is_empty()
             && matches!(self.grid.tool, GridTool::Select | GridTool::Plane)
         {
-            return "Drag a handle: corners and edges stretch, green ring turns, blue tip tilts | Drag body slides, Shift up/down | Ctrl 64, Alt free | R turn | Del | Ctrl+C/V";
+            return "Drag a handle: corners and edges stretch, green ring turns, blue tip tilts | Drag body slides, Shift up/down | Alt 64, Shift+Alt free | R turn | Del | Ctrl+C/V";
         }
         match self.grid.tool {
             GridTool::Plane => {
-                "Click a surface to place a plane | Drag sizes it | Click a plane to select | Ctrl 64, Alt free"
+                "Click a surface to place a plane | Drag sizes it | Click a plane to select | Alt 64, Shift+Alt free"
             }
             GridTool::Select => {
                 "Click pick | Shift range | Ctrl toggle | Drag box | Shift-drag height | Del delete | Ctrl+C/V copy"
@@ -168,7 +168,7 @@ impl EditorWorkspace {
             GridTool::Height => "Drag up/down | Alt fine | L link | PgUp/PgDn nudge | Esc cancel",
             GridTool::Paint => "Click or drag paint | Ctrl sample | pick in the palette",
             GridTool::Split => "Click a floor or ceiling | Alt ceiling in Top",
-            GridTool::Place => "Click to place at the sector centre | Alt free",
+            GridTool::Place => "Click to place at the sector centre | Alt 64 | Shift+Alt free",
         }
     }
 

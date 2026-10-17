@@ -1,0 +1,145 @@
+//! The Tiling section of the Inspector, drawn through the whole editor.
+
+use super::grid_derived::derived_project_for_tiling;
+use super::grid_rig::*;
+use super::grid_ui::{draw_editor, full_context};
+use super::*;
+use psxed_project::face_uv::{FaceUv, UvMode};
+use psxed_project::grid::derive::DerivedKind;
+use psxed_project::grid::edit::{edit_uv, FaceRef, GridElement, UvOp};
+use psxed_project::grid::WallEdge;
+
+fn text_of(output: &egui::FullOutput) -> String {
+    output
+        .shapes
+        .iter()
+        .filter_map(|s| match &s.shape {
+            egui::epaint::Shape::Text(t) => Some(t.galley.text().to_string()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn inspector_text(ws: &mut EditorWorkspace) -> String {
+    let ctx = full_context();
+    ws.last_viewport_size = Vec2::new(1200.0, 700.0);
+    text_of(&draw_editor(ws, &ctx, true))
+}
+
+fn workspace(label: &str) -> EditorWorkspace {
+    let mut ws = EditorWorkspace::with_project(test_temp_dir(label), flat_project(5, 5, true));
+    ws.apply_grid_pose("tool=select;select=floors:2,2:2,2")
+        .unwrap();
+    ws
+}
+
+fn set_floor_uv(ws: &mut EditorWorkspace, mode: UvMode) {
+    let world = ws.project.active_scene_mut().world.grid_mut().unwrap();
+    edit_uv(world, FaceRef::floor(0, [2, 2]), None, UvOp::SetMode(mode));
+    ws.grid_changed();
+}
+
+#[test]
+fn a_default_face_reports_the_legacy_tiling() {
+    let mut ws = workspace("tiling-default");
+    let text = inspector_text(&mut ws);
+    assert!(text.contains("Tiling"), "{text}");
+    assert!(
+        text.contains("effective: 0.5 x 0.5 tiles on this face"),
+        "{text}"
+    );
+    for label in ["Default", "World", "Fit", "Turn", "Flip", "Offset"] {
+        assert!(text.contains(label), "{label} missing:\n{text}");
+    }
+    assert!(!text.contains("cuts this face"), "{text}");
+}
+
+#[test]
+fn fit_reports_tiles_and_the_cook_cut() {
+    let mut ws = workspace("tiling-fit");
+    set_floor_uv(&mut ws, UvMode::fit(1, 1));
+    let text = inspector_text(&mut ws);
+    assert!(text.contains("effective: 1 x 1 on this face"), "{text}");
+    assert!(!text.contains("cuts this face"), "{text}");
+    set_floor_uv(&mut ws, UvMode::fit(2, 2));
+    let text = inspector_text(&mut ws);
+    assert!(text.contains("effective: 2 x 2 on this face"), "{text}");
+    assert!(
+        text.contains("cuts this face into 4 primitives (+3)"),
+        "{text}"
+    );
+    set_floor_uv(&mut ws, UvMode::fit(4, 4));
+    let text = inspector_text(&mut ws);
+    assert!(text.contains("16 primitives (+15)"), "{text}");
+}
+
+#[test]
+fn a_derived_wall_reports_its_whole_run() {
+    let mut ws = EditorWorkspace::with_project(
+        test_temp_dir("tiling-run"),
+        derived_project_for_tiling(5, 5),
+    );
+    let face = FaceRef::derived(0, [2, 0], WallEdge::North, DerivedKind::Closure);
+    ws.grid.selection.set(vec![GridElement::Face(face)]);
+    let text = inspector_text(&mut ws);
+    // Five sectors long (2.5 tiles at half a tile per sector), three tall.
+    assert!(
+        text.contains("effective: 2.5 x 1.5 tiles on this face"),
+        "{text}"
+    );
+    assert!(text.contains("derived"), "{text}");
+    // Fit counts across the whole run, not per sector.
+    {
+        let world = ws.project.active_scene_mut().world.grid_mut().unwrap();
+        edit_uv(world, face, None, UvOp::SetMode(UvMode::fit(8, 1)));
+    }
+    ws.grid_changed();
+    let text = inspector_text(&mut ws);
+    assert!(text.contains("effective: 8 x 1 on this face"), "{text}");
+    assert!(text.contains("8 primitives (+7)"), "{text}");
+}
+
+#[test]
+fn planes_keep_tile_and_stretch_and_report_them() {
+    let mut ws = workspace("tiling-plane");
+    ws.apply_grid_pose("tool=plane").unwrap();
+    {
+        let world = ws.project.active_scene_mut().world.grid_mut().unwrap();
+        let plane = psxed_project::grid::GridPlane::new([2560, 256, 2560], [2048, 1024]);
+        let id = psxed_project::grid::edit::add_plane(world, 0, plane).unwrap();
+        ws.grid_changed();
+        ws.select_planes(vec![id]);
+    }
+    let text = inspector_text(&mut ws);
+    assert!(text.contains("Tile") && text.contains("Stretch"), "{text}");
+    assert!(
+        text.contains("effective: 1 x 0.5 tiles on this face"),
+        "{text}"
+    );
+}
+
+#[test]
+fn the_fine_controls_stay_beside_the_model() {
+    let mut ws = workspace("tiling-fine");
+    {
+        let world = ws.project.active_scene_mut().world.grid_mut().unwrap();
+        let face = FaceRef::floor(0, [2, 2]);
+        edit_uv(world, face, None, UvOp::SetMode(UvMode::fit(2, 2)));
+        edit_uv(world, face, None, UvOp::Turn(true));
+        edit_uv(world, face, None, UvOp::ToggleFlip(0));
+        edit_uv(world, face, None, UvOp::SetOffset([20, 0]));
+    }
+    ws.grid_changed();
+    let text = inspector_text(&mut ws);
+    assert!(text.contains("90 deg"), "{text}");
+    // Offset 20 texels makes a 2x2 face cross tile edges: more cuts.
+    assert!(text.contains("primitives"), "{text}");
+    let uv: FaceUv = psxed_project::grid::edit::uv_of(
+        ws.project.active_scene().world.grid().unwrap(),
+        FaceRef::floor(0, [2, 2]),
+        None,
+    )
+    .unwrap();
+    assert_eq!((uv.turns, uv.flip), (1, [true, false]));
+}

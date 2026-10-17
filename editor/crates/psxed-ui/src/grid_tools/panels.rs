@@ -128,6 +128,28 @@ impl EditorWorkspace {
                 );
             }
         }
+        // A small badge when the material carries its own grid tiling.
+        if let Some(psxed_project::ResourceData::Material(m)) =
+            self.project.resource(id).map(|r| &r.data)
+        {
+            if !m.grid_uv.is_inherit() {
+                let label = match m.grid_uv {
+                    psxed_project::face_uv::UvMode::Fit { repeats_q4 } => format!(
+                        "{}x{}",
+                        repeats_q4[0] as f32 / 16.0,
+                        repeats_q4[1] as f32 / 16.0
+                    ),
+                    _ => "W".to_string(),
+                };
+                painter.text(
+                    rect.right_bottom() - Vec2::new(3.0, 2.0),
+                    Align2::RIGHT_BOTTOM,
+                    label,
+                    FontId::proportional(9.5),
+                    Color32::from_rgb(255, 214, 120),
+                );
+            }
+        }
         let stroke = if selected {
             Stroke::new(2.5, STUDIO_ACCENT)
         } else if response.hovered() {
@@ -280,60 +302,14 @@ impl EditorWorkspace {
                 }
             }
         }
-        if let Some(mut uv) = uv {
-            ui.label(RichText::new("Texture").color(STUDIO_TEXT_WEAK).size(11.0));
-            let mut changed = false;
-            ui.horizontal(|ui| {
-                ui.label("Offset");
-                changed |= ui
-                    .add(egui::DragValue::new(&mut uv.offset_texels[0]).speed(0.25))
-                    .changed();
-                changed |= ui
-                    .add(egui::DragValue::new(&mut uv.offset_texels[1]).speed(0.25))
-                    .changed();
-            });
-            ui.horizontal(|ui| {
-                ui.label("Scale ");
-                let mut su = f32::from(uv.scale_q8[0]) / 256.0;
-                let mut sv = f32::from(uv.scale_q8[1]) / 256.0;
-                let a = ui
-                    .add(egui::DragValue::new(&mut su).speed(0.01).max_decimals(2))
-                    .changed();
-                let b = ui
-                    .add(egui::DragValue::new(&mut sv).speed(0.01).max_decimals(2))
-                    .changed();
-                if a || b {
-                    uv.scale_q8 = [(su * 256.0).round() as i16, (sv * 256.0).round() as i16];
-                    changed = true;
-                }
-            });
-            ui.horizontal(|ui| {
-                ui.label("Angle");
-                changed |= ui
-                    .add(
-                        egui::DragValue::new(&mut uv.rotation_deg)
-                            .speed(1.0)
-                            .suffix(" deg"),
-                    )
-                    .changed();
-            });
-            if changed {
-                ops.push(UvOp::SetOffset(uv.offset_texels));
-                ops.push(UvOp::SetScale(uv.scale_q8));
-                ops.push(UvOp::SetRotation(uv.rotation_deg));
-            }
-            ui.horizontal_wrapped(|ui| {
-                for (label, op) in [
-                    ("Flip U", UvOp::FlipU),
-                    ("Flip V", UvOp::FlipV),
-                    ("Rotate 90", UvOp::Rotate90),
-                    ("Reset", UvOp::Reset),
-                ] {
-                    if ui.button(label).clicked() {
-                        ops.push(op);
-                    }
-                }
-            });
+        if let Some(uv) = uv {
+            let report = psxed_project::grid::uv::report_for(
+                world,
+                &psxed_project::grid::uv::ProjectUvDefaults(&self.project),
+                primary,
+                None,
+            );
+            ops.extend(super::tiling_panel::draw_tiling(ui, uv, report, None));
         }
         match primary.target {
             FaceTarget::Wall { .. } => {

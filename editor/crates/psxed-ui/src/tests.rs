@@ -8,6 +8,8 @@ mod geometry_resources;
 mod grid_derived;
 mod grid_planes;
 mod grid_rig;
+mod grid_snap;
+mod grid_tiling;
 mod grid_tools_persp;
 mod grid_tools_top;
 mod grid_ui;

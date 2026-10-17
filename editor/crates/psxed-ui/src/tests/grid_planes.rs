@@ -152,13 +152,13 @@ fn dragging_an_edge_handle_stretches_one_side_and_keeps_the_other() {
 }
 
 #[test]
-fn a_corner_handle_stretches_both_ways_and_ctrl_snaps_finer() {
+fn a_corner_handle_stretches_both_ways_and_alt_snaps_finer() {
     let (mut rig, id) = rig_with_plane("plane-corner", false, flat_plane());
     // Corners of the flat plane: x 2048..4096, z 2560..3584. Pull the
     // corner at (4096, 3584) out by 300 and 300 with the fine snap.
     let from = rig.top_at(4096.0, 3584.0);
     let to = rig.top_at(4096.0 + 300.0, 3584.0 + 300.0);
-    rig.drag_with(from, to, egui::Modifiers::COMMAND);
+    rig.drag_with(from, to, egui::Modifiers::ALT);
     let p = plane(&rig, id);
     // 2048 + 300 snapped to 64s: 2368; 1024 + 300: 1344.
     assert_eq!(p.size, [2368, 1344], "{p:?}");
@@ -174,11 +174,11 @@ fn the_yaw_knob_turns_the_plane_in_fifteen_degree_steps() {
     rig.drag(knob, to);
     let p = plane(&rig, id);
     assert_eq!(p.rotation[0], 90, "{p:?}");
-    // Alt gives whole degrees.
+    // Shift+Alt gives whole degrees.
     let (mut rig, id) = rig_with_plane("plane-yaw-free", false, flat_plane());
     let knob = rig.top_at(3072.0, 3072.0 + radius);
     let to = rig.top_at(3072.0 + 900.0, 3072.0 + 300.0);
-    rig.drag_with(knob, to, egui::Modifiers::ALT);
+    rig.drag_with(knob, to, egui::Modifiers::ALT | egui::Modifiers::SHIFT);
     let p = plane(&rig, id);
     assert_eq!(p.rotation[0], 72, "{p:?}");
 }

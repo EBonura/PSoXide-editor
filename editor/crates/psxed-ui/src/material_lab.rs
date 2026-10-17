@@ -481,6 +481,7 @@ pub(crate) fn draw_material_settings(
         ui.separator();
         ui.heading("Surface");
         draw_material_sidedness(ui, material);
+        draw_material_grid_tiling(ui, material);
         draw_sky_mode(ui, material);
     });
     *material != original
@@ -1267,6 +1268,61 @@ fn draw_material_sidedness(ui: &mut egui::Ui, material: &mut MaterialResource) {
         .response
         .on_hover_text("Both draws a face from either side; Front and Back cull the other.");
     material.sync_legacy_sidedness();
+}
+
+/// The grid tiling default: how grid faces tile this material when they do
+/// not choose themselves.
+fn draw_material_grid_tiling(ui: &mut egui::Ui, material: &mut MaterialResource) {
+    use psxed_project::face_uv::UvMode;
+    ui.add_space(6.0);
+    ui.horizontal(|ui| {
+        ui.label("Grid tiling");
+        let on = |m: &UvMode, k: &UvMode| std::mem::discriminant(m) == std::mem::discriminant(k);
+        for (label, target) in [
+            ("Legacy", UvMode::Inherit),
+            ("World", UvMode::LEGACY),
+            ("Fit", UvMode::fit(1, 1)),
+        ] {
+            let selected = on(&material.grid_uv, &target);
+            if ui.selectable_label(selected, label).clicked() && !selected {
+                material.grid_uv = target;
+            }
+        }
+    })
+    .response
+    .on_hover_text(
+        "How grid faces with the default tiling lay this material: Legacy is world aligned at 32 texels per sector; World picks a density; Fit puts a fixed number of tiles across each face.",
+    );
+    match &mut material.grid_uv {
+        UvMode::World { texels_per_sector } => {
+            ui.horizontal(|ui| {
+                ui.label("Texels per sector");
+                for t in texels_per_sector.iter_mut() {
+                    ui.add(egui::DragValue::new(t).range(1..=1024));
+                }
+            });
+        }
+        UvMode::Fit { repeats_q4 } => {
+            ui.horizontal(|ui| {
+                ui.label("Tiles across");
+                for q in repeats_q4.iter_mut() {
+                    let mut tiles = f32::from(*q) / 16.0;
+                    if ui
+                        .add(
+                            egui::DragValue::new(&mut tiles)
+                                .range(0.0625..=16.0)
+                                .speed(0.05)
+                                .max_decimals(2),
+                        )
+                        .changed()
+                    {
+                        *q = (tiles * 16.0).round().clamp(1.0, 256.0) as u16;
+                    }
+                }
+            });
+        }
+        UvMode::Inherit => {}
+    }
 }
 
 fn draw_sky_mode(ui: &mut egui::Ui, material: &mut MaterialResource) {

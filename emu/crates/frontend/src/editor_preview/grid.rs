@@ -12,9 +12,11 @@
 
 use super::*;
 
-use psxed_project::grid::faces::{cell_faces, GridFace};
+use psxed_project::grid::faces::{cell_faces_with, GridFace};
 use psxed_project::grid::light::bake_face_corners;
-use psxed_project::grid::plane_faces::plane_faces;
+use psxed_project::grid::plane_faces::plane_faces_with;
+use psxed_project::grid::uv::ProjectUvDefaults;
+use psxed_project::grid::uv_split;
 use psxed_project::grid::{GridRoom, GridSector, GridWorld, SECTOR_UNITS};
 
 /// Editor-space bounds of one sector, from its lowest to highest geometry.
@@ -107,6 +109,28 @@ fn emit_grid_face(
     emit_uv_polygon(scratch, camera, shade, &vertices, &texels, Some(&colors));
 }
 
+/// Emit `face`, cut at the texture tile boundaries the way the cook cuts
+/// it, so the preview shows what a Play build draws.
+#[allow(clippy::too_many_arguments)]
+fn emit_cut_face(
+    project: &ProjectDocument,
+    textures: &EditorTextures,
+    camera: psx_engine::WorldCamera,
+    scale: psxed_project::grid::GridScale,
+    face: &GridFace,
+    ambient: [u8; 3],
+    lights: &[psxed_project::grid::light::GridLight],
+    scratch: &mut PreviewScratch,
+) {
+    if uv_split::wants_split(face) {
+        for piece in uv_split::split(face, scale) {
+            emit_grid_face(project, textures, camera, &piece, ambient, lights, scratch);
+        }
+    } else {
+        emit_grid_face(project, textures, camera, face, ambient, lights, scratch);
+    }
+}
+
 /// Draw the active scene's grid world, if it has one.
 pub(super) fn walk_grid(
     project: &ProjectDocument,
@@ -118,6 +142,7 @@ pub(super) fn walk_grid(
         return;
     };
     let lights = collect_grid_bake_lights(project);
+    let defaults = ProjectUvDefaults(project);
     // Rooms the author hid in the Rooms panel; a view setting the workspace
     // publishes, since the preview only sees the project.
     let hidden = psxed_ui::grid_preview_hidden_rooms();
@@ -140,12 +165,13 @@ pub(super) fn walk_grid(
                 continue;
             }
             faces.clear();
-            cell_faces(world, room_index, x, z, &mut faces);
+            cell_faces_with(world, &defaults, room_index, x, z, &mut faces);
             for face in &faces {
-                emit_grid_face(
+                emit_cut_face(
                     project,
                     textures,
                     camera,
+                    world.scale,
                     face,
                     room.ambient,
                     &lights,
@@ -165,12 +191,13 @@ pub(super) fn walk_grid(
                 continue;
             }
             faces.clear();
-            plane_faces(world, room_index, index, &mut faces);
+            plane_faces_with(world, &defaults, room_index, index, &mut faces);
             for face in &faces {
-                emit_grid_face(
+                emit_cut_face(
                     project,
                     textures,
                     camera,
+                    world.scale,
                     face,
                     room.ambient,
                     &lights,

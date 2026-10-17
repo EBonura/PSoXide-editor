@@ -56,9 +56,16 @@ impl GridPointer {
         self.modifiers.command || self.modifiers.ctrl
     }
 
-    /// Whether Alt is held.
+    /// Whether Alt is held: the fine snap (64 units) of the one snap rule.
     pub fn alt(&self) -> bool {
         self.modifiers.alt
+    }
+
+    /// Whether Shift+Alt is held: free movement, where a tool can place
+    /// things off the lattice (planes, nodes). Heights stay on the 64 unit
+    /// lattice.
+    pub fn free(&self) -> bool {
+        self.modifiers.alt && self.modifiers.shift
     }
 }
 

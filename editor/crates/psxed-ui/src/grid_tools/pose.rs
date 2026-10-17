@@ -12,7 +12,8 @@
 //! * `room=N` the active room; `hide=N` hides room N
 //! * `help` opens the key help overlay
 //! * `select=cells:x0,z0:x1,z1`, `select=floors:...`, `select=ceilings:...`,
-//!   `select=walls:...`, `select=vertex:x,z,corner`, `select=edge:x,z,edge`,
+//!   `select=walls:...`, `select=derived:...` (the derived walls hosted by
+//!   those sectors), `select=vertex:x,z,corner`, `select=edge:x,z,edge`,
 //!   `select=plane:i[,j...]` planes of the active room by index
 //! * `hover=plane:i` a plane under the pointer
 //! * `rect=floor|ceiling:x0,z0:x1,z1[:clicks][:erase]`
@@ -274,6 +275,19 @@ impl EditorWorkspace {
                         "cells" => {
                             if !faces.is_empty() {
                                 picked.push(GridElement::Cell { room, cell: c });
+                            }
+                        }
+                        "derived" => {
+                            if let Some(r) = world.rooms.get(room) {
+                                picked.extend(
+                                    psxed_project::grid::derive::cell_walls(r, c)
+                                        .into_iter()
+                                        .map(|w| {
+                                            GridElement::Face(FaceRef::derived(
+                                                room, c, w.edge, w.kind,
+                                            ))
+                                        }),
+                                );
                             }
                         }
                         "floors" | "ceilings" | "walls" => {

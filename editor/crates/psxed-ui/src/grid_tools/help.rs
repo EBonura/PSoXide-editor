@@ -58,7 +58,7 @@ const PLANE: Rows = &[
         "Drag the body",
         "Slide in the plane; Shift moves it up and down",
     ),
-    ("Ctrl/Cmd, Alt", "Fine snap (64 units), free movement"),
+    ("Alt, Shift+Alt", "Fine snap (64 units), free movement"),
     ("R", "Quarter turn"),
     ("PgUp / PgDn, ] / [", "Nudge up or down a click"),
     (
@@ -90,7 +90,7 @@ const OTHER: Rows = &[
     ("Split (D)", "Click a floor or ceiling to flip its diagonal"),
     (
         "Place (O)",
-        "Click to put the chosen node at a sector centre; Alt for free placement",
+        "Click to put the chosen node at a sector centre; Alt for the fine lattice, Shift+Alt for free placement",
     ),
     (
         "Ctrl/Cmd+C, V",
@@ -100,6 +100,12 @@ const OTHER: Rows = &[
         "H, V, R while pasting",
         "Flip horizontally, flip vertically, turn",
     ),
+];
+const SNAP: Rows = &[
+    ("Alt", "Fine snap: 64 units (every tool, planes included)"),
+    ("Shift+Alt", "Free movement where a tool can leave the lattice (planes, Place)"),
+    ("U S A T B K I E Y", "Reserved for the level verbs: Raise, Sculpt, Ramp, Stairs, Room, Corridor, Opening, Bands, Stamps"),
+    ("Alt+W, Alt+P", "Reserved for the walkability and performance overlays"),
 ];
 const VIEW: Rows = &[
     ("Middle or right drag", "Orbit the 3D camera"),
@@ -139,7 +145,7 @@ impl EditorWorkspace {
             return;
         }
         let mut open = true;
-        let sections: [(&str, Rows); 8] = [
+        let sections: [(&str, Rows); 9] = [
             ("Select (V)", SELECT),
             ("Floor (F) and Ceiling (C)", FLOOR),
             ("Wall (W)", WALL),
@@ -147,6 +153,7 @@ impl EditorWorkspace {
             ("Height (H)", HEIGHT),
             ("Paint (P)", PAINT),
             ("More", OTHER),
+            ("Snapping and reserved keys", SNAP),
             ("Camera and project", VIEW),
         ];
         egui::Window::new("Grid editor keys")
@@ -162,10 +169,10 @@ impl EditorWorkspace {
                         .color(STUDIO_TEXT_WEAK),
                 );
                 ui.add_space(4.0);
-                // Two columns of sections: the first four on the left.
+                // Two columns of sections: the first five on the left.
                 ui.columns(2, |columns| {
                     for (index, (title, rows)) in sections.iter().enumerate() {
-                        let ui = &mut columns[usize::from(index >= 4)];
+                        let ui = &mut columns[usize::from(index >= 5)];
                         ui.add_space(4.0);
                         ui.label(RichText::new(*title).strong().color(STUDIO_TEXT));
                         egui::Grid::new(format!("grid_help_{title}"))

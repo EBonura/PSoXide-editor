@@ -11,7 +11,7 @@ use super::*;
 
 use psxed_project::grid::edit::{update_plane, UvOp};
 use psxed_project::grid::plane::{MAX_PLANE_SIZE, MIN_PLANE_SIZE};
-use psxed_project::grid::{PlaneShape, PlaneUvMode};
+use psxed_project::grid::PlaneShape;
 
 /// What a plane with this collision class does at runtime, for the label.
 pub(super) fn collision_summary(plane: &GridPlane) -> String {
@@ -170,59 +170,25 @@ impl EditorWorkspace {
                         .size(10.5)
                         .color(STUDIO_TEXT_WEAK),
                 );
-                ui.horizontal(|ui| {
-                    ui.label("Mapping");
-                    for (mode, label) in [(PlaneUvMode::Tile, "Tile"), (PlaneUvMode::Stretch, "Stretch")] {
-                        if ui.selectable_label(edited.uv_mode == mode, label).clicked() {
-                            edited.uv_mode = mode;
-                        }
-                    }
-                });
-                let mut uv = edited.uv;
-                ui.horizontal(|ui| {
-                    ui.label("Offset");
-                    ui.add(egui::DragValue::new(&mut uv.offset_texels[0]).speed(0.25));
-                    ui.add(egui::DragValue::new(&mut uv.offset_texels[1]).speed(0.25));
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Scale ");
-                    let mut su = f32::from(uv.scale_q8[0]) / 256.0;
-                    let mut sv = f32::from(uv.scale_q8[1]) / 256.0;
-                    let a = ui
-                        .add(egui::DragValue::new(&mut su).speed(0.01).max_decimals(2))
-                        .changed();
-                    let b = ui
-                        .add(egui::DragValue::new(&mut sv).speed(0.01).max_decimals(2))
-                        .changed();
-                    if a || b {
-                        uv.scale_q8 = [(su * 256.0).round() as i16, (sv * 256.0).round() as i16];
-                    }
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Angle");
-                    ui.add(
-                        egui::DragValue::new(&mut uv.rotation_deg)
-                            .speed(1.0)
-                            .suffix(" deg"),
-                    );
-                });
-                if uv != edited.uv {
-                    ops.push(UvOp::SetOffset(uv.offset_texels));
-                    ops.push(UvOp::SetScale(uv.scale_q8));
-                    ops.push(UvOp::SetRotation(uv.rotation_deg));
-                }
-                ui.horizontal_wrapped(|ui| {
-                    for (label, op) in [
-                        ("Flip U", UvOp::FlipU),
-                        ("Flip V", UvOp::FlipV),
-                        ("Rotate 90", UvOp::Rotate90),
-                        ("Reset", UvOp::Reset),
-                    ] {
-                        if ui.button(label).clicked() {
-                            ops.push(op);
-                        }
-                    }
-                });
+                let uv = edited.uv;
+                let shown = psxed_project::face_uv::FaceUv {
+                    mode: psxed_project::grid::plane_faces::effective_mode(&edited),
+                    ..uv
+                };
+                let report = psxed_project::grid::uv::report(
+                    &shown,
+                    None,
+                    [0.0, 0.0],
+                    edited.size.map(f64::from),
+                );
+                let mut mapping = edited.uv_mode;
+                ops.extend(super::tiling_panel::draw_tiling(
+                    ui,
+                    uv,
+                    Some(report),
+                    Some(&mut mapping),
+                ));
+                edited.uv_mode = mapping;
                 ui.separator();
                 ui.checkbox(&mut edited.double_sided, "Both sides")
                     .on_hover_text("Draw the back too (banners, grates, foliage)");
@@ -240,6 +206,26 @@ impl EditorWorkspace {
                             }
                         });
                 });
+                ui.horizontal(|ui| {
+                    ui.label("Camera");
+                    let label = match edited.camera_pass {
+                        None => "automatic",
+                        Some(true) => "passes through",
+                        Some(false) => "blocks",
+                    };
+                    egui::ComboBox::from_id_salt("plane_camera_pass")
+                        .selected_text(label)
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut edited.camera_pass, None, "automatic")
+                                .on_hover_text(
+                                    "Passes through a translucent or alpha-cut material, blocks otherwise",
+                                );
+                            ui.selectable_value(&mut edited.camera_pass, Some(true), "passes through");
+                            ui.selectable_value(&mut edited.camera_pass, Some(false), "blocks");
+                        });
+                })
+                .response
+                .on_hover_text("Whether the third-person camera arm goes through this plane. The character collides with it either way.");
                 ui.separator();
                 if ui.button(icons::label(icons::TRASH, "Delete plane")).clicked() {
                     delete = true;
@@ -257,7 +243,8 @@ impl EditorWorkspace {
             || edited.double_sided != original.double_sided
             || edited.fullbright != original.fullbright
             || edited.enabled != original.enabled
-            || edited.collision != original.collision;
+            || edited.collision != original.collision
+            || edited.camera_pass != original.camera_pass;
         if !transform_changed && !shared_changed && ops.is_empty() {
             return;
         }
@@ -277,6 +264,7 @@ impl EditorWorkspace {
                         p.fullbright = edited.fullbright;
                         p.enabled = edited.enabled;
                         p.collision = edited.collision;
+                        p.camera_pass = edited.camera_pass;
                     }
                     for op in &ops {
                         op.apply(&mut p.uv);

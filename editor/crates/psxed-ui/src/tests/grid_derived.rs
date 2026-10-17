@@ -15,6 +15,10 @@ fn ground(rig: &GridRig, x: f32, z: f32, y: f32) -> Pos2 {
 }
 
 /// `flat_project` with its room switched to derived walls.
+pub(super) fn derived_project_for_tiling(width: usize, depth: usize) -> ProjectDocument {
+    derived_project(width, depth)
+}
+
 fn derived_project(width: usize, depth: usize) -> ProjectDocument {
     let mut project = flat_project(width, depth, true);
     project.active_scene_mut().world.grid_mut().unwrap().rooms[0].wall_mode = WallMode::Derived;
