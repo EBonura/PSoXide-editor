@@ -467,6 +467,100 @@ mod tests {
         assert!(split_matters(&sector));
     }
 
+    /// Every shape a Top view draw of `world` produced.
+    fn top_shapes(world: &GridWorld) -> Vec<egui::epaint::Shape> {
+        let ctx = egui::Context::default();
+        let hidden = HashSet::new();
+        let view = GridRoomView {
+            hidden: &hidden,
+            active: None,
+        };
+        let output = ctx.run(
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 800.0))),
+                ..egui::RawInput::default()
+            },
+            |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    let rect = ui.max_rect();
+                    let transform = ViewportTransform::from_focus(
+                        rect,
+                        OrthographicView::Top,
+                        [2048.0, 2048.0],
+                        0.2,
+                    );
+                    draw_grid_world(ui.painter(), transform, world, false, &view);
+                });
+            },
+        );
+        output.shapes.into_iter().map(|s| s.shape).collect()
+    }
+
+    fn cracked_world() -> GridWorld {
+        let mut world = GridWorld::new();
+        let mut room = GridRoom::new("r", 3, 3);
+        room.wall_mode = psxed_project::grid::WallMode::Derived;
+        for z in 0..3 {
+            for x in 0..3 {
+                room.sector_or_insert(x, z).unwrap().floor = Some(GridSurface::flat(0, None));
+            }
+        }
+        let cell = room.sector_or_insert(1, 1).unwrap().floor.as_mut().unwrap();
+        cell.heights_b = Some([512; 4]);
+        cell.split = GridSplit::NwSe;
+        world.rooms.push(room);
+        world
+    }
+
+    #[test]
+    fn a_derived_diagonal_face_is_drawn_as_a_diagonal_line_in_the_wall_colour() {
+        let shapes = top_shapes(&cracked_world());
+        let diagonal = shapes.iter().any(|s| match s {
+            egui::epaint::Shape::LineSegment { points, stroke } => {
+                stroke.color == WALL_DERIVED
+                    && (points[1].x - points[0].x).abs() > 4.0
+                    && ((points[1].x - points[0].x).abs() - (points[1].y - points[0].y).abs()).abs()
+                        < 0.5
+            }
+            _ => false,
+        });
+        assert!(
+            diagonal,
+            "no diagonal derived wall line in {} shapes",
+            shapes.len()
+        );
+    }
+
+    #[test]
+    fn a_void_triangle_is_darkened_and_hatched() {
+        let mut world = cracked_world();
+        let surface = world.rooms[0]
+            .sector_mut(1, 1)
+            .unwrap()
+            .floor
+            .as_mut()
+            .unwrap();
+        surface.heights_b = None;
+        surface.void = psxed_project::grid::surface::VOID_B;
+        let shapes = top_shapes(&world);
+        let tint = Color32::from_rgba_unmultiplied(8, 10, 14, 175);
+        let darkened = shapes.iter().any(|s| match s {
+            egui::epaint::Shape::Path(p) => p.fill == tint,
+            _ => false,
+        });
+        assert!(darkened, "no void triangle fill");
+        let hatch = shapes
+            .iter()
+            .filter(|s| matches!(s, egui::epaint::Shape::LineSegment { stroke, .. } if stroke.color == VOID_HATCH))
+            .count();
+        assert_eq!(hatch, 2);
+        // The sector next door is not hatched or darkened.
+        let plain = top_shapes(&cracked_world());
+        assert!(!plain
+            .iter()
+            .any(|s| matches!(s, egui::epaint::Shape::Path(p) if p.fill == tint)));
+    }
+
     #[test]
     fn sector_rect_follows_the_scale_and_the_view_orientation() {
         let mut world = GridWorld::new();

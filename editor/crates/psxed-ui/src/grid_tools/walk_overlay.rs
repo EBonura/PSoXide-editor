@@ -50,6 +50,19 @@ fn edge_ends(world: &GridWorld, cell: [i32; 2], edge: WallEdge) -> [[f32; 2]; 2]
     [at(a), at(b)]
 }
 
+/// The two floor corner indices (`[NW, NE, SE, SW]`) an edge joins: a side
+/// of the sector, or its diagonal for a fold between the triangles.
+fn corner_pair(edge: WallEdge) -> [usize; 2] {
+    match edge {
+        WallEdge::North => [0, 1],
+        WallEdge::East => [1, 2],
+        WallEdge::South => [3, 2],
+        WallEdge::West => [0, 3],
+        WallEdge::Nwse => [0, 2],
+        WallEdge::Nesw => [1, 3],
+    }
+}
+
 fn legend_rows(run: &WalkRun) -> Vec<(Color32, String)> {
     let a = &run.analysis;
     let c = a.counts();
@@ -312,14 +325,7 @@ impl EditorWorkspace {
                 continue;
             }
             let pts = floor_points(world, edge.room, edge.cell);
-            let pair = match edge.edge {
-                WallEdge::North => [0, 1],
-                WallEdge::East => [1, 2],
-                WallEdge::South => [3, 2],
-                WallEdge::West => [0, 3],
-                WallEdge::Nwse => [0, 2],
-                WallEdge::Nesw => [1, 3],
-            };
+            let pair = corner_pair(edge.edge);
             let lift = |p: [f32; 3]| [p[0], p[1] + 10.0, p[2]];
             let (a, b) = (lift(pts[pair[0]]), lift(pts[pair[1]]));
             match edge.kind {
@@ -347,5 +353,29 @@ impl EditorWorkspace {
             &legend_rows(&run),
             &Self::walk_foot(&run),
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use psxed_project::grid::GridScale;
+
+    #[test]
+    fn a_diagonal_edge_flag_is_drawn_corner_to_corner_in_both_views() {
+        assert_eq!(corner_pair(WallEdge::Nwse), [0, 2]);
+        assert_eq!(corner_pair(WallEdge::Nesw), [1, 3]);
+        assert_eq!(corner_pair(WallEdge::West), [0, 3]);
+        let world = GridWorld {
+            scale: GridScale { num: 1, den: 1 },
+            ..GridWorld::default()
+        };
+        // Top view: the plan ends of the NW to SE diagonal of sector (2, 1).
+        let [a, b] = edge_ends(&world, [2, 1], WallEdge::Nwse);
+        assert_eq!(a, [2.0 * 1024.0, 1024.0]);
+        assert_eq!(b, [3.0 * 1024.0, 2.0 * 1024.0]);
+        let [a, b] = edge_ends(&world, [2, 1], WallEdge::Nesw);
+        assert_eq!(a, [3.0 * 1024.0, 1024.0]);
+        assert_eq!(b, [2.0 * 1024.0, 2.0 * 1024.0]);
     }
 }
