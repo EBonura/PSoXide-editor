@@ -461,3 +461,22 @@ All go into the existing hardware-tests suite, in the single linear run, never a
 - Animation compression has landed: commit 949ad78a ("Pack animation clips into keyed tracks inside a vertex-space error budget", in origin/main and grid/main) took Graybox Reach resident clips from 487,872 B to 305,976 B. No separate mesh compression commit was found. Archetypes stay resident in v1.
 - Taken on the recommendations above: automatic unit planner with hints; keep the collision wall plus a red counter when the guarantee fails, no speed governor; hook targets in non-resident units unselectable; slow doors and lifts allowed as ordinary design only; combat-radius music with XA yield first, SPU loop fallback; 255 world materials and 64 VRAM slots for now with a pinned common set; hk-psx and cs-psx moved to the SDK transport separately; console measurements batched after the first host-side planner phase.
 - The CONFLICT items in section 4 are fixed as their own phase right after the natural-terrain N1 to N4 block, together with the format bump T10 needs.
+
+## Stream-ready phase: result (2026-10-17, branch `grid/stream-ready`)
+
+The CONFLICT items of section 4, fixed together with the format bump (version 4, documented in `level-format-and-runtime.md` section 9.4c; T10 extends it). No streaming code exists; rooms are still all loaded at boot, through the new resident-set API.
+
+| Item | Resolution |
+|---|---|
+| 4 caps | `MAX_ROOMS` 256 became the format's room id limit (65,534); `ROOM_SET_WORDS` and `TooManyRooms` are gone from the guest; `MAX_WORLD_FACES` became the per-room `MAX_ROOM_FACES`; `POOL_PAGE_CAP` became `MAX_ROOM_PAGES` (255 per room, `max_room_pages` u8 in the core) plus an advisory above 512 total pages. The 255 world materials and the editor extent stay, knowingly; `Quad.material` now indexes the room's own `MATERIAL_USE`, so the table can become per-unit later. |
+| 5 mover id | `Mover.stable` ([u16; 2], from `MoverId::from_name`), not `room << 8 | local`. |
+| 6 stable ids | `psx_level::StableId` (FNV-1a of the authored node or name): spawns and logic records (`GAME_ENTITY_IDS`, `LOGIC_IDS`, collision is a cook error), checkpoints from their authored id, saves v3 (checkpoint stable id and a world pose, no indices; v2 loads). Entity slots carry a spawn id and a dormant table keeps kills across a room leaving. |
+| 12, 13 collision and views | `ResidentRooms` (slot storage, add/remove, epoch); `GridCollision` is a few-word view built from it. The world lattice in the core replaces every loop over all rooms in `scan_column`, `point_blocked`, `locate`, `contents_at` and the ray walks. `GridCollision::new` is gone; nothing scans rooms at construction; flags are kept incrementally. Non-resident rooms are still solid boxes (tests kept, plus lattice-versus-all-rooms equivalence and load/evict tests). |
+| 14 frustum | `FrustumPlanes::at_eye` plus `cull_world_aabb`: eye-relative boxes, no world `i16` clamp; invariant under a 100,000 unit translation (test). |
+| 15 activation | Walk distance over the portal graph (`WalkSet`, `RoomActivity`) from the camera (draw set) and the player and camera (activation), radii in sectors from the core; `resident_hops` and `prefetch_hops` replaced by `draw_far`, `active_radius`, `lead_radius`. |
+| 16 draw bound | Per-level `GridWorld.stream` (defaults 48 / 32 / 8 sectors, MCP `grid_set_stream`); the room-level bound is the walk radius. `far_world` is left off because it only fades colour. |
+| 17 scratch | `GridRenderer::with_maxima` from the core; an oversize room is refused and counted. |
+| 18 materials | Per-room binding and ready flag; no global latch or resolve; `MATERIAL_USE` is now what the room's quads index (so it cannot disagree with them). |
+| 21 entities | Slot ownership with stable ids (`spawn_slot`, `release_slot`); the active set (`MAX_ENTITIES`) is a pool size, not a world limit. The playtest still spawns global record `i` into slot `i` at boot, and the entity queries keep their 64 bit masks (the pool size). |
+
+Left for the streaming phase: the disc streamer and `GridHost`, the unit planner, per-unit spawn sections (`SPAWNS`) and the playtest reading entities from them, texture packs out of the EXE, material ids per unit, the combat scope and music gate, and a lattice paged beyond about 2,000 rooms.

@@ -3,8 +3,8 @@
 Status (2026-10-17): phases 0 to 4 and the container half of phase 5 are built on `grid/format-runtime`. The format (`engine/crates/psx-grid/src/format.rs`), the cook (`editor/crates/psxed-project/src/grid/cook/`), the renderer (`psx-grid/src/render/`), the native collision (`psx-grid/src/collision/`) and `GridRuntime` (`engine/examples/editor-playtest/src/grid_runtime.rs`) exist and Play uses them for grid worlds with no PXBSP data at all. Differences from the text below, all deliberate:
 
 * `Quad.d` is the plane constant of the normal dotted with a corner shifted right by 7, as designed. Quads, vertices and cells are exactly the designed records (40, 8, 8 bytes).
-* Room chunks sit in one resident blob laid out like `WORLD.PAK` (each chunk on a 2048-byte boundary, `pack_sector` the sector offset inside the blob). The guest reads the blob in place; streaming the chunks off the disc and the page-pool latches are not built, so `pool_pages` is the whole level and the cook refuses a level above 512 pages.
-* Portals are derived (side by side and stacked) and drive activation (`ACTIVE_HOPS` rings). The portal-clipper visibility traversal of 7.2 is not ported: rooms in the camera room's ring that touch the frustum are drawn and the per-cell cull does the rest.
+* Room chunks sit in one resident blob laid out like `WORLD.PAK` (each chunk on a 2048-byte boundary, `pack_sector` the sector offset inside the blob). The guest reads the blob in place; streaming the chunks off the disc and the page-pool latches are not built. Since version 4 (section 9.4c) the guest holds the rooms in a **resident set** it can add to and remove from at any time, the core carries the largest chunk (`max_room_pages`) and no whole-level page total, and the cook caps a room, not the level (it only warns when the all-resident total may not link).
+* Portals are derived (side by side and stacked) and drive activation and the draw set by **walk distance** over the portal graph, in sectors from the core (`draw_far`, `active_radius`), not hop rings. The portal-clipper visibility traversal of 7.2 is not ported: resident rooms within the draw distance that touch the frustum are drawn and the per-cell cull does the rest.
 * The distance LOD of 4.8 is built: the cook merges horizontal quads of 4x4 blocks, the renderer draws them under the material's texture window beyond `LOD_FAR_CELLS` sectors.
 * Movers and liquids have their records in the format and no producer yet (the grid document has no door or liquid objects). Free planes are built end to end (section 9 below, with the differences listed there).
 
@@ -139,23 +139,31 @@ Everything in the format is **string-free**: names, texture paths and node names
 
 Offsets in bytes. Fixed order, tables follow the header back to back, each count in the header.
 
-`LevelHeader`, 32 bytes:
+`LevelHeader`, 52 bytes (version 4; the version 3 layout was 32 bytes with `pool_pages` and two hop counts, see 9.4c):
 
 | Off | Size | Field | Meaning |
 |---|---|---|---|
 | 0 | 4 | `magic` | `"PGL1"` |
-| 4 | 2 | `version` u16 | 1 |
-| 6 | 2 | `min_reader` u16 | 1 |
+| 4 | 2 | `version` u16 | 4 |
+| 6 | 2 | `min_reader` u16 | 4 |
 | 8 | 4 | `flags` u32 | bit 0 has sky, bit 1 has liquids, bit 2 has free planes, bit 3 has movers |
-| 12 | 2 | `room_count` u16 | |
+| 12 | 2 | `room_count` u16 | at most `psx_grid::MAX_ROOMS` (65,534) |
 | 14 | 2 | `portal_count` u16 | |
-| 16 | 2 | `material_count` u16 | |
-| 18 | 2 | `sector_units` u16 | S, runtime units per sector |
-| 20 | 2 | `pool_pages` u16 | worst-case resident 2 KiB pages for the declared radius (cook computes, hard error above the platform cap) |
-| 22 | 1 | `resident_hops` u8 | rooms within this many portal hops of the player room stay pinned |
-| 23 | 1 | `prefetch_hops` u8 | additional hops prefetched, evictable |
-| 24 | 4 | reserved | zero |
-| 28 | 4 | `layout_hash` u32 | see 3.2 |
+| 16 | 1 | `sector_units` u8 | S, runtime units per sector |
+| 17 | 1 | `material_count` u8 | at most 255 |
+| 18 | 1 | `max_room_pages` u8 | pages (2 KiB) of the largest room chunk |
+| 19 | 1 | `draw_far` u8 | draw distance, sectors of walk distance, 0 unbounded |
+| 20 | 1 | `active_radius` u8 | entity activation radius, sectors |
+| 21 | 1 | `lead_radius` u8 | prefetch radius beyond `draw_far`, sectors |
+| 22 | 1 | `lattice_shift` u8 | log2 of the lattice cell edge, runtime units |
+| 23 | 1 | reserved | zero |
+| 24 | 8 | `lattice_origin` [i32; 2] | world X, Z of cell (0, 0) |
+| 32 | 4 | `lattice_cells` [u16; 2] | cells along X and Z |
+| 36 | 2 | `lattice_refs` u16 | entries in the lattice room list |
+| 38 | 10 | `max_vertices`, `max_cells`, `max_quads`, `max_lod_blocks`, `max_lod_quads` u16 | renderer scratch maxima over all rooms |
+| 48 | 4 | `layout_hash` u32 | see 3.2 |
+
+After the material table: `lattice_start` (u16, `cells x * cells z + 1` row starts) and `lattice_rooms` (u16, `lattice_refs` room ids).
 
 `RoomRecord`, 40 bytes, `room_count` of them:
 
@@ -601,7 +609,7 @@ Reuse, do not rebuild:
 * Prefetch order: `room_graph_ring` (6.1).
 * Install: the region installer's per-sector FNV and relocation (`region_stream.rs` header) is for PXBSP; the grid needs **no relocation** (offsets are chunk relative), only the checksum, accumulated per landed sector so the work per pump stays bounded by the sector budget (byte-wise FNV-1a over 2048 bytes is not free, and I have not measured it on the R3000), and, when the render block is complete, texture upload requests through the VRAM owner and a drawable latch.
 * Music: CD-DA dies on any data read and a music/data switch costs about a second each way on silicon **[measured, memory `silicon-v128-cdstream`: T_pause 123 ms, first data sector after audio about 945 ms, resume about 1.0 s]**. The scheduler must expose "streaming suspended" so the combat-radius music rule (memory `cortex-streaming-requirements`) can hold it, which also means prefetch has to finish before combat begins. This is a scheduler input, not a format feature.
-* One cap for cook and runtime: `LevelHeader.pool_pages` is computed by the cook as the worst-case pinned-plus-prefetch ring and is a hard error above the platform cap. That is the lesson of the old streamer, whose cook allowed chunks the runtime silently refused (archaeology section 5 item 5).
+* One cap for cook and runtime: `LevelHeader.max_room_pages` (version 4) is the largest chunk in pages and a hard error above 255; the cook computes it, the runtime reads it, so neither can drift (the lesson of the old streamer, whose cook allowed chunks the runtime silently refused, archaeology section 5 item 5). The whole-level total (`pool_pages` of version 3) is gone: only the rooms around the player are resident.
 
 Read time for the Cathedral chunk, **[derived]**: 53 sectors (7.4) at the measured 151.4 sectors/s at 2x (memory `silicon-v128-cdstream`) is about 0.35 s of transfer, plus seek, which I did not find measured for this pattern. The Cathedral is one room and would simply be pinned.
 
@@ -629,7 +637,7 @@ For scale against the BSP: the generated directory in this worktree currently ho
 
 Per-frame scratch is **not** per room and does not stream: the prototype's `GridRenderer` holds, per vertex, a 2-byte stamp, an 8-byte screen entry and a 2-byte work slot, plus 2 bytes per cell and per quad for the queues (`grid.rs:351-380`, `working_bytes`). For the Cathedral that is 22,596 + 1,716 + 3,436 = 27,748 B **[derived]**. It is sized for the **largest room in the level** and reused across rooms (bump a stamp epoch between rooms), so the scratch cost does not scale with the resident set.
 
-Resident set: `pool_pages * 2048` for chunks (cook-computed), plus the level core, plus scratch for the largest room. Cortex RAM is nearly full (memory `cortex-guest-heap-headroom`, 2026-09-04: heap about 20 KB on the shipping feature set), though Manny dropped the fixed 16 KB free-RAM floor on 2026-10-10 (memory `ram-floor-dropped`) and only a real stack/heap safety check remains.
+Resident set: the chunks of the rooms inside the draw distance and the lead radius (the pool a streamer sizes against `max_room_pages`; in the all-resident build every chunk), plus the level core and its lattice, plus scratch for the largest room (sized from the core's maxima). Cortex RAM is nearly full (memory `cortex-guest-heap-headroom`, 2026-09-04: heap about 20 KB on the shipping feature set), though Manny dropped the fixed 16 KB free-RAM floor on 2026-10-10 (memory `ram-floor-dropped`) and only a real stack/heap safety check remains.
 
 ---
 
@@ -812,3 +820,42 @@ The honest reading: world rendering is not what keeps Cortex under 30 fps in the
 * **Scale rounding.** Fine-snapped heights round at cook (2.2). Low risk, but the editor must show the rounded value or authors will be confused.
 * **Shared-crate coupling.** `psx-engine` is consumed by hl-psx and quake-psx via a pinned revision; any change to it on `grid/main` stays safe only while they keep pinning. Do not merge `grid/main` into `main` wholesale (deletion review).
 * **Materialized upstreams.** The SDK repo owns `.psxw` and `mkisopsx`; the emulator repo owns the frontend files that call editor symbols. Changes there need a revision bump in `components.lock.json`.
+
+### 9.4c Format version 4: streaming-ready (2026-10-17)
+
+The CONFLICT items of `streaming-design.md` section 4, fixed as their own phase so the first streamer can load and evict rooms independently. No streaming code exists; the rooms are still all loaded at boot. `VERSION` and `MIN_READER` are 4 (T10 extends this version instead of bumping again); a version 3 file is refused with a message that says to cook again. Golden bytes: `psx-grid/tests/fixtures/pgl_v4_*.bin`.
+
+**Record changes and their widths** (fewest-bits rule, `compact-format.md` section 2: "min" is the bits the measured range needs, "chosen" what the record stores):
+
+| Field | v3 | v4 chosen | min | Why |
+|---|---|---|---|---|
+| `LevelHeader.sector_units` | u16 | u8 (8) | 8 | 1 to 255 |
+| `LevelHeader.material_count` | u16 | u8 (8) | 8 | 255 world materials (`Quad.material` decision) |
+| `pool_pages` (whole level) | u16 | gone | | replaced by |
+| `max_room_pages` | | u8 (8) | 6 for a 16 sector unit (<= 64 pages), 8 for the Cathedral (55 pages) | the biggest pool run one room needs; cap 255 |
+| `resident_hops`, `prefetch_hops` | u8, u8, read by nothing | gone | | replaced by |
+| `draw_far`, `active_radius`, `lead_radius` | | u8, u8, u8 (24) | 6 each at S = 80 for 48 / 32 / 8 | sectors of walk distance; read once at init, byte loads |
+| `lattice_*` | | origin 2 x i32, cells 2 x u16, refs u16, shift u8 | origin 17 each (extent +-32,767 plus the dilation) | the world index below |
+| `max_vertices`, `max_cells`, `max_quads`, `max_lod_blocks`, `max_lod_quads` | | 5 x u16 | 11 to 16 per level | renderer scratch before any chunk is resident |
+| `Quad.material` | u8 level material id | u8 index into the room's `MATERIAL_USE` | 3 for the Cathedral (6 materials), <= 8 | the room's own table is the indirection; a unit can bind and evict its materials alone, and per-unit widths come with the compact codec |
+| `Mover.reserved[6]` | | `stable` [u16; 2] + reserved u16 | 32 (a hash) | stable global id, not `room << 8 \| local`; the record is still 32 bytes |
+| save block | checkpoint u16 (a logic record index), saved room u16 | checkpoint u32 stable id, no room, pose flag | 32 | saves must survive recooks and room cuts |
+
+Header 32 B to 52 B; the Cathedral core goes from 120 B to the size printed in the cook report (the lattice is two cells, six u16 and a few more). Per-level scratch and lattice costs are measured in the stream-ready report (`docs/grid/streaming-design.md`, last section).
+
+**World lattice** (`psx-grid/src/lattice.rs`). The cook writes a coarse plan grid over the room footprints into the core: cells of `1 << lattice_shift` runtime units (the smallest power of two keeping `max(16, 2 * rooms)` cells), each listing, in ascending order, the rooms whose footprint **dilated by two sectors** touches it. A body is at most one sector in radius, so the list of the one cell holding a body's centre names every room the body can touch: `scan_column`, `point_blocked`, `locate` and `contents_at` read one cell and walk its (few) rooms, never the directory. Rays and line of sight walk the cells of their plan box with a small iterator (a room is yielded in the first cell of its overlap, so once). A world of at most `SMALL_WORLD_ROOMS` (4) rooms skips the lattice and walks them all, exactly the loop the reference levels always ran. The lattice is built from the room records, so it covers rooms that are not resident, which is how a missing room still stands in as a solid box. Cost on the R3000 (estimate): a lattice lookup is a subtract, a shift, two compares and three loads (the row start, the next row start, the first id); the small-world path costs what it did.
+
+**Resident set** (`psx-grid/src/resident.rs`). `ResidentRooms` holds the rooms in memory: slot indexed storage (room to slot to views) with a per-room table of collision block pointers so the collision lookup is one load and a null check, `insert` and `insert_collision` (a room whose collision block alone has landed), `remove`, `contains`, `room_view`, an `epoch` that changes on every change so caches know to refresh, and a capacity. `collision()` returns a `GridCollision` for the rooms resident now and costs a few copied words, so a caller builds it as often as it likes. **A room that is not resident is a solid box over its footprint for bodies and traces and invisible to sight lines** (the behaviour of the old `None` entry, unchanged, tests kept); nothing draws, binds materials or activates entities in it. Each slot owns its room's material bindings (`RoomSlot::materials`, entry `i` for `MATERIAL_USE[i]`) and a ready flag: a room is drawn when its materials are, never before. The guest's `GridRuntime::add_room` / `remove_room` wrap it; `refresh_materials` binds every pending room, resolving each level material once in level order (the order of the upload queue and of VRAM slots, which is what keeps frames identical to the all-global version).
+
+**Walk distance** (`psx-grid/src/walk.rs`, `activity.rs`). Hops stop meaning distance once rooms are cut to a target size, so the draw set and entity activation are radii in sectors over the portal graph: the distance to a room is the shortest path from the start point through portal centres to a portal that opens into it. `WalkSet` is a Dijkstra with per-room and per-portal scratch cleaned by touched list, so a search costs what it reaches; it is cached per start room and sector. `RoomActivity` holds the **draw set** from the camera (`draw_far`, 0 unbounded) and two **activation sets** (`active_radius`), one around the player and one around the camera (so two observers in different places do not make each other search again), all filtered by residency. The editor's per-level setting is `GridWorld.stream` (`StreamRadii`, defaults 48 / 32 / 8 sectors, MCP `grid_set_stream`); the reference levels have one or two rooms, so the defaults only bound a world of many rooms. `far_world` of the projection stays off (it only fades colour); the bound is the room-level cull above, which is also what a streamer needs as its Need set.
+
+**Camera-relative culling** (`FrustumPlanes::at_eye`, `cull_world_aabb`). Room boxes were clamped to `i16` in world space (latent breakage past +-32,767 units from the origin). The planes are now built for a camera at the origin and a box is made eye-relative before the `i16` conversion; a test proves the answer is the same translated by 100,000 units on every axis.
+
+**Renderer scratch from the core.** `GridRenderer::with_maxima(&level.maxima())` sizes the scratch before any chunk is resident; a room whose tables outgrow it is refused and counted (`GridFrame::rooms_refused`), not drawn into memory it does not own.
+
+**Caps**: `MAX_ROOMS` is the format's room id limit (65,534, was 256), `MAX_WORLD_FACES` became `MAX_ROOM_FACES` (the same 16,383, per room: a room indexes its quads with u16), `POOL_PAGE_CAP` became `MAX_ROOM_PAGES` (255 per room) plus a warning above 512 total pages while everything is still baked into the guest. The editor extent (+-409 sectors at S = 80) and the 255 world materials stay, knowingly.
+
+**Stable ids** (`psx_level::StableId`, FNV-1a 32 of an authored identity, zero reserved for none): enemy spawns and logic records get one from their authored node (`GAME_ENTITY_IDS`, `LOGIC_IDS`, parallel to the tables, a collision is a cook error), checkpoints from their authored checkpoint id, movers from `MoverId::from_name`. The save block (version 3) stores the checkpoint's stable id and a world position, never an index or a room, so a recook that reorders or cuts rooms leaves a save valid; version 2 saves still load. `GameEntities` spawns into slots one at a time under a stable id (`spawn_slot`, `release_slot`), keeps a spawn's randomness independent of its slot, and a dormant table keyed by spawn id remembers what must outlive a room (a kill) so streaming cannot resurrect an enemy. The playtest still fills slot `i` from global record `i` at boot.
+
+**Scratchpad stack.** The collision path runs on the 1 KiB scratchpad stack whose worst call tree is proved after every link (`stack-guard`): the body trace chain measured 960 of 1004 bytes before and 992 after; keep new state out of `scan_column`, `point_blocked` and the point trace frames (a lookup that returns a plain slice, no iterator).
+
