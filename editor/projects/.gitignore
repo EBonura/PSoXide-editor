@@ -34,6 +34,10 @@
 !grid-sewers/**
 !grid-west/
 !grid-west/**
+# The sim-state gate fixture (tools/grid-simgate): three rooms in a row joined
+# by ghosted openings, the last with a one click step, the player in the first.
+!grid-gate/
+!grid-gate/**
 # The New Project template: the starter room File > New Grid Project makes.
 !grid-starter/
 !grid-starter/**
@@ -47,6 +51,7 @@ default/source_assets/**/animations/previews/
 default/source_assets/**/previews/
 **/cooked/
 **/baked/
+**/.mcp-backups/
 **/logs/
 # Emulator/editor screen grabs: working output, regenerated on demand.
 **/captures/
