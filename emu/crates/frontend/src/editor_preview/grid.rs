@@ -53,7 +53,7 @@ fn emit_grid_face(
     camera: psx_engine::WorldCamera,
     face: &GridFace,
     ambient: [u8; 3],
-    lights: &[psxed_project::brush_light::BrushPointLight],
+    lights: &[psxed_project::grid::light::GridLight],
     scratch: &mut PreviewScratch,
 ) {
     if face.points.len() > PREVIEW_FACE_VERTEX_CAP
@@ -108,7 +108,16 @@ pub(super) fn walk_grid(
     let Some(world) = project.active_scene().world.grid() else {
         return;
     };
-    let lights = collect_bsp_preview_bake_lights(project);
+    let lights: Vec<psxed_project::grid::light::GridLight> =
+        collect_bsp_preview_bake_lights(project)
+            .iter()
+            .map(|light| psxed_project::grid::light::GridLight {
+                position: light.position,
+                radius: light.radius,
+                intensity_q8: light.intensity_q8,
+                color: light.color,
+            })
+            .collect();
     // Rooms the author hid in the Rooms panel; a view setting the workspace
     // publishes, since the preview only sees the project.
     let hidden = psxed_ui::grid_preview_hidden_rooms();
