@@ -38,7 +38,7 @@ Lists the materials the world already uses, the images imported with a level (`l
 
 ## Tools
 
-The strip has nine tools. Wrapped to a second line when the window is narrow. Keys work in the 3D and Top views.
+The strip has ten tools. Wrapped to a second line when the window is narrow. Keys work in the 3D and Top views.
 
 | Tool | Key | Gesture |
 | --- | --- | --- |
@@ -51,8 +51,9 @@ The strip has nine tools. Wrapped to a second line when the window is narrow. Ke
 | Paint | P | Click or drag faces to apply the palette material. Ctrl/Cmd+click samples a face's material. |
 | Split | D | Click a floor or ceiling to flip its diagonal. |
 | Place | O | Click to put the chosen node (light, spawn, actor...) at a sector centre; Alt places freely. |
+| Bands | E | Hover a wall and a rule previews where a click would cut it; click cuts the wall run there, drag a line to move it, Delete removes it, Shift+click picks a band for the palette. See Wall bands below. |
 
-Letters kept free for the level verbs that come next: U Raise, S Sculpt, A Ramp, T Stairs, B Room, K Corridor, I Opening, E Bands, Y Stamps (N is the Plane tool), and Alt+W and Alt+P for the walkability and performance overlays.
+Letters kept free for the level verbs that come next: U Raise, S Sculpt, A Ramp, T Stairs, B Room, K Corridor, I Opening, Y Stamps (N is the Plane tool, E the Bands tool), and Alt+W and Alt+P for the walkability and performance overlays.
 
 Also: Ctrl/Cmd+C copies the selected faces, Ctrl/Cmd+V shows a ghost (click stamps, Shift keeps stamping, H and V flip, R turns), Esc cancels a drag, a ghost or the selection, Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z undo and redo, `.` frames the selection, Ctrl/Cmd+S saves.
 
@@ -90,6 +91,20 @@ Where two floors cross inside one edge the wall is cut at the crossing into two 
 A derived face takes its material from, in order: the face itself, the sector the step belongs to (its wall material), the sector looking at it, the room's wall material, then the owner's own floor or ceiling material. Click a derived wall with Select (or hover it with Paint) like any face: Paint writes the face's override, the Inspector edits its material, texture placement, Solid and Hidden flags, and Back to automatic forgets all of them. Delete hides a derived face. Overrides are stored with the room by wall segment, so they survive edits to the neighbours. The Wall tool still places authored walls for what heights cannot say (a freestanding wall, a parapet); it treats derived faces as walls already standing, so an edge a derived wall closes answers "covered". A warning is shown for an authored wall that lies on top of a derived face.
 
 Rooms made before this keep their wall records and their look until you press **Convert to derived** in the Rooms panel. Convert removes an authored wall only when it is exactly a derived face, moving its material, texture and solidity into the override; every other wall stays, and the derived faces the room never had are hidden so nothing new appears. One undo step reverts it.
+
+## Wall bands
+
+A band is a horizontal strip of a wall with its own material and texture rule: a trim at the base, the main wall, a frieze at the top. Select a wall (derived or authored) and the Inspector shows its **wall run** (the whole chain of collinear faces a fit mapping treats as one face) with a Bands section; or use the Bands tool (E) in the 3D view.
+
+* **Cut**: hover a wall, a horizontal rule previews at the pointer height snapped to a click (Alt for 64 units). Near the bottom of the wall the line follows the bottom edge (so a trim follows a sloped floor), near the top the top edge (a frieze hangs from a ceiling or ledge), between them it is an absolute datum that stays level across terrain. Click cuts the run there. At most six lines (seven bands) a set.
+* **Move and remove**: press a line and drag it up or down between its neighbours (Esc puts it back); click a line and press Delete, or the bin in the Inspector, to remove it; the two bands around it join.
+* **Scope**: *This run* edits just the selected run, copying the set first when other walls share it; *Whole room* edits the set in place, wherever the room uses it. A room can also have a default set (the Inspector's Whole room scope on a wall that has none makes one), and a run can opt out with Remove bands.
+* **Material and tiling per band**: open a band in the Inspector and use Use palette, or Shift+click a band in the 3D view and click a material in the palette; the Paint tool (P) paints the band under the pointer on a banded wall. A band's tiling is the same model as everywhere (World or Fit); *V* says where the texture sits in a world mapping (follow the world height, sit on the band's lower line, hang from its upper line), and a Fit band fits exactly between its two lines and repeats across the run.
+* **Slopes and stacks**: lines follow slopes by their anchors; an absolute line across a sloped wall cuts it into a triangle and a trapezoid at the crossing. For authored walls stacked on one edge the anchors measure against the whole stack, so one trim runs at the base of the stack and not of every segment.
+* **Neighbours**: where a banded wall meets a wall cut at other heights the vertical edge gets the neighbour's cut heights as extra corners (and the face is fanned into triangles), so no one pixel crack opens between them. Rooms without bands are untouched.
+* **Courses**: a wall of a room made before derived walls is still cut at every sector of height; derived rooms and rooms with bands draw a wall as one face and let the texture splitter and the band lines cut it.
+
+The cook writes bands as ordinary quads and triangles (about 40 bytes and one packet each), so a wall cut into three bands costs two packets more per segment.
 
 ## Free planes
 

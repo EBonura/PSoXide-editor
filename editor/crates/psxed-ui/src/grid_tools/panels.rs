@@ -32,6 +32,25 @@ impl EditorWorkspace {
         if planes > 0 {
             return planes;
         }
+        // A band picked with Shift+click in the Bands tool takes the
+        // material instead of the whole wall.
+        if let Some((face, band)) = self.grid.band_sel {
+            let before = self.project.clone();
+            let scope = self.grid.band_scope;
+            if let Some(world) = self.project.active_scene_mut().world.grid_mut() {
+                if psxed_project::grid::edit::bands::paint_band(
+                    world,
+                    face,
+                    band,
+                    Some(material),
+                    scope,
+                ) {
+                    self.history.record(before);
+                    self.grid_changed();
+                    return 1;
+                }
+            }
+        }
         let Some(world) = self.project.active_scene().world.grid() else {
             return 0;
         };
@@ -389,6 +408,12 @@ impl EditorWorkspace {
                     }
                 }
             }
+        }
+        if matches!(
+            primary.target,
+            FaceTarget::Wall { .. } | FaceTarget::Derived { .. }
+        ) {
+            self.draw_wall_run_bands(ui, primary);
         }
         // Apply what changed to every selected face.
         if toggle

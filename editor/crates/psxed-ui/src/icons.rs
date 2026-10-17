@@ -34,6 +34,7 @@ pub const PEN_LINE: char = '\u{e130}';
 pub const PLAY: char = '\u{e13c}';
 pub const PLUS: char = '\u{e13d}';
 pub const POINTER: char = '\u{e1e8}';
+pub const ROWS_3: char = '\u{e58a}';
 pub const ROTATE_3D: char = '\u{e2ea}';
 pub const ROTATE_CCW: char = '\u{e144}';
 pub const SAVE: char = '\u{e14d}';

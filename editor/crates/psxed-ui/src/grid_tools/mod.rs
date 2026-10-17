@@ -1,7 +1,7 @@
 //! The grid world editing tools.
 //!
-//! One strip of nine tools (Select, Floor, Ceiling, Wall, Plane, Height,
-//! Paint, Split, Place), each written once and driven from both the Top view and
+//! One strip of ten tools (Select, Floor, Ceiling, Wall, Plane, Height,
+//! Paint, Split, Place, Bands), each written once and driven from both the Top view and
 //! the 3D view through [`view::GridPointer`]. The document edits themselves
 //! are the pure functions in `psxed_project::grid::edit`; this module owns
 //! the gestures, the picking, the overlays and the panels around them.
@@ -22,6 +22,8 @@ use psxed_project::grid::edit::{
 };
 use psxed_project::grid::{GridPlane, PlaneCollision, WallEdge};
 
+mod band_panel;
+mod bands_tool;
 mod clipboard_tool;
 mod cycle;
 pub(crate) mod events;
@@ -75,10 +77,12 @@ pub(crate) enum GridTool {
     Split,
     /// Place lights, spawns and actors on the grid.
     Place,
+    /// Cut wall runs into horizontal bands.
+    Bands,
 }
 
 impl GridTool {
-    pub(crate) const ALL: [Self; 9] = [
+    pub(crate) const ALL: [Self; 10] = [
         Self::Select,
         Self::Floor,
         Self::Ceiling,
@@ -88,6 +92,7 @@ impl GridTool {
         Self::Paint,
         Self::Split,
         Self::Place,
+        Self::Bands,
     ];
 
     pub(crate) const fn label(self) -> &'static str {
@@ -101,6 +106,7 @@ impl GridTool {
             Self::Paint => "Paint",
             Self::Split => "Split",
             Self::Place => "Place",
+            Self::Bands => "Bands",
         }
     }
 
@@ -115,6 +121,7 @@ impl GridTool {
             Self::Paint => egui::Key::P,
             Self::Split => egui::Key::D,
             Self::Place => egui::Key::O,
+            Self::Bands => egui::Key::E,
         }
     }
 
@@ -129,6 +136,7 @@ impl GridTool {
             Self::Paint => "P",
             Self::Split => "D",
             Self::Place => "O",
+            Self::Bands => "E",
         }
     }
 
@@ -143,6 +151,7 @@ impl GridTool {
             Self::Paint => icons::PALETTE,
             Self::Split => icons::SCAN,
             Self::Place => icons::MAP_PIN,
+            Self::Bands => icons::ROWS_3,
         }
     }
 
@@ -165,6 +174,9 @@ impl GridTool {
             Self::Paint => "Click faces to apply the material chosen in the palette. Ctrl samples.",
             Self::Split => "Click a floor or ceiling to flip its diagonal.",
             Self::Place => "Click to place the chosen node at a sector centre on the floor.",
+            Self::Bands => {
+                "Hover a wall, click to cut it into bands at the rule. Drag a line to move it, Delete removes it, Shift+click picks a band for the palette."
+            }
         }
     }
 }
@@ -261,6 +273,8 @@ pub(crate) enum Gesture {
     Node,
     /// A plane being placed or one of its handles being dragged.
     Plane(plane_tool::PlaneGesture),
+    /// A band line being dragged.
+    Band(bands_tool::BandDrag),
 }
 
 /// What the pointer is over, for hover highlights and ghosts.
@@ -290,6 +304,14 @@ pub(crate) enum GridHover {
     },
     /// A sector centre and height where a node would land.
     Spot { position: [f32; 3] },
+    /// A wall under the Bands tool: where a click would cut it and the line
+    /// the pointer is on, if any.
+    Band {
+        face: psxed_project::grid::edit::FaceRef,
+        anchor: Option<psxed_project::grid::Anchor>,
+        y: i32,
+        line: Option<usize>,
+    },
     /// A free plane under the pointer.
     Plane(PlaneId),
     /// A handle of the selected plane under the pointer.
@@ -348,6 +370,13 @@ pub(crate) struct GridEditState {
     pub plane_press: bool,
     /// Which thing a repeated Top view click takes next.
     pub cycle: cycle::CycleState,
+    /// How far a band edit reaches: this run or the whole room.
+    pub band_scope: psxed_project::grid::edit::bands::BandScope,
+    /// The band line the Bands tool has selected: the wall it was picked on
+    /// and its index in the wall's set.
+    pub band_line: Option<(psxed_project::grid::edit::FaceRef, usize)>,
+    /// The band picked with Shift+click, for the palette to paint.
+    pub band_sel: Option<(psxed_project::grid::edit::FaceRef, usize)>,
     /// The room tools create in when none is marked active.
     pub last_room: usize,
     /// Bumped by every document change; the pick cache and budget follow it.
@@ -394,6 +423,9 @@ impl Default for GridEditState {
             },
             plane_press: false,
             cycle: cycle::CycleState::default(),
+            band_scope: psxed_project::grid::edit::bands::BandScope::Run,
+            band_line: None,
+            band_sel: None,
             last_room: 0,
             rev: 1,
             cache: RefCell::new(None),
@@ -417,6 +449,8 @@ impl GridEditState {
         self.plane_paste = None;
         self.plane_press = false;
         self.cycle.reset();
+        self.band_line = None;
+        self.band_sel = None;
         self.hover_pinned = false;
         self.hover = GridHover::None;
     }
@@ -510,6 +544,7 @@ impl EditorWorkspace {
             Gesture::Rect(_) | Gesture::Walls(_) | Gesture::Marquee { .. } => return C::Crosshair,
             Gesture::Plane(_) => return C::Grabbing,
             Gesture::Paint { .. } => return C::Crosshair,
+            Gesture::Band(_) => return C::ResizeVertical,
             _ => {}
         }
         let over = !matches!(self.grid.hover, GridHover::None);
@@ -520,6 +555,8 @@ impl EditorWorkspace {
             GridTool::Height => C::Default,
             GridTool::Split if over => C::PointingHand,
             GridTool::Split => C::Default,
+            GridTool::Bands if over => C::PointingHand,
+            GridTool::Bands => C::Default,
             GridTool::Floor
             | GridTool::Ceiling
             | GridTool::Wall

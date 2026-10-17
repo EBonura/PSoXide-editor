@@ -10,14 +10,14 @@ use super::*;
 use psxed_project::grid::edit::Transform;
 use psxed_project::grid::{CLICK_UNITS, FINE_UNITS};
 
-use super::{clipboard_tool, height_tool, plane_tool, select_tool};
+use super::{bands_tool, clipboard_tool, height_tool, plane_tool, select_tool};
 
 /// Keys the level verbs (design: `docs/grid/level-tools-design.md`, 7.12)
 /// will take, kept free of other meanings now: U Raise, S Sculpt, A Ramp,
-/// T Stairs, B Room, K Corridor, I Opening, E Bands, Y Stamps. Alt+W and
-/// Alt+P are the overlays; N is the Plane tool.
+/// T Stairs, B Room, K Corridor, I Opening, Y Stamps (E is the Bands tool).
+/// Alt+W and Alt+P are the overlays; N is the Plane tool.
 #[cfg(test)]
-pub(crate) const RESERVED_VERB_KEYS: [egui::Key; 9] = [
+pub(crate) const RESERVED_VERB_KEYS: [egui::Key; 8] = [
     egui::Key::U,
     egui::Key::S,
     egui::Key::A,
@@ -25,7 +25,6 @@ pub(crate) const RESERVED_VERB_KEYS: [egui::Key; 9] = [
     egui::Key::B,
     egui::Key::K,
     egui::Key::I,
-    egui::Key::E,
     egui::Key::Y,
 ];
 
@@ -88,7 +87,7 @@ impl EditorWorkspace {
         }
 
         if pressed(ctx, egui::Key::Escape) {
-            if plane_tool::cancel(self) {
+            if plane_tool::cancel(self) || bands_tool::cancel(self) {
                 self.status = "Cancelled".to_string();
             } else if !matches!(self.grid.gesture, Gesture::Idle) {
                 // Undo whatever a height drag already did.
@@ -106,7 +105,10 @@ impl EditorWorkspace {
             }
         }
         if pressed(ctx, egui::Key::Delete) || pressed(ctx, egui::Key::Backspace) {
-            clipboard_tool::delete_selection(self);
+            // With a band line selected, Delete removes the line.
+            if !(self.grid.tool == GridTool::Bands && bands_tool::delete_line(self)) {
+                clipboard_tool::delete_selection(self);
+            }
         }
         // With the free camera's look button held, W and D fly the camera.
         let flying = ctx.input(|i| i.pointer.secondary_down());

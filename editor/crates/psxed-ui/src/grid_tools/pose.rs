@@ -25,6 +25,10 @@
 //! * `copy` copies the selection; `paste=x,z` shows the ghost at `x,z`
 //! * `marquee=x0,y0:x1,y1` a screen-space box
 //! * `camera=yaw,pitch,radius,tx,ty,tz` an orbit camera (editor units)
+//! * `bands-hover=x,z,edge,y` the Bands tool hovering the derived wall hosted
+//!   by sector `x,z` on `edge` at room height `y` (grid units), with the rule
+//!   a click would cut; `bands-drag=x,z,edge,line,y` that wall's line `line`
+//!   dragged to height `y` (a drag in flight)
 
 use super::*;
 
@@ -206,6 +210,7 @@ impl EditorWorkspace {
                     additive: false,
                 };
             }
+            "bands-hover" | "bands-drag" => self.pose_bands(name, value)?,
             "camera" => {
                 let v = ints(value)?;
                 if v.len() != 6 {
@@ -219,6 +224,97 @@ impl EditorWorkspace {
             }
             other => return Err(format!("unknown command {other:?}")),
         }
+        Ok(())
+    }
+
+    /// `bands-hover` and `bands-drag`: the Bands tool over a derived wall.
+    fn pose_bands(&mut self, name: &str, value: &str) -> Result<(), String> {
+        use psxed_project::grid::edit::bands::{
+            anchor_for, band_at, line_ends, move_line, position_on_wall, wall_spans,
+        };
+        let parts: Vec<&str> = value.split(',').map(str::trim).collect();
+        let room = self.grid_target_room();
+        self.set_grid_tool(GridTool::Bands);
+        let at = [
+            parts
+                .first()
+                .ok_or("missing x")?
+                .parse::<i32>()
+                .map_err(|e| e.to_string())?,
+            parts
+                .get(1)
+                .ok_or("missing z")?
+                .parse::<i32>()
+                .map_err(|e| e.to_string())?,
+        ];
+        let edge = parse_edge(parts.get(2).ok_or("missing edge")?)?;
+        let world = self
+            .project
+            .active_scene()
+            .world
+            .grid()
+            .ok_or("no grid world")?;
+        let wall = world
+            .rooms
+            .get(room)
+            .and_then(|r| {
+                psxed_project::grid::derive::edge_walls(r, at, edge)
+                    .into_iter()
+                    .find(|w| !w.hidden)
+            })
+            .ok_or("no derived wall there")?;
+        let face = FaceRef::derived(room, at, edge, wall.kind);
+        let (span, _) = wall_spans(world, face).ok_or("no wall span")?;
+        let u = (span.u[0] + span.u[1]) / 2;
+        let _ = (position_on_wall, band_at);
+        let anchor = parts
+            .get(3)
+            .and_then(|y| y.parse::<i32>().ok())
+            .and_then(|y| anchor_for(world, face, u, y));
+        self.grid.selection.set(vec![GridElement::Face(face)]);
+        if name == "bands-hover" {
+            let y = parts
+                .get(3)
+                .ok_or("missing y")?
+                .parse::<i32>()
+                .map_err(|e| e.to_string())?;
+            self.grid.hover = GridHover::Band {
+                face,
+                anchor,
+                y,
+                line: None,
+            };
+        } else {
+            let line = parts
+                .get(3)
+                .ok_or("missing line")?
+                .parse::<usize>()
+                .map_err(|e| e.to_string())?;
+            let y = parts
+                .get(4)
+                .ok_or("missing y")?
+                .parse::<i32>()
+                .map_err(|e| e.to_string())?;
+            let before = self.project.clone();
+            let scope = self.grid.band_scope;
+            let world = self
+                .project
+                .active_scene_mut()
+                .world
+                .grid_mut()
+                .ok_or("no grid world")?;
+            move_line(world, face, line, u, y, scope);
+            let ends = line_ends(world, face);
+            let _ = ends;
+            self.grid.band_line = Some((face, line));
+            self.grid.gesture = Gesture::Band(super::bands_tool::BandDrag {
+                face,
+                line,
+                before: Some(Box::new(before)),
+            });
+            self.grid_changed();
+        }
+        self.grid.hover_pinned = true;
         Ok(())
     }
 

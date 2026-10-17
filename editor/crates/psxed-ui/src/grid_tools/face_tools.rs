@@ -119,6 +119,23 @@ fn paint_at(
         }
         return changed;
     }
+    // A banded wall paints the band under the pointer, not the wall.
+    if let Some((face, band)) = super::bands_tool::band_under(ws, ptr) {
+        let snapshot = ws.project.clone();
+        let scope = ws.grid.band_scope;
+        let Some(world) = ws.project.active_scene_mut().world.grid_mut() else {
+            return false;
+        };
+        let changed =
+            psxed_project::grid::edit::bands::paint_band(world, face, band, Some(material), scope);
+        if changed {
+            if before.is_none() {
+                *before = Some(snapshot);
+            }
+            ws.grid_changed();
+        }
+        return changed;
+    }
     let Some((faces, tri)) = face_under(ws, ptr) else {
         return false;
     };

@@ -23,6 +23,20 @@ impl EditorWorkspace {
         let mode = room.wall_mode;
         let default_wall = room.defaults.wall_material;
         let overrides = room.edge_overrides.len();
+        let band_sets: Vec<String> = room
+            .band_sets
+            .iter()
+            .enumerate()
+            .map(|(i, s)| {
+                if s.name.is_empty() {
+                    format!("set {i}")
+                } else {
+                    format!("{} ({i})", s.name)
+                }
+            })
+            .collect();
+        let default_bands = room.defaults.bands;
+        let mut set_default_bands: Option<Option<u8>> = None;
         let mut open_clicks = room.defaults.open_wall as f32 / CLICK_UNITS as f32;
         let default_name = default_wall
             .and_then(|id| self.project.resource_name(id))
@@ -102,6 +116,40 @@ impl EditorWorkspace {
                         )
                         .changed();
                 });
+                if !band_sets.is_empty() {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("Bands").color(STUDIO_TEXT_WEAK).size(11.0));
+                        egui::ComboBox::from_id_salt("room_default_bands")
+                            .selected_text(
+                                default_bands
+                                    .and_then(|i| band_sets.get(usize::from(i)))
+                                    .cloned()
+                                    .unwrap_or_else(|| "none".to_string()),
+                            )
+                            .show_ui(ui, |ui| {
+                                if ui.selectable_label(default_bands.is_none(), "none").clicked() {
+                                    set_default_bands = Some(None);
+                                }
+                                for (i, name) in band_sets.iter().enumerate() {
+                                    if ui
+                                        .selectable_label(default_bands == Some(i as u8), name)
+                                        .clicked()
+                                    {
+                                        set_default_bands = Some(Some(i as u8));
+                                    }
+                                }
+                            })
+                            .response
+                            .on_hover_text(
+                                "The band set every wall of the room uses unless its run names another or none",
+                            );
+                        ui.label(
+                            RichText::new(format!("{} sets", band_sets.len()))
+                                .size(10.5)
+                                .color(STUDIO_TEXT_WEAK),
+                        );
+                    });
+                }
                 if overrides > 0 {
                     ui.horizontal(|ui| {
                         ui.label(
@@ -125,6 +173,12 @@ impl EditorWorkspace {
         }
         if let Some(material) = set_wall_material {
             self.edit_room(index, |r| r.defaults.wall_material = material);
+        }
+        if let Some(bands) = set_default_bands {
+            self.edit_room(index, |r| {
+                r.defaults.bands = bands;
+                psxed_project::grid::edit::bands::prune_sets(r);
+            });
         }
         if open_changed {
             let units = (open_clicks.max(0.0) * CLICK_UNITS as f32).round() as i32;

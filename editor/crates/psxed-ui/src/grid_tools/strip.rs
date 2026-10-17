@@ -122,6 +122,25 @@ impl EditorWorkspace {
                 );
             }
             GridTool::Split => {}
+            GridTool::Bands => {
+                use psxed_project::grid::edit::bands::BandScope;
+                ui.label(RichText::new("Scope").color(STUDIO_TEXT_WEAK).size(11.0));
+                for scope in [BandScope::Run, BandScope::Room] {
+                    let on = self.grid.band_scope == scope;
+                    if ui
+                        .selectable_label(on, super::bands_tool::scope_label(scope))
+                        .on_hover_text(match scope {
+                            BandScope::Run => {
+                                "Edit just the selected run: it gets its own copy of a shared set"
+                            }
+                            BandScope::Room => "Edit the set in place, wherever the room uses it",
+                        })
+                        .clicked()
+                    {
+                        self.grid.band_scope = scope;
+                    }
+                }
+            }
         }
         ui.separator();
         let snap_text = if matches!(self.grid.tool, GridTool::Plane | GridTool::Select)
@@ -167,7 +186,8 @@ impl EditorWorkspace {
             GridTool::Wall => "Drag a run | R direction | Ctrl remove | Esc cancel",
             GridTool::Height => "Drag up/down | Alt fine | L link | PgUp/PgDn nudge | Esc cancel",
             GridTool::Paint => "Click or drag paint | Ctrl sample | pick in the palette",
-            GridTool::Split => "Click a floor or ceiling | Alt ceiling in Top",
+            GridTool::Split => "Click a floor or ceiling | Click again for the ceiling in Top",
+            GridTool::Bands => "Hover a wall, click to cut | Drag a line | Del removes it | Shift+click picks a band | Esc cancel",
             GridTool::Place => "Click to place at the sector centre | Alt 64 | Shift+Alt free",
         }
     }

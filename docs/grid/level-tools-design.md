@@ -903,3 +903,27 @@ Unit and property tests live next to the code, the headless gates drive the real
 6. **Cross-room derived walls.** Not in v1; doors between adjacent rooms are Openings. Recommend: defer, revisit with stacked rooms.
 7. **Heatmap reserve.** Default reserved cost 470k (player) plus 58k (sky), editable, because the character cost is still the biggest single item. Recommend: yes.
 8. **Per-material tiling default** stored on the Material resource (so the same brick tiles the same everywhere unless a face overrides). Recommend: yes.
+
+---
+
+## 17. As built: T3 and T4 (2026-10-17)
+
+What landed, and where it differs from the text above.
+
+**T3, texture-window repeat.**
+
+* PGL v3 as in 10.1 (`tex_shape`, `flags2.REPEAT`); a v2 level or chunk is refused with a message that says to cook again. The cook sets `REPEAT` when a primitive spans more than one 64 texel tile and the material has a shape; a primitive holds up to four tiles per axis, the first piece of an axis ends at the fourth tile line counted from the tile its lowest texel is in (so three tiles and a bit when the texture starts mid-tile), the next pieces are four tiles each (the fewest pieces the limit allows, not equal ones).
+* **Legacy splitting is on** (decision of the coordinator): faces on the old 32 texels per sector mapping are cut like any other. `uv_split::SPLIT_LEGACY` is gone. With the window the reference levels need no extra primitives: Cathedral, level008, Dungeon and Cave have 18, 48, 8 and 18 repeating primitives and 0 cuts (one tile per primitive cost +38, +81, +8 and +18).
+* The fast packet needed no growth: slot 1 carries the material's window word for a `REPEAT` quad and the reset for any other. The near-plane path takes the windowed packet shape of `affine_surface` (window in front, reset behind, one word more). The merged LOD quads exclude `REPEAT`.
+* The E2 cost experiment is six GPU cases in hardware-tests v1.28 (`0x140` to `0x145`), built and not yet run on a console. Headless the emulator does not model GPU texture-cache effects, so no number from it is a prediction.
+* **Facing shade** (new, decision of the coordinator): `GridWorld.shading` (`FacingShade`: floors, ceilings, east-west and north-south walls, Q8 factors, blended by the squares of the normal) applied in `light.rs` after the lit colour, one function for the preview and the cook. New worlds get `SUBTLE`, a world without the field is `OFF` (a level never changes behind its author's back). Rooms panel row with Off, Subtle, Strong and four numbers.
+* **Click cycling** (decision of the coordinator): in the Top view a repeated click at the same spot takes plane, then floor, then ceiling; Alt is the fine snap only. `GridPointer.cycle` carries the step; a drag, another spot or a tool change starts over.
+
+**T4, bands.**
+
+* `BandSet`, `Anchor`, `BandV` as in 6.1; `GridRoom.band_sets`, `RoomDefaults.bands`, `EdgeOverride.band_set`, `GridWall.band_set` (index, `255` is none), all serde-defaulted. `limits::validate` warns on a malformed set or an index that names nothing (the wall draws plain); caps 6 lines and 32 sets.
+* The polygon pipeline is `band_geom.rs`: every rail is linear in the position, lines are clamped between the previous line and the top and then into the wall, rails that cross inside the span cut it there (positions rounded to whole units), so a band is a quad or a triangle and the pieces tile the wall exactly (a property test over random walls). Where the design allows six corners for a band across a break, the pieces are cut at the break instead, so no band polygon passes four corners. Neighbour stitching (`stitch_edge`, `fan`) inserts the heights a collinear neighbour cuts a shared vertical edge at and fans the face into triangles; it applies to plain walls next to a banded one too, and does nothing in a room without bands.
+* **Courses** are kept only for authored rooms with no band sets (the legacy golden hash of every face of the six reference levels and the planes demo is unchanged). Derived rooms and rooms with bands draw a wall as one face. Texels and outlines are the same (a test joins the courses of both sides and compares), but a tall wall near a point light is now lit from its top and bottom corners only, so its baked light differs from the course-cut version (measured on a lit derived room: 53 fewer primitives of 176, and 36 percent of the frame's pixels differ, all on the walls near the lamp). The design's cook merge has a light tolerance for exactly this and does not exist yet.
+* **Frames**: a banded face keeps the run frame for a fit mapping across (derived) or the record (authored); a fit band measures its height between its own two lines at each position; a world band can seat V at the world, the band's lower line or its upper line (`BandV`).
+* **Bands verb (E)** is a tool of the strip, not a Gesture of a region; scope is a toggle (this run copies a shared set first, the whole room edits in place). The wall-run Inspector context lists lines and bands top to bottom with material, V and tiling per band. The Paint tool and a Shift+click on a band target bands. The Rooms panel lists the sets and picks the room default.
+* Not built: openings through bands (T13), the corner stitching of perpendicular walls (T14 generic repair), the Rooms panel band set list as a manager (rename, delete).

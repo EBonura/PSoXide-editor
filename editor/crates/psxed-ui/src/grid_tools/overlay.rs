@@ -295,6 +295,7 @@ impl EditorWorkspace {
                 );
             }
             GridHover::None
+            | GridHover::Band { .. }
             | GridHover::Plane(_)
             | GridHover::Grip(..)
             | GridHover::PlaneSpot(..) => {}
@@ -584,6 +585,7 @@ impl EditorWorkspace {
             self.draw_paste_ghost_3d(&polygon, world, ghost);
         }
         self.draw_plane_overlay_3d(painter, rect);
+        self.draw_band_overlay_3d(painter, rect);
     }
 
     #[allow(clippy::too_many_arguments)]

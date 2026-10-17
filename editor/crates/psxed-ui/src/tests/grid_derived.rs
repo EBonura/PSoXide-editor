@@ -41,8 +41,8 @@ fn text_of(output: &egui::FullOutput) -> String {
 fn a_derived_room_has_no_wall_records_but_draws_its_closure() {
     let rig = GridRig::persp("derived-closure", derived_project(5, 5));
     let faces = all_faces(rig.world());
-    // 25 floors, 25 ceilings, 20 outline edges of 3072: 3 courses each.
-    assert_eq!(faces.len(), 25 + 25 + 20 * 3);
+    // 25 floors, 25 ceilings, 20 outline edges: one face each, however tall.
+    assert_eq!(faces.len(), 25 + 25 + 20);
     assert!(rig
         .room(0)
         .iter()
@@ -172,7 +172,9 @@ fn convert_makes_a_legacy_room_derived_in_one_undoable_step() {
         .grid_convert_room(0, psxed_project::grid::edit::ConvertMode::PreserveLook);
     assert_eq!(rig.room(0).wall_mode, WallMode::Derived);
     // Exactly the four north walls became derived faces; the three other
-    // sides stay open as they were, so the face count did not change.
+    // sides stay open as they were. A derived wall is one face where the
+    // authored one was cut into three courses, so the count fell by two a
+    // wall.
     assert_eq!(
         rig.room(0)
             .iter()
@@ -180,7 +182,7 @@ fn convert_makes_a_legacy_room_derived_in_one_undoable_step() {
             .sum::<usize>(),
         0
     );
-    assert_eq!(all_faces(rig.world()).len(), faces_before);
+    assert_eq!(all_faces(rig.world()).len(), faces_before - 4 * 2);
     assert!(
         rig.ws.status.contains("4 walls converted"),
         "{}",

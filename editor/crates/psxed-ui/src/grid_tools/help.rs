@@ -90,6 +90,33 @@ const PAINT: Rows = &[
         "Sample a face's material into the palette",
     ),
 ];
+const BANDS: Rows = &[
+    (
+        "Hover a wall",
+        "A rule previews where a click would cut; its kind shows in the status bar",
+    ),
+    (
+        "Click",
+        "Cut the wall run at the rule (this run, or the whole room: Scope in the option row)",
+    ),
+    (
+        "Drag a line",
+        "Move it between its neighbours (Alt for the fine step); Esc puts it back",
+    ),
+    (
+        "Click a line, Delete",
+        "Remove it; the bands around it join",
+    ),
+    (
+        "Shift+click",
+        "Pick the band under the pointer, then click a material in the palette",
+    ),
+    (
+        "Paint (P)",
+        "Painting a banded wall paints the band under the pointer",
+    ),
+    ("Inspector", "Lines, bands, materials and tiling per band"),
+];
 const OTHER: Rows = &[
     ("Split (D)", "Click a floor or ceiling to flip its diagonal"),
     (
@@ -108,7 +135,7 @@ const OTHER: Rows = &[
 const SNAP: Rows = &[
     ("Alt", "Fine snap: 64 units (every tool, planes included)"),
     ("Shift+Alt", "Free movement where a tool can leave the lattice (planes, Place)"),
-    ("U S A T B K I E Y", "Reserved for the level verbs: Raise, Sculpt, Ramp, Stairs, Room, Corridor, Opening, Bands, Stamps"),
+    ("U S A T B K I Y", "Reserved for the level verbs: Raise, Sculpt, Ramp, Stairs, Room, Corridor, Opening, Stamps"),
     ("Alt+W, Alt+P", "Reserved for the walkability and performance overlays"),
 ];
 const VIEW: Rows = &[
@@ -149,13 +176,14 @@ impl EditorWorkspace {
             return;
         }
         let mut open = true;
-        let sections: [(&str, Rows); 9] = [
+        let sections: [(&str, Rows); 10] = [
             ("Select (V)", SELECT),
             ("Floor (F) and Ceiling (C)", FLOOR),
             ("Wall (W)", WALL),
             ("Plane (N)", PLANE),
             ("Height (H)", HEIGHT),
             ("Paint (P)", PAINT),
+            ("Bands (E)", BANDS),
             ("More", OTHER),
             ("Snapping and reserved keys", SNAP),
             ("Camera and project", VIEW),
@@ -169,7 +197,7 @@ impl EditorWorkspace {
             .show(ctx, |ui| {
                 ui.set_width(1040.0_f32.min(ctx.screen_rect().width() - 80.0));
                 ui.label(
-                    RichText::new("Tools: V Select, F Floor, C Ceiling, W Wall, N Plane, H Height, P Paint, D Split, O Place")
+                    RichText::new("Tools: V Select, F Floor, C Ceiling, W Wall, N Plane, H Height, P Paint, D Split, O Place, E Bands")
                         .color(STUDIO_TEXT_WEAK),
                 );
                 ui.add_space(4.0);

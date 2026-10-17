@@ -13,8 +13,8 @@ use crate::workspace::tools2d::{ToolFrame2d, ViewportTool2d};
 use crate::workspace::tools3d::{SelectTool, ToolFrame3d, ViewportTool3d};
 
 use super::{
-    clipboard_tool, face_tools, height_tool, place_tool, plane_tool, rect_tool, select_tool,
-    wall_tool,
+    bands_tool, clipboard_tool, face_tools, height_tool, place_tool, plane_tool, rect_tool,
+    select_tool, wall_tool,
 };
 
 /// A pointer event.
@@ -106,6 +106,12 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
         (GridTool::Place, Ev::Hover) => place_tool::hover(ws, &ptr),
         (GridTool::Place, Ev::Click) => place_tool::click(ws, &ptr),
         (GridTool::Place, _) => {}
+
+        (GridTool::Bands, Ev::Hover) => bands_tool::hover(ws, &ptr),
+        (GridTool::Bands, Ev::Press) => bands_tool::press(ws, &ptr),
+        (GridTool::Bands, Ev::Drag) => bands_tool::drag(ws, &ptr),
+        (GridTool::Bands, Ev::Release) => bands_tool::release(ws),
+        (GridTool::Bands, Ev::Click) => bands_tool::click(ws, &ptr),
     }
 }
 
