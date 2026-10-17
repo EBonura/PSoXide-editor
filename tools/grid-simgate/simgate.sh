@@ -40,8 +40,8 @@ run)
   label=$1; tape=$2; stop=$3
   d=$work/runs/$label; mkdir -p $d
   $frontend launch --path $work/discs/$label/*.cue --embedded-playtest --input-tape $tape \
-    --stop-at-poll $stop --steps 120000000000 >| $d/run.log 2>&1
-  grep -a '^sim-state,' $d/run.log >| $d/sim.txt
+    --stop-at-poll $stop --steps 120000000000 --guest-debug-log >| $d/run.log 2>&1
+  sed -n 's/^\[guest [^]]*\] //p' $d/run.log | grep -a '^sim-state,' >| $d/sim.txt
   echo "$label: $(wc -l < $d/sim.txt | tr -d ' ') sim ticks"
   ;;
 cmp)
