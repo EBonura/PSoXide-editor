@@ -1,0 +1,905 @@
+# Grid level tools: the design for an easy level-building editor (2026-10-17)
+
+Status: final design, ready to implement. Branch base: `grid/main` 9dc6430e. Written read-only against that tree and against the in-progress free-plane work in the `grid-runtime` worktree (branch `grid/planes`, commit bd53898a plus uncommitted editor files). Implementation starts when free planes merge; section 12 says which files collide.
+
+Manny's direction, as approved, is the contract:
+
+1. The room is a **quadtree**, big cells by default, subdivided on demand down to 1/4 sector, merged back.
+2. Interaction is **region, then verb, then drag an amount** snapped to clicks. Verbs only write ordinary grid data that stays hand-tweakable.
+3. Walls are **derived** from height differences. Authored walls remain only for what heights do not imply.
+4. The diagonal split is **chosen automatically**; manual flip stays.
+5. Verbs: Raise/Lower, Sculpt, Ramp, Stairs, Room, Corridor, Opening, Ceiling follow, Stamps, smart paint rules, per-face override.
+6. Overlays: walkability and a performance heatmap.
+7. **Horizontal wall bands** are a first-class concept (section 6).
+8. **Decoupling**: render cost must not depend on authoring granularity (section 9).
+9. Latest overrides from Manny: make it work first, optimise after (perf is measured and reported per phase, never a gate to building); and a precise, easy **texture tiling control** with one UV model shared by faces, derived walls, bands and planes (section 5).
+
+How to read the numbers. **[measured]** came from a headless run or a file and the source is named. **[derived]** is arithmetic on measured values or on struct sizes. **[estimate]** is reasoning with no run behind it. **[proposal]** is a chosen constant that no measurement backs, to be revisited with data. Nothing in this document is a benchmark I ran.
+
+Path shorthand. `E/` is `editor/crates/psxed-project/src/grid/`, `U/` is `editor/crates/psxed-ui/src/grid_tools/`, `P/` is `engine/crates/psx-grid/src/`. Line numbers refer to `grid/main` 9dc6430e unless a path starts with `grid-runtime:` (the planes worktree; uncommitted files have no stable line numbers).
+
+---
+
+## 0. Summary
+
+* **Document**: `GridRoom` keeps its rectangle (origin, width, depth in sectors) but its cells become a **linear quadtree of leaves** keyed by Morton-ordered `(level, x, z)` in click units. Level 2 is exactly today's sector, so all six reference levels and the starter are "all leaves at level 2" and load unchanged. A leaf is a `GridSector` (floor, ceiling, authored walls) of any of five sizes: 4 sectors, 2, 1, 1/2, 1/4. Neighbouring leaves differ by at most one level (2:1 balance), so a coarse edge has at most one hanging vertex.
+* **Runtime**: pointerless, breadth-first node arrays per room with u16 ids, plus a **per-sector index straight to the leaf** (or to a 4x4 sub-block) so the hot point lookup stays two dependent loads and no loop. The tree serves rays, culling, LOD and streaming in the later optimise phases.
+* **Walls**: per-room `wall_mode`. New rooms are `Derived`: a wall exists wherever neighbouring leaves disagree in height, with material from a fixed resolution chain. Legacy rooms stay `Authored` until an explicit, look-preserving **Convert** command.
+* **Bands**: ordered horizontal cut lines with a material and a UV rule per band, stored as **band sets** (room default plus per-run overrides), applied to derived and authored walls alike.
+* **UV**: one `UvMap` (mode FIT or WORLD, offset, quarter turns, flip) shared by floors, ceilings, walls, bands and planes. FIT is "N x M tiles across this face"; WORLD is tiles per sector, world-aligned.
+* **Cook**: stitches T-junctions, splits and merges quads under the texture window (E2) with the exact UV rules of section 9, caps quad size near camera-reachable space, and writes PGL v3 (window repeat) then v4 (leaf collision).
+* **Order** (section 13): derived walls, UV model, window repeat, bands, auto split with Raise/Lower, Ramp with walkability, Stairs with the perf heatmap, then the quadtree (storage, operations, cook and collision), Sculpt, Room and Corridor, Opening and Stamps, and last the optimise phases (cook merge, then tree culling, node LOD, ray early-outs, streaming).
+
+---
+
+## 1. Terms
+
+| Term | Meaning |
+| --- | --- |
+| grid unit (gu) | Document unit. Sector = 1024 gu, click = 256 gu, fine snap = 64 gu (`E/units.rs:6-13`). |
+| click | 256 gu, one quarter sector. The finest leaf is one click wide. |
+| sector | 1024 gu. Level-2 leaf. Runtime size S ru (80 at the default scale 5/4: `E/units.rs:36`). |
+| runtime unit (ru) | Engine unit, editor unit / 16. |
+| leaf | A quadtree cell that holds data. Level 0 = 4 sectors (16 clicks), 1 = 2 sectors, 2 = 1 sector, 3 = 1/2, 4 = 1/4. |
+| derived wall | A vertical face the editor computes from a height difference. Not stored. |
+| authored wall | `GridWall` records on an edge stack, as today (`E/surface.rs:175`). |
+| run | A maximal chain of collinear wall segments on one side with the same style. The editing unit for walls. |
+| band | A horizontal strip of a wall between two cut lines, with its own material and UV rule. Not to be confused with the existing **course** split at 1024 gu multiples that `faces.rs:317` does so the world-aligned texture tiles. Courses are an implementation detail and go away (section 9.4). |
+| region | The set of cells or corners the next verb applies to. |
+| tile | One repeat of a 64 by 64 texture (the cook's assumption today: `E/cook/render.rs:25`). |
+
+---
+
+## 2. What exists now (the facts this design builds on)
+
+Document. `GridRoom { name, origin, y_offset, width, depth, ambient, fog, sectors: Vec<Option<GridSector>> }` (`E/room.rs:55-77`), z-major, grown and trimmed by whole sectors without moving geometry (`E/room.rs:157`). `GridSector` holds `floor`, `ceiling` and six wall stacks (`E/sector.rs:108`). `GridSurface` has four corner heights `[NW,NE,SE,SW]`, a split, optional second-triangle heights, per-triangle `GridTri { material, uv: FaceUv }`, and `walkable` (`E/surface.rs:74-94`). `GridWall` has four heights, material, `FaceUv`, `facing`, `solid` (`E/surface.rs:175`). Walls are explicit: a wall tool fills the gap between floor, ceiling and existing walls on one edge, following slopes (`E/edit/walls.rs:84`, the bonnie-32 behaviour). Corner heights are welded by an edit-time index only (`E/edit/heights.rs:16`); stored data has no shared vertices.
+
+Faces. `cell_faces(world, room, x, z)` is the single geometry derivation the editor preview, the light bake and the cook share (`E/faces.rs:346`, used at `emu/crates/frontend/src/editor_preview/grid.rs:134`). A planar surface with equal triangles is one quad; otherwise two triangles (`E/faces.rs:226`). Rectangular walls are cut into courses at absolute multiples of one sector (`E/faces.rs:317`). Default UV is world aligned at 32 texels per sector (`E/units.rs:13`). `FaceUv` is `{ offset_texels, rotation_deg, scale_q8 }` (`editor/crates/psxed-project/src/face_uv.rs:8`).
+
+Cook and runtime. The cook turns each face into one packet quad, welds vertices, bakes per-corner light, and rebases UVs into one 64 texel repeat (`E/cook/render.rs:115`); it refuses faces of more than four corners (`E/cook/render.rs:227`). The existing far LOD merges at most 2x2 cells (`E/cook/lod.rs:29`) and clamps the far UV edge to 63 (`E/cook/lod.rs:311`). Every fast packet already carries a texture-window word, currently always the reset (`P/render/emit.rs:235,273`); the near path passes `texture_window_word: 0` (`P/render/emit.rs:365`). The VRAM owner already places textures with `TextureWindowAtlas::allocate` (power-of-two, aligned, up to 128 texels: `sdk/crates/psx-vram/src/lib.rs:357`) and the grid runtime reads the placement (`engine/examples/editor-playtest/src/grid_runtime.rs:143`) but adds its origin to the packet UVs instead of using the window.
+
+Collision. Dense `Sector` records, 20 bytes, indexed `cz*width+cx`, cell found by an exact reciprocal (`P/collision/world.rs:68,99`, `P/format.rs:266`). Walls exist as `ColWall` only for `solid` authored walls (`E/cook/collision.rs` header). Risers are implicit: the floor sampler plus the step rule block a body (`docs/grid/level-format-and-runtime.md` section 5.2). Motor constants: step-up 40 ru, step-down 40, body height 48, walkable normal 2867/4096 (`engine/crates/psx-engine/src/character_motor.rs:20,27,38`); the step-up is becoming config.
+
+Editor tools. Eight tools, keys V F C W H P D O (`U/mod.rs:48-120`), `?`, `.`, L, R (wall direction and paste turn), Delete, PgUp/PgDn and `[` `]` as height nudges (`U/keys.rs:25-113`). One `Gesture` enum holds the gesture in flight (`U/mod.rs:223`), height drags snapshot the document for undo at the first change (`U/mod.rs:212`).
+
+Measured context given for this design (headless emulator, supplied with the brief): about 800 cycles per visible quad, with emit about 420 per packet and projection about 69 per vertex; a near-plane split about 9 to 11k cycles per near tile; world p99 about 716k in the open Cathedral against a 1,128,960 cycle budget at 30 fps; the collision family about 19.6k cycles per sim tick on the Cathedral; the Cathedral collision block 22,748 bytes; the earlier flat LOD checker re-registered across 10 to 17 percent of the screen, popped by up to 12 percent of the screen in one frame, left 1 px seams, and saved about 16 percent in the worst open-nave view (714k to 597k).
+
+### 2.1 Compatibility with free planes (grid/planes)
+
+The planes branch adds, all additive and defaulted: `GridRoom.planes: Vec<GridPlane>` (`grid-runtime:E/room.rs`), `GridFaceKind::Plane`, `GridFace.unlit`, `MAX_PLANES_PER_ROOM = 64`, `edit/planes.rs`, `cook/plane_collision.rs`, and PGL version 2 (`PlaneRef` now `{ quad, count, flags, x0..z1, min_y, max_y }`, `ColPlane.flags` reserved; `P/format.rs` at bd53898a). It also refactors the face-to-quad code of `cook/render.rs` into `RoomBuild::add_face`. Rules this design follows:
+
+* Planes stay outside the leaf tree. They are per-room, free, never welded to the lattice, and keep their own `QUAD_PLANE` run. No phase here changes `PlaneRef`, `ColPlane` or `plane_faces.rs`, except the UV unification (section 5.7), which is a small, separate change.
+* `GridPlane.uv_mode` (Tile or Stretch) maps onto the shared model: Tile is WORLD anchored at the plane's own top-left corner, Stretch is FIT 1x1. The plane's `FaceUv` field remains the fine adjustment.
+* Collision for planes copies into the sector extension of each overlapped sector. With big leaves the copy attaches to the leaf (section 10.2).
+* Version numbers: planes took VERSION 2. This design adds v3 (window repeat) and v4 (leaf collision). Each bump needs a golden fixture.
+
+---
+
+## 3. Data model
+
+### 3.1 Units and snapping
+
+* Everything stays integer grid units. The finest leaf is 256 gu, so every leaf corner lies on a click. Heights are stored in gu and snapped to the fine step (64 gu) by the tools, as today. Verb amounts snap to a click (256), Alt snaps to 64.
+* The cook rounds every position once through `RuntimeUnits::rt` (`E/cook/units.rs`), so what is drawn is what is stood on. At scale 5/4 a click is 20 ru and a fine step 5 ru [derived from `E/units.rs:108-113` test]. A scale whose sector is not divisible by 4 cannot hold quarter leaves: `limits::validate` gains an error `SectorNotQuartered { s }` for sub-sector leaves when `S % 4 != 0` (S = 84, 80, 36 and 56 all pass; those are the scales 21/16, 5/4, 9/16 and 7/8 in use).
+* Position keys use **clicks** (`i32`). A leaf of level `l` has edge `n = 16 >> l` clicks and its key `(l, x, z)` has `x % n == 0 && z % n == 0` in **world** click coordinates. World anchoring means growing or trimming a room never moves a leaf (the same guarantee `grow_to_include` gives sectors today), and a new room's origin snaps to a multiple of 4 sectors so level-0 leaves fit.
+
+### 3.2 The leaf tree
+
+```rust
+pub const LEVELS: u8 = 5;                       // 0 = 4 sectors ... 4 = 1/4 sector
+pub const SECTOR_LEVEL: u8 = 2;
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct LeafKey { pub level: u8, pub x: i32, pub z: i32 }   // world clicks, aligned
+
+pub struct GridRoom {
+    // existing: name, origin, y_offset, width, depth, ambient, fog, planes
+    pub leaves: LeafMap,            // BTreeMap<LeafKey, GridSector>, replaces `sectors`
+    pub wall_mode: WallMode,        // Authored (legacy default) | Derived
+    pub defaults: RoomDefaults,     // wall material, bands, paint rules
+    pub band_sets: Vec<BandSet>,    // section 6
+    pub edge_overrides: BTreeMap<EdgeKey, EdgeOverride>,   // section 4.4
+    pub openings: Vec<Opening>,     // section 4.5
+}
+```
+
+Why a leaf map in the document and arrays at runtime. Editing wants cheap insertion, deletion and ordered iteration with stable keys that survive undo; the cook wants breadth-first arrays. `LeafMap` is the linear quadtree: leaves are disjoint and aligned, interior nodes are implicit (a node exists while some leaf lies below it), an uncovered area is void. Iteration order is Morton order of `(x/n, z/n)` with the level as tiebreak, so serialisation is deterministic. The cook walks the map once to build the breadth-first node arrays (section 10).
+
+`GridRoom::sector(x, z)` (`E/room.rs:104`) is kept as a compatibility accessor that returns the leaf **only if it is a level-2 leaf**; code that must handle any size uses `leaf_at(world_click)` or `leaves_in(rect)`. While a room has only level-2 leaves (every room until the quadtree phase lands, and every legacy room forever unless edited) behaviour is unchanged.
+
+**Leaf data.** A leaf is the existing `GridSector` (floor, ceiling, wall stacks). Constraints, enforced by `normalize` (3.5) and `validate`:
+
+1. Leaves above level 2 must be **planar** per surface (`GridSurface::is_planar`, `E/surface.rs:149`), have no split-level `heights_b`, and no diagonal walls. A non-planar big leaf is subdivided automatically.
+2. Leaves below level 2 carry no diagonal walls and no `heights_b`.
+3. A leaf lies wholly inside the room rectangle.
+4. 2:1 balance: leaves sharing an edge differ by at most one level.
+
+**Hanging corners.** Where a coarse leaf C meets two finer leaves along an edge, the finer leaves share a corner M at the midpoint of C's edge. If the two end corners of C's edge are welded to the finer side (equal position and height at both ends), M is a **constrained** corner: its height is derived as `(a + b) div 2` with `a`, `b` the heights of C's two corners at that edge, and `normalize` rewrites it. If the ends differ (a cliff), M is free and the wall between them is derived per finer segment. The constraint is what makes continuous surfaces crack-free in the document; the stitching of 9.3 makes them crack-free on the GPU.
+
+### 3.3 Why a quadtree, and the rejected alternatives
+
+Chosen: quadtree, because the same structure serves authoring (big cells, region tools), collision memory (a flat 4-sector leaf is one 20 byte record, not 16), rays (skip empty and flat nodes), culling and LOD (reject or replace a subtree), and streaming (a root block is a natural unit). Balanced and capped at five levels it is shallow.
+
+Rejected or deferred alternatives, kept for the record:
+
+* **Fixed 4x4 sub-block under the uniform sector grid** (one subdivision level, `SECTOR_INDEX` to a 16 entry block). This was the first recommendation after performance concern about tree descent in traces that run many times per sim tick (collision ~19.6k cycles per tick on the Cathedral [measured]). The runtime format chosen below contains this model as its sub-sector half: sub-sector leaves are reached through exactly such a 4x4 table, and the point query never descends a tree. If the phase T10 measurement of collision and camera trace cost shows a cost against the uniform grid, falling back is a document-side restriction (cap the leaf level at 2, drop levels 0 and 1) with no format change.
+* **General tree with pointer/variable-size stepping in every query.** Rejected for the hot path: the per-sector index (10.2) gives O(1) point lookup, the tree is used only by rays and culling where skipping pays.
+* **Dense replication of big leaves in the collision block.** The simplest and what a "flat-only" design would do: one 20 byte record per sector. It costs RAM in large flat areas (the Cathedral block is 22,748 bytes [measured]). It remains the cook's fallback layout for rooms that use no big leaves (section 10.2).
+
+### 3.4 Region, selection and references
+
+`GridSelection` (`E/edit/selection.rs`) addresses elements by room and **world sector**; with leaves it addresses `FaceRef { room, leaf: LeafKey, target }` (the `cell: [i32;2]` field becomes a `LeafKey`; for level-2 leaves the conversion is trivial). `CornerRef` gains the same key. `WeldIndex` (`E/edit/heights.rs:16`) already buckets corners by grid position, which works unchanged on the click lattice.
+
+A **Region** is new editor state, not saved:
+
+```rust
+pub enum RegionKind { Cells, Corners, EdgeRun }
+pub struct Region { pub room: usize, pub kind: RegionKind,
+                    pub leaves: BTreeSet<LeafKey>,        // cells region: leaves fully or by centre
+                    pub corners: BTreeSet<CornerKey>,     // click lattice points, welded groups
+                    pub run: Vec<EdgeKey> }
+```
+
+It persists after a verb until Esc or a new pick, so verbs chain ("pick region, Raise, then Ramp the same cells"). Region sources: marquee (cells whose centre is inside), paint brush (radius with `[` `]`), and path (waypoints). A region over big leaves selects the whole leaf; a marquee that covers only part of a big leaf offers "split to fit" (the verb first subdivides the leaf, which is lossless).
+
+### 3.5 `normalize` and the invariants
+
+One pure function, `grid::tree::normalize(room, dirty: &LeafSet)`, restores the invariants after every edit and is called by every verb before it returns:
+
+1. Subdivide any big leaf that became non-planar or whose neighbours force 2:1 balance (repeat to fixpoint; only ever adds leaves, so it terminates).
+2. Rewrite constrained hanging corners (3.2).
+3. Re-evaluate `auto_split` surfaces (section 4.6).
+4. Merge four sibling leaves into their parent when the parent represents them **exactly** (same materials, same UV maps, no authored walls or overrides on interior edges, and every sibling corner and edge midpoint equals the parent's triangulated surface for either diagonal) and the merge keeps 2:1 balance. Merging is lossless; the lossy "Simplify" command takes a tolerance.
+5. Split or collapse `edge_overrides` and `openings` keyed to edges whose leaf subdivided or merged (an override on a coarse edge becomes the same override on both halves; four equal halves collapse back).
+
+`normalize` touches only dirty leaves and their neighbours. Undo stores the whole document snapshot as it does today (`U/mod.rs:212`), so `normalize` never needs its own inverse.
+
+### 3.6 Serde, versioning and migration
+
+* Every new field is `#[serde(default, skip_serializing_if = ...)]` and its default **reproduces today's behaviour**: `wall_mode` defaults to `Authored`, `band_sets`/`edge_overrides`/`openings` to empty, `auto_split` to `false` (a legacy split is deliberate: level_008 has 46 NE-SW floors [measured, `docs/grid/other-maps-survey.md`]), UV `map` to `None`.
+* **Leaf form negotiation.** On disk a room is written as the legacy dense `sectors` list while every leaf is level 2, and as the sorted `leaves` list otherwise. Load accepts both. So an unrefined project round-trips without change and the six tracked reference projects never need rewriting (note the existing caveat that a RON round trip is not always byte clean; the golden test compares documents, then re-serialised documents, not raw bytes of the tracked files).
+* No `schema` number is needed: absence of a field means legacy. A `GridWorld.tools: u32` counter is added only when stamps land (3.8), defaulting to 0.
+* **Convert room to derived walls** is the only migration, explicit and look-preserving by default (4.7).
+* New rooms (File > New Grid Project, the Room verb, the Rooms panel `+`) are written `Derived`. The starter project gets `Derived` and its explicit walls converted at creation.
+
+### 3.7 Limits (`E/limits.rs`)
+
+Existing caps stay (`MAX_ROOM_SIDE` 128, `MAX_WALLS_PER_EDGE` 16: `E/limits.rs:23-26`). New constants, each labelled:
+
+| Constant | Value | Basis |
+| --- | --- | --- |
+| `LEVELS` | 5 | Manny's decision (4 sectors down to 1/4). |
+| `MAX_LEAVES_PER_ROOM` | 16383 | [derived] 14 bit id in `SECTOR_INDEX` (10.2) with `0x3FFF` reserved for "no leaf". A 128 by 128 room of only level-2 leaves would need 16384, one over; such a room uses big leaves, or is two rooms. |
+| `MAX_SUB_BLOCKS_PER_ROOM` | 1024 | [proposal] each block is 32 bytes of index plus its leaves; revisit with the phase T10 size report. |
+| `MAX_BAND_SETS_PER_ROOM` | 32 | [proposal] |
+| `MAX_BAND_LINES` | 6 per set (7 bands) | [proposal] |
+| `MAX_OPENINGS_PER_EDGE` | 4 | [proposal] |
+| `MAX_STAMPS` / `MAX_STAMP_CELLS` | 64 / 1024 | [proposal] |
+| `MAX_FIT_REPEAT` | 16 tiles per axis (256 in 1/16 steps) | [proposal]; larger values are accepted by the cook and split, but the inspector asks for confirmation. |
+
+`MAX_WORLD_FACES` (`E/limits.rs:37`) stays as the authoring warning (orange from 85 percent in the status bar) but stops being the hard cap: the hard errors move to the cook's exact checks (65535 vertices and quads per room, 255 quads per render cell: `E/cook/render.rs:227` and the existing `u8` count check). The budget readout adds the cooked quad count once the cook has run (section 11.3).
+
+### 3.8 Stamps
+
+```rust
+pub struct Stamp { pub name: String, pub size_clicks: [i32;2],
+                   pub leaves: Vec<(LeafKey /*relative*/, GridSector)>,
+                   pub edge_overrides: Vec<(EdgeKey, EdgeOverride)>,
+                   pub openings: Vec<Opening>,
+                   pub band_sets: Vec<BandSet> }            // referenced sets, re-indexed on place
+// GridWorld.stamps: Vec<Stamp>, serde default empty
+```
+
+Heights are stored relative to the stamp's anchor floor height; placement adds the floor height under the pointer. Rotation and flips reuse `Transform` (`E/edit/clipboard.rs:20`), extended with the click lattice, edge overrides, openings and the UV `turns` and `flip` fields. Placement snaps the stamp anchor to the alignment of its coarsest leaf; if the pointer cell is less aligned, the placement offers "split to fit" which subdivides the **target** leaves, never the stamp. Nodes (lights, spawns) are not part of a stamp in v1. Ctrl+C / Ctrl+V remain the ephemeral clipboard; a stamp is a named, persisted clipboard.
+
+---
+
+## 4. Derived walls, openings and the auto split
+
+### 4.1 The rule
+
+A wall is a function of the two leaves on either side of an edge. For one edge segment, take each side's **floor profile** `f(u)` and **ceiling profile** `c(u)` along the segment (linear between the two edge corners of the leaf's surface; for a split surface the triangle that contains the edge is used, exactly as `surface_edge_heights` does, `E/edit/walls.rs:41`; `u` is the position along the segment). Then:
+
+| Case | Faces made | Owner | Faces |
+| --- | --- | --- | --- |
+| R1 riser | both sides have floors and `fA != fB` | the **higher**-floor leaf | the strip between the two floor profiles, visible from the lower side |
+| R2 drop | both sides have ceilings and `cA != cB` | the **lower**-ceiling leaf | the strip between the two ceiling profiles, visible from the higher side |
+| R3 closure | the neighbour position holds no leaf | the leaf itself | its open interval `[f, c]` if it has a floor and a ceiling; `[f, f + room.open_wall]` if it has only a floor and the room sets `open_wall`; nothing otherwise |
+| none | every other combination: open archway to a floorless or ceilingless neighbour, equal profiles, pit edges | | |
+
+Notes.
+
+* Profiles that cross inside a segment (a bow tie) are cut at the crossing into two triangles with opposite owners. Equal profiles give no face, which is the whole point: continuous floors never grow a wall.
+* Faces are made per **segment of the finest common subdivision of the edge**: if one side is a coarse leaf and the other two finer leaves, there are two segments and the coarse side's profile is evaluated at the segment ends. With 2:1 balance that is at most two segments per edge (3.2).
+* Derivation is **within one room**. A room's border is R3 against empty space. Rooms that sit side by side get a doorway with the Opening verb, which cuts both closure walls (the verb detects the neighbouring room across the border). Cross-room derivation would need the stacked-room disambiguation the dungeon needs for `locate`; it is out of scope (open question 6).
+* Derived faces are produced in `faces.rs` next to `cell_faces`, so the preview, the light bake and the cook see the same polygons (the property `E/faces.rs:1-12` insists on). `cell_faces(world, room, x, z)` keeps its signature and returns the faces **owned** by that sector, clipped to the sector, which keeps the preview's per-sector bounds culling working. Cell bounds for culling are widened by the derived extent: `GridSector::height_range` (`E/sector.rs`) gains a companion `derived_range(room, key)` the preview uses (`emu/crates/frontend/src/editor_preview/grid.rs:26-47`).
+* Face count: a derived room needs no authored walls at all, and adding one is the cost of one riser per height step, so the budget readout stays honest (`face_count`, `E/faces.rs:375`).
+
+### 4.2 Authored walls in a derived room
+
+Authored walls remain for what heights cannot say: a freestanding wall on a flat floor, a parapet on a ledge, a diagonal wall, an extra panel stacked on a derived face. In `Derived` mode they are **additive**. The Wall tool's gap logic (`next_wall_heights`, `E/edit/walls.rs:84`) now treats the derived faces on that edge as already-existing walls when it looks for gaps, so on an edge fully closed by a derived face it answers "fully covered" instead of drawing a coincident wall. `limits::validate` adds a warning `AuthoredDuplicatesDerived` for any authored wall whose span lies inside a derived face on the same edge and side (it would z-fight).
+
+### 4.3 Material chain for a derived face
+
+First hit wins:
+
+1. a band material from the `EdgeOverride`'s band set (4.4), when the face has bands;
+2. the **owner** leaf's `wall_material` (new optional `GridSector` field: "what derived faces owned by me look like");
+3. the **facing** leaf's `wall_material` (the neighbour that looks at it; this is Manny's "material from the neighbour");
+4. the room's `defaults.wall_material`;
+5. the owner's own surface material: its floor triangle material for R1 and R3, its ceiling material for R2.
+
+Verbs write step 2 explicitly when the palette has a material chosen (so a platform raised with brick selected gets brick sides), and leave it unset otherwise so the chain falls through. Paint on a derived face writes the `EdgeOverride`, never an authored wall.
+
+### 4.4 `EdgeOverride`
+
+```rust
+pub struct EdgeKey { pub x: i32, pub z: i32, pub axis: Axis, pub len: u8 }  // world clicks of the segment start, direction, length in clicks
+pub struct EdgeOverride {
+    pub hidden: bool,                  // no derived face here (look only; risers still block by the step rule)
+    pub band_set: Option<u8>,          // index into room.band_sets; None = room default
+    pub material: Option<ResourceId>,  // replaces the whole chain when the face has no bands
+    pub uv: Option<FaceUv>,            // per-run UV placement, includes UvMode (section 5)
+    pub solid: Option<bool>,           // R3 closure only; false = ghost wall, no collision
+}
+```
+
+Keys are geometry-addressed, never indices, so they survive edits to neighbours and undo. `normalize` (3.5 step 5) splits and collapses them. An override whose edge no longer produces a face is kept (the user may be mid-edit) and listed by a `validate` info line; "Clean up" in the Rooms panel removes them.
+
+### 4.5 Openings
+
+```rust
+pub struct Opening { pub edge: EdgeKey, pub from: u8, pub to: u8,       // clicks along the segment, from < to <= edge.len
+                     pub bottom: HeightRef, pub top: HeightRef, pub frame: Option<ResourceId> }
+pub enum HeightRef { Floor(i32), Ceiling(i32), Abs(i32) }               // gu offset from the wall's floor or ceiling edge profile, or room-relative absolute
+```
+
+An opening removes a rectangle from the wall (derived or authored) on that edge and leaves a **sill** below `bottom` and a **lintel** above `top`. Rectangles are applied before bands (6.3). `bottom = Floor(0)` makes a doorway. Openings apply to R1 to R3 faces and to authored walls (the authored wall record is split into sill and lintel records by the verb at creation, because authored walls carry no opening list). Collision: a derived riser or drop never has a collision record, so an opening in one is visual, and a body passes only when the floors allow it (step rule). An opening in a closure wall (R3) or an authored wall changes the `ColWall` set: the cook emits `ColWall`s for the sill and lintel pieces only, with a partial span (10.1, `ColWall.reserved`). Portal derivation (`E/cook/portals.rs:26`) reads open spans from the document's floors and ceilings, so it needs one change: a closure wall without an opening blocks the portal, one with an opening yields the open interval of the opening.
+
+### 4.6 Auto split
+
+Per surface, `GridSurface` gains `auto_split: bool` (serde default `false` = legacy locked; verbs and new floors write `true`; the Split tool D writes `false`, which is "manual flip stays").
+
+When a surface with `auto_split` has its heights changed (any verb, the Height tool, Shift-drag, `normalize`), the split is chosen by **fit to the bilinear surface of the four corners**: for both diagonals compute, on the 5 by 5 lattice of quarter points, the integer sum of absolute errors between the triangulated surface (`psx_grid::height`) and the bilinear surface `((4-i)(4-j)NW + i(4-j)NE + i j SE + (4-i) j SW) / 16` (compare scaled by 16, all integer). The smaller sum wins; on a tie keep the current split (so a flat or symmetric cell never flips and a stroke does not flicker). Planar surfaces are untouched.
+
+Why this rule: at the centre both diagonals deviate from the bilinear surface by the same amount (`|NW+SE-NE-SW|/4`), so the centre cannot decide; the whole-lattice error can, and it picks the diagonal that follows the crease. It is deterministic, integer, and the same code runs for sub-sector leaves. Split-level surfaces (`heights_b` set) are not auto split.
+
+### 4.7 Convert a legacy room (the migration)
+
+`edit::convert_to_derived(world, room, mode)` with `mode` = `PreserveLook` (default) or `FillNewWalls`:
+
+1. Compute the derived faces the room would have in `Derived` mode.
+2. For each authored wall that **coincides** with a derived face (same edge and side, its span covers the derived span within one fine step on both ends): remove it and copy its material, `FaceUv` and `solid` into an `EdgeOverride` for those segments.
+3. Authored walls that match nothing stay authored.
+4. Derived faces with no authored counterpart (a legacy cliff that was left see-through): `PreserveLook` writes `EdgeOverride.hidden = true` there; `FillNewWalls` leaves them.
+5. Switch `wall_mode` to `Derived` and report: n converted, n kept authored, n hidden.
+
+Gate (acceptance of the phase): for each of the six reference levels and the starter, `all_faces` after `PreserveLook` equals `all_faces` before as a multiset of rings, materials and texels (ordering and wall course splits excluded), and the cook output has the same section contents as before except the room flags. Without the command nothing changes at all.
+
+### 4.8 Collision of derived walls
+
+Risers and drops are implicit in the floor sampler and ceiling slabs, as today (`docs/grid/level-format-and-runtime.md` section 5.2). Closure walls (R3) become `ColWall` records owned by the leaf, with `solid` true unless the override says otherwise. This is the one place the cook reads derived geometry for collision, and it reads the same function `faces.rs` uses (`derive::closure_walls`).
+
+---
+
+## 5. One UV model
+
+### 5.1 The model
+
+`FaceUv` (`editor/crates/psxed-project/src/face_uv.rs:8`: `offset_texels`, `rotation_deg`, `scale_q8`) is the per-face placement used by floors, ceilings, authored walls and planes. It is extended, not replaced, so every consumer gains the new controls and every existing file keeps its meaning:
+
+```rust
+pub enum UvMode {
+    Inherit,                                   // default: use the material's grid default, else WORLD 32
+    World { texels_per_sector: [u16; 2] },     // world aligned; 32 = today's behaviour
+    Fit   { repeats_q4: [u16; 2] },            // tiles across the whole face, 1/16 tile steps; 16 = 1x
+}
+pub struct FaceUv {                            // + new fields, all serde-defaulted
+    pub mode: UvMode,                          // Inherit
+    pub turns: u8,                             // quarter turns 0..=3, applied in frame space
+    pub flip: [bool; 2],                       // mirror U, V in frame space
+    // existing, unchanged: offset_texels, rotation_deg, scale_q8 (the "fine" free adjustment)
+}
+```
+
+`FaceUv::is_identity` returns true only when every field is default, so `skip_serializing_if` (used at `E/surface.rs:48`) keeps old files unchanged.
+
+Resolution order: the face's `mode`, else its material's `grid_uv` default (new optional field on the Material resource, edited in the Material tab; the Inspector shows "from material" when it is used), else `World { [32, 32] }`. Applying a material to an `Inherit` face therefore takes the material's tiling, which is the "per-material default, per-face override" Manny asked for.
+
+Mapping, in order: (1) the **frame** coordinates `(s, t)` of each corner, from the mode (5.2 and 5.3); (2) `turns` and `flip` in frame space; (3) texel scaling; (4) the existing `FaceUv::apply` (rotation about the face centre and `scale_q8`, as `place` does at `E/faces.rs:107`); (5) `+ offset_texels`.
+
+### 5.2 WORLD
+
+Texel = world position times density, so neighbouring faces line up and resizing a face tiles more instead of stretching. Axes: floors and ceilings use `(x, z)`; walls use `(distance along the run, -y)`, the same convention as authored walls today (`E/faces.rs:250-300`). `texels_per_sector` 32 on a 64 texel texture is 0.5 tiles per sector. The editor shows tiles per sector (`texels / texture size`), the file stores integer texels per sector so the legacy value is exactly 32 whatever the texture size (the cook's tile is a fixed 64, `E/cook/render.rs:25`).
+
+### 5.3 FIT
+
+Texel = fractional position inside the face's **frame** times `repeats * texture size`. "2x2 on this face" is `repeats_q4 = [32, 32]`, "3x1" is `[48, 16]`, non-integer repeats are allowed (1.5x) and simply start and end mid-tile. One-click presets: 1x1, 2x2, 4x4; free numeric fields per axis. Odd `turns` swap which frame axis the two repeat numbers refer to, so the inspector always shows repeats in screen terms.
+
+The frame is the **logical face**, which is what the user selects:
+
+| Face | Frame |
+| --- | --- |
+| floor or ceiling | the leaf square (both triangles of a split surface share it, so repeats continue across the diagonal) |
+| derived wall | the **run** (4.1 table) bounding rectangle, in `(u, y)` between the run's lowest floor profile point and highest top |
+| authored wall | the wall record, its bounding rectangle |
+| band | the band's strip within the run |
+| plane | the plane rectangle |
+
+Because a run is a frame, "8x1" across a long derived wall repeats eight times along its whole length, not eight times per cell. The frame bounds are recomputed when the run changes length, which is the intended behaviour of FIT (repeat count fixed, tile size follows the face).
+
+### 5.4 Storage and defaults
+
+All integer. `repeats_q4` and `texels_per_sector` are `u16`, offsets stay `i16` texels, `turns` is `u8`. The default `FaceUv` is `Inherit`, no turn, no flip, identity fine: byte-identical to today for every existing face. `UvMode::World` is what `GridPlane.uv_mode = Tile` means (anchored at the plane's top-left, `grid-runtime:E/plane_faces.rs`), `Fit {16,16}` is `Stretch`.
+
+### 5.5 PS1 constraints and the automatic split
+
+Packet UVs are `u8` (`Quad.uv`, `P/format.rs:451`). One primitive can therefore span at most `255 - phase` texels per axis, where `phase = start texel mod P` (P the texture size on that axis, 64 for current materials). With phase 0 a 64 texel texture repeats at most **4 times** (the far edge clamps to 255, one texel short of 256, a [derived] 0.4 percent shift at the far end); a non-zero phase (an offset, a half-tile start) reduces the worst case to **3** [derived]. Repetition inside a primitive needs the GPU texture window (GP0 E2), section 9.6.
+
+The cook therefore splits a face whose span exceeds the limit into the fewest equal pieces, cutting at tile boundaries where it can. Until the window path lands (phase T3) the limit is **1 tile** per primitive, which is also today's behaviour (`rebase_texels` clamps and counts `uv_overflow`, `E/cook/render.rs:115`); T3 raises it to 4. The split is on faces after stitching, so pieces share vertices and the T-junction repair of 9.3 covers their seams.
+
+**Reporting.** `uv::report(face) -> UvReport { effective_repeats: [f32;2], pieces: [u8;2], quads_added: u32, phase_ok: bool }` is a pure function shared by the Inspector and the cook; the cook sums `quads_added` into `CookReport.uv_split_quads`. The Inspector always prints the effective result:
+
+```
+Tiling   (o) World   ( ) Fit
+  World: 32 texels/sector   = 0.5 tile/sector     effective on this face: 1.0 x 0.5 tiles
+  Fit  : [ 2 ] x [ 2 ]   presets [1x1][2x2][4x4]  effective: 2 x 2 tiles on this face
+  Offset [  0 ][  0 ]  Turn [<][>]  Flip [H][V]  Fine: rotation 0, scale 100%
+  from material: no        !  cook splits this face into 4 quads (+3)   (repeat 8x1 exceeds 4x per primitive)
+```
+
+### 5.6 Merging, near cap and continuity
+
+The cook merge (9.2) joins two quads only when one affine texel map reproduces **both** quads' corner texels (the linearity test already in `E/cook/lod.rs`, generalised). WORLD faces satisfy it across neighbours, FIT faces from different logical faces do not (their frames restart), so they never merge across a frame boundary, which is correct. The near cap (9.5) splits large quads near camera-reachable space; pieces keep the continuous map, so splitting changes cost, never the picture.
+
+### 5.7 Unifying with planes
+
+Today planes compute their own raw texels (`grid-runtime:E/plane_faces.rs`, `raw_texels`) for Tile and Stretch. After this change `plane_faces` calls the shared `uv::frame_texels(frame, &FaceUv, material_default)` with the plane rectangle as frame and the plane's top-left as the WORLD anchor. `GridPlane.uv_mode` stays as the legacy way to say Tile or Stretch and is used only while `uv.mode == Inherit`; a non-Inherit `uv.mode` wins. The change is small and separate (phase T2 touches `plane_faces.rs` only after planes merge), so the planes agent is not blocked.
+
+---
+
+## 6. Horizontal wall bands
+
+A band is a horizontal strip of a wall with its own material and UV rule. Bands are the answer to "trim at the base, main wall, frieze at the top" and apply identically to derived faces (R1, R2, R3) and authored walls.
+
+### 6.1 Data
+
+```rust
+pub enum Anchor { Bottom(i32), Top(i32), Abs(i32) }   // gu: above the wall's bottom edge, below its top edge, or room-relative height
+pub enum BandV   { World, FromBottom, FromTop }       // where V = 0 sits for the band's texture
+pub struct Band  { pub material: Option<ResourceId>, pub uv: FaceUv, pub v: BandV }
+pub struct BandSet { pub name: String, pub lines: Vec<Anchor>, pub bands: Vec<Band> }   // bands.len() == lines.len() + 1
+```
+
+Band 0 runs from the wall's bottom to line 0, the last band from the last line to the wall's top. `Band.uv.mode` is the shared UV model, so a frieze is `Fit { [16*n, 16] }` (n tiles along, exactly one texture high between its lines), a base trim `FromBottom` with `World` along u, and the main body `World` as today.
+
+### 6.2 Where bands are stored and resolved
+
+Three levels, most specific wins, nothing is baked into faces in the document:
+
+1. **Room default**: `room.defaults.bands: Option<u8>` points at a set in `room.band_sets`. Applies to every derived face and every authored wall in the room that has no other assignment.
+2. **Run override**: `EdgeOverride.band_set` (4.4) for derived segments, and for authored walls a new `GridWall.band_set: Option<u8>`. The Bands tool writes the same index on every segment of the selected run.
+3. **None**: `band_set = Some(255)` explicitly means "no bands on this run" (a plain wall in a room that has defaults).
+
+Editing is copy-on-write: changing lines or a band's material while the scope is "Run" clones the set, appends it, and points just those segments at the clone; scope "Room" edits the set in place. Unreferenced sets are dropped by `normalize`. The set count is capped by `MAX_BAND_SETS_PER_ROOM`.
+
+### 6.3 Geometry pipeline
+
+Per segment of a wall run:
+
+1. **Profile**: the face region between `bottom(u)` and `top(u)` (derived R1/R2/R3 from 4.1; for an authored wall its own four heights). Trapezoids and triangles are normal.
+2. **Anchors**: `Bottom(o)` means `bottom(u) + o`, so a trim follows a sloped floor; `Top(o)` means `top(u) - o`, so a frieze hangs from a sloped ceiling or a ledge; `Abs(y)` is horizontal, a datum line (a cornice at a fixed height across terrain that rises and falls). For stacked authored segments on one edge the anchors refer to the **edge**: Bottom is the lowest segment's bottom, Top is the highest segment's top, so one trim runs at the base of the stack, not at the base of every segment.
+3. **Openings** (4.5) cut rectangles out of the region first. A lintel above a door therefore keeps the bands that run through it (the same lines, clipped), which is what makes a door in a banded wall look continuous.
+4. **Lines**: line `i` is the function `y_i(u)`; the effective cut is `e_i(u) = clamp(y_i(u), e_{i-1}(u), top(u))` so lines never cross and a band whose strip collapses simply has zero height at that `u`. Band `i` is the region between `e_{i-1}` and `e_i`. Each of `e_i` is piecewise linear with at most one break inside a segment (where an `Abs` line meets a sloped edge), so a band polygon has at most six corners.
+5. **Output**: faces of three or four corners. A polygon with more is fan-split **in `faces.rs`** into quads and triangles; the cook keeps its four corner limit (`E/cook/render.rs:227`) and needs no change for bands.
+
+### 6.4 Slopes, openings, stacks, cracks
+
+* **Sloped floors and ceilings**: handled by the anchors; the trim is a parallelogram-like trapezoid that follows the slope, a datum `Abs` line cuts it into a triangle and a trapezoid at the crossing.
+* **Stacked authored segments** and **openings**: as in 6.3 steps 2 and 3.
+* **Vertical edges between neighbouring segments**: bands cut on the same lines at both sides produce identical vertices on the shared vertical edge (both sides evaluate `y_i(u)` at the same `u` from the same edge heights). Where two neighbours use different band sets the cut heights differ along that edge, which is a T-junction; the cook's generic repair (9.3) inserts the neighbour's vertices into the longer side. This is also the only case where band count inflates quad count beyond `segments x (bands)`.
+* **Courses disappear**: the 1024 gu splits (`E/faces.rs:317`) existed so a world-aligned texture fits a u8 span. With the UV splitter of 5.5 a tall plain wall is one face. In phase T4, `faces.rs` keeps emitting courses for rooms with `wall_mode = Authored` and no band sets (byte-identical legacy output) and stops emitting them for everything else.
+
+### 6.5 Editing bands (the Bands verb, E)
+
+Pick a run (click a wall; Shift extends along the run; Ctrl+A selects the room's walls), then in the Inspector or in the viewport:
+
+* **Cut**: hover the wall, a horizontal rule previews at the pointer height snapped to clicks; click inserts a line. A toggle chooses the anchor kind (nearest edge decides by default: within the lower quarter of the wall is Bottom, upper quarter Top, otherwise Abs).
+* **Move**: drag a line vertically; numeric field in clicks.
+* **Remove**: click a line then Delete, or the minus button.
+* **Material**: click a band in the viewport, click a material in the palette; the Paint tool also targets bands when the pointer is over a band of a banded wall.
+* **Scope**: Run (the selected segments) or Room (the default set). A one-line preview reads "applies to 12 wall segments".
+
+Undo: one step per insert, per drag, per material change.
+
+---
+
+## 7. Verbs
+
+### 7.1 The interaction model every verb shares
+
+```
+ 1. REGION   marquee | paint brush | path          (or reuse the current Select/Region)
+ 2. VERB     press its key or click its button    (Region persists, verbs chain)
+ 3. AMOUNT   drag vertically anywhere, or type it  (snaps to clicks; Alt = fine 64; Shift = one sector)
+ 4. COMMIT   release the mouse (one undo step); Esc cancels and restores exactly
+```
+
+Implementation shape, so one agent can build all verbs the same way:
+
+* Pure functions in `E/edit/verbs/*.rs`: `begin(world, &Region, &Params) -> VerbDrag` captures the touched leaves plus the one-ring of neighbours; `apply(world, &mut VerbDrag, amount) -> Applied` restores that snapshot and recomputes from absolute values, then calls `tree::normalize` on the dirty set. This is the contract `HeightDrag` already has ("every update then sets absolute heights from the start values, so a drag can be repeated, reversed or cancelled exactly", `E/edit/heights.rs:1-9`). The preview is the live document plus an overlay, as the Height tool does now, so derived walls, stitching and the auto split show live because they are derived.
+* Gestures in `U/verbs/*.rs` add variants to `Gesture` (`U/mod.rs:223`): `Region(RegionGesture)` and `Verb(VerbGesture)`. Undo snapshots the document at the first change (the `before` field of `HeightGesture`, `U/mod.rs:212`).
+* The amount maps screen pixels to clicks with the same `pixels_per_unit` machinery as the Height tool (`U/mod.rs:212`); in the Top view a vertical mouse delta is used. The option row shows the live value in clicks, gu and ru (for example "+2 clicks, 512 gu, 40 ru").
+* Every verb takes `follow_ceiling` and `material` parameters and writes ordinary fields; nothing is stored about which verb made it.
+* Every verb reports refusals through the status line (cells skipped, room growth refused at `MAX_ROOM_SIDE`, `MAX_LEAVES_PER_ROOM`), never silently.
+
+### 7.2 Smart paint rules and per-face override
+
+`room.defaults.rules: PaintRules` (editable in the Rooms panel, optional):
+
+* `floor_by_class: [Option<ResourceId>; 3]` for Flat, Slope (normal y at or above 2867/4096, the motor's limit, `character_motor.rs:38`) and Steep.
+* `trim: Option<ResourceId>`: the material of band 0 whenever a verb creates a derived face in a room with no band default.
+* `wall: Option<ResourceId>`: the `wall_material` verbs stamp on the leaves they raise.
+
+Rules run **only inside verbs**, and only on surfaces the verb created or whose slope class it changed. A surface the user painted by hand sets `GridSurface.paint_locked = true` (the Paint tool and the Inspector material picker write it; serde default false) and rules skip it. So rules give a good first pass; everything they write is an ordinary material field, hand-editable afterwards, and the Paint tool or Inspector is the per-face override.
+
+### 7.3 Raise / Lower (U)
+
+| | |
+| --- | --- |
+| Input | A cells region. |
+| Gesture | Drag up raises, down lowers. Tab toggles **Offset** (every corner moves by the amount, shape kept; the default on a non-flat region) and **Level** (every corner set to the reference height plus the amount; the default on a flat region, where the two agree). The reference is the height under the pointer at press. |
+| Preview | A translucent plane at the new height over the region, the new derived walls (live), and the amount readout. |
+| Writes | The floor corner heights of every region leaf; sets `wall_material` from the palette or the paint rules; `auto_split` surfaces re-split. Corners on the region boundary move with the region and the cells outside keep theirs, so a cliff and its derived walls appear; **no weld is propagated outward** (this is the one place the Height tool's link behaviour is deliberately off). |
+| Ceiling | `follow` ON moves each region ceiling by the same delta (headroom constant). The Inspector button "Match ceiling" sets each ceiling corner to the floor corner plus a headroom `H`; the default `H` is the body height rounded up to a click plus one click, 4 clicks at the default scale [derived: 48 ru body, `character_motor.rs:20`, 20 ru per click]. |
+| Edge cases | Region cells without a floor are skipped and counted. A platform whose edge meets a neighbouring big leaf subdivides the neighbour through balance. A raised floor reaching its ceiling clamps one click below it and says so. Offset mode on a region that includes a sloped surface and a flat one keeps each shape. |
+| Undo | One step per drag; typing a number is one step. |
+
+### 7.4 Sculpt (S)
+
+Brush on the corner lattice. Parameters: mode Raise, Lower, Flatten, Smooth, Noise; radius in clicks (`[` and `]`); strength; target Floor, Ceiling or Both.
+
+* **Field.** A stroke edits a virtual high-resolution height field at click resolution (shared points, welded exactly as `WeldIndex` welds corners at gesture start; a point across a cliff has one value per side). Raise and Lower accumulate a fractional amount per lattice point in the gesture, so slow strokes progress, and write multiples of the fine step (64). Flatten sets points to the height under the pointer at press (Alt+click samples another). Smooth replaces a point by the mean of its welded 4-neighbours. Noise adds a deterministic value from a hash of `(seed, point)`, seed fixed per gesture so redo and undo are exact.
+* **Commit.** For each affected leaf, the field samples are compared with what the leaf can represent. A leaf represents the field **exactly** when its triangulated surface (either diagonal) matches every lattice sample inside it. If not, the leaf is **subdivided** one level and the test repeats on the children, down to level 4. Constrained hanging corners (3.2) then force neighbours to subdivide; the loop runs to a fixpoint. Where all four children of a node are exactly representable by the parent, `normalize` **merges** them again. Both thresholds are exact equality on the 64 gu lattice, so there is no tolerance to tune and no flicker. A lossy "Simplify" command merges within a tolerance chosen by the user (default one fine step, [proposal]).
+* **Cost control.** The subdivision count is shown live in the option row ("+37 leaves, +2.2 KiB collision [derived]") and a stroke stops subdividing at `MAX_LEAVES_PER_ROOM`, reporting it.
+* **Edge cases.** Leaves with diagonal walls, `heights_b`, or authored walls on an edge that a subdivision would split are refused or the walls are split along the new edge and kept; the status line says which. Ceiling target applies the same logic to ceilings. Cells without a surface are not created by Sculpt.
+* **Undo.** One step per stroke (press to release).
+
+### 7.5 Ramp (A)
+
+| | |
+| --- | --- |
+| Input | A cells region and a direction. |
+| Gesture | After choosing the verb the four sides of the region's bounding box light up; click the **A edge** (it keeps its height), then drag vertically to set the B edge's rise. R turns the direction by 90 degrees. Every corner gets `h = hA + amount * t`, `t` the corner's normalised position along A to B, rounded to the fine step. |
+| Preview | The sloped surface as a ghost, the slope class colour (green walkable, orange steep) and the slope readout "rise per sector" and angle. Tab clamps the amount to the steepest walkable slope (normal y = 2867/4096, about a 1.02 : 1 rise to run [derived]). |
+| Writes | Floor corners (and ceilings with `follow`); `auto_split` re-split so the diagonal follows the crease. A planar ramp over many cells is exactly the case big leaves help (one planar L0 leaf, section 3.2). |
+| Edge cases | A region that is not a rectangle ramps by position, so L-shapes work. Cells without floor are skipped. |
+| Undo | One step. |
+
+### 7.6 Stairs (T)
+
+| | |
+| --- | --- |
+| Input | A path: click the start cell edge, then one or more waypoints, Enter finishes (two points make a straight flight, more make an L or a zig-zag with a landing at each corner). Width in clicks (Inspector, default one sector). |
+| Amount | Drag vertically for the total rise, or type it. Option chips: **Steps** (default) or **Ramp** (the same path as a ramp). |
+| Step sizing | A **riser option** chooses the riser: `1 click` (default, [proposal]: half the climb limit, comfortable), `Max` (the motor's step-up height, 40 ru today and soon a config field: `character_motor.rs:27`; 40 ru = 512 gu = 2 clicks at the default scale [derived]) or a typed value, never above the limit. Number of steps `n = round(rise / riser)`, then the riser is `rise / n` snapped to the fine step and the verb re-picks the nearest `n` whose riser snaps cleanly; tread depth `= run / n` snapped to whole clicks. If the run has fewer clicks than `n` the verb refuses with "too steep for treads, use Ramp or lengthen". Remainder clicks go to the first tread. |
+| Subdivision | A tread of at least one sector needs no subdivision (each cell is a tread, the riser is the derived wall between cells). A tread of half or one quarter of a sector subdivides the cells along the run to level 3 or 4 (phase T11; before the quadtree lands, phase T7 supports whole-sector treads only and refuses finer). Cells off the stair stay untouched. |
+| Preview | Ghost treads and the readout "12 steps, riser 1 click (20 ru), tread 1/2 sector". Orange when a riser exceeds the step limit (cannot happen unless the user typed an override). |
+| Writes | Flat floor tread surfaces at `base + i * riser`; ceilings per `follow`; floors are created where missing. Walls come from derivation. |
+| Edge cases | A path crossing existing slopes overwrites; the five-point footprint sampling of the motor can step over a tread narrower than its radius, so the verb warns when tread depth is below the character radius (config); the headless stair-climb test in section 14 decides the minimum. |
+| Undo | One step. |
+
+### 7.7 Room (B)
+
+Input: a rectangle in the Top view or on the floor plane in 3D, then a vertical drag for the **height** (clicks above the floor). Creates floor and ceiling over the rectangle as maximal aligned leaves (so a 12 by 12 room is nine level-0 leaves, "big cells by default"), flat at the current base height, ceiling at `base + height`, `auto_split` true, materials from the palette or the paint rules. No walls are written: the perimeter faces void, so derivation closes it (R3). Where the rectangle overlaps existing cells it overwrites floor and ceiling and derivation reconciles the edges (a room merged into a corridor opens by itself where heights agree). In an `Authored` room the verb asks to convert first, so the rule "walls come from derivation" has no exceptions. Undo: one step.
+
+### 7.8 Corridor (K)
+
+Input: a path of waypoints (Enter finishes) and a width in sectors (Inspector; widths that are not whole sectors subdivide the edge cells, flat, so the cook merges them back). Corners are mitred squares; legs are axis aligned. Floor height is taken from the first waypoint and may be changed per waypoint by a vertical drag on that waypoint (the leg between two heights becomes a Ramp). Ceiling height from the Inspector (headroom). Writes floor and ceiling leaves over the swept footprint. Where the corridor meets an existing room, derivation opens the junction if floors agree (a doorway for free) and builds a drop or riser if they do not. Undo: one step.
+
+### 7.9 Opening (I)
+
+Pick a wall segment (hover shows the run), drag along it to set the horizontal extent (clicks), release, then drag vertically to set the lintel height; chips choose **Door** (bottom = floor) or **Window** (a second vertical drag also sets the sill height). For a derived face it writes `Opening` records (split at leaf boundaries); for an authored wall it splits the record into sill and lintel pieces. Preview shows the cut rectangle and the lintel. Across a room border the verb writes the matching opening on the neighbouring room's closure wall. Edge cases: an opening narrower than the segment is allowed to any click; an opening on a hidden or fully covered edge is refused. Undo: one step.
+
+### 7.10 Ceiling follow
+
+Not a separate tool. It is a chip on Raise, Ramp, Stairs, Sculpt and Room (`follow`, default on for rooms that have ceilings) and the Inspector command "Match ceiling" (7.3). Both write ordinary ceiling corner heights.
+
+### 7.11 Stamps (Y)
+
+Save: with a region selected, Y opens the Stamps panel; "Save selection as stamp" names it and stores leaves, overrides, openings and the band sets they use (3.8). Place: choose a stamp, a ghost follows the pointer on the floor; R turns it 90 degrees, H and V flip (the same keys as the paste ghost, `U/keys.rs:45-51`, because a stamp is a persisted paste), click stamps, Shift keeps stamping, Esc ends. Heights are relative to the floor under the pointer. Stamping that needs finer or coarser leaves than the target has splits the **target** leaves (lossless) and runs `normalize`. Undo: one step per stamping.
+
+### 7.12 Keys
+
+Existing and untouched: `V F C W H P D O`, `?`, `.`, `L`, `R` (wall direction, ghost turn), `Delete`, `PgUp PgDn [ ]` (height nudge in Height and Select), `Esc`, `Ctrl+A/C/V/Z/S`.
+
+| Key | Verb | Notes |
+| --- | --- | --- |
+| U | Raise / Lower | |
+| S | Sculpt | `[` `]` brush radius (these keys nudge heights in the Height tool; inside a verb they mean radius) |
+| A | Ramp | R turns the direction |
+| T | Stairs | Enter finishes the path |
+| B | Room | |
+| K | Corridor | Enter finishes the path |
+| I | Opening | |
+| E | Bands | |
+| Y | Stamps | |
+| Alt+W | Walkability overlay | Alt is also the fine snap while dragging; as a chord with W while idle it is free |
+| Alt+P | Performance overlay | |
+| Tab | cycle the active verb's mode | |
+
+Letters kept free for the planes tool and later: `N G J M Q X Z`. If planes chooses one of the letters above, that verb moves to the Shift chord of the same letter; nothing else changes.
+
+---
+
+## 8. Editor surfaces
+
+Following the UX audit: one home per function, the Inspector shows one context at a time, a visible 3D/Top switch (`docs/grid/ux-audit.md` section 4.1 and 4.2). This design does not redo that audit; it adds to it.
+
+### 8.1 Tool strip
+
+The strip (`U/strip.rs:10`) grows from one group of eight to four labelled groups that wrap as today. The Build group is the verbs; Draw is the existing manual tools (Floor, Ceiling, Wall stay because they are the escape hatch and the way to author on legacy rooms).
+
+```
+ PICK            DRAW (manual)                                  BUILD (verbs)
+ [V Select][H Height]  [F Floor][C Ceil][W Wall][P Paint][D Split][O Place]  [U Raise][S Sculpt][A Ramp][T Stairs][B Room][K Corr][I Open][E Bands][Y Stamp]
+ -----------------------------------------------------------------------------------------------------------------
+ options of the active tool:  Raise: [Offset|Level] Follow ceiling [x]  Material: brick   Amount: [ +2 ] clicks
+                                                                              Snap 256 (Alt 64)   (?)   [Walk][Perf][3D|Top|Split]
+```
+
+The Place options and `?` page stay where they are (`U/strip.rs:76-109`); the `?` page (`U/help.rs`) gains the Build keys. The key hint strings are generated from one table, which also fixes the triple duplication the audit noted (`ux-audit.md` section 5, last item).
+
+### 8.2 Inspector contexts
+
+A header line names the context; only that context's controls show. Contexts: Face(s), Wall run, Region (with the active verb's parameters), Band, Node, Room, World. Selecting a wall run shows:
+
+```
++- Inspector ----------------------------------------------------+
+| WALL RUN   12 segments, derived (R1 riser, owner: room 2)       |
+|   Material   [ brick_a ]  (from owner wall_material)            |
+|   Tiling     (o) World  ( ) Fit                                 |
+|     World: [32] texels/sector = 0.5 tile/sector                  |
+|     effective on this run: 0.5 tiles per sector                 |
+|     Offset [ 0 ][ 0 ]  Turn [<][>]  Flip [H][V]                 |
+|   Bands      scope: (o) This run  ( ) Whole room                |
+|     top    ----------------------------  Top - 1 click          |
+|       frieze   [ cornice_b ]  Fit  [ 8 ]x[ 1 ]                  |
+|     body   ----------------------------  Bottom + 1 click      |
+|       main     [ brick_a ]   World                              |
+|     base   ---------------------------- (wall bottom)          |
+|       trim     [ plinth_c ]  FromBottom                        |
+|   Openings   2  [select]                                        |
+|   Hidden [ ]  Solid [x]                                         |
++-----------------------------------------------------------------+
+```
+
+A Region context shows the region count ("12 cells in 3 leaves"), the verb's parameters, `follow ceiling`, `material`, and the live amount. The Rooms panel (left dock) gets per-room: wall mode (Authored / Derived with the Convert button), open wall height, default wall material, default band set, paint rules, and the band set list. The Materials palette stays the single material home; a swatch has a small badge when the material has a grid tiling default. The Material tab gains the `Grid tiling default` row (WORLD texels per sector or FIT repeats).
+
+### 8.3 Gesture states
+
+Raise with a 3 by 2 region, drag in progress, Top view:
+
+```
+   Top view                                   amount: +2 clicks (512 gu, 40 ru)   Level | Offset
+      . . . . . . . . .
+      . . .+--+--+--+. .         # region cells         ~ derived riser edges (live)
+      . . .|##|##|##|. .         step limit: 40 ru, riser 40 ru: climbable
+      . . .+--+--+--+. .
+      . . .|##|##|##|. .         status: Raise  region 6 cells  follow ceiling ON
+      . . .+--+--+--+. .         [Esc] cancel   [Alt] fine   [Tab] mode
+      . . . . . . . . .
+```
+
+Stairs, path being placed, Top view, a flight of 2 sectors (8 clicks) rising 4 clicks:
+
+```
+   A o-------+-------+-------o B          path A -> B, width 1 sector
+     | | | | | | | | | | | | |           ghost treads, one per 2 clicks (1/2 sector)
+   4 steps, riser 1 click (256 gu, 20 ru), tread 1/2 sector     limit 40 ru: ok
+   subdividing 2 cells to level 3; collision +2 leaves [derived]
+```
+
+Bands, cutting a line, 3D side view of a wall run:
+
+```
+   top   +---------------------------+--- frieze (Fit 8x1)
+         |                           |
+   - - - + - - - -  new line  - - - -+--- click to insert, drag to move
+         |                           |
+   base  +---------------------------+--- trim (FromBottom)
+```
+
+---
+
+## 9. The cook
+
+### 9.1 Pipeline
+
+```
+validate -> normalize check -> faces (derive, bands, stitch, UV split)      shared with the preview, `faces.rs`
+         -> snap to ru, weld vertices, bake light per corner                 as today (`E/cook/render.rs`)
+         -> [optimise A] merge -> generic T-junction repair -> pack
+         -> collision (leaves, index, sub-blocks)                            `E/cook/collision.rs`
+```
+
+The cook keeps its rule that it never re-derives geometry (`E/faces.rs:1-12`); everything new (derivation, bands, stitching, UV splitting) lands in `faces.rs` or modules it calls, so the editor preview shows exactly what is cooked. The cook keeps its four-corner limit (`E/cook/render.rs:227`) because `faces.rs` only ever emits quads and triangles.
+
+Until phase T14 the cook **expands every leaf larger than a sector into per-sector faces** (a planar polygon clipped to the sector squares is trivial because leaves above level 2 are planar, 3.2) and emits sub-sector leaves as their own quads. So phases T9 to T13 render exactly as cost-efficiently as today for flat big leaves and slightly worse where a sculpt created many small leaves; the heatmap (11.2) shows it and it is the thing T14 and T15 fix.
+
+### 9.2 Merge (optimise A, T14)
+
+The cook merges neighbouring quads into one quad when all of these hold:
+
+* same material, same sidedness and blend, and **coplanar after rounding to ru**;
+* **UV continuity**: one affine texel map reproduces every corner texel of every merged quad (the linearity test of `merge` in `E/cook/lod.rs`, generalised from horizontal 2x2 to planar rectangles in the face's own parameter space: floors, ramps, ceilings, and walls in `(u, y)`). WORLD faces satisfy it, FIT faces from different logical faces do not (5.6). Texels are compared **before** any rebase, and the merged quad is then rebased once, with no clamp at 63 (the old clamp is `E/cook/lod.rs:311`; it is one of the causes of the checker shifts, 10.4);
+* **light**: the merged quad's four baked corner colours, interpolated, reproduce the baked colour at every original corner it swallows within `LIGHT_TOL` per channel. A quad near a point light does not merge; an ambient-only quad merges freely. `LIGHT_TOL` is [proposal], reported with the merge statistics so it can be tuned; the shadows come from the same `line_of_sight` the bake already uses (`E/cook/mod.rs`);
+* **size**: extent caps of 9.5 and the UV span limit of 5.5 (at most 4, or 3 for non-zero phase, tiles per axis per primitive).
+
+Shape: maximal axis-aligned rectangles in the parameter space, found greedily as `lod.rs` does. A merged quad spans several render cells, so it is listed in **every** cell it covers through an indirection (`CELL_INDIRECT`, 10.1) and deduplicated per frame by a quad stamp; ordinary cells keep the contiguous run and pay nothing.
+
+### 9.3 T-junction stitching
+
+Two mechanisms, one in `faces.rs` for correctness from phase T4, one in the cook for merged output.
+
+**(a) Document stitching, in `faces.rs`.** Where a coarse leaf has finer neighbours across an edge (3.2: with 2:1 balance exactly one hanging vertex M per edge), the coarse leaf's polygon includes M as a boundary vertex, and polygons of more than four corners are fan-split into triangles in the same function. Walls along that edge are derived per finer segment (4.1), so their bottoms and tops pass through M. Band polygons insert the cut heights of a neighbouring segment on a shared vertical edge (6.4). A coarse leaf with k hanging vertices costs `k` extra triangles over the one quad it would otherwise be; with balance k is at most 4 per leaf. Constrained corners (3.2) make M lie exactly on the coarse edge in grid units; the rounding to ru can move it up to half a unit, so M is inserted as a real vertex rather than assumed to lie on the line. On the GPU the integer screen rounding of a vertex that lies on an edge but is not part of the neighbour's polygon opens one pixel gaps; inserting the vertex is what closes them.
+
+**(b) Generic repair in the cook (T14).** After merging, for every quad edge the cook looks up vertices of the room's weld table that lie strictly inside the edge segment (exact integer collinearity in ru, the lattice makes the candidates few) and fans the quad through them. This also covers merged-next-to-unmerged edges, quads next to wall tops and merged walls next to bands. Free planes are excluded (they are never welded to the lattice, `grid-runtime:E/plane_faces.rs` header). Node-LOD seams are the separate mechanism of 10.4.
+
+### 9.4 Courses
+
+The 1024 gu course split (`E/faces.rs:317`) is kept for `Authored` rooms with no band sets, so legacy output is byte identical. Every other face is cut only by the UV splitter (5.5) and by band lines, so a tall plain wall is one face and the cook sees fewer, larger quads.
+
+### 9.5 Near-camera size cap
+
+Large quads near the camera cost twice: affine texture warp, and the near-plane split (about 9 to 11k cycles per near tile [measured], against about 800 per ordinary quad [measured]); `GRID_RENDER_PROFILE` already splits once below 170 depth units (`P/render/mod.rs:58-61`). The cap keeps the merge from making that worse.
+
+* The cook computes a **reach field**: the set of leaves with a walkable floor (the `FLOOR_WALK` bits, `E/cook/collision.rs:88`), each expanded to the volume a camera can occupy above it (floor to floor plus the camera arm height, read from the project's camera resource, not a constant).
+* For each candidate merged quad, `d` is the distance in sectors from the quad's box to that volume. The allowed extent per axis is `cap(d) = clamp(floor(d / K), 1, E_max)` sectors with `K = 2` and `E_max` = the UV limit of 5.5 [proposal for K; the existing far LOD uses a 2x2 merge beyond 6 sectors, a ratio of 3, `E/cook/lod.rs:29-31`].
+* Consequences: walkable floors (d = 0) are never statically merged beyond one sector, ceilings two or more sectors overhead and floors of pits you never visit merge freely, and **vertical** extent of a wall is not capped by distance (depth barely changes along a vertical wall seen from a camera at roughly constant height), only horizontally along a wall seen obliquely. Every threshold is reported by the cook and shown by the heatmap so it can be tuned from data; none of them blocks building.
+
+### 9.6 Texture-window repeat (T3) and where window state lives
+
+* **Material table** (`P/format.rs:128`, `Material.reserved`): becomes `tex_shape: u16`, `bits 0-3 = log2(width in texels)`, `bits 4-7 = log2(height)`, 0 = unknown (legacy, treated as 64 by 64 and never repeat-eligible). Only power-of-two sizes from 8 to 128 are eligible, the limits of the VRAM window atlas (`sdk/crates/psx-vram/src/lib.rs:357`).
+* **Quad** (`P/format.rs:451`, the `reserved: u8` becomes `flags2`): bit 0 `REPEAT` = the packet uses the material's window and **raw** UVs (no origin added); bit 1 `MULTI` = listed in several cells, dedupe by stamp (T14).
+* **Runtime** `GridMaterial` (`P/render/mod.rs:67`) gains `window_word` (the E2 command for the texture's placement: mask from the size, offset from `slot.texture_window.origin_texels()`, `engine/examples/editor-playtest/src/grid_runtime.rs:143`). The fast packet already has a window word in slot 1 (`P/render/emit.rs:235,273`); a `REPEAT` quad writes `window_word` there and `uv` without the `+ origin`, others write the reset and add the origin as now. The near path sets `texture_window_word` and zero `uv_offset` for `REPEAT` quads (`AffineSurface` already has a `texture_window_word` field, `P/render/emit.rs:365`; T3 verifies the splitter writes it into every sub-packet and adds a test). No packet grows.
+* **Batching.** Packets are linked into the depth-sorted ordering table, so consecutive draws in memory are not consecutive on the GPU; each packet is self-contained, which is why every packet carries its own window word today. Grouping by window therefore cannot be done without breaking depth order and this design does not try. Whether the GPU pays for a window change between consecutive textured primitives (texture cache) is **[hypothesis]**; the experiment is one step in the hardware-test suite (extend `hardware-tests`, no bespoke disc): draw N textured quads alternately with equal and with differing windows and compare time, run headless first, then on the console. If it costs, the fix is a stable sort by material inside each cell (equal-depth ties only), which is safe to add later.
+* **Cook rule.** `REPEAT` is set only when the material is eligible and the quad's UV span exceeds one tile (or non-zero phase needs raw UVs); all other quads are byte-identical to v2 apart from `flags2 = 0`.
+
+### 9.7 Bands and openings in the cook
+
+They are already faces by the time the cook sees them (6.3). The cook adds only: the opening sill and lintel pieces become `ColWall`s with a partial span for R3 and authored walls (10.2); the band set index is not stored at all (the geometry carries it).
+
+### 9.8 Free planes
+
+Planes stay `QUAD_PLANE` runs appended **after** all cell quads, as in the planes branch; the merge and repair passes run on cell quads before planes get their indices, so `PlaneRef.quad/count` stay contiguous. After the UV unification (5.7) a plane is cut by the shared UV splitter instead of the per-sector cut, which with T3 turns a 4x4 tiled plane into one quad.
+
+---
+
+## 10. Format, collision and the runtime tree
+
+### 10.1 PGL v3 (phase T3)
+
+| Change | Where |
+| --- | --- |
+| `Material.reserved` -> `tex_shape` | `P/format.rs:128` |
+| `Quad.reserved` -> `flags2` (`REPEAT`, `MULTI`) | `P/format.rs:451` |
+| `RCell.flags` bit 2 `CELL_INDIRECT`: `first/count` index a new `CELL_REFS` list (`u16` quad ids) instead of `QUADS` (T14; ordinary cells unchanged) | `P/format.rs:475`, 9.2 |
+| `VERSION = 3`, `MIN_READER = 3`, `LAYOUT_HASH` mixes the new fields | `P/format.rs:27,608` |
+
+Golden fixtures per version are kept (`level-format-and-runtime.md` section 3.2). v2 chunks are not read by v3 readers; cook and guest ship together.
+
+### 10.2 PGL v4: leaf collision (phase T10)
+
+The collision block keeps its shape (section order, 20 byte `Sector`, `SectorExt`, `ColWall`) and gains three sections; nothing in the render block changes.
+
+| Section | Record | Meaning |
+| --- | --- | --- |
+| `SECTORS` (id 0) | `Sector`, 20 B | now one record per **leaf**, not per sector. Flags bits 13 to 15 hold the leaf level 0 to 4. |
+| `SECTOR_INDEX` (new) | `u16` per sector, `cz*width+cx` | bit 15 = SUB (the sector is subdivided, the id names a sub-block), bit 14 = CLEAR (the per-sector flat/headroom summary that today lives in `SECTOR_CLEAR`, `P/format.rs:256`, moved here because it depends on the sector's neighbours, not on the leaf), bits 0 to 13 = leaf id or sub-block id, `0x3FFF` = no leaf |
+| `SUBBLOCKS` (new) | 16 x `u16` = 32 B per block | row-major 4x4 table at click resolution; each entry is the leaf covering that quarter sector (a level 3 leaf appears four times) |
+
+`RoomHeader` gains `origin_mod` (the room's world origin modulo 4 sectors, one byte from `reserved`) so a leaf's local origin is `((cx + origin_mod) & !(n-1)) - origin_mod` for a leaf of n sectors, one and-and-subtract. `CHUNK_TREE` (chunk flag bit 4) is set only when the room has any leaf that is not level 2; otherwise `SECTOR_INDEX` has count 0, `SECTORS` stays dense, and the reader takes today's path with no extra load, so **uniform rooms and all six reference levels cost exactly what they do now**.
+
+Point query (floor under a body, the hot path), no loop and no recursion:
+
+```
+i   = SECTOR_INDEX[cz*width + cx]                      // load 1 (absent for uniform rooms)
+id  = i & 0x3FFF
+leaf = if i & SUB { SUBBLOCKS[id*16 + qz*4 + qx] } else { id }   // load 2, only for subdivided sectors
+rec  = SECTORS[leaf]                                   // the 20 byte record
+size = (4*S) >> level(rec); (lx, lz) = offsets inside the leaf
+y    = height_at(rec.floor, split, lx, lz, size, inv24[level])    // P/height.rs:85
+```
+
+`qx = lx_sector / (S/4)` uses a second exact reciprocal built like the sector one (`Recip::for_sector(S/4, S)`, `P/collision/world.rs:68`); the five `inv24` values (one per level) are computed at load. Cell lookup in the room keeps the existing exact reciprocal (`P/collision/world.rs:99`). Rays keep the existing cell-skipping walk and descend into a sub-block only when crossing a SUB sector; the tree (10.4) is used by rays in the optimise phase. `ColWall` gains a span (`reserved: u16` = `from:u8, to:u8` in quarter-edge units) for openings; geometry stays implied by the owning leaf and edge. Planes copy into the extension of the leaf (every sector the plane overlaps resolves to the same leaf, so the list is shared, and a sector in a big leaf tests the plane list of the whole leaf, a few extra tests per plane, [estimate] small).
+
+Hard limits written into the cook: `S % 4 == 0` when any sub-sector leaf exists; 14 bit ids; `COORD_LIMIT` and `MAX_CORNER_DELTA` (`E/cook/collision.rs:30`) apply per leaf, so a very tall level-0 leaf with a wide corner spread is refused with the leaf named.
+
+### 10.3 The shared height function
+
+`GridWorld::floor_height_at` (`E/world.rs:92`) and the runtime already call the same `psx_grid::height` code, parameterised by the edge length `s` and its reciprocal (`P/height.rs:85,115`). Leaves call it with `s` = the leaf edge. The overflow argument of `level-format-and-runtime.md` section 2.5 holds with `s` up to `4S`: `amount * inv24 <= 2^24 + s` still fits `u32`, and the corner delta bound is per leaf. `floor_height_at` is changed to find the leaf (`LeafMap::leaf_at`) and a test asserts equality with the runtime over every point of every leaf of the reference levels and of randomly generated quadtrees (14).
+
+### 10.4 The runtime tree (optimise phases T15 and T16)
+
+Layout, per room, pointerless and integer only:
+
+```
+ROOTS      u16 per level-0 block (room rect rounded up to 4 sectors), node id or EMPTY
+NODES      8 B per node, breadth first, children of a node stored contiguously (implicit indexing):
+             kind u8 (empty/leaf/split), flags u8, payload u16 (child group base, or leaf id),
+             min_y i16, max_y i16          // vertical bounds, the cull and ray early-out data
+```
+
+Node ids are `u16`, depth at most 5, children of node n at `payload .. payload+4` in Morton order. For the Cathedral (33 by 26 sectors) the root level is 9 by 7 = 63 nodes, 504 bytes [derived], small enough for the 1 KB scratchpad where the culling and ray loops can keep it hot; deeper levels stay in RAM. The per-sector index of 10.2 is what the motor uses, the tree is what rays, culling and LOD use.
+
+Where the tree is used, with the expected effect. **All effects are [estimate] until the phase T15 measurement exists.**
+
+| Use | How | Expected effect |
+| --- | --- | --- |
+| Hierarchical frustum culling | Test a node's box (bounds from `min_y/max_y` and the node rectangle) against the frustum; reject the whole subtree, accept it wholesale when fully inside | Fewer per-cell tests in big rooms with large flat regions; no effect on a view that sees most of the room. Replaces nothing in the row-span cull until measured to win. |
+| Node LOD | A far node draws its own **merged representation** instead of its children | The only change that reduces visible quads in open halls; see below. |
+| Ray early-outs | Line of sight, camera arm, hook traces skip an empty node, or a flat node whose bounds the ray misses vertically | Fewer cell steps per ray; the walk already skips cells ("cell-skipping ray walk", `grid-perf` commit d5081561). Gain unknown, reported per route. |
+| Memory compression | A flat open area is one leaf record (20 B) instead of one per sector | See 10.5. |
+| Streaming and activation | A level-0 block is a natural streaming unit and an activation grain finer than a room (`level-format-and-runtime.md` section 6.1 admits the Cathedral is one activation unit) | Lets a room larger than the pool stream by blocks; design only, no format change needed beyond a block directory. |
+
+**Node LOD must do better than the flat LOD measured earlier**, which showed checker re-registration across 10 to 17 percent of the screen, one-frame pops up to 12 percent, 1 px seams, and only about 16 percent saving in the worst nave view (714k to 597k) [measured, supplied]. The design answers each:
+
+1. **Re-registration**: the merged representation is built from the same texel map as the children (the exact-UV rule of 9.2, rebased once, no clamp at 63, texture window repeat so a multi-tile merge keeps the phase). The earlier clamp and rebase are the known source of phase shifts.
+2. **Pops**: a node offers a merged representation only if it is equivalent to its children in plane (exact, in ru), material, UV map and baked light (`LIGHT_TOL`); a node that fails the test has no LOD and never pops. The affine warp of the larger quad is bounded by selecting the merged form only when the node's depth range is small against its distance (the same ratio as 9.5), so the switch changes sub-texel positions, not the pattern. A hysteresis band prevents flicker.
+3. **Seams**: each node carries precomputed **edge stitch patches** for the states where a neighbour is finer: a merged node whose neighbour across edge e is drawn at the finer level draws a small fan including that neighbour's boundary vertex, selected by a 4 bit mask computed from the neighbours' states in the same frame. With 2:1 balance of the *selected* levels (the selection is made monotone in distance) there is only the midpoint vertex per edge. The patches are exact geometry, not skirts, so there is no overdraw and no gap.
+4. **Saving**: the node form only helps if merged nodes are large, so selection prefers whole subtrees (a 4-sector node replacing 16 sector quads and up to 4 patch fans). The expected saving is therefore larger than the flat 2x2 scheme in open nave views, but this is an [estimate]; the phase T15 acceptance is a **measured** pose-matched comparison, not this number.
+
+### 10.5 Size and RAM estimates
+
+All **[derived]** from record sizes unless stated; nothing here is a measurement of a cooked level except the supplied Cathedral figure.
+
+| Item | Formula | Example |
+| --- | --- | --- |
+| Dense collision sectors (today) | 20 B x sectors | Cathedral 858 sectors = 17,160 B (the whole collision block is 22,748 B [measured, supplied]) |
+| Leaf collision | 20 B x leaves + 2 B x sectors + 32 B x sub-blocks | A 128 x 128 flat room: dense 327,680 B; as 1,024 level-0 leaves 20,480 + 32,768 = 53,248 B |
+| Sub-sector detail | each subdivided sector adds 32 B of block table plus its leaves at 20 B | A 10 x 10 sector sculpted hill with all 100 sectors at level 4: 100 x (32 + 16 x 20) = 35,200 B |
+| Nodes (optimise) | 8 B x nodes | root level of the Cathedral: 504 B |
+| Quads | 40 B each (`P/format.rs:451`) | merging is the lever, measured in T14 |
+| Hanging-vertex fans | 1 triangle per hanging vertex, at most 4 per coarse leaf | counted by the cook report |
+
+RAM is nearly full on the console (`level-format-and-runtime.md` section 7.4); `MAX_SUB_BLOCKS_PER_ROOM` and the leaf count are shown in the status bar next to the face budget, and the cook reports bytes per section with each cook as it does today (`E/cook/mod.rs` summary).
+
+---
+
+## 11. Overlays
+
+### 11.1 Walkability (Alt+W)
+
+Computed in the editor from the document using the **runtime's own rules and numbers**, so the overlay agrees with the motor:
+
+* Heights are rounded to ru through `RuntimeUnits::rt` first, as the cook does, so what the overlay says is what the motor sees.
+* **Too steep**: a floor triangle whose normal y is below 2867/4096 (`character_motor.rs:38`, computed with `psx_grid::height::triangle_normal_q12`, the function the cook uses at `E/cook/collision.rs:88`). Tinted orange.
+* **Step too tall**: for each pair of walkable floors that share an edge, if the floor profiles differ by more than the step-up height at either end. The edge segment is drawn red. The step-up is the constant 40 ru today and the config field soon (`character_motor.rs:27`); the overlay reads one shared source and its legend prints the value in use ("step 40 ru = 2 clicks").
+* **Low headroom**: ceiling minus floor at the four corners and the centre of the leaf is less than the body height (48 ru today, `character_motor.rs:20`). Tinted blue.
+* **Drop**: a walkable edge whose drop exceeds the step-down (40 ru) is dashed yellow: the body falls there. Informational.
+* **Reachability** (toggle): flood fill from the spawn nodes over walkable edges that pass the step and headroom tests; walkable leaves not reached are hatched, which catches rooms that were built and never connected.
+
+### 11.2 Performance heatmap (Alt+P)
+
+A **model**, labelled as such in the legend, built from the supplied measurements:
+
+```
+cost(spot, yaw) = Q * 800 + N * 10,000          cycles
+   Q = quads facing the camera inside the frustum (cull + backface only; projection not run)
+   N = quads with a corner behind the near plane or nearer than 170 depth units (the near split path)
+heat = cost / (1,128,960 - reserved)             reserved default = player 470k + sky 58k [measured, level doc section 1]
+```
+
+800 cycles per visible quad and 9 to 11k per near tile are the measured values (10,000 is the midpoint); the 470k and 58k are measured on the Cathedral and the field is editable because the character cost changes. Samples: every walkable leaf centre at the camera eye height, 8 yaws, the maximum over yaws (the analyzer convention used for the bench maps, `docs/grid/other-maps-survey.md` section 1). Colour: green below 60 percent of the world budget, amber to 90 percent, red above [proposal]. It runs on the **cooked** tables (so merge, stitch and UV splits are included) through the same row-span cull and facing test the renderer uses (`psx_grid::render` select functions on the host), without the GTE projection.
+
+Honesty rule for this feature: the model is checked against the headless emulator's own counters (`GridFrame.quads_visible`, `robust_quads`, world cycles) on the Cathedral and Dungeon route tapes in phase T7, the ratio is reported in the phase notes, and the two constants are recalibrated from it. The legend shows the build of the calibration.
+
+### 11.3 Refresh
+
+* Both overlays keep an `AnalysisCache { rev, per_room }` keyed by the document revision (`GridEditState.rev`, `U/mod.rs`). `normalize` returns the dirty leaf set; walkability recomputes only dirty leaves plus a one-leaf ring on the UI thread (a local, small job); a config change recomputes everything.
+* The heatmap runs the cook on a worker thread, debounced after the last edit (500 ms [proposal]), coarse while a gesture is in progress (every second leaf, 4 yaws) and complete when idle, restricted to samples within the room's far distance of the dirty region. Stale tint is dimmed until the new result for the current revision arrives; a result for an older revision is dropped. The cook time on the Cathedral has not been measured for this use and is reported in phase T7.
+* The status bar budget readout (`U/strip.rs:177`) gains the cooked quad count and the hottest sample ("worst spot 71 percent") when the heatmap has a result.
+
+---
+
+## 12. Coordination with free planes
+
+Planes (`grid/planes`) and this work touch the same files. Order: **planes merges first**, then T1 starts from the merged tree.
+
+| File | Planes change | This design adds |
+| --- | --- | --- |
+| `E/room.rs` | `planes` field, `trim_empty` counts plane footprints | `leaves`, `wall_mode`, `defaults`, `band_sets`, `edge_overrides`, `openings`; `trim_empty` must keep counting planes when it works on leaves (T8) |
+| `E/faces.rs` | `GridFaceKind::Plane`, `unlit`, `Corner`/`Builder` made `pub(super)` | derived walls, bands, stitching, UV frames (shares `Builder`) |
+| `E/limits.rs` | plane caps and issues | new caps and issues (3.7) |
+| `E/world.rs` | plane bounds, `material_ids` | leaf lookups in `floor_height_at`, material ids from bands |
+| `E/cook/render.rs` | `RoomBuild::add_face` refactor, plane refs | the UV splitter output, `flags2`, merge and repair (T3, T14) |
+| `E/cook/collision.rs`, `E/cook/mod.rs` | plane collision, `CHUNK_HAS_PLANES` | leaf records, `SECTOR_INDEX`, closure walls |
+| `P/format.rs`, `P/view.rs`, `P/render/select.rs` | VERSION 2, `PlaneRef` run | v3 and v4 |
+
+The plane agent's choices that this design depends on and does not change: `PlaneRef` is a run of quads (`grid-runtime:P/format.rs`), `ColPlane` kinds, `MAX_PLANES_PER_ROOM = 64`, planes lie inside the room footprint (`PlaneOutsideRoom`). If the planes UI picks one of the verb letters (7.12) the verb moves to its Shift chord.
+
+---
+
+## 13. Phases
+
+The order follows Manny's approved sequence (derived walls and auto split first, then Raise/Lower, Ramp and Stairs on the fixed grid, then the quadtree with Sculpt and stitching, then Room, Corridor, Opening and Stamps, overlays early) and his latest instruction: **make it happen first, optimise after.** Every phase is sized for one agent run. **Acceptance is correctness** (levels load and look identical, tools work, Play works with collision, no cracks). **Performance is measured and reported in each phase's notes, never a gate.** Measurements use the headless emulator on the Cathedral and Dungeon route tapes (cycles for world, collision and camera) and the cook size report.
+
+Every phase also: leaves `make lint` clean, adds the tests of section 14 for its area, and shows frames (preview and a Play capture) before it is called done, because a visual change that was never looked at is not done.
+
+| # | Phase | Delivers | Acceptance (correctness) | Measure and report |
+| --- | --- | --- | --- | --- |
+| T1 | **Derived walls** | `wall_mode`, `derive.rs` (R1 to R3), `wall_material`, `EdgeOverride` (hidden, material, uv, solid), `faces.rs` integration (ownership, per-sector clipping, culling bounds), closure `ColWall`s, validate warnings, `convert_to_derived`, Wall tool gap awareness, Rooms panel toggle and Convert button, starter room made Derived | Six reference levels and the starter load; `all_faces` unchanged for `Authored`; Convert (PreserveLook) leaves the face multiset unchanged; cook sections unchanged for legacy; derived platform, pit, bow tie, closure tests pass; Play walks a derived starter and cannot leave it | face counts before and after Convert; cook byte sizes |
+| T2 | **UV model** | `FaceUv` extension (`UvMode`, turns, flip), `uv.rs` (frames, report), Inspector Tiling panel, material `grid_uv` default, cook UV splitter (limit 1 tile), planes adopt the shared frame | Legacy texels byte identical; FIT 1x1/2x2/4x4 and WORLD give the expected frames in the preview and the cook; report text correct, including split warnings; planes Tile/Stretch unchanged | quad count change per reference level (expected none) |
+| T3 | **Window repeat** | PGL v3 (`tex_shape`, `flags2.REPEAT`), `GridMaterial.window_word`, fast and robust path, cook limit raised to 4 (3 for non-zero phase), hardware-test step for E2 cost | Pose-matched headless frames: a FIT 4x4 face equals the same face as 16 one-tile quads within texel rounding; v2 chunks refused; golden v3 fixture | cycles per packet with and without `REPEAT`; the E2 change experiment |
+| T4 | **Bands** | `BandSet`, `Anchor`, resolution, polygon pipeline (6.3), neighbour stitching on vertical edges, Bands verb (E), Inspector Wall run context, cook UV frames | Band geometry tests (slope, Abs break, stack, hole), no T gaps on a banded wall with differing neighbours, palette/Paint targets bands; legacy rooms without bands byte identical | quads per band, cook size |
+| T5 | **Auto split, Region, Raise/Lower** | `auto_split`, fit rule, `Region` front end (marquee, brush, path), Raise/Lower with Offset/Level and ceiling follow, smart paint rules and `paint_locked`, Inspector Region context, strip groups | Auto split deterministic and stable on ties; undo/redo/cancel exact; derived sides appear live; legacy splits untouched | gesture frame time in the editor |
+| T6 | **Ramp, walkability** | Ramp verb, walkability overlay with reachability, motor step/height read from one shared source | Slope class and step tests match `character_motor` constants; a ramp built at the steepest walkable slope is walkable in a headless Play walk; unreachable hatching correct on a fixture | overlay recompute time per edit |
+| T7 | **Stairs v1, heatmap** | Stairs verb (whole-sector treads, ramp option), performance heatmap (model, cache, refresh) | A built flight is climbable by the real motor in a headless walk; heatmap renders on all reference levels and its ratio to measured counters is reported | heatmap model vs `GridFrame` counters on the route tapes; cook time for the heatmap |
+| T8 | **Leaf storage** | `LeafMap`, `LeafKey`, serialisation negotiation, `FaceRef` on leaf keys, accessors, port of tools and tests; no behaviour change | Every existing test passes unmodified through the adapter; reference projects round trip as documents; dense disk form preserved | none expected; report editor frame time |
+| T9 | **Quadtree operations** | subdivide, merge, balance, hanging corners, `normalize`, planar-only big leaves, per-sector clipping, **document stitching** in `faces.rs`, validate, Subdivide/Merge commands, leaf grid overlay | Property tests (14) hold; stitched meshes watertight in the preview (edge adjacency test); derived walls correct across leaf sizes | face and triangle counts of stitched fixtures |
+| T10 | **Leaf cook, format v4, collision** | `SECTORS` per leaf, `SECTOR_INDEX`, `SUBBLOCKS`, closure walls on leaves, `origin_mod`, `CHUNK_TREE`, reader and `GridTraceProvider` changes, preview of leaves, Play | Leaf lookup equals the dense reference at every point of the reference levels (after Simplify) and of random trees; uniform rooms cook to dense sections unchanged; a headless Play walk across sub-leaves and big leaves behaves as the dense reference | collision cycles per tick and camera trace cost on Cathedral and Dungeon route tapes vs the uniform grid; collision block bytes |
+| T11 | **Sculpt, fine Stairs** | Sculpt with auto subdivide and exact merge, Stairs subdividing along the run | Round trip: sculpt then undo restores the document; exactly representable results merge back; stairs of 1/2 and 1/4 sector treads climbable by the motor | leaf counts and bytes after a reference sculpt |
+| T12 | **Room, Corridor** | Room and Corridor verbs, maximal-leaf decomposition, junction behaviour | A room and a corridor built in an empty project are closed by derivation, walkable, and portal-connected where openings exist | cook report |
+| T13 | **Opening, Stamps** | Opening verb (derived and authored), Stamps (save, place, rotate, flip, split to fit) | Door in a banded derived wall keeps bands through the lintel; a stamp rotated four times returns the original; portal derivation sees openings | cook report |
+| T14 | **Optimise A** | cook merge (9.2) with `CELL_INDIRECT`/`MULTI`, near cap (9.5), generic repair (9.3b) | Merged output pose-matched to unmerged within the light tolerance; no new gaps (edge adjacency test); legacy cook with merge off byte identical | quads before and after on each reference level; world cycles on the route tapes |
+| T15 | **Optimise B** | runtime tree arrays (10.4), hierarchical culling, node LOD with edge stitch patches, ray early-outs | Pose-matched frames across LOD switches show no re-registration, no seam pixels and no pops beyond a threshold set from the unmerged-vs-unmerged noise floor; tree lookups equal the sector index | world savings on the open-nave views, collision and camera trace cost vs the uniform grid, node LOD saving vs the old flat LOD (714k to 597k) |
+| T16 | **Streaming units** | root blocks as chunk and activation units | design-level; its own spec once T15 lands | |
+
+T14 and T15 are the "optimise" block Manny asked for; if T14 or T15 disappoints, T1 to T13 stand on their own: the cook expands big leaves to sectors (9.1), so the game renders exactly as it does today.
+
+---
+
+## 14. Tests
+
+Unit and property tests live next to the code, the headless gates drive the real editor and emulator.
+
+* **Derivation** (T1): ownership and facing for R1 to R3 on hand-built worlds; bow tie cut at the crossing; equal profiles give nothing; `Convert` multiset identity on the six levels; `AuthoredDuplicatesDerived` fires; closure `ColWall`s match the face geometry.
+* **UV** (T2, T3): `frame_texels` for floor, ramp, tri-split, wall, run and band frames under both modes with turns and flips; `report` against hand-counted fixtures; splitter output covers the face exactly (area sum) with shared edges; the renderer test of T3.
+* **Bands** (T4): property test over random bottom/top profiles and lines: the band polygons tile the wall without overlap or gap (area sum equals face area); anchors follow slopes; openings cut through all bands.
+* **Auto split** (T5): the fit error is minimal over both diagonals for random corners; ties keep; planar surfaces untouched.
+* **Verb drag contract** (T5 on): begin, apply(a), apply(b), apply(0) restores the document byte for byte; cancel restores; undo restores.
+* **Quadtree** (T9): after any random sequence of subdivide, merge and set-height operations: leaves are disjoint and aligned, balance holds, constrained corners equal the average, big leaves are planar, serialisation round trips, `leaf_at` equals a brute-force scan.
+* **Stitching** (T9, T14): an edge adjacency test over the final faces: every pair of faces sharing an edge segment share the same vertices along it (no vertex of one lies strictly inside an edge of the other).
+* **Collision** (T10): leaf lookup equals the dense reference at every point; random trees vs a brute-force height query; the existing motor and camera tests run against the leaf provider; a stair climb and a ramp climb with the real motor in a headless Play.
+* **Format** (T3, T10): golden bytes per version, malformed-input suite (truncated, misaligned, bad index, bad `SECTOR_INDEX` id), layout hash.
+* **Overlays** (T6, T7): fixtures with known too-steep, too-tall and low-headroom cells; the heatmap model's ratio against emulator counters is a report, not an assertion.
+* **Editor harness**: tool gestures in the style of the existing headless editor interaction harness (`ViewportHarness`), one per verb: press, drag, release, assert document, undo, assert restored.
+* **Looks identical**: frame census of the preview rasteriser before and after each phase on the six levels, compared pixel for pixel while the phase claims no visual change, and shown to Manny when it does.
+
+---
+
+## 15. Risks
+
+1. **Balance ripple and fan cost.** Detail next to a big flat region forces transition leaves and stitch fans. Mitigation: they are flat and merge in the cook (T14); the heatmap and the cook report show them; the leaf level range can be reduced without a format change.
+2. **Texture window cost.** Repeating via the window is cheap in packet size but the GPU cost of window changes is a hypothesis (9.6). The experiment is in T3; the fallback (1 tile per primitive) is the T2 behaviour.
+3. **FIT frame semantics.** A run is the frame, so lengthening a wall changes its tile size. That is intended for FIT; WORLD never does it. The Inspector says which applies.
+4. **Walkability on fine treads.** The motor samples five points; treads narrower than the body radius may be stepped over. T7 and T11 carry a headless stair test; the verb warns below the radius.
+5. **Convert coincidence.** Matching authored walls to derived faces uses a one-fine-step tolerance; a wrong match would drop a wall. PreserveLook plus the multiset-identity test is the guard; Convert is undoable.
+6. **Undo cost.** Undo snapshots the whole document (`U/mod.rs:212`); with leaves and overrides the document grows. Not a regression, but a smell worth a separate fix (a structural undo log).
+7. **Merge conflicts with planes** (section 12). Mitigated by ordering.
+8. **RAM growth from sub-leaves.** 35 KB for a fully fine 10 by 10 hill (10.5) is comparable to the whole Cathedral collision block. Cap, readout, and the Simplify command.
+9. **Cross-room derivation** is not done: a doorway between side-by-side rooms is two Openings.
+10. **u8 UV far-edge clamp** costs a 0.4 percent shift on a 4x primitive; tolerated, reported.
+
+### Smells noticed (separate issues, not fixed here)
+
+* `GridRoom::sectors` plus `sector()` is addressed by local `(x, z)` in about every edit function; leaf keys fix it as a side effect of T8.
+* `FaceRef.cell: [i32; 2]` mixes world sectors with local indices in a few helpers.
+* `EditorWorkspace` still mirrors `grid.tool` into the brush `ViewTool` (`U/mod.rs:383-387`, noted in the UX audit section 5).
+* `limits::MAX_WORLD_FACES` is a heuristic bound that duplicates what the cook now checks exactly.
+* `place()` in `faces.rs` and the plane code carry parallel UV logic (resolved by 5.7).
+* Key hints are written three times (`U/help.rs`, tooltips, `strip.rs:119`).
+
+---
+
+## 16. Open questions for Manny (each with my recommendation)
+
+1. **Verb letters.** U Raise, S Sculpt, A Ramp, T Stairs, B Room, K Corridor, I Opening, E Bands, Y Stamps, with Alt+W and Alt+P for the overlays, leaving N G J M Q X Z free for the planes tool. Recommend: approve; if planes already took one of them, the verb moves to its Shift chord.
+2. **Legacy rooms.** Keep them `Authored` until you press Convert (look-preserving by default), rather than converting on load. Recommend: yes, never change a level behind your back.
+3. **Leaf alignment.** World-anchored 4-sector blocks (new rooms snap their origin to a multiple of 4 sectors) so growing a room never moves a leaf. Recommend: yes.
+4. **2:1 balance.** Enforce it (transition leaves appear automatically and merge away), so a coarse edge has at most one hanging vertex. The alternative is unlimited level jumps with longer fans. Recommend: enforce.
+5. **FIT frame for walls = the run, not the single cell edge.** "8x1" then means eight repeats along the whole run. Recommend: run.
+6. **Cross-room derived walls.** Not in v1; doors between adjacent rooms are Openings. Recommend: defer, revisit with stacked rooms.
+7. **Heatmap reserve.** Default reserved cost 470k (player) plus 58k (sky), editable, because the character cost is still the biggest single item. Recommend: yes.
+8. **Per-material tiling default** stored on the Material resource (so the same brick tiles the same everywhere unless a face overrides). Recommend: yes.
