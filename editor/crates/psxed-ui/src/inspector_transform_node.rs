@@ -538,12 +538,6 @@ pub(crate) fn draw_world_settings(
                     .changed();
                 ui.label(RichText::new("units").color(STUDIO_TEXT_WEAK));
             });
-    ui.horizontal(|ui| {
-        ui.label(RichText::new("BSP Patch Extent").color(STUDIO_TEXT_WEAK));
-        changed |= ui.add(egui::DragValue::new(&mut culling.bsp_patch_extent)
-            .speed(256.0).range(576..=4096)).on_hover_text(
-                "Smaller patches improve vertex-light detail and near-plane clipping; larger patches use less resident RAM. Requires recooking.").changed();
-    });
         });
     egui::CollapsingHeader::new(icons::label(icons::WAYPOINT, "Far Vista"))
         .default_open(true)
@@ -1223,9 +1217,7 @@ pub(crate) fn entity_transform_editor(
             if show_snap_to_floor
                 && ui
                     .button(icons::label(icons::CHEVRON_DOWN, "Snap to Floor"))
-                    .on_hover_text(
-                        "Move the complete Entity to the exact brush/BSP floor beneath it (End)",
-                    )
+                    .on_hover_text("Move the complete Entity to the grid floor beneath it (End)")
                     .clicked()
             {
                 *snap_to_floor_requested = true;
@@ -2166,9 +2158,6 @@ pub(crate) struct NodeKindEditorContext<'a> {
     /// Each Character's named loadouts, in declaration order, so a placement
     /// can pick one by index without reaching back into the project.
     pub(crate) character_loadouts: &'a [(ResourceId, Vec<String>)],
-    /// How many solid brushes name the node being edited as their model
-    /// owner, so a brush module can say when it owns nothing yet.
-    pub(crate) owned_brush_count: usize,
     pub(crate) weapon_options: &'a [(ResourceId, String)],
     pub(crate) boost_module_options: &'a [(ResourceId, String)],
     pub(crate) animator_clip_context: Option<&'a AnimatorClipContext>,
@@ -2257,7 +2246,6 @@ pub(crate) fn draw_node_kind_editor(
         character_options,
         character_defaults,
         character_loadouts,
-        owned_brush_count,
         weapon_options,
         boost_module_options,
         animator_clip_context,
@@ -2275,13 +2263,13 @@ pub(crate) fn draw_node_kind_editor(
             ui.weak("Organisational transform node");
         }
         NodeKind::Group => {
-            ui.weak("Authoring group. Closed groups edit as one object; double-click to edit their contents.");
+            ui.weak("Authoring group. Moving it moves everything under it.");
         }
         NodeKind::Entity => {
             ui.weak("Entity host. Add component children for rendering, collision, interaction, lighting, or logic.");
         }
         NodeKind::World { .. } => {
-            ui.weak("BSP world root; holds global physics, camera, sky, and far vista settings.");
+            ui.weak("World root; holds global physics, camera, sky, and far vista settings.");
         }
         NodeKind::MeshInstance {
             mesh,
@@ -3152,7 +3140,7 @@ pub(crate) fn draw_node_kind_editor(
             ));
             ui.colored_label(
                 Color32::from_rgb(180, 150, 90),
-                "Arch props do not carve BSP; place them in an authored open span.",
+                "Arch props do not carve the world; place them in an authored open span.",
             );
 
             ui.separator();
@@ -3849,28 +3837,7 @@ pub(crate) fn draw_node_kind_editor(
             damage_affinity,
             enabled,
         } => {
-            ui.weak(
-                "Brush module. Assign one or more solid BSP brushes through their Model owner; all assigned brushes break as one object.",
-            );
-            // A brush module with no brushes looks identical in the viewport to
-            // one that is wired up: both are just the placeholder marker. Say
-            // which it is, and where the wiring lives.
-            let owned = owned_brush_count;
-            if owned == 0 {
-                ui.colored_label(
-                    Color32::from_rgb(220, 120, 100),
-                    "No brushes assigned. Select a brush, then set its Model owner to this node.",
-                );
-            } else {
-                ui.label(
-                    RichText::new(format!(
-                        "{owned} brush{} assigned",
-                        if owned == 1 { "" } else { "es" }
-                    ))
-                    .color(STUDIO_TEXT_WEAK)
-                    .small(),
-                );
-            }
+            ui.weak("Breakable state. Box props and models that name this node as their destructible break with it.");
             changed |= ui.checkbox(enabled, "Enabled").changed();
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Health").color(STUDIO_TEXT_WEAK));
@@ -4022,12 +3989,20 @@ pub(crate) fn draw_node_kind_editor(
                     });
                 }
                 psxed_project::LogicNodeKind::Door {
-                    box_prop: _,
+                    box_prop,
                     start_open,
                     open_offset,
                     travel_ticks,
                 } => {
-                    ui.weak("Bind this door from the BSP brush inspector.");
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("Box Prop").color(STUDIO_TEXT_WEAK));
+                        changed |= ui
+                            .add(
+                                egui::TextEdit::singleline(box_prop)
+                                    .hint_text("name of the Box Prop this door moves"),
+                            )
+                            .changed();
+                    });
                     changed |= ui.checkbox(start_open, "Start open").changed();
                     ui.horizontal(|ui| {
                         ui.label(RichText::new("Open offset").color(STUDIO_TEXT_WEAK));

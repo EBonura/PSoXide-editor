@@ -1,28 +1,6 @@
 use super::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum MaterialTarget {
-    BrushFace { brush: usize, face: usize },
-}
-
-pub(crate) fn describe_material_target(target: MaterialTarget) -> String {
-    match target {
-        MaterialTarget::BrushFace { brush, face } => {
-            format!("brush {} face {}", brush + 1, face + 1)
-        }
-    }
-}
-
-pub(crate) fn push_unique_material_target(
-    targets: &mut Vec<MaterialTarget>,
-    target: MaterialTarget,
-) {
-    if !targets.contains(&target) {
-        targets.push(target);
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct BoxPropMaterialAssignment {
     pub(crate) material: ResourceId,
     pub(crate) targets: usize,

@@ -1,8 +1,5 @@
 use super::*;
 
-const BSP_LEAK_PATH_RGB: (u8, u8, u8) = (72, 236, 126);
-const BSP_LEAK_OPENING_RGB: (u8, u8, u8) = (255, 74, 52);
-
 #[derive(Clone, Copy)]
 struct CharacterControllerOverlay {
     origin: [f32; 3],
@@ -60,24 +57,6 @@ impl EditorWorkspace {
         let (rect, response) =
             allocate_centered_preview_rect(ui, "viewport_3d_canvas", egui::Sense::click_and_drag());
         surrender_stale_focus_on_viewport_pointer(ui.ctx(), &response);
-        let vertex_snap_context = self.selected_brush.is_some()
-            && self.brush_edit_mode == BrushEditMode::Move
-            && matches!(self.active_tool, ViewTool::Select | ViewTool::Brush);
-        let vertex_snap_was_down = self.brush_vertex_snap_key_down;
-        self.brush_vertex_snap_key_down = response.hovered()
-            && vertex_snap_context
-            && !widget_owns_keyboard_shortcuts(ui.ctx())
-            && (self.brush_vertex_snap_enabled
-                || ui.input(|input| {
-                    input.key_down(egui::Key::B)
-                        && !input.modifiers.command
-                        && !input.modifiers.ctrl
-                        && !input.modifiers.alt
-                }));
-        if self.brush_vertex_snap_key_down && !vertex_snap_was_down {
-            self.status = "Vertex Snap: hover a selected brush corner, then drag".to_string();
-        }
-        self.update_brush_vertex_snap_hover_3d(rect, response.hover_pos());
         let dnd_active = egui::DragAndDrop::has_any_payload(ui.ctx());
         let resource_drop_hovered = response.dnd_hover_payload::<ResourceId>().is_some();
 
@@ -98,10 +77,7 @@ impl EditorWorkspace {
         }
 
         let select_tool = matches!(self.active_tool, ViewTool::Select);
-        let select_drag_active = matches!(
-            self.interaction,
-            Interaction::NodeGizmo(_) | Interaction::BoxSelect3d(_)
-        );
+        let select_drag_active = matches!(self.interaction, Interaction::NodeGizmo(_));
         let pointer_target = if select_tool && select_drag_active {
             None
         } else {
@@ -116,45 +92,6 @@ impl EditorWorkspace {
                     )
                 })
         };
-        self.selection.hovered_brush_handle = None;
-        if response.hovered()
-            && (matches!(self.active_tool, ViewTool::Brush)
-                || (select_tool && self.selected_brush.is_some()))
-        {
-            if let Some(pointer) = response.hover_pos() {
-                let hovered_handle = self.pick_brush_handle_3d(rect, pointer);
-                self.selection.hovered_brush_handle =
-                    hovered_handle.map(|(_, handle)| handle.element());
-                let over_brush = self
-                    .pick_brush_face_nearest_for_selection_3d(rect, pointer)
-                    .is_some();
-                if hovered_handle.is_some()
-                    || (self.brush_edit_mode == BrushEditMode::Move && over_brush)
-                {
-                    ui.ctx().set_cursor_icon(match self.brush_edit_mode {
-                        BrushEditMode::Move => egui::CursorIcon::PointingHand,
-                        BrushEditMode::Face => egui::CursorIcon::ResizeVertical,
-                        BrushEditMode::Edge | BrushEditMode::Vertex | BrushEditMode::Clip => {
-                            egui::CursorIcon::Crosshair
-                        }
-                    });
-                }
-            }
-        }
-        if self
-            .brush_vertex_drag
-            .as_ref()
-            .is_some_and(|drag| drag.snap_source.is_some())
-        {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
-        } else if self
-            .brush_drag
-            .is_some_and(|drag| drag.stage == BrushCreateStage::Height)
-        {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
-        } else if self.brush_vertex_snap_hover.is_some() {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
-        }
         let hover_entity_hit = pointer_target.and_then(|target| target.entity_hit());
         let dropped_resource = resource_drop_hovered
             .then(|| response.dnd_release_payload::<ResourceId>())
@@ -162,19 +99,13 @@ impl EditorWorkspace {
             .map(|payload| *payload);
         if let Some(resource_id) = dropped_resource {
             if let Some(pointer) = response.hover_pos() {
-                self.drop_resource_bsp_3d(resource_id, rect, pointer);
+                self.drop_resource_3d(resource_id, rect, pointer);
             }
         }
 
         // Primary click / drag: dispatch to the active tool. Click starts a
         // fresh drag; drag fires every frame the pointer moves.
         if !dnd_active {
-            if response.drag_started_by(egui::PointerButton::Primary)
-                || response.clicked_by(egui::PointerButton::Primary)
-            {
-                self.brush_face_paint_stroke = false;
-            }
-
             // Hover-track entity bounds in Select mode so the
             // overlay can highlight the bound under the cursor
             // before the user clicks.
@@ -186,11 +117,8 @@ impl EditorWorkspace {
 
             // Tool dispatch: translate this frame's primary-button state
             // into `ToolFrame3d` events for the active tool object
-            // (workspace/tools.rs). Select keeps its drag flows and
-            // lazy-undo semantics; paint tools keep click-or-drag
-            // painting; brush tools plug in as new arms of
-            // `tools::tool_impl_3d` without growing this function.
-            let frame = tools::ToolFrame3d {
+            // (workspace/tools3d.rs, or the grid tools for a grid world).
+            let frame = tools3d::ToolFrame3d {
                 rect,
                 pointer_interact: response.interact_pointer_pos(),
                 pointer_hover: response.hover_pos(),
@@ -200,7 +128,7 @@ impl EditorWorkspace {
             let tool = if self.is_grid_world() {
                 crate::grid_tools::grid_tool_3d()
             } else {
-                tools::tool_impl_3d(self.active_tool)
+                tools3d::tool_impl_3d(self.active_tool)
             };
             if response.drag_started_by(egui::PointerButton::Primary) {
                 let press_pointer = ui
@@ -225,11 +153,7 @@ impl EditorWorkspace {
                 tool.primary_released(self, &frame);
             }
             if response.clicked_by(egui::PointerButton::Primary) {
-                let group_double_click = response.double_clicked_by(egui::PointerButton::Primary)
-                    && self.handle_group_double_click_3d(frame.pointer_target);
-                if !group_double_click {
-                    tool.primary_clicked(self, &frame);
-                }
+                tool.primary_clicked(self, &frame);
             }
         } else {
             self.selection.hovered_entity_node = None;
@@ -246,23 +170,9 @@ impl EditorWorkspace {
             );
         }
         if response.hovered() {
-            self.brush_tool_keyboard(ui);
             self.update_free_camera_keyboard(ui);
-            let (scroll, shift) = ui.input(|i| (i.raw_scroll_delta, i.modifiers.shift));
-            // Shift+scroll drills the selection through overlapping
-            // brushes under the cursor instead of moving the camera.
-            // Trackpads report shifted scrolls on the x axis, so take
-            // the dominant component.
-            let drill_delta = if scroll.y.abs() >= scroll.x.abs() {
-                scroll.y
-            } else {
-                scroll.x
-            };
-            if shift && drill_delta.abs() > f32::EPSILON {
-                if let Some(pointer) = response.hover_pos() {
-                    self.drill_selection_3d(rect, pointer, if drill_delta < 0.0 { 1 } else { -1 });
-                }
-            } else if scroll.y.abs() > f32::EPSILON {
+            let scroll = ui.input(|i| i.raw_scroll_delta);
+            if scroll.y.abs() > f32::EPSILON {
                 self.scroll_viewport_3d_camera(scroll.y);
             }
         }
@@ -283,11 +193,8 @@ impl EditorWorkspace {
             // depth-sorted preview geometry moving even when the scene is idle.
             ui.ctx().request_repaint();
         }
-        self.draw_bsp_leak_notice(&painter, rect);
         self.draw_character_behavior_overlay(&painter, rect);
         self.draw_node_gizmo(&painter, rect, hovered_node_handle);
-        draw_viewport_box_select_marquee(&painter, self.viewport_3d_box_select_rect());
-        self.draw_brush_overlay(&painter, rect);
         if self.is_grid_world() {
             self.draw_grid_overlay_3d(&painter, rect);
         }
@@ -376,87 +283,6 @@ impl EditorWorkspace {
         ui.ctx().request_repaint();
     }
 
-    /// Step the editor camera along the latest live pointfile route. Each
-    /// invocation moves to one point and looks toward the next, mirroring
-    /// TrenchBroom's pointfile navigation rather than merely framing the
-    /// complete (often very large) path from far away.
-    pub(crate) fn follow_next_bsp_leak_point(&mut self) -> bool {
-        if !self.bsp_leak_path_current {
-            return false;
-        }
-        let Some(&point) = self.last_bsp_leak_path.get(
-            self.bsp_leak_cursor
-                .min(self.last_bsp_leak_path.len().saturating_sub(1)),
-        ) else {
-            return false;
-        };
-        let index = self
-            .bsp_leak_cursor
-            .min(self.last_bsp_leak_path.len().saturating_sub(1));
-        let look_at = (1..self.last_bsp_leak_path.len())
-            .map(|offset| self.last_bsp_leak_path[(index + offset) % self.last_bsp_leak_path.len()])
-            .find(|candidate| *candidate != point)
-            .unwrap_or([point[0], point[1], point[2].saturating_sub(1)]);
-        let (yaw, pitch) = camera_angles_to_look_at(point, look_at)
-            .unwrap_or((self.camera_rig.free_yaw, self.camera_rig.free_pitch));
-        self.camera_rig.mode = ViewportCameraMode::Free;
-        self.camera_rig.free_position = point;
-        self.camera_rig.free_yaw = yaw;
-        self.camera_rig.free_pitch = pitch;
-        self.camera_rig.free_initialized = true;
-        self.bsp_leak_cursor = (index + 1) % self.last_bsp_leak_path.len();
-        self.status = format!(
-            "Leak point {}/{}; Camera: Free (WASD, Shift faster, RMB/MMB look)",
-            index + 1,
-            self.last_bsp_leak_path.len()
-        );
-        true
-    }
-
-    /// Put the Free camera immediately before the seed portal inside the
-    /// connected empty region and look directly at it. This makes the likely
-    /// breach the first inspection target instead of asking the user to walk
-    /// an entire route one point at a time.
-    pub(crate) fn jump_to_bsp_leak_opening(&mut self) -> bool {
-        if !self.bsp_leak_path_current || self.last_bsp_leak_opening.is_empty() {
-            return false;
-        }
-        let Some(index) = self
-            .bsp_leak_opening_path_index
-            .filter(|&index| index > 0 && index < self.last_bsp_leak_path.len())
-        else {
-            return false;
-        };
-        let target = self.last_bsp_leak_path[index];
-        let previous = self.last_bsp_leak_path[index - 1];
-        let delta: [f64; 3] =
-            std::array::from_fn(|axis| f64::from(target[axis]) - f64::from(previous[axis]));
-        let length = delta
-            .into_iter()
-            .map(|value| value * value)
-            .sum::<f64>()
-            .sqrt();
-        let distance = length.min(512.0);
-        let position = if length > f64::EPSILON {
-            std::array::from_fn(|axis| {
-                (f64::from(target[axis]) - delta[axis] / length * distance).round() as i32
-            })
-        } else {
-            previous
-        };
-        let (yaw, pitch) = camera_angles_to_look_at(position, target)
-            .unwrap_or((self.camera_rig.free_yaw, self.camera_rig.free_pitch));
-        self.camera_rig.mode = ViewportCameraMode::Free;
-        self.camera_rig.free_position = position;
-        self.camera_rig.free_yaw = yaw;
-        self.camera_rig.free_pitch = pitch;
-        self.camera_rig.free_initialized = true;
-        self.bsp_leak_cursor = (index + 1) % self.last_bsp_leak_path.len();
-        self.status = "Connected BSP leak region framed in red; inspect nearby brush seams (green is full route)"
-            .to_string();
-        true
-    }
-
     pub(crate) fn set_viewport_3d_camera_mode(&mut self, mode: ViewportCameraMode) {
         if self.camera_rig.set_mode(mode) {
             self.mark_shortcut_group_changed(ShortcutGroup::Camera);
@@ -484,113 +310,6 @@ impl EditorWorkspace {
                 Stroke::new(line.width, line.color),
             );
         }
-    }
-
-    pub(crate) fn draw_bsp_leak_path_2d(
-        &self,
-        painter: &egui::Painter,
-        transform: ViewportTransform,
-        view: OrthographicView,
-    ) {
-        let path = self.visible_bsp_leak_path();
-        if path.len() < 2 {
-            return;
-        }
-        let color = Color32::from_rgb(
-            BSP_LEAK_PATH_RGB.0,
-            BSP_LEAK_PATH_RGB.1,
-            BSP_LEAK_PATH_RGB.2,
-        );
-        let project = |point: [i32; 3]| {
-            transform.world_to_screen(view.project_f32(point.map(|value| value as f32)))
-        };
-        for points in path.windows(2) {
-            painter.line_segment(
-                [project(points[0]), project(points[1])],
-                Stroke::new(2.25, color),
-            );
-        }
-        painter.circle_filled(project(path[0]), 4.0, color);
-        painter.circle_stroke(project(*path.last().unwrap()), 5.0, Stroke::new(2.0, color));
-
-        let opening = self.visible_bsp_leak_opening();
-        if opening.len() < 3 {
-            return;
-        }
-        let warning = Color32::from_rgb(
-            BSP_LEAK_OPENING_RGB.0,
-            BSP_LEAK_OPENING_RGB.1,
-            BSP_LEAK_OPENING_RGB.2,
-        );
-        let projected: Vec<_> = opening.iter().copied().map(project).collect();
-        let centroid = (projected
-            .iter()
-            .fold(Vec2::ZERO, |sum, point| sum + point.to_vec2())
-            / projected.len() as f32)
-            .to_pos2();
-        let projected: Vec<_> = projected
-            .into_iter()
-            .map(|point| centroid + (point - centroid) * 0.9)
-            .collect();
-        // The merged component can be concave. A convex fill would paint
-        // across nearby solid brushes and recreate the misleading geometry
-        // selection that this diagnostic is intended to avoid.
-        painter.add(egui::Shape::closed_line(
-            projected.clone(),
-            Stroke::new(3.5, warning),
-        ));
-        painter.circle_filled(centroid, 4.5, warning);
-        painter.text(
-            centroid + Vec2::new(8.0, -8.0),
-            Align2::LEFT_BOTTOM,
-            "CONNECTED EMPTY LEAK REGION",
-            FontId::monospace(10.0),
-            warning,
-        );
-    }
-
-    pub(crate) fn draw_bsp_leak_notice(&self, painter: &egui::Painter, rect: Rect) {
-        let point_count = self.visible_bsp_leak_path().len();
-        let pending = self.bsp_leak_refresh_pending();
-        if point_count == 0 && !pending {
-            return;
-        }
-        let notice = Rect::from_center_size(
-            rect.center_top() + Vec2::new(0.0, 20.0),
-            Vec2::new(540.0, 26.0),
-        );
-        let accent = if pending {
-            Color32::from_rgb(255, 190, 72)
-        } else if !self.visible_bsp_leak_opening().is_empty() {
-            Color32::from_rgb(
-                BSP_LEAK_OPENING_RGB.0,
-                BSP_LEAK_OPENING_RGB.1,
-                BSP_LEAK_OPENING_RGB.2,
-            )
-        } else {
-            Color32::from_rgb(
-                BSP_LEAK_PATH_RGB.0,
-                BSP_LEAK_PATH_RGB.1,
-                BSP_LEAK_PATH_RGB.2,
-            )
-        };
-        painter.rect_filled(notice, 4.0, Color32::from_black_alpha(210));
-        painter.rect_stroke(notice, 4.0, Stroke::new(1.25, accent), StrokeKind::Inside);
-        let label = if pending {
-            "BSP LEAK PATH · geometry changed · recalculating…".to_string()
-        } else if !self.visible_bsp_leak_opening().is_empty() {
-            "BSP LEAK · RED = CONNECTED EMPTY REGION · green = route · Camera → Jump there"
-                .to_string()
-        } else {
-            format!("BSP LEAK · live · {point_count}-point green path")
-        };
-        painter.text(
-            notice.center(),
-            Align2::CENTER_CENTER,
-            label,
-            FontId::monospace(11.0),
-            accent,
-        );
     }
 
     fn selected_character_controller_overlay(&self) -> Option<CharacterControllerOverlay> {
@@ -1049,12 +768,6 @@ impl EditorWorkspace {
     /// boundaries. BSP face compositing has its own subordinate toggle.
     pub fn show_grid_enabled(&self) -> bool {
         self.show_grid
-    }
-
-    /// Whether the global grid should be composited over BSP brush faces.
-    /// The ordinary background grid remains controlled by `show_grid`.
-    pub fn show_brush_surface_grid_enabled(&self) -> bool {
-        self.show_brush_surface_grid
     }
 
     /// Current world-space grid interval. Brush surface grids use the

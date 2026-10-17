@@ -88,215 +88,43 @@ impl EditorFrames {
     }
 }
 
-fn single_brush_workspace(label: &str) -> EditorWorkspace {
-    let mut project = ProjectDocument::new(label);
-    project
-        .active_scene_mut()
-        .brushes
-        .push(psxed_project::brush::Brush::cuboid(
-            [0, 0, 0],
-            [1024, 512, 1024],
-        ));
-    let mut workspace = EditorWorkspace::with_project(test_temp_dir(label), project);
-    workspace.active_workspace = WorkspaceView::Room;
-    workspace.active_tool = ViewTool::Select;
-    workspace
-}
-
 #[test]
-fn showing_a_face_uv_scale_does_not_rewrite_it() {
-    // A scale the UV canvas gesture or "Fit" can author (300/256 = 117.19%)
-    // is not a whole percent. Merely displaying it in the Inspector must not
-    // truncate it back through the percent field every frame.
-    let mut workspace = single_brush_workspace("uv-scale-display");
-    workspace.brush_edit_mode = BrushEditMode::Face;
-    workspace.project.active_scene_mut().brushes[0].faces[0]
-        .uv
-        .scale_q8 = [300, -300];
-    workspace.replace_brush_selection(0, Some(0));
-    workspace.dirty = false;
-    let mut frames = EditorFrames::new();
-    for _ in 0..30 {
-        frames.idle(&mut workspace);
-    }
-    assert_eq!(
-        workspace.project.active_scene().brushes[0].faces[0]
-            .uv
-            .scale_q8,
-        [300, -300],
-        "the Inspector drifted an untouched face UV scale"
-    );
-    assert!(
-        !workspace.is_dirty(),
-        "displaying a face marked the project dirty"
-    );
-
-    // Fit on a large face authors scales past the field's +/-1600% range;
-    // displaying one must not clamp it either.
-    workspace.project.active_scene_mut().brushes[0].faces[1]
-        .uv
-        .scale_q8 = [5000, 256];
-    workspace.replace_brush_selection(0, Some(1));
-    for _ in 0..3 {
-        frames.idle(&mut workspace);
-    }
-    assert_eq!(
-        workspace.project.active_scene().brushes[0].faces[1]
-            .uv
-            .scale_q8,
-        [5000, 256],
-        "the Inspector clamped an out-of-range face UV scale it only displayed"
-    );
-    assert!(!workspace.is_dirty());
-}
-
-/// Press a gizmo arrow and drag part way, leaving the button held.
-fn begin_held_gizmo_drag(rig: &mut super::interaction_rig::MouseRig) -> (Pos2, Pos2) {
-    let (grab, to) = rig.gizmo_drag_vector(0);
-    rig.move_to(grab);
-    rig.press(grab);
-    rig.move_to(grab + (to - grab) * 0.3);
-    rig.move_to(grab + (to - grab) * 0.6);
-    (grab, to)
-}
-
-#[test]
-fn deleting_the_dragged_brush_mid_gesture_leaves_other_brushes_alone() {
-    // Delete/Backspace fire while the pointer is still held on a gizmo arrow
-    // or a free face/edge/vertex handle. The gesture holds brush index 0;
-    // the delete shifts the bystander into that slot.
-    let cases = [
-        (BrushEditMode::Move, None),
-        (BrushEditMode::Face, Some([256.0, 256.0, 128.0])),
-        (BrushEditMode::Edge, Some([256.0, 256.0, 0.0])),
-        (BrushEditMode::Vertex, Some([0.0, 256.0, 0.0])),
-    ];
-    for (mode, handle) in cases {
-        let mut rig = super::interaction_rig::MouseRig::single_cube("delete-mid-drag");
-        let bystander = psxed_project::brush::Brush::cuboid([4096, 0, 4096], [4608, 256, 4352]);
-        rig.workspace
-            .project
-            .active_scene_mut()
-            .brushes
-            .push(bystander.clone());
-        rig.workspace.set_brush_edit_mode(mode);
-        let body = rig.world_to_screen([256.0, 256.0, 128.0]);
-        rig.click(body);
-        assert_eq!(rig.workspace.selected_brush, Some(0), "{mode:?}");
-
-        let to = match handle {
-            None => begin_held_gizmo_drag(&mut rig).1,
-            Some(anchor) => {
-                let grab = rig.world_to_screen(anchor);
-                let to = grab + Vec2::new(48.0, -48.0);
-                rig.move_to(grab);
-                rig.press(grab);
-                rig.move_to(grab + (to - grab) * 0.5);
-                rig.move_to(to);
-                to
-            }
-        };
-        rig.key(to, egui::Key::Delete);
-        rig.move_to(to + Vec2::new(8.0, 0.0));
-        rig.release(to + Vec2::new(8.0, 0.0));
-
-        let brushes = &rig.workspace.project.active_scene().brushes;
-        assert_eq!(
-            brushes.len(),
-            1,
-            "{mode:?}: Delete removed the dragged brush"
-        );
-        assert_eq!(
-            brushes[0], bystander,
-            "{mode:?}: the drag wrote the deleted brush over the one that took its index"
-        );
-    }
-}
-
-#[test]
-fn undo_mid_gesture_cancels_the_drag_instead_of_resurrecting_it() {
-    let mut rig = super::interaction_rig::MouseRig::single_cube("undo-mid-drag");
-    rig.workspace.set_brush_edit_mode(BrushEditMode::Move);
-    let body = rig.world_to_screen([256.0, 256.0, 128.0]);
-    rig.click(body);
-    // One recorded edit to undo: add a second brush.
-    rig.workspace.push_undo();
-    rig.workspace
-        .project
-        .active_scene_mut()
-        .brushes
-        .push(psxed_project::brush::Brush::cuboid(
-            [4096, 0, 4096],
-            [4608, 256, 4352],
-        ));
-    let before_add = {
-        let mut scene = rig.workspace.project.active_scene().brushes.clone();
-        scene.pop();
-        scene
-    };
-    let (_, to) = begin_held_gizmo_drag(&mut rig);
-    rig.workspace.do_undo();
-    rig.move_to(to);
-    rig.release(to);
-    assert_eq!(
-        rig.workspace.project.active_scene().brushes,
-        before_add,
-        "Cmd+Z mid-drag must land on the undone document, not the drag's result"
-    );
-}
-
-#[test]
-fn reload_starts_a_fresh_undo_timeline_and_drops_stale_brush_selection() {
+fn reload_starts_a_fresh_undo_timeline() {
     let dir = test_temp_dir("reload-history");
     let _guard = ScratchProjectDir::new(dir.clone());
-    let mut project = ProjectDocument::new("reload-history");
-    project
-        .active_scene_mut()
-        .brushes
-        .push(psxed_project::brush::Brush::cuboid(
-            [0, 0, 0],
-            [512, 256, 512],
-        ));
+    let project = ProjectDocument::new("reload-history");
     let mut workspace = EditorWorkspace::with_project(dir, project);
     workspace.save().expect("save the on-disk baseline");
-    let on_disk = workspace.project.clone();
+    let on_disk_nodes = scene_node_count(&workspace);
 
     // Two in-memory edits the Reload is about to discard.
-    for offset in [1024, 2048] {
+    for _ in 0..2 {
         workspace.push_undo();
-        workspace
-            .project
-            .active_scene_mut()
-            .brushes
-            .push(psxed_project::brush::Brush::cuboid(
-                [offset, 0, 0],
-                [offset + 512, 256, 512],
-            ));
+        add_marker_node(&mut workspace);
         workspace.mark_dirty();
     }
-    workspace.replace_brush_selection(2, Some(0));
 
     workspace.reload();
-    assert_eq!(
-        workspace.project.active_scene().brushes,
-        on_disk.active_scene().brushes
-    );
-    assert_eq!(
-        workspace.selected_brush, None,
-        "brush 3 no longer exists after Reload"
-    );
-    assert_eq!(workspace.selected_brush_face, None);
+    assert_eq!(scene_node_count(&workspace), on_disk_nodes);
 
     workspace.do_undo();
     assert_eq!(
-        workspace.project.active_scene().brushes,
-        on_disk.active_scene().brushes,
+        scene_node_count(&workspace),
+        on_disk_nodes,
         "Cmd+Z after Reload resurrected edits Reload discarded"
     );
     assert!(
         !workspace.is_dirty(),
         "a no-op undo after Reload marked the project dirty"
     );
+}
+
+fn plain_workspace(label: &str) -> EditorWorkspace {
+    let mut workspace =
+        EditorWorkspace::with_project(test_temp_dir(label), ProjectDocument::new(label));
+    workspace.active_workspace = WorkspaceView::Room;
+    workspace.active_tool = ViewTool::Select;
+    workspace
 }
 
 #[test]
@@ -309,7 +137,7 @@ fn room_editing_keys_do_nothing_in_the_animation_and_material_workspaces() {
             (egui::Key::Delete, egui::Modifiers::NONE),
             (egui::Key::Backspace, egui::Modifiers::NONE),
         ] {
-            let mut workspace = single_brush_workspace("room-keys-elsewhere");
+            let mut workspace = plain_workspace("room-keys-elsewhere");
             let root = workspace.project.active_scene().root;
             let entity = workspace.project.active_scene_mut().add_node(
                 root,
@@ -391,7 +219,7 @@ fn arrow_keys_in_ui_navigation_preview_do_not_nudge_the_layout() {
 
 #[test]
 fn editor_shortcuts_stand_down_while_a_modal_dialog_is_open() {
-    let mut workspace = single_brush_workspace("modal-shortcuts");
+    let mut workspace = plain_workspace("modal-shortcuts");
     let root = workspace.project.active_scene().root;
     let entity =
         workspace
@@ -400,7 +228,6 @@ fn editor_shortcuts_stand_down_while_a_modal_dialog_is_open() {
             .add_node(root, "Behind The Dialog", NodeKind::Entity);
     // One recorded edit that Cmd+Z could roll back.
     workspace.push_undo();
-    workspace.project.active_scene_mut().brushes.clear();
     workspace.replace_node_selection(entity);
     workspace.modal = Modal::DeleteProject { error: None };
     let before = workspace.project.clone();
@@ -456,8 +283,8 @@ impl EditorFrames {
 /// Screen point inside the Material Lab text field on the row labelled
 /// `label`, far enough right to land past the current text.
 fn material_lab_field(output: &egui::FullOutput, label: &str) -> Pos2 {
-    let rows = super::brush_tools::text_shape_centers(&output.shapes, label);
-    let version = super::brush_tools::text_shape_centers(&output.shapes, "Version name");
+    let rows = super::egui_driver::text_shape_centers(&output.shapes, label);
+    let version = super::egui_driver::text_shape_centers(&output.shapes, "Version name");
     let anchor = *version
         .first()
         .expect("Material Lab shows its Version name row");
@@ -514,7 +341,7 @@ fn material_lab_names_accept_spaces_while_typing() {
 
 #[test]
 fn slow_top_view_node_drags_move_and_undo_as_one_step() {
-    let mut workspace = single_brush_workspace("top-view-node-drag");
+    let mut workspace = plain_workspace("top-view-node-drag");
     let root = workspace.project.active_scene().root;
     // Placing the node is the previous undoable edit.
     workspace.push_undo();
@@ -566,125 +393,11 @@ fn slow_top_view_node_drags_move_and_undo_as_one_step() {
     );
 }
 
-fn committed_primitive(
-    shape: BrushDrawShape,
-    grid_step: i32,
-    max: [i32; 3],
-    tweak: impl FnOnce(&mut BrushDrawSettings),
-) -> EditorWorkspace {
-    let mut workspace = EditorWorkspace::with_project(
-        test_temp_dir("primitive-shortfall"),
-        ProjectDocument::new("primitive-shortfall"),
-    );
-    workspace.project.active_scene_mut().brushes.clear();
-    let mut settings = BrushDrawSettings {
-        shape,
-        ..BrushDrawSettings::default()
-    };
-    tweak(&mut settings);
-    workspace.brush_drag = Some(BrushDrag {
-        anchor: [0, 0, 0],
-        current: [max[0], 0, max[2]],
-        view: OrthographicView::Top,
-        grid_step,
-        height_end: max[1],
-        stage: BrushCreateStage::Height,
-        height_press_y: 0,
-        height_press_end: max[1],
-        height_dragging: true,
-        settings,
-    });
-    workspace.commit_brush_drag();
-    workspace
-}
-
-#[test]
-fn primitives_that_would_lose_pieces_to_the_grid_are_refused_with_a_finer_grid() {
-    // 24 voussoirs of a 512-wide arch on the 64 grid: the snapped corners
-    // of several coincide and `convex_prism` rejects the degenerate slivers.
-    let arch = committed_primitive(BrushDrawShape::DoorwayArch, 64, [512, 512, 64], |s| {
-        s.arch_segments = 24;
-        s.arch_thickness = 64;
-    });
-    assert!(
-        arch.project.active_scene().brushes.is_empty(),
-        "a gapped arch must not be committed"
-    );
-    assert!(
-        arch.status.contains("of 26 pieces") && arch.status.contains("nothing was created"),
-        "status must report the missing arch pieces and the refusal, got {:?}",
-        arch.status
-    );
-    let suggested = suggested_grid(&arch.status);
-    assert!(suggested < 64, "the suggestion must be finer than Grid 64");
-    // The suggestion is true: the same drag on that grid builds all 26.
-    let whole = committed_primitive(
-        BrushDrawShape::DoorwayArch,
-        suggested,
-        [512, 512, 64],
-        |s| {
-            s.arch_segments = 24;
-            s.arch_thickness = 64;
-        },
-    );
-    assert_eq!(whole.project.active_scene().brushes.len(), 26);
-    assert_eq!(whole.status, "Created Doorway Arch");
-
-    // A 16-sided cylinder 512 across on the 64 grid snaps to far fewer sides.
-    let cylinder = committed_primitive(BrushDrawShape::Cylinder, 64, [512, 256, 512], |s| {
-        s.cylinder_sides = 16;
-    });
-    assert!(cylinder.project.active_scene().brushes.is_empty());
-    assert!(
-        cylinder.status.contains("of 16 sides"),
-        "status must report the collapsed cylinder sides, got {:?}",
-        cylinder.status
-    );
-    let suggested = suggested_grid(&cylinder.status);
-    let whole = committed_primitive(BrushDrawShape::Cylinder, suggested, [512, 256, 512], |s| {
-        s.cylinder_sides = 16;
-    });
-    let brushes = &whole.project.active_scene().brushes;
-    assert_eq!(brushes.len(), 1);
-    assert_eq!(brushes[0].faces.len() - 2, 16);
-
-    // 256 across, nothing survives at all: the refusal names the grid.
-    let nothing = committed_primitive(BrushDrawShape::Cylinder, 64, [256, 256, 256], |s| {
-        s.cylinder_sides = 16;
-    });
-    assert!(nothing.project.active_scene().brushes.is_empty());
-    assert!(
-        nothing.status.contains("Grid 64"),
-        "an empty result must name the grid that collapsed it, got {:?}",
-        nothing.status
-    );
-
-    // A clean primitive keeps the plain message.
-    let clean = committed_primitive(BrushDrawShape::DoorwayArch, 16, [2048, 2048, 64], |s| {
-        s.arch_segments = 6;
-        s.arch_thickness = 128;
-    });
-    assert_eq!(clean.project.active_scene().brushes.len(), 8);
-    assert_eq!(clean.status, "Created Doorway Arch");
-}
-
-/// The grid a refused primitive's status suggests ("Grid N keeps every piece").
-fn suggested_grid(status: &str) -> i32 {
-    let tail = status
-        .rsplit("; Grid ")
-        .next()
-        .filter(|tail| tail.ends_with(" keeps every piece"))
-        .unwrap_or_else(|| panic!("no grid suggestion in {status:?}"));
-    tail.trim_end_matches(" keeps every piece")
-        .parse()
-        .unwrap_or_else(|_| panic!("bad grid suggestion in {status:?}"))
-}
-
 #[test]
 fn light_radius_inspector_speaks_the_units_the_cook_uses() {
     // PointLight radius is stored in sectors and the cook, the brush bake
     // and the viewport preview all multiply it by the World sector size.
-    let mut workspace = single_brush_workspace("light-radius-units");
+    let mut workspace = plain_workspace("light-radius-units");
     let root = workspace.project.active_scene().root;
     let sector = workspace.project.world_sector_size_for_node(root);
     assert_eq!(sector, 1024, "fixture assumes the default World sector");
@@ -714,7 +427,7 @@ fn light_radius_inspector_speaks_the_units_the_cook_uses() {
         "selecting the light marked the project dirty"
     );
     assert!(
-        !super::brush_tools::text_shape_centers(&output.shapes, "Radius 512 units").is_empty(),
+        !super::egui_driver::text_shape_centers(&output.shapes, "Radius 512 units").is_empty(),
         "the Inspector must show the 512 world units the cook bakes"
     );
 }
@@ -738,15 +451,8 @@ fn texture_import_is_its_own_undo_step() {
     let mut workspace = EditorWorkspace::with_project(dir, ProjectDocument::new("import-undo"));
     // The edit before the import.
     workspace.push_undo();
-    workspace
-        .project
-        .active_scene_mut()
-        .brushes
-        .push(psxed_project::brush::Brush::cuboid(
-            [0, 0, 0],
-            [256, 256, 256],
-        ));
-    let brushes_after_edit = workspace.project.active_scene().brushes.clone();
+    add_marker_node(&mut workspace);
+    let nodes_after_edit = scene_node_count(&workspace);
     let resources_before = workspace.project.resources.len();
 
     workspace.texture_import_dialog.source_path = source.display().to_string();
@@ -766,42 +472,9 @@ fn texture_import_is_its_own_undo_step() {
         "Cmd+Z removes the imported material"
     );
     assert_eq!(
-        workspace.project.active_scene().brushes,
-        brushes_after_edit,
+        scene_node_count(&workspace),
+        nodes_after_edit,
         "Cmd+Z after an import must not also roll back the edit before it"
-    );
-}
-
-#[test]
-fn snap_to_grid_snaps_every_selected_brush_like_its_neighbour_buttons() {
-    // Duplicate and Delete beside it act on the whole brush selection.
-    let mut workspace = single_brush_workspace("snap-selection");
-    workspace.project.active_scene_mut().brushes = vec![
-        psxed_project::brush::Brush::cuboid([3, 0, 5], [509, 256, 250]),
-        psxed_project::brush::Brush::cuboid([1027, 0, 7], [1533, 256, 249]),
-    ];
-    workspace.snap_units = 16;
-    workspace.replace_brush_selection(0, None);
-    workspace.selected_brushes = vec![0, 1];
-    let before = workspace.project.active_scene().brushes.clone();
-    workspace.snap_selected_brush();
-    let after = workspace.project.active_scene().brushes.clone();
-    for (index, brush) in after.iter().enumerate() {
-        assert_ne!(*brush, before[index], "brush {index} was left off the grid");
-        for face in &brush.faces {
-            for point in face.points {
-                assert!(
-                    point.iter().all(|value| value % 16 == 0),
-                    "brush {index} point {point:?} is off Grid 16"
-                );
-            }
-        }
-    }
-    workspace.do_undo();
-    assert_eq!(
-        workspace.project.active_scene().brushes,
-        before,
-        "one undo step restores the whole selection"
     );
 }
 
@@ -874,18 +547,11 @@ fn cmd_z_in_a_focused_text_field_undoes_the_text_not_the_project() {
         "Zircon",
         ResourceData::Material(MaterialResource::opaque(None)),
     );
-    project.active_scene_mut().brushes.clear();
     let mut workspace = EditorWorkspace::with_project(test_temp_dir("text-field-undo"), project);
     // One recorded project edit the text-field Cmd+Z must leave alone.
     workspace.push_undo();
-    workspace
-        .project
-        .active_scene_mut()
-        .brushes
-        .push(psxed_project::brush::Brush::cuboid(
-            [0, 0, 0],
-            [512, 512, 512],
-        ));
+    add_marker_node(&mut workspace);
+    let nodes_after_edit = scene_node_count(&workspace);
     workspace.active_workspace = WorkspaceView::Material;
     assert!(workspace.focus_material_resource(material));
     let mut frames = EditorFrames::new();
@@ -895,8 +561,8 @@ fn cmd_z_in_a_focused_text_field_undoes_the_text_not_the_project() {
     frames.type_text(&mut workspace, " Slab");
     frames.key(&mut workspace, egui::Key::Z, egui::Modifiers::COMMAND);
     assert_eq!(
-        workspace.project.active_scene().brushes.len(),
-        1,
+        scene_node_count(&workspace),
+        nodes_after_edit,
         "Cmd+Z in a focused text field undid the project edit"
     );
     frames.key(&mut workspace, egui::Key::Enter, egui::Modifiers::NONE);
@@ -909,7 +575,11 @@ fn cmd_z_in_a_focused_text_field_undoes_the_text_not_the_project() {
 
     // With no text field focused, Cmd+Z is project undo again.
     frames.key(&mut workspace, egui::Key::Z, egui::Modifiers::COMMAND);
-    assert!(workspace.project.active_scene().brushes.is_empty());
+    assert_eq!(
+        scene_node_count(&workspace),
+        nodes_after_edit - 1,
+        "with no text field focused, Cmd+Z is project undo again"
+    );
 }
 
 #[test]
@@ -963,7 +633,7 @@ fn box_prop_one_to_one_texels_repeat_one_tile_per_world_sector() {
             },
         },
     );
-    super::brush_tools::run_real_egui_workspace_click_on_label(&mut workspace, "1:1 Texels");
+    super::egui_driver::run_real_egui_workspace_click_on_label(&mut workspace, "1:1 Texels");
     let node = workspace.project.active_scene().node(prop).unwrap();
     let NodeKind::BoxProp { uvs, .. } = &node.kind else {
         unreachable!()
@@ -1033,9 +703,8 @@ fn every_move_path_lands_nodes_on_the_same_grid_step() {
     assert_eq!(node_snap_step(&NodeKind::Group, 16), None);
 
     // Placement lands on the grid too; the picked height stays exact.
-    let mut project = ProjectDocument::new("placement-snap");
+    let project = ProjectDocument::new("placement-snap");
     let root = project.active_scene().root;
-    project.active_scene_mut().brushes.clear();
     let mut workspace = EditorWorkspace::with_project(test_temp_dir("placement-snap"), project);
     workspace.place_kind = PlaceKind::ParticleEmitter;
     workspace.place_node_at_world_hit(root, [509.0, 37.0, 522.0]);
@@ -1091,19 +760,19 @@ fn closing_with_unsaved_edits_asks_save_discard_or_cancel() {
     let mut workspace = EditorWorkspace::open_directory(&dir).unwrap();
     workspace.active_workspace = WorkspaceView::Room;
     workspace.push_undo();
-    workspace.project.active_scene_mut().brushes.pop();
+    add_marker_node(&mut workspace);
     workspace.mark_dirty();
 
     // Cancel keeps the edit and the window.
     assert!(!workspace.request_close());
     assert!(matches!(workspace.modal, Modal::UnsavedChanges { .. }));
-    super::brush_tools::run_real_egui_workspace_click_on_label(&mut workspace, "Cancel");
+    super::egui_driver::run_real_egui_workspace_click_on_label(&mut workspace, "Cancel");
     assert!(matches!(workspace.modal, Modal::None));
     assert!(workspace.is_dirty());
 
     // Discard closes without writing project.ron.
     assert!(!workspace.request_close());
-    super::brush_tools::run_real_egui_workspace_click_on_label(&mut workspace, "Discard and Close");
+    super::egui_driver::run_real_egui_workspace_click_on_label(&mut workspace, "Discard and Close");
     assert!(
         workspace.request_close(),
         "the answered prompt lets the close through"
@@ -1112,16 +781,16 @@ fn closing_with_unsaved_edits_asks_save_discard_or_cancel() {
 
     // Save writes the edit, then closes.
     let mut workspace = EditorWorkspace::open_directory(&dir).unwrap();
-    let brushes = workspace.project.active_scene().brushes.len();
+    let nodes = scene_node_count(&workspace);
     workspace.push_undo();
-    workspace.project.active_scene_mut().brushes.pop();
+    add_marker_node(&mut workspace);
     workspace.mark_dirty();
     assert!(!workspace.request_close());
-    super::brush_tools::run_real_egui_workspace_click_on_label(&mut workspace, "Save and Close");
+    super::egui_driver::run_real_egui_workspace_click_on_label(&mut workspace, "Save and Close");
     assert!(!workspace.is_dirty());
     assert!(workspace.request_close());
     let saved = ProjectDocument::load_from_path(dir.join("project.ron")).unwrap();
-    assert_eq!(saved.active_scene().brushes.len(), brushes - 1);
+    assert_eq!(saved.active_scene().nodes().len(), nodes + 1);
     let _ = std::fs::remove_dir_all(dir);
 }
 
@@ -1130,22 +799,22 @@ fn reload_with_unsaved_edits_asks_first() {
     let dir = template_copy("unsaved-reload-prompt");
     let mut workspace = EditorWorkspace::open_directory(&dir).unwrap();
     workspace.active_workspace = WorkspaceView::Room;
-    let brushes = workspace.project.active_scene().brushes.len();
+    let nodes = scene_node_count(&workspace);
     workspace.push_undo();
-    workspace.project.active_scene_mut().brushes.pop();
+    add_marker_node(&mut workspace);
     workspace.mark_dirty();
 
     workspace.request_reload();
     assert!(matches!(workspace.modal, Modal::UnsavedChanges { .. }));
-    super::brush_tools::run_real_egui_workspace_click_on_label(&mut workspace, "Cancel");
-    assert_eq!(workspace.project.active_scene().brushes.len(), brushes - 1);
+    super::egui_driver::run_real_egui_workspace_click_on_label(&mut workspace, "Cancel");
+    assert_eq!(scene_node_count(&workspace), nodes + 1);
 
     workspace.request_reload();
-    super::brush_tools::run_real_egui_workspace_click_on_label(
+    super::egui_driver::run_real_egui_workspace_click_on_label(
         &mut workspace,
         "Discard and Reload",
     );
-    assert_eq!(workspace.project.active_scene().brushes.len(), brushes);
+    assert_eq!(scene_node_count(&workspace), nodes);
     assert!(!workspace.is_dirty());
     let _ = std::fs::remove_dir_all(dir);
 }
@@ -1155,7 +824,7 @@ fn after_save_the_open_document_is_what_reopening_the_file_gives() {
     let dir = template_copy("save-normalises-open-document");
     let mut workspace = EditorWorkspace::open_directory(&dir).unwrap();
     workspace.push_undo();
-    workspace.project.active_scene_mut().brushes.pop();
+    add_marker_node(&mut workspace);
     workspace.mark_dirty();
     workspace.save().unwrap();
     let on_disk = ProjectDocument::load_from_path(dir.join("project.ron")).unwrap();

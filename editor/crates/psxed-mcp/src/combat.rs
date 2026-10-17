@@ -59,7 +59,7 @@ mod tests {
     use super::*;
     #[test]
     fn report_resolves_cooked_time_and_invalid_edits_are_atomic() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../projects/graybox-reach");
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../projects/grid-cathedral");
         let mut workspace = crate::edit::Workspace::open(&root).unwrap();
         let report: serde_json::Value =
             serde_json::from_str(&timeline(workspace.document().unwrap(), &root, 61).unwrap())

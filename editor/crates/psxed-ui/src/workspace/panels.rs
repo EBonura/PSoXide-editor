@@ -1833,19 +1833,10 @@ impl EditorWorkspace {
                                     constrain_resizable_dock_content(ui, content_width);
                                     // Selection priority: selected BSP brush →
                                     // resource → node.
-                                    // Select and Brush share the same brush transform
-                                    // controls; selecting a brush must never hide the
-                                    // only numeric move/resize path.
                                     if self.active_workspace == WorkspaceView::Room
                                         && self.is_grid_world()
                                     {
                                         self.draw_grid_panels(ui);
-                                    }
-                                    if self.active_workspace == WorkspaceView::Room
-                                        && self.selected_brush.is_some()
-                                    {
-                                        self.draw_brush_inspector(ui);
-                                        return;
                                     }
 
                                 if self.active_workspace == WorkspaceView::Ui {
@@ -1926,16 +1917,6 @@ impl EditorWorkspace {
                                     })
                                     .collect();
                                 let selected = self.selection.selected_node;
-                                // Brushes naming this node as their model owner.
-                                // A Door or Destructible that owns none looks
-                                // exactly like one that is wired up.
-                                let owned_brush_count = self
-                                    .project
-                                    .active_scene()
-                                    .brushes
-                                    .iter()
-                                    .filter(|brush| brush.mover == Some(selected))
-                                    .count();
                                 let animator_clip_context = selected_animator_clip_context(
                                     &self.project,
                                     selected,
@@ -2036,7 +2017,6 @@ impl EditorWorkspace {
                                             NodeKindEditorContext {
                                                 character_defaults: &character_defaults,
                                                 character_loadouts: &character_loadouts,
-                                                owned_brush_count,
                                                 material_options: &material_options,
                                                 material_texture_dimensions:
                                                     &material_texture_dimensions,

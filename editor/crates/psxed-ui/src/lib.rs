@@ -66,8 +66,7 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::fmt::Write as _;
 use std::fs::OpenOptions;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::Receiver;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use egui::{
     Align2, Color32, ColorImage, FontId, Pos2, Rect, RichText, Sense, Stroke, StrokeKind, Vec2,
@@ -109,16 +108,7 @@ const EDITOR_OUTLINE_ACCENT: Color32 = Color32::from_rgb(165, 238, 255);
 const EDITOR_OUTLINE_GOLD: Color32 = Color32::from_rgb(255, 238, 150);
 const GIZMO_AXIS_PICK_RADIUS: f32 = 10.0;
 const GIZMO_ROTATION_PICK_RADIUS: f32 = 12.0;
-/// Screen-space forgiveness for selecting BSP brushes and projected brush
-/// bounds. Keeping this in pixels makes tiny, distant brushes usable without
-/// tying the tolerance to authored world scale.
-const BRUSH_SCREEN_PICK_RADIUS: f32 = 8.0;
 const PROJECT_WATCH_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(400);
-/// Wait until an edit gesture has settled before rebuilding the pointfile.
-/// Repeated mouse-move updates reset this deadline, so a large map incurs one
-/// topology pass after the drag rather than one pass per pointer event.
-const BSP_LEAK_REFRESH_DEBOUNCE: Duration = Duration::from_millis(450);
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct WatchedFileMetadata {
     len: u64,
@@ -142,12 +132,6 @@ struct ProjectWatchState {
     resources: BTreeMap<PathBuf, Option<WatchedFileMetadata>>,
     last_poll: Instant,
     dirty_conflict: bool,
-}
-
-struct BspLeakRefreshJob {
-    revision: u64,
-    geometry_fingerprint: u64,
-    result: Receiver<Result<psxed_project::brush_world::BrushWorldLeakDiagnostic, String>>,
 }
 
 impl ProjectWatchState {
@@ -201,123 +185,6 @@ fn watched_project_signature(path: &Path) -> WatchedProjectSignature {
         metadata: watched_file_metadata(path),
         hash: watched_file_hash(path),
     }
-}
-
-fn cached_bsp_leak_path(project_dir: &Path) -> PathBuf {
-    project_dir
-        .join("logs")
-        .join(psxed_project::brush_playtest::BRUSH_LEAK_FILENAME)
-}
-
-fn read_cached_bsp_leak_path(project_dir: &Path) -> Result<Vec<[i32; 3]>, String> {
-    let path = cached_bsp_leak_path(project_dir);
-    let text = match std::fs::read_to_string(&path) {
-        Ok(text) => text,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => return Err(format!("read {}: {error}", path.display())),
-    };
-    let mut points = Vec::new();
-    for (line_index, line) in text.lines().enumerate() {
-        let mut coordinates = line.split_whitespace();
-        let parse = |value: Option<&str>| {
-            value
-                .ok_or(())
-                .and_then(|value| value.parse::<i32>().map_err(|_| ()))
-        };
-        let point = [
-            parse(coordinates.next()),
-            parse(coordinates.next()),
-            parse(coordinates.next()),
-        ];
-        if coordinates.next().is_some() || point.iter().any(Result::is_err) {
-            return Err(format!(
-                "{}:{} is not an X Y Z point",
-                path.display(),
-                line_index + 1
-            ));
-        }
-        points.push([
-            point[0].as_ref().copied().unwrap(),
-            point[1].as_ref().copied().unwrap(),
-            point[2].as_ref().copied().unwrap(),
-        ]);
-    }
-    Ok(points)
-}
-
-fn cache_bsp_leak_path(project_dir: &Path, points: &[[i32; 3]]) -> Result<(), String> {
-    let path = cached_bsp_leak_path(project_dir);
-    if points.is_empty() {
-        return match std::fs::remove_file(&path) {
-            Ok(()) => Ok(()),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(error) => Err(format!("remove {}: {error}", path.display())),
-        };
-    }
-    let parent = path
-        .parent()
-        .ok_or_else(|| format!("invalid pointfile path: {}", path.display()))?;
-    std::fs::create_dir_all(parent)
-        .map_err(|error| format!("create {}: {error}", parent.display()))?;
-    let mut text = String::new();
-    for [x, y, z] in points {
-        writeln!(text, "{x} {y} {z}").expect("writing to String cannot fail");
-    }
-    std::fs::write(&path, text).map_err(|error| format!("write {}: {error}", path.display()))
-}
-
-/// Hash only topology and player-occupant inputs consumed by Quake outside
-/// fill. Materials, UVs, lights, editor camera state, and resources do not
-/// affect a pointfile and therefore do not trigger an unnecessary rebuild.
-fn bsp_leak_geometry_fingerprint(project: &ProjectDocument) -> u64 {
-    fn mix(hash: &mut u64, value: u64) {
-        for byte in value.to_le_bytes() {
-            *hash ^= u64::from(byte);
-            *hash = hash.wrapping_mul(0x100000001b3);
-        }
-    }
-
-    let mut hash = 0xcbf29ce484222325u64;
-    mix(&mut hash, 1);
-    let scene = project.active_scene();
-    mix(&mut hash, scene.brushes.len() as u64);
-    for brush in &scene.brushes {
-        mix(&mut hash, brush.contents as u64);
-        mix(&mut hash, brush.mover.map(NodeId::raw).unwrap_or(0));
-        mix(&mut hash, brush.faces.len() as u64);
-        for face in &brush.faces {
-            for point in face.points {
-                for coordinate in point {
-                    mix(&mut hash, coordinate as u32 as u64);
-                }
-            }
-        }
-    }
-
-    let mut occupant_count = 0u64;
-    for node in scene.nodes() {
-        let is_player_occupant = match node.kind {
-            NodeKind::SpawnPoint { player: true, .. } => true,
-            NodeKind::Entity => node.children.iter().any(|&child| {
-                scene.node(child).is_some_and(|child| {
-                    matches!(
-                        child.kind,
-                        NodeKind::CharacterController { player: true, .. }
-                    )
-                })
-            }),
-            _ => false,
-        };
-        if !is_player_occupant {
-            continue;
-        }
-        occupant_count += 1;
-        for coordinate in node.transform.translation {
-            mix(&mut hash, u64::from(coordinate.to_bits()));
-        }
-    }
-    mix(&mut hash, occupant_count);
-    hash
 }
 
 fn watched_resource_signatures(
@@ -495,9 +362,6 @@ enum TreeAction {
         modifiers: egui::Modifiers,
     },
     BeginRename(NodeId),
-    OpenGroup(NodeId),
-    Ungroup(NodeId),
-    MergeSelectedGroups(NodeId),
     CommitRename(NodeId, String),
     CancelRename,
     Delete(NodeId),
@@ -633,15 +497,9 @@ pub struct EditorWorkspace {
     /// object it blames. The auto-focus only ever jumps to the first
     /// focusable error; this list lets the author pick any row.
     last_cook_errors: Vec<psxed_project::playtest::PlaytestValidationError>,
-    /// On-demand same-facing coplanar brush-face audit. `None` closes the
-    /// report; `Some`, including an empty report, keeps the results window
-    /// open until the author dismisses it or edits geometry.
-    brush_overlap_report: Option<Vec<psxed_project::brush_overlap::BrushFaceOverlap>>,
-    terrain_editor: Option<workspace::terrain::TerrainEditor>,
     /// Project-portable Room-workspace clipboard. Unlike Duplicate, this owns
     /// material names rather than trusting project-local resource ids, so it
     /// deliberately survives switching or creating projects.
-    portable_geometry_clipboard: Option<PortableGeometryClipboard>,
     /// High-visibility confirmation/error bubble for Copy/Paste. The ordinary
     /// action-bar status is easy to miss on a wide editor window, so geometry
     /// clipboard actions also announce themselves over the viewport.
@@ -692,11 +550,6 @@ pub struct EditorWorkspace {
     collapsed_scene_nodes: HashSet<NodeId>,
     collapsed_file_folders: HashSet<String>,
     hidden_scene_nodes: HashSet<NodeId>,
-    /// TrenchBroom-style edit context. A closed group is selected as one
-    /// object; opening it makes its direct contents editable and locks the
-    /// rest of the scene. Nested groups replace this with their child and
-    /// closing walks back to the parent group.
-    open_group: Option<NodeId>,
     hidden_ui_nodes: HashSet<(UiSceneId, UiNodeId)>,
     ui_node_clipboard: Option<UiNodeClipboard>,
     history: UndoStack,
@@ -725,99 +578,11 @@ pub struct EditorWorkspace {
     /// resource browser selection so repeated placement doesn't lose
     /// the chosen Model/Profile/Image after each click.
     place_resource: Option<ResourceId>,
-    /// Material the next BSP face paint will use when pinned. `None` means
-    /// Auto: use the selected Material resource if one is active.
-    brush_material: Option<ResourceId>,
-    /// One-shot eyedropper state for Material Paint. The next existing face
-    /// click samples its logical material into the shared brush/resource
-    /// selection, then automatically returns to painting.
-    material_paint_sampling: bool,
-    /// `true` once the in-flight Material Paint gesture has painted at least
-    /// one BSP brush face. Cleared at every primary press, so a drag across a
-    /// whole wall costs one undo step.
-    brush_face_paint_stroke: bool,
-    /// Index into the active scene's brushes, when one is selected.
-    selected_brush: Option<usize>,
-    /// Multi-brush selection (shift-click). Always contains
-    /// `selected_brush` when it is non-empty; empty means "just the
-    /// primary" so single-selection flows stay untouched.
-    selected_brushes: Vec<usize>,
-    /// Selected face index within the selected brush.
-    selected_brush_face: Option<usize>,
-    /// Exact face-mode selection across brushes. Unlike
-    /// `selected_brush_elements`, each face carries its owning brush so
-    /// Shift/Ctrl-click can preserve faces while the primary brush moves.
-    /// The last entry is the active face shown in the Inspector.
-    selected_brush_faces: Vec<(usize, usize)>,
-    /// Selected sub-elements of the primary brush (faces by index,
-    /// edges/vertices by quantized key, see `workspace::brush_elements`).
-    /// Last entry is the primary element. Cleared whenever the primary
-    /// brush changes; stale keys drop in `reconcile_brush_selection`.
-    selected_brush_elements: Vec<BrushElement>,
-    /// Visible, mode-driven BSP transform grammar. Move is the default so a
-    /// plain drag performs the most common operation without a modifier.
-    brush_edit_mode: BrushEditMode,
-    /// In-flight element gizmo rotate/scale gesture.
-    brush_element_transform: Option<BrushElementTransformDrag>,
-    /// In-flight new-brush face extrusion (Cmd+drag a face handle).
-    brush_extrude_new: Option<BrushFaceExtrudeNew>,
-    /// In-flight brush-create drag (Brush tool primary held).
-    brush_drag: Option<BrushDrag>,
     /// Live Top-view node drag (see `drag_selected_node`).
     node_drag_2d: Option<NodeDrag2d>,
-    /// Primitive and generator parameters used by the Draw tool. These are
-    /// editor-session choices; committed output is always ordinary convex
-    /// brushes (multi-brush primitives receive an editor Group).
-    brush_draw_settings: BrushDrawSettings,
-    /// In-flight brush face-extrude drag (Brush tool primary held on a
-    /// brush face).
-    brush_extrude: Option<BrushExtrude>,
-    /// First ground point of a pending two-point brush clip
-    /// (Brush tool, modifier-click).
-    /// Placed clip points (max 3): position plus the surface normal it
-    /// was placed on, which synthesizes the third point for two-point
-    /// cuts so sloped surfaces cut perpendicular to themselves.
-    brush_clip_points: Vec<BrushClipPoint>,
-    /// Drill-through anchor: pointer position and depth into the ray
-    /// hit list under it. Shift+scroll cycles the depth; moving the
-    /// pointer re-anchors from the current selection.
-    brush_drill: Option<(egui::Pos2, usize)>,
-    /// Repeatable duplicate/nudge actions since the last selection
-    /// change; Cmd+R replays the whole chain (stairs, pillar rows).
-    brush_repeat_chain: Vec<workspace::tools::BrushRepeatAction>,
-    /// Which side(s) the next brush clip keeps.
-    brush_clip_keep: BrushClipKeep,
-    /// Keep face textures anchored to the brush when it moves.
-    brush_texture_lock: bool,
-    /// In-flight whole-brush move drag (Brush tool, shift-press).
-    brush_move: Option<BrushMove>,
-    /// In-flight face UV scale/rotation interaction. See [`UvEditTransaction`].
-    brush_uv_edit: Option<UvEditTransaction>,
-    /// Pan/zoom of the face UV canvas, kept per selected face.
-    brush_uv_canvas_view: Option<workspace::uv_canvas::UvCanvasViewState>,
-    /// Live drag on the face UV canvas.
-    brush_uv_canvas_drag: Option<workspace::uv_canvas::UvCanvasDragState>,
-    /// In-flight vertex/edge drag (Brush tool with Vertex or Edge
-    /// selection mode in an orthographic view).
-    brush_vertex_drag: Option<BrushVertexDrag>,
-    /// Effective Godot-style 3D vertex-snap state while the pointer is over
-    /// the viewport. It is driven by either the momentary B shortcut or the
-    /// visible toolbar toggle.
-    brush_vertex_snap_key_down: bool,
-    /// Latched toolbar alternative to holding B. Kept as editor-session state:
-    /// it is a tool modifier, not authored project data.
-    brush_vertex_snap_enabled: bool,
-    /// Source corner currently highlighted before a vertex-snap drag. The
-    /// in-flight source/target live on `BrushVertexDrag` so releasing B does
-    /// not interrupt a gesture that has already started.
-    brush_vertex_snap_hover: Option<[f64; 3]>,
     snap_units: u16,
     show_grid: bool,
-    /// TrenchBroom-style projection of the global grid over BSP faces.
-    show_brush_surface_grid: bool,
     show_lights: bool,
-    /// Wireframe outlines for unselected brushes (View menu toggle).
-    show_brush_wireframes: bool,
     preview_bounds: bool,
     /// Docked Guest performance panel during Play (sidecar-persisted).
     show_play_debug_overlays: bool,
@@ -886,30 +651,6 @@ pub struct EditorWorkspace {
     /// Most recent host-side PSX envelope. Before a successful cook this is
     /// the authored estimate; after it, the exact emitted-package report.
     last_playtest_budget: Option<psxed_project::playtest::PlaytestBudgetReport>,
-    /// Quake-style pointfile route from the latest completed topology check.
-    last_bsp_leak_path: Vec<[i32; 3]>,
-    /// Outer boundary of the connected coplanar empty-portal component around
-    /// the current pointfile bottleneck. This avoids presenting one BSP
-    /// partition fragment as the complete authored opening.
-    last_bsp_leak_opening: Vec<[i32; 3]>,
-    /// Pointfile point inside the seed portal used to approach the region.
-    bsp_leak_opening_path_index: Option<usize>,
-    /// Whether `last_bsp_leak_path` matches current authored topology. Stale
-    /// paths are hidden while the debounced background check is pending.
-    bsp_leak_path_current: bool,
-    /// Topology/occupant hash associated with `last_bsp_leak_path`.
-    bsp_leak_geometry_fingerprint: u64,
-    /// Monotonic invalidation token; completed background work with an older
-    /// token is discarded rather than overwriting newer geometry.
-    bsp_leak_refresh_revision: u64,
-    /// Debounce deadline for the next topology-only pointfile pass.
-    bsp_leak_refresh_due: Option<Instant>,
-    /// At most one pointfile worker runs at a time.
-    bsp_leak_refresh_job: Option<BspLeakRefreshJob>,
-    /// Transient visibility toggle for the current pointfile overlay.
-    show_bsp_leak_path: bool,
-    /// Next point visited by the Camera menu's leak-path navigator.
-    bsp_leak_cursor: usize,
     /// One-shot request emitted by the editor UI for the frontend
     /// to handle. The frontend owns emulator state and build child
     /// processes, so the editor never launches playtest directly.
@@ -1178,138 +919,11 @@ struct PackageSummary {
     player_character: Option<String>,
 }
 
-/// One selectable sub-element of a brush. Faces are stable authored
-/// indices; edges and vertices are quantized solved positions (canonical
-/// endpoint order for edges), re-resolved each frame against
-/// `workspace::brush_elements` because solved corners have no persistent
-/// identity in the data model.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum BrushElement {
-    Face(usize),
-    Edge([i64; 3], [i64; 3]),
-    Vertex([i64; 3]),
-}
-
-/// Direct BSP transform grammar. Brushes need an explicit whole-object Move
-/// state as well as Face/Edge/Vertex reshape states.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-enum BrushEditMode {
-    #[default]
-    Move,
-    Face,
-    Edge,
-    Vertex,
-    /// TrenchBroom-style cut: click 2-3 points to define the plane,
-    /// Enter applies, Tab cycles the kept side, Esc clears.
-    Clip,
-}
-
-impl BrushEditMode {
-    #[allow(dead_code)] // Exercised by the mode-strip completeness test.
-    const ALL: [Self; 5] = [Self::Move, Self::Face, Self::Edge, Self::Vertex, Self::Clip];
-
-    const fn label(self) -> &'static str {
-        match self {
-            Self::Move => "Select",
-            Self::Face => "Face",
-            Self::Edge => "Edge",
-            Self::Vertex => "Vertex",
-            Self::Clip => "Clip",
-        }
-    }
-
-    const fn gesture_hint(self) -> &'static str {
-        match self {
-            Self::Move => {
-                "Whole brush: click to select, then use the gizmo to move, rotate, or scale it"
-            }
-            Self::Face => "Click a face to select it; drag its handle to resize, Cmd-drag or E to extrude a new brush",
-            Self::Edge => "Drag an edge handle to reshape",
-            Self::Vertex => "Drag a vertex handle to reshape",
-            Self::Clip => "Click 2-3 points; Enter cuts, X flips the kept side, Esc clears",
-        }
-    }
-}
-
-/// The flat, BSP-first mode strip shown in the 3D workspace.
-///
-/// This combines the old top-level tool and nested brush-edit mode into one
-/// user-facing state machine. `Select` owns whole brushes and entities;
-/// `Draw` is the only brush-creation mode.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum BspToolbarMode {
-    Select,
-    Draw,
-    Paint,
-    Face,
-    Edge,
-    Vertex,
-    Clip,
-}
-
-impl BspToolbarMode {
-    const ALL: [Self; 7] = [
-        Self::Select,
-        Self::Draw,
-        Self::Paint,
-        Self::Face,
-        Self::Edge,
-        Self::Vertex,
-        Self::Clip,
-    ];
-
-    const fn label(self) -> &'static str {
-        match self {
-            Self::Select => "Select",
-            Self::Draw => "Draw",
-            Self::Paint => "Paint",
-            Self::Face => "Face",
-            Self::Edge => "Edge",
-            Self::Vertex => "Vertex",
-            Self::Clip => "Clip",
-        }
-    }
-
-    const fn icon(self) -> char {
-        match self {
-            Self::Select => icons::POINTER,
-            Self::Draw => icons::BOX,
-            Self::Paint => icons::PALETTE,
-            Self::Face => icons::SQUARE,
-            Self::Edge => icons::SCAN,
-            Self::Vertex => icons::CIRCLE_DOT,
-            Self::Clip => icons::PEN_LINE,
-        }
-    }
-
-    const fn brush_edit_mode(self) -> Option<BrushEditMode> {
-        match self {
-            Self::Select | Self::Draw => Some(BrushEditMode::Move),
-            Self::Face => Some(BrushEditMode::Face),
-            Self::Edge => Some(BrushEditMode::Edge),
-            Self::Vertex => Some(BrushEditMode::Vertex),
-            Self::Clip => Some(BrushEditMode::Clip),
-            Self::Paint => None,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TransformGizmoMode {
     Move,
     Rotate,
     Scale,
-}
-
-/// Arbitrary-angle rotations cannot preserve an absolute Cartesian lattice
-/// for every convex BSP brush without distorting the solid. Quarter turns are
-/// the complete shape-independent set that maps the world grid back onto
-/// itself, so brush and brush-owning group gizmos use this snap.
-const BRUSH_ROTATION_SNAP_DEGREES: i32 = 90;
-
-fn snap_brush_rotation_degrees(degrees: f64) -> i32 {
-    ((degrees / f64::from(BRUSH_ROTATION_SNAP_DEGREES)).round() as i32)
-        * BRUSH_ROTATION_SNAP_DEGREES
 }
 
 fn paint_rotation_readout(
@@ -1384,7 +998,6 @@ impl UiTransformMode {
 enum Viewport3dPointerTarget {
     NodeGizmo(NodeGizmoHandle),
     Entity(EntityBoundHit),
-    Brush { brush: usize, face: usize },
 }
 
 impl Viewport3dPointerTarget {
@@ -1460,26 +1073,11 @@ struct NodeGizmoDrag {
     /// Angular tracking state, present only for Rotate drags.
     rotate: Option<NodeGizmoRotateDrag>,
     targets: Vec<NodeGizmoTarget>,
-    /// BSP brushes recursively owned by selected Group roots, captured from
-    /// the drag start so every preview applies the total delta once.
-    group_brushes: Vec<GroupBrushGizmoTarget>,
-    /// Shared world-space pivot of selected Group roots. Group-owned brushes
-    /// rotate and scale around this point instead of their individual centres.
-    group_pivot: Option<[f64; 3]>,
-    /// Number of selected Group roots, used for accurate gesture feedback even
-    /// though folder nodes themselves are not authored transform targets.
-    group_count: usize,
     current_steps: i32,
     snapshot_pushed: bool,
-    /// Shift held: world-unit nodes skip the brush-grid snap and move at
+    /// Shift held: world-unit nodes skip the grid snap and move at
     /// single-unit precision. Refreshed every update from the live modifiers.
     free: bool,
-}
-
-#[derive(Debug, Clone)]
-struct GroupBrushGizmoTarget {
-    index: usize,
-    start: psxed_project::brush::Brush,
 }
 
 /// Angular state for a rotation-ring drag. Steps come from the angle
@@ -1514,11 +1112,6 @@ struct NodeGizmoTarget {
 }
 
 #[derive(Debug, Clone)]
-enum PortableGeometryClipboard {
-    Brushes(BrushGeometryClipboard),
-}
-
-#[derive(Debug, Clone)]
 struct ClipboardNotice {
     message: String,
     success: bool,
@@ -1526,77 +1119,10 @@ struct ClipboardNotice {
 }
 
 #[derive(Debug, Clone)]
-struct BrushGeometryClipboard {
-    brushes: Vec<psxed_project::brush::Brush>,
-    /// Portable authoring hierarchy, stored parent-before-child. NodeIds are
-    /// intentionally absent because paste allocates destination-local ids.
-    groups: Vec<PortableBrushGroup>,
-    /// Per-brush owner index into `groups`.
-    brush_groups: Vec<Option<usize>>,
-    /// Position of the source primary brush within `brushes`.
-    primary: usize,
-    /// Source resource id -> material display name. Resource ids are local to
-    /// one project; paste resolves these names against the destination.
-    materials: BTreeMap<u64, String>,
-    /// Door bindings are intentionally stripped because their NodeIds cannot
-    /// safely address another project. Kept only for an honest paste status.
-    stripped_movers: usize,
-}
-
-#[derive(Debug, Clone)]
-struct PortableBrushGroup {
-    name: String,
-    parent: Option<usize>,
-}
-
-#[derive(Debug, Clone)]
 struct UiNodeClipboard {
     root: UiNodeId,
     root_name: String,
     nodes: Vec<UiNode>,
-}
-
-#[derive(Debug, Clone)]
-struct ViewportBoxSelect {
-    start: Pos2,
-    current: Pos2,
-    additive: bool,
-    /// The base selection makes additive dragging stable while the marquee
-    /// grows and shrinks across frames.
-    base_brushes: Vec<usize>,
-    base_primary_brush: Option<usize>,
-    /// Face/Edge/Vertex marquee selection is scoped to the active brush,
-    /// matching the handles drawn by those edit modes. `None` keeps the
-    /// whole-brush marquee used by Move/Clip.
-    element_brush: Option<usize>,
-    element_mode: Option<BrushEditMode>,
-    base_brush_elements: Vec<BrushElement>,
-    base_brush_faces: Vec<(usize, usize)>,
-}
-
-impl ViewportBoxSelect {
-    fn rect(&self) -> Rect {
-        Rect::from_two_pos(self.start, self.current)
-    }
-}
-
-#[derive(Debug, Clone)]
-struct Viewport3dBoxSelect {
-    start: Pos2,
-    current: Pos2,
-    additive: bool,
-    base_brushes: Vec<usize>,
-    base_primary_brush: Option<usize>,
-    element_brush: Option<usize>,
-    element_mode: Option<BrushEditMode>,
-    base_brush_elements: Vec<BrushElement>,
-    base_brush_faces: Vec<(usize, usize)>,
-}
-
-impl Viewport3dBoxSelect {
-    fn rect(&self) -> Rect {
-        Rect::from_two_pos(self.start, self.current)
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1688,10 +1214,6 @@ enum Interaction {
     Idle,
     /// Axis-gizmo drag of selected scene nodes.
     NodeGizmo(NodeGizmoDrag),
-    /// Screen-space marquee selection in the 3D viewport.
-    BoxSelect3d(Viewport3dBoxSelect),
-    /// Screen-space marquee selection in the 2D viewport.
-    BoxSelect2d(ViewportBoxSelect),
     /// Move/resize stroke in the UI authoring canvas.
     UiCanvas(UiCanvasDrag),
 }
@@ -1735,8 +1257,6 @@ macro_rules! interaction_accessors {
 
 interaction_accessors! {
     NodeGizmo => node_gizmo_drag, node_gizmo_drag_mut, take_node_gizmo_drag : NodeGizmoDrag;
-    BoxSelect3d => box_select_3d, box_select_3d_mut, take_box_select_3d : Viewport3dBoxSelect;
-    BoxSelect2d => box_select_2d, box_select_2d_mut, take_box_select_2d : ViewportBoxSelect;
     UiCanvas => ui_canvas_drag, ui_canvas_drag_mut, take_ui_canvas_drag : UiCanvasDrag;
 }
 
@@ -1764,15 +1284,8 @@ enum Modal {
     /// No dialog open.
     #[default]
     None,
-    /// File → New Project. Carries the live-edited name and the last
-    /// submit error, if any.
-    NewProject {
-        name: String,
-        cook_mode: psxed_project::brush_world::BrushWorldCookMode,
-        error: Option<String>,
-    },
-    /// File → New Grid Project: the name and the last submit error.
-    NewGridProject { name: String, error: Option<String> },
+    /// File → New Project: the live-edited name and the last submit error.
+    NewProject { name: String, error: Option<String> },
     /// Delete the current project. Carries the last delete error, if any.
     DeleteProject { error: Option<String> },
     /// The project has unsaved edits and the user asked for something that
@@ -1818,9 +1331,6 @@ struct SelectionState {
     selected_resources: HashSet<ResourceId>,
     /// Anchor for Shift-click resource range selection.
     resource_selection_anchor: Option<ResourceId>,
-    /// Brush sub-element handle under the cursor this frame (either
-    /// view). Drives the pre-click hover highlight in the overlays.
-    hovered_brush_handle: Option<BrushElement>,
     /// Hovered entity bound under the cursor (Select tool only). Drives the
     /// entity-bounds highlight overlay and the click→select fast path.
     hovered_entity_node: Option<NodeId>,
@@ -2237,277 +1747,11 @@ impl ViewportCameraState {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ViewTool {
-    /// Click to select; press-and-drag on a selected primitive
-    /// (face / edge / vertex) translates it vertically in the
-    /// 3D viewport. No separate "Move" tool -- the same gesture
-    /// handles both select and move.
+    /// Click to select nodes and drag their gizmos.
     Select,
-    /// Repaint exactly one existing BSP brush face.
-    PaintMaterial,
-    /// Drop an entity node onto a BSP surface.
+    /// Drop an entity node onto the world.
     /// The kind of node placed is controlled by `place_kind`.
     Place,
-    /// Drag a world-space convex brush on the active Top/Front/Side plane;
-    /// click selects the nearest visible brush face under the cursor.
-    Brush,
-}
-
-/// Stage of the two-gesture brush creation flow. The first gesture authors
-/// the active-plane footprint; the second authors its hidden-axis extent.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum BrushCreateStage {
-    Footprint,
-    Height,
-}
-
-/// In-flight brush creation, snapped in world units. `current` is the second
-/// footprint corner and `height_end` is the independently authored endpoint
-/// on the active view's hidden axis.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct BrushDrag {
-    pub(crate) anchor: [i32; 3],
-    pub(crate) current: [i32; 3],
-    pub(crate) view: OrthographicView,
-    pub(crate) grid_step: i32,
-    pub(crate) height_end: i32,
-    pub(crate) stage: BrushCreateStage,
-    /// Screen-space origin and world-space endpoint captured when the height
-    /// gesture starts. Keeping both makes the preview stable while snapping.
-    pub(crate) height_press_y: i32,
-    pub(crate) height_press_end: i32,
-    pub(crate) height_dragging: bool,
-    /// Snapshot the generator at press time so changing toolbar options can
-    /// never mutate an in-flight preview.
-    pub(crate) settings: BrushDrawSettings,
-}
-
-// Brush primitive recipes live in psxed-project so the editor's drag tool and
-// the authoring MCP expand one implementation. Re-exported under the original
-// names to keep the UI call sites unchanged.
-pub(crate) use psxed_project::brush_primitives::{
-    BrushCardinalDirection, BrushDrawSettings, BrushDrawShape,
-};
-
-/// One placed clip point: grid-snapped position plus the unit normal of
-/// the surface it was placed on (view depth axis in 2D).
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct BrushClipPoint {
-    pub(crate) point: [i32; 3],
-    pub(crate) normal: [f64; 3],
-}
-
-/// Which side(s) a two-point brush clip keeps.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum BrushClipKeep {
-    Both,
-    Back,
-    Front,
-}
-
-impl BrushClipKeep {
-    pub(crate) const fn label(self) -> &'static str {
-        match self {
-            Self::Both => "both",
-            Self::Back => "back",
-            Self::Front => "front",
-        }
-    }
-
-    pub(crate) const fn next(self) -> Self {
-        match self {
-            Self::Both => Self::Back,
-            Self::Back => Self::Front,
-            Self::Front => Self::Both,
-        }
-    }
-}
-
-/// In-flight whole-brush move drag (shift held on press). The same 3-axis
-/// delta storage serves 3D ground moves and Top/Front/Side plane moves.
-/// When the pressed brush belongs to a multi-selection, `others` carries
-/// the rest of the selection's (index, base) pairs so the whole group
-/// moves and commits as one gesture.
-#[derive(Debug, Clone)]
-pub(crate) struct BrushMove {
-    pub(crate) index: usize,
-    pub(crate) base: psxed_project::brush::Brush,
-    pub(crate) others: Vec<(usize, psxed_project::brush::Brush)>,
-    pub(crate) press_ground: [f32; 3],
-    /// Original world-space point whose destination is snapped to the
-    /// absolute grid. Quantising only the pointer delta preserves an
-    /// off-grid phase forever and makes adjacent brushes difficult to seal.
-    pub(crate) snap_anchor: [f64; 3],
-    pub(crate) applied: [i32; 3],
-}
-
-/// One face UV scale/rotation interaction, held for as long as the pointer
-/// drag or the focused keyboard edit lasts.
-///
-/// Re-anchoring solves an offset, and that offset is stored in an `i16`. A
-/// DragValue emits one small step per frame, so re-solving each frame
-/// against the PREVIOUS frame's already-rounded mapping banks up to half a
-/// texel of rounding every step: dragging Q8 scale 256 to 512 at an anchor
-/// 136 texels out ends about sixty texels away from the phase it started
-/// at. The interaction therefore captures where it started ONCE and every
-/// later frame solves against that same fixed target, so the error is one
-/// rounding, not one per frame.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct UvEditTransaction {
-    pub(crate) brush: usize,
-    pub(crate) face: usize,
-    /// Face-local anchor in the raw texel space `FaceUv::apply` consumes.
-    pub(crate) anchor: [f64; 2],
-    /// The mapping this interaction started from.
-    pub(crate) origin: psxed_project::brush::FaceUv,
-    /// `origin.apply(anchor)`: the phase every frame has to reproduce.
-    pub(crate) target: [f64; 2],
-}
-
-/// In-flight brush face-extrude drag. Orthographic handles slide on one
-/// visible world axis; 3D handles slide along the face's exact normal.
-/// The scene brush previews live and the base is restored before the single
-/// undo-recorded commit on release.
-#[derive(Debug, Clone)]
-pub(crate) struct BrushExtrude {
-    pub(crate) index: usize,
-    pub(crate) face: usize,
-    pub(crate) base: psxed_project::brush::Brush,
-    pub(crate) axis: usize,
-    /// Pointer y at press (vertical faces drag by pixels).
-    pub(crate) press_y: f32,
-    /// Unsnapped ground point at press (horizontal drags measure here).
-    pub(crate) press_ground: [f32; 3],
-    /// Exact outward unit normal for a 3D face drag. `None` is the existing
-    /// orthographic axis grammar.
-    pub(crate) normal_3d: Option<[f64; 3]>,
-    /// Screen direction corresponding to positive movement along normal_3d.
-    pub(crate) screen_direction: Vec2,
-    pub(crate) units_per_pixel: f32,
-    /// Point on the selected face used to snap the moved plane to absolute
-    /// world-grid coordinates rather than quantising only its travel.
-    pub(crate) snap_anchor: [f64; 3],
-    /// Last applied integer translation, world units.
-    pub(crate) applied: [i32; 3],
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct BrushDragPlane3d {
-    pub(crate) anchor: [f32; 3],
-    pub(crate) normal: [f32; 3],
-    pub(crate) press_world: [f32; 3],
-}
-
-/// In-flight brush vertex/edge drag: the grabbed solved vertices (a
-/// projected corner's whole depth column, or an edge's two columns) move
-/// together in the active orthographic plane. The scene brush previews
-/// live from `base`; one undo records on commit.
-#[derive(Debug, Clone)]
-pub(crate) struct BrushVertexDrag {
-    pub(crate) index: usize,
-    pub(crate) base: psxed_project::brush::Brush,
-    /// Whole-brush selection members riding an axis-constrained Move gizmo
-    /// drag. Element edits leave this empty and continue to affect only the
-    /// primary brush.
-    pub(crate) others: Vec<(usize, psxed_project::brush::Brush)>,
-    /// Component selections on other brushes. Face mode can select exact
-    /// faces document-wide, so those faces must ride the same gizmo delta
-    /// without translating either owning brush wholesale.
-    pub(crate) element_others: Vec<BrushElementDragMember>,
-    /// Solved base-brush vertices being dragged, world f64.
-    pub(crate) targets: Vec<[f64; 3]>,
-    /// Deterministic selected corner used as the absolute-grid reference for
-    /// an ordinary move. Every selected element still receives one rigid
-    /// shared delta, so edges and faces cannot shear.
-    pub(crate) snap_anchor: [f64; 3],
-    /// Unsnapped plane point at press.
-    pub(crate) press_ground: [f32; 3],
-    /// Camera-facing drag plane for 3D handles. Orthographic gestures leave
-    /// this empty and continue to use press_ground.
-    pub(crate) plane_3d: Option<BrushDragPlane3d>,
-    /// Last applied snapped delta, world units.
-    pub(crate) applied: [i32; 3],
-    /// Per-axis constraint from the element gizmo: a masked-off axis
-    /// never receives delta. Free handle drags leave all three true.
-    pub(crate) axis_mask: [bool; 3],
-    /// Selected Face elements riding this drag: their WHOLE authored
-    /// planes translate (authored points need not sit at solved corners).
-    pub(crate) faces: Vec<usize>,
-    /// Godot-style vertex-snap source. `None` is an ordinary grid drag;
-    /// `Some` means the whole selected brush set is being translated so
-    /// this exact corner follows the pointer and may lock to a target.
-    pub(crate) snap_source: Option<[f64; 3]>,
-    /// Current vertex-snap target on a non-moving brush, if one is within
-    /// the screen-space acquisition radius.
-    pub(crate) snap_target: Option<[f64; 3]>,
-}
-
-/// In-flight rotate/scale gesture from the element gizmo: the selected
-/// element corner set transforms about its centroid around/along the
-/// grabbed world axis. Previews rebuild from `base` each frame.
-#[derive(Debug, Clone)]
-pub(crate) struct BrushElementTransformDrag {
-    pub(crate) index: usize,
-    pub(crate) base: psxed_project::brush::Brush,
-    /// Other whole brushes transformed about the same selection pivot.
-    /// Face/edge/vertex transforms leave this empty.
-    pub(crate) others: Vec<(usize, psxed_project::brush::Brush)>,
-    /// Component selections on other brushes transformed about the same
-    /// shared pivot. Kept separate from `others`, whose members are whole
-    /// brushes in Move mode.
-    pub(crate) element_others: Vec<BrushElementDragMember>,
-    pub(crate) targets: Vec<[f64; 3]>,
-    pub(crate) center: [f64; 3],
-    pub(crate) axis: usize,
-    /// true = rotate, false = scale (5% steps).
-    pub(crate) rotate: bool,
-    /// Rigid whole-brush transforms must preserve the active Cartesian
-    /// lattice. Face/edge reshaping may intentionally author slanted planes.
-    pub(crate) grid_safe_rotation: bool,
-    pub(crate) rotation_snap_degrees: i32,
-    /// Selected Face elements: whole authored planes transform rigidly.
-    pub(crate) faces: Vec<usize>,
-    pub(crate) start_pointer: Pos2,
-    /// Normalized screen direction of the grabbed axis at press time:
-    /// scale travel is the pointer delta projected onto it, so dragging
-    /// along ANY axis works (horizontal-only travel made vertical axes
-    /// dead).
-    pub(crate) screen_axis: Vec2,
-    /// Projected selection centroid: rotate tracks the angular sweep of
-    /// the pointer around it, entity-gizmo style.
-    pub(crate) center_screen: Pos2,
-    /// Pointer angle around `center_screen` at press time, radians.
-    pub(crate) start_angle: f32,
-    /// Last applied snapped amount: degrees for rotate, percent-delta
-    /// steps for scale. Zero means the base brush is still in place.
-    pub(crate) applied: i32,
-}
-
-/// One non-primary brush's exact component subset participating in a shared
-/// gizmo gesture. The base is immutable for the gesture; every preview is
-/// rebuilt from it so one invalid member rejects the whole transaction.
-#[derive(Debug, Clone)]
-pub(crate) struct BrushElementDragMember {
-    pub(crate) index: usize,
-    pub(crate) base: psxed_project::brush::Brush,
-    pub(crate) targets: Vec<[f64; 3]>,
-    pub(crate) faces: Vec<usize>,
-}
-
-/// In-flight face extrusion: Cmd+drag on a face handle grows a NEW
-/// prism brush along the face's outward normal (TrenchBroom-style).
-/// The scene is untouched until commit; the candidate previews as a
-/// wireframe.
-#[derive(Debug, Clone)]
-pub(crate) struct BrushFaceExtrudeNew {
-    pub(crate) source: usize,
-    pub(crate) face: usize,
-    /// Screen direction of the outward normal at press time.
-    pub(crate) screen_dir: Vec2,
-    /// World units per pixel of travel along `screen_dir`.
-    pub(crate) units_per_px: f32,
-    pub(crate) start_pointer: Pos2,
-    /// Snapped extrusion distance, world units (0 = nothing yet).
-    pub(crate) applied: i32,
 }
 
 /// Variants of the `Place` tool. Maps directly onto the
@@ -2617,11 +1861,7 @@ impl ViewTool {
     const fn label(self) -> &'static str {
         match self {
             Self::Select => "Select",
-            Self::PaintMaterial => "Paint",
             Self::Place => "Place",
-            // "Draw": creates and clips brushes. Selecting/reshaping them
-            // lives in Select, so the two tools stop reading as duplicates.
-            Self::Brush => "Draw",
         }
     }
 }
@@ -2857,7 +2097,7 @@ impl EditorWorkspace {
         self.active_workspace = WorkspaceView::from_project(workspace);
         self.view_2d = false;
         if self.active_workspace == WorkspaceView::Room {
-            self.frame_bsp_camera_if_uninitialized();
+            self.frame_camera_if_uninitialized();
         }
         self.status = format!("Workspace: {}", self.active_workspace.label());
     }
@@ -2868,7 +2108,7 @@ impl EditorWorkspace {
         self.active_workspace = WorkspaceView::Room;
         self.view_2d = true;
         self.orthographic_view = OrthographicView::Top;
-        self.frame_bsp_viewport_if_uninitialized();
+        self.frame_viewport_if_uninitialized();
         self.status = "Viewport: Top".to_string();
     }
 
@@ -2894,7 +2134,6 @@ impl EditorWorkspace {
         #[cfg(debug_assertions)]
         {
             workspace.focus_debug_scene_node_from_env();
-            workspace.apply_debug_terrain_tool_from_env();
         }
         // The view file beside the project wins; a project without one
         // opens at the starting view authored into project.ron.
@@ -2902,10 +2141,10 @@ impl EditorWorkspace {
             .unwrap_or_else(|| psxed_project::EditorViewState::starting_view(&workspace.project));
         workspace.apply_editor_view_state(view);
         workspace.saved_view_state = view;
-        workspace.frame_bsp_camera_if_uninitialized();
+        workspace.frame_camera_if_uninitialized();
         if workspace.active_workspace == WorkspaceView::Room && workspace.view_2d {
             let status = workspace.status.clone();
-            workspace.frame_bsp_viewport_if_uninitialized();
+            workspace.frame_viewport_if_uninitialized();
             workspace.status = status;
         }
         Ok(workspace)
@@ -2914,34 +2153,7 @@ impl EditorWorkspace {
     /// Construct a workspace around an already-loaded project. Used
     /// by `open_directory` and `create_and_open_project`; not part
     /// of the public API.
-    fn with_project(project_dir: PathBuf, mut project: ProjectDocument) -> Self {
-        // Normalize legacy brushes on load: re-author their planes from
-        // the solved geometry (same solid, same textures) so old
-        // projects edit exactly like freshly drawn ones. Gated on a
-        // strict round-trip inside `Brush::normalized`.
-        let mut normalized = 0usize;
-        for brush in &mut project.active_scene_mut().brushes {
-            if let Some(clean) = brush.normalized() {
-                if clean != *brush {
-                    *brush = clean;
-                    normalized += 1;
-                }
-            }
-        }
-
-        // Diagnose brushes whose planes describe a different solid than
-        // their visible shell: they render normally but eat every pick
-        // ray, so clicks pass straight through. There is no safe auto
-        // repair (the data is ambiguous); surface WHICH brushes are
-        // damaged instead of leaving dead clicks a mystery.
-        let unpickable: Vec<usize> = project
-            .active_scene()
-            .brushes
-            .iter()
-            .enumerate()
-            .filter(|(_, brush)| !brush.is_pickable())
-            .map(|(index, _)| index + 1)
-            .collect();
+    fn with_project(project_dir: PathBuf, project: ProjectDocument) -> Self {
         let saved_project_name = project.name.clone();
         let editor_camera = project.editor_camera;
         let editor_visibility = project.editor_visibility;
@@ -2967,10 +2179,6 @@ impl EditorWorkspace {
             .map(|scene| scene.root)
             .unwrap_or(UiNodeId::ROOT);
         let project_watch = ProjectWatchState::capture(&project_dir, &project);
-        let last_bsp_leak_path = read_cached_bsp_leak_path(&project_dir).unwrap_or_default();
-        let cached_bsp_leak_points = last_bsp_leak_path.len();
-        let bsp_leak_geometry_fingerprint = bsp_leak_geometry_fingerprint(&project);
-        let refresh_bsp_leak = !project.active_scene().brushes.is_empty();
         Self {
             project,
             project_dir,
@@ -2986,7 +2194,6 @@ impl EditorWorkspace {
                 selected_resource: None,
                 selected_resources: HashSet::new(),
                 resource_selection_anchor: None,
-                hovered_brush_handle: None,
                 hovered_entity_node: None,
             },
             interaction: Interaction::Idle,
@@ -2994,9 +2201,6 @@ impl EditorWorkspace {
             gizmo_space: GizmoSpace::Global,
             ui_transform_mode: UiTransformMode::Move,
             last_cook_errors: Vec::new(),
-            brush_overlap_report: None,
-            terrain_editor: None,
-            portable_geometry_clipboard: None,
             clipboard_notice: None,
             renaming: None,
             pending_rename_focus: false,
@@ -3012,7 +2216,6 @@ impl EditorWorkspace {
             collapsed_scene_nodes: HashSet::new(),
             collapsed_file_folders: HashSet::new(),
             hidden_scene_nodes: HashSet::new(),
-            open_group: None,
             hidden_ui_nodes: HashSet::new(),
             ui_node_clipboard: None,
             history: UndoStack::default(),
@@ -3027,41 +2230,12 @@ impl EditorWorkspace {
             active_tool: ViewTool::Select,
             place_kind: PlaceKind::PlayerSpawn,
             place_resource: None,
-            brush_material: None,
-            material_paint_sampling: false,
-            brush_face_paint_stroke: false,
-            selected_brush: None,
-            selected_brushes: Vec::new(),
-            selected_brush_face: None,
-            selected_brush_faces: Vec::new(),
-            selected_brush_elements: Vec::new(),
-            brush_edit_mode: BrushEditMode::Move,
-            brush_element_transform: None,
-            brush_extrude_new: None,
-            brush_drag: None,
             node_drag_2d: None,
-            brush_draw_settings: BrushDrawSettings::default(),
-            brush_extrude: None,
-            brush_clip_points: Vec::new(),
-            brush_drill: None,
-            brush_repeat_chain: Vec::new(),
-            brush_clip_keep: BrushClipKeep::Both,
-            brush_texture_lock: true,
-            brush_move: None,
-            brush_uv_edit: None,
-            brush_uv_canvas_view: None,
-            brush_uv_canvas_drag: None,
-            brush_vertex_drag: None,
-            brush_vertex_snap_key_down: false,
-            brush_vertex_snap_enabled: false,
-            brush_vertex_snap_hover: None,
             snap_units: 16,
             show_grid: editor_visibility.show_grid,
-            show_brush_surface_grid: editor_visibility.show_brush_surface_grid,
             show_lights: editor_visibility.show_lights,
             preview_bounds: editor_visibility.preview_bounds,
             show_play_debug_overlays: editor_visibility.show_play_debug_overlays,
-            show_brush_wireframes: editor_visibility.show_brush_wireframes,
             play_debug_terminal_lines: VecDeque::with_capacity(PLAY_DEBUG_TERMINAL_LINE_CAP),
             shortcut_group_flash: None,
             // The 3D workspace uses the bit-faithful BSP preview by
@@ -3108,52 +2282,10 @@ impl EditorWorkspace {
             texture_import_dialog: TextureImportDialog::default(),
             model_import_dialog: ModelImportDialog::default(),
             import_retired_textures: Vec::new(),
-            dirty: normalized > 0,
+            dirty: false,
             project_watch,
-            status: if !unpickable.is_empty() {
-                format!(
-                    "WARNING: brush{} {} damaged (clicks pass through); delete and redraw {}",
-                    if unpickable.len() == 1 { "" } else { "es" },
-                    unpickable
-                        .iter()
-                        .map(usize::to_string)
-                        .collect::<Vec<_>>()
-                        .join(", "),
-                    if unpickable.len() == 1 { "it" } else { "them" },
-                )
-            } else if normalized > 0 {
-                format!(
-                    "Normalized {normalized} legacy brush{}; save to keep",
-                    if normalized == 1 { "" } else { "es" },
-                )
-            } else if refresh_bsp_leak {
-                "Checking BSP seal against current geometry…".to_string()
-            } else if cached_bsp_leak_points > 0 {
-                format!(
-                    "BSP LEAK: {cached_bsp_leak_points} point{}; green path shown",
-                    if cached_bsp_leak_points == 1 { "" } else { "s" },
-                )
-            } else {
-                "Editor ready".to_string()
-            },
+            status: "Editor ready".to_string(),
             last_playtest_budget: None,
-            last_bsp_leak_path,
-            last_bsp_leak_opening: Vec::new(),
-            bsp_leak_opening_path_index: None,
-            bsp_leak_path_current: !refresh_bsp_leak,
-            // Cached `.pts` files predate live fingerprints, so force one
-            // exact topology check on open before treating the cache as
-            // current. No u64 equals its own bitwise complement.
-            bsp_leak_geometry_fingerprint: if refresh_bsp_leak {
-                !bsp_leak_geometry_fingerprint
-            } else {
-                bsp_leak_geometry_fingerprint
-            },
-            bsp_leak_refresh_revision: 0,
-            bsp_leak_refresh_due: refresh_bsp_leak.then(Instant::now),
-            bsp_leak_refresh_job: None,
-            show_bsp_leak_path: true,
-            bsp_leak_cursor: 0,
             pending_playtest_request: None,
             saved_view_state: psxed_project::EditorViewState::default(),
             close_confirmed: false,
@@ -3225,21 +2357,18 @@ impl EditorWorkspace {
     fn current_editor_visibility_state(&self) -> EditorVisibilityState {
         EditorVisibilityState {
             show_grid: self.show_grid,
-            show_brush_surface_grid: self.show_brush_surface_grid,
+            show_brush_surface_grid: false,
             show_lights: self.show_lights,
             preview_bounds: self.preview_bounds,
             show_play_debug_overlays: self.show_play_debug_overlays,
-            show_brush_wireframes: self.show_brush_wireframes,
         }
     }
 
     fn apply_editor_visibility(&mut self, editor_visibility: EditorVisibilityState) {
         self.show_grid = editor_visibility.show_grid;
-        self.show_brush_surface_grid = editor_visibility.show_brush_surface_grid;
         self.show_lights = editor_visibility.show_lights;
         self.preview_bounds = editor_visibility.preview_bounds;
         self.show_play_debug_overlays = editor_visibility.show_play_debug_overlays;
-        self.show_brush_wireframes = editor_visibility.show_brush_wireframes;
     }
 
     fn current_editor_workspace_state(&self) -> EditorWorkspaceState {
@@ -3253,8 +2382,6 @@ impl EditorWorkspace {
             view_2d: self.view_2d,
             orthographic_view: match self.orthographic_view {
                 OrthographicView::Top => psxed_project::EditorOrthographicView::Top,
-                OrthographicView::Front => psxed_project::EditorOrthographicView::Front,
-                OrthographicView::Side => psxed_project::EditorOrthographicView::Side,
             },
             orthographic_focus: self.orthographic_focus,
             viewport_zoom: self.viewport_zoom,
@@ -3266,8 +2393,6 @@ impl EditorWorkspace {
         self.view_2d = editor_viewport.view_2d;
         self.orthographic_view = match editor_viewport.orthographic_view {
             psxed_project::EditorOrthographicView::Top => OrthographicView::Top,
-            psxed_project::EditorOrthographicView::Front => OrthographicView::Front,
-            psxed_project::EditorOrthographicView::Side => OrthographicView::Side,
         };
         self.orthographic_focus =
             editor_viewport
@@ -3354,16 +2479,6 @@ impl EditorWorkspace {
         &self.project
     }
 
-    /// Change the project-authoritative BSP cook policy used by Build, Play,
-    /// Rebuild, and the CLI cooker after the project is saved.
-    pub fn set_bsp_cook_mode(&mut self, mode: psxed_project::brush_world::BrushWorldCookMode) {
-        if self.project.bsp_cook_mode != mode {
-            self.project.bsp_cook_mode = mode;
-            self.last_playtest_budget = None;
-            self.mark_dirty();
-        }
-    }
-
     /// Exact post-cook report, or the most recent pre-cook estimate when the
     /// cook failed before producing a package.
     pub fn playtest_budget_report(&self) -> Option<&psxed_project::playtest::PlaytestBudgetReport> {
@@ -3382,146 +2497,24 @@ impl EditorWorkspace {
         &self.project_dir
     }
 
-    /// Pointfile route emitted by the latest completed BSP topology check.
-    pub fn bsp_leak_path(&self) -> &[[i32; 3]] {
-        &self.last_bsp_leak_path
+    // The three accessors below exist for the pinned emulator frontend, which
+    // still asks the editor for a brush leak path and a brush surface grid
+    // when it assembles a viewport frame. A grid world has neither, so they
+    // answer "nothing". Remove them when the frontend drops the calls.
+
+    /// Always `false`: the grid world has no brush surface grid.
+    pub fn show_brush_surface_grid_enabled(&self) -> bool {
+        false
     }
 
-    /// Pointfile route that should currently be painted in editor viewports.
+    /// Always empty: the grid world has no leak path.
     pub fn visible_bsp_leak_path(&self) -> &[[i32; 3]] {
-        if self.show_bsp_leak_path && self.bsp_leak_path_current {
-            &self.last_bsp_leak_path
-        } else {
-            &[]
-        }
+        &[]
     }
 
-    /// Connected empty-portal region to emphasize around the likely opening.
+    /// Always empty: the grid world has no leak opening.
     pub fn visible_bsp_leak_opening(&self) -> &[[i32; 3]] {
-        if self.show_bsp_leak_path && self.bsp_leak_path_current {
-            &self.last_bsp_leak_opening
-        } else {
-            &[]
-        }
-    }
-
-    pub(crate) fn bsp_leak_refresh_pending(&self) -> bool {
-        !self.bsp_leak_path_current
-            && (self.bsp_leak_refresh_due.is_some() || self.bsp_leak_refresh_job.is_some())
-    }
-
-    fn schedule_bsp_leak_refresh(&mut self) {
-        self.bsp_leak_refresh_revision = self.bsp_leak_refresh_revision.wrapping_add(1);
-        self.bsp_leak_refresh_due = Some(Instant::now() + BSP_LEAK_REFRESH_DEBOUNCE);
-        self.bsp_leak_path_current = false;
-    }
-
-    fn poll_bsp_leak_refresh(&mut self, ctx: &egui::Context) {
-        let completed =
-            self.bsp_leak_refresh_job
-                .as_ref()
-                .and_then(|job| match job.result.try_recv() {
-                    Ok(result) => Some(result),
-                    Err(std::sync::mpsc::TryRecvError::Empty) => None,
-                    Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                        Some(Err("pointfile worker stopped without a result".to_string()))
-                    }
-                });
-        if let Some(result) = completed {
-            let job = self
-                .bsp_leak_refresh_job
-                .take()
-                .expect("completed pointfile job exists");
-            if job.revision == self.bsp_leak_refresh_revision {
-                match result {
-                    Ok(diagnostic) => {
-                        self.last_bsp_leak_path = diagnostic.path;
-                        self.last_bsp_leak_opening = diagnostic.likely_opening;
-                        self.bsp_leak_opening_path_index = diagnostic.likely_opening_path_index;
-                        self.bsp_leak_path_current = true;
-                        self.bsp_leak_geometry_fingerprint = job.geometry_fingerprint;
-                        self.bsp_leak_cursor = 0;
-                        self.show_bsp_leak_path = true;
-                        if let Err(error) =
-                            cache_bsp_leak_path(&self.project_dir, &self.last_bsp_leak_path)
-                        {
-                            eprintln!("[psxed-ui] could not cache live BSP pointfile: {error}");
-                        }
-                        self.status = if self.last_bsp_leak_path.is_empty() {
-                            "BSP sealed: live leak check passed".to_string()
-                        } else if !self.last_bsp_leak_opening.is_empty() {
-                            format!(
-                                "BSP LEAK: red connected empty region + live {}-point green route updated",
-                                self.last_bsp_leak_path.len()
-                            )
-                        } else {
-                            format!(
-                                "BSP LEAK: live {}-point path updated",
-                                self.last_bsp_leak_path.len()
-                            )
-                        };
-                    }
-                    Err(error) => {
-                        self.status = format!("Live BSP leak check failed: {error}");
-                    }
-                }
-            }
-        }
-
-        if self.bsp_leak_refresh_job.is_some() {
-            ctx.request_repaint_after(Duration::from_millis(50));
-            return;
-        }
-        let Some(due) = self.bsp_leak_refresh_due else {
-            return;
-        };
-        let now = Instant::now();
-        if now < due {
-            ctx.request_repaint_after(due.saturating_duration_since(now));
-            return;
-        }
-
-        self.bsp_leak_refresh_due = None;
-        let geometry_fingerprint = bsp_leak_geometry_fingerprint(&self.project);
-        if geometry_fingerprint == self.bsp_leak_geometry_fingerprint {
-            self.bsp_leak_path_current = true;
-            return;
-        }
-        if self.project.active_scene().brushes.is_empty() {
-            self.last_bsp_leak_path.clear();
-            self.last_bsp_leak_opening.clear();
-            self.bsp_leak_opening_path_index = None;
-            self.bsp_leak_path_current = true;
-            self.bsp_leak_geometry_fingerprint = geometry_fingerprint;
-            self.bsp_leak_cursor = 0;
-            let _ = cache_bsp_leak_path(&self.project_dir, &[]);
-            self.status = "BSP has no brushes; leak path cleared".to_string();
-            return;
-        }
-
-        let revision = self.bsp_leak_refresh_revision;
-        let project = self.project.clone();
-        let (sender, result) = std::sync::mpsc::channel();
-        match std::thread::Builder::new()
-            .name("psxed-bsp-pointfile".to_string())
-            .spawn(move || {
-                let diagnosis = psxed_project::brush_world::diagnose_brush_world_leak(project)
-                    .map_err(|error| error.to_string());
-                let _ = sender.send(diagnosis);
-            }) {
-            Ok(_) => {
-                self.bsp_leak_refresh_job = Some(BspLeakRefreshJob {
-                    revision,
-                    geometry_fingerprint,
-                    result,
-                });
-                self.status = "Recalculating BSP leak path…".to_string();
-                ctx.request_repaint_after(Duration::from_millis(50));
-            }
-            Err(error) => {
-                self.status = format!("Could not start BSP leak check: {error}");
-            }
-        }
+        &[]
     }
 
     /// True when the project has unsaved edits.
@@ -3624,14 +2617,11 @@ impl EditorWorkspace {
             Ok((project, sync_status, dirty)) => {
                 // Reload is a reopen: in-flight gestures and the undo
                 // timeline both describe the document being thrown away
-                // (see `UndoStack`), and brush indices name whatever sits
-                // at that position in the reloaded file.
-                self.cancel_brush_gestures();
+                // (see `UndoStack`).
                 self.interaction = Interaction::Idle;
                 self.node_drag_2d = None;
                 self.inspector_undo_transaction = None;
                 self.history.clear();
-                self.clear_brush_selection();
                 self.renaming = None;
                 self.saved_project_name = project.name.clone();
                 self.project = project;
@@ -3652,22 +2642,6 @@ impl EditorWorkspace {
                 self.resource_delete_confirm = None;
                 self.dirty = dirty;
                 self.project_watch = ProjectWatchState::capture(&self.project_dir, &self.project);
-                self.last_bsp_leak_path =
-                    read_cached_bsp_leak_path(&self.project_dir).unwrap_or_default();
-                self.last_bsp_leak_opening.clear();
-                self.bsp_leak_opening_path_index = None;
-                let fingerprint = bsp_leak_geometry_fingerprint(&self.project);
-                let refresh_bsp_leak = !self.project.active_scene().brushes.is_empty();
-                self.bsp_leak_refresh_revision = self.bsp_leak_refresh_revision.wrapping_add(1);
-                self.bsp_leak_path_current = !refresh_bsp_leak;
-                self.bsp_leak_geometry_fingerprint = if refresh_bsp_leak {
-                    !fingerprint
-                } else {
-                    fingerprint
-                };
-                self.bsp_leak_refresh_due = refresh_bsp_leak.then(Instant::now);
-                self.show_bsp_leak_path = true;
-                self.bsp_leak_cursor = 0;
                 self.reconcile_selection_after_document_change();
                 self.status = sync_status
                     .unwrap_or_else(|| format!("Reloaded {}", short_path(&self.project_dir)));
@@ -3733,95 +2707,13 @@ impl EditorWorkspace {
         self.project_watch.dirty_conflict
     }
 
-    /// Create `editor/projects/<derived-name>/` by recursive-copy of the
-    /// buildable BSP-first template, then switch this workspace to it. The
-    /// legacy default project remains a compatibility sample, not the source
-    /// for newly authored levels.
+    /// Create `editor/projects/<derived-name>/` as a grid project with the
+    /// starter room, then switch this workspace to it.
     ///
-    /// Validates `name`: non-empty and target directory must not
-    /// already exist. On success the workspace points at the new project; on
-    /// failure the workspace is unchanged.
+    /// Validates `name`: non-empty and the target directory must not already
+    /// exist. On success the workspace points at the new project; on failure
+    /// the workspace is unchanged.
     pub fn create_and_open_project(&mut self, name: &str) -> Result<(), String> {
-        self.create_and_open_project_with_mode(
-            name,
-            psxed_project::brush_world::BrushWorldCookMode::Draft,
-        )
-    }
-
-    /// New Project variant used by the dialog's explicit BSP quality choice.
-    pub fn create_and_open_project_with_mode(
-        &mut self,
-        name: &str,
-        cook_mode: psxed_project::brush_world::BrushWorldCookMode,
-    ) -> Result<(), String> {
-        let trimmed = name.trim();
-        if trimmed.is_empty() {
-            return Err("Project name cannot be empty".to_string());
-        }
-        let target = psxed_project::projects_dir().join(psxed_project::project_file_stem(trimmed));
-        if target.exists() {
-            return Err(format!("{} already exists", short_path(&target)));
-        }
-        copy_dir_recursive(&psxed_project::new_project_template_dir(), &target)
-            .map_err(|error| format!("copy BSP starter project: {error}"))?;
-        // Where someone last looked in the template is not the new
-        // project's view.
-        let _ = std::fs::remove_file(target.join(psxed_project::EDITOR_VIEW_STATE_FILE));
-        let mut opened = Self::open_directory(&target)?;
-        // The geometry template stays a clean roofless BSP courtyard, while
-        // its catalogue is hydrated from the canonical default project. This
-        // gives every newly created map the verified Aletha, light-enemy and
-        // heavy-enemy chains plus the saved material library without placing
-        // any of those characters into the scene.
-        sync_starter_character_catalogue(&mut opened.project, &target)
-            .map_err(|error| format!("copy starter content catalogue: {error}"))?;
-        let player_character = opened.default_player_character_resource();
-        if let Some(player_character) = player_character {
-            let player_spawns: Vec<_> = opened
-                .project
-                .active_scene()
-                .nodes()
-                .iter()
-                .filter(|node| matches!(node.kind, NodeKind::SpawnPoint { player: true, .. }))
-                .map(|node| node.id)
-                .collect();
-            for node_id in player_spawns {
-                let Some(node) = opened.project.active_scene_mut().node_mut(node_id) else {
-                    continue;
-                };
-                if let NodeKind::SpawnPoint {
-                    player: true,
-                    character,
-                } = &mut node.kind
-                {
-                    *character = Some(player_character);
-                }
-            }
-        }
-        opened.project.name = trimmed.to_string();
-        opened.project.bsp_cook_mode = cook_mode;
-        // Keep the template's deliberately authored courtyard 3D camera so a
-        // new author can switch from the initial top view to a useful overview
-        // of the roofless blockout without first recovering the camera.
-        // New BSP maps open where blockout work begins: the top orthographic
-        // viewport with the brush tool active. Existing projects retain their
-        // saved workspace/camera state when opened normally.
-        opened.active_workspace = WorkspaceView::Room;
-        opened.view_2d = true;
-        opened.orthographic_view = OrthographicView::Top;
-        opened.active_tool = ViewTool::Brush;
-        opened.frame_viewport();
-        opened.mark_dirty();
-        opened.save()?;
-        opened.portable_geometry_clipboard = self.portable_geometry_clipboard.clone();
-        opened.retire_egui_textures(self.drain_live_egui_textures());
-        *self = opened;
-        self.status = format!("Created {}", short_path(&self.project_dir));
-        Ok(())
-    }
-
-    /// Create a grid project with the starter room and open it.
-    pub fn create_and_open_grid_project(&mut self, name: &str) -> Result<(), String> {
         let trimmed = name.trim();
         if trimmed.is_empty() {
             return Err("Project name cannot be empty".to_string());
@@ -3839,7 +2731,6 @@ impl EditorWorkspace {
         opened.view_2d = false;
         opened.set_grid_tool(grid_tools::GridTool::Floor);
         opened.frame_viewport();
-        opened.portable_geometry_clipboard = self.portable_geometry_clipboard.clone();
         opened.retire_egui_textures(self.drain_live_egui_textures());
         *self = opened;
         self.status = format!(
@@ -3857,22 +2748,6 @@ impl EditorWorkspace {
             self.status = error;
         }
         let mut opened = Self::open_directory(&target)?;
-        opened.portable_geometry_clipboard = self.portable_geometry_clipboard.clone();
-        if let Some(clipboard) = opened.portable_geometry_clipboard.as_ref() {
-            let retained = match clipboard {
-                PortableGeometryClipboard::Brushes(clipboard) => format!(
-                    "{} brush{} ready to paste",
-                    clipboard.brushes.len(),
-                    if clipboard.brushes.len() == 1 {
-                        ""
-                    } else {
-                        "es"
-                    }
-                ),
-            };
-            opened.status = format!("{}; clipboard retained ({retained})", opened.status);
-            opened.show_clipboard_notice(format!("Clipboard retained: {retained}"), true);
-        }
         opened.retire_egui_textures(self.drain_live_egui_textures());
         *self = opened;
         Ok(())
@@ -3904,10 +2779,9 @@ impl EditorWorkspace {
     }
 
     fn delete_project_fallback_dir(delete_dir: &Path) -> Result<PathBuf, String> {
-        let bsp_starter = psxed_project::new_project_template_dir();
-        if !paths_equivalent(delete_dir, &bsp_starter) && bsp_starter.join("project.ron").is_file()
-        {
-            return Ok(bsp_starter);
+        let template = psxed_project::new_project_template_dir();
+        if !paths_equivalent(delete_dir, &template) && template.join("project.ron").is_file() {
+            return Ok(template);
         }
         let projects =
             psxed_project::list_projects().map_err(|error| format!("list projects: {error}"))?;
@@ -3937,7 +2811,6 @@ impl EditorWorkspace {
         }
         let fallback_dir = Self::delete_project_fallback_dir(&delete_dir)?;
         let mut opened = Self::open_directory(&fallback_dir)?;
-        opened.portable_geometry_clipboard = self.portable_geometry_clipboard.clone();
         let deleted_name = self.project.name.clone();
         std::fs::remove_dir_all(&delete_dir)
             .map_err(|error| format!("delete {}: {error}", delete_dir.display()))?;
@@ -3994,29 +2867,6 @@ impl EditorWorkspace {
         }
     }
 
-    /// Optional material-paint tool state for deterministic native captures.
-    /// Kept behind debug assertions so production startup never reads these
-    /// development-only environment variables.
-    #[cfg(debug_assertions)]
-    fn apply_debug_terrain_tool_from_env(&mut self) {
-        let Ok(tool) = std::env::var("PSXED_DEBUG_TOOL") else {
-            return;
-        };
-        let tool = match tool.trim().to_ascii_lowercase().as_str() {
-            "paint" | "material" => ViewTool::PaintMaterial,
-            _ => return,
-        };
-        self.active_tool = tool;
-        self.material_paint_sampling = tool == ViewTool::PaintMaterial
-            && std::env::var("PSXED_DEBUG_PAINT_SAMPLE")
-                .is_ok_and(|value| matches!(value.trim(), "1" | "true" | "yes" | "on"));
-        self.status = if self.material_paint_sampling {
-            "Eyedropper: click a surface to sample its material".to_string()
-        } else {
-            "Material Paint: Direct".to_string()
-        };
-    }
-
     #[cfg(any(debug_assertions, test))]
     fn focus_scene_node_for_debug(&mut self, selector: &str) -> bool {
         let selector = selector.trim();
@@ -4066,14 +2916,10 @@ impl EditorWorkspace {
             &project,
             &self.project_dir,
         ));
-        // Build once: projects have enough materials, animation and BSP
+        // Build once: projects have enough materials, animation and world
         // geometry that doing this again merely for the status summary makes
         // every Play launch needlessly expensive.
         let (package, report) = psxed_project::playtest::build_package(&project, &self.project_dir);
-        let cooked_bsp_leak_path = package
-            .as_ref()
-            .map(|package| package.world_geometry.leak_path.clone())
-            .unwrap_or_default();
         let summary = package.as_ref().map(|p| PackageSummary {
             assets: p.assets.len(),
             textures: p.texture_asset_count(),
@@ -4104,22 +2950,6 @@ impl EditorWorkspace {
                 report.error_messages().join("; ")
             ));
         }
-        let preserve_live_opening =
-            self.bsp_leak_path_current && self.last_bsp_leak_path == cooked_bsp_leak_path;
-        self.last_bsp_leak_path = cooked_bsp_leak_path;
-        if !preserve_live_opening {
-            self.last_bsp_leak_opening.clear();
-            self.bsp_leak_opening_path_index = None;
-        }
-        self.bsp_leak_refresh_revision = self.bsp_leak_refresh_revision.wrapping_add(1);
-        self.bsp_leak_refresh_due = None;
-        self.bsp_leak_geometry_fingerprint = bsp_leak_geometry_fingerprint(&self.project);
-        self.bsp_leak_path_current = true;
-        self.show_bsp_leak_path = true;
-        self.bsp_leak_cursor = 0;
-        if let Err(error) = cache_bsp_leak_path(&self.project_dir, &self.last_bsp_leak_path) {
-            eprintln!("[psxed-ui] could not cache BSP pointfile for editor overlay: {error}");
-        }
         let warning_suffix = if report.warnings.is_empty() {
             String::new()
         } else {
@@ -4127,14 +2957,6 @@ impl EditorWorkspace {
                 " ({} warning{})",
                 report.warnings.len(),
                 if report.warnings.len() == 1 { "" } else { "s" }
-            )
-        };
-        let leak_suffix = if self.last_bsp_leak_path.is_empty() {
-            String::new()
-        } else {
-            format!(
-                "; BSP LEAK: {}-point green path shown",
-                self.last_bsp_leak_path.len()
             )
         };
         let counts = summary
@@ -4178,11 +3000,10 @@ impl EditorWorkspace {
             }
         }
         Ok(format!(
-            "Playtest cooked → {}{}{}{}{}",
+            "Playtest cooked → {}{}{}{}",
             dir.display(),
             counts,
             warning_suffix,
-            leak_suffix,
             budget,
         ))
     }

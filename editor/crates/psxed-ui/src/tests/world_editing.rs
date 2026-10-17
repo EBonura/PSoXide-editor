@@ -129,22 +129,15 @@ fn node_gizmo_xy_plane_moves_entity_on_two_axes() {
 }
 
 #[test]
-fn node_gizmo_moves_bsp_entity_in_world_units() {
-    // BSP scenes hang entities off the root in raw world units; a gizmo
-    // step must move snap_units world units (the 1/1024-speed regression),
-    // and Shift (free) must drop to single-unit precision.
-    let mut project = ProjectDocument::new("entity-gizmo-bsp");
-    project
-        .active_scene_mut()
-        .brushes
-        .push(psxed_project::brush::Brush::cuboid(
-            [0, 0, 0],
-            [256, 256, 256],
-        ));
+fn node_gizmo_moves_entity_in_world_units() {
+    // Entities hang off the root in raw world units; a gizmo step must move
+    // snap_units world units (the 1/1024-speed regression), and Shift (free)
+    // must drop to single-unit precision.
+    let mut project = ProjectDocument::new("entity-gizmo-world");
     let entity = project
         .active_scene_mut()
         .add_node(NodeId::ROOT, "Entity", NodeKind::Entity);
-    let mut workspace = EditorWorkspace::with_project(test_temp_dir("entity-gizmo-bsp"), project);
+    let mut workspace = EditorWorkspace::with_project(test_temp_dir("entity-gizmo-world"), project);
     set_gizmo_test_camera(&mut workspace);
     workspace.replace_node_selection(entity);
 
@@ -153,16 +146,16 @@ fn node_gizmo_moves_bsp_entity_in_world_units() {
     // node moves to the axis point under the pointer, on the grid.
     let (pivot, _) = workspace.node_gizmo_bounds_3d(&[entity]).unwrap();
     let screen_at = |workspace: &EditorWorkspace, dx: f64| {
-        workspace
-            .project_brush_point_3d(
-                viewport,
-                [
-                    f64::from(pivot[0]) + dx,
-                    f64::from(pivot[1]),
-                    f64::from(pivot[2]),
-                ],
-            )
-            .unwrap()
+        project_world_point_3d(
+            workspace,
+            viewport,
+            [
+                f64::from(pivot[0]) + dx,
+                f64::from(pivot[1]),
+                f64::from(pivot[2]),
+            ],
+        )
+        .unwrap()
     };
     let start = screen_at(&workspace, 0.0);
     let target = screen_at(&workspace, 100.0);
@@ -330,70 +323,6 @@ fn node_gizmo_rotates_image_prop_around_y() {
     workspace.do_undo();
     let node = workspace.project.active_scene().node(prop).unwrap();
     assert_eq!(node.transform.rotation_degrees, [0.0, 0.0, 0.0]);
-}
-
-#[test]
-fn cortex_group_rotates_around_every_gizmo_axis() {
-    let project_dir =
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../projects/default");
-    let viewport = Rect::from_min_size(Pos2::ZERO, Vec2::new(1280.0, 720.0));
-
-    for axis in [
-        PrimitiveGizmoAxis::X,
-        PrimitiveGizmoAxis::Y,
-        PrimitiveGizmoAxis::Z,
-    ] {
-        let mut workspace = EditorWorkspace::open_directory(&project_dir).unwrap();
-        workspace.snap_units = 64;
-        let group = workspace
-            .project
-            .active_scene()
-            .nodes()
-            .iter()
-            .find(|node| node.name == "GroupS")
-            .expect("v0.4b group node")
-            .id;
-        workspace.replace_node_selection(group);
-        workspace.transform_gizmo_mode = TransformGizmoMode::Rotate;
-        workspace.frame_viewport();
-        let before: Vec<_> = workspace
-            .project
-            .active_scene()
-            .brushes
-            .iter()
-            .filter(|brush| brush.group == Some(group))
-            .cloned()
-            .collect();
-        let ring = workspace
-            .node_rotation_gizmo_screen_ring_for_axis(viewport, axis)
-            .unwrap_or_else(|| panic!("{axis:?} ring projects"));
-        assert!(
-            workspace.begin_node_gizmo_drag(axis, viewport, ring.points[0]),
-            "{axis:?} ring begins a drag"
-        );
-        workspace
-            .interaction
-            .node_gizmo_drag_mut()
-            .expect("active group drag")
-            .current_steps = 90;
-        workspace.apply_node_gizmo_drag();
-        workspace.end_node_gizmo_drag();
-        let after: Vec<_> = workspace
-            .project
-            .active_scene()
-            .brushes
-            .iter()
-            .filter(|brush| brush.group == Some(group))
-            .cloned()
-            .collect();
-        assert_ne!(after, before, "{axis:?} rotation changes group brushes");
-        assert!(
-            after
-                .iter()
-                .all(|brush| brush.solved_vertices_on_grid(64, 0.01)),
-            "{axis:?} rotation keeps every group corner on Grid 64"
-        );
-    }
 }
 
 #[test]
@@ -846,14 +775,7 @@ fn place_image_prop_with_selected_material_creates_node() {
 
 #[test]
 fn snap_entity_to_floor_moves_the_complete_entity_and_is_undoable() {
-    let mut project = ProjectDocument::new("snap-entity-floor");
-    project
-        .active_scene_mut()
-        .brushes
-        .push(psxed_project::brush::Brush::cuboid(
-            [0, -64, 0],
-            [512, 0, 512],
-        ));
+    let mut project = super::grid_rig::flat_project(1, 1, false);
     let entity = project
         .active_scene_mut()
         .add_node(NodeId::ROOT, "Enemy", NodeKind::Entity);
@@ -914,16 +836,12 @@ fn snap_entity_to_floor_moves_the_complete_entity_and_is_undoable() {
 }
 
 #[test]
-fn snap_entities_to_floor_preserves_exact_ramp_height_and_deduplicates_components() {
-    let mut project = ProjectDocument::new("snap-entities-ramp");
-    let ramp = psxed_project::brush::Brush::convex_prism(
-        &[[0, -64], [256, -64], [256, 128], [0, 0]],
-        [0, 1],
-        2,
-        [0, 256],
-    )
-    .expect("convex ramp");
-    project.active_scene_mut().brushes.push(ramp);
+fn snap_entities_to_floor_keeps_the_exact_floor_height_and_deduplicates_components() {
+    let mut project = super::grid_rig::flat_project(1, 1, false);
+    if let Some(grid) = project.active_scene_mut().world.grid_mut() {
+        grid.rooms[0].sector_or_insert(0, 0).unwrap().floor =
+            Some(psxed_project::grid::GridSurface::flat(64, None));
+    }
     let entity = project
         .active_scene_mut()
         .add_node(NodeId::ROOT, "Enemy", NodeKind::Entity);
@@ -955,6 +873,9 @@ fn snap_entities_to_floor_preserves_exact_ramp_height_and_deduplicates_component
         .unwrap()
         .transform
         .translation[1];
-    assert!((y - 64.0).abs() < 0.001, "ramp height stays exact: {y}");
+    assert!(
+        (y - 64.0).abs() < 0.001,
+        "the floor height stays exact: {y}"
+    );
     assert_eq!(workspace.status, "Snapped Entity to floor");
 }

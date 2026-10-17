@@ -11,7 +11,6 @@
 //! psxed-mcp --new editor/projects/scratch   # empty project, then exit
 //! ```
 
-use std::fmt::Write as _;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -20,15 +19,12 @@ use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{ErrorData, ServerHandler, ServiceExt};
 
-use psxed_mcp::audit::{audit, AuditDepth};
-use psxed_mcp::edit::{BrushSelection, ConvexBrushSpec, RadialArray, Workspace};
-use psxed_mcp::inspect::{brush_info, materials as material_table};
+use psxed_mcp::edit::Workspace;
+use psxed_mcp::inspect::materials as material_table;
 use psxed_mcp::nodes::{entity_types, get_node};
 use psxed_mcp::play;
-use psxed_mcp::regions::{regions as region_query, RegionQuery};
 use psxed_mcp::shot;
-use psxed_mcp::{metrics, plan_view, scene_info, Focus, PlanAxis};
-use psxed_project::brush_primitives::{BrushCardinalDirection, BrushDrawSettings, BrushDrawShape};
+use psxed_mcp::{metrics, scene_info};
 
 #[derive(Clone)]
 struct EditorServer {
@@ -69,218 +65,8 @@ struct CombatWindowsReq {
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 struct SceneReq {
-    /// Scene index. Omit for the first scene that has brushes.
+    /// Scene index. Omit for the first scene with a grid world.
     scene: Option<usize>,
-}
-
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-struct PlanReq {
-    /// Scene index. Omit for the first scene that has brushes.
-    scene: Option<usize>,
-    /// `top` for a floor plan, `front` or `side` for a vertical section.
-    axis: Option<String>,
-    /// World coordinate to cut at, on the axis the view does not plot. Omit
-    /// for 512 above the scene floor, then re-aim using the legend's
-    /// candidate floor levels.
-    slice: Option<i32>,
-    /// Image width in pixels (256..2048, default 900).
-    width: Option<u32>,
-    /// World point `[x, y, z]` to frame on. Without it the whole level is
-    /// drawn, where the player is under a pixel. Needs `extent`.
-    center: Option<[i32; 3]>,
-    /// Half-span in world units around `center`. Roughly 3000 frames one
-    /// room at a readable human scale.
-    extent: Option<i32>,
-}
-
-/// The map's working grid; every generated coordinate snaps to it.
-const GRID_STEP: i32 = 64;
-/// Floor and ceiling slabs in the shipped level are 256 or 384 thick.
-const SLAB_THICKNESS: i32 = 256;
-
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-struct AddShapeReq {
-    /// Scene index. Omit for the first scene that has brushes.
-    scene: Option<usize>,
-    /// box, ramp, cylinder (or pillar), doorway arch, curved wall, stairs.
-    shape: String,
-    /// Lower corner `[x, y, z]` of the box the shape fills.
-    min: [i32; 3],
-    /// Upper corner `[x, y, z]`, strictly above `min` on all three axes.
-    max: [i32; 3],
-    /// north, east, south or west. Used by ramp, arch, curved wall, stairs.
-    direction: Option<String>,
-    /// Material name to put on every face. Omit and the faces cook untextured.
-    material: Option<String>,
-    /// Grid to snap to, default 64 (what the shipped level uses).
-    grid: Option<i32>,
-    /// Sides of a cylinder pillar, 3..=32, default 8. Check `metrics` for the
-    /// footprint each count needs, or just read the warning it comes back with.
-    sides: Option<u8>,
-    /// Voussoirs per arch, or segments per curved wall. Default 6.
-    segments: Option<u8>,
-    /// Band thickness for an arch or curved wall. Must be under the radius.
-    thickness: Option<u16>,
-    /// Arc a curved wall sweeps, 90..=360 degrees.
-    arc_degrees: Option<u16>,
-    /// Steps in a stair run, 1..=32.
-    steps: Option<u8>,
-}
-
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-struct MakeRoomReq {
-    /// Scene index. Omit for the first scene that has brushes.
-    scene: Option<usize>,
-    /// Lower corner of the INTERIOR the player moves through.
-    min: [i32; 3],
-    /// Upper corner of the interior.
-    max: [i32; 3],
-    /// Wall thickness, grown outward from the interior. Default 256.
-    thickness: Option<i32>,
-    /// Material for every face.
-    material: Option<String>,
-}
-
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-struct ArrayReq {
-    /// Scene index. Omit for the first scene that has brushes.
-    scene: Option<usize>,
-    /// First brush index to repeat, as add_shape reported it.
-    first: usize,
-    /// How many brushes from `first` form one instance.
-    count: usize,
-    /// Extra instances to add. The original stays put.
-    copies: u32,
-    /// Step between linear copies, `[x, y, z]`.
-    offset: Option<[i32; 3]>,
-    /// Sweep about this world point instead of translating.
-    center: Option<[i32; 3]>,
-    /// Total sweep in degrees, split across the copies. Default 360.
-    degrees: Option<i32>,
-}
-
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-struct CarveReq {
-    /// Scene index. Omit for the first scene that has brushes.
-    scene: Option<usize>,
-    /// First brush index to cut.
-    first: usize,
-    /// How many brushes from `first`.
-    count: usize,
-    /// Lower corner of the box-shaped void to remove.
-    min: [i32; 3],
-    /// Upper corner of the void.
-    max: [i32; 3],
-    /// Material for the newly revealed surfaces. Defaults to whatever the
-    /// brush being cut already uses.
-    material: Option<String>,
-}
-
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-struct SetMaterialReq {
-    /// Scene index. Omit for the first scene that has brushes.
-    scene: Option<usize>,
-    /// First brush index.
-    first: usize,
-    /// How many brushes from `first`.
-    count: usize,
-    /// Material name.
-    material: String,
-    /// Only faces pointing this way, e.g. `[0,1,0]` floors, `[0,-1,0]` ceilings.
-    normal: Option<[i32; 3]>,
-}
-
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-struct GroupReq {
-    /// Scene index. Omit for the first scene that has brushes.
-    scene: Option<usize>,
-    /// First brush index.
-    first: usize,
-    /// How many brushes from `first`.
-    count: usize,
-    /// Name for the space, e.g. "Main Hall" or "North Gallery".
-    name: String,
-}
-
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-struct WalkReq {
-    /// Waypoints in authored world units, at least a start and an end. The
-    /// hull walks between them in order; Y is the feet position.
-    path: Vec<[i32; 3]>,
-    /// Body radius, default the player's 188.
-    radius: Option<i32>,
-    /// Body height, default the player's 1024.
-    height: Option<i32>,
-    /// How far to move per simulated step, default 256 authored units. Smaller
-    /// is more faithful to per-tick movement and slower.
-    leg: Option<i32>,
-}
-
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-struct BrushReq {
-    /// Scene index. Omit for the first scene that has brushes.
-    scene: Option<usize>,
-    /// Brush index, as add_shape, make_room and array report them.
-    brush: usize,
-}
-
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-struct FaceUvReq {
-    /// Scene index. Omit for the first scene that has brushes.
-    scene: Option<usize>,
-    /// First brush index.
-    first: usize,
-    /// How many brushes from `first`.
-    count: usize,
-    /// Single face index within each brush, as get_brush lists them. Omit to
-    /// take every face, or filter with `normal` instead.
-    face: Option<usize>,
-    /// Only faces pointing exactly this way, e.g. `[0,1,0]`.
-    normal: Option<[i32; 3]>,
-    /// Texel offset `[u, v]` added after scale and rotation: slides the
-    /// texture across the face.
-    offset: Option<[i16; 2]>,
-    /// Rotation in degrees.
-    rotation: Option<i16>,
-    /// Scale per axis as a percentage, 100 being 1:1. Larger makes the
-    /// texture bigger and repeat less often. Omitted fields are left alone.
-    scale_percent: Option<[i32; 2]>,
-}
-
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-struct ConvexReq {
-    /// Scene index. Omit for the first scene that has brushes.
-    scene: Option<usize>,
-    /// 1..=512 closed convex solids. Each is integer `vertices` plus `faces`,
-    /// every face a polygon of vertex indices. Validated as a whole batch
-    /// before anything is staged.
-    brushes: Vec<ConvexBrushSpec>,
-    /// Material for every face that names none, at brush or face level.
-    material: Option<String>,
-    /// Put the new brushes in this named group, creating it if needed.
-    group: Option<String>,
-}
-
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-struct TransformReq {
-    /// Scene index. Omit for the first scene that has brushes.
-    scene: Option<usize>,
-    /// First brush index. Give this with `count`, or give `group` instead.
-    first: Option<usize>,
-    /// How many brushes from `first`.
-    count: Option<usize>,
-    /// A named group: every brush in it, wherever edits have moved them.
-    group: Option<String>,
-    /// Offset `[x, y, z]`, applied last.
-    translate: Option<[i32; 3]>,
-    /// Quarter turns about the vertical axis through the pivot. One turn
-    /// carries +X onto +Z; negative turns go the other way.
-    rotate_quarter_turns: Option<i32>,
-    /// Mirror across the x, y or z plane through the pivot, applied first.
-    mirror: Option<String>,
-    /// Point to rotate and mirror about. Default: the centre of the
-    /// selection's bounds, rounded to whole units.
-    pivot: Option<[i32; 3]>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -303,31 +89,25 @@ struct PlaytestReq {
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 struct ScreenshotReq {
-    /// Scene index. Omit for the first scene that has brushes.
+    /// Scene index. Omit for the first scene with a grid world.
     scene: Option<usize>,
-    /// World point to look at. Omit and give `first`/`count` instead to frame
-    /// a run of brushes, or a `node` to frame an entity.
+    /// World point to look at. Omit and give a `node` to frame an entity, or
+    /// neither to frame the middle of the world.
     target: Option<[i32; 3]>,
-    /// First brush index to frame, with `count`.
-    first: Option<usize>,
-    /// How many brushes from `first`.
-    count: Option<usize>,
     /// Node name or id to frame.
     node: Option<String>,
-    /// How far back to stand, world units. Pulled in automatically when a
-    /// wall is closer than this. Default 3000, or derived from the brushes.
+    /// How far back to stand, world units. Default 3000.
     distance: Option<i32>,
-    /// Orbit yaw, 4096 per turn. Omit to let the framing pick the heading
-    /// with the most open space, which is what stops the shot landing in a
-    /// wall.
+    /// Orbit yaw, 4096 per turn. Default 0.
     yaw: Option<u16>,
-    /// Orbit pitch, 4096 per turn. Small values look slightly upward.
+    /// Orbit pitch, 4096 per turn. Pitches near a full turn look down from
+    /// above the target, small values look slightly upward. Default 3776.
     pitch: Option<u16>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 struct NodeLookupReq {
-    /// Scene index. Omit for the first scene that has brushes.
+    /// Scene index. Omit for the first scene with a grid world.
     scene: Option<usize>,
     /// Node name (exact, or a unique substring), or its numeric id.
     node: String,
@@ -335,7 +115,7 @@ struct NodeLookupReq {
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 struct PlaceNodeReq {
-    /// Scene index. Omit for the first scene that has brushes.
+    /// Scene index. Omit for the first scene with a grid world.
     scene: Option<usize>,
     /// Node to clone, by name or id. Its whole subtree comes with it.
     source: String,
@@ -347,7 +127,7 @@ struct PlaceNodeReq {
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 struct SetNodeReq {
-    /// Scene index. Omit for the first scene that has brushes.
+    /// Scene index. Omit for the first scene with a grid world.
     scene: Option<usize>,
     /// Node to edit, by name or id.
     node: String,
@@ -358,7 +138,7 @@ struct SetNodeReq {
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 struct MoveNodeReq {
-    /// Scene index. Omit for the first scene that has brushes.
+    /// Scene index. Omit for the first scene with a grid world.
     scene: Option<usize>,
     /// Node to move, by name or id.
     node: String,
@@ -368,7 +148,7 @@ struct MoveNodeReq {
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 struct LightReq {
-    /// Scene index. Omit for the first scene that has brushes.
+    /// Scene index. Omit for the first scene with a grid world.
     scene: Option<usize>,
     /// World position `[x, y, z]`.
     position: [i32; 3],
@@ -381,62 +161,6 @@ struct LightReq {
     intensity: Option<f32>,
     /// Node name in the scene tree.
     name: Option<String>,
-}
-
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-struct CookModeReq {
-    /// true for Release (bakes lights with occlusion), false for Draft (unshadowed lighting, faster visibility on large maps).
-    release: bool,
-}
-
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-struct AreaBudgetReq {
-    /// Named areas with camera positions in authored units. Omit for whole-map
-    /// costs and eight heaviest leaves. Cooks staged edits.
-    areas: Option<Vec<psxed_mcp::performance::AreaSamples>>,
-    /// Optional explicit project-specific budget. Omit for cost measurements only;
-    /// no universal 30 fps face or enemy limit is assumed.
-    budget: Option<psxed_mcp::performance::DesignBudget>,
-}
-
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-struct AuditReq {
-    /// Scene index. Omit for the first scene that has brushes.
-    scene: Option<usize>,
-    /// `quick` (geometry, milliseconds), `sealing` (adds the leak check), or
-    /// `full` (adds a cook and per-leaf draw cost, seconds). Default quick.
-    depth: Option<String>,
-    /// Grid to check alignment against, default 64.
-    grid: Option<i32>,
-    /// First brush index to audit. With `count`, scopes the report to the
-    /// work just done instead of the whole level's history.
-    first: Option<usize>,
-    /// How many brushes from `first`.
-    count: Option<usize>,
-}
-
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-struct RegionsReq {
-    /// `report` (default), `region_at`, `closure` or `layout_cost`.
-    query: Option<String>,
-    /// `report` only: `json` for the machine-readable form, else text.
-    format: Option<String>,
-    /// `region_at`: authored x, y, z.
-    point: Option<[f64; 3]>,
-    /// `closure`: region id from the report.
-    region: Option<u32>,
-    /// Override the page pool the gates judge against, bytes.
-    pool_bytes: Option<u32>,
-}
-
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-struct DeleteReq {
-    /// Scene index. Omit for the first scene that has brushes.
-    scene: Option<usize>,
-    /// First brush index.
-    first: usize,
-    /// How many brushes from `first`.
-    count: usize,
 }
 
 #[rmcp::tool_router]
@@ -478,7 +202,7 @@ impl EditorServer {
     }
 
     #[rmcp::tool(
-        description = "Scale constants, the player's dimensions, the working grid, and the space sizes measured from the shipped level. Read this before authoring geometry so sizes are looked up rather than guessed."
+        description = "Grid units, the world scale, the player's dimensions and the traversal limits. Read this before placing anything so sizes are looked up rather than guessed."
     )]
     async fn metrics(&self) -> Result<CallToolResult, ErrorData> {
         let text = self.with(|workspace| {
@@ -489,7 +213,7 @@ impl EditorServer {
     }
 
     #[rmcp::tool(
-        description = "Extents, brush and face counts, groups, materials in use, and the candidate floor levels of a scene."
+        description = "The grid world of a scene: rooms, sectors, faces against the face budget, materials in use, and the scene's node counts."
     )]
     async fn scene_info(
         &self,
@@ -499,322 +223,6 @@ impl EditorServer {
             let note = Self::staged_note(workspace);
             let project = workspace.document()?;
             Ok(scene_info(project, scene)? + &note)
-        })?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
-    }
-
-    #[rmcp::tool(
-        description = "Orthographic floor plan or vertical section of the level's solid brushes, drawn to scale with a grid and the player disc for comparison. Use this, not a 3D screenshot, to reason about the size and shape of spaces."
-    )]
-    async fn plan_view(
-        &self,
-        Parameters(PlanReq {
-            scene,
-            axis,
-            slice,
-            width,
-            center,
-            extent,
-        }): Parameters<PlanReq>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let axis = PlanAxis::parse(axis.as_deref().unwrap_or("top"))
-            .map_err(|error| ErrorData::invalid_params(error, None))?;
-        let focus = match (center, extent) {
-            (Some(center), Some(extent)) => Some(Focus { center, extent }),
-            (Some(center), None) => Some(Focus {
-                center,
-                extent: 3000,
-            }),
-            (None, Some(_)) => {
-                return Err(ErrorData::invalid_params(
-                    "extent needs center: give the world point to frame on".to_string(),
-                    None,
-                ))
-            }
-            (None, None) => None,
-        };
-        let view = self.with(|workspace| {
-            let note = Self::staged_note(workspace);
-            let project = workspace.document()?;
-            let mut view = plan_view(project, scene, axis, slice, width.unwrap_or(900), focus)?;
-            view.legend.push_str(&note);
-            Ok(view)
-        })?;
-        Ok(CallToolResult::success(vec![
-            ContentBlock::text(view.legend),
-            ContentBlock::image(
-                base64::engine::general_purpose::STANDARD.encode(&view.png),
-                "image/png".to_string(),
-            ),
-        ]))
-    }
-
-    #[rmcp::tool(
-        description = "Build a parametric solid inside an axis-aligned box and add it to the scene. Shapes: box, ramp, cylinder (an N-sided pillar), doorway arch, curved wall, stairs. Reports the brush and face counts it actually produced, and warns when grid snapping cost the shape sides or segments. Edits stage in memory until `save`."
-    )]
-    async fn add_shape(
-        &self,
-        Parameters(AddShapeReq {
-            scene,
-            shape,
-            min,
-            max,
-            direction,
-            material,
-            grid,
-            sides,
-            segments,
-            thickness,
-            arc_degrees,
-            steps,
-        }): Parameters<AddShapeReq>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let shape = BrushDrawShape::parse(&shape).ok_or_else(|| {
-            ErrorData::invalid_params(
-                format!(
-                    "unknown shape {shape:?}: use one of {}",
-                    BrushDrawShape::ALL
-                        .iter()
-                        .map(|s| s.label())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                ),
-                None,
-            )
-        })?;
-        let direction = match direction.as_deref() {
-            Some(value) => BrushCardinalDirection::parse(value).ok_or_else(|| {
-                ErrorData::invalid_params(
-                    format!("unknown direction {value:?}: use north, east, south or west"),
-                    None,
-                )
-            })?,
-            None => BrushCardinalDirection::default(),
-        };
-        let defaults = BrushDrawSettings::default();
-        let settings = BrushDrawSettings {
-            shape,
-            direction,
-            cylinder_sides: sides.unwrap_or(defaults.cylinder_sides),
-            arch_segments: segments.unwrap_or(defaults.arch_segments),
-            arch_thickness: thickness.unwrap_or(defaults.arch_thickness),
-            curved_wall_arc_degrees: arc_degrees.unwrap_or(defaults.curved_wall_arc_degrees),
-            stair_steps: steps.unwrap_or(defaults.stair_steps),
-        };
-        let text = self.with(|workspace| {
-            let report = workspace.add_shape(
-                scene,
-                min,
-                max,
-                settings,
-                grid.unwrap_or(GRID_STEP),
-                material.as_deref(),
-            )?;
-            Ok(report + &Self::staged_note(workspace))
-        })?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
-    }
-
-    #[rmcp::tool(
-        description = "Add closed convex solids from integer vertices and polygon faces: angled walls, wedges, doorway plugs, sculpted rock, heightfield floors, anything add_shape cannot make. Per face you can set a material and texture placement. Faces may be wound either way. Every brush is checked (closed surface, flat faces, convex, planes rebuild the given corners) and one failure rejects the whole batch with its index and reason. Up to 512 brushes per call. Edits stage in memory until `save`."
-    )]
-    async fn add_convex_brushes(
-        &self,
-        Parameters(ConvexReq {
-            scene,
-            brushes,
-            material,
-            group,
-        }): Parameters<ConvexReq>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let text = self.with(|workspace| {
-            let report = workspace.add_convex_brushes(
-                scene,
-                &brushes,
-                material.as_deref(),
-                group.as_deref(),
-            )?;
-            Ok(report + &Self::staged_note(workspace))
-        })?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
-    }
-
-    #[rmcp::tool(
-        description = "Mirror, rotate in quarter turns about the vertical axis, and move a brush range or a named group, in that order, keeping every texture locked to its surface. Points stay exact integers. The pivot defaults to the centre of the selection. Edits stage in memory until `save`."
-    )]
-    async fn transform_brushes(
-        &self,
-        Parameters(TransformReq {
-            scene,
-            first,
-            count,
-            group,
-            translate,
-            rotate_quarter_turns,
-            mirror,
-            pivot,
-        }): Parameters<TransformReq>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let selection = match (first, count, group.as_deref()) {
-            (Some(first), Some(count), None) => BrushSelection::Range { first, count },
-            (None, None, Some(name)) => BrushSelection::Group(name),
-            _ => {
-                return Err(ErrorData::invalid_params(
-                    "give either first and count, or group".to_string(),
-                    None,
-                ))
-            }
-        };
-        let mirror_axis = match mirror.as_deref().map(str::to_ascii_lowercase).as_deref() {
-            None => None,
-            Some("x") => Some(0),
-            Some("y") => Some(1),
-            Some("z") => Some(2),
-            Some(other) => {
-                return Err(ErrorData::invalid_params(
-                    format!("unknown mirror axis {other:?}: use x, y or z"),
-                    None,
-                ))
-            }
-        };
-        let text = self.with(|workspace| {
-            let report = workspace.transform_brushes(
-                scene,
-                selection,
-                translate.unwrap_or([0, 0, 0]),
-                rotate_quarter_turns.unwrap_or(0),
-                mirror_axis,
-                pivot,
-            )?;
-            Ok(report + &Self::staged_note(workspace))
-        })?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
-    }
-
-    #[rmcp::tool(
-        description = "Add a hollow box room. Dimensions are the INTERIOR the player moves through; the walls grow outward from it. Reports the interior in player heights and widths."
-    )]
-    async fn make_room(
-        &self,
-        Parameters(MakeRoomReq {
-            scene,
-            min,
-            max,
-            thickness,
-            material,
-        }): Parameters<MakeRoomReq>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let text = self.with(|workspace| {
-            let report = workspace.make_room(
-                scene,
-                min,
-                max,
-                thickness.unwrap_or(SLAB_THICKNESS),
-                material.as_deref(),
-            )?;
-            Ok(report + &Self::staged_note(workspace))
-        })?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
-    }
-
-    #[rmcp::tool(
-        description = "Repeat a run of brushes, either along a line (`offset`) or swept about a vertical axis (`center` plus `degrees`). This is how one pillar becomes a colonnade and one arch becomes an arcade. Use the first/count that add_shape reported."
-    )]
-    async fn array(
-        &self,
-        Parameters(ArrayReq {
-            scene,
-            first,
-            count,
-            copies,
-            offset,
-            center,
-            degrees,
-        }): Parameters<ArrayReq>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let radial = match (center, degrees) {
-            (Some(center), Some(degrees)) => Some(RadialArray { center, degrees }),
-            (Some(center), None) => Some(RadialArray {
-                center,
-                degrees: 360,
-            }),
-            (None, Some(_)) => {
-                return Err(ErrorData::invalid_params(
-                    "degrees needs center: give the world point to sweep about".to_string(),
-                    None,
-                ))
-            }
-            (None, None) => None,
-        };
-        let text = self.with(|workspace| {
-            let report = workspace.array(
-                scene,
-                first,
-                count,
-                copies,
-                offset.unwrap_or([0, 0, 0]),
-                radial,
-            )?;
-            Ok(report + &Self::staged_note(workspace))
-        })?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
-    }
-
-    #[rmcp::tool(
-        description = "Cut a box-shaped void out of a run of brushes, replacing each with the convex remainder. This is how a doorway or window goes through a wall, and how a make_room shell stops being sealed. Brush indices shift, so re-read scene_info afterwards."
-    )]
-    async fn carve(
-        &self,
-        Parameters(CarveReq {
-            scene,
-            first,
-            count,
-            min,
-            max,
-            material,
-        }): Parameters<CarveReq>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let text = self.with(|workspace| {
-            let report = workspace.carve(scene, first, count, min, max, material.as_deref())?;
-            Ok(report + &Self::staged_note(workspace))
-        })?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
-    }
-
-    #[rmcp::tool(
-        description = "Assign a material to a run of brushes. `normal` restricts it to faces pointing exactly that way, e.g. [0,1,0]. Note this means EVERY upward-facing face in the range, including the outside of a ceiling slab, not just the floor you walk on; narrow the brush range if that matters."
-    )]
-    async fn set_material(
-        &self,
-        Parameters(SetMaterialReq {
-            scene,
-            first,
-            count,
-            material,
-            normal,
-        }): Parameters<SetMaterialReq>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let text = self.with(|workspace| {
-            let report = workspace.set_material(scene, first, count, &material, normal)?;
-            Ok(report + &Self::staged_note(workspace))
-        })?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
-    }
-
-    #[rmcp::tool(
-        description = "Delete a run of brushes. Indices above the range shift down, and the result says by how much."
-    )]
-    async fn delete(
-        &self,
-        Parameters(DeleteReq {
-            scene,
-            first,
-            count,
-        }): Parameters<DeleteReq>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let text = self.with(|workspace| {
-            let report = workspace.delete(scene, first, count)?;
-            Ok(report + &Self::staged_note(workspace))
         })?;
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
@@ -883,15 +291,13 @@ impl EditorServer {
     }
 
     #[rmcp::tool(
-        description = "Render the editor's 3D preview, framed automatically so the camera never ends up inside a wall. Give a target point, a brush range (first/count), or a node name. Use this to check materials, lighting and mood; use plan_view to judge sizes and layout."
+        description = "Render the editor's 3D preview from an orbit camera aimed at a target point, a node, or the middle of the world. Use this to check materials, lighting and mood."
     )]
     async fn screenshot(
         &self,
         Parameters(ScreenshotReq {
             scene,
             target,
-            first,
-            count,
             node,
             distance,
             yaw,
@@ -903,54 +309,38 @@ impl EditorServer {
         let (solved, project_dir) = self.with(|workspace| {
             if workspace.is_dirty() {
                 return Err(
-                    "there are unsaved staged edits; the renderer reads project.ron from disk,                      so call save first or the shot will show the old geometry"
+                    "there are unsaved staged edits; the renderer reads project.ron from disk, \
+                     so call save first or the shot will show the old world"
                         .to_string(),
                 );
             }
             let dir = workspace.root().to_path_buf();
             let project = workspace.document()?;
-            let (target, derived) = match (target, first, node.as_deref()) {
-                (Some(point), _, _) => (point, distance.unwrap_or(3000)),
-                (None, Some(first), _) => {
-                    let (center, span) =
-                        shot::brush_range_target(project, scene, first, count.unwrap_or(1))?;
-                    (center, distance.unwrap_or(span))
-                }
-                (None, None, Some(needle)) => {
+            let target = match (target, node.as_deref()) {
+                (Some(point), _) => point,
+                (None, Some(needle)) => {
                     let index = psxed_mcp::resolve_scene(project, scene)?;
                     let scene_doc = &project.scenes[index];
                     let id = psxed_mcp::nodes::find_node(scene_doc, needle)?;
-                    let position = scene_doc
+                    scene_doc
                         .node(id)
                         .ok_or_else(|| format!("node {needle:?} vanished"))?
                         .transform
-                        .translation;
-                    (
-                        position.map(|value| value.round() as i32),
-                        distance.unwrap_or(2400),
-                    )
+                        .translation
+                        .map(|value| value.round() as i32)
                 }
-                (None, None, None) => {
-                    return Err(
-                        "give a target point, a brush range (first/count), or a node".to_string()
-                    )
-                }
+                (None, None) => shot::world_center(project, scene)?,
             };
             Ok((
-                shot::frame(project, scene, target, derived, yaw, pitch)?,
+                shot::frame(target, distance.unwrap_or(3000), yaw, pitch),
                 dir,
             ))
         })?;
         let png = shot::render(&frontend, &project_dir, solved, self.scratch.as_path())
             .map_err(|error| ErrorData::internal_error(error, None))?;
-        let clearance = if solved.clearance.is_finite() {
-            format!("{:.0} units", solved.clearance)
-        } else {
-            "open".to_string()
-        };
         Ok(CallToolResult::success(vec![
             ContentBlock::text(format!(
-                "target {:?}, yaw {} pitch {} radius {} (nearest surface behind the eye: {clearance})",
+                "target {:?}, yaw {} pitch {} radius {}",
                 solved.target, solved.yaw_q12, solved.pitch_q12, solved.radius
             )),
             ContentBlock::image(
@@ -1101,20 +491,6 @@ impl EditorServer {
     }
 
     #[rmcp::tool(
-        description = "Switch the BSP cook between Draft (unshadowed point lights; faster visibility for large maps) and Release (full visibility and occluded point lights). Use Release for final area budgets."
-    )]
-    async fn set_cook_mode(
-        &self,
-        Parameters(CookModeReq { release }): Parameters<CookModeReq>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let text = self.with(|workspace| {
-            let report = workspace.set_cook_mode(release)?;
-            Ok(report + &Self::staged_note(workspace))
-        })?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
-    }
-
-    #[rmcp::tool(
         description = "Read the prototype combat rules: shared Energy gains/costs, floating duration/rearm, poise openings, damage multipliers and controls. Rates are 60 Hz simulation values, not measured frame rate. Use combat_duel for ground coverage; arches require a separate aerial replay."
     )]
     async fn combat_flow(&self) -> Result<CallToolResult, ErrorData> {
@@ -1200,104 +576,6 @@ impl EditorServer {
     }
 
     #[rmcp::tool(
-        description = "Measure PVS costs for named areas and camera samples. Optional explicit project budgets return remaining margins; no universal FPS or enemy limit is assumed. The former 120-face cap is withdrawn. Measure frame rate on the normal Play guest using host display logs, separately from instrumented profiling."
-    )]
-    async fn area_budget(
-        &self,
-        Parameters(AreaBudgetReq { areas, budget }): Parameters<AreaBudgetReq>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let text = self.with(|workspace| {
-            let root = workspace.root().to_path_buf();
-            psxed_mcp::performance::area_budget(
-                workspace.document()?,
-                &root,
-                &areas.unwrap_or_default(),
-                budget.as_ref(),
-            )
-        })?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
-    }
-
-    #[rmcp::tool(
-        description = "Check the scene for the defects a geometry tool reports as success: coplanar faces that will z-fight, degenerate brushes, coordinates off the working grid, untextured faces, a leak to the void, and the per-leaf PS1 draw cost. Run `quick` after every structural change and `full` before calling a section done."
-    )]
-    async fn audit(
-        &self,
-        Parameters(AuditReq {
-            scene,
-            depth,
-            grid,
-            first,
-            count,
-        }): Parameters<AuditReq>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let depth = AuditDepth::parse(depth.as_deref().unwrap_or("quick"))
-            .map_err(|error| ErrorData::invalid_params(error, None))?;
-        let text = self.with(|workspace| {
-            let note = Self::staged_note(workspace);
-            let root = workspace.root().to_path_buf();
-            let project = workspace.document()?;
-            let range = match (first, count) {
-                (Some(first), Some(count)) => Some((first, count)),
-                (Some(first), None) => Some((first, usize::MAX)),
-                _ => None,
-            };
-            Ok(audit(
-                project,
-                &root,
-                scene,
-                depth,
-                grid.unwrap_or(GRID_STEP),
-                range,
-            )? + &note)
-        })?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
-    }
-
-    #[rmcp::tool(
-        description = "Partition the world into streamable regions and judge it against the drive and the RAM pool (host only; seconds on a large world). `report` gives the cook report: region count, payload per region, how far each region sees, the bytes-per-unit-of-travel verdict, the pool verdict and the disc layout cost. `region_at` finds the region holding an authored point, `closure` lists what one region sees and needs resident, `layout_cost` prints the seek-class histogram. All estimates are labelled in the report."
-    )]
-    async fn regions(
-        &self,
-        Parameters(RegionsReq {
-            query,
-            format,
-            point,
-            region,
-            pool_bytes,
-        }): Parameters<RegionsReq>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let query = match query.as_deref().unwrap_or("report") {
-            "report" => RegionQuery::Report {
-                json: format.as_deref() == Some("json"),
-            },
-            "region_at" => RegionQuery::RegionAt {
-                point: point
-                    .ok_or_else(|| ErrorData::invalid_params("region_at needs `point`", None))?,
-            },
-            "closure" => RegionQuery::Closure {
-                region: region
-                    .ok_or_else(|| ErrorData::invalid_params("closure needs `region`", None))?,
-            },
-            "layout_cost" => RegionQuery::LayoutCost,
-            other => {
-                return Err(ErrorData::invalid_params(
-                    format!(
-                        "unknown query {other:?}: use report, region_at, closure or layout_cost"
-                    ),
-                    None,
-                ))
-            }
-        };
-        let text = self.with(|workspace| {
-            let root = workspace.root().to_path_buf();
-            let project = workspace.document()?;
-            region_query(project, &root, &query, pool_bytes)
-        })?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
-    }
-
-    #[rmcp::tool(
         description = "List the project's materials with their texel dimensions, how many world units one tile covers, colour depth, blend mode and tint. The tile size is what decides how often a texture repeats on a surface, and it is not stored in the project file."
     )]
     async fn materials(&self) -> Result<CallToolResult, ErrorData> {
@@ -1305,145 +583,6 @@ impl EditorServer {
             let root = workspace.root().to_path_buf();
             let project = workspace.document()?;
             Ok(material_table(project, &root))
-        })?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
-    }
-
-    #[rmcp::tool(
-        description = "Name a run of brushes as a space, e.g. \"Main Hall\". Groups survive edits, unlike index ranges, which every carve and delete shifts. Blockout practice calls these labelled spaces."
-    )]
-    async fn group_brushes(
-        &self,
-        Parameters(GroupReq {
-            scene,
-            first,
-            count,
-            name,
-        }): Parameters<GroupReq>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let text = self.with(|workspace| {
-            let report = workspace.group_brushes(scene, first, count, &name)?;
-            Ok(report + &Self::staged_note(workspace))
-        })?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
-    }
-
-    #[rmcp::tool(
-        description = "List the named spaces with their current brush counts, centres and sizes. Use a group's centre as a screenshot or walk_test target."
-    )]
-    async fn groups(
-        &self,
-        Parameters(SceneReq { scene }): Parameters<SceneReq>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let text = self.with(|workspace| {
-            let report = workspace.groups(scene)?;
-            Ok(report + &Self::staged_note(workspace))
-        })?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
-    }
-
-    #[rmcp::tool(
-        description = "Walk the player's collision hull along a path through the cooked world and report where it stops. This is the engine's own collision trace, the same call the runtime makes to move a character, so a gap it refuses is a gap the game refuses. Use it to prove a doorway is wide enough, a ledge is climbable or a route exists, in seconds rather than a three-minute playtest. Remember there is no jump: max step-up is 640 authored units."
-    )]
-    async fn walk_test(
-        &self,
-        Parameters(WalkReq {
-            path,
-            radius,
-            height,
-            leg,
-        }): Parameters<WalkReq>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let text = self.with(|workspace| {
-            let root = workspace.root().to_path_buf();
-            let project = workspace.document()?;
-            let (package, validation) = psxed_project::playtest::build_package(project, &root);
-            let package = package.ok_or_else(|| {
-                format!(
-                    "the project did not cook, so there is no world to walk on: {}",
-                    validation
-                        .errors
-                        .first()
-                        .map_or_else(|| "no detail".to_string(), |error| error.message.clone())
-                )
-            })?;
-            let result = psxed_project::brush_walk::walk_player_hull(
-                &package,
-                &path,
-                radius.unwrap_or(psxed_mcp::PLAYER_RADIUS),
-                height.unwrap_or(psxed_mcp::PLAYER_HEIGHT),
-                leg.unwrap_or(256),
-            )?;
-            let mut out = if result.reached_end {
-                format!(
-                    "REACHED the end of the path at {:?} after {} leg(s).\n",
-                    result.final_position, result.legs_completed
-                )
-            } else {
-                format!(
-                    "BLOCKED at {:?} after {} of {} leg(s). The hull stopped making progress \
-                     there, so the player cannot get past it.\n",
-                    result.final_position,
-                    result.legs_completed,
-                    path.len() - 1
-                )
-            };
-            for (index, step) in result.steps.iter().enumerate() {
-                let _ = writeln!(
-                    out,
-                    "  leg {index}: {} at {:?}",
-                    if step.reached { "reached" } else { "stopped" },
-                    step.position
-                );
-            }
-            Ok(out)
-        })?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
-    }
-
-    #[rmcp::tool(
-        description = "Inspect one brush: contents, bounds, size in player units, group, and a per-face table of normal direction, material and texture placement. Call this before any index-addressed edit; without it array, set_material, carve and delete are guesses."
-    )]
-    async fn get_brush(
-        &self,
-        Parameters(BrushReq { scene, brush }): Parameters<BrushReq>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let text = self.with(|workspace| {
-            let note = Self::staged_note(workspace);
-            let project = workspace.document()?;
-            Ok(brush_info(project, scene, brush)? + &note)
-        })?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
-    }
-
-    #[rmcp::tool(
-        description = "Set texture placement (offset, rotation, scale) on selected faces. Target a single face index, or every face whose normal points a given way. Scale is a percentage where 100 is 1:1; larger makes the texture bigger and repeat less often. Omitted fields are left as they are."
-    )]
-    async fn set_face_uv(
-        &self,
-        Parameters(FaceUvReq {
-            scene,
-            first,
-            count,
-            face,
-            normal,
-            offset,
-            rotation,
-            scale_percent,
-        }): Parameters<FaceUvReq>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let text = self.with(|workspace| {
-            let report = workspace.set_face_uv(
-                scene,
-                first,
-                count,
-                face,
-                normal,
-                offset,
-                rotation,
-                scale_percent,
-            )?;
-            Ok(report + &Self::staged_note(workspace))
         })?;
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
@@ -1489,29 +628,22 @@ impl EditorServer {
             let project = workspace.document()?;
             let index = psxed_mcp::resolve_scene(project, None)?;
             let scene = &project.scenes[index];
+            let world = scene.world.grid().map_or_else(
+                || "no grid world".to_string(),
+                |world| format!("grid world of {} rooms", world.rooms.len()),
+            );
             Ok(format!(
                 concat!(
                     "project: {}\n",
-                    "scene {}: {} brushes, {} faces, {} nodes\n",
-                    "bsp_cook_mode: {:?}{}\n",
+                    "scene {}: {}, {} nodes\n",
                     "staged edits: {}{}\n",
                     "snapshots: {}\n",
                     "renderer: {}"
                 ),
                 path.display(),
                 format!("{index} {:?}", scene.name),
-                scene.brushes.len(),
-                scene.brushes.iter().map(|b| b.faces.len()).sum::<usize>(),
+                world,
                 scene.nodes().len(),
-                project.bsp_cook_mode,
-                if matches!(
-                    project.bsp_cook_mode,
-                    psxed_project::brush_world::BrushWorldCookMode::Draft
-                ) {
-                    " (fullbright; point lights do nothing)"
-                } else {
-                    " (lights bake over a dark ambient)"
-                },
                 staged,
                 if dirty {
                     " -- unsaved, so screenshot and playtest will refuse"
@@ -1543,71 +675,25 @@ impl EditorServer {
 #[rmcp::tool_handler(
     name = "psoxide-editor",
     version = "0.1.0",
-    instructions = "PSoXide level authoring, in authored editor units. Work in a loop: READ, ACT, VERIFY.\n\nREAD first. `metrics` carries the unit scale, the player's size, the 64-unit working grid, the ceiling heights that actually shipped, and the footprint each pillar side-count needs; call it before inventing any dimension. `scene_info` gives the scene's extents and its candidate floor levels. `materials` lists what you can texture with.\n\nACT with `add_shape`, `make_room`, `array`, `set_material` and `delete`. Every shape reports the brushes and faces it really produced, and warns when grid snapping cost it sides or segments, so read the result instead of assuming. Rooms are authored by their INTERIOR. Give every face a material: untextured faces still cook, they just look wrong. Note the first/count each call returns; the later tools take them.\n\nVERIFY two ways, and do both. `audit` scoped to the brushes you just added (pass first and count) catches coplanar faces that will z-fight, off-grid coordinates and untextured faces in milliseconds; run it after every structural change. `plan_view` is how you judge the SPACE: section a floor plan at a candidate floor level plus 512, pass center and extent to frame one room at human scale, and check a front or side section before trusting a height. Do not reach for a 3D render, the level is dark night-time art at fullbright and volumes read as black masses in perspective.\n\nBefore calling a section done, run `audit` at depth full. It cooks the map and reports the per-leaf PS1 draw cost. Call `area_budget` with named camera samples in each area and at its transitions. It measures candidate faces/triangles and compares optional explicit project budgets. There is no calibrated universal 30 fps face or enemy cap; establish budgets using normal Play display-cadence measurements. Total world size is not the per-view workload. PVS packet counts are candidate costs, not FPS predictions. An area is not 30 fps validated until a gameplay replay with its intended actor load holds two-vblank display cadence without primitive overflows. An n-sided pillar is n+2 faces and an arch is segments+2 brushes; use these counts to understand edits, then measure their actual runtime impact.\n\nEdits stage in memory. Nothing reaches project.ron until `save`, which refuses if the editor saved over the file meanwhile."
+    instructions = "PSoXide grid-world authoring support, in authored editor units. Work in a loop: READ, ACT, VERIFY.\n\nREAD first. `metrics` carries the grid units, the world scale, the player's size and the traversal limits; call it before inventing any dimension. `scene_info` summarises the grid world and the scene's nodes. `materials` lists what you can texture with, `entity_types` and `get_node` show the scene nodes.\n\nACT on scene nodes with `place_node`, `set_node`, `move_node`, `delete_node`, `add_light` and `set_combat_windows`. The grid geometry itself is edited in the editor.\n\nVERIFY with `screenshot` for materials, lighting and mood, and with `playtest`, which cooks a real disc and boots it in the emulator: the only check that the level RUNS rather than merely cooking.\n\nEdits stage in memory. Nothing reaches project.ron until `save`, which refuses if the editor saved over the file meanwhile."
 )]
 impl ServerHandler for EditorServer {}
 
-/// Write an empty project: the starter's resources and settings, no brushes.
-///
-/// Authoring experiments belong in a project with nothing in it. Building
-/// into a copy of the shipped level means its 141 existing coplanar overlaps
-/// and its 2390 cooked faces swamp any measurement of the new work.
+/// Write a starter project: the default project's resources and settings with
+/// the starter room as its world (see `psxed_project::grid::starter`).
 fn new_project(dir: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     let file = dir.join("project.ron");
     if file.exists() {
         return Err(format!("{} already exists; refusing to overwrite", file.display()).into());
     }
-    let mut doc = psxed_project::ProjectDocument::default();
-    let mut cleared = 0usize;
-    let mut lights = 0usize;
-    let mut moved = 0usize;
-    for scene in doc.scenes.iter_mut() {
-        cleared += scene.brushes.len();
-        scene.brushes.clear();
-
-        // Drop the starter's point lights. Keeping them was actively harmful:
-        // an earlier version of this moved every node to the origin so the
-        // leak check would not flood from a player standing outside the new
-        // map, which piled 38 lights on the origin, exactly where a fresh
-        // project gets built. They are trivially re-placed with add_light.
-        let doomed: Vec<_> = scene
-            .nodes()
-            .iter()
-            .filter(|node| matches!(node.kind, psxed_project::NodeKind::PointLight { .. }))
-            .map(|node| node.id)
-            .collect();
-        lights += doomed.len();
-        for id in doomed {
-            scene.remove_node(id);
-        }
-
-        // Move ONLY the player. The leak diagnostic floods from it, so a
-        // player left at the shipped level's coordinates reports every new
-        // map as leaking however well sealed it is. Everything else stays
-        // put: out of the way, not stacked, and still there to clone.
-        let player = scene.nodes().iter().find_map(|node| {
-            matches!(
-                node.kind,
-                psxed_project::NodeKind::CharacterController { player: true, .. }
-            )
-            .then_some(node.parent.unwrap_or(node.id))
-        });
-        if let Some(id) = player {
-            if let Some(node) = scene.node_mut(id) {
-                node.transform.translation = [0.0; 3];
-                moved += 1;
-            }
-        }
-    }
+    let doc = psxed_project::ProjectDocument::starter();
     std::fs::create_dir_all(dir)?;
     std::fs::write(&file, doc.to_ron_string()?)?;
     println!(
-        "wrote {} with {cleared} starter brushes and {lights} point lights removed, \
-         {moved} player moved to the origin, {} resources kept",
+        "wrote {} with the starter room and {} resources",
         file.display(),
         doc.resources.len()
     );
-    println!("entities stayed at their authored positions; clone them with place_node");
     println!(
         "link its assets, e.g.: ln -s ../default/assets {}/assets",
         dir.display()

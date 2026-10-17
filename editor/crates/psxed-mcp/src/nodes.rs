@@ -173,7 +173,12 @@ mod tests {
     /// directions. If that ever stops holding, every entity tool is unsound.
     #[test]
     fn node_kinds_round_trip_through_ron() {
-        let project = ProjectDocument::default();
+        // The default project keeps its authored level nodes (lights, enemies,
+        // props), which is what exercises many node kinds.
+        let project = ProjectDocument::load_from_path(
+            psxed_project::default_project_dir().join("project.ron"),
+        )
+        .expect("the default project loads");
         let scene = &project.scenes[0];
         let mut checked = 0usize;
         for node in scene.nodes() {

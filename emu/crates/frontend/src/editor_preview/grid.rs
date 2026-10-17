@@ -87,7 +87,7 @@ fn emit_grid_face(
     let vertices: Vec<[f64; 3]> = face.points.iter().map(|p| p.map(f64::from)).collect();
     let mut texels = face.texels.clone();
     if let FaceShade::Textured { slot, .. } = shade {
-        psxed_project::brush::rebase_texel_uvs(
+        psxed_project::face_uv::rebase_texel_uvs(
             &mut texels,
             [
                 f64::from(slot.texture_width.max(8)),
@@ -108,16 +108,7 @@ pub(super) fn walk_grid(
     let Some(world) = project.active_scene().world.grid() else {
         return;
     };
-    let lights: Vec<psxed_project::grid::light::GridLight> =
-        collect_bsp_preview_bake_lights(project)
-            .iter()
-            .map(|light| psxed_project::grid::light::GridLight {
-                position: light.position,
-                radius: light.radius,
-                intensity_q8: light.intensity_q8,
-                color: light.color,
-            })
-            .collect();
+    let lights = collect_grid_bake_lights(project);
     // Rooms the author hid in the Rooms panel; a view setting the workspace
     // publishes, since the preview only sees the project.
     let hidden = psxed_ui::grid_preview_hidden_rooms();

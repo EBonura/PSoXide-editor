@@ -1,9 +1,8 @@
 use super::*;
 
 mod animation_studio;
-mod ashen_sanctum;
-mod brush_tools;
 mod consistency;
+mod egui_driver;
 mod entity_resources;
 mod geometry_resources;
 mod grid_rig;
@@ -11,8 +10,6 @@ mod grid_tools_persp;
 mod grid_tools_top;
 mod grid_ui;
 mod grid_world;
-mod interaction_rig;
-mod orthographic_brush;
 mod project_workspace;
 mod scene_tree_selection;
 mod ui_layout;
@@ -138,6 +135,17 @@ impl Drop for ScratchProjectDir {
     }
 }
 
+/// A copy of the New Project template placed beside the other projects, so the
+/// `../default/assets` references its resources carry still resolve and the
+/// copy can be cooked. The guard removes it, also after a panic.
+fn cookable_template_copy(label: &str) -> (PathBuf, ScratchProjectDir) {
+    let dir = psxed_project::projects_dir().join(format!("test-{label}-{}", std::process::id()));
+    let guard = ScratchProjectDir::new(dir.clone());
+    crate::starter_catalogue::copy_dir_recursive(&psxed_project::new_project_template_dir(), &dir)
+        .unwrap();
+    (dir, guard)
+}
+
 /// The guard has to survive a panicking test body, which is the only case
 /// that ever leaked a directory into the tracked `editor/projects/`.
 #[test]
@@ -226,23 +234,6 @@ struct ViewportHarness {
 }
 
 impl ViewportHarness {
-    /// A brush-world project with no brushes.
-    fn empty(label: &str) -> Self {
-        Self::with_extent(label, 4)
-    }
-
-    /// `extent` x `extent` sectors covered by one floor brush whose top face
-    /// sits at y=0. The floor guarantees there is always a brush *behind* a
-    /// gizmo for a failed pick to wrongly fall through to.
-    fn floored(label: &str, extent: u16) -> Self {
-        let mut harness = Self::with_extent(label, extent);
-        let size = i32::from(extent) * DEFAULT_WORLD_SECTOR_SIZE;
-        harness.workspace.project.active_scene_mut().brushes.push(
-            psxed_project::brush::Brush::cuboid([0, -64, 0], [size, 0, size]),
-        );
-        harness
-    }
-
     fn with_extent(label: &str, extent: u16) -> Self {
         let project = ProjectDocument::new(label);
         let mut workspace = EditorWorkspace::with_project(test_temp_dir(label), project);
@@ -375,7 +366,7 @@ impl ViewportHarness {
 
     /// One-character class of what a click at `pointer` resolves to,
     /// for diagnostic maps. Uppercase = node-gizmo plane, lowercase =
-    /// node-gizmo axis, `#` = brush surface (the bug), `.` = nothing.
+    /// node-gizmo axis, `.` = nothing.
     fn classify(&self, pointer: Pos2) -> char {
         match self.resolve(pointer) {
             Some(Viewport3dPointerTarget::NodeGizmo(NodeGizmoHandle::Plane(p))) => match p {
@@ -390,10 +381,48 @@ impl ViewportHarness {
             },
             Some(Viewport3dPointerTarget::NodeGizmo(NodeGizmoHandle::BoxFace(_))) => 'B',
             Some(Viewport3dPointerTarget::Entity(_)) => 'E',
-            Some(Viewport3dPointerTarget::Brush { .. }) => '#',
             None => '.',
         }
     }
+}
+
+/// One undoable scene edit that does not depend on the kind of world: a new
+/// Group node under the root.
+fn add_marker_node(workspace: &mut EditorWorkspace) {
+    push_marker(workspace.project.active_scene_mut());
+}
+
+/// Place the active kind at `[x, z]` on the ground plane, as a click there
+/// would.
+fn place_at(workspace: &mut EditorWorkspace, world: [f32; 2]) {
+    let root = workspace.project().active_scene().root;
+    workspace.place_node_at_world_hit(root, [world[0], 0.0, world[1]]);
+}
+
+fn push_marker(scene: &mut psxed_project::Scene) {
+    let root = scene.root;
+    scene.add_node(root, "Marker", NodeKind::Group);
+}
+
+/// Where a world point lands in the 3D view's panel.
+fn project_world_point_3d(
+    workspace: &EditorWorkspace,
+    rect: Rect,
+    world: [f64; 3],
+) -> Option<Pos2> {
+    workspace
+        .viewport_3d_camera()
+        .normalized_panel_point_for_world(world.map(|value| value as f32))
+        .map(|(nx, ny)| {
+            Pos2::new(
+                rect.center().x + nx * rect.width() * 0.5,
+                rect.center().y + ny * rect.height() * 0.5,
+            )
+        })
+}
+
+fn scene_node_count(workspace: &EditorWorkspace) -> usize {
+    workspace.project.active_scene().nodes().len()
 }
 
 fn assert_pos_approx(actual: Pos2, expected: Pos2) {

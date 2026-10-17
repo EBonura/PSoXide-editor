@@ -246,18 +246,8 @@ fn scene_tree_select_clears_inspector_shadow_selection() {
         .first()
         .expect("starter project has resources")
         .id;
-    workspace
-        .project
-        .active_scene_mut()
-        .brushes
-        .push(psxed_project::brush::Brush::cuboid(
-            [0, 0, 0],
-            [128, 128, 128],
-        ));
-
     workspace.selection.selected_node = NodeId::ROOT;
     workspace.selection.selected_resource = Some(resource);
-    workspace.replace_brush_selection(workspace.project.active_scene().brushes.len() - 1, None);
 
     workspace.apply_tree_action(
         TreeAction::Select {
@@ -268,7 +258,6 @@ fn scene_tree_select_clears_inspector_shadow_selection() {
     );
 
     assert_eq!(workspace.selection.selected_node, spawn);
-    assert_eq!(workspace.selected_brush, None);
     assert_eq!(workspace.selection.selected_resource, None);
 }
 
@@ -673,5 +662,4 @@ fn select_all_current_scope_selects_scene_nodes_outside_select_tool() {
     assert!(workspace.selection.selected_nodes.contains(&second));
     assert!(!workspace.selection.selected_nodes.contains(&NodeId::ROOT));
     assert_eq!(workspace.selection.selected_nodes.len(), 2);
-    assert_eq!(workspace.selected_brush, None);
 }

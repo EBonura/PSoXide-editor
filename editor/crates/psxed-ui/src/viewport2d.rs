@@ -129,31 +129,23 @@ fn axis_color(axis: usize) -> Color32 {
     }
 }
 
-/// One of the three axis-aligned 2D authoring planes. All views use the
-/// same world-space focus, zoom, grid settings, and editor selection; only
-/// the pair of world axes projected into the panel changes.
+/// The axis-aligned 2D authoring plane: the plan view of the sector grid,
+/// using the editor's world-space focus, zoom and snap settings.
 ///
-/// Each view is what the right-handed, Y-up 3D view shows from that side
-/// with its default orientation (yaw 0 looks down -Z with +X to the right),
-/// so the Top view is the 3D view seen from above, not its mirror.
+/// It is the right-handed, Y-up 3D view seen from above (yaw 0 looks down -Z
+/// with +X to the right), not its mirror.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OrthographicView {
     /// Look down from +Y: +X right, +Z down (-Z, the 3D view's forward, up).
     Top,
-    /// Look back from +Z: +X right, +Y up.
-    Front,
-    /// Look from +X toward -X: -Z right, +Y up.
-    Side,
 }
 
 impl OrthographicView {
-    pub(crate) const ALL: [Self; 3] = [Self::Top, Self::Front, Self::Side];
+    pub(crate) const ALL: [Self; 1] = [Self::Top];
 
     pub(crate) const fn label(self) -> &'static str {
         match self {
             Self::Top => "Top",
-            Self::Front => "Front",
-            Self::Side => "Side",
         }
     }
 
@@ -161,19 +153,15 @@ impl OrthographicView {
     pub(crate) const fn plane_axes(self) -> [usize; 2] {
         match self {
             Self::Top => [0, 2],
-            Self::Front => [0, 1],
-            Self::Side => [2, 1],
         }
     }
 
     /// Screen direction of the plane axes: `[1, 1]` when the horizontal
     /// world axis grows to the right and the vertical one grows up; `-1`
-    /// flips that axis. See the type docs for why Top and Side flip.
+    /// flips that axis. Z grows down the screen in the plan view.
     pub(crate) const fn screen_signs(self) -> [f32; 2] {
         match self {
             Self::Top => [1.0, -1.0],
-            Self::Front => [1.0, 1.0],
-            Self::Side => [-1.0, 1.0],
         }
     }
 
@@ -193,22 +181,7 @@ impl OrthographicView {
         [label(horizontal, sign_h), label(vertical, sign_v)]
     }
 
-    /// World axis perpendicular to this view. The virtual camera sits on
-    /// the positive side of this axis.
-    pub(crate) const fn depth_axis(self) -> usize {
-        match self {
-            Self::Top => 1,
-            Self::Front => 2,
-            Self::Side => 0,
-        }
-    }
-
     pub(crate) fn project_f32(self, world: [f32; 3]) -> [f32; 2] {
-        let [horizontal, vertical] = self.plane_axes();
-        [world[horizontal], world[vertical]]
-    }
-
-    pub(crate) fn project_f64(self, world: [f64; 3]) -> [f64; 2] {
         let [horizontal, vertical] = self.plane_axes();
         [world[horizontal], world[vertical]]
     }
@@ -401,139 +374,6 @@ fn world_grid_stroke(index: i32) -> Stroke {
         Color32::from_rgb(20, 43, 52)
     };
     Stroke::new(1.0, color)
-}
-
-/// Reapply the active world grid inside one projected brush face.
-///
-/// TrenchBroom renders its background grid first, then evaluates the same
-/// world-space grid in the brush-face shader so texture/fill pixels cannot
-/// hide it. PSoXide's orthographic brush pass is host-drawn, so the equivalent
-/// is to clip the existing global grid to each convex face after face fills and
-/// before outlines and edit handles. Coordinates remain anchored at world zero;
-/// this is deliberately not a face-local grid.
-pub(crate) fn draw_world_grid_on_convex_polygon(
-    painter: &egui::Painter,
-    transform: ViewportTransform,
-    base_step: f32,
-    polygon: &[[f64; 2]],
-) {
-    if polygon.len() < 3 || projected_polygon_area_f64(polygon).abs() <= f64::EPSILON {
-        return;
-    }
-    let step = f64::from(readable_grid_step(base_step, transform.zoom));
-    let (min_x, max_x) = polygon
-        .iter()
-        .fold((f64::INFINITY, f64::NEG_INFINITY), |(min, max), point| {
-            (min.min(point[0]), max.max(point[0]))
-        });
-    let (min_y, max_y) = polygon
-        .iter()
-        .fold((f64::INFINITY, f64::NEG_INFINITY), |(min, max), point| {
-            (min.min(point[1]), max.max(point[1]))
-        });
-    let view_a = transform.screen_to_world(transform.rect.left_top());
-    let view_b = transform.screen_to_world(transform.rect.right_bottom());
-    let min_x = min_x.max(f64::from(view_a[0].min(view_b[0])));
-    let max_x = max_x.min(f64::from(view_a[0].max(view_b[0])));
-    let min_y = min_y.max(f64::from(view_a[1].min(view_b[1])));
-    let max_y = max_y.min(f64::from(view_a[1].max(view_b[1])));
-    if ![min_x, max_x, min_y, max_y, step]
-        .into_iter()
-        .all(f64::is_finite)
-        || step <= 0.0
-    {
-        return;
-    }
-
-    let x_first = (min_x / step).ceil() as i32;
-    let x_last = (max_x / step).floor() as i32;
-    for index in x_first..=x_last {
-        let coordinate = f64::from(index) * step;
-        if let Some((a, b)) = clip_axis_line_to_convex_polygon(polygon, 0, coordinate) {
-            painter.line_segment(
-                [
-                    transform.world_to_screen(a.map(|value| value as f32)),
-                    transform.world_to_screen(b.map(|value| value as f32)),
-                ],
-                world_grid_stroke(index),
-            );
-        }
-    }
-
-    let y_first = (min_y / step).ceil() as i32;
-    let y_last = (max_y / step).floor() as i32;
-    for index in y_first..=y_last {
-        let coordinate = f64::from(index) * step;
-        if let Some((a, b)) = clip_axis_line_to_convex_polygon(polygon, 1, coordinate) {
-            painter.line_segment(
-                [
-                    transform.world_to_screen(a.map(|value| value as f32)),
-                    transform.world_to_screen(b.map(|value| value as f32)),
-                ],
-                world_grid_stroke(index),
-            );
-        }
-    }
-}
-
-fn projected_polygon_area_f64(polygon: &[[f64; 2]]) -> f64 {
-    polygon
-        .iter()
-        .zip(polygon.iter().cycle().skip(1))
-        .take(polygon.len())
-        .map(|(a, b)| a[0] * b[1] - a[1] * b[0])
-        .sum::<f64>()
-        * 0.5
-}
-
-fn clip_axis_line_to_convex_polygon(
-    polygon: &[[f64; 2]],
-    axis: usize,
-    coordinate: f64,
-) -> Option<([f64; 2], [f64; 2])> {
-    const EPSILON: f64 = 1.0 / 4096.0;
-    let mut intersections = Vec::with_capacity(polygon.len().min(8));
-    let mut push_unique = |candidate: [f64; 2]| {
-        if intersections.iter().all(|point: &[f64; 2]| {
-            (point[0] - candidate[0]).powi(2) + (point[1] - candidate[1]).powi(2)
-                > EPSILON * EPSILON
-        }) {
-            intersections.push(candidate);
-        }
-    };
-    for edge in 0..polygon.len() {
-        let a = polygon[edge];
-        let b = polygon[(edge + 1) % polygon.len()];
-        let da = a[axis] - coordinate;
-        let db = b[axis] - coordinate;
-        if da.abs() <= EPSILON {
-            push_unique(a);
-        }
-        if db.abs() <= EPSILON {
-            push_unique(b);
-        }
-        if (da < -EPSILON && db > EPSILON) || (da > EPSILON && db < -EPSILON) {
-            let t = da / (da - db);
-            push_unique([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
-        }
-    }
-    if intersections.len() < 2 {
-        return None;
-    }
-    let mut farthest = (0, 1);
-    let mut farthest_distance = 0.0;
-    for a in 0..intersections.len() {
-        for b in (a + 1)..intersections.len() {
-            let distance = (intersections[a][0] - intersections[b][0]).powi(2)
-                + (intersections[a][1] - intersections[b][1]).powi(2);
-            if distance > farthest_distance {
-                farthest = (a, b);
-                farthest_distance = distance;
-            }
-        }
-    }
-    (farthest_distance > EPSILON * EPSILON)
-        .then(|| (intersections[farthest.0], intersections[farthest.1]))
 }
 
 // Selection and visibility state for one 2D BSP scene-viewport pass.
@@ -875,36 +715,13 @@ pub(crate) fn draw_simple_marker(
 const MARKER_RADIUS_PX: f32 = 8.0;
 
 #[cfg(test)]
-mod brush_surface_grid_tests {
+mod grid_step_tests {
     use super::*;
 
     #[test]
-    fn surface_grid_line_is_clipped_to_the_projected_face() {
-        let polygon = [[5.0, 7.0], [37.0, 7.0], [37.0, 39.0], [5.0, 39.0]];
-        let (a, b) = clip_axis_line_to_convex_polygon(&polygon, 0, 16.0)
-            .expect("world-aligned line crosses the brush face");
-        assert_eq!(a[0], 16.0);
-        assert_eq!(b[0], 16.0);
-        assert_eq!([a[1].min(b[1]), a[1].max(b[1])], [7.0, 39.0]);
-    }
-
-    #[test]
-    fn surface_grid_handles_a_line_coincident_with_a_face_edge() {
-        let polygon = [[5.0, 7.0], [37.0, 7.0], [37.0, 39.0], [5.0, 39.0]];
-        let (a, b) = clip_axis_line_to_convex_polygon(&polygon, 1, 7.0)
-            .expect("face edge is also a valid global grid segment");
-        assert_eq!(a[1], 7.0);
-        assert_eq!(b[1], 7.0);
-        assert_eq!([a[0].min(b[0]), a[0].max(b[0])], [5.0, 37.0]);
-    }
-
-    #[test]
-    fn surface_grid_uses_the_same_readable_interval_as_the_background() {
+    fn the_overlay_uses_a_readable_interval_at_every_zoom() {
         assert_eq!(readable_grid_step(16.0, 1.0), 16.0);
         assert_eq!(readable_grid_step(16.0, 0.25), 64.0);
-        let polygon_min = 5.0_f64;
-        let first_global_line = (polygon_min / 16.0).ceil() * 16.0;
-        assert_eq!(first_global_line, 16.0, "grid must not restart at the face");
     }
 }
 
@@ -922,20 +739,11 @@ mod view_orientation_tests {
     }
 
     #[test]
-    fn orthographic_views_show_the_3d_view_from_each_side_unmirrored() {
+    fn the_plan_view_shows_the_3d_view_from_above_unmirrored() {
         // The 3D view at yaw 0 has +X right and looks down -Z, Y up.
         // From above that puts -Z up on screen.
         assert!(screen_dir(OrthographicView::Top, 0).x > 0.0);
         assert!(screen_dir(OrthographicView::Top, 2).y > 0.0, "+Z runs down");
-        // From +Z looking back: +X right, +Y up.
-        assert!(screen_dir(OrthographicView::Front, 0).x > 0.0);
-        assert!(screen_dir(OrthographicView::Front, 1).y < 0.0);
-        // From +X looking toward -X: +Z runs left, +Y up.
-        assert!(
-            screen_dir(OrthographicView::Side, 2).x < 0.0,
-            "+Z runs left"
-        );
-        assert!(screen_dir(OrthographicView::Side, 1).y < 0.0);
 
         for view in OrthographicView::ALL {
             let rect = Rect::from_min_size(Pos2::new(5.0, 7.0), Vec2::new(300.0, 200.0));
@@ -947,10 +755,6 @@ mod view_orientation_tests {
         assert_eq!(
             OrthographicView::Top.screen_axis_labels(),
             ["X".to_string(), "-Z".to_string()]
-        );
-        assert_eq!(
-            OrthographicView::Side.screen_axis_labels(),
-            ["-Z".to_string(), "Y".to_string()]
         );
     }
 }

@@ -1,35 +1,25 @@
-//! Auto-framed 3D preview screenshots.
+//! 3D preview screenshots.
 //!
-//! Aiming the editor's orbit camera by hand is six numbers and no feedback,
-//! and it went wrong in every session that used it: two shots in the Phase 5
-//! run landed inside solid walls and came back black. The camera is not hard
-//! to aim, it is just hard to aim *blind*, so this module aims it against the
-//! geometry.
-//!
-//! The eye sits at `target + radius * [cos_p*sin_y, -sin_p, cos_p*cos_y]`
-//! (`orbit_camera_position_f32` in psxed-ui). That is a ray from the target,
-//! so `Brush::raycast` answers exactly the question that matters: how far can
-//! the camera pull back along this heading before it is inside something.
-//!
-//! Rendering itself stays in the frontend binary, which owns the PSX raster
-//! path and a headless wgpu device. Pulling that in would turn this crate into
-//! a 75-second build for one function, so the shot is taken by running
-//! `frontend dump-editor-preview` with the solved camera.
+//! The camera is an orbit camera, so a shot is a target point plus a heading
+//! and a distance. Rendering itself stays in the frontend binary, which owns
+//! the PSX raster path and a headless wgpu device. Pulling that in would turn
+//! this crate into a 75-second build for one function, so the shot is taken
+//! by running `frontend dump-editor-preview` with the solved camera.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use psxed_project::brush::Brush;
 use psxed_project::ProjectDocument;
 
 use crate::resolve_scene;
 
-/// Turns are 4096 units, matching the editor's Q12 angle convention.
-const TURN: f64 = 4096.0;
-/// Keep the eye this fraction short of the first surface behind it.
-const CLEARANCE: f64 = 0.82;
+/// Default heading: straight along the scene's Z axis.
+const DEFAULT_YAW: u16 = 0;
+/// Default pitch: a few degrees short of a full turn, which looks down at the
+/// target from above (the eye sits at `-sin(pitch)` in Y).
+const DEFAULT_PITCH: u16 = 3776;
 /// Never place the eye closer than this to its target.
-const MIN_RADIUS: f64 = 320.0;
+const MIN_RADIUS: i32 = 320;
 
 /// A solved orbit camera.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -43,127 +33,44 @@ pub struct Shot {
     pub radius: i32,
     /// World point the camera looks at.
     pub target: [i32; 3],
-    /// Distance to the first surface behind the eye, or `f64::INFINITY`.
-    pub clearance: f64,
 }
 
-/// Unit vector from the target towards the eye.
-fn eye_direction(yaw_q12: u16, pitch_q12: u16) -> [f64; 3] {
-    let yaw = f64::from(yaw_q12) / TURN * std::f64::consts::TAU;
-    let pitch = f64::from(pitch_q12) / TURN * std::f64::consts::TAU;
-    let (sin_y, cos_y) = yaw.sin_cos();
-    let (sin_p, cos_p) = pitch.sin_cos();
-    [cos_p * sin_y, -sin_p, cos_p * cos_y]
+/// An orbit camera framing `target` from `distance` away.
+pub fn frame(target: [i32; 3], distance: i32, yaw: Option<u16>, pitch: Option<u16>) -> Shot {
+    Shot {
+        yaw_q12: yaw.unwrap_or(DEFAULT_YAW),
+        pitch_q12: pitch.unwrap_or(DEFAULT_PITCH),
+        radius: distance.max(MIN_RADIUS),
+        target,
+    }
 }
 
-/// Distance from `origin` along `dir` to the nearest solid surface.
-fn clearance_along(brushes: &[Brush], origin: [f64; 3], dir: [f64; 3]) -> f64 {
-    brushes
-        .iter()
-        .filter(|brush| brush.contents.is_solid())
-        .filter_map(|brush| brush.raycast(origin, dir).map(|(t, _)| t))
-        .filter(|t| *t > 0.0)
-        .fold(f64::INFINITY, f64::min)
-}
-
-/// Solve a camera that frames `target` without ending up inside geometry.
-///
-/// With no yaw or pitch given, a small sweep picks the heading with the most
-/// room behind it, which is what stops the eye burying itself in a wall.
-pub fn frame(
+/// The middle of the scene's grid world, a little above the first room's
+/// floor, in editor units.
+pub fn world_center(
     project: &ProjectDocument,
     scene_index: Option<usize>,
-    target: [i32; 3],
-    desired_radius: i32,
-    yaw: Option<u16>,
-    pitch: Option<u16>,
-) -> Result<Shot, String> {
+) -> Result<[i32; 3], String> {
     let index = resolve_scene(project, scene_index)?;
-    let brushes = &project.scenes[index].brushes;
-    let origin = target.map(f64::from);
-    let desired = f64::from(desired_radius.max(1));
-
-    let yaws: Vec<u16> = match yaw {
-        Some(value) => vec![value],
-        // Eight headings is enough to find an open one and cheap enough to
-        // brute force; there is no cleverness worth adding here.
-        None => (0..8).map(|step| step * 512).collect(),
+    let world = project.scenes[index]
+        .world
+        .grid()
+        .ok_or("the scene has no grid world to frame; give a target or a node")?;
+    let room = world
+        .rooms
+        .first()
+        .ok_or("the grid world has no rooms to frame")?;
+    let sector = i64::from(world.scale.sector_editor_units());
+    let origin = |axis: usize| i64::from(room.origin[axis]);
+    let middle = |axis: usize, extent: usize| {
+        (origin(axis) * sector + extent as i64 * sector / 2)
+            .clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
     };
-    let pitches: Vec<u16> = match pitch {
-        Some(value) => vec![value],
-        // Both sides of the horizon. The eye sits at `-sin(pitch)` in Y, so
-        // pitches under a quarter turn put it BELOW the target and pitches
-        // near a full turn put it above. A target near the floor has almost
-        // no room below it, and offering only the low half is how a shot of
-        // a floor-standing entity ends up underground.
-        None => vec![224, 320, 448, 3648, 3776, 3872],
-    };
-
-    let mut best: Option<(Shot, f64)> = None;
-    for yaw_q12 in yaws {
-        for &pitch_q12 in &pitches {
-            let dir = eye_direction(yaw_q12, pitch_q12);
-            let clearance = clearance_along(brushes, origin, dir);
-            let room = if clearance.is_finite() {
-                clearance * CLEARANCE
-            } else {
-                desired
-            };
-            // Score on the room actually available, BEFORE the minimum-radius
-            // floor. Scoring after it made every cramped heading tie at the
-            // floor value, so the first one won and the eye went through a
-            // wall. A heading with 190 units of room must lose to one with
-            // 2900, even though both would be clamped to the same radius.
-            let score = room.min(desired);
-            let shot = Shot {
-                yaw_q12,
-                pitch_q12,
-                radius: room.min(desired).max(MIN_RADIUS).round() as i32,
-                target,
-                clearance,
-            };
-            if best.is_none_or(|(_, current)| score > current) {
-                best = Some((shot, score));
-            }
-        }
-    }
-    best.map(|(shot, _)| shot)
-        .ok_or_else(|| "no camera could be solved".to_string())
-}
-
-/// Centre and half-span of a run of brushes, for framing what was just built.
-pub fn brush_range_target(
-    project: &ProjectDocument,
-    scene_index: Option<usize>,
-    first: usize,
-    count: usize,
-) -> Result<([i32; 3], i32), String> {
-    let index = resolve_scene(project, scene_index)?;
-    let brushes = &project.scenes[index].brushes;
-    let end = first.saturating_add(count).min(brushes.len());
-    if first >= brushes.len() || count == 0 {
-        return Err(format!(
-            "brushes {first}..{} are out of range: the scene has {}",
-            first + count,
-            brushes.len()
-        ));
-    }
-    let (min, max) = brushes[first..end]
-        .iter()
-        .map(Brush::solve)
-        .filter(|solved| solved.is_valid())
-        .fold(([f64::MAX; 3], [f64::MIN; 3]), |(lo, hi), solved| {
-            (
-                std::array::from_fn(|axis| lo[axis].min(solved.min[axis])),
-                std::array::from_fn(|axis| hi[axis].max(solved.max[axis])),
-            )
-        });
-    if min[0] > max[0] {
-        return Err("those brushes enclose no volume".to_string());
-    }
-    let center = std::array::from_fn(|axis| ((min[axis] + max[axis]) * 0.5).round() as i32);
-    let span = (0..3).map(|axis| max[axis] - min[axis]).fold(0.0, f64::max);
-    Ok((center, (span * 1.2).round().max(512.0) as i32))
+    Ok([
+        middle(0, room.width),
+        world.scale.to_editor(room.y_offset) + 512,
+        middle(1, room.depth),
+    ])
 }
 
 /// Locate the frontend binary that owns the renderer.
@@ -286,69 +193,30 @@ pub fn png_from_ppm(raw: &[u8]) -> Result<Vec<u8>, String> {
 mod tests {
     use super::*;
 
-    /// The failure this module exists to prevent: an orbit camera solved
-    /// blind ends up inside a wall. Framed against a closed room, every
-    /// heading must keep the eye in the open space.
     #[test]
-    fn framing_keeps_the_eye_inside_the_room() {
-        let mut project = ProjectDocument::default();
-        project.scenes[0].brushes.clear();
-        // A 4096-cube room centred on the origin, walls 256 thick.
-        let shell = Brush::cuboid([-2304, -2304, -2304], [2304, 2304, 2304])
-            .hollow(256)
-            .expect("the shell builds");
-        project.scenes[0].brushes.extend(shell);
-
-        // Asking for a radius far larger than the room must be pulled in.
-        // Not to below the room's half-extent though: along a diagonal the
-        // eye can be 2693 units out and still well inside a 2048 half-room,
-        // so the radius alone says nothing. Containment is the real invariant.
-        let shot = frame(&project, None, [0, 0, 0], 50_000, None, None).expect("a camera solves");
-        assert!(
-            shot.radius < 50_000,
-            "radius {} was not pulled in at all",
-            shot.radius
+    fn framing_applies_defaults_and_a_minimum_distance() {
+        let shot = frame([1, 2, 3], 10, None, None);
+        assert_eq!((shot.yaw_q12, shot.pitch_q12), (DEFAULT_YAW, DEFAULT_PITCH));
+        assert_eq!(shot.radius, MIN_RADIUS);
+        let shot = frame([0; 3], 5000, Some(512), Some(300));
+        assert_eq!(
+            (shot.yaw_q12, shot.pitch_q12, shot.radius),
+            (512, 300, 5000)
         );
-        assert!(shot.clearance.is_finite(), "the walls should be hit");
+    }
 
-        // The solved eye really is in open space: nothing contains it.
-        let direction = eye_direction(shot.yaw_q12, shot.pitch_q12);
-        let eye = std::array::from_fn(|axis| {
-            f64::from(shot.target[axis]) + direction[axis] * f64::from(shot.radius)
-        });
-        assert!(
-            !project.scenes[0]
-                .brushes
-                .iter()
-                .any(|brush| crate::contains(brush, eye)),
-            "the eye at {eye:?} landed inside a brush"
-        );
+    #[test]
+    fn the_world_center_is_inside_the_starter_room() {
+        let project = ProjectDocument::starter();
+        let [x, y, z] = world_center(&project, None).expect("the starter has a world");
+        let world = project.active_scene().world.grid().unwrap();
+        let side = world.scale.sector_editor_units() * 6;
+        assert_eq!((x, z), (side / 2, side / 2));
+        assert!(y > 0);
+    }
 
-        // With nothing in the way the requested radius survives.
-        project.scenes[0].brushes.clear();
-        let open = frame(&project, None, [0, 0, 0], 8000, Some(0), Some(300))
-            .expect("a camera solves in an empty scene");
-        assert_eq!(open.radius, 8000);
-        assert!(open.clearance.is_infinite());
-
-        // A target sitting just above the floor must not be framed from
-        // underneath it: the low pitches have almost no room, so the solver
-        // has to reach for a heading above the horizon.
-        project.scenes[0].brushes.clear();
-        project.scenes[0]
-            .brushes
-            .push(Brush::cuboid([-4096, -256, -4096], [4096, 0, 4096]));
-        let low = frame(&project, None, [0, 64, 0], 4000, None, None)
-            .expect("a camera solves above a floor");
-        let direction = eye_direction(low.yaw_q12, low.pitch_q12);
-        let eye_y = 64.0 + direction[1] * f64::from(low.radius);
-        assert!(
-            eye_y > 0.0,
-            "pitch {} put the eye at y {eye_y:.0}, under the floor",
-            low.pitch_q12
-        );
-
-        // A malformed PPM is an error rather than a panic.
+    #[test]
+    fn a_malformed_ppm_is_an_error_rather_than_a_panic() {
         assert!(png_from_ppm(b"P6 2 2 255\n\x00").is_err());
         assert!(png_from_ppm(b"P3 1 1 255\n\x00\x00\x00").is_err());
     }

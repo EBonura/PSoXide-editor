@@ -59,8 +59,8 @@ pub(crate) fn push_projected_scene_sky(
         return;
     };
     let word_capacity = match mode {
-        SkyMode::QuakeLayered => psx_bsp::sky::VIEW_RAY_SKY_PACKET_WORDS,
-        SkyMode::Cube => psx_bsp::sky::VIEW_RAY_CUBE_SKY_PACKET_WORDS,
+        SkyMode::QuakeLayered => psx_engine::sky::VIEW_RAY_SKY_PACKET_WORDS,
+        SkyMode::Cube => psx_engine::sky::VIEW_RAY_CUBE_SKY_PACKET_WORDS,
         SkyMode::Off | SkyMode::Panorama => return,
     };
     let stream = {
@@ -71,7 +71,7 @@ pub(crate) fn push_projected_scene_sky(
         let first = reservation.words_mut().as_mut_ptr();
         let submitted = unsafe {
             match mode {
-                SkyMode::QuakeLayered => psx_bsp::sky::submit_view_ray_layered_sky_to_slot(
+                SkyMode::QuakeLayered => psx_engine::sky::submit_view_ray_layered_sky_to_slot(
                     slot.tpage_word,
                     slot.clut_word,
                     [0, 0],
@@ -84,7 +84,7 @@ pub(crate) fn push_projected_scene_sky(
                     PREVIEW_SKY_SLOT as u16,
                     first,
                 ),
-                SkyMode::Cube => psx_bsp::sky::submit_view_ray_cube_sky_to_slot(
+                SkyMode::Cube => psx_engine::sky::submit_view_ray_cube_sky_to_slot(
                     slot.tpage_word,
                     slot.clut_word,
                     view_rotation,

@@ -2,7 +2,7 @@
 
 use super::*;
 
-pub(crate) fn walk_bsp_particle_emitters(
+pub(crate) fn walk_particle_emitters(
     project: &ProjectDocument,
     hidden_scene_nodes: &HashSet<NodeId>,
     particle_slot: MaterialSlot,

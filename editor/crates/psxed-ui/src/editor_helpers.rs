@@ -365,37 +365,6 @@ pub(crate) fn cos_q12_turn_f32(angle_q12: u16) -> f32 {
     psx_engine::Angle::from_q12(angle_q12).cos().raw() as f32 / 4096.0
 }
 
-pub(crate) fn distance3_f32(a: [f32; 3], b: [f32; 3]) -> f32 {
-    let dx = a[0] - b[0];
-    let dy = a[1] - b[1];
-    let dz = a[2] - b[2];
-    dx.mul_add(dx, dy.mul_add(dy, dz * dz)).sqrt()
-}
-
-pub(crate) fn camera_angles_to_look_at(position: [i32; 3], target: [i32; 3]) -> Option<(u16, u16)> {
-    let dx = (target[0] - position[0]) as f32;
-    let dy = (target[1] - position[1]) as f32;
-    let dz = (target[2] - position[2]) as f32;
-    let len = dx.mul_add(dx, dy.mul_add(dy, dz * dz)).sqrt();
-    if !len.is_finite() || len <= f32::EPSILON {
-        return None;
-    }
-
-    let dir = [dx / len, dy / len, dz / len];
-    let yaw = q12_from_radians((-dir[0]).atan2(-dir[2]));
-    let pitch =
-        signed_to_q12(q12_signed_from_radians(dir[1].clamp(-1.0, 1.0).asin()).clamp(-960, 960));
-    Some((yaw, pitch))
-}
-
-pub(crate) fn q12_from_radians(radians: f32) -> u16 {
-    ((radians * (4096.0 / std::f32::consts::TAU)).round() as i32).rem_euclid(4096) as u16
-}
-
-pub(crate) fn q12_signed_from_radians(radians: f32) -> i32 {
-    (radians * (4096.0 / std::f32::consts::TAU)).round() as i32
-}
-
 pub(crate) fn viewport_3d_pan_delta(
     camera: ViewportCameraState,
     panel_size: Vec2,
@@ -998,4 +967,22 @@ pub(crate) fn collect_animation_set_options(project: &ProjectDocument) -> Vec<An
             _ => None,
         })
         .collect()
+}
+
+/// Yaw and pitch (Q12) that point a camera at `position` toward `target`.
+#[cfg(test)]
+pub(crate) fn camera_angles_to_look_at(position: [i32; 3], target: [i32; 3]) -> Option<(u16, u16)> {
+    let dx = (target[0] - position[0]) as f32;
+    let dy = (target[1] - position[1]) as f32;
+    let dz = (target[2] - position[2]) as f32;
+    let len = dx.mul_add(dx, dy.mul_add(dy, dz * dz)).sqrt();
+    if !len.is_finite() || len <= f32::EPSILON {
+        return None;
+    }
+
+    let dir = [dx / len, dy / len, dz / len];
+    let q12 = |radians: f32| (radians * (4096.0 / std::f32::consts::TAU)).round() as i32;
+    let yaw = q12((-dir[0]).atan2(-dir[2])).rem_euclid(4096) as u16;
+    let pitch = signed_to_q12(q12(dir[1].clamp(-1.0, 1.0).asin()).clamp(-960, 960));
+    Some((yaw, pitch))
 }

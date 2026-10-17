@@ -1193,48 +1193,10 @@ impl EditorWorkspace {
                             });
                     });
                 if let Some(click) = clicked {
-                    // Sims-style: with a face selected, clicking a
-                    // Material card retargets the selected face set's
-                    // material rather than swapping the inspector.
-                    // Box props also accept plain Material / Texture
-                    // clicks; other clicks still navigate normally.
+                    // Box props accept plain Material / Texture clicks; other
+                    // clicks navigate normally.
                     let id = click.id;
-                    let is_material = matches!(
-                        self.project.resource(id).map(|r| &r.data),
-                        Some(ResourceData::Material(_))
-                    );
-                    let plain_click =
-                        !click.modifiers.shift && !click.modifiers.ctrl && !click.modifiers.command;
-                    let selected_targets = if is_material && plain_click {
-                        self.selected_material_targets()
-                    } else {
-                        Vec::new()
-                    };
-                    if !selected_targets.is_empty() {
-                        let updated = self.assign_selected_faces_material(Some(id));
-                        match (selected_targets.as_slice(), updated) {
-                            (_, 0) => {
-                                self.status =
-                                    "Material already assigned to selected surfaces".to_string();
-                            }
-                            ([target], 1) => {
-                                self.status = format!(
-                                    "Assigned material to {}",
-                                    describe_material_target(*target)
-                                );
-                            }
-                            (_, n) if n == selected_targets.len() => {
-                                self.status = format!("Assigned material to {n} selected surfaces");
-                            }
-                            (_, n) => {
-                                self.status = format!(
-                                    "Assigned material to {n}/{} selected surfaces",
-                                    selected_targets.len()
-                                );
-                            }
-                        }
-                        self.replace_resource_selection(id);
-                    } else if !self.apply_selected_box_prop_resource_click(click) {
+                    if !self.apply_selected_box_prop_resource_click(click) {
                         self.apply_resource_selection_modifiers(
                             id,
                             click.modifiers,

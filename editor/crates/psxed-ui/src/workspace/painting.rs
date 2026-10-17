@@ -53,149 +53,13 @@ impl EditorWorkspace {
         players.next().is_none().then_some(player)
     }
 
-    /// BSP scenes have no Room owner. Their world root is
-    /// the correct parent for authored point entities because the PXBSP cook
-    /// consumes those transforms directly in world units.
-    pub(crate) fn bsp_authoring_root(&self) -> Option<NodeId> {
-        Some(self.project.active_scene().root)
+    /// The scene root is the parent of authored point entities: the cook
+    /// consumes their transforms directly in world units.
+    pub(crate) fn authoring_root(&self) -> NodeId {
+        self.project.active_scene().root
     }
 
-    /// `true` when Material Paint should address BSP brush faces.
-    pub(crate) fn bsp_face_paint_active(&self) -> bool {
-        self.active_tool == ViewTool::PaintMaterial && self.bsp_authoring_root().is_some()
-    }
-
-    /// Material Paint against a BSP brush face: assign the picked material to
-    /// the face under the pointer, or sample it when the eyedropper is armed.
-    ///
-    /// One undo step per gesture. `brush_face_paint_stroke` is cleared on the
-    /// primary press (see `draw_viewport_3d_body`), so dragging across a whole
-    /// wall coalesces into a single snapshot rather than one per face. This is
-    /// deliberately one snapshot per stroke rather than per face.
-    pub(crate) fn paint_bsp_brush_face(&mut self, rect: egui::Rect, pointer: egui::Pos2) {
-        let Some((brush, face, _)) = self.pick_brush_face_nearest_for_selection_3d(rect, pointer)
-        else {
-            self.status = if self.material_paint_sampling {
-                "Eyedropper needs a BSP brush face under the cursor".to_string()
-            } else {
-                "Material Paint needs a BSP brush face under the cursor".to_string()
-            };
-            return;
-        };
-        self.paint_bsp_brush_face_target(brush, face);
-    }
-
-    pub(crate) fn paint_bsp_brush_face_target(&mut self, brush: usize, face: usize) {
-        if self.material_paint_sampling {
-            self.sample_material_from_brush_face(brush, face);
-            return;
-        }
-        let Some(material) = self.paint_material_for("brick") else {
-            self.status = "Material Paint needs a Material resource".to_string();
-            return;
-        };
-        let Some(current) = self
-            .project
-            .active_scene()
-            .brushes
-            .get(brush)
-            .and_then(|brush| brush.faces.get(face))
-            .map(|face| face.material)
-        else {
-            return;
-        };
-        // Re-painting the same material is a no-op, which also keeps a drag
-        // that dwells on one face from churning the document.
-        if current == Some(material) {
-            return;
-        }
-        if !self.brush_face_paint_stroke {
-            self.push_undo();
-            self.brush_face_paint_stroke = true;
-        }
-        self.project.active_scene_mut().brushes[brush].faces[face].material = Some(material);
-        self.mark_dirty();
-        let name = self
-            .project
-            .resource_name(material)
-            .unwrap_or("(missing)")
-            .to_string();
-        self.status = format!("Painted {name} onto brush {} face {}", brush + 1, face + 1);
-    }
-
-    /// Eyedropper on a BSP brush face. Writes the picker AND the resource
-    /// selection, so the very next paint uses the sampled material.
-    fn sample_material_from_brush_face(&mut self, brush: usize, face: usize) {
-        let Some(Some(material)) = self
-            .project
-            .active_scene()
-            .brushes
-            .get(brush)
-            .and_then(|brush| brush.faces.get(face))
-            .map(|face| face.material)
-        else {
-            self.status = format!("Brush {} face {} has no material", brush + 1, face + 1);
-            return;
-        };
-        let name = self
-            .project
-            .resource_name(material)
-            .unwrap_or("(missing)")
-            .to_string();
-        self.brush_material = Some(material);
-        self.replace_resource_selection(material);
-        self.material_paint_sampling = false;
-        self.status = format!("Sampled {name} from brush {} face {}", brush + 1, face + 1);
-        self.mark_shortcut_group_changed(ShortcutGroup::Tool);
-    }
-
-    /// Place the active `PlaceKind` on an upward-facing BSP brush surface.
-    /// The one-unit lift mirrors the tracked first-playable spawn and keeps
-    /// floor-anchored actors out of the solid boundary. Point lights receive
-    /// a useful room-height default and remain freely editable afterwards.
-    pub(crate) fn place_bsp_on_brush_face(
-        &mut self,
-        brush_index: usize,
-        face_index: usize,
-        mut hit: [f32; 3],
-    ) -> bool {
-        let upward = self
-            .project
-            .active_scene()
-            .brushes
-            .get(brush_index)
-            .and_then(|brush| brush.faces.get(face_index))
-            .and_then(|face| psxed_project::brush::Plane::from_points(face.points))
-            .is_some_and(|plane| {
-                plane.normal[1] > 0
-                    && plane.normal[1].abs() >= plane.normal[0].abs()
-                    && plane.normal[1].abs() >= plane.normal[2].abs()
-            });
-        if !upward {
-            self.status = "Place needs an upward-facing BSP surface".to_string();
-            return false;
-        }
-        hit[1] += self.bsp_place_height_offset();
-        self.place_bsp_at_world_hit(hit)
-    }
-
-    /// Top-view BSP placement chooses the upward face at the clicked X/Z
-    /// closest to the shared orthographic Y focus. This makes the initial
-    /// focus (`Y=0`) land on a room floor instead of the exterior roof while
-    /// still letting authors target upper floors by moving the shared focus.
-    pub(crate) fn place_bsp_from_top(&mut self, world: [f32; 2]) -> bool {
-        let Some(surface_y) = self.bsp_upward_surface_y(world, self.orthographic_focus[1]) else {
-            self.status = "Place over an upward-facing BSP brush surface".to_string();
-            return false;
-        };
-        self.place_bsp_at_world_hit([
-            world[0],
-            surface_y + self.bsp_place_height_offset(),
-            world[1],
-        ])
-    }
-
-    /// Vertical lift applied to a BSP placement anchor.
+    /// Vertical lift applied to a placement anchor.
     ///
     /// Floor-anchored actors get one unit so they never start inside the solid
     /// boundary, and point lights get a useful room-height default. Logic
@@ -203,7 +67,7 @@ impl EditorWorkspace {
     /// while the character motor stands its feet exactly on the floor plane,
     /// so a lifted anchor produces a volume that starts one unit above the
     /// player and can never fire.
-    pub(crate) fn bsp_place_height_offset(&self) -> f32 {
+    pub(crate) fn place_height_offset(&self) -> f32 {
         match self.place_kind {
             PlaceKind::PointLightMarker => 256.0,
             PlaceKind::Logic => 0.0,
@@ -211,11 +75,8 @@ impl EditorWorkspace {
         }
     }
 
-    pub(crate) fn place_bsp_at_world_hit(&mut self, hit: [f32; 3]) -> bool {
-        let Some(root) = self.bsp_authoring_root() else {
-            self.status = "Place needs a BSP brush world".to_string();
-            return false;
-        };
+    pub(crate) fn place_at_world_hit(&mut self, hit: [f32; 3]) -> bool {
+        let root = self.authoring_root();
         let before = self.project.active_scene().nodes().len();
         self.place_node_at_world_hit(root, hit);
         let placed = self.project.active_scene().nodes().len() > before;
@@ -238,156 +99,83 @@ impl EditorWorkspace {
         placed
     }
 
-    pub(crate) fn bsp_upward_surface_y(&self, world: [f32; 2], focus_y: f32) -> Option<f32> {
-        let point = world.map(f64::from);
-        let mut best: Option<(f64, f64)> = None;
-        for brush in &self.project.active_scene().brushes {
-            let solved = brush.solve();
-            if !solved.is_valid() {
-                continue;
-            }
-            for (face_index, polygon) in solved.polygons.iter().enumerate() {
-                let Some(polygon) = polygon else { continue };
-                let Some(face) = brush.faces.get(face_index) else {
-                    continue;
-                };
-                let Some(plane) = psxed_project::brush::Plane::from_points(face.points) else {
-                    continue;
-                };
-                if plane.normal[1] <= 0
-                    || plane.normal[1].abs() < plane.normal[0].abs()
-                    || plane.normal[1].abs() < plane.normal[2].abs()
-                {
-                    continue;
-                }
-                let projected = polygon
-                    .verts
-                    .iter()
-                    .map(|vertex| [vertex[0], vertex[2]])
-                    .collect::<Vec<_>>();
-                if !point_in_convex_xz(point, &projected) {
-                    continue;
-                }
-                let normal = plane.normal.map(|component| component as f64);
-                let y =
-                    (plane.dist as f64 - normal[0] * point[0] - normal[2] * point[1]) / normal[1];
-                let distance = (y - f64::from(focus_y)).abs();
-                if best.is_none_or(|(best_distance, best_y)| {
-                    distance < best_distance || (distance == best_distance && y < best_y)
-                }) {
-                    best = Some((distance, y));
-                }
-            }
-        }
-        best.map(|(_, y)| y as f32)
+    /// Height of the floor under an editor-space X/Z, or the shared
+    /// orthographic Y focus when the scene has no grid world or no floor
+    /// there.
+    pub(crate) fn floor_y_at(&self, world: [f32; 2]) -> f32 {
+        self.project
+            .active_scene()
+            .world
+            .grid()
+            .and_then(|grid| {
+                grid.floor_height_at(
+                    world[0].round() as i32,
+                    world[1].round() as i32,
+                    i32::MAX / 2,
+                )
+            })
+            .map_or(self.orthographic_focus[1], |y| y as f32)
     }
 
-    /// Drop a resource into a BSP scene: models/characters/weapons land on
-    /// the upward brush face under the pointer (like the Place tool);
-    /// materials assign to whichever brush face is hit.
-    pub(crate) fn drop_resource_bsp_3d(
+    /// Top-view placement of the active `PlaceKind` on the floor under the
+    /// clicked X/Z.
+    pub(crate) fn place_node_from_top(&mut self, world: [f32; 2]) -> bool {
+        self.place_at_world_hit([
+            world[0],
+            self.floor_y_at(world) + self.place_height_offset(),
+            world[1],
+        ])
+    }
+
+    /// Drop a resource into the scene from the 3D view: models, characters
+    /// and weapons land on the grid face under the pointer, one unit above it.
+    pub(crate) fn drop_resource_3d(
         &mut self,
         resource_id: ResourceId,
         rect: egui::Rect,
         pointer: egui::Pos2,
     ) {
-        let Some(root) = self.bsp_authoring_root() else {
-            self.status = "Drop needs a BSP brush world".to_string();
-            return;
-        };
-        let Some(resource) = self.project.resource(resource_id) else {
-            self.status = format!("Resource #{} no longer exists", resource_id.raw());
-            return;
-        };
-        if matches!(resource.data, psxed_project::ResourceData::Material(_)) {
-            let name = resource.name.clone();
-            let Some((brush, face, _)) = self.pick_brush_face_with_hit(rect, pointer) else {
-                self.status = "Drop the material onto a brush face".to_string();
-                return;
-            };
-            self.push_undo();
-            if let Some(face_data) = self
-                .project
-                .active_scene_mut()
-                .brushes
-                .get_mut(brush)
-                .and_then(|brush| brush.faces.get_mut(face))
-            {
-                face_data.material = Some(resource_id);
-                self.replace_brush_selection(brush, Some(face));
-                self.clear_node_selection_state();
-                self.status = format!("Assigned {} to brush {} face {}", name, brush + 1, face);
-                self.mark_dirty();
-            }
-            return;
-        }
-        let Some((brush, face, mut hit)) = self.pick_brush_face_with_hit(rect, pointer) else {
-            self.status = "Drop onto an upward-facing BSP brush surface".to_string();
-            return;
-        };
-        let upward = self
-            .project
-            .active_scene()
-            .brushes
-            .get(brush)
-            .and_then(|brush| brush.faces.get(face))
-            .and_then(|face| psxed_project::brush::Plane::from_points(face.points))
-            .is_some_and(|plane| {
-                plane.normal[1] > 0
-                    && plane.normal[1].abs() >= plane.normal[0].abs()
-                    && plane.normal[1].abs() >= plane.normal[2].abs()
-            });
-        if !upward {
-            self.status = "Drop onto an upward-facing BSP brush surface".to_string();
-            return;
-        }
-        // Same one-unit floor clearance the Place tool applies.
-        hit[1] += 1.0;
-        self.drop_resource_at_room_hit(resource_id, root, hit);
-    }
-
-    pub(crate) fn drop_resource_2d(&mut self, resource_id: ResourceId, editor_world: [f32; 2]) {
-        let Some(root) = self.bsp_authoring_root() else {
-            self.status = "Drop needs a BSP brush world".to_string();
-            return;
-        };
         let Some(resource) = self.project.resource(resource_id) else {
             self.status = format!("Resource #{} no longer exists", resource_id.raw());
             return;
         };
         if matches!(resource.data, ResourceData::Material(_)) {
-            let name = resource.name.clone();
-            let Some((brush, face)) = self.pick_brush_face_for_selection_at_2d(editor_world) else {
-                self.status = "Drop the material onto a brush face".to_string();
-                return;
-            };
-            self.push_undo();
-            if let Some(face_data) = self
-                .project
-                .active_scene_mut()
-                .brushes
-                .get_mut(brush)
-                .and_then(|brush| brush.faces.get_mut(face))
-            {
-                face_data.material = Some(resource_id);
-            }
-            self.mark_dirty();
-            self.status = format!(
-                "Assigned {name} to BSP brush {} face {}",
-                brush + 1,
-                face + 1
-            );
+            self.status =
+                "Materials are applied from the palette: select faces, then click a swatch"
+                    .to_string();
             return;
         }
-        let Some(surface_y) = self.bsp_upward_surface_y(editor_world, self.orthographic_focus[1])
-        else {
-            self.status = "Drop over an upward-facing BSP brush surface".to_string();
+        let Some(hit) = self.pick_face_3d(rect, pointer) else {
+            self.status = "Drop onto a floor face".to_string();
             return;
         };
+        let mut point = hit.point;
+        // The same one-unit floor clearance the Place tool applies.
+        point[1] += 1.0;
+        let root = self.authoring_root();
+        self.drop_resource_at_room_hit(resource_id, root, point);
+    }
+
+    pub(crate) fn drop_resource_2d(&mut self, resource_id: ResourceId, editor_world: [f32; 2]) {
+        let Some(resource) = self.project.resource(resource_id) else {
+            self.status = format!("Resource #{} no longer exists", resource_id.raw());
+            return;
+        };
+        if matches!(resource.data, ResourceData::Material(_)) {
+            self.status =
+                "Materials are applied from the palette: select faces, then click a swatch"
+                    .to_string();
+            return;
+        }
+        let root = self.authoring_root();
         self.drop_resource_at_room_hit(
             resource_id,
             root,
-            [editor_world[0], surface_y + 1.0, editor_world[1]],
+            [
+                editor_world[0],
+                self.floor_y_at(editor_world) + 1.0,
+                editor_world[1],
+            ],
         );
     }
 
@@ -863,7 +651,7 @@ impl EditorWorkspace {
         })
     }
 
-    /// Place the active entity kind at a BSP world-space hit.
+    /// Place the active entity kind at a world-space hit.
     pub(crate) fn place_node_at_world_hit(&mut self, room_id: NodeId, hit_world: [f32; 3]) {
         let sector_size_i = DEFAULT_WORLD_SECTOR_SIZE;
         let arch_tile_size = self.project.world_sector_size_for_node(room_id);
@@ -1204,43 +992,6 @@ impl EditorWorkspace {
         self.return_to_select_after_place();
     }
 
-    pub(crate) fn material_target_value(&self, target: MaterialTarget) -> Option<ResourceId> {
-        match target {
-            MaterialTarget::BrushFace { brush, face } => self
-                .project
-                .active_scene()
-                .brushes
-                .get(brush)
-                .and_then(|brush| brush.faces.get(face))
-                .and_then(|face| face.material),
-        }
-    }
-
-    /// Reassign every selected brush face in one undo step.
-    pub(crate) fn assign_selected_faces_material(&mut self, material: Option<ResourceId>) -> usize {
-        let targets = self.selected_material_targets();
-        if targets.is_empty() {
-            return 0;
-        }
-        let needs_update = targets
-            .iter()
-            .any(|target| self.material_target_value(*target) != material);
-        if !needs_update {
-            return 0;
-        }
-        self.push_undo();
-        let mut updated = 0usize;
-        for target in targets {
-            if self.assign_material_target_no_undo(target, material) {
-                updated += 1;
-            }
-        }
-        if updated > 0 {
-            self.mark_dirty();
-        }
-        updated
-    }
-
     pub(crate) fn apply_selected_box_prop_resource_click(&mut self, click: ResourceClick) -> bool {
         let plain_click =
             !click.modifiers.shift && !click.modifiers.ctrl && !click.modifiers.command;
@@ -1360,132 +1111,4 @@ impl EditorWorkspace {
         }
         updated
     }
-
-    pub(crate) fn selected_material_targets(&self) -> Vec<MaterialTarget> {
-        let mut targets = Vec::new();
-        for target in self.selected_brush_material_targets() {
-            push_unique_material_target(&mut targets, target);
-        }
-        targets
-    }
-
-    /// Material surfaces implied by the current brush selection. Explicit
-    /// face elements remain precise for a single brush; selecting whole
-    /// brushes means every face, and a multi-brush selection always behaves
-    /// as one whole-object material target.
-    pub(crate) fn selected_brush_material_targets(&self) -> Vec<MaterialTarget> {
-        let brushes = self.selected_brush_set();
-        if brushes.is_empty() {
-            return Vec::new();
-        }
-        if self.brush_edit_mode == BrushEditMode::Face {
-            return self
-                .selected_brush_faces
-                .iter()
-                .copied()
-                .filter(|(brush, face)| {
-                    self.project
-                        .active_scene()
-                        .brushes
-                        .get(*brush)
-                        .and_then(|brush| brush.faces.get(*face))
-                        .is_some()
-                })
-                .map(|(brush, face)| MaterialTarget::BrushFace { brush, face })
-                .collect();
-        }
-        // Brush/Move mode is an object selection even though picking retains
-        // the hit face for cycling and Inspector context. Never let that
-        // implementation detail silently turn a brush material assignment
-        // into a one-face edit.
-        if brushes.len() == 1 && self.brush_edit_mode != BrushEditMode::Move {
-            let brush = brushes[0];
-            let mut faces: Vec<usize> = self
-                .selected_brush_elements
-                .iter()
-                .filter_map(|element| match element {
-                    BrushElement::Face(face) => Some(*face),
-                    BrushElement::Edge(..) | BrushElement::Vertex(_) => None,
-                })
-                .collect();
-            if faces.is_empty() {
-                faces.extend(self.selected_brush_face);
-            }
-            if !faces.is_empty() {
-                faces.sort_unstable();
-                faces.dedup();
-                return faces
-                    .into_iter()
-                    .filter(|face| {
-                        self.project
-                            .active_scene()
-                            .brushes
-                            .get(brush)
-                            .and_then(|brush| brush.faces.get(*face))
-                            .is_some()
-                    })
-                    .map(|face| MaterialTarget::BrushFace { brush, face })
-                    .collect();
-            }
-        }
-        let scene = self.project.active_scene();
-        brushes
-            .into_iter()
-            .flat_map(|brush| {
-                let face_count = scene
-                    .brushes
-                    .get(brush)
-                    .map_or(0, |brush| brush.faces.len());
-                (0..face_count).map(move |face| MaterialTarget::BrushFace { brush, face })
-            })
-            .collect()
-    }
-
-    pub(crate) fn assign_material_target_no_undo(
-        &mut self,
-        target: MaterialTarget,
-        material: Option<ResourceId>,
-    ) -> bool {
-        match target {
-            MaterialTarget::BrushFace { brush, face } => {
-                let Some(face) = self
-                    .project
-                    .active_scene_mut()
-                    .brushes
-                    .get_mut(brush)
-                    .and_then(|brush| brush.faces.get_mut(face))
-                else {
-                    return false;
-                };
-                if face.material == material {
-                    return false;
-                }
-                face.material = material;
-                true
-            }
-        }
-    }
-}
-
-fn point_in_convex_xz(point: [f64; 2], polygon: &[[f64; 2]]) -> bool {
-    if polygon.len() < 3 {
-        return false;
-    }
-    let mut winding = 0i8;
-    let mut has_area = false;
-    for index in 0..polygon.len() {
-        let a = polygon[index];
-        let b = polygon[(index + 1) % polygon.len()];
-        let cross = (b[0] - a[0]) * (point[1] - a[1]) - (b[1] - a[1]) * (point[0] - a[0]);
-        if cross.abs() <= 1.0e-7 {
-            continue;
-        }
-        has_area = true;
-        let sign = if cross > 0.0 { 1 } else { -1 };
-        if winding != 0 && winding != sign {
-            return false;
-        }
-        winding = sign;
-    }
-    has_area
 }

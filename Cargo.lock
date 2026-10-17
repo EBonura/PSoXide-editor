@@ -47,21 +47,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "alloc-no-stdlib"
-version = "3.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2fb6cfd47bf496ff64095c20eaba0c201404ee38714d4142fcfa1dc334fcc7a"
-
-[[package]]
-name = "alloc-stdlib"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b5c1865780388bfa186411ab5f247819487fc4864c6e9c3106611fa347586e1"
-dependencies = [
- "alloc-no-stdlib",
-]
-
-[[package]]
 name = "allocator-api2"
 version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -593,16 +578,6 @@ dependencies = [
  "futures-io",
  "futures-lite",
  "piper",
-]
-
-[[package]]
-name = "brotli-decompressor"
-version = "6.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1473a798e9776ca115dd0bd3712d939d66dd293939864bd7d68bb2031ec66954"
-dependencies = [
- "alloc-no-stdlib",
- "alloc-stdlib",
 ]
 
 [[package]]
@@ -3412,13 +3387,6 @@ dependencies = [
 [[package]]
 name = "psx-bsp"
 version = "0.1.0"
-dependencies = [
- "psx-engine",
- "psx-gpu",
- "psx-gte",
- "psx-math",
- "psx-pack",
-]
 
 [[package]]
 name = "psx-cdstream"
@@ -3506,7 +3474,6 @@ dependencies = [
 name = "psx-grid"
 version = "0.1.0"
 dependencies = [
- "psx-bsp",
  "psx-engine",
  "psx-gpu",
  "psx-gte",
@@ -3557,13 +3524,6 @@ dependencies = [
 [[package]]
 name = "psx-math"
 version = "0.1.0"
-
-[[package]]
-name = "psx-pack"
-version = "0.1.0"
-dependencies = [
- "psx-io",
-]
 
 [[package]]
 name = "psx-pad"
@@ -3703,13 +3663,11 @@ dependencies = [
 name = "psxed-project"
 version = "0.1.0"
 dependencies = [
- "brotli-decompressor",
  "flate2",
  "image",
  "psx-anim-tracks",
  "psx-asset",
  "psx-audio-cook",
- "psx-bsp",
  "psx-engine",
  "psx-font",
  "psx-grid",
@@ -3741,7 +3699,6 @@ dependencies = [
  "egui",
  "image",
  "psx-asset",
- "psx-bsp",
  "psx-engine",
  "psx-font",
  "psx-gte",

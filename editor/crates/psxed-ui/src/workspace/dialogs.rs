@@ -28,7 +28,6 @@ impl EditorWorkspace {
     ) {
         self.poll_project_watch(false);
         self.publish_grid_room_visibility();
-        self.poll_bsp_leak_refresh(ctx);
         apply_studio_visuals(ctx);
         if self.character_motion_preview().is_some() {
             ctx.request_repaint_after(std::time::Duration::from_millis(16));
@@ -50,7 +49,7 @@ impl EditorWorkspace {
         // A New/Delete Project dialog is waiting on the user: editor
         // shortcuts would otherwise edit (or undo) the project behind it,
         // and Delete Project has no text field to hold keyboard focus.
-        let dialog_open = !matches!(self.modal, Modal::None) || self.terrain_editor.is_some();
+        let dialog_open = !matches!(self.modal, Modal::None);
         if !playtest_captured && !dialog_open {
             self.handle_global_shortcuts(ctx, playtest_status);
         }
@@ -75,109 +74,20 @@ impl EditorWorkspace {
         self.draw_viewport(ctx, viewport_3d, playtest_status);
         self.draw_clipboard_notice(ctx);
         self.draw_new_project_dialog(ctx);
-        self.draw_new_grid_project_dialog(ctx);
         self.draw_delete_project_dialog(ctx);
         self.draw_unsaved_changes_dialog(ctx);
-        self.draw_brush_overlap_dialog(ctx);
-        self.draw_terrain_editor(ctx);
         self.draw_texture_import_dialog(ctx);
         self.draw_model_import_dialog(ctx);
     }
 
-    /// Modal for the File → New Project flow. Pops over the editor
-    /// when the active [`Modal`] is `NewProject`; submit calls
-    /// [`Self::create_and_open_project`] and re-targets the
-    /// workspace at the new directory.
+    /// Modal for File → New Project.
     pub(crate) fn draw_new_project_dialog(&mut self, ctx: &egui::Context) {
-        let Modal::NewProject {
-            name,
-            cook_mode,
-            error,
-        } = &mut self.modal
-        else {
+        let Modal::NewProject { name, error } = &mut self.modal else {
             return;
         };
         let mut close = false;
         let mut submit = false;
         egui::Window::new(icons::label(icons::FILE_PLUS, "New Project"))
-            .collapsible(false)
-            .resizable(false)
-            .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
-            .show(ctx, |ui| {
-                ui.set_min_width(360.0);
-                ui.label("Project name");
-                let response =
-                    ui.add(egui::TextEdit::singleline(name).hint_text("e.g. Test Level"));
-                let preview_stem = if name.trim().is_empty() {
-                    "<name>".to_string()
-                } else {
-                    psxed_project::project_file_stem(name.trim())
-                };
-                ui.label(
-                    RichText::new(format!("→ editor/projects/{}/", preview_stem))
-                        .color(STUDIO_TEXT_WEAK)
-                        .small(),
-                );
-                ui.add_space(8.0);
-                ui.label("BSP cook quality");
-                for mode in psxed_project::brush_world::BrushWorldCookMode::ALL {
-                    ui.radio_value(cook_mode, mode, mode.label())
-                        .on_hover_text(mode.description());
-                }
-                ui.label(
-                    RichText::new(cook_mode.description())
-                        .color(STUDIO_TEXT_WEAK)
-                        .small(),
-                );
-                if let Some(error) = error.as_ref() {
-                    ui.label(RichText::new(error).color(Color32::from_rgb(0xE0, 0x60, 0x60)));
-                }
-                ui.add_space(8.0);
-                ui.horizontal(|ui| {
-                    if ui.button("Cancel").clicked() {
-                        close = true;
-                    }
-                    if ui.button("Create").clicked() {
-                        submit = true;
-                    }
-                });
-                if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                    submit = true;
-                }
-                if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-                    close = true;
-                }
-            });
-        if submit {
-            if let Modal::NewProject {
-                name, cook_mode, ..
-            } = &self.modal
-            {
-                let name = name.clone();
-                let cook_mode = *cook_mode;
-                match self.create_and_open_project_with_mode(&name, cook_mode) {
-                    Ok(()) => self.modal = Modal::None,
-                    Err(error) => {
-                        if let Modal::NewProject { error: slot, .. } = &mut self.modal {
-                            *slot = Some(error);
-                        }
-                    }
-                }
-            }
-        }
-        if close {
-            self.modal = Modal::None;
-        }
-    }
-
-    /// Modal for File → New Grid Project.
-    pub(crate) fn draw_new_grid_project_dialog(&mut self, ctx: &egui::Context) {
-        let Modal::NewGridProject { name, error } = &mut self.modal else {
-            return;
-        };
-        let mut close = false;
-        let mut submit = false;
-        egui::Window::new(icons::label(icons::FILE_PLUS, "New Grid Project"))
             .collapsible(false)
             .resizable(false)
             .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
@@ -223,12 +133,12 @@ impl EditorWorkspace {
                 }
             });
         if submit {
-            if let Modal::NewGridProject { name, .. } = &self.modal {
+            if let Modal::NewProject { name, .. } = &self.modal {
                 let name = name.clone();
-                match self.create_and_open_grid_project(&name) {
+                match self.create_and_open_project(&name) {
                     Ok(()) => self.modal = Modal::None,
                     Err(message) => {
-                        if let Modal::NewGridProject { error: slot, .. } = &mut self.modal {
+                        if let Modal::NewProject { error: slot, .. } = &mut self.modal {
                             *slot = Some(message);
                         }
                     }

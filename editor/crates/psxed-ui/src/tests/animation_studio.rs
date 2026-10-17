@@ -10,7 +10,7 @@ use crate::model_animation_viewer::{
 };
 use crate::{icons, EditorWorkspace};
 
-use super::brush_tools::{
+use super::egui_driver::{
     press_release, real_egui_workspace_ctx, real_egui_workspace_frame, text_shape_centers,
 };
 

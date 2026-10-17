@@ -37,6 +37,9 @@
 !grid-sewers/**
 !grid-west/
 !grid-west/**
+# The New Project template: the starter room File > New Grid Project makes.
+!grid-starter/
+!grid-starter/**
 # cortex-two-area-level: only the project, its own cooked textures and the two
 # layout sources are tracked. review/ (candidate discs and screenshots, 8 GB),
 # the generator scripts, the Blender files and the ground-paint

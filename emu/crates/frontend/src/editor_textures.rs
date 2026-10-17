@@ -423,8 +423,8 @@ impl EditorTextures {
                 SCENE_SKY_LAYERED_PAGES
             }
             SkyMode::Cube
-                if [texture.width(), texture.height()] == psx_bsp::sky::CUBE_SKY_ATLAS_SIZE
-                    && texture.clut_entries() == psx_bsp::sky::CUBE_SKY_CLUT_ENTRIES =>
+                if [texture.width(), texture.height()] == psx_engine::sky::CUBE_SKY_ATLAS_SIZE
+                    && texture.clut_entries() == psx_engine::sky::CUBE_SKY_CLUT_ENTRIES =>
             {
                 SCENE_SKY_CUBE_PAGES
             }
@@ -1769,14 +1769,14 @@ fn align_up_to(value: u16, boundary: u16) -> u16 {
 mod tests {
     use super::{
         align_up_to, model_atlas_clut_entry, opaque_room_clut_entry, preview_clut_entry,
-        preview_texture_upload_plan, EditorTextures, MODEL_CLUT_FIRST_Y, SCENE_SKY_CLUT_Y,
+        preview_texture_upload_plan, EditorTextures, MODEL_CLUT_FIRST_Y,
         SHADOW_CLUT_X, SHADOW_CLUT_Y, SHADOW_TPAGE_X, SHADOW_TPAGE_Y,
     };
     use psx_gpu::material::TextureWindow;
     use psx_gpu_render::VRAM_WIDTH;
     use psxed_project::{
         FarVistaSettings, GeneratedMaterialTexture, MaterialResource, MaterialTextureMode,
-        ModelSecondaryLayer, NodeKind, ProjectDocument, PsxBlendMode, ResourceData, SkyMode,
+        ModelSecondaryLayer, NodeKind, ProjectDocument, PsxBlendMode, ResourceData,
         TransitionMaterialTexture,
     };
     use std::path::{Path, PathBuf};
@@ -1786,35 +1786,6 @@ mod tests {
         name: impl Into<String>,
     ) -> psxed_project::ResourceId {
         project.add_resource(name, ResourceData::Material(MaterialResource::opaque(None)))
-    }
-
-    #[test]
-    fn directional_world_sky_reserves_six_pages_ahead_of_room_materials() {
-        let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../..")
-            .canonicalize()
-            .expect("repo root");
-        let project_root = repo_root.join("editor/archive/fixtures/brush-directional-sky");
-        let project = ProjectDocument::load_from_path(project_root.join("project.ron"))
-            .expect("directional sky fixture loads and migrates");
-        let mut textures = EditorTextures::new();
-        textures.refresh(&project, &project_root);
-
-        let sky = textures.scene_sky_slot().expect("cube sky preview slot");
-        assert_eq!(sky.mode, SkyMode::Cube);
-        assert_eq!(sky.tpage_word & 0x0f, 5);
-        assert_eq!(sky.clut_word >> 6, SCENE_SKY_CLUT_Y);
-
-        let room_slot = project
-            .resources
-            .iter()
-            .filter_map(|resource| textures.slot(resource.id))
-            .next()
-            .expect("ordinary courtyard material remains previewable");
-        assert!(
-            room_slot.tpage_word & 0x0f >= 11,
-            "ordinary room texture overlapped one of the six cube pages"
-        );
     }
 
     fn write_test_indexed_psxt(width: u16, height: u16, depth: u8) -> PathBuf {
@@ -2321,11 +2292,14 @@ mod tests {
                 project.add_resource("Sword1 Light Copy", sword.data.clone()),
             )
         };
-        let mut brush = psxed_project::brush::Brush::cuboid([0, 0, 0], [512, 256, 512]);
-        for face in &mut brush.faces {
-            face.material = Some(floor_id);
-        }
-        project.active_scene_mut().brushes.push(brush);
+        let mut room = psxed_project::grid::GridRoom::new("hall", 1, 1);
+        room.sector_or_insert(0, 0).unwrap().floor =
+            Some(psxed_project::grid::GridSurface::flat(0, Some(floor_id)));
+        project.active_scene_mut().world =
+            psxed_project::grid::SceneWorld::Grid(psxed_project::grid::GridWorld {
+                rooms: vec![room],
+                ..psxed_project::grid::GridWorld::new()
+            });
 
         let mut textures = EditorTextures::new();
         textures.refresh(&project, &root);

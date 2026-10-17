@@ -9,7 +9,7 @@ fn gizmo_pick_map_diagnostic() {
     // Big room so the floor fills the view behind the gizmo at every
     // zoom -- gaps in the handle pick then show as '#' (tile), the way
     // they do in a real level, not '.' (ray missed the small floor).
-    let mut harness = ViewportHarness::floored("gizmo-pick-map", 24);
+    let mut harness = ViewportHarness::with_extent("gizmo-pick-map", 24);
     let light = harness.add_centre_light(0.25);
     harness.select(light);
     let target = harness.world_center();
@@ -99,9 +99,8 @@ fn node_gizmo_no_tile_inside_plane_footprint() {
     // a few px) and the axis tubes, leaving wedges of bare tile
     // between them. This sweeps each plane's footprint triangle
     // (pivot + the two axis endpoints) and requires every interior
-    // point to resolve to a gizmo handle, never a floor Surface.
-    // Big room so the floor is always behind the gizmo.
-    let mut harness = ViewportHarness::floored("gizmo-footprint", 24);
+    // point to resolve to a gizmo handle, never anything else.
+    let mut harness = ViewportHarness::with_extent("gizmo-footprint", 24);
     let light = harness.add_centre_light(0.25);
     harness.select(light);
     let target = harness.world_center();
@@ -132,9 +131,9 @@ fn node_gizmo_no_tile_inside_plane_footprint() {
                     checked += 1;
                     let resolved = harness.resolve(probe);
                     assert!(
-                        !matches!(resolved, Some(Viewport3dPointerTarget::Brush { .. })),
+                        matches!(resolved, Some(Viewport3dPointerTarget::NodeGizmo(_))),
                         "dist {distance}, {plane:?} footprint: click at {probe:?} \
-                             grabbed the tile ({resolved:?}) instead of a gizmo handle",
+                             resolved to {resolved:?} instead of a gizmo handle",
                     );
                 }
             }
@@ -148,7 +147,7 @@ fn node_gizmo_no_tile_inside_plane_footprint() {
 
 #[test]
 fn node_gizmo_xz_plane_grabbable_across_zoom_out() {
-    let mut harness = ViewportHarness::floored("gizmo-zoom-grab", 4);
+    let mut harness = ViewportHarness::with_extent("gizmo-zoom-grab", 4);
     let light = harness.add_centre_light(0.25);
     harness.select(light);
     let target = harness.world_center();
@@ -236,7 +235,7 @@ fn node_gizmo_plane_click_never_falls_through_to_tile() {
     // the fix each must resolve to the XZ plane handle. The final
     // assert that the band was non-empty stops this silently becoming a
     // no-op if the projection ever changes.
-    let mut harness = ViewportHarness::floored("gizmo-no-tile-fallthrough", 4);
+    let mut harness = ViewportHarness::with_extent("gizmo-no-tile-fallthrough", 4);
     let light = harness.add_centre_light(0.25);
     harness.select(light);
     let target = harness.world_center();

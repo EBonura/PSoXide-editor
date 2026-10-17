@@ -9,8 +9,8 @@
 
 use super::*;
 
-use crate::workspace::tools::{SelectTool, ToolFrame3d, ViewportTool3d};
 use crate::workspace::tools2d::{ToolFrame2d, ViewportTool2d};
+use crate::workspace::tools3d::{SelectTool, ToolFrame3d, ViewportTool3d};
 
 use super::{
     clipboard_tool, face_tools, height_tool, place_tool, rect_tool, select_tool, wall_tool,

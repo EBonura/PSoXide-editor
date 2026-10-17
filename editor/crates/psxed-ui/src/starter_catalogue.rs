@@ -1,21 +1,45 @@
 use super::*;
 
-/// Recursive directory copy. `std` doesn't ship one and we only
-/// need it for the New-Project flow, so a 15-line helper is
+/// Recursive directory copy. `std` doesn't ship one, so a small helper is
 /// preferable to taking a dep on `fs_extra`.
+///
+/// A symlink to a directory (a grid project's `assets` points at its base
+/// project) is recreated as a link rather than followed, so the copy keeps
+/// sharing the base's files. A relative link keeps its text when the copy
+/// lands beside the original and is resolved to an absolute path otherwise.
 pub(crate) fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(dst)?;
     for entry in std::fs::read_dir(src)? {
         let entry = entry?;
         let from = entry.path();
         let to = dst.join(entry.file_name());
-        if entry.file_type()?.is_dir() {
+        let kind = entry.file_type()?;
+        if kind.is_symlink() && from.is_dir() {
+            copy_dir_symlink(&from, src, dst, &to)?;
+        } else if kind.is_dir() {
             copy_dir_recursive(&from, &to)?;
         } else {
             std::fs::copy(&from, &to)?;
         }
     }
     Ok(())
+}
+
+#[cfg(unix)]
+fn copy_dir_symlink(from: &Path, src: &Path, dst: &Path, to: &Path) -> std::io::Result<()> {
+    let text = std::fs::read_link(from)?;
+    let beside = src.parent().is_some() && src.parent() == dst.parent();
+    let target = if text.is_relative() && !beside {
+        std::fs::canonicalize(from)?
+    } else {
+        text
+    };
+    std::os::unix::fs::symlink(target, to)
+}
+
+#[cfg(not(unix))]
+fn copy_dir_symlink(from: &Path, _src: &Path, _dst: &Path, to: &Path) -> std::io::Result<()> {
+    copy_dir_recursive(from, to)
 }
 
 #[derive(Debug, Default)]

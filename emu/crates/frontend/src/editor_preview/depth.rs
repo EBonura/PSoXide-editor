@@ -41,11 +41,6 @@ pub(super) fn preview_scene_depth_range(
             farthest = farthest.max(depth.saturating_add(1024));
         }
     };
-    with_cached_csg_surfaces(project, hidden, |surfaces| {
-        for surface in surfaces {
-            include_bounds(surface.bounds.min, surface.bounds.max);
-        }
-    });
     if let Some((min, max)) = grid_world_bounds(project) {
         include_bounds(min, max);
     }

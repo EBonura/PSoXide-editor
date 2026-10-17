@@ -32,7 +32,6 @@ impl EditorWorkspace {
         });
         self.grid.last_room = primary.room();
         self.clear_node_selection_state();
-        self.clear_brush_selection();
         if scroll_to.is_some() {
             self.grid.palette_scroll_to = scroll_to;
         }

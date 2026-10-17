@@ -1,20 +1,14 @@
 use super::*;
 
-pub(crate) mod brush_elements;
-mod brush_overlaps;
 mod dialogs;
 mod editing;
 mod geometry;
-mod groups;
-pub(crate) use groups::BrushGroupPick;
 mod input;
 mod painting;
 mod panels;
 mod selection;
-pub(crate) mod terrain;
 mod toolbars;
-pub(crate) mod tools;
 pub(crate) mod tools2d;
+pub(crate) mod tools3d;
 mod ui_scene;
-pub(crate) mod uv_canvas;
 mod viewport;

@@ -60,9 +60,9 @@ pub(super) fn click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
         ws.status = "Place over the floor".to_string();
         return;
     };
-    if ws.place_bsp_at_world_hit([
+    if ws.place_at_world_hit([
         position[0],
-        position[1] + ws.bsp_place_height_offset(),
+        position[1] + ws.place_height_offset(),
         position[2],
     ]) {
         ws.return_to_select_after_place();

@@ -181,12 +181,6 @@ impl EditorWorkspace {
                         if self.show_grid && !self.is_grid_world() {
                             draw_world_grid(&painter, transform, self.snap_units.max(1) as f32);
                         }
-                        // Background and projected surface grids are independent:
-                        // hiding the viewport grid must not also erase the grid
-                        // laid over brush faces.
-                        let brush_surface_grid_step = self
-                            .show_brush_surface_grid
-                            .then_some(self.snap_units.max(1) as f32);
 
                         if top_view {
                             if let Some(world) = self.project.active_scene().world.grid() {
@@ -227,12 +221,6 @@ impl EditorWorkspace {
                             .hover_pos()
                             .or_else(|| response.interact_pointer_pos())
                             .map(|pos| transform.screen_to_world(pos));
-                        let primary_down = ui
-                            .input(|input| input.pointer.button_down(egui::PointerButton::Primary));
-                        if !primary_down {
-                            self.interaction.take_box_select_2d();
-                        }
-                        let bsp_brush_marquee = !self.project.active_scene().brushes.is_empty();
                         let tool_frame = tools2d::ToolFrame2d {
                             rect,
                             transform,
@@ -248,8 +236,6 @@ impl EditorWorkspace {
                             dragged: response.dragged_by(egui::PointerButton::Primary),
                             drag_stopped: response.drag_stopped_by(egui::PointerButton::Primary),
                             clicked: response.clicked_by(egui::PointerButton::Primary),
-                            double_clicked: response
-                                .double_clicked_by(egui::PointerButton::Primary),
                         };
                         let tool2d = tools2d::tool_impl_2d(self);
                         tool2d.hover(self, ui, &tool_frame);
@@ -286,16 +272,7 @@ impl EditorWorkspace {
                             orthographic_view,
                             self.is_grid_world(),
                         );
-                        draw_viewport_box_select_marquee(
-                            &painter,
-                            (top_view || bsp_brush_marquee)
-                                .then(|| self.viewport_box_select_rect())
-                                .flatten(),
-                        );
-                        self.draw_brush_footprints_2d(&painter, transform, brush_surface_grid_step);
-                        self.draw_bsp_leak_path_2d(&painter, transform, orthographic_view);
                         draw_axes_gizmo(&painter, rect, orthographic_view);
-                        self.draw_bsp_leak_notice(&painter, rect);
                         if resource_drop_hovered {
                             painter.rect_stroke(
                                 rect.shrink(2.0),
@@ -419,19 +396,8 @@ impl EditorWorkspace {
             self.draw_grid_tool_strip(ui);
             self.draw_grid_context_controls(ui);
         } else {
-            self.draw_bsp_mode_strip(ui);
-            self.draw_bsp_add_menu(ui);
-            ui.menu_button("Terrain", |ui| {
-                if ui.button("Generate terrain…").clicked() {
-                    self.open_terrain_editor(false);
-                    ui.close_menu();
-                }
-                if ui.button("Edit selected terrain…").clicked() {
-                    self.open_terrain_editor(true);
-                    ui.close_menu();
-                }
-            });
-            self.draw_bsp_context_controls(ui);
+            ui.weak("No grid world in this scene");
+            self.draw_add_menu(ui);
             ui.separator();
             self.draw_grid_controls(ui);
         }
@@ -472,95 +438,7 @@ impl EditorWorkspace {
         );
     }
 
-    pub(crate) fn active_bsp_toolbar_mode(&self) -> Option<BspToolbarMode> {
-        match self.active_tool {
-            ViewTool::Brush => Some(BspToolbarMode::Draw),
-            ViewTool::PaintMaterial => Some(BspToolbarMode::Paint),
-            ViewTool::Select => Some(match self.brush_edit_mode {
-                BrushEditMode::Move => BspToolbarMode::Select,
-                BrushEditMode::Face => BspToolbarMode::Face,
-                BrushEditMode::Edge => BspToolbarMode::Edge,
-                BrushEditMode::Vertex => BspToolbarMode::Vertex,
-                BrushEditMode::Clip => BspToolbarMode::Clip,
-            }),
-            ViewTool::Place => None,
-        }
-    }
-
-    pub(crate) fn set_bsp_toolbar_mode(&mut self, mode: BspToolbarMode) {
-        let tool = match mode {
-            BspToolbarMode::Draw => ViewTool::Brush,
-            BspToolbarMode::Paint => ViewTool::PaintMaterial,
-            BspToolbarMode::Select
-            | BspToolbarMode::Face
-            | BspToolbarMode::Edge
-            | BspToolbarMode::Vertex
-            | BspToolbarMode::Clip => ViewTool::Select,
-        };
-        self.set_active_tool_cycle_value((tool, None));
-        if mode == BspToolbarMode::Draw {
-            self.clear_brush_selection();
-        }
-        if let Some(brush_mode) = mode.brush_edit_mode() {
-            self.set_brush_edit_mode(brush_mode);
-        }
-        self.status = format!("Mode: {}", mode.label());
-    }
-
-    fn draw_bsp_mode_strip(&mut self, ui: &mut egui::Ui) {
-        for (index, mode) in BspToolbarMode::ALL.into_iter().enumerate() {
-            let response = ui
-                .add(
-                    egui::Button::new(icons::text(mode.icon(), 15.0))
-                        .selected(self.active_bsp_toolbar_mode() == Some(mode))
-                        .min_size(Vec2::new(28.0, 23.0)),
-                )
-                .on_hover_text(format!(
-                    "{} ({})\n{}",
-                    mode.label(),
-                    index + 1,
-                    match mode {
-                        BspToolbarMode::Select => {
-                            "Select and transform whole brushes or entities\nUse the Vertex Snap button or hold B, then drag a yellow corner"
-                        }
-                        BspToolbarMode::Draw => {
-                            "Drag the selected brush primitive in an orthographic or 3D view"
-                        }
-                        BspToolbarMode::Paint => "Paint or sample one brush face material",
-                        BspToolbarMode::Face => "Select, resize, rotate, scale or extrude faces",
-                        BspToolbarMode::Edge => "Select and reshape brush edges",
-                        BspToolbarMode::Vertex => "Select and reshape brush vertices",
-                        BspToolbarMode::Clip => "Place a cutting plane and clip selected brushes",
-                    }
-                ));
-            if response.clicked() {
-                self.set_bsp_toolbar_mode(mode);
-            }
-        }
-        let vertex_snap = ui
-            .add(
-                egui::Button::new(RichText::new("V↔V").monospace().size(11.0))
-                    .selected(self.brush_vertex_snap_enabled)
-                    .min_size(Vec2::new(32.0, 23.0)),
-            )
-            .on_hover_text(
-                "Vertex Snap (B)\nToggle, then drag a yellow corner of the selected brush onto a green corner of another brush. Hold B for momentary use.",
-            );
-        if vertex_snap.clicked() {
-            self.brush_vertex_snap_enabled = !self.brush_vertex_snap_enabled;
-            if self.brush_vertex_snap_enabled {
-                self.set_bsp_toolbar_mode(BspToolbarMode::Select);
-                self.status = "Vertex Snap enabled: drag a yellow corner onto another brush corner"
-                    .to_string();
-            } else {
-                self.brush_vertex_snap_key_down = false;
-                self.brush_vertex_snap_hover = None;
-                self.status = "Vertex Snap disabled (hold B for momentary use)".to_string();
-            }
-        }
-    }
-
-    pub(crate) fn draw_bsp_add_menu(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn draw_add_menu(&mut self, ui: &mut egui::Ui) {
         let button = egui::Button::new(icons::text(icons::PLUS, 15.0))
             .selected(self.active_tool == ViewTool::Place)
             .min_size(Vec2::new(28.0, 23.0));
@@ -582,270 +460,17 @@ impl EditorWorkspace {
         response.on_hover_text("Add an enemy, spawn, prop, light, particle emitter or logic node");
     }
 
-    fn draw_bsp_context_controls(&mut self, ui: &mut egui::Ui) {
-        match self.active_tool {
-            ViewTool::Select => match self.brush_edit_mode {
-                BrushEditMode::Move => {
-                    ui.separator();
-                    self.draw_transform_gizmo_toolbar_controls(ui);
-                    let can_snap = self.can_snap_selected_entities_to_floor();
-                    if ui
-                        .add_enabled(
-                            can_snap,
-                            egui::Button::new(RichText::new("↓▔").monospace().size(12.0))
-                                .min_size(Vec2::new(30.0, 23.0)),
-                        )
-                        .on_hover_text(
-                            "Snap the selected Entity and its complete component hierarchy to the exact floor beneath it (End)",
-                        )
-                        .clicked()
-                    {
-                        self.snap_selected_entities_to_floor();
-                    }
-                }
-                BrushEditMode::Edge | BrushEditMode::Vertex => {
-                    ui.separator();
-                    self.draw_transform_gizmo_toolbar_controls(ui);
-                }
-                BrushEditMode::Face => {
-                    ui.separator();
-                    self.draw_transform_gizmo_toolbar_controls(ui);
-                    let enabled =
-                        self.selected_brush.is_some() && self.selected_brush_face.is_some();
-                    if ui
-                        .add_enabled(enabled, egui::Button::new("Extrude"))
-                        .on_hover_text("Extrude the selected face by one grid step (E)")
-                        .clicked()
-                    {
-                        self.extrude_selected_face_one_step();
-                    }
-                }
-                BrushEditMode::Clip => {
-                    ui.separator();
-                    if ui
-                        .button(self.brush_clip_keep.label())
-                        .on_hover_text("Kept side; X or Tab cycles")
-                        .clicked()
-                    {
-                        self.brush_clip_keep = self.brush_clip_keep.next();
-                    }
-                    let can_apply = self.brush_clip_plane_points().is_some()
-                        && !self.selected_brush_set().is_empty();
-                    if ui
-                        .add_enabled(can_apply, egui::Button::new("Apply"))
-                        .on_hover_text("Apply clip (Enter)")
-                        .clicked()
-                    {
-                        self.apply_brush_clip();
-                    }
-                    if ui
-                        .add_enabled(
-                            !self.brush_clip_points.is_empty(),
-                            egui::Button::new("Cancel"),
-                        )
-                        .on_hover_text("Clear clip points (Esc)")
-                        .clicked()
-                    {
-                        self.cancel_brush_gestures();
-                    }
-                }
-            },
-            ViewTool::PaintMaterial => {
-                self.draw_material_paint_toolbar_controls(ui);
-            }
-            ViewTool::Brush => {
-                ui.separator();
-                let shape = self.brush_draw_settings.shape;
-                toolbar_option_menu(
-                    ui,
-                    icons::BOX,
-                    shape.label(),
-                    "Brush primitive",
-                    shape.label(),
-                    shape != BrushDrawShape::Box,
-                    |ui| self.draw_brush_draw_options(ui),
-                );
-            }
-            ViewTool::Place
-                if matches!(
-                    self.place_kind,
-                    PlaceKind::ModelInstance
-                        | PlaceKind::Character
-                        | PlaceKind::ImageProp
-                        | PlaceKind::BoxProp
-                        | PlaceKind::CylinderProp
-                        | PlaceKind::ArchProp
-                ) =>
-            {
-                ui.separator();
-                toolbar_option_menu(
-                    ui,
-                    self.place_kind.icon(),
-                    "Options",
-                    "Placement options",
-                    self.place_kind.label(),
-                    true,
-                    |ui| self.draw_active_place_options(ui),
-                );
-            }
-            ViewTool::Place => {}
-        }
-    }
-
-    fn draw_brush_draw_options(&mut self, ui: &mut egui::Ui) {
-        ui.set_min_width(250.0);
-        ui.label(
-            RichText::new("BRUSH PRIMITIVE")
-                .small()
-                .color(STUDIO_TEXT_WEAK),
-        );
-        for shape in BrushDrawShape::ALL {
-            if ui
-                .selectable_value(
-                    &mut self.brush_draw_settings.shape,
-                    shape,
-                    icons::label(icons::BOX, shape.label()),
-                )
-                .changed()
-            {
-                self.status = format!("Draw primitive: {}", shape.label());
-            }
-        }
-
-        ui.separator();
-        let mut changed = false;
-        let shape = self.brush_draw_settings.shape;
-        if shape == BrushDrawShape::DoorwayArch {
-            ui.label("Opening axis");
-            ui.horizontal(|ui| {
-                let north_south = matches!(
-                    self.brush_draw_settings.direction,
-                    BrushCardinalDirection::North | BrushCardinalDirection::South
-                );
-                if ui.selectable_label(north_south, "North / South").clicked() {
-                    self.brush_draw_settings.direction = BrushCardinalDirection::North;
-                    changed = true;
-                }
-                if ui.selectable_label(!north_south, "East / West").clicked() {
-                    self.brush_draw_settings.direction = BrushCardinalDirection::East;
-                    changed = true;
-                }
-            });
-        } else if matches!(
-            shape,
-            BrushDrawShape::Ramp | BrushDrawShape::CurvedWall | BrushDrawShape::Stairs
-        ) {
-            let direction_label = match shape {
-                BrushDrawShape::Ramp | BrushDrawShape::Stairs => "Rises toward",
-                BrushDrawShape::CurvedWall => "Arc faces",
-                _ => unreachable!(),
-            };
-            ui.label(direction_label);
-            ui.horizontal_wrapped(|ui| {
-                for direction in BrushCardinalDirection::ALL {
-                    changed |= ui
-                        .selectable_value(
-                            &mut self.brush_draw_settings.direction,
-                            direction,
-                            direction
-                                .label()
-                                .split(' ')
-                                .next()
-                                .unwrap_or(direction.label()),
-                        )
-                        .changed();
-                }
-            });
-        }
-
-        match shape {
-            BrushDrawShape::Cylinder => {
-                ui.horizontal(|ui| {
-                    ui.label("Sides");
-                    changed |= ui
-                        .add(
-                            egui::DragValue::new(&mut self.brush_draw_settings.cylinder_sides)
-                                .range(3..=32),
-                        )
-                        .changed();
-                });
-                ui.weak("World-up prism; 8 sides is the PS1-friendly default.");
-            }
-            BrushDrawShape::DoorwayArch | BrushDrawShape::CurvedWall => {
-                ui.horizontal(|ui| {
-                    ui.label("Segments");
-                    changed |= ui
-                        .add(
-                            egui::DragValue::new(&mut self.brush_draw_settings.arch_segments)
-                                .range(2..=24),
-                        )
-                        .changed();
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Wall thickness");
-                    changed |= ui
-                        .add(
-                            egui::DragValue::new(&mut self.brush_draw_settings.arch_thickness)
-                                .range(1..=4096)
-                                .speed(f64::from(self.snap_units.max(1)))
-                                .suffix(" u"),
-                        )
-                        .changed();
-                });
-                if shape == BrushDrawShape::CurvedWall {
-                    ui.label("Arc");
-                    ui.horizontal(|ui| {
-                        for degrees in [90, 180, 270, 360] {
-                            changed |= ui
-                                .selectable_value(
-                                    &mut self.brush_draw_settings.curved_wall_arc_degrees,
-                                    degrees,
-                                    format!("{degrees}°"),
-                                )
-                                .changed();
-                        }
-                    });
-                }
-                ui.weak("Generated pieces are grouped, but remain ordinary brushes.");
-            }
-            BrushDrawShape::Stairs => {
-                ui.horizontal(|ui| {
-                    ui.label("Steps");
-                    changed |= ui
-                        .add(
-                            egui::DragValue::new(&mut self.brush_draw_settings.stair_steps)
-                                .range(1..=32),
-                        )
-                        .changed();
-                });
-                ui.weak("Run and total rise come from the dragged bounds.");
-            }
-            BrushDrawShape::Ramp => {
-                ui.weak("The ramp always rises along world Y.");
-            }
-            BrushDrawShape::Box => {
-                ui.weak("The standard axis-aligned convex brush.");
-            }
-        }
-        if changed {
-            self.status = format!("{} primitive options updated", shape.label());
-        }
-        ui.separator();
-        ui.weak("Every generated point is quantised to the active global grid.");
-    }
-
     fn draw_grid_controls(&mut self, ui: &mut egui::Ui) {
-        let master_on = self.show_grid || self.show_brush_surface_grid;
         let master_response = ui
             .add(
                 egui::Button::new(icons::text(icons::GRID, 14.0))
-                    .selected(master_on)
+                    .selected(self.show_grid)
                     .min_size(Vec2::new(28.0, 23.0)),
             )
-            .on_hover_text(if master_on {
-                "Grid overlays on; click to hide background and surface grids"
+            .on_hover_text(if self.show_grid {
+                "Grid overlay on; click to hide it"
             } else {
-                "Grid overlays off; click to show background and surface grids"
+                "Grid overlay off; click to show it"
             });
         if master_response.clicked() {
             self.toggle_grid_overlays();
@@ -853,14 +478,9 @@ impl EditorWorkspace {
 
         let button_text = self.snap_units.max(1).to_string();
         let current = format!(
-            "{} units · background {} · surfaces {}",
+            "{} units · background {}",
             self.snap_units.max(1),
             if self.show_grid { "shown" } else { "hidden" },
-            if self.show_brush_surface_grid {
-                "shown"
-            } else {
-                "hidden"
-            },
         );
         toolbar_option_menu(
             ui,
@@ -871,13 +491,9 @@ impl EditorWorkspace {
             false,
             |ui| {
                 ui.set_min_width(238.0);
-                let visibility_before = (self.show_grid, self.show_brush_surface_grid);
+                let visibility_before = self.show_grid;
                 ui.checkbox(&mut self.show_grid, "Background grid");
-                ui.checkbox(
-                    &mut self.show_brush_surface_grid,
-                    "Project grid over brush faces",
-                );
-                if visibility_before != (self.show_grid, self.show_brush_surface_grid) {
+                if visibility_before != self.show_grid {
                     self.mark_shortcut_group_changed(ShortcutGroup::Visibility);
                 }
 
@@ -907,30 +523,14 @@ impl EditorWorkspace {
                 if self.snap_units != snap_before {
                     self.status = format!("Grid: {} units", self.snap_units);
                 }
-                ui.weak("Brush geometry always snaps to this interval.");
+                ui.weak("Node placement snaps to this interval.");
             },
         );
-        let can_snap_level = !self.project.active_scene().brushes.is_empty();
-        if ui
-            .add_enabled(
-                can_snap_level,
-                egui::Button::new(RichText::new("Snap level").size(11.0))
-                    .min_size(Vec2::new(68.0, 23.0)),
-            )
-            .on_hover_text(format!(
-                "Snap every BSP brush vertex in this level to the nearest {}-unit grid line. Preflights the entire level, changes everything as one undo step, and aborts rather than creating an invalid brush.",
-                self.snap_units.max(1)
-            ))
-            .clicked()
-        {
-            self.snap_all_brushes_to_grid();
-        }
     }
 
     pub(crate) fn toggle_grid_overlays(&mut self) {
-        let visible = !(self.show_grid || self.show_brush_surface_grid);
+        let visible = !self.show_grid;
         self.show_grid = visible;
-        self.show_brush_surface_grid = visible;
         self.status = if visible {
             "Grid overlays shown".to_string()
         } else {
@@ -938,40 +538,7 @@ impl EditorWorkspace {
         };
     }
 
-    pub(crate) fn set_brush_edit_mode(&mut self, mode: BrushEditMode) {
-        if self.brush_edit_mode == mode {
-            return;
-        }
-        self.cancel_brush_gestures();
-        let previous = self.brush_edit_mode;
-        // A mode switch changes the granularity of editing, not which
-        // brushes the user selected. Capture the complete owner set before
-        // clearing mode-specific face/element state so a multi-selection
-        // does not collapse to only the active brush.
-        let selected_brushes = self.selected_brush_set();
-        self.brush_edit_mode = mode;
-        if previous == BrushEditMode::Face && mode != BrushEditMode::Face {
-            self.selected_brush_faces.clear();
-            self.selected_brush_elements.clear();
-            self.selected_brushes = selected_brushes;
-        } else if mode == BrushEditMode::Face {
-            self.selected_brush_faces.clear();
-            self.selected_brush_elements.clear();
-            if let (Some(brush), Some(face)) = (self.selected_brush, self.selected_brush_face) {
-                self.selected_brush_faces.push((brush, face));
-                self.selected_brush_elements.push(BrushElement::Face(face));
-            }
-            self.selected_brushes = selected_brushes;
-        }
-        self.status = format!(
-            "Brush {}: {}; grid snap {}",
-            mode.label(),
-            mode.gesture_hint(),
-            self.snap_units.max(1)
-        );
-    }
-
-    fn draw_transform_gizmo_toolbar_controls(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn draw_transform_gizmo_toolbar_controls(&mut self, ui: &mut egui::Ui) {
         toolbar_group_menu(
             ui,
             3,
@@ -994,25 +561,6 @@ impl EditorWorkspace {
         if space_response.clicked() {
             self.gizmo_space = space.toggled();
             self.status = format!("Gizmo orientation: {}", self.gizmo_space.label());
-        }
-    }
-
-    fn draw_material_paint_toolbar_controls(&mut self, ui: &mut egui::Ui) {
-        ui.separator();
-        self.draw_brush_material_picker(ui);
-        let eyedropper = ui
-            .toggle_value(
-                &mut self.material_paint_sampling,
-                icons::text(icons::PIPETTE, 14.0),
-            )
-            .on_hover_text("Eyedropper: sample the material from the next BSP face you click.");
-        if eyedropper.changed() {
-            self.status = if self.material_paint_sampling {
-                "Eyedropper: click a surface to sample its material".to_string()
-            } else {
-                "Eyedropper cancelled".to_string()
-            };
-            self.mark_shortcut_group_changed(ShortcutGroup::Tool);
         }
     }
 
@@ -1167,20 +715,6 @@ impl EditorWorkspace {
             .show(ui, |ui| {
                 changed |= visibility_menu_row(ui, "lights", "Lights", &mut self.show_lights);
                 changed |= visibility_menu_row(ui, "bounds", "Bounds", &mut self.preview_bounds);
-                changed |= visibility_menu_row(
-                    ui,
-                    "brush-wireframes",
-                    "Brush wireframes",
-                    &mut self.show_brush_wireframes,
-                );
-                if self.bsp_leak_path_current && !self.last_bsp_leak_path.is_empty() {
-                    changed |= visibility_menu_row(
-                        ui,
-                        "bsp-leak-path",
-                        "Live leak path",
-                        &mut self.show_bsp_leak_path,
-                    );
-                }
             });
         if changed {
             self.mark_shortcut_group_changed(ShortcutGroup::Visibility);
@@ -1210,35 +744,6 @@ impl EditorWorkspace {
                 .small()
                 .color(STUDIO_TEXT_WEAK),
         );
-        if self.bsp_leak_path_current && !self.last_bsp_leak_path.is_empty() {
-            ui.separator();
-            if !self.last_bsp_leak_opening.is_empty()
-                && ui
-                    .button(icons::label(icons::FOCUS, "Jump to leak region"))
-                    .on_hover_text(
-                        "Frame the connected coplanar empty-portal region around the route bottleneck; red shows the merged region and green remains the authoritative route",
-                    )
-                    .clicked()
-            {
-                self.jump_to_bsp_leak_opening();
-                ui.close_menu();
-            }
-            let next = self.bsp_leak_cursor.min(self.last_bsp_leak_path.len() - 1) + 1;
-            if ui
-                .button(icons::label(
-                    icons::FOCUS,
-                    &format!(
-                        "Follow leak path ({next}/{})",
-                        self.last_bsp_leak_path.len()
-                    ),
-                ))
-                .on_hover_text("Move the Free camera to this point and look toward the next one")
-                .clicked()
-            {
-                self.follow_next_bsp_leak_point();
-                ui.close_menu();
-            }
-        }
         ui.separator();
         ui.label("Zoom speed");
         let mut zoom_speed = self.camera_rig.zoom_speed();
@@ -1306,9 +811,7 @@ impl EditorWorkspace {
     }
 
     pub(crate) fn editor_visibility_has_hidden_items(&self) -> bool {
-        !self.show_lights
-            || !self.preview_bounds
-            || (!self.last_bsp_leak_path.is_empty() && !self.show_bsp_leak_path)
+        !self.show_lights || !self.preview_bounds
     }
 
     pub(crate) fn draw_active_place_options(&mut self, ui: &mut egui::Ui) {
@@ -1530,66 +1033,6 @@ impl EditorWorkspace {
         }
     }
 
-    pub(crate) fn draw_brush_material_picker(&mut self, ui: &mut egui::Ui) {
-        let materials = self.project.material_options();
-        if self.active_tool == ViewTool::PaintMaterial && self.brush_material.is_none() {
-            let material = self
-                .selected_material_resource()
-                .or_else(|| materials.first().map(|(id, _)| *id));
-            if let Some(material) = material {
-                self.brush_material = Some(material);
-                self.replace_resource_selection(material);
-            }
-        }
-        let label = match self.brush_material {
-            Some(id) => materials
-                .iter()
-                .find(|(mid, _)| *mid == id)
-                .map(|(_, name)| name.clone())
-                .unwrap_or_else(|| "(missing)".to_string()),
-            None => {
-                if self.active_tool == ViewTool::PaintMaterial {
-                    "Select material".to_string()
-                } else {
-                    "Auto".to_string()
-                }
-            }
-        };
-        ui.label(icons::text(icons::PALETTE, 14.0).color(STUDIO_TEXT_WEAK))
-            .on_hover_text("Brush material");
-        let before = self.brush_material;
-        let config = if self.active_tool == ViewTool::PaintMaterial {
-            SearchablePickerConfig::required()
-                .with_width(220.0)
-                .with_popup_min_width(360.0)
-                .with_search_hint("Search materials…")
-        } else {
-            SearchablePickerConfig::optional("Auto")
-                .with_width(180.0)
-                .with_popup_min_width(360.0)
-                .with_search_hint("Search materials…")
-        };
-        searchable_picker(
-            ui,
-            "brush-material-picker",
-            &mut self.brush_material,
-            &label,
-            &materials,
-            config,
-        );
-        if self.brush_material != before {
-            if let Some(material) = self.brush_material {
-                self.material_paint_sampling = false;
-                self.replace_resource_selection(material);
-                self.status = format!(
-                    "Paint material: {}",
-                    self.project.resource_name(material).unwrap_or("(missing)")
-                );
-            }
-            self.mark_shortcut_group_changed(ShortcutGroup::Tool);
-        }
-    }
-
     /// Walk the active scene and collect a selectable AABB for
     /// every entity-kind node -- every node that's neither the
     /// world root nor a structural Node/World.
@@ -1657,21 +1100,6 @@ impl EditorWorkspace {
         best
     }
 
-    /// Default material id for a brushed surface, picked by name from
-    /// the project's material list. The cooker rejects unassigned
-    /// surfaces, so authors are expected to wire real materials in
-    /// resources before serious painting -- this fallback at least
-    /// keeps the brush usable while iterating.
-    pub(crate) fn default_brush_material(&self, needle: &str) -> Option<ResourceId> {
-        let lower = needle.to_ascii_lowercase();
-        let materials = self.project.material_options();
-        materials
-            .iter()
-            .find(|(_, name)| name.to_ascii_lowercase().contains(&lower))
-            .or_else(|| materials.first())
-            .map(|(id, _)| *id)
-    }
-
     pub(crate) fn selected_material_resource(&self) -> Option<ResourceId> {
         let id = self.selection.selected_resource?;
         matches!(
@@ -1679,16 +1107,6 @@ impl EditorWorkspace {
             Some(ResourceData::Material(_))
         )
         .then_some(id)
-    }
-
-    pub(crate) fn paint_material_for(&self, default_name_hint: &str) -> Option<ResourceId> {
-        self.brush_material
-            .or_else(|| self.selected_material_resource())
-            .or_else(|| self.default_brush_material(default_name_hint))
-    }
-
-    pub(crate) fn first_material(&self) -> Option<ResourceId> {
-        self.project.material_options().first().map(|(id, _)| *id)
     }
 
     pub(crate) fn has_player_source(&self) -> bool {

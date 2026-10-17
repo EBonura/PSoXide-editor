@@ -42,19 +42,12 @@ fn build_and_play_requests_preserve_viewport_layout_and_camera() {
 
 #[test]
 fn point_of_interest_place_tool_creates_entity_host_and_component() {
-    let mut project = ProjectDocument::new("poi placement");
-    project
-        .active_scene_mut()
-        .brushes
-        .push(psxed_project::brush::Brush::cuboid(
-            [0, -64, 0],
-            [2048, 0, 2048],
-        ));
+    let project = ProjectDocument::new("poi placement");
     let root = project.active_scene().root;
     let mut workspace = EditorWorkspace::with_project(test_temp_dir("poi-placement"), project);
     workspace.set_active_tool_cycle_value((ViewTool::Place, Some(PlaceKind::PointOfInterest)));
 
-    assert!(workspace.place_bsp_from_top([512.0, 768.0]));
+    workspace.place_node_at_world_hit(root, [512.0, 1.0, 768.0]);
     let component_id = workspace.selected_node_id();
     let scene = workspace.project().active_scene();
     let component = scene.node(component_id).expect("poi component");
@@ -117,566 +110,6 @@ fn save_watch_project(dir: &Path, project: &ProjectDocument) {
 }
 
 #[test]
-fn bsp_pointfile_cache_round_trips_and_is_removed_when_sealed() {
-    let dir = test_temp_dir("bsp-pointfile-cache");
-    let points = [[16, 32, 48], [64, 80, 96], [-32, 112, 144]];
-    cache_bsp_leak_path(&dir, &points).expect("cache pointfile");
-    assert_eq!(read_cached_bsp_leak_path(&dir).unwrap(), points);
-    assert!(cached_bsp_leak_path(&dir).is_file());
-
-    cache_bsp_leak_path(&dir, &[]).expect("remove sealed-map pointfile");
-    assert!(read_cached_bsp_leak_path(&dir).unwrap().is_empty());
-    assert!(!cached_bsp_leak_path(&dir).exists());
-    let _ = std::fs::remove_dir_all(dir);
-}
-
-#[test]
-fn leak_path_navigation_switches_to_free_camera_and_steps_points() {
-    let mut workspace = EditorWorkspace::with_project(
-        test_temp_dir("bsp-pointfile-navigation"),
-        ProjectDocument::new("pointfile navigation"),
-    );
-    workspace.last_bsp_leak_path = vec![[10, 20, 30], [110, 20, 30], [110, 120, 30]];
-    workspace.last_bsp_leak_opening = vec![[96, 0, 0], [96, 64, 0], [96, 64, 64], [96, 0, 64]];
-    workspace.bsp_leak_opening_path_index = Some(1);
-    workspace.camera_rig.mode = ViewportCameraMode::Orbit;
-
-    assert!(workspace.follow_next_bsp_leak_point());
-    assert_eq!(workspace.camera_rig.mode, ViewportCameraMode::Free);
-    assert_eq!(workspace.camera_rig.free_position, [10, 20, 30]);
-    assert_eq!(workspace.bsp_leak_cursor, 1);
-    assert!(workspace.status.contains("Leak point 1/3"));
-
-    assert!(workspace.follow_next_bsp_leak_point());
-    assert_eq!(workspace.camera_rig.free_position, [110, 20, 30]);
-    assert_eq!(workspace.bsp_leak_cursor, 2);
-
-    workspace.camera_rig.mode = ViewportCameraMode::Orbit;
-    assert!(workspace.jump_to_bsp_leak_opening());
-    assert_eq!(workspace.camera_rig.mode, ViewportCameraMode::Free);
-    assert_eq!(workspace.camera_rig.free_position, [10, 20, 30]);
-    assert!(workspace.status.contains("framed in red"));
-}
-
-#[test]
-fn project_edit_hides_stale_pointfile_until_live_refresh_completes() {
-    let mut workspace = EditorWorkspace::with_project(
-        test_temp_dir("bsp-pointfile-stale"),
-        ProjectDocument::new("pointfile stale"),
-    );
-    workspace.last_bsp_leak_path = vec![[10, 20, 30], [40, 50, 60]];
-    workspace.last_bsp_leak_opening = vec![[20, 20, 20], [20, 30, 20], [20, 30, 30]];
-    workspace.bsp_leak_path_current = true;
-    workspace.show_bsp_leak_path = true;
-    assert_eq!(workspace.visible_bsp_leak_path().len(), 2);
-
-    workspace.mark_dirty();
-
-    assert!(workspace.visible_bsp_leak_path().is_empty());
-    assert!(workspace.visible_bsp_leak_opening().is_empty());
-    assert!(workspace.bsp_leak_refresh_pending());
-    assert!(
-        !workspace.follow_next_bsp_leak_point(),
-        "camera navigation must never consume stale pointfile coordinates"
-    );
-}
-
-#[test]
-fn pointfile_fingerprint_ignores_material_uv_but_tracks_brush_planes() {
-    let mut project = ProjectDocument::new("pointfile fingerprint");
-    project
-        .active_scene_mut()
-        .brushes
-        .push(psxed_project::brush::Brush::cuboid(
-            [0, 0, 0],
-            [256, 256, 256],
-        ));
-    let geometry = bsp_leak_geometry_fingerprint(&project);
-
-    let material = project.add_resource(
-        "Stone",
-        ResourceData::Material(MaterialResource::opaque(None)),
-    );
-    project.active_scene_mut().brushes[0].faces[0].material = Some(material);
-    project.active_scene_mut().brushes[0].faces[0]
-        .uv
-        .offset_texels = [17, -9];
-    assert_eq!(
-        bsp_leak_geometry_fingerprint(&project),
-        geometry,
-        "surface appearance cannot change portal connectivity"
-    );
-
-    project.active_scene_mut().brushes[0].faces[0].points[0][0] += 16;
-    assert_ne!(
-        bsp_leak_geometry_fingerprint(&project),
-        geometry,
-        "authored plane movement must invalidate the pointfile"
-    );
-}
-
-#[test]
-fn debounced_live_pointfile_worker_replaces_stale_cache() {
-    let dir = test_temp_dir("bsp-pointfile-live-worker");
-    let mut project = ProjectDocument::new("pointfile live worker");
-    let mut room = psxed_project::brush::Brush::cuboid([0, 0, 0], [1024, 512, 1024])
-        .hollow(64)
-        .expect("hollow room");
-    room.remove(0);
-    project.active_scene_mut().brushes = room;
-    let spawn = project.active_scene_mut().add_node(
-        NodeId::ROOT,
-        "Player Spawn",
-        NodeKind::SpawnPoint {
-            player: true,
-            character: None,
-        },
-    );
-    project
-        .active_scene_mut()
-        .node_mut(spawn)
-        .expect("spawn")
-        .transform
-        .translation = [512.0, 128.0, 512.0];
-
-    let mut workspace = EditorWorkspace::with_project(dir.clone(), project);
-    workspace.last_bsp_leak_path = vec![[1, 2, 3], [4, 5, 6]];
-    workspace.bsp_leak_refresh_due = Some(Instant::now());
-    let ctx = egui::Context::default();
-    let deadline = Instant::now() + std::time::Duration::from_secs(2);
-    while !workspace.bsp_leak_path_current && Instant::now() < deadline {
-        workspace.poll_bsp_leak_refresh(&ctx);
-        std::thread::sleep(std::time::Duration::from_millis(5));
-    }
-
-    assert!(
-        workspace.bsp_leak_path_current,
-        "pointfile worker timed out"
-    );
-    assert!(workspace.last_bsp_leak_path.len() >= 3);
-    assert!(workspace.last_bsp_leak_opening.len() >= 3);
-    assert!(workspace.bsp_leak_opening_path_index.is_some());
-    assert_ne!(workspace.last_bsp_leak_path, [[1, 2, 3], [4, 5, 6]]);
-    assert!(workspace.status.contains("live"));
-    assert_eq!(
-        read_cached_bsp_leak_path(&dir).unwrap(),
-        workspace.last_bsp_leak_path
-    );
-    let _ = std::fs::remove_dir_all(dir);
-}
-
-#[test]
-fn brush_geometry_clipboard_survives_project_switch_and_rebinds_materials_by_name() {
-    let source_dir = test_temp_dir("brush-clipboard-source");
-    let destination_dir = test_temp_dir("brush-clipboard-destination");
-
-    let mut source = ProjectDocument::new("clipboard source");
-    let source_material = source.add_resource(
-        "Shared Stone",
-        ResourceData::Material(MaterialResource::opaque(None)),
-    );
-    let mut source_brush = psxed_project::brush::Brush::cuboid([64, 0, 96], [320, 256, 352]);
-    source_brush.faces[0].material = Some(source_material);
-    source_brush.mover = Some(NodeId::ROOT);
-    source.active_scene_mut().brushes.push(source_brush.clone());
-    save_watch_project(&source_dir, &source);
-
-    let mut destination = ProjectDocument::new("clipboard destination");
-    destination.add_resource(
-        "Unrelated Material",
-        ResourceData::Material(MaterialResource::opaque(None)),
-    );
-    let destination_material = destination.add_resource(
-        "Shared Stone",
-        ResourceData::Material(MaterialResource::opaque(None)),
-    );
-    assert_ne!(source_material, destination_material);
-    save_watch_project(&destination_dir, &destination);
-
-    let mut workspace = EditorWorkspace::open_directory(&source_dir).unwrap();
-    workspace.active_workspace = WorkspaceView::Room;
-    workspace.active_tool = ViewTool::Brush;
-    workspace.replace_brush_selection(0, None);
-    assert!(workspace.copy_current_geometry());
-    assert!(workspace.portable_geometry_clipboard.is_some());
-
-    workspace.switch_project(&destination_dir).unwrap();
-    assert!(
-        workspace.portable_geometry_clipboard.is_some(),
-        "switching projects must preserve the in-process clipboard"
-    );
-    assert!(workspace.paste_current_geometry());
-
-    let pasted = &workspace.project.active_scene().brushes;
-    assert_eq!(pasted.len(), 1);
-    assert_eq!(pasted[0].faces[0].material, Some(destination_material));
-    assert_eq!(
-        pasted[0].mover, None,
-        "source NodeIds must never cross projects"
-    );
-    assert_eq!(
-        pasted[0]
-            .faces
-            .iter()
-            .map(|face| face.points)
-            .collect::<Vec<_>>(),
-        source_brush
-            .faces
-            .iter()
-            .map(|face| face.points)
-            .collect::<Vec<_>>(),
-        "brush geometry must be byte-identical"
-    );
-    assert_eq!(workspace.selected_brush_set(), vec![0]);
-    assert!(workspace.status.contains("Door binding"));
-
-    workspace.do_undo();
-    assert!(workspace.project.active_scene().brushes.is_empty());
-
-    let _ = std::fs::remove_dir_all(source_dir);
-    let _ = std::fs::remove_dir_all(destination_dir);
-}
-
-#[test]
-fn selected_label_text_keeps_copy_away_from_geometry_shortcuts() {
-    const ERROR_TEXT: &str = "Cook error: trigger volume has no target";
-
-    fn draw_frame(
-        ctx: &egui::Context,
-        workspace: &mut EditorWorkspace,
-        time: f64,
-        events: Vec<egui::Event>,
-        route_shortcuts: bool,
-    ) -> egui::FullOutput {
-        ctx.run(
-            egui::RawInput {
-                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 200.0))),
-                time: Some(time),
-                events,
-                ..egui::RawInput::default()
-            },
-            |ctx| {
-                if route_shortcuts {
-                    workspace.handle_global_shortcuts(ctx, EditorPlaytestStatus::Idle);
-                }
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    ui.add(egui::Label::new(ERROR_TEXT).selectable(true));
-                });
-            },
-        )
-    }
-
-    fn text_rect(shape: &egui::Shape) -> Option<Rect> {
-        match shape {
-            egui::Shape::Text(text) if text.galley.text() == ERROR_TEXT => {
-                Some(Rect::from_min_max(
-                    text.pos + text.galley.rect.min.to_vec2(),
-                    text.pos + text.galley.rect.max.to_vec2(),
-                ))
-            }
-            egui::Shape::Vec(shapes) => shapes.iter().find_map(text_rect),
-            _ => None,
-        }
-    }
-
-    let dir = test_temp_dir("selected-label-copy-routing");
-    let mut workspace = EditorWorkspace::with_project(dir.clone(), ProjectDocument::new("copy"));
-    workspace.active_workspace = WorkspaceView::Room;
-    let ctx = egui::Context::default();
-
-    let initial = draw_frame(&ctx, &mut workspace, 0.0, Vec::new(), false);
-    let rect = initial
-        .shapes
-        .iter()
-        .find_map(|shape| text_rect(&shape.shape))
-        .expect("selectable error label is painted");
-    let start = Pos2::new(rect.left() + 2.0, rect.center().y);
-    let end = Pos2::new(rect.right() - 2.0, rect.center().y);
-    let _ = draw_frame(
-        &ctx,
-        &mut workspace,
-        1.0 / 60.0,
-        vec![
-            egui::Event::PointerMoved(start),
-            egui::Event::PointerButton {
-                pos: start,
-                button: egui::PointerButton::Primary,
-                pressed: true,
-                modifiers: egui::Modifiers::NONE,
-            },
-        ],
-        false,
-    );
-    let _ = draw_frame(
-        &ctx,
-        &mut workspace,
-        2.0 / 60.0,
-        vec![egui::Event::PointerMoved(end)],
-        false,
-    );
-    let _ = draw_frame(
-        &ctx,
-        &mut workspace,
-        3.0 / 60.0,
-        vec![egui::Event::PointerButton {
-            pos: end,
-            button: egui::PointerButton::Primary,
-            pressed: false,
-            modifiers: egui::Modifiers::NONE,
-        }],
-        false,
-    );
-    assert!(
-        egui::text_selection::LabelSelectionState::load(&ctx).has_selection(),
-        "dragging the diagnostic must leave label text selected"
-    );
-    assert_eq!(ctx.memory(|memory| memory.focused()), None);
-
-    let copied = draw_frame(
-        &ctx,
-        &mut workspace,
-        4.0 / 60.0,
-        vec![egui::Event::Copy],
-        true,
-    );
-    assert!(
-        copied.platform_output.commands.iter().any(|command| {
-            matches!(
-                command,
-                egui::OutputCommand::CopyText(text) if ERROR_TEXT.contains(text.as_str())
-            )
-        }),
-        "the label selection, not the room workspace, must receive Copy"
-    );
-    assert!(!workspace.status.contains("Copy failed"));
-    assert_eq!(workspace.brush_geometry_clipboard_count(), None);
-
-    let _ = std::fs::remove_dir_all(dir);
-}
-
-#[test]
-fn multi_brush_paste_shortcut_survives_a_switch_to_a_non_room_workspace() {
-    let source_dir = test_temp_dir("multi-brush-clipboard-source");
-    let destination_dir = test_temp_dir("multi-brush-clipboard-destination");
-    let mut source = ProjectDocument::new("multi clipboard source");
-    let originals = [
-        psxed_project::brush::Brush::cuboid([0, 0, 0], [64, 64, 64]),
-        psxed_project::brush::Brush::cuboid([128, 0, 0], [192, 64, 64]),
-    ];
-    source
-        .active_scene_mut()
-        .brushes
-        .extend(originals.iter().cloned());
-    save_watch_project(&source_dir, &source);
-    save_watch_project(
-        &destination_dir,
-        &ProjectDocument::new("multi clipboard destination"),
-    );
-
-    let mut workspace = EditorWorkspace::open_directory(&source_dir).unwrap();
-    workspace.active_workspace = WorkspaceView::Room;
-    workspace.view_2d = true;
-    workspace.orthographic_view = OrthographicView::Top;
-    workspace.active_tool = ViewTool::Select;
-    workspace.replace_brush_selection(0, None);
-    workspace.toggle_brush_selection(1);
-
-    // Exercise the same full draw/input path as `make run`. Inspector and
-    // search widgets can retain egui focus after world selection; clicking
-    // back into the viewport must release it before Cmd/Ctrl+C is handled.
-    let (context, viewport) = super::brush_tools::real_egui_workspace_ctx("clipboard-runtime");
-    let initial = super::brush_tools::real_egui_workspace_frame(
-        &context,
-        &mut workspace,
-        &viewport,
-        0.0,
-        Vec::new(),
-    );
-    let rendered_copy = icons::label(icons::COPY, "Copy 2 brushes");
-    let rendered_empty = icons::label(icons::COPY, "Clipboard empty");
-    assert_eq!(
-        super::brush_tools::text_shape_centers(&initial.shapes, &rendered_copy).len(),
-        1,
-        "the runtime toolbar must expose the selected brush count"
-    );
-    assert_eq!(
-        super::brush_tools::text_shape_centers(&initial.shapes, &rendered_empty).len(),
-        1,
-        "the runtime toolbar must expose an empty clipboard"
-    );
-    let stale_focus = egui::Id::new("stale-inspector-focus");
-    context.memory_mut(|memory| memory.request_focus(stale_focus));
-    let viewport_point = workspace.last_orthographic_viewport_rect.center();
-    let _ = super::brush_tools::real_egui_workspace_frame(
-        &context,
-        &mut workspace,
-        &viewport,
-        1.0 / 60.0,
-        vec![
-            egui::Event::PointerMoved(viewport_point),
-            egui::Event::PointerButton {
-                pos: viewport_point,
-                button: egui::PointerButton::Primary,
-                pressed: true,
-                modifiers: egui::Modifiers::NONE,
-            },
-        ],
-    );
-    assert_eq!(context.memory(|memory| memory.focused()), None);
-    let copied_frame = super::brush_tools::real_egui_workspace_frame(
-        &context,
-        &mut workspace,
-        &viewport,
-        2.0 / 60.0,
-        vec![egui::Event::Copy],
-    );
-    assert_eq!(
-        workspace
-            .clipboard_notice
-            .as_ref()
-            .map(|notice| notice.message.as_str()),
-        Some("2 brushes copied")
-    );
-    assert!(
-        copied_frame.platform_output.commands.iter().any(|command| {
-            matches!(
-                command,
-                egui::OutputCommand::CopyText(text)
-                    if text.contains("PSoXide geometry clipboard: 2 brushes")
-            )
-        }),
-        "a real copy must seed the OS clipboard so egui-winit can emit the following Paste event"
-    );
-    let rendered_paste = icons::label(icons::COPY, "Paste 2 brushes");
-    assert_eq!(
-        super::brush_tools::text_shape_centers(&copied_frame.shapes, &rendered_paste).len(),
-        1,
-        "the runtime toolbar must expose the retained clipboard count"
-    );
-    assert_eq!(
-        super::brush_tools::text_shape_centers(&copied_frame.shapes, "2 brushes copied").len(),
-        1,
-        "the runtime frame must visibly draw the copy notification"
-    );
-    workspace.switch_project(&destination_dir).unwrap();
-    assert!(workspace.status.contains("2 brushes ready to paste"));
-    assert_eq!(
-        workspace
-            .clipboard_notice
-            .as_ref()
-            .map(|notice| notice.message.as_str()),
-        Some("Clipboard retained: 2 brushes ready to paste")
-    );
-
-    // Real projects restore their own saved workspace. Previously a target
-    // that opened in UI routed Cmd/Ctrl+V to the empty UI-node clipboard and
-    // made the retained brush clipboard appear to have been erased.
-    workspace.active_workspace = WorkspaceView::Ui;
-    assert!(workspace.ui_node_clipboard.is_none());
-    let context = egui::Context::default();
-    let _ = context.run(
-        egui::RawInput {
-            // egui-winit translates Cmd/Ctrl+V into this platform event
-            // before the workspace sees input. Key-event-only tests do not
-            // exercise the real `make run` path.
-            events: vec![egui::Event::Paste(
-                "PSoXide internal geometry clipboard".to_string(),
-            )],
-            ..egui::RawInput::default()
-        },
-        |ctx| workspace.handle_global_shortcuts(ctx, EditorPlaytestStatus::Idle),
-    );
-
-    assert_eq!(workspace.active_workspace, WorkspaceView::Room);
-    assert!(
-        workspace.view_2d,
-        "cross-project paste reveals the Top view"
-    );
-    assert_eq!(workspace.project.active_scene().brushes, originals);
-    assert_eq!(workspace.selected_brush_set(), vec![0, 1]);
-    assert_eq!(
-        workspace
-            .clipboard_notice
-            .as_ref()
-            .map(|notice| notice.message.as_str()),
-        Some("2 brushes pasted")
-    );
-
-    let _ = std::fs::remove_dir_all(source_dir);
-    let _ = std::fs::remove_dir_all(destination_dir);
-}
-
-#[test]
-#[ignore = "developer regression; needs a locally regenerated quake-e1m1-geometry project (no longer tracked)"]
-fn e1m1_real_platform_copy_and_paste_duplicates_the_selected_brush() {
-    let editor_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(Path::parent)
-        .expect("psxed-ui lives below the editor workspace")
-        .to_path_buf();
-    let project_root = editor_root.join("projects/quake-e1m1-geometry");
-    let mut workspace = EditorWorkspace::open_directory(&project_root).expect("E1M1 opens");
-    let original_count = workspace.project.active_scene().brushes.len();
-    assert!(
-        original_count >= 1_200,
-        "regression must exercise the full E1M1 project"
-    );
-    workspace.active_workspace = WorkspaceView::Room;
-    workspace.active_tool = ViewTool::Select;
-    workspace.replace_brush_selection(0, Some(0));
-
-    let (context, viewport) = super::brush_tools::real_egui_workspace_ctx("e1m1-clipboard");
-    let copied = super::brush_tools::real_egui_workspace_frame(
-        &context,
-        &mut workspace,
-        &viewport,
-        0.0,
-        vec![egui::Event::Copy],
-    );
-    assert_eq!(workspace.brush_geometry_clipboard_count(), Some(1));
-    assert_eq!(
-        workspace
-            .clipboard_notice
-            .as_ref()
-            .map(|notice| notice.message.as_str()),
-        Some("1 brush copied")
-    );
-    assert!(copied.platform_output.commands.iter().any(|command| {
-        matches!(command, egui::OutputCommand::CopyText(text) if text.contains("1 brush"))
-    }));
-
-    let pasted = super::brush_tools::real_egui_workspace_frame(
-        &context,
-        &mut workspace,
-        &viewport,
-        1.0 / 60.0,
-        vec![egui::Event::Paste(
-            "PSoXide geometry clipboard: 1 brush".to_string(),
-        )],
-    );
-    assert_eq!(
-        workspace.project.active_scene().brushes.len(),
-        original_count + 1
-    );
-    assert_eq!(
-        workspace
-            .clipboard_notice
-            .as_ref()
-            .map(|notice| notice.message.as_str()),
-        Some("1 brush pasted")
-    );
-    assert!(
-        !super::brush_tools::text_shape_centers(&pasted.shapes, "1 brush pasted").is_empty(),
-        "the source-built editor frame must visibly confirm the paste"
-    );
-    workspace.do_undo();
-    assert_eq!(
-        workspace.project.active_scene().brushes.len(),
-        original_count
-    );
-}
-
-#[test]
 fn external_project_change_never_replaces_open_document_and_play_save_wins() {
     let dir = test_temp_dir("project-watch-conflict");
     let project = ProjectDocument::new("watch baseline");
@@ -700,39 +133,24 @@ fn external_project_change_never_replaces_open_document_and_play_save_wins() {
     assert!(!workspace.is_dirty());
     assert!(!workspace.has_external_project_conflict());
 
-    workspace
-        .project
-        .active_scene_mut()
-        .brushes
-        .push(psxed_project::brush::Brush::cuboid([0, 0, 0], [64, 64, 64]));
+    let baseline_nodes = scene_node_count(&workspace);
+    add_marker_node(&mut workspace);
     workspace.mark_dirty();
     let mut second_external = project.clone();
-    second_external
-        .active_scene_mut()
-        .brushes
-        .push(psxed_project::brush::Brush::cuboid(
-            [0, 0, 0],
-            [512, 512, 512],
-        ));
-    second_external
-        .active_scene_mut()
-        .brushes
-        .push(psxed_project::brush::Brush::cuboid(
-            [0, 0, 0],
-            [1024, 1024, 1024],
-        ));
+    push_marker(second_external.active_scene_mut());
+    push_marker(second_external.active_scene_mut());
     second_external
         .save_to_path(dir.join("project.ron"))
         .unwrap();
     assert!(workspace.save_if_dirty().unwrap());
-    assert_eq!(workspace.project().active_scene().brushes.len(), 1);
+    assert_eq!(scene_node_count(&workspace), baseline_nodes + 1);
     assert_eq!(
         ProjectDocument::load_from_path(dir.join("project.ron"))
             .unwrap()
             .active_scene()
-            .brushes
+            .nodes()
             .len(),
-        1
+        baseline_nodes + 1
     );
     assert!(!workspace.is_dirty());
     assert!(!workspace.has_external_project_conflict());
@@ -750,17 +168,12 @@ fn repeated_external_conflicts_are_resolved_by_explicit_save() {
     let mut workspace = EditorWorkspace::open_directory(&dir).unwrap();
     let path = dir.join("project.ron");
 
-    let cuboid = |size: i32| psxed_project::brush::Brush::cuboid([0, 0, 0], [size, size, size]);
-    let brush_count = |document: &ProjectDocument| document.active_scene().brushes.len();
+    let node_count = |document: &ProjectDocument| document.active_scene().nodes().len();
 
     for round in 1..=3usize {
         // A local edit the author has not saved yet.
-        let local_before = brush_count(workspace.project());
-        workspace
-            .project
-            .active_scene_mut()
-            .brushes
-            .push(cuboid(64 + round as i32));
+        let local_before = node_count(workspace.project());
+        add_marker_node(&mut workspace);
         workspace.mark_dirty();
         assert!(
             !workspace.has_external_project_conflict(),
@@ -770,11 +183,8 @@ fn repeated_external_conflicts_are_resolved_by_explicit_save() {
         // Something outside the editor rewrites project.ron. Start from the
         // last saved document, not the in-memory local edit.
         let mut external = ProjectDocument::load_from_path(&path).unwrap();
-        for extra in 0..round {
-            external
-                .active_scene_mut()
-                .brushes
-                .push(cuboid(512 + extra as i32));
+        for _ in 0..round {
+            push_marker(external.active_scene_mut());
         }
         external.save_to_path(&path).unwrap();
 
@@ -784,7 +194,7 @@ fn repeated_external_conflicts_are_resolved_by_explicit_save() {
             .save()
             .unwrap_or_else(|error| panic!("round {round} Save: {error}"));
         assert_eq!(
-            brush_count(workspace.project()),
+            node_count(workspace.project()),
             local_before + 1,
             "round {round} lost the unsaved edit"
         );
@@ -797,7 +207,7 @@ fn repeated_external_conflicts_are_resolved_by_explicit_save() {
         // The local bytes are on disk, and polling the freshly captured
         // baseline sees no phantom change.
         assert_eq!(
-            brush_count(&ProjectDocument::load_from_path(&path).unwrap()),
+            node_count(&ProjectDocument::load_from_path(&path).unwrap()),
             local_before + 1,
             "round {round} did not reach disk"
         );
@@ -806,7 +216,7 @@ fn repeated_external_conflicts_are_resolved_by_explicit_save() {
             !workspace.has_external_project_conflict(),
             "round {round} polled a phantom conflict after Save"
         );
-        assert_eq!(brush_count(workspace.project()), local_before + 1);
+        assert_eq!(node_count(workspace.project()), local_before + 1);
     }
 
     let _ = std::fs::remove_dir_all(dir);
@@ -1090,14 +500,7 @@ fn focus_shortcut_in_free_mode_fits_bounds_and_preserves_direction() {
 #[test]
 fn editor_camera_saves_with_project_and_restores_on_open() {
     let project_dir = test_temp_dir("editor-camera");
-    let mut project = ProjectDocument::new("editor-camera");
-    project
-        .active_scene_mut()
-        .brushes
-        .push(psxed_project::brush::Brush::cuboid(
-            [0, 0, 0],
-            [2048, 256, 2048],
-        ));
+    let project = ProjectDocument::new("editor-camera");
     let mut workspace = EditorWorkspace::with_project(project_dir.clone(), project);
     workspace.camera_rig.mode = ViewportCameraMode::Free;
     workspace.camera_rig.yaw = 384;
@@ -1129,7 +532,6 @@ fn editor_visibility_saves_with_project_and_restores_on_open() {
     let mut workspace =
         EditorWorkspace::with_project(project_dir.clone(), ProjectDocument::new("visibility"));
     workspace.show_grid = false;
-    workspace.show_brush_surface_grid = false;
     workspace.show_lights = false;
     workspace.preview_bounds = false;
     workspace.show_play_debug_overlays = false;
@@ -1138,7 +540,6 @@ fn editor_visibility_saves_with_project_and_restores_on_open() {
 
     let reopened = EditorWorkspace::open_directory(&project_dir).unwrap();
     assert!(!reopened.show_grid_enabled());
-    assert!(!reopened.show_brush_surface_grid_enabled());
     assert!(!reopened.show_lights_enabled());
     assert!(!reopened.preview_bounds_enabled());
     assert!(!reopened.show_play_debug_overlays);
@@ -1167,7 +568,7 @@ fn editor_viewport_saves_with_project_and_restores_on_open() {
     let mut workspace =
         EditorWorkspace::with_project(project_dir.clone(), ProjectDocument::new("viewport"));
     workspace.view_2d = true;
-    workspace.set_orthographic_view(OrthographicView::Side);
+    workspace.set_orthographic_view(OrthographicView::Top);
     workspace.orthographic_focus = [64.0, 128.0, 256.0];
     workspace.viewport_zoom = 48.0;
     workspace.snap_units = 32;
@@ -1176,7 +577,7 @@ fn editor_viewport_saves_with_project_and_restores_on_open() {
 
     let reopened = EditorWorkspace::open_directory(&project_dir).unwrap();
     assert!(reopened.view_2d, "2D mode restored");
-    assert_eq!(reopened.orthographic_view, OrthographicView::Side);
+    assert_eq!(reopened.orthographic_view, OrthographicView::Top);
     assert_eq!(reopened.orthographic_focus, [64.0, 128.0, 256.0]);
     assert_eq!(reopened.viewport_zoom, 48.0);
     assert_eq!(reopened.snap_units, 32);
@@ -1200,109 +601,6 @@ fn editor_viewport_saves_with_project_and_restores_on_open() {
 }
 
 #[test]
-fn opening_legacy_default_bsp_top_view_frames_authored_brushes_without_dirtying() {
-    let project_dir = test_temp_dir("editor-viewport-bsp-default-migration");
-    let _ = std::fs::remove_dir_all(&project_dir);
-    std::fs::create_dir_all(&project_dir).unwrap();
-    let mut project = ProjectDocument::new("legacy default BSP viewport");
-    project
-        .active_scene_mut()
-        .brushes
-        .push(psxed_project::brush::Brush::cuboid(
-            [1024, 0, 2048],
-            [3072, 512, 4096],
-        ));
-    project.editor_workspace.active = psxed_project::EditorWorkspaceView::Room;
-    project.editor_viewport.view_2d = true;
-    project.editor_viewport.orthographic_view = psxed_project::EditorOrthographicView::Top;
-    project.editor_viewport.orthographic_focus = [0.0; 3];
-    project.editor_viewport.viewport_zoom = DEFAULT_VIEWPORT_ZOOM;
-    project
-        .save_to_path(project_dir.join("project.ron"))
-        .unwrap();
-
-    let reopened = EditorWorkspace::open_directory(&project_dir).unwrap();
-    assert!(
-        !reopened.is_dirty(),
-        "camera migration is editor-only state"
-    );
-    assert_eq!(reopened.orthographic_focus, [2048.0, 0.0, 3072.0]);
-    assert!(reopened.viewport_zoom < DEFAULT_VIEWPORT_ZOOM);
-
-    let _ = std::fs::remove_dir_all(project_dir);
-}
-
-#[test]
-fn opening_legacy_default_bsp_camera_frames_above_authored_brushes_without_dirtying() {
-    let project_dir = test_temp_dir("editor-camera-bsp-default-migration");
-    let _ = std::fs::remove_dir_all(&project_dir);
-    std::fs::create_dir_all(&project_dir).unwrap();
-    let mut project = ProjectDocument::new("legacy default BSP camera");
-    project
-        .active_scene_mut()
-        .brushes
-        .push(psxed_project::brush::Brush::cuboid(
-            [0, 0, 0],
-            [1024, 512, 768],
-        ));
-    project.editor_workspace.active = psxed_project::EditorWorkspaceView::Room;
-    project.editor_viewport.view_2d = false;
-    assert_eq!(project.editor_camera, EditorCameraState::default());
-    project
-        .save_to_path(project_dir.join("project.ron"))
-        .unwrap();
-
-    let reopened = EditorWorkspace::open_directory(&project_dir).unwrap();
-    assert!(
-        !reopened.is_dirty(),
-        "camera migration is session-only state"
-    );
-    assert_eq!(reopened.camera_rig.target, [512, 256, 384]);
-    assert_eq!(reopened.camera_rig.pitch, 3840);
-    assert!(
-        (512..6144).contains(&reopened.camera_rig.radius),
-        "BSP bounds replace the legacy 6144-unit dolly"
-    );
-    assert_eq!(
-        reopened.project().editor_camera,
-        EditorCameraState::default(),
-        "opening must not fabricate persisted camera authoring"
-    );
-
-    let _ = std::fs::remove_dir_all(project_dir);
-}
-
-#[test]
-fn opening_bsp_project_preserves_a_custom_camera_exactly() {
-    let project_dir = test_temp_dir("editor-camera-bsp-custom");
-    let _ = std::fs::remove_dir_all(&project_dir);
-    std::fs::create_dir_all(&project_dir).unwrap();
-    let mut project = ProjectDocument::new("custom BSP camera");
-    project
-        .active_scene_mut()
-        .brushes
-        .push(psxed_project::brush::Brush::cuboid(
-            [0, 0, 0],
-            [1024, 512, 768],
-        ));
-    project.editor_camera.orbit_yaw_q12 = 3072;
-    project.editor_camera.orbit_pitch_q12 = 3665;
-    project.editor_camera.orbit_radius = 550;
-    project.editor_camera.orbit_target = [512, 64, 384];
-    let expected = project.editor_camera;
-    project
-        .save_to_path(project_dir.join("project.ron"))
-        .unwrap();
-
-    let reopened = EditorWorkspace::open_directory(&project_dir).unwrap();
-    assert!(!reopened.is_dirty());
-    assert_eq!(reopened.current_editor_camera_state(), expected);
-    assert_eq!(reopened.project().editor_camera, expected);
-
-    let _ = std::fs::remove_dir_all(project_dir);
-}
-
-#[test]
 fn opening_tracked_starter_preserves_its_authored_interior_camera() {
     let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../archive/fixtures/brush-first-playable");
@@ -1319,138 +617,17 @@ fn opening_tracked_starter_preserves_its_authored_interior_camera() {
 }
 
 #[test]
-fn showing_room_workspace_migrates_only_an_exact_default_bsp_camera() {
-    let mut project = ProjectDocument::new("default BSP camera");
-    project
-        .active_scene_mut()
-        .brushes
-        .push(psxed_project::brush::Brush::cuboid(
-            [0, 0, 0],
-            [1024, 512, 768],
-        ));
-    let mut workspace = EditorWorkspace::with_project(std::env::temp_dir(), project);
-
-    workspace.show_workspace(psxed_project::EditorWorkspaceView::Room);
-
-    assert_eq!(workspace.camera_rig.target, [512, 256, 384]);
-    assert_eq!(workspace.camera_rig.pitch, 3840);
-    assert!(!workspace.is_dirty());
-    assert_eq!(
-        workspace.project().editor_camera,
-        EditorCameraState::default()
-    );
-}
-
-#[test]
-fn typed_brush_cook_issue_selects_and_frames_the_authored_brush() {
-    let mut project = ProjectDocument::new("brush diagnostic");
-    project
-        .active_scene_mut()
-        .brushes
-        .push(psxed_project::brush::Brush::cuboid(
-            [0, 0, 0],
-            [128, 64, 192],
-        ));
-    let mut workspace = EditorWorkspace::with_project(std::env::temp_dir(), project);
-    workspace.view_2d = false;
-    workspace.active_tool = ViewTool::Select;
-
-    assert!(workspace.focus_playtest_validation_target(
-        psxed_project::playtest::PlaytestValidationTarget::Brush {
-            brush: 0,
-            face: Some(3),
-        }
-    ));
-
-    assert_eq!(workspace.active_tool, ViewTool::Brush);
-    assert_eq!(workspace.selected_brush, Some(0));
-    assert_eq!(workspace.selected_brush_face, Some(3));
-    assert_eq!(workspace.camera_rig.target, [64, 32, 96]);
-    assert_eq!(workspace.status, "Framed selection");
-}
-
-#[test]
-fn brush_overlap_audit_focuses_the_exact_offending_face() {
-    let mut project = ProjectDocument::new("brush overlap audit");
-    let duplicate = psxed_project::brush::Brush::cuboid([0, 0, 0], [128, 64, 192]);
-    project.active_scene_mut().brushes.push(duplicate.clone());
-    project.active_scene_mut().brushes.push(duplicate);
-    let mut workspace = EditorWorkspace::with_project(std::env::temp_dir(), project);
-
-    workspace.run_brush_overlap_audit();
-    let overlaps = workspace
-        .brush_overlap_report
-        .as_ref()
-        .expect("report stays open");
-    assert_eq!(overlaps.len(), 6);
-    let overlap = overlaps[0];
-
-    assert!(workspace.focus_brush_overlap_face(overlap.brush_b, overlap.face_b));
-    assert_eq!(workspace.active_workspace, WorkspaceView::Room);
-    assert_eq!(workspace.active_tool, ViewTool::Brush);
-    assert_eq!(workspace.brush_edit_mode, BrushEditMode::Face);
-    assert_eq!(workspace.selected_brush, Some(overlap.brush_b));
-    assert_eq!(workspace.selected_brush_face, Some(overlap.face_b));
-    assert_eq!(workspace.selected_brushes, vec![overlap.brush_b]);
-}
-
-#[test]
-fn deleting_one_reported_brush_refreshes_the_overlap_audit_and_is_undoable() {
-    let mut project = ProjectDocument::new("delete brush overlap");
-    let duplicate = psxed_project::brush::Brush::cuboid([0, 0, 0], [64, 64, 64]);
-    project.active_scene_mut().brushes.push(duplicate.clone());
-    project.active_scene_mut().brushes.push(duplicate);
-    let mut workspace = EditorWorkspace::with_project(std::env::temp_dir(), project);
-
-    workspace.run_brush_overlap_audit();
-    workspace.delete_brush_from_overlap_report(1);
-
-    assert_eq!(workspace.project.active_scene().brushes.len(), 1);
-    assert!(workspace
-        .brush_overlap_report
-        .as_ref()
-        .expect("refreshed report remains open")
-        .is_empty());
-    assert!(workspace.is_dirty());
-    workspace.do_undo();
-    assert_eq!(workspace.project.active_scene().brushes.len(), 2);
-}
-
-#[test]
-fn brush_overlap_report_renders_actionable_rows() {
-    let mut project = ProjectDocument::new("render brush overlap report");
-    let duplicate = psxed_project::brush::Brush::cuboid([0, 0, 0], [64, 64, 64]);
-    project.active_scene_mut().brushes.push(duplicate.clone());
-    project.active_scene_mut().brushes.push(duplicate);
-    let mut workspace = EditorWorkspace::with_project(std::env::temp_dir(), project);
-    workspace.run_brush_overlap_audit();
-
-    let ctx = egui::Context::default();
-    let output = ctx.run(
-        egui::RawInput {
-            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1000.0, 700.0))),
-            ..egui::RawInput::default()
-        },
-        |ctx| workspace.draw_brush_overlap_dialog(ctx),
-    );
-
-    assert!(!output.shapes.is_empty(), "the results window must paint");
-    assert_eq!(workspace.brush_overlap_report.as_ref().unwrap().len(), 6);
-}
-
-#[test]
 fn stale_typed_cook_issue_target_falls_back_cleanly() {
-    let mut workspace = EditorWorkspace::with_project(
-        std::env::temp_dir(),
-        ProjectDocument::new("stale diagnostic"),
-    );
+    let mut project = ProjectDocument::new("stale diagnostic");
+    let root = project.active_scene().root;
+    let gone = project
+        .active_scene_mut()
+        .add_node(root, "Gone", NodeKind::Group);
+    project.active_scene_mut().remove_node(gone);
+    let mut workspace = EditorWorkspace::with_project(std::env::temp_dir(), project);
     assert!(!workspace.focus_playtest_validation_target(
-        psxed_project::playtest::PlaytestValidationTarget::Brush {
-            brush: 99,
-            face: None,
-        }
+        psxed_project::playtest::PlaytestValidationTarget::Node(gone)
     ));
-    assert_eq!(workspace.selected_brush, None);
 }
 
 /// A cook error raised by a per-kind cook helper (which only ever sees a node
@@ -1460,12 +637,10 @@ fn cook_errors_blame_the_authoring_node_that_raised_them() {
     use psxed_project::playtest::PlaytestValidationTarget;
 
     // A Trigger Volume with no target is dead content and fails the cook.
-    let template = psxed_project::new_project_template_dir();
-    let dir = test_temp_dir("per-error-targets");
-    crate::starter_catalogue::copy_dir_recursive(&template, &dir).unwrap();
+    let (dir, _scratch) = cookable_template_copy("per-error-targets");
     let mut workspace = EditorWorkspace::open_directory(&dir).unwrap();
     workspace.set_active_tool_cycle_value((ViewTool::Place, Some(PlaceKind::Logic)));
-    assert!(workspace.place_bsp_from_top([1024.0, 1024.0]));
+    place_at(&mut workspace, [1024.0, 1024.0]);
     let offender = workspace.selected_node_id();
 
     let project = workspace.project().clone();
@@ -1498,12 +673,10 @@ fn cook_errors_blame_the_authoring_node_that_raised_them() {
 fn failing_cook_auto_focuses_the_offending_node_and_keeps_every_target() {
     use psxed_project::playtest::PlaytestValidationTarget;
 
-    let template = psxed_project::new_project_template_dir();
-    let dir = test_temp_dir("failing-cook-focus");
-    crate::starter_catalogue::copy_dir_recursive(&template, &dir).unwrap();
+    let (dir, _scratch) = cookable_template_copy("failing-cook-focus");
     let mut workspace = EditorWorkspace::open_directory(&dir).unwrap();
     workspace.set_active_tool_cycle_value((ViewTool::Place, Some(PlaceKind::Logic)));
-    assert!(workspace.place_bsp_from_top([1024.0, 1024.0]));
+    place_at(&mut workspace, [1024.0, 1024.0]);
     let offender = workspace.selected_node_id();
     workspace.replace_node_selection(workspace.project().active_scene().root);
 
@@ -1535,12 +708,10 @@ fn failing_cook_auto_focuses_the_offending_node_and_keeps_every_target() {
 fn blank_point_of_interest_cook_error_focuses_its_message_component() {
     use psxed_project::playtest::PlaytestValidationTarget;
 
-    let template = psxed_project::new_project_template_dir();
-    let dir = test_temp_dir("blank-poi-focus");
-    crate::starter_catalogue::copy_dir_recursive(&template, &dir).unwrap();
+    let (dir, _scratch) = cookable_template_copy("blank-poi-focus");
     let mut workspace = EditorWorkspace::open_directory(&dir).unwrap();
     workspace.set_active_tool_cycle_value((ViewTool::Place, Some(PlaceKind::PointOfInterest)));
-    assert!(workspace.place_bsp_from_top([1024.0, 1024.0]));
+    place_at(&mut workspace, [1024.0, 1024.0]);
     let message_component = workspace.selected_node_id();
     let NodeKind::PointOfInterest { pages, .. } = &mut workspace
         .project
@@ -1664,109 +835,12 @@ fn cycle_value_wraps_forward_and_backward() {
 }
 
 #[test]
-fn tool_group_cycle_follows_the_flat_bsp_mode_strip() {
-    let mut workspace = EditorWorkspace::with_project(
-        test_temp_dir("tool-group-cycle"),
-        ProjectDocument::new("tool-group-cycle"),
-    );
-
-    assert_eq!(
-        workspace.active_bsp_toolbar_mode(),
-        Some(BspToolbarMode::Select)
-    );
-    for expected in [
-        BspToolbarMode::Draw,
-        BspToolbarMode::Paint,
-        BspToolbarMode::Face,
-        BspToolbarMode::Edge,
-        BspToolbarMode::Vertex,
-        BspToolbarMode::Clip,
-        BspToolbarMode::Select,
-    ] {
-        workspace.cycle_tool_group(false);
-        assert_eq!(workspace.active_bsp_toolbar_mode(), Some(expected));
-    }
-    workspace.cycle_tool_group(true);
-    assert_eq!(
-        workspace.active_bsp_toolbar_mode(),
-        Some(BspToolbarMode::Clip)
-    );
-}
-
-#[test]
-fn draw_mode_clears_existing_brush_and_element_selection() {
-    let mut workspace = EditorWorkspace::with_project(
-        test_temp_dir("draw-clears-brush-selection"),
-        ProjectDocument::new("draw-clears-brush-selection"),
-    );
-    workspace.selected_brush = Some(2);
-    workspace.selected_brushes = vec![1, 2];
-    workspace.selected_brush_face = Some(4);
-    workspace.selected_brush_faces = vec![(2, 4)];
-    workspace.selected_brush_elements = vec![BrushElement::Vertex([16, 32, 48])];
-
-    workspace.set_bsp_toolbar_mode(BspToolbarMode::Draw);
-
-    assert_eq!(workspace.active_tool, ViewTool::Brush);
-    assert_eq!(workspace.selected_brush, None);
-    assert!(workspace.selected_brushes.is_empty());
-    assert_eq!(workspace.selected_brush_face, None);
-    assert!(workspace.selected_brush_faces.is_empty());
-    assert!(workspace.selected_brush_elements.is_empty());
-}
-
-#[test]
-fn place_kind_selection_does_not_claim_a_bsp_toolbar_mode() {
-    let mut workspace = EditorWorkspace::with_project(
-        test_temp_dir("place-kind-toolbar"),
-        ProjectDocument::new("place-kind-toolbar"),
-    );
-    workspace.set_active_tool_cycle_value((ViewTool::Place, Some(PlaceKind::ImageProp)));
-
-    assert_eq!(workspace.place_kind, PlaceKind::ImageProp);
-    assert_eq!(workspace.active_bsp_toolbar_mode(), None);
-    assert_eq!(workspace.status, "Tool: Image Prop");
-}
-
-#[test]
-fn material_paint_is_a_separate_bsp_tool() {
-    let mut workspace = EditorWorkspace::with_project(
-        test_temp_dir("terrain-mode-toolbar"),
-        ProjectDocument::new("terrain-mode-toolbar"),
-    );
-    workspace.active_tool = ViewTool::PaintMaterial;
-
-    assert_eq!(
-        workspace.active_bsp_toolbar_mode(),
-        Some(BspToolbarMode::Paint)
-    );
-}
-
-#[test]
-fn entering_material_paint_syncs_the_material() {
-    let mut project = ProjectDocument::new("paint-modal-selection");
-    let material = project.add_resource(
-        "Sand",
-        ResourceData::Material(MaterialResource::opaque(None)),
-    );
-    let mut workspace =
-        EditorWorkspace::with_project(test_temp_dir("paint-modal-selection"), project);
-    workspace.replace_resource_selection(material);
-
-    workspace.set_active_tool_cycle_value((ViewTool::PaintMaterial, None));
-
-    assert_eq!(workspace.brush_material, Some(material));
-    assert_eq!(workspace.selection.selected_resource, Some(material));
-}
-
-#[test]
 fn visibility_cycle_only_changes_editor_view_items() {
     let mut workspace = EditorWorkspace::with_project(
         test_temp_dir("visibility-cycle"),
         ProjectDocument::new("visibility"),
     );
     workspace.show_grid = true;
-    workspace.show_brush_surface_grid = true;
     workspace.show_lights = true;
     workspace.preview_bounds = true;
     workspace.show_play_debug_overlays = false;
@@ -1774,31 +848,24 @@ fn visibility_cycle_only_changes_editor_view_items() {
     workspace.cycle_visibility_group(false);
 
     assert!(workspace.show_grid);
-    assert!(workspace.show_brush_surface_grid);
     assert!(!workspace.show_lights);
     assert!(!workspace.preview_bounds);
     assert!(!workspace.show_play_debug_overlays);
 }
 
 #[test]
-fn grid_master_controls_both_overlays_while_their_settings_remain_independent() {
+fn the_grid_master_toggle_flips_the_overlay() {
     let mut workspace = EditorWorkspace::with_project(
         test_temp_dir("grid-master"),
         ProjectDocument::new("grid master"),
     );
     workspace.show_grid = true;
-    workspace.show_brush_surface_grid = false;
 
     workspace.toggle_grid_overlays();
     assert!(!workspace.show_grid);
-    assert!(!workspace.show_brush_surface_grid);
 
     workspace.toggle_grid_overlays();
     assert!(workspace.show_grid);
-    assert!(workspace.show_brush_surface_grid);
-
-    workspace.show_grid = false;
-    assert!(workspace.show_brush_surface_grid);
 }
 
 #[test]
@@ -2056,11 +1123,10 @@ fn create_and_open_project_sets_document_name_and_derived_directory() {
     assert_eq!(ws.project().name, name);
     assert_eq!(ws.project_root(), target);
     assert!(!ws.is_dirty());
-    assert!(ws.view_2d);
-    assert_eq!(ws.active_tool, ViewTool::Brush);
+    assert!(!ws.view_2d);
     assert!(
-        !ws.project().active_scene().brushes.is_empty(),
-        "new projects use the BSP-first brush template"
+        ws.project().active_scene().world.grid().is_some(),
+        "new projects start as grid projects"
     );
     assert!(
         ProjectDocument::load_from_path(ws.project_root().join("project.ron")).is_ok(),
@@ -2090,163 +1156,7 @@ fn create_and_open_project_sets_document_name_and_derived_directory() {
         }));
     let saved = ProjectDocument::load_from_path(target.join("project.ron")).unwrap();
     assert_eq!(saved.name, ws.project().name);
-    assert_eq!(
-        saved.bsp_cook_mode,
-        psxed_project::brush_world::BrushWorldCookMode::Draft
-    );
     let _ = std::fs::remove_dir_all(target);
-}
-
-#[test]
-fn bsp_new_project_can_author_save_cook_edit_and_recook_without_grid_rooms() {
-    let mut workspace =
-        EditorWorkspace::open_directory(psxed_project::default_project_dir()).unwrap();
-    let name = format!(
-        "BSP Authoring Loop {} {}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    );
-    let project_dir = psxed_project::projects_dir().join(psxed_project::project_file_stem(&name));
-    // Removes the created project even if an assertion below panics.
-    let _scratch = ScratchProjectDir::new(project_dir.clone());
-    let cook_a = test_temp_dir("bsp-authoring-loop-a");
-    let cook_b = test_temp_dir("bsp-authoring-loop-b");
-    let cook_c = test_temp_dir("bsp-authoring-loop-c");
-    let _ = std::fs::remove_dir_all(&project_dir);
-    let _ = std::fs::remove_dir_all(&cook_a);
-    let _ = std::fs::remove_dir_all(&cook_b);
-    let _ = std::fs::remove_dir_all(&cook_c);
-
-    workspace.create_and_open_project(&name).unwrap();
-    assert_eq!(
-        workspace.bsp_authoring_root(),
-        Some(workspace.project().active_scene().root)
-    );
-    workspace.set_active_tool_cycle_value((ViewTool::Place, Some(PlaceKind::PlayerSpawn)));
-    assert_eq!(workspace.active_tool, ViewTool::Place);
-    assert_eq!(workspace.place_kind, PlaceKind::PlayerSpawn);
-    workspace.set_active_tool_cycle_value((ViewTool::Brush, None));
-
-    // Remove the template spawn through the normal scene-tree command so the
-    // BSP Place tool can prove it creates the replacement itself.
-    let old_spawn = workspace
-        .project()
-        .active_scene()
-        .nodes()
-        .iter()
-        .find(|node| matches!(node.kind, NodeKind::SpawnPoint { player: true, .. }))
-        .expect("BSP template player spawn")
-        .id;
-    workspace.replace_node_selection(old_spawn);
-    workspace.delete_selected();
-    assert!(!workspace.has_player_source());
-
-    // Real Brush commands: drag one solid, inherit the project's selected
-    // material, then Hollow it into a closed six-slab room.
-    let original_brushes = workspace.project().active_scene().brushes.len();
-    let material = workspace.first_material().expect("template material");
-    workspace.set_orthographic_view(OrthographicView::Top);
-    // Author the enclosed test room directly on the courtyard's 64-unit
-    // floor. The 256-unit Draw extrusion is intentionally too short to hold
-    // Aletha's 1024-unit body, so place the replacement player on the open
-    // roof at Y=320 rather than inside the diagnostic hollow.
-    workspace.orthographic_focus[1] = 64.0;
-    workspace.begin_brush_drag_2d([2048.0, 0.0]);
-    workspace.update_brush_drag_2d([2560.0, 512.0]);
-    workspace.commit_brush_drag();
-    let created = workspace.selected_brush.expect("drag selected new brush");
-    assert!(workspace.project().active_scene().brushes[created]
-        .faces
-        .iter()
-        .all(|face| face.material == Some(material)));
-    assert!(workspace.csg_hollow_selected());
-    assert_eq!(
-        workspace.project().active_scene().brushes.len(),
-        original_brushes + 6
-    );
-    assert!(workspace.project().active_scene().brushes[created..]
-        .iter()
-        .flat_map(|brush| &brush.faces)
-        .all(|face| face.material == Some(material)));
-    workspace.orthographic_focus[1] = 320.0;
-
-    // Real Place commands in a brush-only scene. The top
-    // view resolves the hollow's upward roof at Y=320 and lifts the spawn
-    // one unit out of the solid boundary.
-    workspace.set_active_tool_cycle_value((ViewTool::Place, Some(PlaceKind::PlayerSpawn)));
-    workspace.handle_viewport_click([2304.0, 256.0], &[], egui::Modifiers::default());
-    let spawn = workspace
-        .project()
-        .active_scene()
-        .nodes()
-        .iter()
-        .find(|node| matches!(node.kind, NodeKind::SpawnPoint { player: true, .. }))
-        .expect("placed BSP player spawn");
-    assert_eq!(spawn.parent, Some(workspace.project().active_scene().root));
-    assert_eq!(spawn.transform.translation, [2304.0, 321.0, 256.0]);
-
-    workspace.set_active_tool_cycle_value((ViewTool::Place, Some(PlaceKind::PointLightMarker)));
-    workspace.handle_viewport_click([2304.0, 384.0], &[], egui::Modifiers::default());
-    assert!(workspace
-        .project()
-        .active_scene()
-        .nodes()
-        .iter()
-        .any(|node| matches!(node.kind, NodeKind::PointLight { .. })
-            && node.transform.translation == [2304.0, 576.0, 384.0]));
-
-    workspace.save().expect("save authored BSP project");
-    workspace.request_play_or_rebuild(EditorPlaytestStatus::Idle);
-    assert_eq!(
-        workspace.take_playtest_request(),
-        Some(EditorPlaytestRequest::Play)
-    );
-    workspace
-        .cook_playtest_to_dir(&cook_a)
-        .expect("cook first authored revision");
-    let first = std::fs::read(cook_a.join(psxed_project::brush_playtest::BRUSH_WORLD_FILENAME))
-        .expect("first PXBSP");
-
-    // Reopen the persisted project, perform another real Brush command, and
-    // request the same Rebuild path used by Play while already running.
-    let mut reopened = EditorWorkspace::open_directory(&project_dir).expect("reopen saved BSP");
-    assert!(reopened.has_player_source());
-    reopened.set_orthographic_view(OrthographicView::Top);
-    reopened.begin_brush_drag_2d([2816.0, 0.0]);
-    reopened.update_brush_drag_2d([2880.0, 64.0]);
-    reopened.commit_brush_drag();
-    reopened.save_if_dirty().expect("save changed BSP");
-    reopened.request_play_or_rebuild(EditorPlaytestStatus::Running {
-        input_captured: false,
-    });
-    assert_eq!(
-        reopened.take_playtest_request(),
-        Some(EditorPlaytestRequest::Rebuild)
-    );
-    reopened
-        .cook_playtest_to_dir(&cook_b)
-        .expect("cook edited revision");
-    let edited = std::fs::read(cook_b.join(psxed_project::brush_playtest::BRUSH_WORLD_FILENAME))
-        .expect("edited PXBSP");
-    assert_ne!(first, edited, "the saved brush edit must reach the cook");
-
-    // A second cook of unchanged saved data is byte deterministic.
-    reopened
-        .cook_playtest_to_dir(&cook_c)
-        .expect("repeat unchanged cook");
-    assert_eq!(
-        edited,
-        std::fs::read(cook_c.join(psxed_project::brush_playtest::BRUSH_WORLD_FILENAME))
-            .expect("repeat PXBSP")
-    );
-
-    let _ = std::fs::remove_dir_all(project_dir);
-    let _ = std::fs::remove_dir_all(cook_a);
-    let _ = std::fs::remove_dir_all(cook_b);
-    let _ = std::fs::remove_dir_all(cook_c);
 }
 
 fn action_bar_text_center(
@@ -2350,522 +1260,6 @@ fn play_and_rebuild_buttons_emit_requests_through_real_egui_input() {
         workspace.take_playtest_request(),
         Some(EditorPlaytestRequest::Rebuild)
     );
-}
-
-/// A Trigger Volume placed through the BSP Place lane must fire for a player
-/// who simply walks onto the surface it was placed on.
-///
-/// Two defects made that impossible. The lane lifted every point entity one
-/// unit above the surface, but the cook grows a trigger AABB UPWARD from its
-/// anchor and the character motor stands its feet exactly on the floor plane,
-/// so the volume started one unit above the player. And the placement default
-/// was `wait_ticks: 0`, which re-fires every tick the player stands inside and
-/// soft-locks whatever overlay the trigger opens.
-#[test]
-fn placed_trigger_volume_contains_a_player_standing_on_the_placement_surface() {
-    let template = psxed_project::new_project_template_dir();
-    let dir = test_temp_dir("trigger-anchor");
-    crate::starter_catalogue::copy_dir_recursive(&template, &dir).unwrap();
-    let mut workspace = EditorWorkspace::open_directory(&dir).unwrap();
-
-    let surface_y = workspace
-        .bsp_upward_surface_y([1024.0, 1024.0], workspace.orthographic_focus[1])
-        .expect("template courtyard floor");
-    workspace.set_active_tool_cycle_value((ViewTool::Place, Some(PlaceKind::Logic)));
-    assert!(workspace.place_bsp_from_top([1024.0, 1024.0]));
-    let placed = workspace.selected_node_id();
-
-    let node = workspace
-        .project()
-        .active_scene()
-        .node(placed)
-        .expect("placed Logic node");
-    assert_eq!(
-        node.transform.translation[1], surface_y,
-        "a Logic anchor sits ON the surface, never lifted above it"
-    );
-    let NodeKind::Logic {
-        kind, wait_ticks, ..
-    } = &node.kind
-    else {
-        panic!("Place must author a Logic node");
-    };
-    assert!(matches!(
-        kind,
-        psxed_project::LogicNodeKind::TriggerVolume { .. }
-    ));
-    assert_eq!(
-        *wait_ticks, -1,
-        "a freshly placed volume fires once, then retires"
-    );
-
-    // Give the volume a target so the cook accepts it, then prove the cooked
-    // AABB contains a player whose feet rest on the placement surface.
-    workspace.push_undo();
-    if let Some(node) = workspace.project.active_scene_mut().node_mut(placed) {
-        if let NodeKind::Logic { target, .. } = &mut node.kind {
-            *target = "Anything".to_string();
-        }
-    }
-    workspace.mark_dirty();
-
-    let project = workspace.project().clone();
-    let (package, report) = psxed_project::playtest::build_package(&project, &dir);
-    assert!(report.is_ok(), "cook errors: {:?}", report.errors);
-    let package = package.expect("cooks");
-    let trigger = package
-        .logic
-        .iter()
-        .find(|record| record.kind == psx_level::logic_kind::TRIGGER_VOLUME)
-        .expect("cooked trigger volume");
-    assert_eq!(trigger.wait_ticks, -1);
-    // BSP projects cook to engine (Quake) units; the editor stays authored
-    // scale, so authored heights divide before they meet cooked records.
-    let engine = |authored: f32| authored / psxed_project::units::WORLD_UNIT_DIVISOR as f32;
-    let feet = engine(surface_y).round() as i32;
-    assert!(
-        feet >= trigger.min[1] && feet <= trigger.max[1],
-        "player feet at y={feet} must be inside the trigger's y span {}..={}",
-        trigger.min[1],
-        trigger.max[1]
-    );
-
-    // What the author sees must be where it fires. The gizmo is floor
-    // anchored like the cooked box, so its drawn Y span matches the cooked
-    // one; a centred gizmo would sit half the authored height too low.
-    let node = workspace
-        .project()
-        .active_scene()
-        .node(placed)
-        .expect("placed Logic node");
-    let (_, half) = crate::editor_helpers::entity_bound_kind_and_size(&workspace, node)
-        .expect("trigger volumes have a preview bound");
-    let bound = workspace
-        .collect_entity_bounds()
-        .into_iter()
-        .find(|bound| bound.node == placed)
-        .expect("trigger volumes have a pickable bound");
-    assert!(
-        (bound.center[1] - bound.half_extents[1] - node.transform.translation[1]).abs() < 0.001,
-        "a Trigger Volume gizmo must be floor anchored to match its cooked AABB"
-    );
-    let drawn_min = engine(node.transform.translation[1]);
-    let drawn_max = drawn_min + engine(half[1] * 2.0);
-    assert!(
-        (drawn_min - trigger.min[1] as f32).abs() <= 1.0
-            && (drawn_max - trigger.max[1] as f32).abs() <= 1.0,
-        "gizmo y span {drawn_min}..={drawn_max} (engine units) must match the cooked {}..={}",
-        trigger.min[1],
-        trigger.max[1]
-    );
-
-    let _ = std::fs::remove_dir_all(dir);
-}
-
-#[test]
-fn bsp_blank_slate_commands_preserve_rooted_prop_door_and_portal_contract() {
-    let mut workspace =
-        EditorWorkspace::open_directory(psxed_project::default_project_dir()).unwrap();
-    let name = format!(
-        "BSP Blank Slate {} {}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    );
-    let project_dir = psxed_project::projects_dir().join(psxed_project::project_file_stem(&name));
-    // Removes the created project even if an assertion below panics.
-    let _scratch = ScratchProjectDir::new(project_dir.clone());
-    let cook_a = test_temp_dir("bsp-blank-slate-a");
-    let cook_b = test_temp_dir("bsp-blank-slate-b");
-    let _ = std::fs::remove_dir_all(&project_dir);
-    let _ = std::fs::remove_dir_all(&cook_a);
-    let _ = std::fs::remove_dir_all(&cook_b);
-
-    workspace.create_and_open_project(&name).unwrap();
-    let root = workspace.project().active_scene().root;
-
-    // Challenge the template-copy path from a genuine blank slate. Deleting
-    // authored children and brushes uses the same selection commands as the
-    // scene tree and brush viewport; the World root and Material resource
-    // remain the project's ownership anchors.
-    let children = workspace
-        .project()
-        .active_scene()
-        .node(root)
-        .expect("world root")
-        .children
-        .clone();
-    for child in children {
-        workspace.replace_node_selection(child);
-        workspace.delete_selected();
-    }
-    while !workspace.project().active_scene().brushes.is_empty() {
-        workspace.selected_brush = Some(0);
-        workspace.delete_selected_brushes();
-    }
-    assert!(workspace.project().active_scene().brushes.is_empty());
-    assert_eq!(workspace.bsp_authoring_root(), Some(root));
-
-    let material = workspace.first_material().expect("template material");
-    workspace.set_orthographic_view(OrthographicView::Top);
-    workspace.set_active_tool_cycle_value((ViewTool::Brush, None));
-    workspace.begin_brush_drag_2d([0.0, 0.0]);
-    // Keep the normal one-sector Box Prop well clear of the player so this
-    // authored artifact can also prove movement after it reaches the guest.
-    workspace.update_brush_drag_2d([2048.0, 2048.0]);
-    workspace.commit_brush_drag();
-    let solid = workspace.selected_brush.expect("new solid selected");
-    workspace.snap_units = 64;
-    assert!(workspace.csg_hollow_selected());
-    assert_eq!(workspace.bsp_authoring_root(), Some(root));
-    assert_eq!(workspace.project().active_scene().brushes.len(), 6);
-    assert!(workspace.project().active_scene().brushes[solid..]
-        .iter()
-        .flat_map(|brush| &brush.faces)
-        .all(|face| face.material == Some(material)
-            && face.uv == psxed_project::brush::FaceUv::default()));
-    // This diagnostic hollow is only 256 units high; target its open roof so
-    // the now-default Aletha body has its full 1024-unit standing clearance.
-    workspace.orthographic_focus[1] = 256.0;
-
-    // The BSP place lane must root every point/prop entity directly under the
-    // World and preserve world-space coordinates. A portal request is rejected
-    // without mutating or dirtying an otherwise saved document.
-    workspace.set_active_tool_cycle_value((ViewTool::Place, Some(PlaceKind::PlayerSpawn)));
-    assert!(workspace.place_bsp_from_top([192.0, 192.0]));
-    let spawn = workspace.selected_node_id();
-    workspace.set_active_tool_cycle_value((ViewTool::Place, Some(PlaceKind::PointLightMarker)));
-    assert!(workspace.place_bsp_from_top([512.0, 512.0]));
-    let light = workspace.selected_node_id();
-    workspace.set_active_tool_cycle_value((ViewTool::Place, Some(PlaceKind::BoxProp)));
-    // The courtyard intentionally offers two materials, so Box Prop placement
-    // requires the same explicit material choice presented by the toolbar.
-    workspace.replace_resource_selection(material);
-    assert!(workspace.place_bsp_from_top([1536.0, 1536.0]));
-    let prop = workspace.selected_node_id();
-    for id in [spawn, light, prop] {
-        assert_eq!(
-            workspace.project().active_scene().node(id).unwrap().parent,
-            Some(root)
-        );
-    }
-    assert_eq!(
-        workspace
-            .project()
-            .active_scene()
-            .node(spawn)
-            .unwrap()
-            .transform
-            .translation,
-        [192.0, 257.0, 192.0]
-    );
-    // Place the normal default Logic node, then perform the exact kind change
-    // exposed by its inspector before binding one hollowed wall as its model.
-    workspace.set_active_tool_cycle_value((ViewTool::Place, Some(PlaceKind::Logic)));
-    assert!(workspace.place_bsp_from_top([64.0, 1024.0]));
-    let door = workspace.selected_node_id();
-    workspace.push_undo();
-    let node = workspace
-        .project
-        .active_scene_mut()
-        .node_mut(door)
-        .expect("placed Logic node");
-    node.name = "Simple Door".to_string();
-    node.kind = NodeKind::Logic {
-        kind: psxed_project::LogicNodeKind::Door {
-            box_prop: String::new(),
-            start_open: false,
-            open_offset: [0, 192, 0],
-            travel_ticks: 60,
-        },
-        target: String::new(),
-        killtarget: String::new(),
-        master: String::new(),
-        delay_ticks: 0,
-        wait_ticks: 0,
-        enabled: true,
-    };
-    workspace.mark_dirty();
-    workspace.selected_brush = Some(2);
-    workspace.set_selected_brush_mover(Some(door));
-    assert_eq!(
-        workspace.project().active_scene().brushes[2].mover,
-        Some(door)
-    );
-
-    workspace.save_if_dirty().expect("persist full BSP project");
-    workspace.request_play_or_rebuild(EditorPlaytestStatus::Idle);
-    assert_eq!(
-        workspace.take_playtest_request(),
-        Some(EditorPlaytestRequest::Play)
-    );
-    workspace
-        .cook_playtest_to_dir(&cook_a)
-        .expect("cook rooted prop and door");
-    let project = ProjectDocument::load_from_path(project_dir.join("project.ron")).unwrap();
-    let (package, report) = psxed_project::playtest::build_package(&project, &project_dir);
-    assert!(report.is_ok(), "{}", report.error_messages().join("; "));
-    let package = package.expect("cooked package");
-    assert_eq!(package.box_props.len(), 1);
-    assert_ne!(
-        package.box_props[0].flags & psx_level::box_prop_flags::COLLISION_ENABLED,
-        0,
-        "the authored Box Prop must retain its collision contract"
-    );
-    assert_eq!(package.lights.len(), 1);
-    assert!(
-        package.world_geometry.movers.len() == 1
-            && package.world_geometry.movers[0].node == door.raw() as u32
-    );
-
-    // Rebuild an unchanged persisted revision into a separate directory and
-    // compare both authoritative generated files byte-for-byte.
-    workspace.request_play_or_rebuild(EditorPlaytestStatus::Running {
-        input_captured: false,
-    });
-    assert_eq!(
-        workspace.take_playtest_request(),
-        Some(EditorPlaytestRequest::Rebuild)
-    );
-    workspace
-        .cook_playtest_to_dir(&cook_b)
-        .expect("deterministic BSP rebuild");
-    for filename in [
-        psxed_project::brush_playtest::BRUSH_WORLD_FILENAME,
-        psxed_project::playtest::COOKED_MANIFEST_FILENAME,
-    ] {
-        assert_eq!(
-            std::fs::read(cook_a.join(filename)).unwrap(),
-            std::fs::read(cook_b.join(filename)).unwrap(),
-            "{filename} drifted across unchanged Rebuild"
-        );
-    }
-
-    // The opt-in acceptance gate consumes the exact project authored above,
-    // rather than regenerating a lookalike through a second construction
-    // path. Normal unit-test runs leave no artifact behind. The Make target
-    // supplies a fresh temporary destination and carries this persisted
-    // project through the real cook, MIPS link, disc build, and emulator boot.
-    if let Some(export_dir) = std::env::var_os("PSOXIDE_EDITOR_BLANK_PROJECT_OUT") {
-        let export_dir = PathBuf::from(export_dir);
-        assert!(
-            !export_dir.exists(),
-            "blank-slate export destination already exists: {}",
-            export_dir.display()
-        );
-        copy_dir_recursive(&project_dir, &export_dir).expect("export authored BSP project");
-        let export_file = export_dir.join("project.ron");
-        let mut exported = ProjectDocument::load_from_path(&export_file).expect("load export");
-        exported.name = "Editor Blank Playtest Acceptance".to_string();
-        exported
-            .save_to_path(&export_file)
-            .expect("stabilise exported acceptance project name");
-        println!("blank-slate project: {}", export_file.display());
-    }
-
-    let _ = std::fs::remove_dir_all(project_dir);
-    let _ = std::fs::remove_dir_all(cook_a);
-    let _ = std::fs::remove_dir_all(cook_b);
-}
-
-#[test]
-fn new_project_release_choice_copies_the_roofless_open_courtyard() {
-    let mut workspace =
-        EditorWorkspace::open_directory(psxed_project::default_project_dir()).unwrap();
-    let name = format!(
-        "Release BSP Project {} {}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    );
-    let target = psxed_project::projects_dir().join(psxed_project::project_file_stem(&name));
-    // Removes the created project even if an assertion below panics.
-    let _scratch = ScratchProjectDir::new(target.clone());
-    let _ = std::fs::remove_dir_all(&target);
-
-    workspace
-        .create_and_open_project_with_mode(
-            &name,
-            psxed_project::brush_world::BrushWorldCookMode::Release,
-        )
-        .unwrap();
-
-    assert_eq!(
-        workspace.project().bsp_cook_mode,
-        psxed_project::brush_world::BrushWorldCookMode::Release
-    );
-    assert_eq!(workspace.project().active_scene().brushes.len(), 5);
-    assert!(
-        !workspace.is_dirty(),
-        "the framed new project is already saved"
-    );
-    assert!(workspace.view_2d);
-    assert_eq!(workspace.orthographic_view, OrthographicView::Top);
-    assert_eq!(workspace.active_tool, ViewTool::Brush);
-    assert!(
-        workspace.viewport_zoom < DEFAULT_VIEWPORT_ZOOM,
-        "the starter BSP must be framed instead of opening at 96 px/unit"
-    );
-    assert_eq!(workspace.orthographic_focus, [8256.0, 0.0, 8256.0]);
-    let framed_span =
-        psxed_project::NEW_PROJECT_COURTYARD_OUTER_SIZE as f32 * workspace.viewport_zoom;
-    assert!(
-        framed_span <= workspace.last_viewport_size.x.max(320.0) * 0.72 + 0.01
-            && framed_span <= workspace.last_viewport_size.y.max(240.0) * 0.72 + 0.01,
-        "the entire courtyard must fit inside the initial Top frame"
-    );
-    assert!(
-        64.0 * workspace.viewport_zoom >= 2.0,
-        "the 64-unit perimeter must remain visibly thicker than two pixels"
-    );
-    let saved = ProjectDocument::load_from_path(target.join("project.ron")).unwrap();
-    assert_eq!(
-        saved.bsp_cook_mode,
-        psxed_project::brush_world::BrushWorldCookMode::Release
-    );
-    // The framed Top view is the user's view: it lives in the view file,
-    // while project.ron keeps the template's starting view.
-    let view = psxed_project::EditorViewState::load(&target).expect("new project view file");
-    assert!(view.viewport.view_2d);
-    assert_eq!(
-        view.viewport.orthographic_view,
-        psxed_project::EditorOrthographicView::Top
-    );
-    assert_eq!(view.viewport.viewport_zoom, workspace.viewport_zoom);
-    assert_eq!(saved.active_scene().brushes.len(), 5);
-    for camera in [saved.editor_camera, view.camera] {
-        assert_eq!(camera.orbit_target, [8256, 160, 8256]);
-        assert_eq!(camera.orbit_radius, 18_000);
-        assert_eq!(camera.orbit_yaw_q12, 3584);
-        assert_eq!(camera.orbit_pitch_q12, 3712);
-    }
-    let material_paths = saved
-        .resources
-        .iter()
-        .filter_map(|resource| match &resource.data {
-            psxed_project::ResourceData::Material(material) => material.psxt_path.as_deref(),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    assert!(
-        material_paths.starts_with(&[
-            "assets/textures/courtyard_cobbles.psxt",
-            "assets/textures/courtyard_brick.psxt"
-        ]),
-        "the courtyard's authored material ordering must remain stable"
-    );
-    // The starter library is v0.4b's, so the canonical probes are its DP City
-    // kit rather than the old brick_1a_v2 / tech_5f_v2 pair.
-    assert!(
-        material_paths.len() >= 20
-            && material_paths.contains(&"assets/textures/dp_city_kit/dp_city_deck_plate.psxt")
-            && material_paths
-                .contains(&"assets/textures/dp_city_kit/dp_city_wall_megastructure.psxt"),
-        "New Project must append the canonical saved material library"
-    );
-    let template = psxed_project::new_project_template_dir();
-    for relative in [
-        "assets/textures/courtyard_cobbles.psxt",
-        "assets/textures/courtyard_brick.psxt",
-    ] {
-        assert_eq!(
-            std::fs::read(target.join(relative)).unwrap(),
-            std::fs::read(template.join(relative)).unwrap(),
-            "New Project did not copy {relative} byte-for-byte"
-        );
-    }
-    let _ = std::fs::remove_dir_all(target);
-}
-
-#[test]
-fn one_click_play_and_rebuild_recook_the_persisted_bsp_mode() {
-    let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../archive/fixtures/brush-first-playable");
-    let project = ProjectDocument::load_from_path(fixture_dir.join("project.ron")).unwrap();
-    let output = test_temp_dir("bsp-mode-replay-output");
-    let _ = std::fs::remove_dir_all(&output);
-    let mut workspace = EditorWorkspace::with_project(fixture_dir, project);
-
-    workspace.set_bsp_cook_mode(psxed_project::brush_world::BrushWorldCookMode::Release);
-    workspace.request_play_or_rebuild(EditorPlaytestStatus::Idle);
-    assert_eq!(
-        workspace.take_playtest_request(),
-        Some(EditorPlaytestRequest::Play)
-    );
-    workspace
-        .cook_playtest_to_dir(&output)
-        .expect("Release Play cook");
-    let release =
-        std::fs::read(output.join(psxed_project::brush_playtest::BRUSH_WORLD_FILENAME)).unwrap();
-    assert_eq!(
-        workspace.playtest_budget_report().unwrap().stage,
-        psxed_project::playtest::PlaytestBudgetStage::Cooked
-    );
-    assert_eq!(
-        workspace.playtest_budget_report().unwrap().mode,
-        psxed_project::brush_world::BrushWorldCookMode::Release
-    );
-
-    workspace.set_bsp_cook_mode(psxed_project::brush_world::BrushWorldCookMode::Draft);
-    assert!(
-        workspace.playtest_budget_report().is_none(),
-        "editing the project must discard stale exact cook diagnostics"
-    );
-    workspace.request_play_or_rebuild(EditorPlaytestStatus::Running {
-        input_captured: false,
-    });
-    assert_eq!(
-        workspace.take_playtest_request(),
-        Some(EditorPlaytestRequest::Rebuild)
-    );
-    workspace
-        .cook_playtest_to_dir(&output)
-        .expect("Draft re-Play cook");
-    let draft =
-        std::fs::read(output.join(psxed_project::brush_playtest::BRUSH_WORLD_FILENAME)).unwrap();
-    let manifest =
-        std::fs::read_to_string(output.join(psxed_project::playtest::COOKED_MANIFEST_FILENAME))
-            .unwrap();
-
-    assert_ne!(release, draft, "Rebuild must replace the previous PXBSP");
-    assert!(manifest.contains("pub const BSP_COOK_IS_RELEASE: bool = false;"));
-    assert_eq!(
-        workspace.playtest_budget_report().unwrap().mode,
-        psxed_project::brush_world::BrushWorldCookMode::Draft
-    );
-    let _ = std::fs::remove_dir_all(output);
-}
-
-#[test]
-fn exceeded_budget_target_can_focus_the_offending_brush() {
-    let mut project = ProjectDocument::new("budget target");
-    // Enough cuboids to overflow even the derived-capacity ceiling.
-    for index in 0..400 {
-        project
-            .active_scene_mut()
-            .brushes
-            .push(psxed_project::brush::Brush::cuboid(
-                [index * 4, 0, 0],
-                [index * 4 + 2, 2, 2],
-            ));
-    }
-    let mut workspace = EditorWorkspace::with_project(std::env::temp_dir(), project);
-    let budget = psxed_project::playtest::estimate_playtest_budgets(
-        workspace.project(),
-        workspace.project_root(),
-    );
-    let target = budget
-        .first_actionable_issue()
-        .and_then(|issue| issue.target)
-        .expect("actionable packet target");
-
-    assert!(workspace.focus_playtest_validation_target(target));
-    assert_eq!(workspace.selected_brush, Some(399));
-    assert_eq!(workspace.active_tool, ViewTool::Brush);
 }
 
 #[test]
@@ -3428,9 +1822,9 @@ fn inspector_respects_explicit_history_and_deliberate_clears() {
 }
 
 /// A genuinely fresh New Project must already carry the production content
-/// catalogue: Aletha, the Light Enemy, the Heavy Enemy, the
-/// saved material library and every file/reference they need. The manual
-/// "Starter Characters" action remains idempotent for older projects.
+/// catalogue: Aletha, the Light Enemy, the Heavy Enemy and the saved material
+/// library, with every reference between them resolving. Its asset files are
+/// shared with the base project through the `assets` link.
 #[test]
 fn new_project_starts_with_verified_character_and_material_content() {
     let mut workspace =
@@ -3449,38 +1843,6 @@ fn new_project_starts_with_verified_character_and_material_content() {
     let _ = std::fs::remove_dir_all(&project_dir);
 
     workspace.create_and_open_project(&name).unwrap();
-    let target_dir = workspace.project_dir.clone();
-
-    // Character, source and representative material assets land as byte-copies
-    // of the tracked default project files.
-    let default_root = psxed_project::default_project_dir();
-    for relative in [
-        "assets/models/sword1_light/sword1_light.psxmdl",
-        "assets/models/sword1_light/sword1_light.psxt",
-        "assets/models/sword1_light/prop_bind_pose.psxanim",
-        "assets/models/sword1_heavy/sword1_heavy.psxmdl",
-        "assets/models/aletha_delivered/aletha_delivered.psxmdl",
-        "assets/models/rust_mantis/rust_mantis.psxmdl",
-        "assets/animations/aletha_delivered/aletha_light_wpn_light_atk_a.psxanim",
-        "assets/animations/rust_mantis_starter/idle.psxanim",
-        "assets/models/tank_boss_animated_model/tank_boss_animated_model.psxmdl",
-        "assets/animations/tank_boss_ai/idle.psxanim",
-        "assets/animations/tank_boss_ai/walk_fwd.psxanim",
-        "assets/animations/tank_boss_ai/walk_bwd.psxanim",
-        "assets/animations/tank_boss_ai/light_attack.psxanim",
-        "assets/animations/tank_boss_ai/hit_react.psxanim",
-        "assets/animations/tank_boss_ai/death.psxanim",
-        "assets/textures/brick_1a_v2.psxt",
-        "assets/textures/tech_5f_v2.psxt",
-        "source_assets/characters/aletha/Aletha.glb",
-        "source_assets/characters/rust_mantis.glb",
-    ] {
-        assert_eq!(
-            std::fs::read(project_dir.join(relative)).unwrap(),
-            std::fs::read(default_root.join(relative)).unwrap(),
-            "sync did not copy {relative} byte-for-byte"
-        );
-    }
 
     let project = workspace.project();
     let resource_by_name = |name: &str, wants: fn(&ResourceData) -> bool| {
@@ -3532,555 +1894,26 @@ fn new_project_starts_with_verified_character_and_material_content() {
         }
     }
 
-    // The verified Aletha loadout: rig-native capsules on the Aletha
-    // Delivered skeleton (hurtbox on the chest joint 8, sword hitboxes on
-    // the right hand joint 13), the artist moveset, and the crystal
-    // covering material.
     let aletha = resource_by_name("Aletha", |data| matches!(data, ResourceData::Character(_)));
-    let player_spawn = project
+    let player = project
         .active_scene()
         .nodes()
         .iter()
-        .find(|node| matches!(node.kind, NodeKind::SpawnPoint { player: true, .. }))
-        .expect("fresh project has a player spawn");
+        .find(|node| {
+            matches!(
+                node.kind,
+                NodeKind::CharacterController { player: true, .. }
+            )
+        })
+        .expect("fresh project has a player controller");
     assert!(matches!(
-        player_spawn.kind,
-        NodeKind::SpawnPoint {
+        player.kind,
+        NodeKind::CharacterController {
             character: Some(character),
             ..
         } if character == aletha.id
     ));
-    let ResourceData::Character(aletha) = &aletha.data else {
-        unreachable!();
-    };
-    // v0.4b's Aletha is the artist moveset: two hurtboxes and six swing
-    // hitboxes, including the two-hit R1 combo's follow-up and the split
-    // zenith-heavy pair, where the old starter had one hurtbox and three
-    // hitboxes all hung off joint 13. Looked up by name: list order is
-    // authoring order, not part of the content.
-    assert_eq!(aletha.combat_capsules.len(), 8);
-    let capsule = |name: &str| {
-        let mut matches = aletha.combat_capsules.iter().filter(|c| c.name == name);
-        let capsule = matches
-            .next()
-            .unwrap_or_else(|| panic!("Aletha is missing capsule {name:?}"));
-        assert!(matches.next().is_none(), "duplicate capsule {name:?}");
-        capsule
-    };
-    for (name, joint, radius) in [("Torso Hurtbox", 7, 180), ("Head Hurtbox", 9, 110)] {
-        assert_eq!(capsule(name).joint, joint);
-        assert_eq!(capsule(name).capsule.radius, radius);
-        assert_eq!(
-            capsule(name).role,
-            psxed_project::CombatCapsuleRole::Hurtbox
-        );
-    }
-    // Swing hitbox radii are doubled from the artist values (Comicon reach
-    // feedback: blades lengthened and thickened 2x from the same start).
-    // Windows follow the approved clips: light opener strike 22-29, its
-    // follow-up's strike keys on baked samples 6-8, heavy cross slash
-    // damage 23-29 (editor/projects/default/ANIMATION_REGISTER.md).
-    for (name, joint, radius, action, window, damage, poise) in [
-        (
-            "Light Sword Active",
-            13,
-            200,
-            psxed_project::CharacterAnimationAction::LightAttack,
-            (22, 29),
-            25,
-            25,
-        ),
-        (
-            "LightAttackFollowup sword active",
-            13,
-            200,
-            psxed_project::CharacterAnimationAction::LightAttackFollowup,
-            (6, 8),
-            25,
-            25,
-        ),
-        (
-            "Heavy Sword Active",
-            16,
-            226,
-            psxed_project::CharacterAnimationAction::HeavyAttack,
-            (23, 29),
-            38,
-            50,
-        ),
-        (
-            "Vert Light Sword Active",
-            13,
-            200,
-            psxed_project::CharacterAnimationAction::VertLightAttack,
-            (28, 47),
-            25,
-            25,
-        ),
-        (
-            "Zenith Heavy / Right Swing",
-            16,
-            226,
-            psxed_project::CharacterAnimationAction::VertHeavyAttack,
-            (54, 61),
-            19,
-            50,
-        ),
-        (
-            "Zenith Heavy / Left Swing",
-            21,
-            200,
-            psxed_project::CharacterAnimationAction::VertHeavyAttack,
-            (64, 76),
-            19,
-            50,
-        ),
-    ] {
-        assert_eq!(capsule(name).joint, joint);
-        assert_eq!(capsule(name).capsule.radius, radius);
-        assert_eq!(
-            capsule(name).role,
-            psxed_project::CombatCapsuleRole::Hitbox {
-                action,
-                active_start_frame: window.0,
-                active_end_frame: window.1,
-                damage,
-                poise_damage: poise,
-            }
-        );
-    }
-    let aletha_model = project.resource(aletha.model.unwrap()).unwrap();
-    let ResourceData::Model(aletha_model_data) = &aletha_model.data else {
-        panic!("Aletha model reference is not a Model");
-    };
-    assert_eq!(
-        aletha_model_data.model_path,
-        "assets/models/aletha_delivered/aletha_delivered.psxmdl"
-    );
-    let socket = aletha_model_data
-        .attachments
-        .iter()
-        .find(|socket| socket.name == "right_hand_grip")
-        .expect("Aletha model carries the right_hand_grip socket");
-    assert_eq!(socket.joint, 13);
-    let aletha_set = project.resource(aletha.animation_set.unwrap()).unwrap();
-    assert_eq!(aletha_set.name, "Aletha Delivered Animation Set");
-    let aletha_material = project.resource(aletha.material.unwrap()).unwrap();
-    assert_eq!(aletha_material.name, "Aletha Crystal");
-
-    // The verified Mantis enemy: torso hurtbox plus an animation-timed palm
-    // projectile emitter, armed model socket for equipment.
-    let mantis = resource_by_name("Light Enemy", |data| {
-        matches!(data, ResourceData::Character(_))
-    });
-    let ResourceData::Character(mantis) = &mantis.data else {
-        unreachable!();
-    };
-    // v0.4b gave the Mantis its claw ladder: hurtbox, ranged muzzle, and the
-    // two authored claw hitboxes behind the three-swing and single-strike
-    // clips. Its emitter is authored without a bound projectile profile.
-    assert_eq!(mantis.combat_capsules.len(), 4);
-    assert_eq!(mantis.combat_capsules[0].name, "Torso Hurtbox");
-    assert_eq!(mantis.combat_capsules[0].joint, 1);
-    assert_eq!(mantis.combat_capsules[0].capsule.radius, 218);
-    assert_eq!(
-        mantis.combat_capsules[0].role,
-        psxed_project::CombatCapsuleRole::Hurtbox
-    );
-    assert_eq!(mantis.combat_capsules[1].name, "Projectile Muzzle");
-    assert_eq!(mantis.combat_capsules[1].joint, 13);
-    assert_eq!(
-        mantis.combat_capsules[1].capsule.start, mantis.combat_capsules[1].capsule.end,
-        "the muzzle is a point emitter"
-    );
-    assert_eq!(mantis.combat_capsules[1].capsule.radius, 27);
-    assert_eq!(
-        mantis.combat_capsules[1].role,
-        psxed_project::CombatCapsuleRole::ProjectileEmitter {
-            action: psxed_project::CharacterAnimationAction::VertLightAttack,
-            charge_start_frame: 8,
-            active_start_frame: 27,
-            active_end_frame: 27,
-            projectile: None,
-            speed: 160,
-            lifetime_ticks: 180,
-            min_range: 512,
-            max_range: 4096,
-            damage: 20,
-            poise_damage: 25,
-            tint_rgb: [120, 210, 255],
-        }
-    );
-    for (index, name, action, window, damage, poise) in [
-        (
-            2,
-            "Claw / Three-Swing Combo",
-            psxed_project::CharacterAnimationAction::HeavyAttack,
-            (8, 11),
-            25,
-            25,
-        ),
-        (
-            3,
-            "Claw / Single Strike",
-            psxed_project::CharacterAnimationAction::LightAttack,
-            (101, 112),
-            32,
-            50,
-        ),
-    ] {
-        assert_eq!(mantis.combat_capsules[index].name, name);
-        assert_eq!(mantis.combat_capsules[index].joint, 9);
-        assert_eq!(mantis.combat_capsules[index].capsule.radius, 86);
-        assert_eq!(
-            mantis.combat_capsules[index].role,
-            psxed_project::CombatCapsuleRole::Hitbox {
-                action,
-                active_start_frame: window.0,
-                active_end_frame: window.1,
-                damage,
-                poise_damage: poise,
-            }
-        );
-    }
-    // The projectile profile is still part of the starter catalogue even though
-    // v0.4b's emitter does not bind it.
-    let choir_needle = resource_by_name("Choir Needle", |data| {
-        matches!(data, ResourceData::Projectile(_))
-    });
-    assert!(matches!(choir_needle.data, ResourceData::Projectile(_)));
-    assert_eq!(mantis.spawn_role, psxed_project::CharacterSpawnRole::Enemy);
-    let behavior = mantis.enemy_behavior.expect("mantis enemy behavior");
-    assert_eq!(behavior.poise, 25);
-    assert_eq!(behavior.max_health, 50);
-    assert_eq!(behavior.touch_damage, 10);
-    assert_eq!(behavior.soul_value, 50);
-    let mantis_model = project.resource(mantis.model.unwrap()).unwrap();
-    let ResourceData::Model(mantis_model_data) = &mantis_model.data else {
-        panic!("Mantis model reference is not a Model");
-    };
-    // v0.4b's Mantis fights with claw hitboxes rather than held equipment, so
-    // its model carries no attachment socket. The socket contract is asserted
-    // on Aletha above, which is the character that actually equips a weapon.
-    assert!(mantis_model_data.attachments.is_empty());
-
-    // The heavy enemy has one canonical native animated model. Its missing
-    // Run binding is deliberate capability data, not a dangling resource.
-    let tank = resource_by_name("Heavy Enemy", |data| {
-        matches!(data, ResourceData::Character(_))
-    });
-    let ResourceData::Character(tank) = &tank.data else {
-        unreachable!();
-    };
-    assert_eq!(tank.spawn_role, psxed_project::CharacterSpawnRole::Enemy);
-    // v0.4b gave the heavy enemy a full body: a chest bolt emitter on the
-    // dedicated RangedAttack action, three hurtboxes and three melee hitboxes.
-    assert_eq!(tank.combat_capsules.len(), 7);
-    assert_eq!(tank.combat_capsules[0].name, "Chest / Heavy Bolt");
-    assert!(matches!(
-        tank.combat_capsules[0].role,
-        psxed_project::CombatCapsuleRole::ProjectileEmitter {
-            action: psxed_project::CharacterAnimationAction::RangedAttack,
-            speed: 80,
-            damage: 28,
-            ..
-        }
-    ));
-    let tank_model = project.resource(tank.model.unwrap()).unwrap();
-    assert_eq!(tank_model.name, "Heavy Enemy Model");
-    let tank_set = project.resource(tank.animation_set.unwrap()).unwrap();
-    assert_eq!(tank_set.name, "Heavy Enemy Animation Set");
-    let ResourceData::AnimationSet(tank_set) = &tank_set.data else {
-        panic!("Heavy Enemy animation-set reference is not an AnimationSet");
-    };
-    let has_action = |action| {
-        tank_set
-            .action_clips
-            .iter()
-            .any(|binding| binding.action == action)
-    };
-    assert!(has_action(psxed_project::CharacterAnimationAction::Walk));
-    assert!(has_action(
-        psxed_project::CharacterAnimationAction::WalkBackward
-    ));
-    assert!(has_action(
-        psxed_project::CharacterAnimationAction::StrafeLeft
-    ));
-    assert!(has_action(
-        psxed_project::CharacterAnimationAction::StrafeRight
-    ));
-    assert!(has_action(
-        psxed_project::CharacterAnimationAction::LightAttack
-    ));
-    assert!(has_action(
-        psxed_project::CharacterAnimationAction::HitReact
-    ));
-    assert!(has_action(psxed_project::CharacterAnimationAction::Death));
-    assert!(!has_action(psxed_project::CharacterAnimationAction::Run));
-    assert!(project
-        .resources
-        .iter()
-        .all(|resource| resource.name != "Tank Boss Model"
-            && resource.name != "Tank Boss Animation Set"
-            && resource.name != "Tank Boss / Rest Pose"
-            && resource.name != "Tank Boss Skeleton"));
-
-    // Every saved default-project texture has a Material in the new project
-    // and a project-owned file at the exact same relative path.
-    let starter_texture_materials: Vec<_> = ProjectDocument::starter()
-        .resources
-        .into_iter()
-        .filter_map(|resource| match resource.data {
-            ResourceData::Material(material) => material
-                .psxt_path
-                .filter(|path| starter_texture_asset_path(path))
-                .map(|path| (resource.name, path)),
-            _ => None,
-        })
-        .collect();
-    assert!(starter_texture_materials.len() >= 20);
-    for (name, path) in starter_texture_materials {
-        resource_by_name(&name, |data| matches!(data, ResourceData::Material(_)));
-        assert_eq!(
-            std::fs::read(target_dir.join(&path)).unwrap(),
-            std::fs::read(default_root.join(&path)).unwrap(),
-            "new project did not copy saved texture {path} byte-for-byte"
-        );
-    }
-
-    // The verified sword weapons, grips exact (scale-specific measured
-    // translations), each resolving to a synced Model resource.
-    //
-    // These moved when the grips were re-measured against the hand joint
-    // rather than the skinning matrix; the expectation here was left behind
-    // and only surfaced once an earlier assertion stopped failing first.
-    for (name, grip_translation, hitboxes) in [
-        ("Sword1 Light", [0, -25370, 0], 1),
-        ("Sword1 Heavy", [0, -26320, 0], 1),
-    ] {
-        assert!(STARTER_WEAPON_NAMES.contains(&name));
-        let weapon = resource_by_name(name, |data| matches!(data, ResourceData::Weapon(_)));
-        let ResourceData::Weapon(weapon) = &weapon.data else {
-            unreachable!();
-        };
-        // v0.4b's Aletha wields left-handed: her model carries both
-        // right_hand_grip (j13) and left_hand_grip (j21), and the left joint is
-        // the one the Zenith Heavy / Left Swing hitbox hangs off.
-        assert_eq!(weapon.default_character_socket, "left_hand_grip");
-        assert_eq!(weapon.grip.name, "grip");
-        assert_eq!(weapon.grip.translation, grip_translation);
-        assert_eq!(weapon.grip.rotation_q12, [0, 0, 0]);
-        assert_eq!(weapon.hitboxes.len(), hitboxes);
-        assert_eq!(weapon.arc_reach, 640);
-        assert_eq!(weapon.damage, 25);
-        let model = project
-            .resource(weapon.model.expect("starter weapon has a model"))
-            .unwrap_or_else(|| panic!("weapon '{name}' has a dangling model reference"));
-        assert!(matches!(model.data, ResourceData::Model(_)));
-        assert_eq!(model.name, name);
-    }
-    let light_weapon = resource_by_name("Sword1 Light", |data| {
-        matches!(data, ResourceData::Weapon(_))
-    });
-    let ResourceData::Weapon(light_weapon) = &light_weapon.data else {
-        unreachable!();
-    };
-    assert_eq!(light_weapon.hitboxes[0].active_start_frame, 12);
-    assert_eq!(light_weapon.hitboxes[0].active_end_frame, 15);
-
-    // The manual action is now a no-op on a fresh project: automatic creation
-    // converged instead of requiring a second user-visible hydration step.
-    let resources_before = workspace.project().resources.len();
-    let repeat = sync_starter_character_catalogue(&mut workspace.project, &target_dir)
-        .expect("repeat starter character sync");
-    assert!(
-        !repeat.changed(),
-        "repeat sync must be a no-op (added {}, updated {}, removed {}, copied {}, deleted {})",
-        repeat.resources_added,
-        repeat.resources_updated,
-        repeat.resources_removed,
-        repeat.files_copied,
-        repeat.files_removed
-    );
-    assert_eq!(workspace.project().resources.len(), resources_before);
-
     let _ = std::fs::remove_dir_all(project_dir);
-}
-
-/// Souls vertical-slice tape: authored as literals so regeneration is
-/// deterministic and drift-diffable. The canonical route: hold Cross to skip
-/// the template's wake-up intro, swing the camera behind the player, touch
-/// the checkpoint trigger, dismiss the sync overlay, open the lift door, walk
-/// east past the divider to the Mantis, kill it with two heavy swings,
-/// strafe south into the lava pool, die, respawn at the checkpoint, dismiss
-/// the re-fired sync overlay, and walk a confirmation leg east into the door
-/// that reset closed.
-///
-/// The tapes are indexed on the PAD-POLL clock, not the video-frame clock.
-/// A video-frame tape is applied on the emulator's route-tick clock while
-/// the guest reads the pad once per fixed simulation tick, and those two
-/// clocks are not phase-locked: their relative phase drifts with guest
-/// execution cost, which changes with guest code layout. Measured on this
-/// exact route (2026-08-11), the same authored 70-frame doorway retreat
-/// reached one guest as 71 held simulation ticks and another as 70.
-/// `pad_poll` binds sample N to poll N, so the guest sees the authored press
-/// windows exactly, whatever the frame rate.
-///
-/// Re-authored 2026-09-24 against the regenerated fixture. Three things
-/// moved under the old route: the template now boots into a wake-up intro
-/// that ignores the pad until Cross is held for 30 ticks; the player
-/// spawns facing -X (yaw 270 in the runtime's convention), so the camera
-/// is swung 180 degrees before the first leg; and the light enemy no longer
-/// walks into the doorway, so the fight happens beside it in the far room.
-/// Each leg's end position was measured and the whole route replays
-/// identically twice (see `tools/editor_souls_bsp_check.sh`).
-fn write_souls_slice_canonical_tape(dir: &Path) {
-    const UP: u16 = 1 << 4;
-    const RIGHT: u16 = 1 << 5;
-    const DOWN: u16 = 1 << 6;
-    const R2: u16 = 1 << 9;
-    const CROSS: u16 = 1 << 14;
-    const FRAME_COUNT: usize = 3000;
-    // Cross taps: sync overlay after the checkpoint, the lift door, and the
-    // re-fired overlay after the respawn (one tap finishes its text, the
-    // next dismisses it).
-    const CROSS_TAPS: [usize; 4] = [730, 1140, 2480, 2520];
-    // Two heavy swings kill the Mantis; the attack cycle swallows any
-    // press made while a swing is still running.
-    const HEAVY_PRESSES: [usize; 2] = [1480, 1610];
-
-    let mut tape = String::with_capacity(FRAME_COUNT * 32);
-    use std::fmt::Write as _;
-    writeln!(tape, "psoxide-tape,v2,clock=pad_poll,start_poll=0").unwrap();
-    writeln!(tape, "frame,buttons,right_x,right_y,left_x,left_y").unwrap();
-    for frame in 0..FRAME_COUNT {
-        let mut buttons = 0u16;
-        let mut right_x = 128u8;
-        // Skip the wake-up intro: it starts after loading (about poll 234)
-        // and needs Cross released once, then held for 30 ticks.
-        if (260..300).contains(&frame) {
-            buttons |= CROSS;
-        }
-        // Swing the camera from the spawn's -X facing to +X, the route's
-        // heading (54 ticks at full deflection, measured).
-        if (460..514).contains(&frame) {
-            right_x = 255;
-        }
-        // Leg 1: spawn to the checkpoint trigger.
-        if (520..710).contains(&frame) {
-            buttons |= UP;
-        }
-        // Leg 2: trigger to the closed lift door (stops at engine x 241).
-        if (750..1120).contains(&frame) {
-            buttons |= UP;
-        }
-        // Through the opened door and east past the divider's open end to
-        // the Mantis's patrol, which aggroes it.
-        if (1220..1390).contains(&frame) || (1410..1450).contains(&frame) {
-            buttons |= UP;
-        }
-        if CROSS_TAPS
-            .iter()
-            .any(|press| (*press..press + 4).contains(&frame))
-        {
-            buttons |= CROSS;
-        }
-        if HEAVY_PRESSES
-            .iter()
-            .any(|press| (*press..press + 4).contains(&frame))
-        {
-            buttons |= R2;
-        }
-        // Leg 3: strafe south into the lava pool and stay there until the
-        // 15-tick cadence kills the player.
-        if (1760..1880).contains(&frame) {
-            buttons |= RIGHT;
-        }
-        // Leg 4: the respawn faces the camera, so back toward it walks east
-        // into the door that reset closed.
-        if (2560..2880).contains(&frame) {
-            buttons |= DOWN;
-        }
-        writeln!(tape, "{frame},{buttons},{right_x},128,128,128").unwrap();
-    }
-    std::fs::write(dir.join("souls-canonical.pxitape.csv"), tape)
-        .expect("write souls canonical tape");
-}
-
-/// Negative tape: apart from the Cross hold that skips the wake-up intro
-/// (without it gameplay never starts and nothing is proved), the pad stays
-/// neutral for the whole run. The player never touches the trigger, never
-/// opens the door, never swings; the gate pins every combat and progression
-/// counter to zero while PVS suppressions still accumulate from the enemy
-/// sealed in the far room.
-fn write_souls_slice_negative_tape(dir: &Path) {
-    const CROSS: u16 = 1 << 14;
-    const FRAME_COUNT: usize = 1200;
-    let mut tape = String::with_capacity(FRAME_COUNT * 24);
-    use std::fmt::Write as _;
-    // Pad-poll clock for the same reason as the canonical tape: the guest's
-    // own input clock is the only one that is build-independent.
-    writeln!(tape, "psoxide-tape,v2,clock=pad_poll,start_poll=0").unwrap();
-    writeln!(tape, "frame,buttons,right_x,right_y,left_x,left_y").unwrap();
-    for frame in 0..FRAME_COUNT {
-        let buttons = if (260..300).contains(&frame) {
-            CROSS
-        } else {
-            0
-        };
-        writeln!(tape, "{frame},{buttons},128,128,128,128").unwrap();
-    }
-    std::fs::write(dir.join("souls-negative.pxitape.csv"), tape)
-        .expect("write souls negative tape");
-}
-
-/// The owner's first step in `docs/souls-slice-acceptance.md`: File > Open
-/// Project on the tracked slice. `editor-souls-bsp-check` never takes this
-/// route (it re-authors the slice and cooks it through the `cook-playtest`
-/// binary), so nothing proved the persisted project still loads in the
-/// editor itself.
-///
-/// The non-dirty assertion is the load-bearing one. An open-time migration
-/// that silently rewrote this project would still cook, still pass the gate's
-/// counters, and then fail the gate's `diff -r` against the authoring test on
-/// whichever machine happened to save it.
-#[test]
-fn tracked_souls_slice_opens_clean_in_the_editor_and_cooks_without_errors() {
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../archive/fixtures/souls-bsp-vertical-slice");
-    let mut workspace = EditorWorkspace::open_directory(&dir).expect("open the tracked slice");
-    assert!(
-        !workspace.is_dirty(),
-        "opening a tracked project must not rewrite it: {}",
-        workspace.status
-    );
-    assert_eq!(workspace.project().active_scene().brushes.len(), 17);
-    assert!(workspace.has_player_source());
-
-    let project = workspace.project().clone();
-    let (package, report) = psxed_project::playtest::build_package(&project, &dir);
-    assert!(
-        report.is_ok(),
-        "the tracked slice must cook clean from the editor: {}",
-        report.error_messages().join("; ")
-    );
-    let package = package.expect("cooked package");
-    assert_eq!(
-        package.interactables.len(),
-        1,
-        "the checkpoint interactable"
-    );
-    assert_eq!(
-        package.game_entities.len(),
-        2,
-        "the Mantis plus the sentinel"
-    );
-
-    let cook = test_temp_dir("tracked-slice-cook");
-    workspace
-        .cook_playtest_to_dir(&cook)
-        .expect("cook the tracked slice through the editor's Play path");
-    let _ = std::fs::remove_dir_all(cook);
 }
 
 /// Drive one Inspector ComboBox through real egui: click the closed combo
@@ -4096,7 +1929,7 @@ fn choose_inspector_combo_option(
     expected: &[&str],
     option: &str,
 ) {
-    use super::brush_tools::{
+    use super::egui_driver::{
         press_release, real_egui_workspace_ctx, real_egui_workspace_frame, text_shape_centers,
     };
 
@@ -4166,7 +1999,7 @@ fn fresh_project_inspector_switches_logic_to_door_and_interactable_to_checkpoint
     // text is the only "Trigger Volume" on screen. The name is not what this
     // test is about, so it is written the way the souls authoring test does.
     workspace.set_active_tool_cycle_value((ViewTool::Place, Some(PlaceKind::Logic)));
-    assert!(workspace.place_bsp_from_top([1024.0, 1024.0]));
+    place_at(&mut workspace, [1024.0, 1024.0]);
     let door_node = workspace.selected_node_id();
     workspace.push_undo();
     workspace
@@ -4258,581 +2091,6 @@ fn fresh_project_inspector_switches_logic_to_door_and_interactable_to_checkpoint
     );
 
     let _ = std::fs::remove_dir_all(project_dir);
-}
-
-/// The souls vertical slice authored end to end through production editor
-/// command paths: New Project from the courtyard template, the resources
-/// panel starter sync, real brush drags/resizes, the BSP place lanes, the
-/// scene-tree Add Child component path, and the exact inspector mutations.
-/// Save, reopen, cook (twice, byte-deterministic), and verify the cooked
-/// world: nonzero PXBSP, the two authored body-hull envelopes, the door
-/// mover, both equipment records, and the trigger-to-checkpoint chain.
-/// With PSOXIDE_SOULS_SLICE_PROJECT_OUT set, exports the authored project
-/// (plus the canonical and negative tapes) for the tracked copy at
-/// editor/archive/fixtures/souls-bsp-vertical-slice.
-#[test]
-fn souls_slice_project_is_authored_through_production_commands() {
-    let mut workspace =
-        EditorWorkspace::open_directory(psxed_project::default_project_dir()).unwrap();
-    let name = format!(
-        "Souls Slice Authoring {} {}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    );
-    let project_dir = psxed_project::projects_dir().join(psxed_project::project_file_stem(&name));
-    // Removes the created project even if an assertion below panics.
-    let _scratch = ScratchProjectDir::new(project_dir.clone());
-    let cook_a = test_temp_dir("souls-slice-cook-a");
-    let cook_b = test_temp_dir("souls-slice-cook-b");
-    let _ = std::fs::remove_dir_all(&project_dir);
-    let _ = std::fs::remove_dir_all(&cook_a);
-    let _ = std::fs::remove_dir_all(&cook_b);
-
-    workspace.create_and_open_project(&name).unwrap();
-    let root = workspace.project().active_scene().root;
-
-    // The resources-panel "Starter Characters" action arms the fresh project
-    // with the verified combat catalogue.
-    workspace.push_undo();
-    let target_dir = workspace.project_dir.clone();
-    sync_starter_character_catalogue(&mut workspace.project, &target_dir)
-        .expect("starter character sync");
-    workspace.mark_dirty();
-
-    let resource_id =
-        |workspace: &EditorWorkspace, name: &str, wants: fn(&ResourceData) -> bool| {
-            workspace
-                .project()
-                .resources
-                .iter()
-                .find(|resource| resource.name == name && wants(&resource.data))
-                .unwrap_or_else(|| panic!("missing resource '{name}'"))
-                .id
-        };
-    let cobbles = resource_id(&workspace, "Courtyard Cobbles", |data| {
-        matches!(data, ResourceData::Material(_))
-    });
-    let brick = resource_id(&workspace, "Courtyard Brick", |data| {
-        matches!(data, ResourceData::Material(_))
-    });
-    let aletha_profile = resource_id(&workspace, "Aletha", |data| {
-        matches!(data, ResourceData::Character(_))
-    });
-    let mantis_profile = resource_id(&workspace, "Light Enemy", |data| {
-        matches!(data, ResourceData::Character(_))
-    });
-    // The player carries the materialising energy blade its animation set's
-    // weapon appearance tracks name; a plain sword never becomes visible.
-    let sword_light = resource_id(&workspace, "Sword1 Light Energy", |data| {
-        matches!(data, ResourceData::Weapon(_))
-    });
-    let sword_heavy = resource_id(&workspace, "Sword1 Heavy", |data| {
-        matches!(data, ResourceData::Weapon(_))
-    });
-
-    // Blank slate: the courtyard template's nodes and brushes leave through
-    // the same selection commands the scene tree and brush viewport use.
-    let children = workspace
-        .project()
-        .active_scene()
-        .node(root)
-        .expect("world root")
-        .children
-        .clone();
-    for child in children {
-        workspace.replace_node_selection(child);
-        workspace.delete_selected();
-    }
-    while !workspace.project().active_scene().brushes.is_empty() {
-        workspace.selected_brush = Some(0);
-        workspace.delete_selected_brushes();
-    }
-    assert!(workspace.project().active_scene().brushes.is_empty());
-
-    // Author the two combat spaces: a sealed 8192 x 3072 envelope with a
-    // 1536-unit interior height, split by a thin divider whose doorway gap
-    // carries the lift-door brush; a lava pool sits in the far room.
-    workspace.set_orthographic_view(OrthographicView::Top);
-    workspace.set_active_tool_cycle_value((ViewTool::Brush, None));
-    let author_box = |workspace: &mut EditorWorkspace,
-                      material: ResourceId,
-                      mins: [i32; 3],
-                      maxs: [i32; 3]|
-     -> usize {
-        workspace.brush_material = Some(material);
-        workspace.orthographic_focus[1] = mins[1] as f32;
-        workspace.begin_brush_drag_2d([mins[0] as f32, mins[2] as f32]);
-        workspace.update_brush_drag_2d([maxs[0] as f32, maxs[2] as f32]);
-        workspace.commit_brush_drag();
-        let created = workspace.selected_brush.expect("committed brush");
-        assert!(
-            workspace.set_selected_brush_size([
-                maxs[0] - mins[0],
-                maxs[1] - mins[1],
-                maxs[2] - mins[2],
-            ]),
-            "brush resize {mins:?} -> {maxs:?}"
-        );
-        created
-    };
-    author_box(&mut workspace, cobbles, [0, 0, 0], [8192, 256, 3072]);
-    author_box(&mut workspace, cobbles, [0, 1792, 0], [8192, 2048, 3072]);
-    author_box(&mut workspace, brick, [0, 256, 0], [256, 1792, 3072]);
-    author_box(&mut workspace, brick, [7936, 256, 0], [8192, 1792, 3072]);
-    author_box(&mut workspace, brick, [256, 256, 0], [7936, 1792, 256]);
-    author_box(&mut workspace, brick, [256, 256, 2816], [7936, 1792, 3072]);
-    author_box(&mut workspace, brick, [4064, 256, 256], [4128, 1792, 1280]);
-    author_box(&mut workspace, brick, [4064, 256, 1792], [4128, 1792, 2816]);
-    // Interior stub in the far room: movers never enter the static PVS, so
-    // the doorway is a permanent visibility hole; this wall seals a pocket
-    // no room-one leaf can see into, guaranteeing the enemy stays
-    // PVS-suppressed until the player rounds it.
-    author_box(&mut workspace, brick, [5120, 256, 256], [5184, 1792, 1280]);
-    let door_brush = author_box(&mut workspace, brick, [4064, 256, 1280], [4128, 1024, 1792]);
-    let lava_brush = author_box(
-        &mut workspace,
-        cobbles,
-        [4800, 256, 2048],
-        [5824, 512, 2816],
-    );
-    // Sealed crypt: the cooked visibility model is portal-component
-    // granular, so nothing reachable through the doorway can ever be
-    // PVS-suppressed; this hollowed box is its own sealed visibility
-    // component and keeps a live sentinel permanently outside the player's
-    // row, exercising the suppression counter deterministically.
-    author_box(&mut workspace, brick, [6400, 256, 256], [7168, 1792, 1024]);
-    workspace.snap_units = 64;
-    assert!(workspace.csg_hollow_selected());
-    workspace.replace_brush_selection(lava_brush, None);
-    workspace.set_selected_brush_contents(psxed_project::brush::BrushContents::Lava);
-    assert_eq!(
-        workspace.project().active_scene().brushes[lava_brush].contents,
-        psxed_project::brush::BrushContents::Lava
-    );
-
-    // Point placement happens on the interior floor, on Grid 16: one engine
-    // unit, so every placed node cooks exactly where the route was authored
-    // (placement lands on the grid like every other move path).
-    workspace.snap_units = 16;
-    workspace.orthographic_focus[1] = 256.0;
-
-    // The verified player: the Aletha starter profile placed through the
-    // Character lane (spawn_role Player makes this entity the player
-    // source), then the sample-calibrated renderer scale and spawn facing
-    // applied through the inspector mutation path.
-    workspace.set_active_tool_cycle_value((ViewTool::Place, Some(PlaceKind::Character)));
-    workspace.replace_resource_selection(aletha_profile);
-    assert!(workspace.place_bsp_from_top([1024.0, 1536.0]));
-    let player_entity = workspace.selected_node_id();
-    assert!(workspace.has_player_source());
-    workspace.push_undo();
-    {
-        let scene = workspace.project.active_scene_mut();
-        scene.node_mut(player_entity).expect("player entity").name = "Player".to_string();
-        scene
-            .node_mut(player_entity)
-            .expect("player entity")
-            .transform
-            .rotation_degrees = [0.0, 270.0, 0.0];
-        let renderer = scene
-            .node(player_entity)
-            .expect("player entity")
-            .children
-            .clone()
-            .into_iter()
-            .find(|id| {
-                matches!(
-                    scene.node(*id).map(|node| &node.kind),
-                    Some(NodeKind::ModelRenderer { .. })
-                )
-            })
-            .expect("player model renderer");
-        if let Some(node) = scene.node_mut(renderer) {
-            if let NodeKind::ModelRenderer {
-                visual_offset,
-                visual_scale_q8,
-                ..
-            } = &mut node.kind
-            {
-                *visual_offset = [0, 1, 0];
-                *visual_scale_q8 = 360;
-            }
-        }
-    }
-    workspace.mark_dirty();
-
-    // The crypt sentinel: a second Mantis sealed inside the hollow box,
-    // placed on its interior floor through the same Character lane.
-    workspace.orthographic_focus[1] = 320.0;
-    workspace.set_active_tool_cycle_value((ViewTool::Place, Some(PlaceKind::Character)));
-    workspace.replace_resource_selection(mantis_profile);
-    assert!(workspace.place_bsp_from_top([6784.0, 640.0]));
-    let sentinel_entity = workspace.selected_node_id();
-    workspace.push_undo();
-    workspace
-        .project
-        .active_scene_mut()
-        .node_mut(sentinel_entity)
-        .expect("sentinel entity")
-        .name = "Crypt Sentinel".to_string();
-    workspace.mark_dirty();
-    workspace.orthographic_focus[1] = 256.0;
-
-    // The verified Light Enemy starter profile in the far room,
-    // facing the doorway, with the sample-calibrated renderer scale.
-    workspace.set_active_tool_cycle_value((ViewTool::Place, Some(PlaceKind::Character)));
-    workspace.replace_resource_selection(mantis_profile);
-    assert!(workspace.place_bsp_from_top([6100.0, 800.0]));
-    let enemy_entity = workspace.selected_node_id();
-    workspace.push_undo();
-    {
-        let scene = workspace.project.active_scene_mut();
-        scene.node_mut(enemy_entity).expect("enemy entity").name = "Mantis Enemy".to_string();
-        scene
-            .node_mut(enemy_entity)
-            .expect("enemy entity")
-            .transform
-            .rotation_degrees = [0.0, 90.0, 0.0];
-        let renderer = scene
-            .node(enemy_entity)
-            .expect("enemy entity")
-            .children
-            .clone()
-            .into_iter()
-            .find(|id| {
-                matches!(
-                    scene.node(*id).map(|node| &node.kind),
-                    Some(NodeKind::ModelRenderer { .. })
-                )
-            })
-            .expect("enemy model renderer");
-        if let Some(node) = scene.node_mut(renderer) {
-            if let NodeKind::ModelRenderer {
-                visual_scale_q8, ..
-            } = &mut node.kind
-            {
-                *visual_scale_q8 = 512;
-            }
-        }
-    }
-    workspace.mark_dirty();
-
-    // Equipment components ride both characters through the scene-tree Add
-    // Child path, then the inspector's weapon selector binds the swords.
-    for (entity, weapon) in [(player_entity, sword_light), (enemy_entity, sword_heavy)] {
-        workspace.replace_node_selection(entity);
-        workspace.add_child(
-            NodeKind::Equipment {
-                weapon: None,
-                character_socket: "right_hand_grip".to_string(),
-                weapon_grip: "grip".to_string(),
-            },
-            "Equipment",
-        );
-        let equipment = workspace.selected_node_id();
-        workspace.push_undo();
-        if let Some(node) = workspace.project.active_scene_mut().node_mut(equipment) {
-            if let NodeKind::Equipment {
-                weapon: weapon_slot,
-                ..
-            } = &mut node.kind
-            {
-                *weapon_slot = Some(weapon);
-            }
-        }
-        workspace.mark_dirty();
-    }
-
-    // Decorations and lighting: a collidable image prop in the far room, a
-    // box prop and arch in the first room, one light per space.
-    workspace.set_active_tool_cycle_value((ViewTool::Place, Some(PlaceKind::BoxProp)));
-    workspace.replace_resource_selection(brick);
-    assert!(workspace.place_bsp_from_top([1024.0, 2400.0]));
-    workspace.set_active_tool_cycle_value((ViewTool::Place, Some(PlaceKind::ArchProp)));
-    workspace.replace_resource_selection(brick);
-    assert!(workspace.place_bsp_from_top([2900.0, 300.0]));
-    workspace.set_active_tool_cycle_value((ViewTool::Place, Some(PlaceKind::ImageProp)));
-    workspace.replace_resource_selection(brick);
-    assert!(workspace.place_bsp_from_top([6800.0, 1536.0]));
-    let image_prop = workspace.selected_node_id();
-    workspace.push_undo();
-    if let Some(node) = workspace.project.active_scene_mut().node_mut(image_prop) {
-        if let NodeKind::ImageProp {
-            collision_enabled, ..
-        } = &mut node.kind
-        {
-            *collision_enabled = true;
-        }
-    }
-    workspace.mark_dirty();
-    workspace.set_active_tool_cycle_value((ViewTool::Place, Some(PlaceKind::PointLightMarker)));
-    assert!(workspace.place_bsp_from_top([2048.0, 1200.0]));
-    assert!(workspace.place_bsp_from_top([6100.0, 1536.0]));
-
-    // The lift door: the default Logic placement, the inspector kind switch
-    // to Door, and the brush inspector's Model owner binding.
-    workspace.set_active_tool_cycle_value((ViewTool::Place, Some(PlaceKind::Logic)));
-    assert!(workspace.place_bsp_from_top([4096.0, 1536.0]));
-    let door_node = workspace.selected_node_id();
-    workspace.push_undo();
-    if let Some(node) = workspace.project.active_scene_mut().node_mut(door_node) {
-        node.name = "Lift Door".to_string();
-        node.kind = NodeKind::Logic {
-            kind: psxed_project::LogicNodeKind::Door {
-                box_prop: String::new(),
-                start_open: false,
-                open_offset: [0, 1536, 0],
-                travel_ticks: 60,
-            },
-            target: String::new(),
-            killtarget: String::new(),
-            master: String::new(),
-            delay_ticks: 0,
-            wait_ticks: 0,
-            enabled: true,
-        };
-    }
-    workspace.mark_dirty();
-    workspace.replace_brush_selection(door_brush, None);
-    workspace.set_selected_brush_mover(Some(door_node));
-    assert_eq!(
-        workspace.project().active_scene().brushes[door_brush].mover,
-        Some(door_node)
-    );
-
-    // The checkpoint: an Entity added through the scene tree, carrying an
-    // Interactable switched to Checkpoint exactly as the inspector does.
-    workspace.replace_node_selection(root);
-    workspace.add_child(NodeKind::Entity, "Entity");
-    let checkpoint_entity = workspace.selected_node_id();
-    workspace.push_undo();
-    if let Some(node) = workspace
-        .project
-        .active_scene_mut()
-        .node_mut(checkpoint_entity)
-    {
-        node.name = "Sync Relay".to_string();
-        node.transform.translation = [2048.0, 257.0, 800.0];
-    }
-    workspace.mark_dirty();
-    workspace.add_child(
-        NodeKind::Interactable {
-            kind: psxed_project::InteractableKind::default(),
-            prompt: "READ ECHO".to_string(),
-            radius: 96,
-            enabled: true,
-        },
-        "Interactable",
-    );
-    let interactable = workspace.selected_node_id();
-    workspace.push_undo();
-    if let Some(node) = workspace.project.active_scene_mut().node_mut(interactable) {
-        if let NodeKind::Interactable { kind, prompt, .. } = &mut node.kind {
-            *kind = psxed_project::InteractableKind::Checkpoint {
-                checkpoint_id: String::new(),
-                title: "SYNC RELAY".to_string(),
-                body: "Relay synchronized.".to_string(),
-            };
-            *prompt = "SYNCHRONIZE".to_string();
-        }
-    }
-    workspace.mark_dirty();
-
-    // The route trigger that chains into the checkpoint on touch.
-    workspace.set_active_tool_cycle_value((ViewTool::Place, Some(PlaceKind::Logic)));
-    assert!(workspace.place_bsp_from_top([2048.0, 1536.0]));
-    let trigger_node = workspace.selected_node_id();
-    workspace.push_undo();
-    if let Some(node) = workspace.project.active_scene_mut().node_mut(trigger_node) {
-        node.name = "Route Trigger".to_string();
-        // The anchor and wait now come straight from the Place lane: it parks
-        // Logic nodes on the surface (the trigger AABB grows upward from the
-        // anchor and the motor stands exactly on the floor plane) and defaults
-        // to fire-once. Only the extent and the target are authored here.
-        assert_eq!(node.transform.translation[1], 256.0);
-        node.kind = NodeKind::Logic {
-            kind: psxed_project::LogicNodeKind::TriggerVolume {
-                size: [384, 512, 768],
-            },
-            target: "Sync Relay".to_string(),
-            killtarget: String::new(),
-            master: String::new(),
-            delay_ticks: 0,
-            // Fire once then retire (hl's wait -1). Respawn re-arms the
-            // record, the souls rule.
-            wait_ticks: -1,
-            enabled: true,
-        };
-    }
-    workspace.mark_dirty();
-
-    workspace.save_if_dirty().expect("persist authored slice");
-    assert!(!workspace.is_dirty());
-
-    // Reopen the persisted project and verify the authored contract before
-    // cooking from the reloaded document.
-    let reopened = EditorWorkspace::open_directory(&project_dir).expect("reopen slice project");
-    assert!(reopened.has_player_source());
-    let scene = reopened.project().active_scene();
-    assert_eq!(scene.brushes.len(), 17);
-    assert_eq!(
-        scene.brushes[lava_brush].contents,
-        psxed_project::brush::BrushContents::Lava
-    );
-    assert_eq!(scene.brushes[door_brush].mover, Some(door_node));
-    let kind_count = |wants: fn(&NodeKind) -> bool| {
-        scene
-            .nodes()
-            .iter()
-            .filter(|node| wants(&node.kind))
-            .count()
-    };
-    assert_eq!(
-        kind_count(|kind| matches!(kind, NodeKind::PointLight { .. })),
-        2
-    );
-    assert_eq!(
-        kind_count(|kind| matches!(kind, NodeKind::BoxProp { .. })),
-        1
-    );
-    assert_eq!(
-        kind_count(|kind| matches!(kind, NodeKind::ArchProp { .. })),
-        1
-    );
-    assert_eq!(
-        kind_count(|kind| matches!(
-            kind,
-            NodeKind::ImageProp {
-                collision_enabled: true,
-                ..
-            }
-        )),
-        1
-    );
-    assert_eq!(
-        kind_count(|kind| matches!(
-            kind,
-            NodeKind::Equipment {
-                weapon: Some(_),
-                ..
-            }
-        )),
-        2
-    );
-    assert_eq!(
-        kind_count(|kind| matches!(
-            kind,
-            NodeKind::Interactable {
-                kind: psxed_project::InteractableKind::Checkpoint { .. },
-                ..
-            }
-        )),
-        1
-    );
-
-    // Cook the persisted revision twice; the artifacts must be nonzero and
-    // byte-deterministic, and the compiled world must carry the authored
-    // body hulls (not the characterless debug fallback), the door mover,
-    // and the full combat cast.
-    let mut reopened = reopened;
-    reopened
-        .cook_playtest_to_dir(&cook_a)
-        .expect("cook souls slice");
-    let pxbsp = std::fs::read(cook_a.join(psxed_project::brush_playtest::BRUSH_WORLD_FILENAME))
-        .expect("cooked PXBSP");
-    assert!(!pxbsp.is_empty(), "PXBSP must not be empty");
-    reopened
-        .cook_playtest_to_dir(&cook_b)
-        .expect("deterministic recook");
-    for filename in [
-        psxed_project::brush_playtest::BRUSH_WORLD_FILENAME,
-        psxed_project::playtest::COOKED_MANIFEST_FILENAME,
-    ] {
-        assert_eq!(
-            std::fs::read(cook_a.join(filename)).unwrap(),
-            std::fs::read(cook_b.join(filename)).unwrap(),
-            "{filename} drifted across an unchanged recook"
-        );
-    }
-
-    let project = ProjectDocument::load_from_path(project_dir.join("project.ron")).unwrap();
-    let (package, report) = psxed_project::playtest::build_package(&project, &project_dir);
-    assert!(report.is_ok(), "{}", report.error_messages().join("; "));
-    let package = package.expect("cooked package");
-    let world = &package.world_geometry;
-    assert_eq!(world.movers.len(), 1, "one lift-door mover");
-    // Hulls must derive from the two authored character envelopes: hull one
-    // for the Aletha body, hull two for the Mantis body (authored 188/192 x
-    // 1024, cooked to engine units), never the 16/56 characterless debug
-    // fallback.
-    let hulls: Vec<(usize, i32, i32)> = world
-        .body_hulls
-        .iter()
-        .map(|hull| (hull.hull_index, hull.radius, hull.height))
-        .collect();
-    assert_eq!(hulls, vec![(1, 12, 64), (2, 12, 64)]);
-    assert_eq!(
-        package.game_entities.len(),
-        2,
-        "the fightable Mantis plus the sealed crypt sentinel"
-    );
-    // The two authored Equipment nodes, plus the two further weapon/socket
-    // pairs the player's animation set materialises through its appearance
-    // tracks (the authored energy blade is already one of its three).
-    assert_eq!(
-        package.equipment.len(),
-        4,
-        "authored plus appearance equipment cooks"
-    );
-    assert_eq!(
-        package
-            .equipment
-            .iter()
-            .filter(|record| record.flags & psx_level::equipment_flags::PLAYER != 0)
-            .count(),
-        3,
-        "the player's three appearance-track pairs are PLAYER-flagged"
-    );
-    assert_eq!(
-        package.interactables.len(),
-        1,
-        "the checkpoint interactable"
-    );
-    assert!(
-        package.logic.len() >= 3,
-        "trigger + paired checkpoint + door records"
-    );
-    assert_eq!(package.lights.len(), 2);
-    assert_eq!(package.box_props.len(), 1);
-
-    // The opt-in export consumed by the editor-souls-bsp-check gate: the
-    // exact authored project, stabilised name, plus the canonical and
-    // negative tapes.
-    if let Some(export_dir) = std::env::var_os("PSOXIDE_SOULS_SLICE_PROJECT_OUT") {
-        let export_dir = PathBuf::from(export_dir);
-        assert!(
-            !export_dir.exists(),
-            "souls-slice export destination already exists: {}",
-            export_dir.display()
-        );
-        copy_dir_recursive(&project_dir, &export_dir).expect("export authored slice project");
-        let export_file = export_dir.join("project.ron");
-        let mut exported = ProjectDocument::load_from_path(&export_file).expect("load export");
-        exported.name = "Souls BSP Vertical Slice".to_string();
-        exported
-            .save_to_path(&export_file)
-            .expect("stabilise exported slice name");
-        write_souls_slice_canonical_tape(&export_dir);
-        write_souls_slice_negative_tape(&export_dir);
-        println!("souls-slice project: {}", export_file.display());
-    }
-
-    let _ = std::fs::remove_dir_all(project_dir);
-    let _ = std::fs::remove_dir_all(cook_a);
-    let _ = std::fs::remove_dir_all(cook_b);
 }
 
 /// A project file that still holds a retired grid-world node as raw RON.

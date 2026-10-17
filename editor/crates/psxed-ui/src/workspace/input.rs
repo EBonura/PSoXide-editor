@@ -34,23 +34,10 @@ impl EditorWorkspace {
         use psxed_project::playtest::PlaytestValidationTarget;
 
         match target {
-            PlaytestValidationTarget::Brush { brush, face } => {
-                let Some(authored) = self.project.active_scene().brushes.get(brush) else {
-                    return false;
-                };
-                let face = face.filter(|face| *face < authored.faces.len());
-                self.active_tool = ViewTool::Brush;
-                self.replace_brush_selection(brush, face);
-                self.clear_node_selection_state();
-                self.clear_resource_selection_state();
-                self.frame_viewport();
-                true
-            }
             PlaytestValidationTarget::Node(node) => {
                 if self.project.active_scene().node(node).is_none() {
                     return false;
                 }
-                self.clear_brush_selection();
                 self.replace_node_selection(node);
                 self.clear_resource_selection_state();
                 self.frame_viewport();
@@ -60,7 +47,6 @@ impl EditorWorkspace {
                 if self.project.resource(resource).is_none() {
                     return false;
                 }
-                self.clear_brush_selection();
                 self.replace_resource_selection(resource);
                 self.clear_node_selection_state();
                 true
@@ -90,32 +76,11 @@ impl EditorWorkspace {
         // Grid worlds give the editing keys their own meaning; consumed here
         // so the generic handlers below never see them.
         self.handle_grid_shortcuts(ctx, focus_taken);
-        let consume_ungroup = !focus_taken
-            && self.active_workspace == WorkspaceView::Room
-            && consume_command_shift_shortcut(ctx, egui::Key::G);
-        let consume_group = !focus_taken
-            && self.active_workspace == WorkspaceView::Room
-            && consume_command_shortcut(ctx, egui::Key::G);
         let consume_ui_copy = !focus_taken
             && self.active_workspace == WorkspaceView::Ui
             && consume_copy_shortcut(ctx);
-        // A project switch reconstructs the destination's local UI-node
-        // clipboard, but deliberately retains the portable brush clipboard.
-        // When the destination happens to reopen in UI/Animation/Material,
-        // route Paste back to brushes instead of making the retained data
-        // appear lost. A real UI-node clipboard remains the more local choice
-        // while actively editing UI.
-        let paste_portable_brushes = self.has_brush_geometry_clipboard()
-            && (self.active_workspace != WorkspaceView::Ui || self.ui_node_clipboard.is_none());
         let consume_ui_paste = !focus_taken
             && self.active_workspace == WorkspaceView::Ui
-            && !paste_portable_brushes
-            && consume_paste_shortcut(ctx);
-        let consume_geometry_copy = !focus_taken
-            && self.active_workspace == WorkspaceView::Room
-            && consume_copy_shortcut(ctx);
-        let consume_geometry_paste = !focus_taken
-            && (self.active_workspace == WorkspaceView::Room || paste_portable_brushes)
             && consume_paste_shortcut(ctx);
         // Duplicate, rotate, rename and node/cell delete edit the Room scene.
         // Animation and Material do not show it, so there they would change
@@ -127,12 +92,6 @@ impl EditorWorkspace {
         } else {
             consume_command_shortcut(ctx, egui::Key::D)
         };
-        let bsp_brush_shortcuts = !focus_taken && self.active_workspace == WorkspaceView::Room;
-        let shift_down = ctx.input(|input| input.modifiers.shift);
-        let consume_hollow =
-            bsp_brush_shortcuts && shift_down && consume_command_shift_shortcut(ctx, egui::Key::K);
-        let consume_subtract =
-            bsp_brush_shortcuts && !shift_down && consume_command_shortcut(ctx, egui::Key::K);
         if consume_save {
             self.save_project_from_ui();
         }
@@ -159,28 +118,11 @@ impl EditorWorkspace {
         if consume_duplicate {
             self.duplicate_current_selection();
         }
-        if consume_hollow {
-            self.csg_hollow_selected();
-        }
-        if consume_subtract {
-            self.csg_subtract_selected();
-        }
         if consume_ui_copy {
             self.copy_selected_ui_node();
         }
         if consume_ui_paste {
             self.paste_ui_node();
-        }
-        if consume_geometry_copy && self.copy_current_geometry() {
-            self.publish_geometry_clipboard_marker(ctx);
-        }
-        if consume_geometry_paste {
-            self.paste_current_geometry();
-        }
-        if consume_ungroup {
-            self.ungroup_selected_groups();
-        } else if consume_group {
-            self.group_current_selection();
         }
         self.handle_toolbar_group_shortcuts(ctx);
 
@@ -196,10 +138,6 @@ impl EditorWorkspace {
             if rot && self.renaming.is_none() && room_workspace {
                 self.rotate_selected_yaw_90();
             }
-            let escape = ctx.input_mut(|i| i.key_pressed(egui::Key::Escape));
-            if escape && self.open_group.is_some() {
-                self.close_open_group();
-            }
             let frame = ctx.input_mut(|i| i.key_pressed(egui::Key::Period));
             if frame {
                 match self.active_workspace {
@@ -211,23 +149,6 @@ impl EditorWorkspace {
                     // The UI workspace handles its own shortcuts above, and
                     // the Material workspace has no movable preview camera.
                     WorkspaceView::Ui | WorkspaceView::Material => {}
-                }
-            }
-            // Bare 1-7 select the same flat BSP modes as the visible strip.
-            if self.active_workspace == WorkspaceView::Room {
-                const MODE_KEYS: [egui::Key; 7] = [
-                    egui::Key::Num1,
-                    egui::Key::Num2,
-                    egui::Key::Num3,
-                    egui::Key::Num4,
-                    egui::Key::Num5,
-                    egui::Key::Num6,
-                    egui::Key::Num7,
-                ];
-                for (key, mode) in MODE_KEYS.into_iter().zip(BspToolbarMode::ALL) {
-                    if ctx.input_mut(|i| i.key_pressed(key)) {
-                        self.set_bsp_toolbar_mode(mode);
-                    }
                 }
             }
             let snap_to_floor = self.active_workspace == WorkspaceView::Room
@@ -341,11 +262,11 @@ impl EditorWorkspace {
     }
 
     pub(crate) fn cycle_tool_group(&mut self, reverse: bool) {
-        let current = self
-            .active_bsp_toolbar_mode()
-            .unwrap_or(BspToolbarMode::Select);
-        let next = cycle_value(&BspToolbarMode::ALL, current, reverse);
-        self.set_bsp_toolbar_mode(next);
+        if !self.is_grid_world() {
+            return;
+        }
+        let next = cycle_value(&grid_tools::GridTool::ALL, self.grid.tool, reverse);
+        self.set_grid_tool(next);
     }
 
     pub(crate) fn active_tool_cycle_value(&self) -> (ViewTool, Option<PlaceKind>) {
@@ -362,24 +283,8 @@ impl EditorWorkspace {
         self.active_workspace = WorkspaceView::Room;
         let (tool, place_kind) = value;
         self.active_tool = tool;
-        if tool != ViewTool::PaintMaterial {
-            self.material_paint_sampling = false;
-        }
         if let Some(place_kind) = place_kind {
             self.place_kind = place_kind;
-        }
-        if tool == ViewTool::PaintMaterial {
-            if matches!(self.interaction, Interaction::NodeGizmo(_)) {
-                self.interaction = Interaction::Idle;
-            }
-            let material = self
-                .selected_material_resource()
-                .or(self.brush_material)
-                .or_else(|| self.first_material());
-            if let Some(material) = material {
-                self.brush_material = Some(material);
-                self.replace_resource_selection(material);
-            }
         }
         self.status = if tool == ViewTool::Place {
             format!("Tool: {}", self.place_kind.label())
@@ -433,7 +338,6 @@ impl EditorWorkspace {
         let show_all = reverse || !all_visible;
         self.show_lights = show_all;
         self.preview_bounds = show_all;
-        self.show_bsp_leak_path = show_all;
         self.status = if show_all {
             "Visibility: all shown".to_string()
         } else {
@@ -456,42 +360,23 @@ impl EditorWorkspace {
     }
 
     pub(crate) fn cycle_view_dimension_group(&mut self, reverse: bool) {
-        let current = if self.view_2d {
-            match self.orthographic_view {
-                OrthographicView::Top => 1,
-                OrthographicView::Front => 2,
-                OrthographicView::Side => 3,
-            }
+        // Two views: 3D and the Top plan. The direction does not matter.
+        let _ = reverse;
+        if self.view_2d {
+            self.view_2d = false;
+            self.status = "Viewport: 3D".to_string();
         } else {
-            0
-        };
-        let next = if reverse {
-            (current + 3) % 4
-        } else {
-            (current + 1) % 4
-        };
-        match next {
-            0 => {
-                self.view_2d = false;
-                self.status = "Viewport: 3D".to_string();
-            }
-            1 => self.set_orthographic_view(OrthographicView::Top),
-            2 => self.set_orthographic_view(OrthographicView::Front),
-            3 => self.set_orthographic_view(OrthographicView::Side),
-            _ => unreachable!(),
+            self.set_orthographic_view(OrthographicView::Top);
         }
         self.mark_shortcut_group_changed(ShortcutGroup::Viewport);
     }
 
     pub(crate) fn set_orthographic_view(&mut self, view: OrthographicView) {
         let entering_orthographic = !self.view_2d;
-        if entering_orthographic || self.orthographic_view != view {
-            self.cancel_brush_gestures();
-        }
         self.view_2d = true;
         self.orthographic_view = view;
         if entering_orthographic {
-            self.frame_bsp_viewport_if_uninitialized();
+            self.frame_viewport_if_uninitialized();
         }
         self.status = format!("Viewport: {}", view.label());
         self.mark_shortcut_group_changed(ShortcutGroup::Viewport);
@@ -543,24 +428,6 @@ impl EditorWorkspace {
                     self.renaming = Some((id, name));
                     self.pending_rename_focus = true;
                 }
-            }
-            TreeAction::OpenGroup(id) => {
-                self.open_group_for_editing(id);
-                self.renaming = None;
-            }
-            TreeAction::Ungroup(id) => {
-                if !self.node_is_selected(id) {
-                    self.replace_node_selection(id);
-                }
-                self.ungroup_selected_groups();
-                self.renaming = None;
-            }
-            TreeAction::MergeSelectedGroups(id) => {
-                if !self.node_is_selected(id) {
-                    self.replace_node_selection(id);
-                }
-                self.merge_selected_groups();
-                self.renaming = None;
             }
             TreeAction::CommitRename(id, name) => {
                 let trimmed = name.trim();
@@ -836,45 +703,6 @@ impl EditorWorkspace {
                     ui.add_space(6.0);
                     self.draw_main_menus(ctx, ui, playtest_status);
                     ui.add_space(4.0);
-                    let copy_count = self.brush_geometry_copy_count();
-                    let copy_label = if copy_count == 0 {
-                        "Copy selection".to_string()
-                    } else {
-                        format!(
-                            "Copy {copy_count} brush{}",
-                            if copy_count == 1 { "" } else { "es" }
-                        )
-                    };
-                    if ui
-                        .add_enabled(
-                            copy_count > 0,
-                            egui::Button::new(icons::label(icons::COPY, &copy_label)),
-                        )
-                        .on_hover_text(
-                            "Copy selected brushes for paste into this or another project",
-                        )
-                        .clicked()
-                        && self.copy_current_geometry()
-                    {
-                        self.publish_geometry_clipboard_marker(ui.ctx());
-                    }
-                    let paste_count = self.brush_geometry_clipboard_count();
-                    let paste_label = paste_count.map_or_else(
-                        || "Clipboard empty".to_string(),
-                        |count| {
-                            format!("Paste {count} brush{}", if count == 1 { "" } else { "es" })
-                        },
-                    );
-                    if ui
-                        .add_enabled(
-                            paste_count.is_some(),
-                            egui::Button::new(icons::label(icons::COPY, &paste_label)),
-                        )
-                        .on_hover_text("The brush clipboard is retained when you switch projects")
-                        .clicked()
-                    {
-                        self.paste_current_geometry();
-                    }
                     ui.add_space(8.0);
                     self.draw_build_play_controls(ui, playtest_status, play_metrics);
                     let remaining = ui.available_width();
@@ -1011,17 +839,10 @@ impl EditorWorkspace {
         ui.menu_button("File", |ui| {
             if ui
                 .button(menu_label("New Project...", &command_shortcut_text("N")))
-                .clicked()
-            {
-                self.open_new_project_dialog();
-                ui.close_menu();
-            }
-            if ui
-                .button("New Grid Project...")
                 .on_hover_text("A sector-grid project with a starter room that Plays immediately")
                 .clicked()
             {
-                self.open_new_grid_project_dialog();
+                self.open_new_project_dialog();
                 ui.close_menu();
             }
             ui.menu_button(icons::label(icons::FOLDER, "Project"), |ui| {
@@ -1065,78 +886,6 @@ impl EditorWorkspace {
         });
         ui.menu_button("Edit", |ui| {
             let can_node_delete = self.selection.selected_node != NodeId::ROOT;
-            let selected_nodes = self.selected_node_ids_in_hierarchy();
-            let has_selected_group = selected_nodes.iter().any(|id| self.node_is_group(*id));
-            if self.active_workspace == WorkspaceView::Room {
-                let can_copy_geometry =
-                    !self.selected_brush_set().is_empty() || has_selected_group;
-                if ui
-                    .add_enabled(
-                        can_copy_geometry,
-                        egui::Button::new(menu_label("Copy Geometry", &command_shortcut_text("C"))),
-                    )
-                    .clicked()
-                {
-                    if self.copy_current_geometry() {
-                        self.publish_geometry_clipboard_marker(ui.ctx());
-                    }
-                    ui.close_menu();
-                }
-                if ui
-                    .add_enabled(
-                        self.portable_geometry_clipboard.is_some(),
-                        egui::Button::new(menu_label(
-                            "Paste Geometry",
-                            &command_shortcut_text("V"),
-                        )),
-                    )
-                    .clicked()
-                {
-                    self.paste_current_geometry();
-                    ui.close_menu();
-                }
-                ui.separator();
-                if ui
-                    .add_enabled(
-                        !self.selected_brush_set().is_empty() || !selected_nodes.is_empty(),
-                        egui::Button::new(menu_label(
-                            "Group Selection",
-                            &command_shortcut_text("G"),
-                        )),
-                    )
-                    .clicked()
-                {
-                    self.group_current_selection();
-                    ui.close_menu();
-                }
-                if ui
-                    .add_enabled(
-                        has_selected_group,
-                        egui::Button::new(menu_label(
-                            "Ungroup Selection",
-                            &command_shift_shortcut_text("G"),
-                        )),
-                    )
-                    .clicked()
-                {
-                    self.ungroup_selected_groups();
-                    ui.close_menu();
-                }
-                ui.separator();
-            } else if self.has_brush_geometry_clipboard() {
-                if ui
-                    .button(menu_label(
-                        "Paste Brush Geometry",
-                        &command_shortcut_text("V"),
-                    ))
-                    .on_hover_text("Paste the retained cross-project brush clipboard and open the 3D workspace")
-                    .clicked()
-                {
-                    self.paste_current_geometry();
-                    ui.close_menu();
-                }
-                ui.separator();
-            }
             if ui
                 .button(menu_label(
                     "Duplicate Selection",
@@ -1156,48 +905,6 @@ impl EditorWorkspace {
                 ui.close_menu();
             }
         });
-        if self.active_workspace == WorkspaceView::Room && !self.is_grid_world() {
-            ui.menu_button("Brush", |ui| {
-                let can_extrude = self.brush_edit_mode == BrushEditMode::Face
-                    && self.selected_brush.is_some()
-                    && self.selected_brush_face.is_some();
-                if ui
-                    .add_enabled(
-                        can_extrude,
-                        egui::Button::new(menu_label("Extrude Face", "E")),
-                    )
-                    .on_hover_text("Extrude the selected face by one grid step")
-                    .clicked()
-                {
-                    self.extrude_selected_face_one_step();
-                    ui.close_menu();
-                }
-                ui.separator();
-                let has_brush = !self.selected_brush_set().is_empty();
-                if ui
-                    .add_enabled(
-                        has_brush,
-                        egui::Button::new(menu_label("Hollow", &command_shift_shortcut_text("K"))),
-                    )
-                    .on_hover_text("Replace each selected brush with grid-thick walls")
-                    .clicked()
-                {
-                    self.csg_hollow_selected();
-                    ui.close_menu();
-                }
-                if ui
-                    .add_enabled(
-                        has_brush,
-                        egui::Button::new(menu_label("Subtract", &command_shortcut_text("K"))),
-                    )
-                    .on_hover_text("Carve the selected brushes from touching neighbours")
-                    .clicked()
-                {
-                    self.csg_subtract_selected();
-                    ui.close_menu();
-                }
-            });
-        }
         ui.menu_button("View", |ui| {
             if ui
                 .checkbox(&mut self.left_dock_open, "World and files")
@@ -1235,21 +942,6 @@ impl EditorWorkspace {
             }
         });
         ui.menu_button("Tools", |ui| {
-            let can_check_brushes = self.project.active_scene().brushes.len() >= 2;
-            if ui
-                .add_enabled(
-                    can_check_brushes,
-                    egui::Button::new("Check Overlapping Brush Faces..."),
-                )
-                .on_hover_text(
-                    "Find positive-area, same-facing coplanar faces on different brushes",
-                )
-                .clicked()
-            {
-                self.run_brush_overlap_audit();
-                ui.close_menu();
-            }
-            ui.separator();
             if ui.button("Build Project").clicked() {
                 self.request_project_build();
                 ui.close_menu();
@@ -1302,14 +994,12 @@ impl EditorWorkspace {
             "Play"
         };
         // Play is a split button: the main face runs the project; the attached
-        // chevron opens persistent boot/cook settings plus the latest host-side
+        // chevron opens persistent boot settings plus the latest host-side
         // PSX envelope, without starting the game. Zero item spacing inside
         // this group makes the two faces read as one control.
         let mut set_boot: Option<BootTarget> = None;
-        let mut set_cook_mode = None;
         let mut focus_budget_target = None;
         let current_boot = self.project.boot;
-        let current_cook_mode = self.project.bsp_cook_mode;
         let boot_label = self.boot_target_label();
         let budget = self.last_playtest_budget.clone().unwrap_or_else(|| {
             psxed_project::playtest::estimate_playtest_budgets(&self.project, &self.project_dir)
@@ -1319,8 +1009,7 @@ impl EditorWorkspace {
             if ui
                 .button(icons::label(icons::PLAY, play_label))
                 .on_hover_text(format!(
-                    "{} BSP cook, build, and run inside the 3D viewport. Boots at: {}. Shortcut: {}.",
-                    current_cook_mode.label(),
+                    "Cook, build, and run inside the 3D viewport. Boots at: {}. Shortcut: {}.",
                     boot_label,
                     command_shortcut_text("Enter")
                 ))
@@ -1362,22 +1051,6 @@ impl EditorWorkspace {
                     }
                 }
                 ui.separator();
-                ui.label(RichText::new("BSP cook").color(STUDIO_TEXT_WEAK).small());
-                for mode in psxed_project::brush_world::BrushWorldCookMode::ALL {
-                    if ui
-                        .selectable_label(current_cook_mode == mode, mode.label())
-                        .on_hover_text(mode.description())
-                        .clicked()
-                    {
-                        set_cook_mode = Some(mode);
-                    }
-                }
-                ui.label(
-                    RichText::new(current_cook_mode.description())
-                        .color(STUDIO_TEXT_WEAK)
-                        .small(),
-                );
-                ui.separator();
                 let stage = match budget.stage {
                     psxed_project::playtest::PlaytestBudgetStage::AuthoredEstimate => {
                         "PSX budget estimate (before cook)"
@@ -1387,12 +1060,10 @@ impl EditorWorkspace {
                     }
                 };
                 ui.label(RichText::new(stage).color(STUDIO_TEXT_WEAK).small());
-                ui.monospace(format!("BSP       {}", human_bytes_u64(budget.bsp_bytes as u64)));
                 ui.monospace(format!(
-                    "PVS       {} · row {}/{} B",
-                    human_bytes_u64(budget.pvs_bytes as u64),
-                    budget.pvs_row_bytes,
-                    psxed_project::playtest::PLAYTEST_PVS_ROW_LIMIT_BYTES,
+                    "World     {} faces · {}",
+                    budget.world_faces,
+                    human_bytes_u64(budget.world_bytes as u64)
                 ));
                 ui.monospace(format!(
                     "Lighting  {}",
@@ -1467,13 +1138,10 @@ impl EditorWorkspace {
                 }
             })
             .response
-            .on_hover_text("Choose boot target and persistent BSP cook quality; inspect pre/post-cook PSX envelopes without starting Play.");
+            .on_hover_text("Choose the boot target; inspect pre/post-cook PSX envelopes without starting Play.");
         });
         if let Some(target) = set_boot {
             self.set_boot_target(target);
-        }
-        if let Some(mode) = set_cook_mode {
-            self.set_bsp_cook_mode(mode);
         }
         if let Some(target) = focus_budget_target {
             let _ = self.focus_playtest_validation_target(target);

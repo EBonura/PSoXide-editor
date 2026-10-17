@@ -465,7 +465,7 @@ pub(crate) fn draw_scene_node_row(
     let painter = ui.painter_at(rect);
     let hovered = response.hovered();
     let display_kind = scene_tree_kind_label(row.kind);
-    let content_count = row.child_count + row.brush_count;
+    let content_count = row.child_count;
 
     paint_list_row(&painter, rect, selected, hovered);
 
@@ -743,11 +743,7 @@ pub(crate) fn draw_scene_node_row(
         });
     }
     if response.double_clicked() && !icon_clicked && row.id != NodeId::ROOT {
-        if row.kind == NodeKind::Group.label() {
-            actions.push(TreeAction::OpenGroup(row.id));
-        } else {
-            actions.push(TreeAction::BeginRename(row.id));
-        }
+        actions.push(TreeAction::BeginRename(row.id));
     }
 
     if row.id != NodeId::ROOT {
@@ -782,20 +778,6 @@ pub(crate) fn draw_scene_node_row(
             {
                 actions.push(TreeAction::SnapEntityToFloor(row.id));
                 ui.close_menu();
-            }
-            if row.kind == NodeKind::Group.label() {
-                if ui.button("Open Group").clicked() {
-                    actions.push(TreeAction::OpenGroup(row.id));
-                    ui.close_menu();
-                }
-                if ui.button("Ungroup").clicked() {
-                    actions.push(TreeAction::Ungroup(row.id));
-                    ui.close_menu();
-                }
-                if ui.button("Merge Selected Groups").clicked() {
-                    actions.push(TreeAction::MergeSelectedGroups(row.id));
-                    ui.close_menu();
-                }
             }
             ui.separator();
             if ui.button(icons::label(icons::TRASH, "Delete")).clicked() {

@@ -5,6 +5,13 @@
 use super::*;
 use psxed_project::grid::{GridRoom, GridScale, GridSurface, GridWall, GridWorld, SceneWorld};
 
+/// The viewport rect `allocate_centered_preview_rect` produces for the
+/// 800x600 test screen.
+pub(crate) const RIG_VIEWPORT: Rect = Rect {
+    min: Pos2::new(400.0 - 778.6667 / 2.0, 300.0 - 584.0 / 2.0),
+    max: Pos2::new(400.0 + 778.6667 / 2.0, 300.0 + 584.0 / 2.0),
+};
+
 /// Which viewport the rig drives.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RigView {
@@ -169,7 +176,7 @@ impl GridRig {
 
     /// The rectangle the 3D view allocates on the rig screen.
     pub(crate) fn persp_rect(&self) -> Rect {
-        super::interaction_rig::RIG_VIEWPORT
+        RIG_VIEWPORT
     }
 
     pub(crate) fn move_to(&mut self, pos: Pos2, mods: egui::Modifiers) {

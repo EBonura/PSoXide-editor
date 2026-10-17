@@ -20,18 +20,11 @@ impl EditorWorkspace {
         self.selection.selected_resources.insert(id);
         self.selection.resource_selection_anchor = Some(id);
         self.resource_delete_confirm = None;
-        if matches!(
-            self.project.resource(id).map(|resource| &resource.data),
-            Some(ResourceData::Material(_))
-        ) {
-            self.brush_material = Some(id);
-        }
     }
 
     /// A click on empty space clears every selection domain.
     pub(crate) fn clear_all_selections(&mut self) {
         self.clear_resource_selection_state();
-        self.clear_brush_selection();
         self.clear_node_selection_state();
         self.status = "Cleared selection".to_string();
     }
@@ -111,6 +104,13 @@ impl EditorWorkspace {
                 && self.selection.selected_resource == Some(id))
     }
 
+    /// Select `node` the way a viewport click does: plain replaces the
+    /// selection, Shift extends a range, Ctrl/Cmd toggles.
+    pub(crate) fn select_node_with_modifiers(&mut self, node: NodeId, modifiers: egui::Modifiers) {
+        let order = self.scene_node_order();
+        self.apply_node_selection_modifiers(node, modifiers, &order);
+    }
+
     pub(crate) fn apply_node_selection_modifiers(
         &mut self,
         id: NodeId,
@@ -120,10 +120,6 @@ impl EditorWorkspace {
         let toggle = modifiers.command || modifiers.ctrl;
         self.selection
             .apply_node_modifiers(id, modifiers.shift, toggle, visible_order);
-        // One selection domain at a time: picking an entity drops any
-        // brush selection, mirroring the brush-click path.
-        self.clear_brush_selection();
-
         let count = self.selection.selected_nodes.len();
         let scene = self.project.active_scene();
         if count > 1 {
@@ -147,18 +143,6 @@ impl EditorWorkspace {
         self.resource_delete_confirm = None;
 
         let count = self.selection.selected_resources.len();
-        if count <= 1 {
-            if let Some(selected) = self.selection.selected_resource {
-                if matches!(
-                    self.project
-                        .resource(selected)
-                        .map(|resource| &resource.data),
-                    Some(ResourceData::Material(_))
-                ) {
-                    self.brush_material = Some(selected);
-                }
-            }
-        }
         if count > 1 {
             self.status = format!("Selected {count} resources");
         } else if let Some(id) = self.selection.selected_resource {
@@ -330,9 +314,6 @@ impl EditorWorkspace {
         let mut removed_names = Vec::new();
         let mut failed = None;
         for id in targets {
-            if self.brush_material == Some(id) {
-                self.brush_material = None;
-            }
             self.remove_texture_thumb(id);
             match self
                 .project
@@ -469,6 +450,18 @@ impl EditorWorkspace {
         })
     }
 
+    /// Union of the entity bounds of everything under a Group node.
+    fn group_bounds_3d(&self, group: NodeId) -> Option<([f32; 3], [f32; 3])> {
+        let scene = self.project.active_scene();
+        let mut bounds = None;
+        for bound in self.collect_entity_bounds() {
+            if scene.is_descendant_of(bound.node, group) {
+                merge_bounds_3d(&mut bounds, bound.center, bound.half_extents);
+            }
+        }
+        bounds.map(bounds_3d_to_center_half)
+    }
+
     pub(crate) fn node_frame_bounds_3d(&self, id: NodeId) -> Option<([f32; 3], [f32; 3])> {
         if self.scene_node_effectively_hidden(id) {
             return None;
@@ -519,11 +512,6 @@ impl EditorWorkspace {
     }
 
     pub(crate) fn reconcile_selection_after_document_change(&mut self) {
-        // Undo, redo and any other document swap replace the mapping a UV
-        // edit interaction captured, so whatever it held is no longer the
-        // phase the user is looking at.
-        self.clear_uv_edit_transaction();
-        self.reconcile_brush_selection();
         if let Some(world) = self.project.active_scene().world.grid() {
             self.grid.selection.retain_valid(world);
         } else {
@@ -543,12 +531,6 @@ impl EditorWorkspace {
             .retain(|id| valid_nodes.contains(id));
         self.hidden_scene_nodes
             .retain(|id| valid_nodes.contains(id));
-        if self
-            .open_group
-            .is_some_and(|id| !valid_nodes.contains(&id) || !self.node_is_group(id))
-        {
-            self.open_group = None;
-        }
         if self
             .selection
             .node_selection_anchor
@@ -642,500 +624,5 @@ impl EditorWorkspace {
         {
             self.selection.selected_ui_node = ui_root;
         }
-    }
-
-    pub(crate) fn begin_viewport_box_select(&mut self, start: Pos2, modifiers: egui::Modifiers) {
-        let additive = modifiers.shift || modifiers.command || modifiers.ctrl;
-        let element_mode = matches!(
-            self.brush_edit_mode,
-            BrushEditMode::Face | BrushEditMode::Edge | BrushEditMode::Vertex
-        )
-        .then_some(self.brush_edit_mode);
-        let element_brush = element_mode.and(self.selected_brush);
-        let base_brushes = if additive {
-            self.selected_brush_set()
-        } else {
-            Vec::new()
-        };
-        let base_primary_brush = additive.then_some(self.selected_brush).flatten();
-        let base_brush_elements = if element_brush.is_some() && additive {
-            self.selected_brush_elements.clone()
-        } else {
-            Vec::new()
-        };
-        let base_brush_faces = if element_brush.is_some() && additive {
-            self.selected_brush_faces.clone()
-        } else {
-            Vec::new()
-        };
-        if element_brush.is_some() {
-            self.reset_brush_drill();
-            self.clear_uv_edit_transaction();
-            if !additive {
-                self.selected_brush_face = None;
-                self.selected_brush_faces.clear();
-                self.selected_brush_elements.clear();
-            }
-        } else if !additive {
-            self.clear_brush_selection();
-        }
-        self.clear_resource_selection_state();
-        self.interaction = Interaction::BoxSelect2d(ViewportBoxSelect {
-            start,
-            current: start,
-            additive,
-            base_brushes,
-            base_primary_brush,
-            element_brush,
-            element_mode,
-            base_brush_elements,
-            base_brush_faces,
-        });
-    }
-
-    pub(crate) fn update_viewport_box_select(
-        &mut self,
-        current: Pos2,
-        transform: ViewportTransform,
-    ) -> bool {
-        let Some(drag) = self.interaction.box_select_2d_mut() else {
-            return false;
-        };
-        drag.current = current;
-        let rect = drag.rect();
-        let additive = drag.additive;
-        let base_brushes = drag.base_brushes.clone();
-        let base_primary_brush = drag.base_primary_brush;
-        let element_brush = drag.element_brush;
-        let element_mode = drag.element_mode;
-        let base_brush_elements = drag.base_brush_elements.clone();
-        let base_brush_faces = drag.base_brush_faces.clone();
-        if let (Some(brush), Some(mode)) = (element_brush, element_mode) {
-            self.select_brush_elements_in_screen_rect(
-                transform,
-                rect,
-                brush,
-                mode,
-                additive,
-                &base_brush_elements,
-                &base_brush_faces,
-            );
-        } else {
-            self.select_brushes_in_screen_rect(
-                transform,
-                rect,
-                additive,
-                &base_brushes,
-                base_primary_brush,
-            );
-        }
-        true
-    }
-
-    fn select_brush_elements_in_screen_rect(
-        &mut self,
-        transform: ViewportTransform,
-        rect: Rect,
-        brush_index: usize,
-        mode: BrushEditMode,
-        additive: bool,
-        base_elements: &[BrushElement],
-        base_faces: &[(usize, usize)],
-    ) {
-        let Some(brush) = self.project.active_scene().brushes.get(brush_index) else {
-            return;
-        };
-        let solved = brush.solve();
-        if !solved.is_valid() {
-            return;
-        }
-        let view = self.orthographic_view;
-        let contains = |point: [f64; 3]| {
-            let projected = view.project_f64(point);
-            rect.contains(transform.world_to_screen([projected[0] as f32, projected[1] as f32]))
-        };
-        let hits = match mode {
-            BrushEditMode::Face => brush_elements::face_handles(brush, &solved)
-                .into_iter()
-                .filter_map(|(face, center, _)| {
-                    contains(center).then_some(BrushElement::Face(face))
-                })
-                .collect(),
-            BrushEditMode::Edge => brush_elements::unique_edges(&solved)
-                .into_iter()
-                .filter_map(|(a, b)| {
-                    let midpoint = std::array::from_fn(|axis| (a[axis] + b[axis]) * 0.5);
-                    contains(midpoint).then(|| {
-                        let (a, b) = brush_elements::edge_element_key(a, b);
-                        BrushElement::Edge(a, b)
-                    })
-                })
-                .collect(),
-            BrushEditMode::Vertex => brush_elements::unique_vertices(&solved)
-                .into_iter()
-                .filter(|&vertex| contains(vertex))
-                .map(|vertex| BrushElement::Vertex(brush_elements::quantize_element_point(vertex)))
-                .collect(),
-            BrushEditMode::Move | BrushEditMode::Clip => Vec::new(),
-        };
-        self.apply_brush_element_marquee(
-            brush_index,
-            mode,
-            hits,
-            additive,
-            base_elements,
-            base_faces,
-        );
-    }
-
-    fn select_brushes_in_screen_rect(
-        &mut self,
-        transform: ViewportTransform,
-        rect: Rect,
-        additive: bool,
-        base_brushes: &[usize],
-        base_primary_brush: Option<usize>,
-    ) {
-        let view = self.orthographic_view;
-        let mut selected = if additive {
-            base_brushes.to_vec()
-        } else {
-            Vec::new()
-        };
-        let mut hits = Vec::new();
-        for (index, brush) in self.project.active_scene().brushes.iter().enumerate() {
-            if self.brush_effectively_hidden(index)
-                || matches!(self.brush_group_pick(index), BrushGroupPick::Locked)
-            {
-                continue;
-            }
-            let solved = brush.solve();
-            if !solved.is_valid() {
-                continue;
-            }
-            let mut bounds = Rect::NOTHING;
-            for vertex in solved
-                .polygons
-                .iter()
-                .flatten()
-                .flat_map(|polygon| polygon.verts.iter().copied())
-            {
-                let projected = view.project_f64(vertex);
-                bounds.extend_with(
-                    transform.world_to_screen([projected[0] as f32, projected[1] as f32]),
-                );
-            }
-            if bounds.expand(BRUSH_SCREEN_PICK_RADIUS).intersects(rect) {
-                hits.push(index);
-                if !selected.contains(&index) {
-                    selected.push(index);
-                }
-            }
-        }
-        selected.sort_unstable();
-        selected.dedup();
-        self.selected_brushes = selected;
-        self.selected_brush = if additive && base_primary_brush.is_some() {
-            base_primary_brush.filter(|index| self.selected_brushes.contains(index))
-        } else {
-            hits.first().copied()
-        }
-        .or_else(|| self.selected_brushes.first().copied());
-        self.selected_brush_face = None;
-        self.selected_brush_faces.clear();
-        self.selected_brush_elements.clear();
-        self.clear_node_selection_state();
-        self.clear_resource_selection_state();
-        self.status = match self.selected_brushes.len() {
-            0 => "No brushes in marquee".to_string(),
-            1 => "Selected 1 brush".to_string(),
-            count => format!("Selected {count} brushes"),
-        };
-    }
-
-    pub(crate) fn viewport_box_select_rect(&self) -> Option<Rect> {
-        self.interaction
-            .box_select_2d()
-            .map(ViewportBoxSelect::rect)
-    }
-
-    pub(crate) fn begin_viewport_3d_box_select(&mut self, start: Pos2, modifiers: egui::Modifiers) {
-        let additive = modifiers.shift || modifiers.command || modifiers.ctrl;
-        let element_mode = matches!(
-            self.brush_edit_mode,
-            BrushEditMode::Face | BrushEditMode::Edge | BrushEditMode::Vertex
-        )
-        .then_some(self.brush_edit_mode);
-        let element_brush = element_mode.and(self.selected_brush);
-        self.interaction = Interaction::BoxSelect3d(Viewport3dBoxSelect {
-            start,
-            current: start,
-            additive,
-            base_brushes: if additive {
-                self.selected_brush_set()
-            } else {
-                Vec::new()
-            },
-            base_primary_brush: additive.then_some(self.selected_brush).flatten(),
-            element_brush,
-            element_mode,
-            base_brush_elements: if additive && element_brush.is_some() {
-                self.selected_brush_elements.clone()
-            } else {
-                Vec::new()
-            },
-            base_brush_faces: if additive && element_brush.is_some() {
-                self.selected_brush_faces.clone()
-            } else {
-                Vec::new()
-            },
-        });
-        if element_brush.is_some() {
-            self.reset_brush_drill();
-            self.clear_uv_edit_transaction();
-            if !additive {
-                self.selected_brush_face = None;
-                self.selected_brush_faces.clear();
-                self.selected_brush_elements.clear();
-            }
-        } else if !additive {
-            self.clear_brush_selection();
-        }
-        self.clear_resource_selection_state();
-    }
-
-    pub(crate) fn update_viewport_3d_box_select(&mut self, current: Pos2, viewport: Rect) -> bool {
-        let Some(drag) = self.interaction.box_select_3d_mut() else {
-            return false;
-        };
-        drag.current = current;
-        let rect = drag.rect();
-        let additive = drag.additive;
-        let base_brushes = drag.base_brushes.clone();
-        let base_primary_brush = drag.base_primary_brush;
-        let element_brush = drag.element_brush;
-        let element_mode = drag.element_mode;
-        let base_brush_elements = drag.base_brush_elements.clone();
-        let base_brush_faces = drag.base_brush_faces.clone();
-        if let (Some(brush), Some(mode)) = (element_brush, element_mode) {
-            self.select_brush_elements_in_viewport_3d_rect(
-                viewport,
-                rect,
-                brush,
-                mode,
-                additive,
-                &base_brush_elements,
-                &base_brush_faces,
-            );
-        } else {
-            self.select_brushes_in_viewport_3d_rect(
-                viewport,
-                rect,
-                additive,
-                &base_brushes,
-                base_primary_brush,
-            );
-        }
-        true
-    }
-
-    fn select_brush_elements_in_viewport_3d_rect(
-        &mut self,
-        viewport: Rect,
-        rect: Rect,
-        brush_index: usize,
-        mode: BrushEditMode,
-        additive: bool,
-        base_elements: &[BrushElement],
-        base_faces: &[(usize, usize)],
-    ) {
-        let Some(brush) = self.project.active_scene().brushes.get(brush_index) else {
-            return;
-        };
-        let solved = brush.solve();
-        if !solved.is_valid() {
-            return;
-        }
-        let contains = |point: [f64; 3]| {
-            self.project_brush_point_3d(viewport, point)
-                .is_some_and(|point| rect.contains(point))
-        };
-        let hits = match mode {
-            BrushEditMode::Face => brush_elements::face_handles(brush, &solved)
-                .into_iter()
-                .filter_map(|(face, center, _normal)| {
-                    // Matches the viewport: handles are drawn on both sides, so a
-                    // marquee takes whatever it encloses rather than silently
-                    // skipping the faces pointing away.
-                    contains(center).then_some(BrushElement::Face(face))
-                })
-                .collect(),
-            BrushEditMode::Edge => brush_elements::unique_edges(&solved)
-                .into_iter()
-                .filter_map(|(a, b)| {
-                    let midpoint = std::array::from_fn(|axis| (a[axis] + b[axis]) * 0.5);
-                    contains(midpoint).then(|| {
-                        let (a, b) = brush_elements::edge_element_key(a, b);
-                        BrushElement::Edge(a, b)
-                    })
-                })
-                .collect(),
-            BrushEditMode::Vertex => brush_elements::unique_vertices(&solved)
-                .into_iter()
-                .filter(|&vertex| contains(vertex))
-                .map(|vertex| BrushElement::Vertex(brush_elements::quantize_element_point(vertex)))
-                .collect(),
-            BrushEditMode::Move | BrushEditMode::Clip => Vec::new(),
-        };
-        self.apply_brush_element_marquee(
-            brush_index,
-            mode,
-            hits,
-            additive,
-            base_elements,
-            base_faces,
-        );
-    }
-
-    fn apply_brush_element_marquee(
-        &mut self,
-        brush_index: usize,
-        mode: BrushEditMode,
-        hits: Vec<BrushElement>,
-        additive: bool,
-        base_elements: &[BrushElement],
-        base_faces: &[(usize, usize)],
-    ) {
-        self.selected_brush = Some(brush_index);
-        if mode == BrushEditMode::Face {
-            let mut faces = if additive {
-                base_faces.to_vec()
-            } else {
-                Vec::new()
-            };
-            for face in hits.into_iter().filter_map(|element| match element {
-                BrushElement::Face(face) => Some(face),
-                BrushElement::Edge(..) | BrushElement::Vertex(_) => None,
-            }) {
-                if !faces.contains(&(brush_index, face)) {
-                    faces.push((brush_index, face));
-                }
-            }
-            self.selected_brush_faces = faces;
-            self.selected_brush_elements = self
-                .selected_brush_faces
-                .iter()
-                .filter_map(|(brush, face)| {
-                    (*brush == brush_index).then_some(BrushElement::Face(*face))
-                })
-                .collect();
-            self.selected_brush_face =
-                self.selected_brush_elements
-                    .iter()
-                    .rev()
-                    .find_map(|element| match element {
-                        BrushElement::Face(face) => Some(*face),
-                        BrushElement::Edge(..) | BrushElement::Vertex(_) => None,
-                    });
-            self.selected_brushes = self
-                .selected_brush_faces
-                .iter()
-                .map(|(brush, _)| *brush)
-                .collect();
-            self.selected_brushes.sort_unstable();
-            self.selected_brushes.dedup();
-            if self.selected_brushes.is_empty() {
-                self.selected_brushes.push(brush_index);
-            }
-        } else {
-            let mut elements = if additive {
-                base_elements.to_vec()
-            } else {
-                Vec::new()
-            };
-            for element in hits {
-                if !elements.contains(&element) {
-                    elements.push(element);
-                }
-            }
-            self.selected_brush_elements = elements;
-            self.selected_brush_faces.clear();
-            self.selected_brush_face = None;
-            self.selected_brushes = vec![brush_index];
-        }
-        self.status = self.brush_element_status();
-    }
-
-    fn select_brushes_in_viewport_3d_rect(
-        &mut self,
-        viewport: Rect,
-        rect: Rect,
-        additive: bool,
-        base_brushes: &[usize],
-        base_primary_brush: Option<usize>,
-    ) {
-        let mut selected = if additive {
-            base_brushes.to_vec()
-        } else {
-            Vec::new()
-        };
-        let mut hits = Vec::new();
-        for (index, brush) in self.project.active_scene().brushes.iter().enumerate() {
-            if self.brush_effectively_hidden(index)
-                || matches!(self.brush_group_pick(index), BrushGroupPick::Locked)
-            {
-                continue;
-            }
-            let solved = brush.solve();
-            if !solved.is_valid() {
-                continue;
-            }
-            let mut bounds = Rect::NOTHING;
-            for vertex in solved
-                .polygons
-                .iter()
-                .flatten()
-                .flat_map(|polygon| polygon.verts.iter().copied())
-            {
-                if let Some(point) = self.project_brush_point_3d(viewport, vertex) {
-                    bounds.extend_with(point);
-                }
-            }
-            if bounds.expand(BRUSH_SCREEN_PICK_RADIUS).intersects(rect) {
-                hits.push(index);
-                if !selected.contains(&index) {
-                    selected.push(index);
-                }
-            }
-        }
-        selected.sort_unstable();
-        selected.dedup();
-        self.selected_brushes = selected;
-        self.selected_brush = if additive && base_primary_brush.is_some() {
-            base_primary_brush.filter(|index| self.selected_brushes.contains(index))
-        } else {
-            hits.first().copied()
-        }
-        .or_else(|| self.selected_brushes.first().copied());
-        self.selected_brush_face = None;
-        self.selected_brush_faces.clear();
-        self.selected_brush_elements.clear();
-        self.clear_node_selection_state();
-        self.clear_resource_selection_state();
-        self.status = match self.selected_brushes.len() {
-            0 => "No brushes in marquee".to_string(),
-            1 => "Selected 1 brush".to_string(),
-            count => format!("Selected {count} brushes"),
-        };
-    }
-
-    pub(crate) fn end_viewport_3d_box_select(&mut self) {
-        self.interaction.take_box_select_3d();
-    }
-
-    pub(crate) fn viewport_3d_box_select_rect(&self) -> Option<Rect> {
-        self.interaction
-            .box_select_3d()
-            .map(Viewport3dBoxSelect::rect)
     }
 }

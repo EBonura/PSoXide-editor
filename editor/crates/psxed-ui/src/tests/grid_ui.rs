@@ -155,18 +155,6 @@ fn dot_frames_the_selection_in_both_views() {
 }
 
 #[test]
-fn grid_edits_do_not_start_the_brush_leak_check() {
-    let mut ws =
-        EditorWorkspace::with_project(test_temp_dir("grid-no-leak"), flat_project(2, 2, false));
-    ws.apply_grid_pose("raise=0,0,0,1").unwrap();
-    assert!(ws.dirty);
-    assert!(
-        ws.bsp_leak_refresh_due.is_none(),
-        "a grid world has no brushes to seal"
-    );
-}
-
-#[test]
 fn a_rectangle_that_would_overfill_the_room_says_so_instead_of_freezing() {
     let ctx = full_context();
     let mut ws =
@@ -243,7 +231,7 @@ fn the_rooms_panel_lists_rooms_and_hiding_one_reaches_the_preview() {
     draw_editor(&mut ws, &ctx, false);
     assert_eq!(crate::grid_preview_hidden_rooms(), vec![1]);
     // A brush world publishes nothing hidden.
-    ws.project.active_scene_mut().world = psxed_project::grid::SceneWorld::Brushes;
+    ws.project.active_scene_mut().world = psxed_project::grid::SceneWorld::Empty;
     draw_editor(&mut ws, &ctx, false);
     assert!(crate::grid_preview_hidden_rooms().is_empty());
 }
@@ -291,16 +279,16 @@ fn the_question_mark_opens_the_key_help_and_escape_closes_it() {
 }
 
 #[test]
-fn brush_menus_are_hidden_for_grid_projects_and_kept_for_brush_projects() {
+fn no_brush_menus_are_drawn_for_grid_or_empty_worlds() {
     let ctx = full_context();
     let mut ws =
         EditorWorkspace::with_project(test_temp_dir("grid-menus"), flat_project(2, 2, false));
     let grid_text = shapes_text(&draw_editor(&mut ws, &ctx, true));
     assert!(grid_text.contains("Edit"), "{grid_text}");
     assert!(!grid_text.contains("Brush"), "{grid_text}");
-    ws.project.active_scene_mut().world = psxed_project::grid::SceneWorld::Brushes;
-    let brush_text = shapes_text(&draw_editor(&mut ws, &ctx, true));
-    assert!(brush_text.contains("Brush"), "{brush_text}");
+    ws.project.active_scene_mut().world = psxed_project::grid::SceneWorld::Empty;
+    let empty_text = shapes_text(&draw_editor(&mut ws, &ctx, true));
+    assert!(!empty_text.contains("Brush"), "{empty_text}");
 }
 
 #[test]
@@ -310,7 +298,7 @@ fn new_grid_project_makes_a_playable_starter_and_opens_it() {
     let dir = projects.join(psxed_project::project_file_stem(&name));
     let mut ws =
         EditorWorkspace::with_project(test_temp_dir("grid-new"), flat_project(2, 2, false));
-    let result = ws.create_and_open_grid_project(&name);
+    let result = ws.create_and_open_project(&name);
     let world_rooms = ws
         .project
         .active_scene()
@@ -323,7 +311,7 @@ fn new_grid_project_makes_a_playable_starter_and_opens_it() {
         .nodes()
         .iter()
         .any(|n| matches!(n.kind, NodeKind::Entity));
-    let again = ws.create_and_open_grid_project(&name);
+    let again = ws.create_and_open_project(&name);
     let _ = std::fs::remove_dir_all(&dir);
     result.expect("the starter is created");
     assert_eq!(world_rooms, Some((1, 36)));

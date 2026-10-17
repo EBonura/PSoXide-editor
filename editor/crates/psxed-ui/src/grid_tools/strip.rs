@@ -72,14 +72,18 @@ impl EditorWorkspace {
             GridTool::Select | GridTool::Height => {
                 ui.toggle_value(&mut self.grid.link, "Link")
                     .on_hover_text("L: coincident corners move together");
+                if self.grid.tool == GridTool::Select {
+                    self.draw_transform_gizmo_toolbar_controls(ui);
+                }
             }
             GridTool::Place => {
-                self.draw_bsp_add_menu(ui);
+                self.draw_add_menu(ui);
                 ui.label(
                     RichText::new(self.place_kind.label())
                         .color(STUDIO_TEXT_WEAK)
                         .size(11.0),
                 );
+                self.draw_active_place_options(ui);
             }
             GridTool::Paint => {
                 let name = self

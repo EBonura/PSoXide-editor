@@ -9,16 +9,19 @@ fn project_center_half_2d(
 }
 
 impl EditorWorkspace {
-    /// Whether the active scene has a world to frame: brushes or a grid.
+    /// Whether the active scene has a world to frame: a grid with a sector.
     pub(crate) fn has_world_geometry(&self) -> bool {
-        let scene = self.project.active_scene();
-        !scene.brushes.is_empty() || scene.world.grid().is_some_and(|g| g.sector_count() > 0)
+        self.project
+            .active_scene()
+            .world
+            .grid()
+            .is_some_and(|g| g.sector_count() > 0)
     }
 
-    /// Give BSP-only projects created before camera authoring metadata a usable
-    /// first 3D view. The exact default-state checks keep authored cameras and
-    /// any in-session camera movement untouched.
-    pub(crate) fn frame_bsp_camera_if_uninitialized(&mut self) -> bool {
+    /// Give projects created before camera authoring metadata a usable first
+    /// 3D view. The exact default-state checks keep authored cameras and any
+    /// in-session camera movement untouched.
+    pub(crate) fn frame_camera_if_uninitialized(&mut self) -> bool {
         let default_camera = EditorCameraState::default();
         if !self.has_world_geometry() || self.current_editor_camera_state() != default_camera {
             return false;
@@ -33,7 +36,7 @@ impl EditorWorkspace {
         true
     }
 
-    pub(crate) fn frame_bsp_viewport_if_uninitialized(&mut self) -> bool {
+    pub(crate) fn frame_viewport_if_uninitialized(&mut self) -> bool {
         let untouched_focus = self
             .orthographic_focus
             .into_iter()
@@ -161,414 +164,22 @@ impl EditorWorkspace {
         hits: &[ViewportHit],
         modifiers: egui::Modifiers,
     ) {
-        let bsp_select =
-            self.active_tool == ViewTool::Select && !self.project.active_scene().brushes.is_empty();
-        if self.orthographic_view != OrthographicView::Top
-            && self.active_tool != ViewTool::Brush
-            && !bsp_select
-        {
-            self.status = format!(
-                "{} is a BSP brush view; use Top for node placement",
-                self.orthographic_view.label()
-            );
-            return;
-        }
         match self.active_tool {
-            ViewTool::Brush => {
-                if self.brush_edit_mode == BrushEditMode::Clip && self.selected_brush.is_some() {
-                    let point = self.brush_snap_2d(world);
-                    self.brush_clip_click(point);
-                } else if self.select_brush_elements_2d(world, modifiers) {
-                } else if let Some((brush, face)) = self.pick_brush_face_for_selection_at_2d(world)
-                {
-                    if !matches!(self.brush_group_pick(brush), BrushGroupPick::Brush) {
-                        self.select_brush_with_group_semantics(brush, Some(face), modifiers, false);
-                        return;
-                    }
-                    if self.select_brush_element_from_2d_hit(brush, face, world, modifiers) {
-                        return;
-                    }
-                    self.select_brush_with_group_semantics(brush, Some(face), modifiers, false);
-                    self.status = format!("Selected BSP brush {}", brush + 1);
-                } else if !modifiers.shift && !modifiers.ctrl {
-                    self.clear_brush_selection();
-                }
-            }
             ViewTool::Select => {
                 if let Some(hit) = hits.iter().rev().find(|hit| hit.contains(world)) {
-                    self.clear_brush_selection();
-                    self.select_node_with_group_semantics(hit.id, modifiers, false);
-                } else if self.brush_edit_mode == BrushEditMode::Clip
-                    && self.selected_brush.is_some()
-                {
-                    let point = self.brush_snap_2d(world);
-                    self.brush_clip_click(point);
-                } else if self.select_brush_elements_2d(world, modifiers) {
-                } else if let Some((brush, face)) = self.pick_brush_face_for_selection_at_2d(world)
-                {
-                    if !matches!(self.brush_group_pick(brush), BrushGroupPick::Brush) {
-                        self.select_brush_with_group_semantics(brush, Some(face), modifiers, false);
-                        return;
-                    }
-                    if self.select_brush_element_from_2d_hit(brush, face, world, modifiers) {
-                        return;
-                    }
-                    self.select_brush_with_group_semantics(brush, Some(face), modifiers, false);
-                    self.status = format!("Selected BSP brush {}", brush + 1);
+                    self.select_node_with_modifiers(hit.id, modifiers);
                 } else {
-                    self.clear_brush_selection();
                     self.clear_resource_selection_state();
                 }
             }
             ViewTool::Place => {
-                self.place_bsp_from_top(world);
-            }
-            ViewTool::PaintMaterial => {
-                let Some((brush, face)) = self.pick_brush_face_for_selection_at_2d(world) else {
-                    self.status = "Material Paint needs a BSP brush face".to_string();
-                    return;
-                };
-                self.paint_bsp_brush_face_target(brush, face);
+                self.place_node_from_top(world);
             }
         }
     }
 
     pub(crate) fn duplicate_current_selection(&mut self) {
-        // A brush selected through the general Select tool is directly
-        // editable (see the Select toolbar arm), so Cmd+D must route to the
-        // brush copy for both tools, not just ViewTool::Brush.
-        if self.selected_brush.is_some()
-            && matches!(self.active_tool, ViewTool::Brush | ViewTool::Select)
-        {
-            self.duplicate_selected_brushes();
-            return;
-        }
         self.duplicate_selected();
-    }
-
-    pub(crate) fn copy_current_geometry(&mut self) -> bool {
-        let copied = self.copy_current_geometry_inner();
-        let message = if copied {
-            self.status.clone()
-        } else {
-            format!("Copy failed: {}", self.status)
-        };
-        self.show_clipboard_notice(message, copied);
-        copied
-    }
-
-    /// Copy BSP brushes into a clipboard that can
-    /// survive a project switch. Project-local ids are captured by name (or
-    /// removed, for Door bindings) instead of leaking into the destination.
-    fn copy_current_geometry_inner(&mut self) -> bool {
-        let selected_group_roots: Vec<NodeId> = self
-            .selected_node_ids_in_hierarchy()
-            .into_iter()
-            .filter(|id| self.node_is_group(*id))
-            .collect();
-        let mut brush_targets = self.selected_brush_set();
-        for group in &selected_group_roots {
-            brush_targets.extend(
-                self.project
-                    .active_scene()
-                    .brush_indices_in_group(*group, true),
-            );
-        }
-        brush_targets.sort_unstable();
-        brush_targets.dedup();
-        if !brush_targets.is_empty() {
-            let primary = self
-                .selected_brush
-                .and_then(|selected| brush_targets.iter().position(|index| *index == selected))
-                .unwrap_or(0);
-            let mut materials = BTreeMap::new();
-            let mut stripped_movers = 0usize;
-            let mut brushes = Vec::with_capacity(brush_targets.len());
-            let scene = self.project.active_scene();
-            let mut included_groups = HashSet::new();
-            for index in &brush_targets {
-                for group in self.brush_group_chain(*index) {
-                    included_groups.insert(group);
-                }
-            }
-            for root in &selected_group_roots {
-                for node in scene.nodes() {
-                    if matches!(node.kind, NodeKind::Group)
-                        && scene.is_descendant_of(node.id, *root)
-                    {
-                        included_groups.insert(node.id);
-                    }
-                }
-            }
-            let ordered_groups: Vec<NodeId> = scene
-                .hierarchy_rows()
-                .into_iter()
-                .map(|row| row.id)
-                .filter(|id| included_groups.contains(id))
-                .collect();
-            let group_local: HashMap<NodeId, usize> = ordered_groups
-                .iter()
-                .enumerate()
-                .map(|(index, id)| (*id, index))
-                .collect();
-            let groups: Vec<PortableBrushGroup> = ordered_groups
-                .iter()
-                .filter_map(|id| {
-                    let node = scene.node(*id)?;
-                    Some(PortableBrushGroup {
-                        name: node.name.clone(),
-                        parent: node
-                            .parent
-                            .and_then(|parent| group_local.get(&parent).copied()),
-                    })
-                })
-                .collect();
-            let mut brush_groups = Vec::with_capacity(brush_targets.len());
-            for index in brush_targets {
-                let Some(source) = self.project.active_scene().brushes.get(index) else {
-                    continue;
-                };
-                let mut brush = source.clone();
-                brush_groups.push(
-                    brush
-                        .group
-                        .and_then(|group| group_local.get(&group).copied()),
-                );
-                brush.group = None;
-                for face in &brush.faces {
-                    if let Some(material) = face.material {
-                        if let Some(name) = self.project.resource_name(material) {
-                            materials.insert(material.raw(), name.to_string());
-                        }
-                    }
-                }
-                stripped_movers += usize::from(brush.mover.take().is_some());
-                brushes.push(brush);
-            }
-            if brushes.is_empty() {
-                self.status = "Selected brushes no longer exist".to_string();
-                return false;
-            }
-            let count = brushes.len();
-            self.portable_geometry_clipboard =
-                Some(PortableGeometryClipboard::Brushes(BrushGeometryClipboard {
-                    brushes,
-                    groups,
-                    brush_groups,
-                    primary: primary.min(count - 1),
-                    materials,
-                    stripped_movers,
-                }));
-            self.status = format!(
-                "{count} brush{} copied{}",
-                if count == 1 { "" } else { "es" },
-                if stripped_movers == 0 {
-                    String::new()
-                } else {
-                    format!(
-                        "; stripped {stripped_movers} project-local Door binding{}",
-                        if stripped_movers == 1 { "" } else { "s" }
-                    )
-                }
-            );
-            return true;
-        }
-
-        self.status = "Select one or more BSP brushes to copy".to_string();
-        false
-    }
-
-    /// Whether the portable clipboard holds BSP brushes to paste.
-    pub(crate) fn has_brush_geometry_clipboard(&self) -> bool {
-        matches!(
-            self.portable_geometry_clipboard.as_ref(),
-            Some(PortableGeometryClipboard::Brushes(_))
-        )
-    }
-
-    pub(crate) fn brush_geometry_copy_count(&self) -> usize {
-        let mut brush_targets = self.selected_brush_set();
-        for group in self
-            .selected_node_ids_in_hierarchy()
-            .into_iter()
-            .filter(|id| self.node_is_group(*id))
-        {
-            brush_targets.extend(
-                self.project
-                    .active_scene()
-                    .brush_indices_in_group(group, true),
-            );
-        }
-        brush_targets.sort_unstable();
-        brush_targets.dedup();
-        brush_targets.len()
-    }
-
-    pub(crate) fn brush_geometry_clipboard_count(&self) -> Option<usize> {
-        match self.portable_geometry_clipboard.as_ref()? {
-            PortableGeometryClipboard::Brushes(clipboard) => Some(clipboard.brushes.len()),
-        }
-    }
-
-    /// Put a small marker on the OS clipboard after an internal geometry
-    /// copy. egui-winit only emits `Event::Paste` when the OS clipboard is
-    /// non-empty, so this makes a following Cmd/Ctrl+V observable even when
-    /// the user started with an empty system clipboard. The actual geometry
-    /// remains in the typed, project-portable in-process clipboard above.
-    pub(crate) fn publish_geometry_clipboard_marker(&self, ctx: &egui::Context) {
-        let description = self.brush_geometry_clipboard_count().map_or_else(
-            || "world geometry".to_string(),
-            |count| format!("{count} brush{}", if count == 1 { "" } else { "es" }),
-        );
-        ctx.copy_text(format!(
-            "PSoXide geometry clipboard: {description}. Paste inside PSoXide."
-        ));
-    }
-
-    pub(crate) fn paste_current_geometry(&mut self) -> bool {
-        let pasted = self.paste_current_geometry_inner();
-        let message = if pasted {
-            self.status.clone()
-        } else {
-            format!("Paste failed: {}", self.status)
-        };
-        self.show_clipboard_notice(message, pasted);
-        pasted
-    }
-
-    fn paste_current_geometry_inner(&mut self) -> bool {
-        let Some(clipboard) = self.portable_geometry_clipboard.clone() else {
-            self.status = "Copy brush or world geometry first".to_string();
-            return false;
-        };
-        let PortableGeometryClipboard::Brushes(clipboard) = clipboard;
-        self.paste_brush_geometry(clipboard)
-    }
-
-    fn paste_brush_geometry(&mut self, clipboard: BrushGeometryClipboard) -> bool {
-        if clipboard.brushes.is_empty() {
-            self.status = "The brush clipboard is empty".to_string();
-            return false;
-        }
-        let reveal_room_workspace = self.active_workspace != WorkspaceView::Room;
-        let destination_materials: BTreeMap<String, ResourceId> = self
-            .project
-            .resources
-            .iter()
-            .filter_map(|resource| {
-                matches!(resource.data, ResourceData::Material(_))
-                    .then_some((resource.name.clone(), resource.id))
-            })
-            .collect();
-        let missing = std::cell::Cell::new(0usize);
-        let mut brushes = clipboard.brushes;
-        for brush in &mut brushes {
-            brush.mover = None;
-            for face in &mut brush.faces {
-                face.material = face.material.and_then(|source| {
-                    let rebound = clipboard
-                        .materials
-                        .get(&source.raw())
-                        .and_then(|name| destination_materials.get(name))
-                        .copied();
-                    if rebound.is_none() {
-                        missing.set(missing.get() + 1);
-                    }
-                    rebound
-                });
-            }
-        }
-
-        self.push_undo();
-        let group_parent = self
-            .open_group
-            .filter(|group| self.node_is_group(*group))
-            .unwrap_or_else(|| self.project.active_scene().root);
-        let mut pasted_groups = Vec::with_capacity(clipboard.groups.len());
-        for group in &clipboard.groups {
-            let parent = group
-                .parent
-                .and_then(|parent| pasted_groups.get(parent).copied())
-                .unwrap_or(group_parent);
-            let id = self.project.active_scene_mut().add_node(
-                parent,
-                group.name.clone(),
-                NodeKind::Group,
-            );
-            pasted_groups.push(id);
-        }
-        for (index, brush) in brushes.iter_mut().enumerate() {
-            brush.group = clipboard
-                .brush_groups
-                .get(index)
-                .copied()
-                .flatten()
-                .and_then(|group| pasted_groups.get(group).copied());
-        }
-        let first = self.project.active_scene().brushes.len();
-        let count = brushes.len();
-        self.project.active_scene_mut().brushes.extend(brushes);
-        let primary = first + clipboard.primary.min(count - 1);
-        if let Some(group) = clipboard
-            .groups
-            .iter()
-            .position(|group| group.parent.is_none())
-            .and_then(|group| pasted_groups.get(group).copied())
-        {
-            self.clear_brush_selection();
-            self.replace_node_selection(group);
-        } else {
-            self.replace_brush_selection(primary, None);
-            self.selected_brushes = (first..first + count).collect();
-            self.selected_brush_faces.clear();
-            self.selected_brush_elements.clear();
-        }
-        if reveal_room_workspace {
-            self.show_room_orthographic();
-            self.active_tool = ViewTool::Select;
-        }
-        // Cross-project brushes intentionally retain authored world
-        // coordinates. Frame the new selection so a paste from a distant map
-        // cannot succeed off-screen and look indistinguishable from failure.
-        self.frame_viewport();
-        self.mark_dirty();
-
-        let mut notes = Vec::new();
-        if missing.get() > 0 {
-            notes.push(format!(
-                "{} missing material references cleared",
-                missing.get()
-            ));
-        }
-        if clipboard.stripped_movers > 0 {
-            notes.push(format!(
-                "{} Door binding{} left unbound",
-                clipboard.stripped_movers,
-                if clipboard.stripped_movers == 1 {
-                    ""
-                } else {
-                    "s"
-                }
-            ));
-        }
-        self.status = format!(
-            "{count} brush{} pasted{}",
-            if count == 1 { "" } else { "es" },
-            if notes.is_empty() {
-                String::new()
-            } else {
-                format!(" ({})", notes.join("; "))
-            }
-        );
-        true
-    }
-
-    pub(crate) fn show_clipboard_notice(&mut self, message: impl Into<String>, success: bool) {
-        self.clipboard_notice = Some(ClipboardNotice {
-            message: message.into(),
-            success,
-            shown_at: Instant::now(),
-        });
     }
 
     pub(crate) fn draw_clipboard_notice(&mut self, ctx: &egui::Context) {
@@ -696,17 +307,6 @@ impl EditorWorkspace {
                     .filter(|row| row.id == selected || scene.is_descendant_of(row.id, selected))
                     .filter_map(|row| scene.node(row.id).cloned())
                     .collect();
-                let subtree_ids: HashSet<_> = subtree.iter().map(|node| node.id).collect();
-                let brushes: Vec<_> = scene
-                    .brushes
-                    .iter()
-                    .filter(|brush| {
-                        brush
-                            .group
-                            .is_some_and(|group| subtree_ids.contains(&group))
-                    })
-                    .cloned()
-                    .collect();
                 let mut remap = HashMap::new();
                 for node in subtree {
                     let parent = if node.id == selected {
@@ -733,10 +333,6 @@ impl EditorWorkspace {
                         copy.transform = node.transform;
                     }
                     remap.insert(node.id, id);
-                }
-                for mut brush in brushes {
-                    brush.group = brush.group.and_then(|group| remap.get(&group).copied());
-                    self.project.active_scene_mut().brushes.push(brush);
                 }
                 if let Some(root) = remap.get(&selected).copied() {
                     duplicated.push(root);
@@ -1073,14 +669,6 @@ impl EditorWorkspace {
     pub(crate) fn open_new_project_dialog(&mut self) {
         self.modal = Modal::NewProject {
             name: String::new(),
-            cook_mode: psxed_project::brush_world::BrushWorldCookMode::Draft,
-            error: None,
-        };
-    }
-
-    pub(crate) fn open_new_grid_project_dialog(&mut self) {
-        self.modal = Modal::NewGridProject {
-            name: String::new(),
             error: None,
         };
     }
@@ -1246,12 +834,6 @@ impl EditorWorkspace {
         // Build/Play replaces it with another exact package report.
         self.last_playtest_budget = None;
         self.clear_validation_issues();
-        self.brush_overlap_report = None;
-        // The leak check is a brush-world concept; a grid world has no
-        // brushes to seal, and its banner would only be noise.
-        if !self.is_grid_world() {
-            self.schedule_bsp_leak_refresh();
-        }
     }
 
     pub(crate) fn commit_resource_rename(&mut self, id: ResourceId, name: String) {
@@ -1384,7 +966,6 @@ impl EditorWorkspace {
     /// next preview or commit would write them over the restored one (or
     /// index past its end), so every live gesture ends here first.
     fn abandon_gestures_for_document_swap(&mut self) {
-        self.cancel_brush_gestures();
         self.interaction = Interaction::Idle;
         self.node_drag_2d = None;
         self.grid.abandon();
@@ -1393,7 +974,6 @@ impl EditorWorkspace {
     pub(crate) fn do_undo(&mut self) {
         self.abandon_gestures_for_document_swap();
         self.inspector_undo_transaction = None;
-        self.clear_uv_edit_transaction();
         if let Some(prev) = self.history.undo(self.project.clone()) {
             self.project = prev;
             self.clear_resource_selection_state();
@@ -1409,7 +989,6 @@ impl EditorWorkspace {
     pub(crate) fn do_redo(&mut self) {
         self.abandon_gestures_for_document_swap();
         self.inspector_undo_transaction = None;
-        self.clear_uv_edit_transaction();
         if let Some(next) = self.history.redo(self.project.clone()) {
             self.project = next;
             self.clear_resource_selection_state();
@@ -1455,30 +1034,6 @@ impl EditorWorkspace {
         self.status = "Framed selection".to_string();
     }
 
-    /// Fit 3D bounds without changing the current viewing direction. Orbit
-    /// mode moves its target and dolly distance; free mode moves the camera
-    /// backward along its own look vector. In both cases `.` therefore frames
-    /// the selection instead of merely repointing at it from an arbitrary
-    /// distance.
-    /// Camera-relative ground axes snapped to world axes: `forward` is
-    /// the dominant XZ direction the camera faces, `right` its clockwise
-    /// perpendicular. Arrow-key nudges use these so Up always moves the
-    /// selection away from the camera.
-    pub(crate) fn camera_ground_axes(&self) -> ([i32; 3], [i32; 3]) {
-        let yaw = match self.camera_rig.mode {
-            ViewportCameraMode::Free => self.camera_rig.free_yaw,
-            ViewportCameraMode::Orbit => self.camera_rig.yaw,
-        };
-        let forward3 = camera_forward_from_angles(yaw, 0);
-        let forward = if forward3[0].abs() >= forward3[2].abs() {
-            [forward3[0].signum() as i32, 0, 0]
-        } else {
-            [0, 0, forward3[2].signum() as i32]
-        };
-        let right = [-forward[2], 0, forward[0]];
-        (forward, right)
-    }
-
     pub(crate) fn frame_3d_bounds(&mut self, center: [f32; 3], half: [f32; 3]) {
         let target = center.map(round_to_i32);
         let radius = frame_radius_for_3d_bounds(half);
@@ -1506,14 +1061,6 @@ impl EditorWorkspace {
         if let Some(bounds) = self.grid_selection_bounds() {
             return Some(bounds);
         }
-        // Brushes select through Select and Brush alike, so `.` frames
-        // them from either tool.
-        if matches!(self.active_tool, ViewTool::Brush | ViewTool::Select) {
-            if let Some(bounds) = self.selected_brush_frame_bounds_3d() {
-                return Some(bounds);
-            }
-        }
-
         let selected_nodes = self.selected_node_ids_in_hierarchy();
         if selected_nodes.len() > 1 {
             let mut bounds = None;
@@ -1533,62 +1080,8 @@ impl EditorWorkspace {
         None
     }
 
-    fn selected_brush_frame_bounds_3d(&self) -> Option<([f32; 3], [f32; 3])> {
-        // Union of every selected brush, so multi-selections frame as
-        // a group instead of only the primary.
-        self.selected_brush?;
-        let scene = self.project.active_scene();
-        let mut merged: Option<([f64; 3], [f64; 3])> = None;
-        for index in self.selected_brush_set() {
-            let Some(brush) = scene.brushes.get(index) else {
-                continue;
-            };
-            let solved = brush.solve();
-            if !solved.is_valid()
-                || !solved.min.into_iter().all(f64::is_finite)
-                || !solved.max.into_iter().all(f64::is_finite)
-            {
-                continue;
-            }
-            merged = Some(match merged {
-                None => (solved.min, solved.max),
-                Some((mut min, mut max)) => {
-                    for axis in 0..3 {
-                        min[axis] = min[axis].min(solved.min[axis]);
-                        max[axis] = max[axis].max(solved.max[axis]);
-                    }
-                    (min, max)
-                }
-            });
-        }
-        let (min, max) = merged?;
-        let mut center = [0.0; 3];
-        let mut half = [0.0; 3];
-        for axis in 0..3 {
-            center[axis] = ((min[axis] + max[axis]) * 0.5) as f32;
-            half[axis] = ((max[axis] - min[axis]) * 0.5) as f32;
-        }
-        Some((center, half))
-    }
-
     fn all_world_frame_bounds_3d(&self) -> Option<([f32; 3], [f32; 3])> {
         let mut bounds = None;
-        for brush in &self.project.active_scene().brushes {
-            let solved = brush.solve();
-            if !solved.is_valid()
-                || !solved.min.into_iter().all(f64::is_finite)
-                || !solved.max.into_iter().all(f64::is_finite)
-            {
-                continue;
-            }
-            let mut center = [0.0; 3];
-            let mut half = [0.0; 3];
-            for axis in 0..3 {
-                center[axis] = ((solved.min[axis] + solved.max[axis]) * 0.5) as f32;
-                half[axis] = ((solved.max[axis] - solved.min[axis]) * 0.5) as f32;
-            }
-            merge_bounds_3d(&mut bounds, center, half);
-        }
         if let Some(grid) = self
             .project
             .active_scene()
@@ -1607,39 +1100,6 @@ impl EditorWorkspace {
         if let Some((center, half)) = self.grid_selection_bounds() {
             return Some(project_center_half_2d(self.orthographic_view, center, half));
         }
-        if self.active_tool == ViewTool::Brush {
-            if let Some((center, half)) = self.selected_brush_frame_bounds_3d() {
-                return Some(project_center_half_2d(self.orthographic_view, center, half));
-            }
-        }
-
-        // Node authoring remains a Top-view workflow. In Front and Side,
-        // frame all BSP brushes when no brush is selected so the alternate
-        // views never reinterpret node XZ coordinates as XY.
-        if self.orthographic_view != OrthographicView::Top {
-            let mut bounds = None;
-            for brush in &self.project.active_scene().brushes {
-                let solved = brush.solve();
-                if !solved.is_valid() {
-                    continue;
-                }
-                let min = self.orthographic_view.project_f64(solved.min);
-                let max = self.orthographic_view.project_f64(solved.max);
-                merge_bounds(
-                    &mut bounds,
-                    [
-                        ((min[0] + max[0]) * 0.5) as f32,
-                        ((min[1] + max[1]) * 0.5) as f32,
-                    ],
-                    [
-                        ((max[0] - min[0]) * 0.5) as f32,
-                        ((max[1] - min[1]) * 0.5) as f32,
-                    ],
-                );
-            }
-            return bounds.map(bounds_to_center_half);
-        }
-
         let selected_nodes = self.selected_node_ids_in_hierarchy();
         if selected_nodes.len() > 1 {
             let mut bounds = None;
@@ -1659,8 +1119,8 @@ impl EditorWorkspace {
         }
 
         // The World root has a point transform but no useful geometry bounds.
-        // In a BSP-only scene frame all authored brushes instead; retain the
-        // root point as the final fallback for a truly empty scene.
+        // Frame the whole grid world instead; retain the root point as the
+        // final fallback for a truly empty scene.
         self.all_world_frame_bounds_3d()
             .map(|(center, half)| project_center_half_2d(self.orthographic_view, center, half))
             .or(selected_node_bounds)
