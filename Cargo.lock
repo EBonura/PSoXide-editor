@@ -3503,6 +3503,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "psx-grid"
+version = "0.1.0"
+dependencies = [
+ "psx-bsp",
+ "psx-engine",
+ "psx-gpu",
+ "psx-gte",
+ "psx-math",
+]
+
+[[package]]
 name = "psx-gte"
 version = "0.1.0"
 dependencies = [
@@ -3701,6 +3712,7 @@ dependencies = [
  "psx-bsp",
  "psx-engine",
  "psx-font",
+ "psx-grid",
  "psx-hw",
  "psx-iso",
  "psx-level",

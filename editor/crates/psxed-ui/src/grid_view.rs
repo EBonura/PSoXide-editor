@@ -397,9 +397,9 @@ mod tests {
         let transform = ViewportTransform::from_focus(rect, OrthographicView::Top, [0.0, 0.0], 1.0);
         let room = &world.rooms[0];
         let (r, corners) = sector_screen_rect(&world, room, transform, 0, 0);
-        // World x 1344..2688 maps right of centre; z 0..1344 runs down.
-        assert_eq!(r.left(), 200.0 + 1344.0);
-        assert_eq!(r.width(), 1344.0);
+        // World x 1280..2560 maps right of centre; z 0..1280 runs down.
+        assert_eq!(r.left(), 200.0 + 1280.0);
+        assert_eq!(r.width(), 1280.0);
         assert_eq!(corners[0], r.left_top());
         assert_eq!(corners[2], r.right_bottom());
     }

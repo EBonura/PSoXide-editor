@@ -148,21 +148,21 @@ fn opening_a_grid_project_frames_the_whole_world_in_the_top_view() {
     let mut workspace = EditorWorkspace::with_project(test_temp_dir("grid-frame"), grid_project());
     workspace.last_viewport_size = Vec2::new(1280.0, 700.0);
     workspace.show_room_orthographic();
-    // The 3x2 room at the default scale spans 4032 x 2688 editor units
-    // around (2016, 1344) in X and Z.
+    // The 3x2 room at the default scale spans 3840 x 2560 editor units
+    // around (1920, 1280) in X and Z.
     assert!(
-        (workspace.orthographic_focus[0] - 2016.0).abs() < 1.0,
+        (workspace.orthographic_focus[0] - 1920.0).abs() < 1.0,
         "{:?}",
         workspace.orthographic_focus
     );
     assert!(
-        (workspace.orthographic_focus[2] - 1344.0).abs() < 1.0,
+        (workspace.orthographic_focus[2] - 1280.0).abs() < 1.0,
         "{:?}",
         workspace.orthographic_focus
     );
     let zoom = workspace.viewport_zoom;
     assert!(
-        zoom > 0.0 && 4032.0 * zoom <= 1280.0 && 2688.0 * zoom <= 700.0,
+        zoom > 0.0 && 3840.0 * zoom <= 1280.0 && 2560.0 * zoom <= 700.0,
         "zoom {zoom}"
     );
 }
