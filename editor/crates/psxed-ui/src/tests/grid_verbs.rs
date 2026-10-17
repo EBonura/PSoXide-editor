@@ -273,3 +273,90 @@ fn measure_verb_gesture_cost_on_the_cathedral() {
         cells.len()
     );
 }
+
+#[test]
+fn a_ramp_keeps_the_side_nearest_the_press_and_the_other_side_rises() {
+    let mut rig = GridRig::top("verb-ramp", hall());
+    let original = rig.ws.project.clone();
+    rig.tool(GridTool::Ramp);
+    rig.drag(rig.cell_centre(2, 1), rig.cell_centre(4, 3));
+    assert_eq!(rig.ws.grid.verb.region.as_ref().map(|r| r.len()), Some(9));
+    // Hover near the north row: that side would keep its height.
+    rig.move_to(rig.cell_centre(3, 1), egui::Modifiers::NONE);
+    assert_eq!(
+        rig.ws.grid.verb.ramp_hover,
+        Some(psxed_project::grid::edit::verbs::ramp::RampDir::North)
+    );
+    let from = rig.cell_centre(3, 1);
+    rig.drag_hold(
+        from,
+        from - Vec2::new(0.0, 3.0 * CLICK_PX),
+        egui::Modifiers::NONE,
+    );
+    assert!(
+        matches!(rig.ws.grid.gesture, Gesture::Verb(_)),
+        "{}",
+        rig.ws.status
+    );
+    // Three rows, three clicks: 256 a row, north row first.
+    assert_eq!(
+        floor_at(&rig, [3, 1]),
+        [0, 0, 256, 256],
+        "{}",
+        rig.ws.status
+    );
+    assert_eq!(floor_at(&rig, [3, 3]), [512, 512, 768, 768]);
+    assert_eq!(floor_at(&rig, [1, 1]), [0; 4], "outside stays");
+    assert!(rig.ws.status.contains("walkable"), "{}", rig.ws.status);
+    rig.release(from - Vec2::new(0.0, 3.0 * CLICK_PX), egui::Modifiers::NONE);
+    rig.ws.do_undo();
+    assert_eq!(rig.ws.project, original);
+}
+
+#[test]
+fn r_turns_the_kept_side_and_a_steep_ramp_is_called_out_and_clamped_on_request() {
+    let mut rig = GridRig::top("verb-ramp-turn", hall());
+    rig.tool(GridTool::Ramp);
+    rig.drag(rig.cell_centre(2, 1), rig.cell_centre(2, 1));
+    rig.click(rig.cell_centre(2, 1));
+    rig.move_to(rig.cell_centre(2, 1), egui::Modifiers::NONE);
+    rig.key(egui::Key::R);
+    assert_eq!(
+        rig.ws.grid.verb.ramp_from,
+        Some(psxed_project::grid::edit::verbs::ramp::RampDir::East)
+    );
+    // One sector deep along X, twelve clicks up: far too steep.
+    let from = rig.cell_centre(2, 1);
+    rig.drag_hold(
+        from,
+        from - Vec2::new(0.0, 12.0 * CLICK_PX),
+        egui::Modifiers::NONE,
+    );
+    assert!(rig.ws.status.contains("too steep"), "{}", rig.ws.status);
+    let steep = floor_at(&rig, [2, 1]);
+    assert!(steep.iter().any(|h| *h >= 3000), "{steep:?}");
+    // Tab holds it to what the motor stands on: 1024 over one sector here.
+    rig.key(egui::Key::Tab);
+    rig.drag_hold(
+        from,
+        from - Vec2::new(0.0, 12.0 * CLICK_PX + 1.0),
+        egui::Modifiers::NONE,
+    );
+    let held = floor_at(&rig, [2, 1]);
+    assert_eq!(held.iter().max(), Some(&1024), "{held:?} {}", rig.ws.status);
+    assert!(rig.ws.status.contains("walkable"), "{}", rig.ws.status);
+}
+
+#[test]
+fn the_ramp_pose_and_typed_amount_work_without_a_pointer() {
+    let mut rig = GridRig::top("verb-ramp-pose", hall());
+    rig.ws
+        .apply_grid_pose("tool=ramp;region=1,1:3,2;ramp-from=west;verb-drag=2")
+        .unwrap();
+    // Three columns deep, two clicks: 512 over three, snapped to 64 a column.
+    let f = floor_at(&rig, [3, 1]);
+    assert_eq!(f[1], 512, "{f:?}");
+    rig.key(egui::Key::Escape);
+    assert!(matches!(rig.ws.grid.gesture, Gesture::Idle));
+    assert_eq!(floor_at(&rig, [3, 1]), [0; 4]);
+}

@@ -23,6 +23,7 @@ use psxed_project::grid::edit::{
 };
 use psxed_project::grid::{GridPlane, PlaneCollision, WallEdge};
 
+mod analysis;
 mod band_panel;
 mod bands_tool;
 mod clipboard_tool;
@@ -42,6 +43,7 @@ mod plane_panel;
 mod plane_pick;
 mod plane_tool;
 mod pose;
+mod ramp_tool;
 mod rect_tool;
 mod rooms;
 mod rooms_walls;
@@ -55,6 +57,7 @@ mod verb_panel;
 pub(crate) mod verb_state;
 pub(crate) mod verb_tool;
 pub(crate) mod view;
+mod walk_overlay;
 mod wall_tool;
 
 pub(crate) use events::{grid_tool_2d, grid_tool_3d};
@@ -87,6 +90,8 @@ pub(crate) enum GridTool {
     Bands,
     /// Raise or lower a region of sectors.
     Raise,
+    /// Slope a region from one side to the other.
+    Ramp,
 }
 
 /// The strip's groups, in order.
@@ -112,7 +117,7 @@ impl ToolGroup {
 
 impl GridTool {
     /// Every tool, in strip order (grouped).
-    pub(crate) const ALL: [Self; 11] = [
+    pub(crate) const ALL: [Self; 12] = [
         Self::Select,
         Self::Height,
         Self::Floor,
@@ -124,13 +129,14 @@ impl GridTool {
         Self::Place,
         Self::Bands,
         Self::Raise,
+        Self::Ramp,
     ];
 
     /// The strip group of the tool.
     pub(crate) const fn group(self) -> ToolGroup {
         match self {
             Self::Select | Self::Height => ToolGroup::Pick,
-            Self::Raise => ToolGroup::Build,
+            Self::Raise | Self::Ramp => ToolGroup::Build,
             _ => ToolGroup::Draw,
         }
     }
@@ -138,7 +144,7 @@ impl GridTool {
     /// Whether the tool is one of the level verbs (region, then verb, then
     /// amount).
     pub(crate) const fn is_verb(self) -> bool {
-        matches!(self, Self::Raise)
+        matches!(self, Self::Raise | Self::Ramp)
     }
 
     pub(crate) const fn label(self) -> &'static str {
@@ -154,6 +160,7 @@ impl GridTool {
             Self::Place => "Place",
             Self::Bands => "Bands",
             Self::Raise => "Raise",
+            Self::Ramp => "Ramp",
         }
     }
 
@@ -170,6 +177,7 @@ impl GridTool {
             Self::Place => egui::Key::O,
             Self::Bands => egui::Key::E,
             Self::Raise => egui::Key::U,
+            Self::Ramp => egui::Key::A,
         }
     }
 
@@ -186,6 +194,7 @@ impl GridTool {
             Self::Place => "O",
             Self::Bands => "E",
             Self::Raise => "U",
+            Self::Ramp => "A",
         }
     }
 
@@ -202,6 +211,7 @@ impl GridTool {
             Self::Place => icons::MAP_PIN,
             Self::Bands => icons::ROWS_3,
             Self::Raise => icons::ARROW_UP_FROM_LINE,
+            Self::Ramp => icons::TRENDING_UP,
         }
     }
 
@@ -229,6 +239,9 @@ impl GridTool {
             }
             Self::Raise => {
                 "Pick sectors (marquee, brush or path), then press on them and drag up or down. Tab switches Offset and Level, Alt snaps finer, Esc cancels."
+            }
+            Self::Ramp => {
+                "Pick sectors, then press near the side that keeps its height and drag up or down: the opposite side rises. R turns the side, Tab holds the slope to what the character can walk."
             }
         }
     }
@@ -436,6 +449,10 @@ pub(crate) struct GridEditState {
     pub band_sel: Option<(psxed_project::grid::edit::FaceRef, usize)>,
     /// The level verbs: region, options and the last readout.
     pub verb: verb_state::VerbState,
+    /// Which overlays are on (Alt+W, Alt+P).
+    pub overlays: analysis::Overlays,
+    /// The overlays' analyses, per document revision.
+    pub analysis: RefCell<analysis::AnalysisCache>,
     /// The room tools create in when none is marked active.
     pub last_room: usize,
     /// Bumped by every document change; the pick cache and budget follow it.
@@ -486,6 +503,8 @@ impl Default for GridEditState {
             band_line: None,
             band_sel: None,
             verb: verb_state::VerbState::default(),
+            overlays: analysis::Overlays::default(),
+            analysis: RefCell::new(analysis::AnalysisCache::default()),
             last_room: 0,
             rev: 1,
             cache: RefCell::new(None),
@@ -622,9 +641,12 @@ impl EditorWorkspace {
             GridTool::Split => C::Default,
             GridTool::Bands if over => C::PointingHand,
             GridTool::Bands => C::Default,
-            GridTool::Raise if self.grid.verb.region.is_some() => C::ResizeVertical,
+            GridTool::Raise | GridTool::Ramp if self.grid.verb.region.is_some() => {
+                C::ResizeVertical
+            }
             GridTool::Floor
             | GridTool::Raise
+            | GridTool::Ramp
             | GridTool::Ceiling
             | GridTool::Wall
             | GridTool::Plane

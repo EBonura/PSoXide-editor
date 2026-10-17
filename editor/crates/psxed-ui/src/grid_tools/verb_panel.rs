@@ -40,8 +40,10 @@ impl EditorWorkspace {
             RegionSource::Marquee => {}
         }
         ui.separator();
-        if self.grid.tool == GridTool::Raise {
-            self.draw_raise_options(ui);
+        match self.grid.tool {
+            GridTool::Raise => self.draw_raise_options(ui),
+            GridTool::Ramp => self.draw_ramp_options(ui),
+            _ => {}
         }
         ui.separator();
         ui.label(RichText::new("Amount").color(STUDIO_TEXT_WEAK).size(11.0));
@@ -60,6 +62,34 @@ impl EditorWorkspace {
         {
             super::verb_tool::apply_typed(self);
         }
+    }
+
+    fn draw_ramp_options(&mut self, ui: &mut egui::Ui) {
+        use psxed_project::grid::edit::verbs::ramp::RampDir;
+        ui.label(RichText::new("Keeps").color(STUDIO_TEXT_WEAK).size(11.0));
+        let from = self.grid.verb.ramp_from;
+        if ui
+            .selectable_label(from.is_none(), "Nearest side")
+            .on_hover_text("The side of the region nearest where you press keeps its height")
+            .clicked()
+        {
+            self.grid.verb.ramp_from = None;
+        }
+        for dir in RampDir::ALL {
+            if ui
+                .selectable_label(from == Some(dir), dir.label())
+                .on_hover_text("This side keeps its height; the opposite one rises (R turns)")
+                .clicked()
+            {
+                self.grid.verb.ramp_from = Some(dir);
+            }
+        }
+        ui.checkbox(&mut self.grid.verb.ramp_clamp, "Walkable")
+            .on_hover_text(
+                "Hold the rise to the steepest slope the character motor stands on (Tab)",
+            );
+        ui.checkbox(&mut self.grid.verb.follow_ceiling, "Follow ceiling")
+            .on_hover_text("Ceilings move with the floors (headroom stays)");
     }
 
     fn draw_raise_options(&mut self, ui: &mut egui::Ui) {
@@ -129,6 +159,23 @@ impl EditorWorkspace {
                         .size(11.5)
                         .color(STUDIO_TEXT_WEAK),
                     );
+                }
+                if self.grid.tool == GridTool::Ramp {
+                    ui.label(format!(
+                        "Keeps: {}",
+                        self.grid
+                            .verb
+                            .ramp_from
+                            .map_or("the side nearest the press", |d| d.label())
+                    ));
+                    ui.label(format!(
+                        "Slope: {}",
+                        if self.grid.verb.ramp_clamp {
+                            "held to what the motor stands on"
+                        } else {
+                            "free (the readout says when it is too steep)"
+                        }
+                    ));
                 }
                 if self.grid.tool == GridTool::Raise {
                     let default = psxed_project::grid::edit::verbs::raise::default_mode(world, region);

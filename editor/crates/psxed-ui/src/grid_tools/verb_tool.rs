@@ -92,6 +92,7 @@ pub(super) fn hover(ws: &mut EditorWorkspace, ptr: &GridPointer) {
         RegionSource::Brush => Region::brush(room, cell, radius).cells().collect(),
         RegionSource::Marquee | RegionSource::Path => vec![cell],
     };
+    super::ramp_tool::hover(ws, cell);
 }
 
 pub(super) fn press(ws: &mut EditorWorkspace, ptr: &GridPointer) {
@@ -299,6 +300,7 @@ fn describe_region(ws: &mut EditorWorkspace, region: &Region) {
 fn begin_amount(ws: &mut EditorWorkspace, ptr: &GridPointer, room: usize, cell: [i32; 2]) -> bool {
     match ws.grid.tool {
         GridTool::Raise => begin_raise(ws, ptr, room, cell),
+        GridTool::Ramp => super::ramp_tool::begin(ws, ptr, room, cell),
         _ => false,
     }
 }
@@ -359,6 +361,7 @@ fn begin_raise(ws: &mut EditorWorkspace, ptr: &GridPointer, room: usize, cell: [
         pixels_per_unit: ppu,
         amount: 0,
         before: Some(Box::new(ws.project.clone())),
+        max_rise: None,
     });
     true
 }
@@ -372,11 +375,17 @@ pub(crate) fn pose_drag(ws: &mut EditorWorkspace, amount: i32) -> Result<(), Str
         .clone()
         .ok_or("no region: use region=x0,z0:x1,z1 first")?;
     let first = region.cells().next().unwrap_or([0, 0]);
+    let mut max_rise = None;
     let drag = match ws.grid.tool {
         GridTool::Raise => {
             let (d, reference) = raise_drag(ws, &region, first).ok_or("nothing to raise")?;
             ws.grid.verb.reference = reference;
             VerbDrag::Raise(d)
+        }
+        GridTool::Ramp => {
+            let (d, m) = super::ramp_tool::drag_for(ws, &region).ok_or("nothing to ramp")?;
+            max_rise = Some(m);
+            VerbDrag::Ramp(d)
         }
         other => return Err(format!("the {} tool has no drag to pose", other.label())),
     };
@@ -386,6 +395,7 @@ pub(crate) fn pose_drag(ws: &mut EditorWorkspace, amount: i32) -> Result<(), Str
         pixels_per_unit: 1.0,
         amount,
         before: Some(Box::new(ws.project.clone())),
+        max_rise,
     };
     apply_amount(ws, &mut gesture);
     ws.grid.gesture = Gesture::Verb(gesture);
@@ -404,7 +414,10 @@ fn update_amount(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     let Gesture::Verb(mut g) = std::mem::take(&mut ws.grid.gesture) else {
         return;
     };
-    let amount = snapped_amount(&g, ptr);
+    let mut amount = snapped_amount(&g, ptr);
+    if matches!(g.drag, VerbDrag::Ramp(_)) {
+        amount = super::ramp_tool::clamp(ws, amount, g.max_rise);
+    }
     if amount != g.amount {
         g.amount = amount;
         apply_amount(ws, &mut g);
@@ -417,6 +430,9 @@ fn update_amount(ws: &mut EditorWorkspace, ptr: &GridPointer) {
 pub(super) fn apply_amount(ws: &mut EditorWorkspace, g: &mut VerbGesture) {
     if let Some(before) = g.before.take() {
         ws.history.record(*before);
+    }
+    if matches!(g.drag, VerbDrag::Ramp(_)) {
+        g.amount = super::ramp_tool::clamp(ws, g.amount, g.max_rise);
     }
     let Some(world) = ws.project.active_scene_mut().world.grid_mut() else {
         return;
@@ -431,6 +447,15 @@ pub(super) fn apply_amount(ws: &mut EditorWorkspace, g: &mut VerbGesture) {
                 amount_text(world, g.amount),
                 counts_text(&applied, mode)
             )
+        }
+        VerbDrag::Ramp(drag) => {
+            let max = g.max_rise.unwrap_or(0);
+            let applied = drag.apply(world, g.amount);
+            let mut line = super::ramp_tool::readout(world, drag, g.amount, max);
+            if applied.skipped > 0 {
+                line += &format!(", {} without a floor skipped", applied.skipped);
+            }
+            line
         }
     };
     ws.grid.verb.readout = line.clone();
@@ -462,6 +487,15 @@ fn counts_text(applied: &psxed_project::grid::edit::verbs::Applied, mode: &str) 
 
 /// Tab: the other Raise mode, live when a drag is in flight.
 pub(super) fn toggle_mode(ws: &mut EditorWorkspace) {
+    if ws.grid.tool == GridTool::Ramp {
+        ws.grid.verb.ramp_clamp = !ws.grid.verb.ramp_clamp;
+        ws.status = if ws.grid.verb.ramp_clamp {
+            "Ramp held to the steepest walkable slope".to_string()
+        } else {
+            "Ramp free: it may be too steep to stand on".to_string()
+        };
+        return;
+    }
     if ws.grid.tool != GridTool::Raise {
         return;
     }
@@ -491,8 +525,9 @@ pub(super) fn toggle_mode(ws: &mut EditorWorkspace) {
     let next = current.toggled();
     ws.grid.verb.raise_mode = Some(next);
     if let Some(g) = live.as_mut() {
-        let VerbDrag::Raise(d) = &mut g.drag;
-        d.set_mode(next);
+        if let VerbDrag::Raise(d) = &mut g.drag {
+            d.set_mode(next);
+        }
         apply_amount(ws, g);
     }
     if let Some(g) = live {
@@ -542,7 +577,10 @@ pub(crate) fn apply_typed(ws: &mut EditorWorkspace) {
             pixels_per_unit: 1.0,
             amount,
             before: Some(Box::new(ws.project.clone())),
+            max_rise: None,
         };
         apply_amount(ws, &mut gesture);
+    } else if ws.grid.tool == GridTool::Ramp {
+        super::ramp_tool::apply_typed(ws, &region, amount);
     }
 }

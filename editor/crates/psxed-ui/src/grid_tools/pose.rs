@@ -21,6 +21,10 @@
 //! * `hover=cell:x,z`, `hover=wall:edge:x,z`, `hover=face:floor|ceiling:x,z`,
 //!   `hover=vertex:x,z,corner`, `hover=spot:x,z`
 //! * `region=x0,z0:x1,z1` the level verbs' region (a marquee, committed)
+//! * `overlay=walk` the walkability overlay (Alt+W); `overlay=perf` the
+//!   performance heatmap (Alt+P)
+//! * `ramp-from=north|east|south|west` the A edge a Ramp keeps; `ramp-clamp`
+//!   holds Ramp to the steepest walkable slope
 //! * `verb-drag=clicks` a level verb's amount drag in flight at `clicks`
 //!   (the active verb tool and its region)
 //! * `raise=x,z,corner,clicks` raise a floor corner, like a finished drag
@@ -35,6 +39,7 @@
 
 use super::*;
 
+use psxed_project::grid::edit::verbs::ramp::RampDir;
 use psxed_project::grid::edit::{
     faces_of_cell, wall_gap, CellRect, CornerRef, EdgeRef, FaceRef, FaceTarget, GridClipboard,
     GridElement,
@@ -112,6 +117,21 @@ impl EditorWorkspace {
                     CellRect::from_corners(a, b),
                 ));
             }
+            "overlay" => match value {
+                "walk" => self.grid.overlays.walk = true,
+                "perf" => self.grid.overlays.perf = true,
+                other => return Err(format!("unknown overlay {other:?}")),
+            },
+            "ramp-from" => {
+                self.grid.verb.ramp_from = Some(match value {
+                    "north" => RampDir::North,
+                    "east" => RampDir::East,
+                    "south" => RampDir::South,
+                    "west" => RampDir::West,
+                    other => return Err(format!("unknown side {other:?}")),
+                });
+            }
+            "ramp-clamp" => self.grid.verb.ramp_clamp = true,
             "verb-drag" => {
                 let clicks = value.parse::<f32>().map_err(|e| e.to_string())?;
                 verb_tool::pose_drag(self, (clicks * CLICK_UNITS as f32).round() as i32)?;

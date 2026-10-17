@@ -270,7 +270,11 @@ fn the_question_mark_opens_the_key_help_and_escape_closes_it() {
     drop(open);
     let open = shapes_text(&draw_editor(&mut ws, &ctx, true));
     assert!(open.contains("Grid editor keys"), "{open}");
-    assert!(open.contains("Shift+drag"), "{open}");
+    assert!(
+        open.contains("Raise or lower the selected corners"),
+        "{open}"
+    );
+    assert!(open.contains("Ramp (A)"), "{open}");
     draw_with_events(
         &mut ws,
         &ctx,

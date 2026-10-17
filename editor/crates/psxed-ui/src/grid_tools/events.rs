@@ -113,11 +113,11 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
         (GridTool::Bands, Ev::Release) => bands_tool::release(ws),
         (GridTool::Bands, Ev::Click) => bands_tool::click(ws, &ptr),
 
-        (GridTool::Raise, Ev::Hover) => verb_tool::hover(ws, &ptr),
-        (GridTool::Raise, Ev::Press) => verb_tool::press(ws, &ptr),
-        (GridTool::Raise, Ev::Drag) => verb_tool::drag(ws, &ptr),
-        (GridTool::Raise, Ev::Release) => verb_tool::release(ws),
-        (GridTool::Raise, Ev::Click) => verb_tool::click(ws, &ptr),
+        (GridTool::Raise | GridTool::Ramp, Ev::Hover) => verb_tool::hover(ws, &ptr),
+        (GridTool::Raise | GridTool::Ramp, Ev::Press) => verb_tool::press(ws, &ptr),
+        (GridTool::Raise | GridTool::Ramp, Ev::Drag) => verb_tool::drag(ws, &ptr),
+        (GridTool::Raise | GridTool::Ramp, Ev::Release) => verb_tool::release(ws),
+        (GridTool::Raise | GridTool::Ramp, Ev::Click) => verb_tool::click(ws, &ptr),
     }
 }
 

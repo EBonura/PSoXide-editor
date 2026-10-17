@@ -13,13 +13,13 @@ use psxed_project::grid::{CLICK_UNITS, FINE_UNITS};
 use super::{bands_tool, clipboard_tool, height_tool, plane_tool, select_tool, verb_tool};
 
 /// Keys the level verbs still to come (design: `docs/grid/level-tools-design.md`,
-/// 7.12) will take, kept free of other meanings now: S Sculpt, B Room,
-/// K Corridor, I Opening, Y Stamps. U Raise (and, as they land, A Ramp and
-/// T Stairs) are tools now; E is the Bands tool and N the Plane tool. Alt+W
-/// and Alt+P are the overlays.
+/// 7.12) will take, kept free of other meanings now: S Sculpt, T Stairs,
+/// B Room, K Corridor, I Opening, Y Stamps. U Raise and A Ramp are tools now;
+/// E is the Bands tool and N the Plane tool. Alt+W and Alt+P are the overlays.
 #[cfg(test)]
-pub(crate) const RESERVED_VERB_KEYS: [egui::Key; 5] = [
+pub(crate) const RESERVED_VERB_KEYS: [egui::Key; 6] = [
     egui::Key::S,
+    egui::Key::T,
     egui::Key::B,
     egui::Key::K,
     egui::Key::I,
@@ -49,6 +49,10 @@ impl EditorWorkspace {
         }
         if consume_paste_shortcut(ctx) {
             clipboard_tool::begin_paste(self);
+        }
+        // The overlays: Alt+W walkability, Alt+P performance.
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::ALT, egui::Key::W)) {
+            self.toggle_walk_overlay();
         }
         let modifiers = ctx.input(|i| i.modifiers);
         if modifiers.command || modifiers.ctrl || modifiers.alt {
@@ -123,6 +127,8 @@ impl EditorWorkspace {
             } else if self.grid.tool == GridTool::Wall {
                 self.grid.wall_dir = self.grid.wall_dir.next();
                 self.status = format!("Wall direction: {}", self.grid.wall_dir.label());
+            } else if self.grid.tool == GridTool::Ramp {
+                super::ramp_tool::turn(self);
             }
         }
         if pressed(ctx, egui::Key::L) {

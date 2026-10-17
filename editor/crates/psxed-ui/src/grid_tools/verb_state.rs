@@ -4,6 +4,7 @@
 //! Nothing here is saved with the project.
 
 use psxed_project::grid::edit::verbs::raise::{RaiseDrag, RaiseMode};
+use psxed_project::grid::edit::verbs::ramp::{RampDir, RampDrag};
 use psxed_project::grid::edit::Region;
 
 use super::*;
@@ -57,6 +58,7 @@ pub(crate) enum RegionGesture {
 #[derive(Clone, Debug)]
 pub(crate) enum VerbDrag {
     Raise(RaiseDrag),
+    Ramp(RampDrag),
 }
 
 /// A verb being dragged: the amount follows the pointer's vertical travel.
@@ -69,6 +71,8 @@ pub(crate) struct VerbGesture {
     pub amount: i32,
     /// The document before the drag, recorded for undo at the first change.
     pub before: Option<Box<ProjectDocument>>,
+    /// The largest rise the motor can walk, for a Ramp.
+    pub max_rise: Option<i32>,
 }
 
 /// Options and region of the level verbs.
@@ -94,6 +98,13 @@ pub(crate) struct VerbState {
     pub reference: i32,
     /// Typed amount in clicks, for the option row.
     pub typed_clicks: f32,
+    /// Ramp: the side that keeps its height, once R has set it; `None`
+    /// follows the pointer.
+    pub ramp_from: Option<RampDir>,
+    /// Ramp: hold the rise to the steepest slope the motor stands on.
+    pub ramp_clamp: bool,
+    /// Ramp: the side a press at the pointer would keep.
+    pub ramp_hover: Option<RampDir>,
     /// The last line a verb reported (amount, counts), for the Inspector.
     pub readout: String,
 }
@@ -111,6 +122,9 @@ impl Default for VerbState {
             raise_mode: None,
             reference: 0,
             typed_clicks: 1.0,
+            ramp_from: None,
+            ramp_clamp: false,
+            ramp_hover: None,
             readout: String::new(),
         }
     }
@@ -122,6 +136,8 @@ impl VerbState {
         self.region = None;
         self.path.clear();
         self.preview.clear();
+        self.ramp_hover = None;
+        self.ramp_from = None;
         self.readout.clear();
     }
 }

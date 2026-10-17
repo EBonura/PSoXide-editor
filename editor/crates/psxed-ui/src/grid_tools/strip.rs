@@ -134,7 +134,7 @@ impl EditorWorkspace {
                 );
             }
             GridTool::Split => {}
-            GridTool::Raise => self.draw_verb_options(ui),
+            GridTool::Raise | GridTool::Ramp => self.draw_verb_options(ui),
             GridTool::Bands => {
                 use psxed_project::grid::edit::bands::BandScope;
                 ui.label(RichText::new("Scope").color(STUDIO_TEXT_WEAK).size(11.0));
@@ -165,6 +165,16 @@ impl EditorWorkspace {
             format!("Snap {CLICK_UNITS} (Alt {FINE_UNITS})")
         };
         ui.label(RichText::new(snap_text).color(STUDIO_TEXT_WEAK).size(11.0));
+        if ui
+            .selectable_label(
+                self.grid.overlays.walk,
+                icons::label(icons::FOOTPRINTS, "Walk"),
+            )
+            .on_hover_text("Walkability overlay (Alt+W): too steep, low headroom, steps taller than the body climbs, drops, and floors no spawn reaches")
+            .clicked()
+        {
+            self.toggle_walk_overlay();
+        }
         if ui
             .selectable_label(self.grid.help_open, "?")
             .on_hover_text("Every tool key and gesture (?)")
@@ -202,6 +212,7 @@ impl EditorWorkspace {
             GridTool::Split => "Click a floor or ceiling | Click again for the ceiling in Top",
             GridTool::Bands => "Hover a wall, click to cut | Drag a line | Del removes it | Shift+click picks a band | Esc cancel",
             GridTool::Raise => "Pick sectors | Press on them, drag up/down | Tab Offset/Level | Alt fine | Shift add | Esc cancel",
+            GridTool::Ramp => "Pick sectors | Press near the side to keep, drag up/down | R turn the side | Tab hold to walkable | Esc cancel",
             GridTool::Place => "Click to place at the sector centre | Alt 64 | Shift+Alt free",
         }
     }

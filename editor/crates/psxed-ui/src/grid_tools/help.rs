@@ -135,6 +135,39 @@ const RAISE: Rows = &[
     ("Esc", "Cancel the drag exactly; again to forget the region"),
     ("Amount, Apply", "A typed amount in clicks, applied as one undo step"),
 ];
+const RAMP: Rows = &[
+    (
+        "Pick a region",
+        "Marquee, brush or path, as for Raise",
+    ),
+    (
+        "Hover the region",
+        "The side nearest the pointer lights up: that side (A) keeps its height",
+    ),
+    (
+        "Press near it, drag up or down",
+        "The opposite side (B) rises or falls; every sector between slopes evenly, rounded to 64 units",
+    ),
+    ("R", "Turn the kept side a quarter turn and hold it"),
+    (
+        "Tab, Walkable",
+        "Hold the rise to the steepest slope the character motor stands on",
+    ),
+    (
+        "Green, orange",
+        "Sectors a body can stand on, sectors too steep for it (the readout says which)",
+    ),
+];
+const OVERLAYS: Rows = &[
+    (
+        "Alt+W, Walk button",
+        "Walkability: orange too steep, blue headroom under the body, red step taller than it climbs, yellow dashed drop, hatched floors no spawn reaches",
+    ),
+    (
+        "Alt+P",
+        "Reserved for the performance heatmap",
+    ),
+];
 const OTHER: Rows = &[
     ("Split (D)", "Click a floor or ceiling to flip its diagonal"),
     (
@@ -203,7 +236,7 @@ impl EditorWorkspace {
             return;
         }
         let mut open = true;
-        let sections: [(&str, Rows); 11] = [
+        let sections: [(&str, Rows); 13] = [
             ("Select (V)", SELECT),
             ("Floor (F) and Ceiling (C)", FLOOR),
             ("Wall (W)", WALL),
@@ -212,6 +245,8 @@ impl EditorWorkspace {
             ("Paint (P)", PAINT),
             ("Bands (E)", BANDS),
             ("Raise (U)", RAISE),
+            ("Ramp (A)", RAMP),
+            ("Overlays", OVERLAYS),
             ("More", OTHER),
             ("Snapping and reserved keys", SNAP),
             ("Camera and project", VIEW),
@@ -223,16 +258,30 @@ impl EditorWorkspace {
             .fade_in(false)
             .anchor(egui::Align2::CENTER_TOP, Vec2::new(0.0, 96.0))
             .show(ctx, |ui| {
-                ui.set_width(1040.0_f32.min(ctx.screen_rect().width() - 80.0));
+                ui.set_width(1500.0_f32.min(ctx.screen_rect().width() - 60.0));
                 ui.label(
-                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, P Paint, D Split, O Place, E Bands | U Raise")
+                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, P Paint, D Split, O Place, E Bands | U Raise, A Ramp")
                         .color(STUDIO_TEXT_WEAK),
                 );
                 ui.add_space(4.0);
-                // Two columns of sections: the first six on the left.
-                ui.columns(2, |columns| {
+                // Three columns of sections, split where the rows balance
+                // (long descriptions count double, they wrap).
+                let weight = |rows: Rows| -> usize {
+                    2 + rows
+                        .iter()
+                        .map(|(_, what)| 1 + usize::from(what.len() > 70))
+                        .sum::<usize>()
+                };
+                let total: usize = sections.iter().map(|(_, r)| weight(r)).sum();
+                let mut column_of = Vec::with_capacity(sections.len());
+                let mut running = 0;
+                for (_, rows) in sections.iter() {
+                    column_of.push((running * 3 / total.max(1)).min(2));
+                    running += weight(rows);
+                }
+                ui.columns(3, |columns| {
                     for (index, (title, rows)) in sections.iter().enumerate() {
-                        let ui = &mut columns[usize::from(index >= 6)];
+                        let ui = &mut columns[column_of[index]];
                         ui.add_space(4.0);
                         ui.label(RichText::new(*title).strong().color(STUDIO_TEXT));
                         egui::Grid::new(format!("grid_help_{title}"))
@@ -240,7 +289,9 @@ impl EditorWorkspace {
                             .spacing([12.0, 2.0])
                             .show(ui, |ui| {
                                 for (gesture, what) in rows.iter() {
-                                    ui.label(RichText::new(*gesture).monospace().color(STUDIO_ACCENT));
+                                    ui.label(
+                                        RichText::new(*gesture).monospace().color(STUDIO_ACCENT),
+                                    );
                                     ui.label(*what);
                                     ui.end_row();
                                 }
