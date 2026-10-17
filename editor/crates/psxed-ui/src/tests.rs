@@ -5,6 +5,7 @@ mod consistency;
 mod egui_driver;
 mod entity_resources;
 mod geometry_resources;
+mod grid_derived;
 mod grid_planes;
 mod grid_rig;
 mod grid_tools_persp;

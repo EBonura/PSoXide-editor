@@ -11,11 +11,9 @@ use super::view::{cell_at_editor, editor_y};
 use super::*;
 
 use psxed_project::grid::edit::{
-    facing_toward, next_wall_heights, place_wall, remove_wall, wall_run_cells, WallRefusal,
-    WallSpec,
+    facing_toward, place_wall, remove_wall, wall_gap, wall_run_cells, WallRefusal, WallSpec,
 };
 use psxed_project::grid::limits::MAX_ROOM_SIDE;
-use psxed_project::grid::sector::GridSector;
 use psxed_project::grid::surface::WallFacing;
 use psxed_project::grid::{GridWorld, SECTOR_UNITS};
 
@@ -111,18 +109,7 @@ pub(super) fn target_at(ws: &EditorWorkspace, ptr: &GridPointer) -> Option<WallT
 }
 
 fn heights_for(world: &GridWorld, t: &WallTarget) -> Option<[i32; 4]> {
-    let room = world.rooms.get(t.room)?;
-    let sector = room
-        .local(t.cell)
-        .and_then(|[x, z]| room.sector(x, z))
-        .cloned()
-        .unwrap_or_else(GridSector::default);
-    next_wall_heights(
-        &sector,
-        t.edge,
-        psxed_project::grid::edit::walls::room_height_bounds(room),
-        t.pick_y,
-    )
+    wall_gap(world.rooms.get(t.room)?, t.cell, t.edge, t.pick_y)
 }
 
 pub(super) fn hover(ws: &mut EditorWorkspace, ptr: &GridPointer) {

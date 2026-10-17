@@ -179,7 +179,9 @@ impl EditorWorkspace {
                         painter.rect_filled(r, 0.0, fill(SELECT, 70));
                         painter.rect_stroke(r, 0.0, Stroke::new(2.0, SELECT), StrokeKind::Inside);
                     }
-                    FaceTarget::Wall { edge, .. } => wall_line(f.room, f.cell, edge, SELECT, 4.0),
+                    FaceTarget::Wall { edge, .. } | FaceTarget::Derived { edge, .. } => {
+                        wall_line(f.room, f.cell, edge, SELECT, 4.0)
+                    }
                 },
                 GridElement::Edge(e) => {
                     if let Some((a, b)) = edge_ends(world, e) {
@@ -236,7 +238,7 @@ impl EditorWorkspace {
                                     StrokeKind::Inside,
                                 );
                             }
-                            FaceTarget::Wall { edge, .. } => {
+                            FaceTarget::Wall { edge, .. } | FaceTarget::Derived { edge, .. } => {
                                 wall_line(f.room, f.cell, edge, HOVER, 4.0)
                             }
                         },
@@ -564,17 +566,7 @@ impl EditorWorkspace {
                 let room = g.room;
                 for cell in psxed_project::grid::edit::wall_run_cells(g.anchor, g.current, g.edge) {
                     let heights = world.rooms.get(room).and_then(|r| {
-                        let sector = r
-                            .local(cell)
-                            .and_then(|[x, z]| r.sector(x, z))
-                            .cloned()
-                            .unwrap_or_default();
-                        psxed_project::grid::edit::next_wall_heights(
-                            &sector,
-                            g.edge,
-                            psxed_project::grid::edit::walls::room_height_bounds(r),
-                            g.pick_y,
-                        )
+                        psxed_project::grid::edit::wall_gap(r, cell, g.edge, g.pick_y)
                     });
                     let _ = color;
                     self.draw_wall_ghost_3d(&polygon, world, room, cell, g.edge, heights, g.erase);

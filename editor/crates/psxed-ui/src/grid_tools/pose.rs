@@ -28,8 +28,8 @@
 use super::*;
 
 use psxed_project::grid::edit::{
-    faces_of_cell, next_wall_heights, CellRect, CornerRef, EdgeRef, FaceRef, FaceTarget,
-    GridClipboard, GridElement,
+    faces_of_cell, wall_gap, CellRect, CornerRef, EdgeRef, FaceRef, FaceTarget, GridClipboard,
+    GridElement,
 };
 use psxed_project::grid::{CLICK_UNITS, SECTOR_UNITS};
 
@@ -323,21 +323,11 @@ impl EditorWorkspace {
                 let edge = parse_edge(parts.get(1).ok_or("missing edge")?)?;
                 let c = cell(parts.get(2).ok_or("missing x,z")?)?;
                 let r = world.rooms.get(room).ok_or("no such room")?;
-                let sector = r
-                    .local(c)
-                    .and_then(|[x, z]| r.sector(x, z))
-                    .cloned()
-                    .unwrap_or_default();
                 GridHover::Wall {
                     room,
                     cell: c,
                     edge,
-                    heights: next_wall_heights(
-                        &sector,
-                        edge,
-                        psxed_project::grid::edit::walls::room_height_bounds(r),
-                        None,
-                    ),
+                    heights: wall_gap(r, c, edge, None),
                 }
             }
             "face" => {

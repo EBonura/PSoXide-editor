@@ -17,7 +17,7 @@ Play and Build shell out to `make build-editor-playtest`, which runs `make boots
 ## Open or create a project
 
 * File > Project lists every project under `editor/projects`. A grid project opens in the 3D view with the grid tool strip across the top.
-* File > New Grid Project... asks for a name and makes `editor/projects/<name>/`: a 6 by 6 sector room with a floor, a ceiling, walls on the whole outline, one lamp and the Graybox Reach player in the middle. It borrows the player, camera, sky and UI from `editor/projects/graybox-reach` (the project's `assets` folder links to it), so that project has to exist. Press Play and you are walking in it.
+* File > New Grid Project... asks for a name and makes `editor/projects/<name>/`: a 6 by 6 sector room with a floor, a ceiling, one lamp and the Graybox Reach player in the middle. Its outline walls are not stored: the room derives them (see Derived walls below). It borrows the player, camera, sky and UI from `editor/projects/graybox-reach` (the project's `assets` folder links to it), so that project has to exist. Press Play and you are walking in it.
 * The six reference levels (`grid-cathedral`, `grid-level008`, `grid-dungeon`, `grid-cave`, `grid-sewers`, `grid-west`) are tracked projects. They came from bonnie-32 maps; the importer is gone, so the projects are now the source of truth.
 
 ## The screen
@@ -30,7 +30,7 @@ Play and Build shell out to `make build-editor-playtest`, which runs `make boots
 
 ### Rooms panel
 
-One row per room: the eye shows or hides it (hidden rooms leave the 3D preview, the Top view and picking), click a name to make it the room new geometry goes into, double-click to rename, the bin deletes it (the last room stays), `+` adds an empty room one storey above the highest. Under the list: Raise (the whole room's height offset in clicks) and Ambient (RGB, 128 shows textures unmodified). Rooms may overlap in plan; that is how floors stack.
+One row per room: the eye shows or hides it (hidden rooms leave the 3D preview, the Top view and picking), click a name to make it the room new geometry goes into, double-click to rename, the bin deletes it (the last room stays), `+` adds an empty room one storey above the highest. Under the list: Raise (the whole room's height offset in clicks) and Ambient (RGB, 128 shows textures unmodified), then the room's walls: whether they are *derived from heights* or *authored (legacy)*. A legacy room offers **Convert to derived** (the look and the play stay exactly as they were) and **Convert and fill** (also shows the walls the room never had). A derived room offers its wall material (Use palette / Clear), the Open wall height for a floor with no ceiling, and Clean up for overrides whose wall no longer exists. Rooms may overlap in plan; that is how floors stack.
 
 ### Materials palette
 
@@ -57,6 +57,20 @@ Also: Ctrl/Cmd+C copies the selected faces, Ctrl/Cmd+V shows a ghost (click stam
 3D camera: middle or right drag orbits, with Shift it pans, scroll zooms, and with the free camera W A S D fly while the right button is held.
 
 Units: a sector is 1024 grid units, a click 256, the fine step 64. A project's scale maps grid units to editor units (File > New Grid Project uses 5/4, so a sector is 1280 editor units; the imported levels keep the scale their import chose. `GridScale::DEFAULT`, still 21/16, moves to 5/4 with the next phase). Walls belong to the sector edge they are on, with a front side (the interior) and an optional back or both.
+
+## Derived walls
+
+A new room's walls are not drawn by hand. Raise a platform, lower a pit or leave a room's edge and the editor makes the wall for you, from the height difference between the two sectors on either side of the edge:
+
+* a step between two floors gets a **riser**, seen from the lower side;
+* a step between two ceilings gets a **drop**, seen from the higher side;
+* the edge of the room (the neighbour holds no floor or ceiling) gets a **closure** wall from floor to ceiling, which also blocks movement, so a derived room cannot be walked out of. A floor with no ceiling gets one only when the room's Open wall height is above 0.
+
+Where two floors cross inside one edge the wall is cut at the crossing into two triangles. Equal heights make nothing, so a continuous floor never grows a wall. The Top view draws derived walls in light blue (a ghost closure in yellow, a hidden face dimmed).
+
+A derived face takes its material from, in order: the face itself, the sector the step belongs to (its wall material), the sector looking at it, the room's wall material, then the owner's own floor or ceiling material. Click a derived wall with Select (or hover it with Paint) like any face: Paint writes the face's override, the Inspector edits its material, texture placement, Solid and Hidden flags, and Back to automatic forgets all of them. Delete hides a derived face. Overrides are stored with the room by wall segment, so they survive edits to the neighbours. The Wall tool still places authored walls for what heights cannot say (a freestanding wall, a parapet); it treats derived faces as walls already standing, so an edge a derived wall closes answers "covered". A warning is shown for an authored wall that lies on top of a derived face.
+
+Rooms made before this keep their wall records and their look until you press **Convert to derived** in the Rooms panel. Convert removes an authored wall only when it is exactly a derived face, moving its material, texture and solidity into the override; every other wall stays, and the derived faces the room never had are hidden so nothing new appears. One undo step reverts it.
 
 ## Free planes
 

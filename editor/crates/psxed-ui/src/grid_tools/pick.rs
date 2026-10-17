@@ -15,7 +15,7 @@ use psxed_project::grid::edit::{
     faces_of_cell, CornerRef, EdgeRef, FaceRef, FaceTarget, GridElement, SurfaceKind,
 };
 use psxed_project::grid::faces::{all_faces, GridFaceKind};
-use psxed_project::grid::{GridWorld, WallEdge};
+use psxed_project::grid::{GridWorld, WallEdge, WallMode};
 
 /// A face, as the picker sees it.
 pub(crate) struct PickFace {
@@ -62,6 +62,7 @@ fn build_cache(world: &GridWorld, rev: u64) -> PickCache {
                 (FaceTarget::Surface(SurfaceKind::Ceiling), triangle)
             }
             GridFaceKind::Wall { edge, index } => (FaceTarget::Wall { edge, index }, None),
+            GridFaceKind::Derived { edge, kind } => (FaceTarget::Derived { edge, kind }, None),
             // Free planes have their own entries below.
             GridFaceKind::Plane { .. } => continue,
         };
@@ -383,8 +384,12 @@ impl EditorWorkspace {
                 let Some(sector) = room.local(cell).and_then(|[x, z]| room.sector(x, z)) else {
                     continue;
                 };
+                let derived = room.wall_mode == WallMode::Derived;
                 for edge in WallEdge::ALL {
-                    if sector.walls(edge).is_empty() {
+                    let has_derived = derived
+                        && !edge.is_diagonal()
+                        && !psxed_project::grid::derive::edge_walls(room, cell, edge).is_empty();
+                    if sector.walls(edge).is_empty() && !has_derived {
                         continue;
                     }
                     let (a, b) = edge.endpoints();
@@ -419,11 +424,23 @@ impl EditorWorkspace {
                     let count = FaceRef::floor(room, cell)
                         .sector(world)
                         .map_or(0, |s| s.walls(edge).len());
-                    return Some(
-                        (0..count)
-                            .map(|index| GridElement::Face(FaceRef::wall(room, cell, edge, index)))
-                            .collect(),
-                    );
+                    let mut faces: Vec<GridElement> = (0..count)
+                        .map(|index| GridElement::Face(FaceRef::wall(room, cell, edge, index)))
+                        .collect();
+                    if let Some(r) = world
+                        .rooms
+                        .get(room)
+                        .filter(|r| r.wall_mode == WallMode::Derived)
+                    {
+                        faces.extend(
+                            psxed_project::grid::derive::edge_walls(r, cell, edge)
+                                .into_iter()
+                                .map(|w| {
+                                    GridElement::Face(FaceRef::derived(room, cell, edge, w.kind))
+                                }),
+                        );
+                    }
+                    return Some(faces);
                 }
                 let world = self.project.active_scene().world.grid()?;
                 let [wx, wz] = transform.screen_to_world(ptr.pos);

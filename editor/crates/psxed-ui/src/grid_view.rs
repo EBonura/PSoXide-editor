@@ -17,6 +17,10 @@ const CEILING_ONLY: Color32 = Color32::from_rgb(54, 58, 70);
 const WALLS_ONLY: Color32 = Color32::from_rgb(44, 48, 56);
 const WALL_SOLID: Color32 = Color32::from_rgb(236, 236, 242);
 const WALL_PASSABLE: Color32 = Color32::from_rgb(232, 196, 90);
+/// A wall the room derives from a height difference.
+const WALL_DERIVED: Color32 = Color32::from_rgb(140, 200, 232);
+/// A derived wall the user hid.
+const WALL_HIDDEN: Color32 = Color32::from_rgba_premultiplied(70, 90, 105, 120);
 const SECTOR_LINE: Color32 = Color32::from_rgba_premultiplied(0, 0, 0, 90);
 const SPLIT_LINE: Color32 = Color32::from_rgba_premultiplied(0, 0, 0, 120);
 /// Smallest on-screen sector edge that still gets its outline.
@@ -117,6 +121,37 @@ fn draw_walls(painter: &egui::Painter, corners: [Pos2; 4], sector: &GridSector, 
         let (a, b) = edge.endpoints();
         let solid = walls.iter().any(|w| w.solid);
         painter.line_segment([point(a), point(b)], wall_stroke(solid, thickness));
+    }
+}
+
+/// Draw the walls a derived room computes for `cell`, on the edges that
+/// host them.
+fn draw_derived_walls(
+    painter: &egui::Painter,
+    corners: [Pos2; 4],
+    room: &GridRoom,
+    cell: [i32; 2],
+    thickness: f32,
+) {
+    let point = |p: [i32; 2]| match p {
+        [0, 0] => corners[0],
+        [1, 0] => corners[1],
+        [1, 1] => corners[2],
+        _ => corners[3],
+    };
+    for wall in psxed_project::grid::derive::cell_walls(room, cell) {
+        let (a, b) = wall.edge.endpoints();
+        let color = if wall.hidden {
+            WALL_HIDDEN
+        } else if wall.kind == psxed_project::grid::DerivedKind::Closure && !wall.blocks() {
+            WALL_PASSABLE
+        } else {
+            WALL_DERIVED
+        };
+        painter.line_segment(
+            [point(a), point(b)],
+            egui::Stroke::new(thickness * 0.8, color),
+        );
     }
 }
 
@@ -225,8 +260,9 @@ pub(crate) fn draw_grid_world(
     }
     for &room_index in &order {
         let room = &world.rooms[room_index];
+        let derived = room.wall_mode == psxed_project::grid::WallMode::Derived;
         for (x, z, sector) in room.iter() {
-            if sector.wall_count() == 0 {
+            if sector.wall_count() == 0 && !derived {
                 continue;
             }
             let (rect, corners) = sector_screen_rect(world, room, transform, x, z);
@@ -234,7 +270,11 @@ pub(crate) fn draw_grid_world(
                 continue;
             }
             let size = rect.width().min(rect.height());
-            draw_walls(painter, corners, sector, (size * 0.1).clamp(2.0, 4.5));
+            let thickness = (size * 0.1).clamp(2.0, 4.5);
+            if derived {
+                draw_derived_walls(painter, corners, room, room.world_cell(x, z), thickness);
+            }
+            draw_walls(painter, corners, sector, thickness);
         }
     }
     for &room_index in &order {

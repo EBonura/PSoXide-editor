@@ -193,7 +193,7 @@ fn apply(
             ws.status = format!("No {} to delete there", kind.label());
             return;
         }
-        let mut first = GridRoom::new("Room 0", 1, 1);
+        let mut first = GridRoom::new_derived("Room 0", 1, 1);
         // The first room starts where the first rectangle does.
         first.origin = rect.min;
         world.rooms.push(first);

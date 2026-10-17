@@ -25,8 +25,16 @@ fn cell_bounds(
     z: usize,
     sector: &GridSector,
 ) -> Option<PreviewCellBounds> {
-    let (low, high) = sector.height_range()?;
     let [cx, cz] = room.world_cell(x, z);
+    let (mut low, mut high) = sector.height_range()?;
+    // Derived walls hosted here can reach past the sector's own surfaces
+    // (a riser runs down to the neighbour's floor).
+    if room.wall_mode == psxed_project::grid::WallMode::Derived {
+        if let Some((lo, hi)) = psxed_project::grid::derive::derived_range(room, [cx, cz]) {
+            low = low.min(lo);
+            high = high.max(hi);
+        }
+    }
     let scale = world.scale;
     let y0 = scale.to_editor(room.y_offset + low);
     let y1 = scale.to_editor(room.y_offset + high);

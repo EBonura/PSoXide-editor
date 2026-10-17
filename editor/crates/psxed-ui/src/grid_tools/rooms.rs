@@ -140,6 +140,7 @@ impl EditorWorkspace {
                 }
             });
         self.draw_grid_room_settings(ui, active);
+        self.draw_grid_room_walls(ui, active);
         ui.separator();
 
         if let Some(next) = rename_start {
@@ -209,7 +210,11 @@ impl EditorWorkspace {
 
     /// Apply `edit` to room `index`. The caller's inspector transaction
     /// records the undo step.
-    fn edit_room(&mut self, index: usize, edit: impl FnOnce(&mut psxed_project::grid::GridRoom)) {
+    pub(super) fn edit_room(
+        &mut self,
+        index: usize,
+        edit: impl FnOnce(&mut psxed_project::grid::GridRoom),
+    ) {
         let before = self.project.clone();
         let Some(room) = self
             .project

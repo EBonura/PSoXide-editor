@@ -4,8 +4,8 @@
 use super::*;
 
 use psxed_project::grid::edit::{
-    edit_uv, material_of, set_material, set_solid, set_wall_facing, toggle_split, uv_of, FaceRef,
-    FaceTarget, UvOp,
+    edit_uv, material_of, reset_derived, set_derived_hidden, set_material, set_solid,
+    set_wall_facing, toggle_split, uv_of, FaceRef, FaceTarget, UvOp,
 };
 use psxed_project::grid::surface::WallFacing;
 use psxed_project::grid::GridSplit;
@@ -160,7 +160,7 @@ impl EditorWorkspace {
                             floors += 1
                         }
                         FaceTarget::Surface(_) => ceilings += 1,
-                        FaceTarget::Wall { .. } => walls += 1,
+                        FaceTarget::Wall { .. } | FaceTarget::Derived { .. } => walls += 1,
                     }
                 }
                 let plural = |n: usize, one: &str| {
@@ -218,6 +218,13 @@ impl EditorWorkspace {
                     primary.cell[0],
                     primary.cell[1]
                 ),
+                FaceTarget::Derived { edge, kind } => format!(
+                    "{} {} (derived) at {},{}",
+                    edge.label(),
+                    kind.label(),
+                    primary.cell[0],
+                    primary.cell[1]
+                ),
             })
             .strong(),
         );
@@ -232,6 +239,8 @@ impl EditorWorkspace {
         let mut toggle = false;
         let mut facing: Option<WallFacing> = None;
         let mut solid: Option<bool> = None;
+        let mut hidden: Option<bool> = None;
+        let mut reset_override = false;
         ui.horizontal(|ui| {
             ui.label("Material");
             ui.label(RichText::new(name_of(self, mat_a)).color(STUDIO_ACCENT));
@@ -367,9 +376,52 @@ impl EditorWorkspace {
                     }
                 }
             }
+            FaceTarget::Derived { .. } => {
+                if let Some(d) = primary.derived_wall(world) {
+                    ui.label(
+                        RichText::new(format!(
+                            "from the height difference with {},{}",
+                            d.owner[0], d.owner[1]
+                        ))
+                        .size(11.0)
+                        .color(STUDIO_TEXT_WEAK),
+                    );
+                    let mut solid_now = d.blocks();
+                    if ui
+                        .checkbox(&mut solid_now, "Solid")
+                        .on_hover_text(
+                            "A wall record that blocks movement. Closure walls are solid by default; risers are left to the step rule.",
+                        )
+                        .changed()
+                    {
+                        solid = Some(solid_now);
+                    }
+                    let mut hidden_now = d.hidden;
+                    if ui
+                        .checkbox(&mut hidden_now, "Hidden")
+                        .on_hover_text("Do not draw this face (it keeps blocking if it is solid)")
+                        .changed()
+                    {
+                        hidden = Some(hidden_now);
+                    }
+                    if ui
+                        .button("Back to automatic")
+                        .on_hover_text("Forget the material, texture and flags set on this face")
+                        .clicked()
+                    {
+                        reset_override = true;
+                    }
+                }
+            }
         }
         // Apply what changed to every selected face.
-        if toggle || !ops.is_empty() || facing.is_some() || solid.is_some() {
+        if toggle
+            || !ops.is_empty()
+            || facing.is_some()
+            || solid.is_some()
+            || hidden.is_some()
+            || reset_override
+        {
             let faces = faces.to_vec();
             let before = self.project.clone();
             if let Some(world) = self.project.active_scene_mut().world.grid_mut() {
@@ -385,6 +437,12 @@ impl EditorWorkspace {
                     }
                     if let Some(v) = solid {
                         set_solid(world, *face, v);
+                    }
+                    if let Some(v) = hidden {
+                        set_derived_hidden(world, *face, v);
+                    }
+                    if reset_override {
+                        reset_derived(world, *face);
                     }
                 }
             }
@@ -411,7 +469,7 @@ impl EditorWorkspace {
         let top = world.rooms.iter().map(|r| r.y_offset).max().unwrap_or(0);
         let origin = world.rooms.last().map_or([0, 0], |r| r.origin);
         let mut room =
-            psxed_project::grid::GridRoom::new(format!("Room {}", world.rooms.len()), 1, 1);
+            psxed_project::grid::GridRoom::new_derived(format!("Room {}", world.rooms.len()), 1, 1);
         room.origin = origin;
         room.y_offset = top + 3 * psxed_project::grid::SECTOR_UNITS;
         world.rooms.push(room);

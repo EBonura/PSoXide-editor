@@ -40,6 +40,7 @@ mod plane_tool;
 mod pose;
 mod rect_tool;
 mod rooms;
+mod rooms_walls;
 mod select_tool;
 mod strip;
 pub(crate) mod view;
