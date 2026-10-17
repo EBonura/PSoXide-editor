@@ -29,6 +29,9 @@
 //!   holds Ramp to the steepest walkable slope
 //! * `verb-drag=clicks` a level verb's amount drag in flight at `clicks`
 //!   (the active verb tool and its region)
+//! * `triangle-drag=x,z,tri,clicks` a Height tool triangle drag in flight on
+//!   the floor of sector `x,z` (ceiling when it has no floor): `tri` is `0` or
+//!   `a` for triangle A, `1` or `b` for B
 //! * `raise=x,z,corner,clicks` raise a floor corner, like a finished drag
 //! * `material=N` the Nth material of the palette
 //! * `copy` copies the selection; `paste=x,z` shows the ghost at `x,z`
@@ -41,6 +44,7 @@
 
 use super::*;
 
+use super::triangle_tool;
 use psxed_project::grid::edit::verbs::ramp::RampDir;
 use psxed_project::grid::edit::{
     faces_of_cell, wall_gap, CellRect, CornerRef, EdgeRef, FaceRef, FaceTarget, GridClipboard,
@@ -150,6 +154,37 @@ impl EditorWorkspace {
                 });
             }
             "ramp-clamp" => self.grid.verb.ramp_clamp = true,
+            "triangle-drag" => {
+                let parts: Vec<&str> = value.split(',').map(str::trim).collect();
+                let [x, z, tri, clicks] = parts[..] else {
+                    return Err("expected x,z,tri,clicks".to_string());
+                };
+                let cell = [
+                    x.parse::<i32>().map_err(|e| e.to_string())?,
+                    z.parse::<i32>().map_err(|e| e.to_string())?,
+                ];
+                let tri = match tri {
+                    "0" | "a" | "A" => 0,
+                    "1" | "b" | "B" => 1,
+                    other => return Err(format!("triangle 0/a or 1/b, not {other:?}")),
+                };
+                let clicks = clicks.parse::<f32>().map_err(|e| e.to_string())?;
+                let has_floor = self
+                    .project
+                    .active_scene()
+                    .world
+                    .grid()
+                    .and_then(|w| w.rooms.get(room))
+                    .and_then(|r| r.local(cell).and_then(|[x, z]| r.sector(x, z)))
+                    .is_some_and(|s| s.floor.is_some());
+                let face = if has_floor {
+                    FaceRef::floor(room, cell)
+                } else {
+                    FaceRef::ceiling(room, cell)
+                };
+                self.set_grid_tool(GridTool::Height);
+                triangle_tool::pose_drag(self, face, tri, clicks)?;
+            }
             "verb-drag" => {
                 let clicks = value.parse::<f32>().map_err(|e| e.to_string())?;
                 verb_tool::pose_drag(self, (clicks * CLICK_UNITS as f32).round() as i32)?;

@@ -14,7 +14,7 @@ use crate::workspace::tools3d::{SelectTool, ToolFrame3d, ViewportTool3d};
 
 use super::{
     bands_tool, clipboard_tool, face_tools, height_tool, place_tool, plane_tool, rect_tool,
-    select_tool, verb_tool, wall_tool,
+    select_tool, triangle_tool, verb_tool, wall_tool,
 };
 
 /// A pointer event.
@@ -83,10 +83,12 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
         (GridTool::Wall, Ev::Click) => wall_tool::click(ws, &ptr),
 
         (GridTool::Height, Ev::Hover) => {
-            ws.grid.hover = match height_tool::element_at(ws, &ptr) {
-                Some(element) => GridHover::Elements(vec![element]),
-                None => GridHover::None,
-            };
+            if !triangle_tool::hover_triangle(ws, &ptr) {
+                ws.grid.hover = match height_tool::element_at(ws, &ptr) {
+                    Some(element) => GridHover::Elements(vec![element]),
+                    None => GridHover::None,
+                };
+            }
         }
         (GridTool::Height, Ev::Press) => {
             height_tool::begin(ws, &ptr);

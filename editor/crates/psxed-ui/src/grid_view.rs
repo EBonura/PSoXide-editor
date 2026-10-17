@@ -23,6 +23,8 @@ const WALL_DERIVED: Color32 = Color32::from_rgb(140, 200, 232);
 const WALL_HIDDEN: Color32 = Color32::from_rgba_premultiplied(70, 90, 105, 120);
 const SECTOR_LINE: Color32 = Color32::from_rgba_premultiplied(0, 0, 0, 90);
 const SPLIT_LINE: Color32 = Color32::from_rgba_premultiplied(0, 0, 0, 120);
+/// Hatching over a void triangle.
+const VOID_HATCH: Color32 = Color32::from_rgba_premultiplied(150, 156, 170, 150);
 /// Smallest on-screen sector edge that still gets its outline.
 const MIN_OUTLINE_PIXELS: f32 = 5.0;
 /// Smallest on-screen sector edge that gets a height label.
@@ -96,8 +98,49 @@ fn mean_floor(room: &GridRoom, sector: &GridSector) -> Option<f32> {
 /// Whether the floor's diagonal changes what is drawn and is worth marking.
 fn split_matters(sector: &GridSector) -> bool {
     sector.floor.as_ref().is_some_and(|floor| {
-        !floor.is_planar() || floor.heights_b.is_some() || floor.tri_b.is_some()
+        !floor.is_planar() || floor.heights_b.is_some() || floor.tri_b.is_some() || floor.void != 0
     })
+}
+
+/// Darken and hatch the void triangles of a sector's floor (its ceiling when
+/// it has none): the half that is not there.
+fn draw_voids(painter: &egui::Painter, corners: [Pos2; 4], sector: &GridSector, hatch: bool) {
+    let Some(surface) = sector.floor.as_ref().or(sector.ceiling.as_ref()) else {
+        return;
+    };
+    if surface.void == 0 {
+        return;
+    }
+    for tri in 0..2usize {
+        if !surface.is_void(tri) {
+            continue;
+        }
+        let ids = surface.split.triangle(tri);
+        let other = surface.split.triangle(1 - tri);
+        painter.add(egui::Shape::convex_polygon(
+            ids.iter().map(|&i| corners[i]).collect(),
+            Color32::from_rgba_unmultiplied(8, 10, 14, 175),
+            egui::Stroke::NONE,
+        ));
+        if !hatch {
+            continue;
+        }
+        // Hatching parallel to the diagonal, from the corner that is only in
+        // this triangle.
+        let Some(&right) = ids.iter().find(|i| !other.contains(i)) else {
+            continue;
+        };
+        let legs: Vec<Pos2> = ids
+            .iter()
+            .filter(|&&i| i != right)
+            .map(|&i| corners[i])
+            .collect();
+        for t in [0.34_f32, 0.67] {
+            let a = corners[right] + (legs[0] - corners[right]) * t;
+            let b = corners[right] + (legs[1] - corners[right]) * t;
+            painter.line_segment([a, b], egui::Stroke::new(1.0, VOID_HATCH));
+        }
+    }
 }
 
 fn wall_stroke(solid: bool, thickness: f32) -> egui::Stroke {
@@ -243,6 +286,7 @@ pub(crate) fn draw_grid_world(
                     painter.line_segment([a, b], egui::Stroke::new(1.0, SPLIT_LINE));
                 }
             }
+            draw_voids(painter, corners, sector, size >= MIN_OUTLINE_PIXELS);
             if show_labels && size >= MIN_LABEL_PIXELS {
                 if let Some(mean) = mean_floor(room, sector) {
                     let clicks = (mean / CLICK_UNITS as f32).round() as i32;

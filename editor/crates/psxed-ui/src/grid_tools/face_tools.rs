@@ -69,7 +69,8 @@ pub(super) fn face_under(
                 FaceRef::floor(room, cell)
             };
             let tri = face.surface(world).and_then(|s| {
-                let split = !s.is_planar() || s.heights_b.is_some() || s.tri_b.is_some();
+                let split =
+                    !s.is_planar() || s.heights_b.is_some() || s.tri_b.is_some() || s.void != 0;
                 (split || ptr.shift())
                     .then(|| tri_at(world, face, wx, wz))
                     .flatten()
@@ -246,6 +247,11 @@ fn sample(ws: &mut EditorWorkspace, ptr: &GridPointer) {
 }
 
 pub(super) fn split_click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
+    // Shift+click voids or restores the triangle under the pointer.
+    if ptr.shift() {
+        super::triangle_tool::void_click(ws, ptr);
+        return;
+    }
     let Some((faces, _)) = face_under(ws, ptr) else {
         return;
     };

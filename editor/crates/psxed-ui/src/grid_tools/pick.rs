@@ -387,7 +387,6 @@ impl EditorWorkspace {
                 let derived = room.wall_mode == WallMode::Derived;
                 for edge in WallEdge::ALL {
                     let has_derived = derived
-                        && !edge.is_diagonal()
                         && !psxed_project::grid::derive::edge_walls(room, cell, edge).is_empty();
                     if sector.walls(edge).is_empty() && !has_derived {
                         continue;

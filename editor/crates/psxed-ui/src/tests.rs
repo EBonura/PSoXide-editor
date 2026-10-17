@@ -9,6 +9,7 @@ mod grid_bands;
 mod grid_cycle;
 mod grid_derived;
 mod grid_heat;
+mod grid_natural;
 mod grid_planes;
 mod grid_rig;
 mod grid_snap;

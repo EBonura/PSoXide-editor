@@ -111,6 +111,10 @@ pub(super) fn element_at(ws: &EditorWorkspace, ptr: &GridPointer) -> Option<Grid
 /// that is part of it).
 pub(super) fn begin(ws: &mut EditorWorkspace, ptr: &GridPointer) -> bool {
     let press = ptr.at_press();
+    // Alt on a face (not a vertex or an edge) grabs one triangle.
+    if press.alt() && super::triangle_tool::begin_drag(ws, ptr) {
+        return true;
+    }
     let Some(element) = element_at(ws, &press) else {
         return false;
     };
@@ -145,6 +149,7 @@ pub(super) fn begin(ws: &mut EditorWorkspace, ptr: &GridPointer) -> bool {
         pixels_per_unit: ppu,
         delta: 0,
         before: Some(Box::new(ws.project.clone())),
+        triangle: None,
     });
     true
 }
@@ -153,27 +158,49 @@ pub(super) fn drag(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     let Gesture::Height(mut g) = std::mem::take(&mut ws.grid.gesture) else {
         return;
     };
-    let step = if ptr.alt() { FINE_UNITS } else { CLICK_UNITS };
+    // A triangle drag keeps Alt for the grab; Shift is its fine step.
+    let fine = if g.triangle.is_some() {
+        ptr.shift()
+    } else {
+        ptr.alt()
+    };
+    let step = if fine { FINE_UNITS } else { CLICK_UNITS };
     let raw = ((g.press_y - ptr.pos.y) / g.pixels_per_unit.max(1e-4)).round() as i32;
     let delta = snap_to(raw, step);
     if delta != g.delta {
-        if let Some(before) = g.before.take() {
-            ws.history.record(*before);
+        nudge_gesture(ws, &mut g, delta);
+    }
+    ws.grid.gesture = Gesture::Height(g);
+}
+
+/// Put the gesture's corners `delta` grid units from where they began,
+/// recording the undo step at the first change.
+pub(super) fn nudge_gesture(ws: &mut EditorWorkspace, g: &mut HeightGesture, delta: i32) {
+    if let Some(before) = g.before.take() {
+        ws.history.record(*before);
+    }
+    if let Some(world) = ws.project.active_scene_mut().world.grid_mut() {
+        if let Some(triangle) = &g.triangle {
+            triangle.prepare(world, delta);
         }
-        if let Some(world) = ws.project.active_scene_mut().world.grid_mut() {
-            g.drag.apply(world, delta);
-        }
-        g.delta = delta;
-        ws.grid_changed();
-        let clicks = delta as f32 / CLICK_UNITS as f32;
-        ws.status = format!(
+        g.drag.apply(world, delta);
+    }
+    g.delta = delta;
+    ws.grid_changed();
+    let clicks = delta as f32 / CLICK_UNITS as f32;
+    ws.status = match &g.triangle {
+        Some(triangle) => format!(
+            "{} {:+} units ({clicks:+.2} clicks): a diagonal wall shows between the halves",
+            triangle.label(),
+            delta
+        ),
+        None => format!(
             "Height {:+} units ({clicks:+.2} clicks), {} corners{}",
             delta,
             g.drag.len(),
             if ws.grid.link { "" } else { ", unlinked" }
-        );
-    }
-    ws.grid.gesture = Gesture::Height(g);
+        ),
+    };
 }
 
 pub(super) fn release(ws: &mut EditorWorkspace) {

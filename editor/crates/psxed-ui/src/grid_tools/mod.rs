@@ -54,6 +54,7 @@ mod shading_panel;
 mod stairs_tool;
 mod strip;
 mod tiling_panel;
+mod triangle_tool;
 mod verb_overlay;
 mod verb_panel;
 pub(crate) mod verb_state;
@@ -327,6 +328,8 @@ pub(crate) struct HeightGesture {
     pub delta: i32,
     /// The document before the drag, recorded for undo at the first change.
     pub before: Option<Box<ProjectDocument>>,
+    /// Set when the drag moves one triangle of a floor or ceiling.
+    pub triangle: Option<triangle_tool::TriangleGrab>,
 }
 
 /// The one gesture in flight, if any.

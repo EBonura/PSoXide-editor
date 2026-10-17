@@ -316,7 +316,9 @@ impl EditorWorkspace {
                 WallEdge::North => [0, 1],
                 WallEdge::East => [1, 2],
                 WallEdge::South => [3, 2],
-                _ => [0, 3],
+                WallEdge::West => [0, 3],
+                WallEdge::Nwse => [0, 2],
+                WallEdge::Nesw => [1, 3],
             };
             let lift = |p: [f32; 3]| [p[0], p[1] + 10.0, p[2]];
             let (a, b) = (lift(pts[pair[0]]), lift(pts[pair[1]]));
