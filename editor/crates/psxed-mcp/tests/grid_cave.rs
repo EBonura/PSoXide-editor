@@ -197,7 +197,7 @@ fn a_cave_is_built_with_the_natural_terrain_tools_and_played() {
 
     // ---- break: seeded detail, held to the walkability mask ------------------
     let region = json!({"polygon": HALL, "targets": ["walls", "floor", "ceiling"]});
-    let mut call = |c: &mut Client, extra: serde_json::Value| {
+    let call = |c: &mut Client, extra: serde_json::Value| {
         let mut args = region.clone();
         for (k, v) in extra.as_object().unwrap() {
             args[k] = v.clone();
