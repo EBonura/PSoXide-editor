@@ -8,6 +8,7 @@
 
 use egui::{FontFamily, FontId, RichText};
 
+pub const ARROW_UP_FROM_LINE: char = '\u{e45a}';
 pub const AUDIO_LINES: char = '\u{e2b2}';
 pub const BLEND: char = '\u{e59c}';
 pub const BOX: char = '\u{e061}';
@@ -17,10 +18,12 @@ pub const CHEVRON_LEFT: char = '\u{e06e}';
 pub const CHEVRON_RIGHT: char = '\u{e06f}';
 pub const CIRCLE_DOT: char = '\u{e345}';
 pub const COPY: char = '\u{e09e}';
+pub const FOOTPRINTS: char = '\u{e3b9}';
 pub const EYE: char = '\u{e0ba}';
 pub const EYE_OFF: char = '\u{e0bb}';
 pub const FILE: char = '\u{e0c5}';
 pub const FILE_PLUS: char = '\u{e0c9}';
+pub const FLAME: char = '\u{e0d2}';
 pub const FOCUS: char = '\u{e29e}';
 pub const FOLDER: char = '\u{e0d8}';
 pub const GRID: char = '\u{e0e9}';
@@ -43,6 +46,8 @@ pub const SCAN: char = '\u{e257}';
 pub const SQUARE: char = '\u{e167}';
 pub const SUN: char = '\u{e178}';
 pub const TERMINAL: char = '\u{e183}';
+pub const STAIRS: char = '\u{e06a}';
+pub const TRENDING_UP: char = '\u{e191}';
 pub const TRASH: char = '\u{e18d}';
 pub const WAYPOINT: char = '\u{e546}';
 

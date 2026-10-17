@@ -38,7 +38,7 @@ fn place_snaps_to_the_sector_centre_then_the_fine_lattice_then_not_at_all() {
 
 #[test]
 fn the_status_bar_and_help_say_the_same_rule() {
-    use super::grid_ui::{draw_editor, full_context};
+    use super::grid_ui::full_context;
     let ctx = full_context();
     let mut ws =
         EditorWorkspace::with_project(test_temp_dir("snap-text"), flat_project(3, 3, false));
@@ -46,8 +46,10 @@ fn the_status_bar_and_help_say_the_same_rule() {
     ws.apply_grid_pose("tool=plane").unwrap();
     ws.grid.help_open = true;
     // egui sizes a new window invisibly first; the next frame shows it.
-    let _ = draw_editor(&mut ws, &ctx, true);
-    let output = draw_editor(&mut ws, &ctx, true);
+    let tall = Vec2::new(1920.0, 1500.0);
+    let _ = super::grid_ui::draw_editor_sized(&mut ws, &ctx, true, tall);
+    let _ = super::grid_ui::draw_editor_sized(&mut ws, &ctx, true, tall);
+    let output = super::grid_ui::draw_editor_sized(&mut ws, &ctx, true, tall);
     let text: String = output
         .shapes
         .iter()

@@ -302,3 +302,99 @@ fn each_geometry_tool_changes_what_the_read_tools_report() {
     );
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+#[test]
+fn the_level_verbs_and_the_two_overlays_answer_over_the_protocol() {
+    let tmp = std::env::temp_dir().join(format!("psxed-mcp-verbs-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    let project = new_project(&tmp);
+    let mut c = Client::start(&["--project", project.to_str().unwrap()], &[], &repo_root());
+
+    // Raise: a 2 by 2 platform two clicks up, and the read tool agrees.
+    let raised = c
+        .ok(
+            "grid_raise",
+            json!({"from": [0, 0], "to": [1, 1], "amount": 512}),
+        )
+        .text;
+    assert!(raised.contains("raised 4 sector(s)"), "{raised}");
+    let map = c
+        .ok("grid_heights", json!({"from": [0, 0], "to": [2, 0]}))
+        .text;
+    assert!(map.contains('2'), "{map}");
+    // Lowering the same region by the same amount puts it back.
+    let lowered = c
+        .ok(
+            "grid_raise",
+            json!({"from": [0, 0], "to": [1, 1], "amount": -512, "mode": "offset"}),
+        )
+        .text;
+    assert!(lowered.contains("lowered 4 sector(s)"), "{lowered}");
+    assert!(c
+        .call(
+            "grid_raise",
+            json!({"from": [0, 0], "amount": 256, "mode": "sideways"})
+        )
+        .is_err());
+
+    // Auto split: surfaces choose their own diagonal; the lock turns it off.
+    let auto = c
+        .ok(
+            "grid_set_split",
+            json!({"kind": "floor", "from": [0, 0], "to": [1, 1], "auto": true}),
+        )
+        .text;
+    assert!(auto.contains("choose their own diagonal"), "{auto}");
+    c.ok(
+        "grid_set_split",
+        json!({"kind": "floor", "from": [0, 0], "auto": false, "split": "nw_se"}),
+    );
+
+    // Ramp at the steepest walkable slope, and a refusal without a rise.
+    let ramp = c
+        .ok(
+            "grid_ramp",
+            json!({"from": [3, 0], "to": [5, 2], "keep": "west", "walkable": true}),
+        )
+        .text;
+    assert!(ramp.contains("walkable"), "{ramp}");
+    assert!(!ramp.contains("TOO STEEP"), "{ramp}");
+    assert!(c
+        .call(
+            "grid_ramp",
+            json!({"from": [3, 0], "to": [5, 2], "keep": "west"})
+        )
+        .is_err());
+
+    // Stairs: a flight along the south row; a flight too steep for treads is
+    // refused with a reason.
+    let flight = c
+        .ok(
+            "grid_stairs",
+            json!({"path": [[0, 5], [5, 5]], "rise": 1536}),
+        )
+        .text;
+    assert!(flight.contains("6 step(s)"), "{flight}");
+    let refused = c
+        .call(
+            "grid_stairs",
+            json!({"path": [[0, 4], [2, 4]], "rise": 6144}),
+        )
+        .expect_err("too steep");
+    assert!(format!("{refused:?}").contains("too steep"), "{refused:?}");
+
+    // Walkable flag and the two reads.
+    let ghost = c
+        .ok(
+            "grid_set_walkable",
+            json!({"from": [2, 3], "walkable": false}),
+        )
+        .text;
+    assert!(ghost.contains("NOT walkable"), "{ghost}");
+    let walk = c.ok("grid_walkability", json!({})).text;
+    assert!(walk.contains("Walkability"), "{walk}");
+    assert!(walk.contains('G'), "the ghost floor is on the map: {walk}");
+    let heat = c.ok("grid_heatmap", json!({"stride": 2})).text;
+    assert!(heat.contains("PERFORMANCE MODEL"), "{heat}");
+    assert!(heat.contains("worst spot"), "{heat}");
+}

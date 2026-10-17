@@ -117,6 +117,76 @@ const BANDS: Rows = &[
     ),
     ("Inspector", "Lines, bands, materials and tiling per band"),
 ];
+const RAISE: Rows = &[
+    (
+        "Drag, click (Marquee)",
+        "Pick a rectangle of sectors, or one with a click; Shift adds to the region",
+    ),
+    (
+        "Brush, Path (option row)",
+        "Paint sectors with a disc, or click waypoints and press Enter; [ and ] change the radius or width",
+    ),
+    (
+        "Press on the region, drag",
+        "Up raises, down lowers (256 units a step, Alt for 64); the sides appear live, release commits",
+    ),
+    ("Tab", "Switch Offset (keep the shape) and Level (flatten to the height under the pointer)"),
+    ("Follow ceiling", "Ceilings move with the floors; off holds a floor a click under its ceiling"),
+    ("Esc", "Cancel the drag exactly; again to forget the region"),
+    ("Amount, Apply", "A typed amount in clicks, applied as one undo step"),
+];
+const RAMP: Rows = &[
+    (
+        "Pick a region",
+        "Marquee, brush or path, as for Raise",
+    ),
+    (
+        "Hover the region",
+        "The side nearest the pointer lights up: that side (A) keeps its height",
+    ),
+    (
+        "Press near it, drag up or down",
+        "The opposite side (B) rises or falls; every sector between slopes evenly, rounded to 64 units",
+    ),
+    ("R", "Turn the kept side a quarter turn and hold it"),
+    (
+        "Tab, Walkable",
+        "Hold the rise to the steepest slope the character motor stands on",
+    ),
+    (
+        "Green, orange",
+        "Sectors a body can stand on, sectors too steep for it (the readout says which)",
+    ),
+];
+const STAIRS: Rows = &[
+    (
+        "Click, Enter",
+        "Click the waypoints of the flight, Enter finishes the path",
+    ),
+    (
+        "Press on it, drag up or down",
+        "The total rise; each sector is a tread, a turn is a landing, the ghost numbers the steps",
+    ),
+    ("[ and ]", "Width of the flight in sectors"),
+    (
+        "Riser (option row)",
+        "1 click, Max (what the character steps up) or a typed riser; steps follow from the rise",
+    ),
+    (
+        "Tab, Ramp",
+        "Slope every tread instead of stepping; also the answer to a refused, too steep flight",
+    ),
+];
+const OVERLAYS: Rows = &[
+    (
+        "Alt+W, Walk button",
+        "Walkability: orange too steep, blue headroom under the body, red step taller than it climbs, yellow dashed drop, hatched floors no spawn reaches",
+    ),
+    (
+        "Alt+P, Perf button",
+        "Performance heatmap: a model of the world render cost at every spot, green under 60% of the budget, amber to 90%, red above (the Reserve field edits what the player and sky take)",
+    ),
+];
 const OTHER: Rows = &[
     ("Split (D)", "Click a floor or ceiling to flip its diagonal"),
     (
@@ -134,9 +204,18 @@ const OTHER: Rows = &[
 ];
 const SNAP: Rows = &[
     ("Alt", "Fine snap: 64 units (every tool, planes included)"),
-    ("Shift+Alt", "Free movement where a tool can leave the lattice (planes, Place)"),
-    ("U S A T B K I Y", "Reserved for the level verbs: Raise, Sculpt, Ramp, Stairs, Room, Corridor, Opening, Stamps"),
-    ("Alt+W, Alt+P", "Reserved for the walkability and performance overlays"),
+    (
+        "Shift+Alt",
+        "Free movement where a tool can leave the lattice (planes, Place)",
+    ),
+    (
+        "S B K I Y",
+        "Reserved for the level verbs still to come: Sculpt, Room, Corridor, Opening, Stamps",
+    ),
+    (
+        "Alt+W, Alt+P",
+        "Reserved for the walkability and performance overlays",
+    ),
 ];
 const VIEW: Rows = &[
     ("Middle or right drag", "Orbit the 3D camera"),
@@ -176,7 +255,7 @@ impl EditorWorkspace {
             return;
         }
         let mut open = true;
-        let sections: [(&str, Rows); 10] = [
+        let sections: [(&str, Rows); 14] = [
             ("Select (V)", SELECT),
             ("Floor (F) and Ceiling (C)", FLOOR),
             ("Wall (W)", WALL),
@@ -184,6 +263,10 @@ impl EditorWorkspace {
             ("Height (H)", HEIGHT),
             ("Paint (P)", PAINT),
             ("Bands (E)", BANDS),
+            ("Raise (U)", RAISE),
+            ("Ramp (A)", RAMP),
+            ("Stairs (T)", STAIRS),
+            ("Overlays", OVERLAYS),
             ("More", OTHER),
             ("Snapping and reserved keys", SNAP),
             ("Camera and project", VIEW),
@@ -195,24 +278,42 @@ impl EditorWorkspace {
             .fade_in(false)
             .anchor(egui::Align2::CENTER_TOP, Vec2::new(0.0, 96.0))
             .show(ctx, |ui| {
-                ui.set_width(1040.0_f32.min(ctx.screen_rect().width() - 80.0));
+                ui.set_width(1500.0_f32.min(ctx.screen_rect().width() - 60.0));
                 ui.label(
-                    RichText::new("Tools: V Select, F Floor, C Ceiling, W Wall, N Plane, H Height, P Paint, D Split, O Place, E Bands")
+                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, P Paint, D Split, O Place, E Bands | U Raise, A Ramp, T Stairs")
                         .color(STUDIO_TEXT_WEAK),
                 );
                 ui.add_space(4.0);
-                // Two columns of sections: the first five on the left.
-                ui.columns(2, |columns| {
+                // Three columns of sections, split where the rows balance
+                // (long descriptions count double, they wrap).
+                let weight = |rows: Rows| -> usize {
+                    2 + rows
+                        .iter()
+                        .map(|(_, what)| 1 + usize::from(what.len() > 70))
+                        .sum::<usize>()
+                };
+                let total: usize = sections.iter().map(|(_, r)| weight(r)).sum();
+                let mut column_of = Vec::with_capacity(sections.len());
+                let mut running = 0;
+                for (_, rows) in sections.iter() {
+                    column_of.push((running * 3 / total.max(1)).min(2));
+                    running += weight(rows);
+                }
+                let column_width = (ui.available_width() / 3.0 - 20.0).max(200.0);
+                ui.columns(3, |columns| {
                     for (index, (title, rows)) in sections.iter().enumerate() {
-                        let ui = &mut columns[usize::from(index >= 5)];
+                        let ui = &mut columns[column_of[index]];
                         ui.add_space(4.0);
                         ui.label(RichText::new(*title).strong().color(STUDIO_TEXT));
                         egui::Grid::new(format!("grid_help_{title}"))
                             .num_columns(2)
+                            .max_col_width(column_width * 0.64)
                             .spacing([12.0, 2.0])
                             .show(ui, |ui| {
                                 for (gesture, what) in rows.iter() {
-                                    ui.label(RichText::new(*gesture).monospace().color(STUDIO_ACCENT));
+                                    ui.label(
+                                        RichText::new(*gesture).monospace().color(STUDIO_ACCENT),
+                                    );
                                     ui.label(*what);
                                     ui.end_row();
                                 }

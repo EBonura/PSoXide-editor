@@ -8,7 +8,19 @@ use psxed_project::grid::{GridBudget, CLICK_UNITS, FINE_UNITS};
 impl EditorWorkspace {
     /// The eight tool buttons.
     pub(crate) fn draw_grid_tool_strip(&mut self, ui: &mut egui::Ui) {
+        let mut group = None;
         for tool in GridTool::ALL {
+            if group != Some(tool.group()) {
+                if group.is_some() {
+                    ui.separator();
+                }
+                group = Some(tool.group());
+                ui.label(
+                    RichText::new(tool.group().label())
+                        .color(STUDIO_TEXT_WEAK)
+                        .size(9.5),
+                );
+            }
             let selected = self.grid.tool == tool;
             let response = ui
                 .add(
@@ -122,6 +134,7 @@ impl EditorWorkspace {
                 );
             }
             GridTool::Split => {}
+            GridTool::Raise | GridTool::Ramp | GridTool::Stairs => self.draw_verb_options(ui),
             GridTool::Bands => {
                 use psxed_project::grid::edit::bands::BandScope;
                 ui.label(RichText::new("Scope").color(STUDIO_TEXT_WEAK).size(11.0));
@@ -152,6 +165,36 @@ impl EditorWorkspace {
             format!("Snap {CLICK_UNITS} (Alt {FINE_UNITS})")
         };
         ui.label(RichText::new(snap_text).color(STUDIO_TEXT_WEAK).size(11.0));
+        if ui
+            .selectable_label(
+                self.grid.overlays.walk,
+                icons::label(icons::FOOTPRINTS, "Walk"),
+            )
+            .on_hover_text("Walkability overlay (Alt+W): too steep, low headroom, steps taller than the body climbs, drops, and floors no spawn reaches")
+            .clicked()
+        {
+            self.toggle_walk_overlay();
+        }
+        if ui
+            .selectable_label(
+                self.grid.overlays.perf,
+                icons::label(icons::FLAME, "Perf"),
+            )
+            .on_hover_text("Performance heatmap (Alt+P): a model of the world render cost at every spot, against the 30 fps budget")
+            .clicked()
+        {
+            self.toggle_perf_overlay();
+        }
+        if self.grid.overlays.perf {
+            let mut thousands = self.grid.overlays.reserve / 1000;
+            if ui
+                .add(egui::DragValue::new(&mut thousands).range(0..=1000).suffix("k reserve"))
+                .on_hover_text("Cycles the frame spends outside the world: the player and the sky (470k + 58k measured on the Cathedral)")
+                .changed()
+            {
+                self.grid.overlays.reserve = thousands * 1000;
+            }
+        }
         if ui
             .selectable_label(self.grid.help_open, "?")
             .on_hover_text("Every tool key and gesture (?)")
@@ -188,6 +231,9 @@ impl EditorWorkspace {
             GridTool::Paint => "Click or drag paint | Ctrl sample | pick in the palette",
             GridTool::Split => "Click a floor or ceiling | Click again for the ceiling in Top",
             GridTool::Bands => "Hover a wall, click to cut | Drag a line | Del removes it | Shift+click picks a band | Esc cancel",
+            GridTool::Raise => "Pick sectors | Press on them, drag up/down | Tab Offset/Level | Alt fine | Shift add | Esc cancel",
+            GridTool::Ramp => "Pick sectors | Press near the side to keep, drag up/down | R turn the side | Tab hold to walkable | Esc cancel",
+            GridTool::Stairs => "Click waypoints, Enter | Press on the path, drag up/down | [ ] width | Tab steps/ramp | Esc cancel",
             GridTool::Place => "Click to place at the sector centre | Alt 64 | Shift+Alt free",
         }
     }
@@ -252,6 +298,18 @@ impl EditorWorkspace {
             })
             .unwrap_or_default();
         let in_view = self.grid_faces_in_view();
+        let worst = if self.grid.overlays.perf {
+            self.heat_run().filter(|r| r.fresh).and_then(|r| {
+                let w = *r.map.worst()?;
+                let pct = w.cycles as f32 * 100.0 / r.map.options.world_budget() as f32;
+                Some(format!(
+                    "   cooked {} quads, worst spot {pct:.0}% (model)",
+                    r.map.quads_total
+                ))
+            })
+        } else {
+            None
+        };
         let percent = budget.faces_percent();
         let hot = percent >= 85;
         egui::TopBottomPanel::bottom("psxed_grid_status_bar")
@@ -270,7 +328,8 @@ impl EditorWorkspace {
                             .size(11.0),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let view_text = in_view.map_or(String::new(), |n| format!("   in view: {n} faces"));
+                        let view_text = in_view.map_or(String::new(), |n| format!("   in view: {n} faces"))
+                            + &worst.clone().unwrap_or_default();
                         let budget_text = format!(
                             "room {room}{}: {room_sectors} sectors   world: {} rooms, {} faces / {MAX_WORLD_FACES} ({percent}%){view_text}",
                             if room_name.is_empty() { String::new() } else { format!(" {room_name}") },

@@ -141,6 +141,7 @@ impl EditorWorkspace {
             });
         self.draw_grid_room_settings(ui, active);
         self.draw_grid_room_walls(ui, active);
+        self.draw_grid_room_rules(ui, active);
         ui.separator();
 
         if let Some(next) = rename_start {

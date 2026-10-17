@@ -1,0 +1,538 @@
+//! The level verbs and the two overlays, as tools.
+//!
+//! Each verb is a thin wrapper over the same pure function the editor's
+//! gesture calls (`psxed_project::grid::edit::verbs`), so a slope or a flight
+//! made here is made by exactly the code a drag reaches. The overlays are
+//! reads: the walkability analysis (`psxed_project::grid::walk`) and the
+//! performance heatmap model (`psxed_project::grid::heat`).
+
+use std::fmt::Write as _;
+
+use psxed_project::grid::edit::verbs::raise::{
+    default_mode, height_under, raise_region, RaiseMode, RaiseParams,
+};
+use psxed_project::grid::edit::verbs::ramp::{RampDir, RampDrag, RampParams};
+use psxed_project::grid::edit::verbs::stairs::{RiserOption, StairsDrag, StairsParams};
+use psxed_project::grid::edit::Region;
+use psxed_project::grid::heat::{heatmap, HeatOptions};
+use psxed_project::grid::units::{snap_to, CLICK_UNITS, FINE_UNITS};
+use psxed_project::grid::walk::{self, analyse, EdgeKind, WalkLimits};
+use psxed_project::grid::GridWorld;
+use psxed_project::ProjectDocument;
+use schemars::JsonSchema;
+use serde::Deserialize;
+
+use super::build::Surface;
+use super::{check_rect, pick_room, Cells, Materials, Snap};
+
+fn clicks_text(units: i32) -> String {
+    format!(
+        "{:+.2} clicks ({units:+} gu)",
+        units as f32 / CLICK_UNITS as f32
+    )
+}
+
+fn wall_material(
+    project: &ProjectDocument,
+    name: &Option<String>,
+) -> Result<Option<psxed_project::ResourceId>, String> {
+    name.as_deref()
+        .map(|n| Materials::new(project).resolve(n))
+        .transpose()
+}
+
+/// Raise or lower a region of floors.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct RaiseReq {
+    /// Scene index. Omit for the first scene with a grid world.
+    pub scene: Option<usize>,
+    /// Room index. Required when the world has several rooms.
+    pub room: Option<usize>,
+    /// The region: a rectangle of WORLD sectors. Sectors with no floor are
+    /// skipped and counted.
+    #[serde(flatten)]
+    pub cells: Cells,
+    /// Grid units, positive raises, negative lowers (256 a click). Snapped by
+    /// `snap`.
+    pub amount: i32,
+    /// `offset` (every corner moves by the amount, shape kept) or `level`
+    /// (every corner set to `reference` plus the amount). Default: level on a
+    /// flat region, offset otherwise.
+    pub mode: Option<String>,
+    /// The height level mode measures from, grid units relative to the room.
+    /// Default: the floor under the region's first sector.
+    pub reference: Option<i32>,
+    /// Ceilings move by the same delta as the floor under them (default true);
+    /// false holds a floor one click under its ceiling.
+    pub follow_ceiling: Option<bool>,
+    /// Material (name or id) of the derived walls of the shaped sectors.
+    pub wall_material: Option<String>,
+    /// `click` (default) or `fine`.
+    pub snap: Option<Snap>,
+}
+
+/// Apply [`RaiseReq`].
+pub fn raise(
+    world: &mut GridWorld,
+    project: &ProjectDocument,
+    req: &RaiseReq,
+) -> Result<String, String> {
+    let room = pick_room(world, req.room)?;
+    let rect = req.cells.rect();
+    check_rect(&rect)?;
+    let region = Region::from_rect(room, rect);
+    let (amount, note) = req.snap.unwrap_or_default().apply(req.amount);
+    let first = region.cells().next().unwrap_or([0, 0]);
+    let mode = match req.mode.as_deref() {
+        None => default_mode(world, &region),
+        Some("offset") => RaiseMode::Offset,
+        Some("level") => RaiseMode::Level,
+        Some(other) => return Err(format!("unknown mode {other:?}; use offset or level")),
+    };
+    let params = RaiseParams {
+        mode,
+        follow_ceiling: req.follow_ceiling.unwrap_or(true),
+        wall_material: wall_material(project, &req.wall_material)?,
+        reference: req
+            .reference
+            .or_else(|| height_under(world, room, first))
+            .unwrap_or(0),
+    };
+    let applied = raise_region(world, &region, params, amount)
+        .ok_or("nothing to raise: no sector of the rectangle has a floor")?;
+    let mut out = format!(
+        "room {room}: {} {} sector(s) by {} in {} mode",
+        if amount < 0 { "lowered" } else { "raised" },
+        applied.moved,
+        clicks_text(amount),
+        mode.label()
+    );
+    if let Some(note) = note {
+        let _ = write!(out, "\n{note}");
+    }
+    if applied.skipped > 0 {
+        let _ = write!(
+            out,
+            "\n{} sector(s) had no floor and were skipped",
+            applied.skipped
+        );
+    }
+    if applied.clamped > 0 {
+        let _ = write!(
+            out,
+            "\n{} floor(s) held one click under their ceiling",
+            applied.clamped
+        );
+    }
+    Ok(out)
+}
+
+/// Slope a region from one side to the opposite side.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct RampReq {
+    /// Scene index. Omit for the first scene with a grid world.
+    pub scene: Option<usize>,
+    /// Room index. Required when the world has several rooms.
+    pub room: Option<usize>,
+    /// The region: a rectangle of WORLD sectors.
+    #[serde(flatten)]
+    pub cells: Cells,
+    /// The side that keeps its height (the A edge): `north`, `east`, `south`
+    /// or `west`. The opposite side rises.
+    pub keep: String,
+    /// Grid units the far side rises (negative falls). Omit with `walkable`
+    /// true to take the steepest slope the character walks.
+    pub rise: Option<i32>,
+    /// Hold the rise to the steepest walkable slope (the motor's own limit).
+    /// Default false: a steeper rise is made and reported as too steep.
+    pub walkable: Option<bool>,
+    /// Ceilings move with the floors (default true).
+    pub follow_ceiling: Option<bool>,
+    /// Material (name or id) of the derived walls of the shaped sectors.
+    pub wall_material: Option<String>,
+}
+
+fn parse_dir(name: &str) -> Result<RampDir, String> {
+    match name.to_ascii_lowercase().as_str() {
+        "north" | "n" => Ok(RampDir::North),
+        "east" | "e" => Ok(RampDir::East),
+        "south" | "s" => Ok(RampDir::South),
+        "west" | "w" => Ok(RampDir::West),
+        other => Err(format!(
+            "unknown side {other:?}; use north, east, south or west"
+        )),
+    }
+}
+
+/// Apply [`RampReq`].
+pub fn ramp(
+    world: &mut GridWorld,
+    project: &ProjectDocument,
+    req: &RampReq,
+) -> Result<String, String> {
+    let room = pick_room(world, req.room)?;
+    let rect = req.cells.rect();
+    check_rect(&rect)?;
+    let region = Region::from_rect(room, rect);
+    let params = RampParams {
+        from: parse_dir(&req.keep)?,
+        follow_ceiling: req.follow_ceiling.unwrap_or(true),
+        wall_material: wall_material(project, &req.wall_material)?,
+    };
+    let drag = RampDrag::begin(world, &region, params)
+        .ok_or("nothing to ramp: no sector of the rectangle has a floor")?;
+    let max = drag.max_walkable_rise();
+    let wanted = match (req.rise, req.walkable) {
+        (Some(r), _) => snap_to(r, FINE_UNITS),
+        (None, Some(true)) => max,
+        (None, _) => {
+            return Err("give a rise, or walkable true for the steepest walkable slope".into())
+        }
+    };
+    let rise = if req.walkable == Some(true) {
+        wanted.clamp(-max, max)
+    } else {
+        wanted
+    };
+    let applied = drag.apply(world, rise);
+    let units =
+        psxed_project::grid::cook::RuntimeUnits::new(world.scale).map_err(|e| e.to_string())?;
+    let depth = drag.depth().max(1);
+    let per = units.rt(rise) as f32 / depth as f32;
+    let angle = per.atan2(units.sector() as f32).to_degrees();
+    let mut out = format!(
+        "room {room}: ramp from the {} edge (height {}) over {depth} sector(s): {} at the far side, {per:+.1} runtime units a sector, {angle:.1} degrees, {}; the steepest walkable rise here is {}",
+        params.from.label(),
+        drag.base(),
+        clicks_text(rise),
+        if rise.abs() <= max { "walkable" } else { "TOO STEEP to stand on" },
+        clicks_text(max),
+    );
+    let _ = write!(out, "\n{} sector(s) sloped", applied.moved);
+    if applied.skipped > 0 {
+        let _ = write!(out, ", {} had no floor and were skipped", applied.skipped);
+    }
+    Ok(out)
+}
+
+/// Lay a flight of steps along a path.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct StairsReq {
+    /// Scene index. Omit for the first scene with a grid world.
+    pub scene: Option<usize>,
+    /// Room index. Required when the world has several rooms.
+    pub room: Option<usize>,
+    /// Waypoints, WORLD sectors `[x, z]`, joined by a four-connected walk.
+    /// Each sector of the path is one tread; a turn is a landing.
+    pub path: Vec<[i32; 2]>,
+    /// Sectors across (default 1).
+    pub width: Option<i32>,
+    /// Total rise in grid units (negative goes down). The first tread stands
+    /// one riser above the floor at the start of the path.
+    pub rise: i32,
+    /// `click` (one click, default), `max` (the tallest riser the motor steps
+    /// up) or a number of grid units, held to that limit.
+    pub riser: Option<serde_json::Value>,
+    /// Slope every tread instead of stepping (default false).
+    pub ramp: Option<bool>,
+    /// Ceilings move with the floors (default true).
+    pub follow_ceiling: Option<bool>,
+    /// Material (name or id) of the derived walls of the shaped sectors.
+    pub wall_material: Option<String>,
+}
+
+/// Apply [`StairsReq`].
+pub fn stairs(
+    world: &mut GridWorld,
+    project: &ProjectDocument,
+    req: &StairsReq,
+) -> Result<String, String> {
+    let room = pick_room(world, req.room)?;
+    if req.path.is_empty() {
+        return Err("the path needs at least one waypoint".to_string());
+    }
+    let riser = match &req.riser {
+        None => RiserOption::Click,
+        Some(serde_json::Value::String(s)) if s == "click" => RiserOption::Click,
+        Some(serde_json::Value::String(s)) if s == "max" => RiserOption::Max,
+        Some(serde_json::Value::Number(n)) => RiserOption::Typed(n.as_i64().unwrap_or(0) as i32),
+        Some(other) => {
+            return Err(format!(
+                "unknown riser {other}; use \"click\", \"max\" or a number"
+            ))
+        }
+    };
+    let params = StairsParams {
+        riser,
+        ramp: req.ramp.unwrap_or(false),
+        width: req.width.unwrap_or(1).clamp(1, 16),
+        follow_ceiling: req.follow_ceiling.unwrap_or(true),
+        wall_material: wall_material(project, &req.wall_material)?,
+    };
+    let drag = StairsDrag::begin(world, room, &req.path, params)
+        .ok_or("the path crosses no sector of the room")?;
+    let rise = snap_to(req.rise, FINE_UNITS);
+    let flight = drag.apply(world, rise);
+    if let Some(refusal) = flight.refusal {
+        return Err(match refusal {
+            psxed_project::grid::edit::verbs::stairs::Refusal::TooSteep { riser, limit } => format!(
+                "too steep for treads: the shortest riser this path allows is {} but the character steps up at most {} (grid units). Use ramp true, a longer path or a smaller rise",
+                riser, limit
+            ),
+            psxed_project::grid::edit::verbs::stairs::Refusal::NoFloor => {
+                "the path is outside the room".to_string()
+            }
+        });
+    }
+    let mut out = format!(
+        "room {room}: {} step(s) of {} over {} path sector(s), width {}, total {}",
+        flight.steps,
+        clicks_text(flight.riser),
+        flight.cells,
+        params.width,
+        clicks_text(flight.total)
+    );
+    if flight.applied.created > 0 {
+        let _ = write!(
+            out,
+            "\n{} floor(s) made where the path crossed holes",
+            flight.applied.created
+        );
+    }
+    if flight.applied.skipped > 0 {
+        let _ = write!(
+            out,
+            "\n{} sector(s) outside the room were skipped",
+            flight.applied.skipped
+        );
+    }
+    let _ = CLICK_UNITS;
+    Ok(out)
+}
+
+/// Set whether floors or ceilings are walkable (solid to the character).
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SetWalkableReq {
+    /// Scene index. Omit for the first scene with a grid world.
+    pub scene: Option<usize>,
+    /// Room index. Required when the world has several rooms.
+    pub room: Option<usize>,
+    /// `floor` (default) or `ceiling`.
+    pub kind: Option<Surface>,
+    /// The rectangle of WORLD sectors.
+    #[serde(flatten)]
+    pub cells: Cells,
+    /// `false` makes a ghost: a floor you fall through, a ceiling that does
+    /// not stop the head. `true` restores it.
+    pub walkable: bool,
+}
+
+/// Apply [`SetWalkableReq`].
+pub fn set_walkable(world: &mut GridWorld, req: &SetWalkableReq) -> Result<String, String> {
+    use psxed_project::grid::edit::FaceRef;
+    let room = pick_room(world, req.room)?;
+    let rect = req.cells.rect();
+    check_rect(&rect)?;
+    let kind = req.kind.unwrap_or(Surface::Floor);
+    let (mut changed, mut missing) = (0usize, 0usize);
+    for cell in rect.cells() {
+        let face = match kind {
+            Surface::Floor => FaceRef::floor(room, cell),
+            Surface::Ceiling => FaceRef::ceiling(room, cell),
+        };
+        match face.surface_mut(world) {
+            Some(s) => {
+                changed += usize::from(s.walkable != req.walkable);
+                s.walkable = req.walkable;
+            }
+            None => missing += 1,
+        }
+    }
+    Ok(format!(
+        "room {room}: {changed} {} sector(s) now {}walkable; {missing} sector(s) had none",
+        kind.kind().label(),
+        if req.walkable { "" } else { "NOT " }
+    ))
+}
+
+/// Read the walkability analysis.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct WalkabilityReq {
+    /// Scene index. Omit for the first scene with a grid world.
+    pub scene: Option<usize>,
+    /// Only this room (the map and the lists). Omit for every room.
+    pub room: Option<usize>,
+}
+
+/// The walkability analysis, as text: counts, a map and the flagged edges.
+pub fn walkability(
+    world: &GridWorld,
+    project: &ProjectDocument,
+    req: &WalkabilityReq,
+) -> Result<String, String> {
+    let spawns = walk::player_spawns(project, world);
+    let a = analyse(world, &spawns, &WalkLimits::DEFAULT)
+        .ok_or("the world's scale cannot be cooked")?;
+    let c = a.counts();
+    let mut out = format!(
+        "Walkability with the character motor's numbers: step up {} ru, body {} ru, steepest floor normal {:.3} (1 click = {} ru).\n{} too steep, {} low headroom, {} step(s) taller than the body climbs, {} drop(s) to nothing, {} unreachable. ",
+        a.limits.step_up,
+        a.limits.body_height,
+        f32::from(a.limits.min_floor_normal_y_q12) / 4096.0,
+        a.click_ru,
+        c[0], c[1], c[2], c[3], c[4]
+    );
+    out.push_str(&if a.reach_ran {
+        format!("Reachability ran from {} spawn(s).\n", spawns.len())
+    } else {
+        "Reachability did not run: no player spawn stands on a standable floor.\n".to_string()
+    });
+    out.push_str("Map: . walkable, S steep, L low headroom, G ghost floor, U unreachable, blank no floor. North (-Z) at the top.\n");
+    for (ri, (room, walk_room)) in world.rooms.iter().zip(&a.rooms).enumerate() {
+        if req.room.is_some_and(|r| r != ri) {
+            continue;
+        }
+        let _ = writeln!(
+            out,
+            "room {ri} ({} x {}, origin {:?}):",
+            room.width, room.depth, room.origin
+        );
+        for z in 0..room.depth as i32 {
+            let mut line = String::new();
+            for x in 0..room.width as i32 {
+                let cell = [room.origin[0] + x, room.origin[1] + z];
+                line.push(match walk_room.cell(cell) {
+                    None => ' ',
+                    Some(w) if w.steep => 'S',
+                    Some(w) if w.low_headroom => 'L',
+                    Some(w) if w.ghost => 'G',
+                    Some(w) if w.unreachable => 'U',
+                    Some(_) => '.',
+                });
+            }
+            let _ = writeln!(out, "  z{:>3} {line}", room.origin[1] + z);
+        }
+    }
+    let flagged: Vec<_> = a
+        .edges
+        .iter()
+        .filter(|e| req.room.is_none_or(|r| r == e.room))
+        .collect();
+    if flagged.len() > 30 {
+        out.push_str("(only the first 30 flagged edges are listed)\n");
+    }
+    for e in flagged.into_iter().take(30) {
+        let _ = writeln!(
+            out,
+            "{} room {} sector {:?} {} edge{}",
+            match e.kind {
+                EdgeKind::StepTooTall => "step too tall:",
+                EdgeKind::Drop => "drop:",
+            },
+            e.room,
+            e.cell,
+            e.edge.label(),
+            if e.delta_ru > 0 {
+                format!(" ({} ru)", e.delta_ru)
+            } else {
+                String::new()
+            }
+        );
+    }
+    Ok(out)
+}
+
+/// Read the performance heatmap model.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct HeatmapReq {
+    /// Scene index. Omit for the first scene with a grid world.
+    pub scene: Option<usize>,
+    /// Only this room. Omit for every room.
+    pub room: Option<usize>,
+    /// Sample every n-th sector (default 1, finest).
+    pub stride: Option<u32>,
+    /// Yaws sampled per spot (default 8).
+    pub yaws: Option<u32>,
+    /// Cycles the frame spends outside the world (default 528000: 470000
+    /// player plus 58000 sky).
+    pub reserve: Option<u32>,
+}
+
+/// The heatmap, as text: the model's labels, the budget, percentiles, a map in
+/// tenths of the world budget and the hottest spots.
+pub fn heat(world: &GridWorld, req: &HeatmapReq) -> Result<String, String> {
+    let defaults = HeatOptions::default();
+    let options = HeatOptions {
+        stride: req.stride.unwrap_or(1).max(1),
+        yaws: req.yaws.unwrap_or(8).clamp(1, 32),
+        reserve: req.reserve.unwrap_or(defaults.reserve),
+        ..defaults
+    };
+    let map = heatmap(world, options)?;
+    let budget = options.world_budget();
+    let mut out = format!(
+        "PERFORMANCE MODEL, not a measurement: cost = visible quads x {} + near-plane quads x {} cycles, worst of {} yaws, over a world budget of {} cycles (1,128,960 per 30 fps frame minus {} reserved for player and sky). The camera is the player's spot lifted {} ru and pulled back {} ru (held by the edge of the floor); wall records, pitch and portal views are not modelled.\n{} spot(s) over {} quad(s); cook {:.0} ms, sampling {:.0} ms.\n",
+        options.per_quad, options.per_near_quad, options.yaws, budget, options.reserve, options.eye, options.arm,
+        map.samples.len(), map.quads_total, map.cook_ms, map.sample_ms
+    );
+    let pct = |c: u32| c as f32 * 100.0 / budget as f32;
+    let _ = writeln!(
+        out,
+        "modelled world cycles: p50 {} ({:.0}%), p90 {} ({:.0}%), max {} ({:.0}%); quads p50 {}, p90 {}",
+        map.percentile(50), pct(map.percentile(50)),
+        map.percentile(90), pct(map.percentile(90)),
+        map.percentile(100), pct(map.percentile(100)),
+        map.quads_percentile(50), map.quads_percentile(90),
+    );
+    if let Some(w) = map.worst() {
+        let _ = writeln!(
+            out,
+            "worst spot: room {} sector {:?}, yaw {}/{}: {} quads ({} near) = {} cycles, {:.0}% of the world budget",
+            w.room, w.cell, w.yaw, options.yaws, w.quads, w.near, w.cycles, pct(w.cycles)
+        );
+    }
+    out.push_str("Map in tenths of the world budget (0 to 9, + at 100% or more, blank no spot). North (-Z) at the top.\n");
+    for (ri, room) in world.rooms.iter().enumerate() {
+        if req.room.is_some_and(|r| r != ri) {
+            continue;
+        }
+        let _ = writeln!(out, "room {ri}:");
+        for z in 0..room.depth as i32 {
+            let mut line = String::new();
+            for x in 0..room.width as i32 {
+                let cell = [room.origin[0] + x, room.origin[1] + z];
+                line.push(match map.at(ri, cell) {
+                    None => ' ',
+                    Some(s) => {
+                        let tenths = (map.heat(s) * 10.0) as u32;
+                        if tenths >= 10 {
+                            '+'
+                        } else {
+                            char::from(b'0' + tenths as u8)
+                        }
+                    }
+                });
+            }
+            let _ = writeln!(out, "  z{:>3} {line}", room.origin[1] + z);
+        }
+    }
+    let mut hot: Vec<_> = map
+        .samples
+        .iter()
+        .filter(|s| req.room.is_none_or(|r| r == s.room))
+        .collect();
+    hot.sort_by_key(|s| core::cmp::Reverse(s.cycles));
+    out.push_str("hottest spots:\n");
+    for s in hot.iter().take(8) {
+        let _ = writeln!(
+            out,
+            "  room {} sector {:?}: {} quads, {} near, {:.0}%",
+            s.room,
+            s.cell,
+            s.quads,
+            s.near,
+            pct(s.cycles)
+        );
+    }
+    Ok(out)
+}

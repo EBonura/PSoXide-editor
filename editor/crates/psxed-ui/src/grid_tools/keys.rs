@@ -10,18 +10,16 @@ use super::*;
 use psxed_project::grid::edit::Transform;
 use psxed_project::grid::{CLICK_UNITS, FINE_UNITS};
 
-use super::{bands_tool, clipboard_tool, height_tool, plane_tool, select_tool};
+use super::{bands_tool, clipboard_tool, height_tool, plane_tool, select_tool, verb_tool};
 
-/// Keys the level verbs (design: `docs/grid/level-tools-design.md`, 7.12)
-/// will take, kept free of other meanings now: U Raise, S Sculpt, A Ramp,
-/// T Stairs, B Room, K Corridor, I Opening, Y Stamps (E is the Bands tool).
-/// Alt+W and Alt+P are the overlays; N is the Plane tool.
+/// Keys the level verbs still to come (design: `docs/grid/level-tools-design.md`,
+/// 7.12) will take, kept free of other meanings now: S Sculpt, B Room,
+/// K Corridor, I Opening, Y Stamps. U Raise, A Ramp and T Stairs are tools
+/// now; E is the Bands tool and N the Plane tool. Alt+W and Alt+P are the
+/// overlays.
 #[cfg(test)]
-pub(crate) const RESERVED_VERB_KEYS: [egui::Key; 8] = [
-    egui::Key::U,
+pub(crate) const RESERVED_VERB_KEYS: [egui::Key; 5] = [
     egui::Key::S,
-    egui::Key::A,
-    egui::Key::T,
     egui::Key::B,
     egui::Key::K,
     egui::Key::I,
@@ -51,6 +49,13 @@ impl EditorWorkspace {
         }
         if consume_paste_shortcut(ctx) {
             clipboard_tool::begin_paste(self);
+        }
+        // The overlays: Alt+W walkability, Alt+P performance.
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::ALT, egui::Key::W)) {
+            self.toggle_walk_overlay();
+        }
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::ALT, egui::Key::P)) {
+            self.toggle_perf_overlay();
         }
         let modifiers = ctx.input(|i| i.modifiers);
         if modifiers.command || modifiers.ctrl || modifiers.alt {
@@ -89,6 +94,8 @@ impl EditorWorkspace {
         if pressed(ctx, egui::Key::Escape) {
             if plane_tool::cancel(self) || bands_tool::cancel(self) {
                 self.status = "Cancelled".to_string();
+            } else if verb_tool::cancel(self) {
+                // A verb drag, a pick in flight or the region itself.
             } else if !matches!(self.grid.gesture, Gesture::Idle) {
                 // Undo whatever a height drag already did.
                 if let Gesture::Height(g) = std::mem::take(&mut self.grid.gesture) {
@@ -123,6 +130,8 @@ impl EditorWorkspace {
             } else if self.grid.tool == GridTool::Wall {
                 self.grid.wall_dir = self.grid.wall_dir.next();
                 self.status = format!("Wall direction: {}", self.grid.wall_dir.label());
+            } else if self.grid.tool == GridTool::Ramp {
+                super::ramp_tool::turn(self);
             }
         }
         if pressed(ctx, egui::Key::L) {
@@ -132,6 +141,23 @@ impl EditorWorkspace {
             } else {
                 "Vertices unlinked".to_string()
             };
+        }
+        if self.grid.tool.is_verb() {
+            if pressed(ctx, egui::Key::Tab) {
+                verb_tool::toggle_mode(self);
+            }
+            if pressed(ctx, egui::Key::Enter) {
+                if self.grid.tool == GridTool::Stairs {
+                    super::stairs_tool::keep_path(self);
+                }
+                verb_tool::finish_path(self);
+            }
+            for (key, delta) in [(egui::Key::CloseBracket, 1), (egui::Key::OpenBracket, -1)] {
+                if pressed(ctx, key) {
+                    verb_tool::adjust_size(self, delta);
+                }
+            }
+            return;
         }
         // Keyboard height nudges: a click, or a fine step with Shift.
         for (key, sign) in [

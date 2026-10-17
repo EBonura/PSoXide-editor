@@ -286,6 +286,13 @@ pub fn set_heights(world: &mut GridWorld, req: &SetHeightsReq) -> Result<String,
             }
         }
     }
+    // Surfaces that follow their heights choose their diagonal again.
+    let mut resplit = 0usize;
+    for face in &touched {
+        if let Some(surface) = face.surface_mut(world) {
+            resplit += usize::from(psxed_project::grid::auto_split::resplit(surface));
+        }
+    }
     let mut bent = 0usize;
     for face in &touched {
         if let Some(surface) = face.surface(world) {
@@ -311,6 +318,11 @@ pub fn set_heights(world: &mut GridWorld, req: &SetHeightsReq) -> Result<String,
             req.kind.kind().label()
         ));
     }
+    if resplit > 0 {
+        out.push_str(&format!(
+            "\n{resplit} surface(s) chose a new diagonal (auto split; grid_set_split with auto false locks one)"
+        ));
+    }
     if bent > 0 {
         out.push_str(&format!(
             "\n{bent} surface(s) are now bent (not planar): the split diagonal decides which way they fold; grid_set_split flips it"
@@ -333,6 +345,12 @@ pub struct SetSplitReq {
     pub cells: Cells,
     /// `nw_se`, `ne_sw`, or `flip` (default).
     pub split: Option<String>,
+    /// `true` makes the surfaces choose their own diagonal from their
+    /// heights from now on (the diagonal whose two end corners are closest in
+    /// height; planar and split-level surfaces keep theirs) and re-splits them
+    /// now; `split` is then ignored. `false` locks them to a diagonal chosen
+    /// by hand, which is what a manual `split` or flip does anyway.
+    pub auto: Option<bool>,
 }
 
 /// Apply [`SetSplitReq`].
@@ -353,6 +371,16 @@ pub fn set_split(world: &mut GridWorld, req: &SetSplitReq) -> Result<String, Str
             Surface::Floor => FaceRef::floor(room, cell),
             Surface::Ceiling => FaceRef::ceiling(room, cell),
         };
+        if req.auto == Some(true) {
+            match face.surface_mut(world) {
+                Some(surface) => {
+                    surface.auto_split = true;
+                    changed += usize::from(psxed_project::grid::auto_split::resplit(surface));
+                }
+                None => missing += 1,
+            }
+            continue;
+        }
         let Some(current) = face.surface(world).map(|s| s.split) else {
             missing += 1;
             continue;
@@ -360,6 +388,18 @@ pub fn set_split(world: &mut GridWorld, req: &SetSplitReq) -> Result<String, Str
         if want.is_none_or(|w| w != current) && toggle_split(world, face) {
             changed += 1;
         }
+        if req.auto == Some(false) {
+            if let Some(surface) = face.surface_mut(world) {
+                surface.auto_split = false;
+            }
+        }
+    }
+    if req.auto == Some(true) {
+        return Ok(format!(
+            "room {room}: {} sector(s) now choose their own diagonal; {changed} changed it, {missing} had no {}",
+            req.kind.kind().label(),
+            req.kind.kind().label()
+        ));
     }
     Ok(format!(
         "room {room}: flipped the diagonal of {changed} {}(s); {missing} sector(s) had none",
@@ -556,6 +596,7 @@ mod tests {
                 kind: Surface::Floor,
                 cells: cells([0, 0], [1, 1]),
                 split: Some("ne_sw".into()),
+                auto: None,
             },
         )
         .unwrap();
@@ -568,6 +609,7 @@ mod tests {
                 kind: Surface::Floor,
                 cells: cells([0, 0], [1, 1]),
                 split: Some("ne_sw".into()),
+                auto: None,
             },
         )
         .unwrap();
