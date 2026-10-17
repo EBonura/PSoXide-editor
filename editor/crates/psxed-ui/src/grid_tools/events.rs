@@ -115,21 +115,26 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
         (GridTool::Bands, Ev::Release) => bands_tool::release(ws),
         (GridTool::Bands, Ev::Click) => bands_tool::click(ws, &ptr),
 
-        (GridTool::Raise | GridTool::Ramp | GridTool::Stairs, Ev::Hover) => {
-            verb_tool::hover(ws, &ptr)
-        }
-        (GridTool::Raise | GridTool::Ramp | GridTool::Stairs, Ev::Press) => {
-            verb_tool::press(ws, &ptr)
-        }
-        (GridTool::Raise | GridTool::Ramp | GridTool::Stairs, Ev::Drag) => {
-            verb_tool::drag(ws, &ptr)
-        }
-        (GridTool::Raise | GridTool::Ramp | GridTool::Stairs, Ev::Release) => {
-            verb_tool::release(ws)
-        }
-        (GridTool::Raise | GridTool::Ramp | GridTool::Stairs, Ev::Click) => {
-            verb_tool::click(ws, &ptr)
-        }
+        (
+            GridTool::Raise | GridTool::Ramp | GridTool::Stairs | GridTool::Break | GridTool::Rough,
+            Ev::Hover,
+        ) => verb_tool::hover(ws, &ptr),
+        (
+            GridTool::Raise | GridTool::Ramp | GridTool::Stairs | GridTool::Break | GridTool::Rough,
+            Ev::Press,
+        ) => verb_tool::press(ws, &ptr),
+        (
+            GridTool::Raise | GridTool::Ramp | GridTool::Stairs | GridTool::Break | GridTool::Rough,
+            Ev::Drag,
+        ) => verb_tool::drag(ws, &ptr),
+        (
+            GridTool::Raise | GridTool::Ramp | GridTool::Stairs | GridTool::Break | GridTool::Rough,
+            Ev::Release,
+        ) => verb_tool::release(ws),
+        (
+            GridTool::Raise | GridTool::Ramp | GridTool::Stairs | GridTool::Break | GridTool::Rough,
+            Ev::Click,
+        ) => verb_tool::click(ws, &ptr),
     }
 }
 

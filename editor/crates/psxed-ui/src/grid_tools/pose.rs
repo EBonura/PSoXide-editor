@@ -8,7 +8,8 @@
 //!
 //! Commands (cells are world sectors, `x,z`):
 //!
-//! * `tool=select|floor|ceiling|wall|height|paint|split|place`
+//! * `tool=select|floor|ceiling|wall|height|paint|split|place|bands|raise|ramp|stairs|break|rough`
+//!   (the tool labels, any case)
 //! * `room=N` the active room; `hide=N` hides room N
 //! * `help` opens the key help overlay
 //! * `select=cells:x0,z0:x1,z1`, `select=floors:...`, `select=ceilings:...`,
@@ -33,6 +34,11 @@
 //!   holds Ramp to the steepest walkable slope
 //! * `verb-drag=clicks` a level verb's amount drag in flight at `clicks`
 //!   (the active verb tool and its region)
+//! * `break-drag=intensity[:seed]` a Break drag in flight on the region at
+//!   `intensity` (0 to 100), with `seed` when given (the seed of the Break
+//!   option row otherwise); switches to the Break tool
+//! * `rough-drag=level` a Rough drag in flight on the region at `level`
+//!   (0 to 3); switches to the Rough tool
 //! * `triangle-drag=x,z,tri,clicks` a Height tool triangle drag in flight on
 //!   the floor of sector `x,z` (ceiling when it has no floor): `tri` is `0` or
 //!   `a` for triangle A, `1` or `b` for B
@@ -48,7 +54,7 @@
 
 use super::*;
 
-use super::triangle_tool;
+use super::{break_tool, rough_tool, triangle_tool};
 use psxed_project::grid::edit::verbs::ramp::RampDir;
 use psxed_project::grid::edit::{
     faces_of_cell, wall_gap, CellRect, CornerRef, EdgeRef, FaceRef, FaceTarget, GridClipboard,
@@ -177,6 +183,24 @@ impl EditorWorkspace {
                 });
             }
             "ramp-clamp" => self.grid.verb.ramp_clamp = true,
+            "break-drag" => {
+                let (intensity, seed) = match value.split_once(':') {
+                    Some((i, seed)) => (i, Some(seed.parse::<u32>().map_err(|e| e.to_string())?)),
+                    None => (value, None),
+                };
+                let intensity = intensity.parse::<i32>().map_err(|e| e.to_string())?;
+                if self.grid.tool != GridTool::Break {
+                    self.set_grid_tool(GridTool::Break);
+                }
+                break_tool::pose_drag(self, intensity, seed)?;
+            }
+            "rough-drag" => {
+                let level = value.parse::<i32>().map_err(|e| e.to_string())?;
+                if self.grid.tool != GridTool::Rough {
+                    self.set_grid_tool(GridTool::Rough);
+                }
+                rough_tool::pose_drag(self, level)?;
+            }
             "triangle-drag" => {
                 let parts: Vec<&str> = value.split(',').map(str::trim).collect();
                 let [x, z, tri, clicks] = parts[..] else {

@@ -19,6 +19,10 @@ fn place_snaps_to_the_sector_centre_then_the_fine_lattice_then_not_at_all() {
     // A point 0.3 sector across a cell, in editor units (scale 1:1).
     let at = |rig: &GridRig| rig.top_at(2.0 * S + 0.3 * S, 2.0 * S + 0.71 * S);
     let mut rig = GridRig::top("snap-place", flat_project(5, 5, false));
+    // The strip and the Place options wrap over two lines now that there are
+    // fifteen tools: let the layout settle before reading screen positions.
+    rig.tool(GridTool::Place);
+    rig.pump(vec![], egui::Modifiers::NONE);
     let pos = at(&rig);
     assert_eq!(
         spot_at(&mut rig, pos, egui::Modifiers::NONE),

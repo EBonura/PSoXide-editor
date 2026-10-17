@@ -77,6 +77,10 @@ const PLANE: Rows = &[
 const HEIGHT: Rows = &[
     ("Drag", "Raise or lower a vertex, edge or face"),
     ("Alt", "Fine step (64 units instead of 256)"),
+    (
+        "Alt+drag a floor or ceiling face",
+        "Move one triangle of it: the surface becomes split-level and a diagonal wall shows between the halves live; Shift is the fine step in this gesture, Esc undoes it",
+    ),
     ("L", "Link or unlink corners that share a position"),
     (
         "PgUp / PgDn, ] / [",
@@ -123,8 +127,16 @@ const RAISE: Rows = &[
         "Pick a rectangle of sectors, or one with a click; Shift adds to the region",
     ),
     (
-        "Brush, Path (option row)",
-        "Paint sectors with a disc, or click waypoints and press Enter; [ and ] change the radius or width",
+        "Brush, Path, Lasso (option row)",
+        "Paint sectors with a disc, click waypoints and press Enter, or click the corners of a shape: [ and ] change the radius or width",
+    ),
+    (
+        "Lasso: click corners, Enter",
+        "Enter closes the shape into the sectors whose centres lie inside it; Shift snaps each new segment to 45 degrees and whole sectors, Esc drops the shape",
+    ),
+    (
+        "Cut corners (Raise option row)",
+        "Crack the outer triangle of the region's convex corners down by the last raise (a click if none): a plateau with 45 degree corners, one undo step",
     ),
     (
         "Press on the region, drag",
@@ -177,6 +189,44 @@ const STAIRS: Rows = &[
         "Slope every tread instead of stepping; also the answer to a refused, too steep flight",
     ),
 ];
+const BREAK: Rows = &[
+    (
+        "Pick a region, press on it, drag up",
+        "The intensity, 0 to 100: lips crumble, plateau edges bite, floor tiles tilt and crack, the derived faces appear live. Release commits as one undo step",
+    ),
+    (
+        "Tab",
+        "Cycle what is broken: walls and floor, walls, floor, ceiling, all",
+    ),
+    (
+        "Shift+X",
+        "Re-roll: the next seed, live while dragging; the seed shows in the option row and can be typed. The same seed always gives the same result",
+    ),
+    ("Enter", "Commit where the drag is"),
+    ("Esc", "Put the document back exactly"),
+    (
+        "Option row",
+        "Targets, Keep walkable (refuses changes that cut a route, make a step too tall, a floor too steep or headroom too low), Fine or Click steps, amplitude, Mix materials, rough level, seed, a typed intensity",
+    ),
+    (
+        "Alt+W",
+        "Keeps working while you drag: the status line counts what the walkability mask refused",
+    ),
+];
+const ROUGH: Rows = &[
+    (
+        "Pick a region, press on it, drag up",
+        "The rock level, 0 to 3, about 24 pixels a level, from the level the region holds now; Enter or the release commits as one undo step, Esc puts it back",
+    ),
+    (
+        "Option row, Rooms panel",
+        "The room's seed, the three amplitudes in grid units (with the runtime units beside them, orange over 4) and the tint percent",
+    ),
+    (
+        "What it does",
+        "Jitters the corners of the faces of rough sectors in the render only; collision stays on the grid",
+    ),
+];
 const OVERLAYS: Rows = &[
     (
         "Alt+W, Walk button",
@@ -189,6 +239,10 @@ const OVERLAYS: Rows = &[
 ];
 const OTHER: Rows = &[
     ("Split (D)", "Click a floor or ceiling to flip its diagonal"),
+    (
+        "Split: Shift+click",
+        "Void or restore the triangle under the pointer: the other half closes itself with a diagonal wall",
+    ),
     (
         "Place (O)",
         "Click to put the chosen node at a sector centre; Alt for the fine lattice, Shift+Alt for free placement",
@@ -209,8 +263,8 @@ const SNAP: Rows = &[
         "Free movement where a tool can leave the lattice (planes, Place)",
     ),
     (
-        "S B K I Y",
-        "Reserved for the level verbs still to come: Sculpt, Room, Corridor, Opening, Stamps",
+        "S B K I Y G",
+        "Reserved for the level verbs still to come: Sculpt, Room, Corridor, Opening, Stamps, Vault",
     ),
     (
         "Alt+W, Alt+P",
@@ -255,7 +309,7 @@ impl EditorWorkspace {
             return;
         }
         let mut open = true;
-        let sections: [(&str, Rows); 14] = [
+        let sections: [(&str, Rows); 16] = [
             ("Select (V)", SELECT),
             ("Floor (F) and Ceiling (C)", FLOOR),
             ("Wall (W)", WALL),
@@ -266,6 +320,8 @@ impl EditorWorkspace {
             ("Raise (U)", RAISE),
             ("Ramp (A)", RAMP),
             ("Stairs (T)", STAIRS),
+            ("Break (X)", BREAK),
+            ("Rough (M)", ROUGH),
             ("Overlays", OVERLAYS),
             ("More", OTHER),
             ("Snapping and reserved keys", SNAP),
@@ -280,7 +336,7 @@ impl EditorWorkspace {
             .show(ctx, |ui| {
                 ui.set_width(1500.0_f32.min(ctx.screen_rect().width() - 60.0));
                 ui.label(
-                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, P Paint, D Split, O Place, E Bands | U Raise, A Ramp, T Stairs")
+                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, P Paint, D Split, O Place, E Bands | U Raise, A Ramp, T Stairs, X Break, M Rough")
                         .color(STUDIO_TEXT_WEAK),
                 );
                 ui.add_space(4.0);

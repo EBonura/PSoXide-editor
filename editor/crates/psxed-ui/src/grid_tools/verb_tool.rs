@@ -241,8 +241,25 @@ pub(super) fn click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     }
 }
 
+/// Enter during a Break or Rough drag: commit it where it is (the release
+/// that follows does nothing more). Returns whether there was one.
+fn commit_live(ws: &mut EditorWorkspace) -> bool {
+    let live = matches!(
+        &ws.grid.gesture,
+        Gesture::Verb(g) if matches!(g.drag, VerbDrag::Break(_) | VerbDrag::Rough(_))
+    );
+    if live {
+        ws.grid.gesture = Gesture::Idle;
+        ws.status = format!("{} (committed)", ws.status);
+    }
+    live
+}
+
 /// Enter: the path in progress is finished; the next click starts a new one.
 pub(super) fn finish_path(ws: &mut EditorWorkspace) -> bool {
+    if commit_live(ws) {
+        return true;
+    }
     if super::lasso::close(ws) {
         return true;
     }
@@ -264,9 +281,24 @@ pub(super) fn finish_path(ws: &mut EditorWorkspace) -> bool {
 pub(super) fn cancel(ws: &mut EditorWorkspace) -> bool {
     match std::mem::take(&mut ws.grid.gesture) {
         Gesture::Verb(g) => {
-            // A recorded step means the document changed: take it back.
-            if g.before.is_none() && g.amount != 0 {
-                ws.do_undo();
+            match g.drag {
+                // These keep the document they began from: put it back
+                // as it was, byte for byte.
+                VerbDrag::Break(live) if live.recorded() => {
+                    ws.project = *live.start;
+                    ws.grid_changed();
+                }
+                VerbDrag::Rough(live) if live.recorded() => {
+                    ws.project = *live.start;
+                    ws.grid_changed();
+                }
+                VerbDrag::Break(_) | VerbDrag::Rough(_) => {}
+                // A recorded step means the document changed: take it back.
+                _ => {
+                    if g.before.is_none() && g.amount != 0 {
+                        ws.do_undo();
+                    }
+                }
             }
             ws.status = "Cancelled".to_string();
             true
@@ -317,6 +349,8 @@ fn begin_amount(ws: &mut EditorWorkspace, ptr: &GridPointer, room: usize, cell: 
         GridTool::Raise => begin_raise(ws, ptr, room, cell),
         GridTool::Ramp => super::ramp_tool::begin(ws, ptr, room, cell),
         GridTool::Stairs => super::stairs_tool::begin(ws, ptr, room, cell),
+        GridTool::Break => super::break_tool::begin(ws, ptr, room, cell),
+        GridTool::Rough => super::rough_tool::begin(ws, ptr, room, cell),
         _ => false,
     }
 }
@@ -433,7 +467,11 @@ fn update_amount(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     let Gesture::Verb(mut g) = std::mem::take(&mut ws.grid.gesture) else {
         return;
     };
-    let mut amount = snapped_amount(&g, ptr);
+    let mut amount = match &g.drag {
+        VerbDrag::Break(_) => super::break_tool::intensity_at(&g, ptr),
+        VerbDrag::Rough(live) => super::rough_tool::level_at(&g, live, ptr),
+        _ => snapped_amount(&g, ptr),
+    };
     if matches!(g.drag, VerbDrag::Ramp(_)) {
         amount = super::ramp_tool::clamp(ws, amount, g.max_rise);
     }
@@ -450,13 +488,23 @@ pub(super) fn apply_amount(ws: &mut EditorWorkspace, g: &mut VerbGesture) {
     if let Some(before) = g.before.take() {
         ws.history.record(*before);
     }
+    // Break and Rough keep the document they started from (for the exact
+    // cancel) and record it for undo at their first change.
+    let first = match &mut g.drag {
+        VerbDrag::Break(live) => live.take_record(),
+        VerbDrag::Rough(live) => live.take_record(),
+        _ => None,
+    };
+    if let Some(document) = first {
+        ws.history.record(document);
+    }
     if matches!(g.drag, VerbDrag::Ramp(_)) {
         g.amount = super::ramp_tool::clamp(ws, g.amount, g.max_rise);
     }
     let Some(world) = ws.project.active_scene_mut().world.grid_mut() else {
         return;
     };
-    let line = match &g.drag {
+    let line = match &mut g.drag {
         VerbDrag::Raise(drag) => {
             let applied = drag.apply(world, g.amount);
             if g.amount != 0 {
@@ -483,6 +531,14 @@ pub(super) fn apply_amount(ws: &mut EditorWorkspace, g: &mut VerbGesture) {
             let flight = drag.apply(world, g.amount);
             super::stairs_tool::readout(world, &flight, g.amount)
         }
+        VerbDrag::Break(live) => {
+            let (line, detail) = super::break_tool::apply(world, live, g.amount);
+            ws.grid.verb.readout = detail;
+            ws.status = line;
+            ws.grid_changed();
+            return;
+        }
+        VerbDrag::Rough(live) => super::rough_tool::apply(world, live, g.amount),
     };
     ws.grid.verb.readout = line.clone();
     ws.status = line;
@@ -513,6 +569,10 @@ fn counts_text(applied: &psxed_project::grid::edit::verbs::Applied, mode: &str) 
 
 /// Tab: the other Raise mode, live when a drag is in flight.
 pub(super) fn toggle_mode(ws: &mut EditorWorkspace) {
+    if ws.grid.tool == GridTool::Break {
+        super::break_tool::cycle_targets(ws);
+        return;
+    }
     if ws.grid.tool == GridTool::Stairs {
         super::stairs_tool::toggle_ramp(ws);
         return;
@@ -587,6 +647,11 @@ pub(super) fn adjust_size(ws: &mut EditorWorkspace, delta: i32) {
 
 /// The typed amount of the option row, applied to the region in one step.
 pub(crate) fn apply_typed(ws: &mut EditorWorkspace) {
+    match ws.grid.tool {
+        GridTool::Break => return super::break_tool::apply_typed(ws),
+        GridTool::Rough => return super::rough_tool::apply_typed(ws),
+        _ => {}
+    }
     let amount = snap_to(
         (ws.grid.verb.typed_clicks * CLICK_UNITS as f32).round() as i32,
         FINE_UNITS,

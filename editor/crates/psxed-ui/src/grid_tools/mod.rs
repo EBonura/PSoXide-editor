@@ -26,6 +26,7 @@ use psxed_project::grid::{GridPlane, PlaneCollision, WallEdge};
 mod analysis;
 mod band_panel;
 mod bands_tool;
+mod break_tool;
 mod clipboard_tool;
 mod cycle;
 pub(crate) mod events;
@@ -49,6 +50,8 @@ mod ramp_tool;
 mod rect_tool;
 mod rooms;
 mod rooms_walls;
+mod rough_panel;
+mod rough_tool;
 mod rules_panel;
 mod select_tool;
 mod shading_panel;
@@ -98,6 +101,10 @@ pub(crate) enum GridTool {
     Ramp,
     /// Lay a flight of steps along a path.
     Stairs,
+    /// Break the walls, floors and ceilings of a region into natural detail.
+    Break,
+    /// Give a region the rock look: render-only jitter of its faces.
+    Rough,
 }
 
 /// The strip's groups, in order.
@@ -123,7 +130,7 @@ impl ToolGroup {
 
 impl GridTool {
     /// Every tool, in strip order (grouped).
-    pub(crate) const ALL: [Self; 13] = [
+    pub(crate) const ALL: [Self; 15] = [
         Self::Select,
         Self::Height,
         Self::Floor,
@@ -137,13 +144,15 @@ impl GridTool {
         Self::Raise,
         Self::Ramp,
         Self::Stairs,
+        Self::Break,
+        Self::Rough,
     ];
 
     /// The strip group of the tool.
     pub(crate) const fn group(self) -> ToolGroup {
         match self {
             Self::Select | Self::Height => ToolGroup::Pick,
-            Self::Raise | Self::Ramp | Self::Stairs => ToolGroup::Build,
+            Self::Raise | Self::Ramp | Self::Stairs | Self::Break | Self::Rough => ToolGroup::Build,
             _ => ToolGroup::Draw,
         }
     }
@@ -151,7 +160,10 @@ impl GridTool {
     /// Whether the tool is one of the level verbs (region, then verb, then
     /// amount).
     pub(crate) const fn is_verb(self) -> bool {
-        matches!(self, Self::Raise | Self::Ramp | Self::Stairs)
+        matches!(
+            self,
+            Self::Raise | Self::Ramp | Self::Stairs | Self::Break | Self::Rough
+        )
     }
 
     pub(crate) const fn label(self) -> &'static str {
@@ -169,6 +181,8 @@ impl GridTool {
             Self::Raise => "Raise",
             Self::Ramp => "Ramp",
             Self::Stairs => "Stairs",
+            Self::Break => "Break",
+            Self::Rough => "Rough",
         }
     }
 
@@ -187,6 +201,8 @@ impl GridTool {
             Self::Raise => egui::Key::U,
             Self::Ramp => egui::Key::A,
             Self::Stairs => egui::Key::T,
+            Self::Break => egui::Key::X,
+            Self::Rough => egui::Key::M,
         }
     }
 
@@ -205,6 +221,8 @@ impl GridTool {
             Self::Raise => "U",
             Self::Ramp => "A",
             Self::Stairs => "T",
+            Self::Break => "X",
+            Self::Rough => "M",
         }
     }
 
@@ -223,6 +241,8 @@ impl GridTool {
             Self::Raise => icons::ARROW_UP_FROM_LINE,
             Self::Ramp => icons::TRENDING_UP,
             Self::Stairs => icons::STAIRS,
+            Self::Break => icons::HAMMER,
+            Self::Rough => icons::MOUNTAIN,
         }
     }
 
@@ -241,9 +261,13 @@ impl GridTool {
             Self::Plane => {
                 "Click a surface to put a free plane on it; drag to size it. Select a plane to move, turn and stretch it with its handles."
             }
-            Self::Height => "Drag a vertex, edge or face up and down. Alt snaps finer. L unlinks.",
+            Self::Height => {
+                "Drag a vertex, edge or face up and down. Alt snaps finer, Alt+drag a face moves one triangle. L unlinks."
+            }
             Self::Paint => "Click faces to apply the material chosen in the palette. Ctrl samples.",
-            Self::Split => "Click a floor or ceiling to flip its diagonal.",
+            Self::Split => {
+                "Click a floor or ceiling to flip its diagonal. Shift+click voids or restores a triangle."
+            }
             Self::Place => "Click to place the chosen node at a sector centre on the floor.",
             Self::Bands => {
                 "Hover a wall, click to cut it into bands at the rule. Drag a line to move it, Delete removes it, Shift+click picks a band for the palette."
@@ -256,6 +280,12 @@ impl GridTool {
             }
             Self::Stairs => {
                 "Click the waypoints of a flight, Enter finishes, then press on it and drag up or down for the total rise. Each sector is a tread, a turn is a landing. Tab switches steps and ramp."
+            }
+            Self::Break => {
+                "Pick sectors, then press on them and drag up for the intensity: lips crumble, edges bite, tiles crack. Tab changes the target, Shift+X re-rolls the seed, Enter commits, Esc cancels."
+            }
+            Self::Rough => {
+                "Pick sectors, then press on them and drag up for the rock level (0 to 3). The faces jitter in the render only; collision stays on the grid."
             }
         }
     }
@@ -659,7 +689,11 @@ impl EditorWorkspace {
             GridTool::Split => C::Default,
             GridTool::Bands if over => C::PointingHand,
             GridTool::Bands => C::Default,
-            GridTool::Raise | GridTool::Ramp | GridTool::Stairs
+            GridTool::Raise
+            | GridTool::Ramp
+            | GridTool::Stairs
+            | GridTool::Break
+            | GridTool::Rough
                 if self.grid.verb.region.is_some() =>
             {
                 C::ResizeVertical
@@ -668,6 +702,8 @@ impl EditorWorkspace {
             | GridTool::Raise
             | GridTool::Ramp
             | GridTool::Stairs
+            | GridTool::Break
+            | GridTool::Rough
             | GridTool::Ceiling
             | GridTool::Wall
             | GridTool::Plane

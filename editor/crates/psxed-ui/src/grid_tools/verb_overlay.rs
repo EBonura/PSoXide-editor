@@ -84,6 +84,14 @@ fn drag_chip(ws: &EditorWorkspace, world: &GridWorld) -> Option<String> {
     };
     let amount = super::verb_tool::amount_text(world, g.amount);
     Some(match &g.drag {
+        VerbDrag::Break(live) => {
+            return Some(super::break_tool::chip(
+                live,
+                g.amount,
+                ws.grid.verb.brk.targets_label(),
+            ))
+        }
+        VerbDrag::Rough(_) => return Some(super::rough_tool::chip(g.amount)),
         VerbDrag::Raise(d) => {
             let ru = psxed_project::grid::cook::RuntimeUnits::new(world.scale)
                 .map(|u| u.rt(g.amount).abs())

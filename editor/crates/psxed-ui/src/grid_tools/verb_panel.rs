@@ -44,6 +44,8 @@ impl EditorWorkspace {
             GridTool::Raise => self.draw_raise_options(ui),
             GridTool::Ramp => self.draw_ramp_options(ui),
             GridTool::Stairs => self.draw_stairs_options(ui),
+            GridTool::Break => return self.draw_break_options(ui),
+            GridTool::Rough => return self.draw_rough_options(ui),
             _ => {}
         }
         ui.separator();
@@ -59,6 +61,112 @@ impl EditorWorkspace {
         if ui
             .add_enabled(has_region, egui::Button::new("Apply"))
             .on_hover_text("Apply the typed amount to the region as one undo step")
+            .clicked()
+        {
+            super::verb_tool::apply_typed(self);
+        }
+    }
+
+    /// Break: targets, keep walkable, snap, amplitude, material mix, rough
+    /// level, the seed and a typed intensity.
+    fn draw_break_options(&mut self, ui: &mut egui::Ui) {
+        use psxed_project::grid::edit::verbs::break_verb::BreakSnap;
+        ui.label(RichText::new("Break").color(STUDIO_TEXT_WEAK).size(11.0));
+        for (index, (label, _)) in super::break_tool::TARGET_SETS.iter().enumerate() {
+            if ui
+                .selectable_label(self.grid.verb.brk.targets == index, *label)
+                .on_hover_text("What the break touches (Tab cycles)")
+                .clicked()
+            {
+                self.grid.verb.brk.targets = index;
+            }
+        }
+        ui.separator();
+        let brk = &mut self.grid.verb.brk;
+        ui.checkbox(&mut brk.keep_walkable, "Keep walkable")
+            .on_hover_text(
+                "Refuse any change that would add a floor too steep to stand on, a step the character cannot climb, too little headroom, or cut a route off",
+            );
+        for (snap, label, hint) in [
+            (BreakSnap::Fine, "Fine", "Vertical changes in 64 unit steps"),
+            (
+                BreakSnap::Click,
+                "Click",
+                "Vertical changes in 256 unit clicks",
+            ),
+        ] {
+            if ui
+                .selectable_label(brk.snap == snap, label)
+                .on_hover_text(hint)
+                .clicked()
+            {
+                brk.snap = snap;
+            }
+        }
+        ui.add(
+            egui::DragValue::new(&mut brk.amplitude)
+                .range(1..=32)
+                .prefix("amplitude ")
+                .suffix(" fine"),
+        )
+        .on_hover_text("The largest vertical change at intensity 100, in 64 unit fine steps");
+        ui.checkbox(&mut brk.mix_materials, "Mix materials")
+            .on_hover_text("A cracked triangle takes the material of the floor it now borders");
+        ui.add(
+            egui::DragValue::new(&mut brk.jitter)
+                .range(0..=3)
+                .prefix("rough "),
+        )
+        .on_hover_text("Give the broken sectors this rough level (0 leaves them smooth)");
+        ui.separator();
+        ui.add(egui::DragValue::new(&mut brk.seed).speed(1).prefix("seed "))
+            .on_hover_text("Same seed, same result. Shift+X draws the next one");
+        if ui
+            .button("Re-roll")
+            .on_hover_text("The next seed (Shift+X), live while dragging")
+            .clicked()
+        {
+            super::break_tool::reroll(self);
+        }
+        ui.separator();
+        let has_region = self.grid.verb.region.is_some();
+        let brk = &mut self.grid.verb.brk;
+        ui.add(
+            egui::DragValue::new(&mut brk.typed_intensity)
+                .range(0..=100)
+                .suffix(" percent"),
+        )
+        .on_hover_text("A typed intensity");
+        if ui
+            .add_enabled(has_region, egui::Button::new("Apply"))
+            .on_hover_text("Break the region at the typed intensity as one undo step")
+            .clicked()
+        {
+            super::verb_tool::apply_typed(self);
+        }
+    }
+
+    /// Rough: the room's seed, amplitudes and tint, and a typed level.
+    fn draw_rough_options(&mut self, ui: &mut egui::Ui) {
+        let room = self
+            .grid
+            .verb
+            .region
+            .as_ref()
+            .map_or_else(|| self.grid_target_room(), |r| r.room);
+        ui.label(RichText::new("Room").color(STUDIO_TEXT_WEAK).size(11.0));
+        self.draw_rough_params(ui, room, true);
+        ui.separator();
+        let has_region = self.grid.verb.region.is_some();
+        ui.add(
+            egui::DragValue::new(&mut self.grid.verb.rough.typed_level)
+                .range(0..=3)
+                .prefix("level "),
+        )
+        .on_hover_text("A typed rough level, 0 to 3");
+        if ui
+            .add_enabled(has_region, egui::Button::new("Apply"))
+            .on_hover_text("Give the region the typed level as one undo step")
             .clicked()
         {
             super::verb_tool::apply_typed(self);
@@ -267,6 +375,26 @@ impl EditorWorkspace {
                             "stay; floors stop a click under"
                         }
                     ));
+                }
+                if self.grid.tool == GridTool::Break {
+                    let brk = &self.grid.verb.brk;
+                    ui.label(format!(
+                        "Targets: {}, seed {}, amplitude {} fine",
+                        brk.targets_label(),
+                        brk.seed,
+                        brk.amplitude
+                    ));
+                    ui.label(format!(
+                        "Route: {}",
+                        if brk.keep_walkable {
+                            "kept walkable"
+                        } else {
+                            "not checked"
+                        }
+                    ));
+                }
+                if self.grid.tool == GridTool::Rough {
+                    ui.label("Drag up for rougher: levels 0 to 3, render only");
                 }
                 let name = self
                     .grid

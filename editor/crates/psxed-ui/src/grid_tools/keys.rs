@@ -14,16 +14,17 @@ use super::{bands_tool, clipboard_tool, height_tool, plane_tool, select_tool, ve
 
 /// Keys the level verbs still to come (design: `docs/grid/level-tools-design.md`,
 /// 7.12) will take, kept free of other meanings now: S Sculpt, B Room,
-/// K Corridor, I Opening, Y Stamps. U Raise, A Ramp and T Stairs are tools
-/// now; E is the Bands tool and N the Plane tool. Alt+W and Alt+P are the
-/// overlays.
+/// K Corridor, I Opening, Y Stamps, G Vault. U Raise, A Ramp and T Stairs are
+/// tools now, and so are X Break and M Rough; E is the Bands tool and N the
+/// Plane tool. Alt+W and Alt+P are the overlays.
 #[cfg(test)]
-pub(crate) const RESERVED_VERB_KEYS: [egui::Key; 5] = [
+pub(crate) const RESERVED_VERB_KEYS: [egui::Key; 6] = [
     egui::Key::S,
     egui::Key::B,
     egui::Key::K,
     egui::Key::I,
     egui::Key::Y,
+    egui::Key::G,
 ];
 
 fn pressed(ctx: &egui::Context, key: egui::Key) -> bool {
@@ -117,6 +118,15 @@ impl EditorWorkspace {
                 clipboard_tool::delete_selection(self);
             }
         }
+        // Shift+X draws the next Break seed (before the tool keys, which
+        // would take the X whatever Shift says).
+        if pressed_shift(ctx, egui::Key::X) {
+            if self.grid.tool == GridTool::Break {
+                super::break_tool::reroll(self);
+            } else {
+                self.set_grid_tool(GridTool::Break);
+            }
+        }
         // With the free camera's look button held, W and D fly the camera.
         let flying = ctx.input(|i| i.pointer.secondary_down());
         for tool in GridTool::ALL {
@@ -189,7 +199,24 @@ mod tests {
                 tool.label()
             );
         }
-        // N stays the Plane tool.
-        assert_eq!(GridTool::Plane.key(), egui::Key::N);
+        // The letters the planes and natural terrain tools took.
+        for (tool, key) in [
+            (GridTool::Raise, egui::Key::U),
+            (GridTool::Ramp, egui::Key::A),
+            (GridTool::Stairs, egui::Key::T),
+            (GridTool::Bands, egui::Key::E),
+            (GridTool::Plane, egui::Key::N),
+            (GridTool::Break, egui::Key::X),
+            (GridTool::Rough, egui::Key::M),
+        ] {
+            assert_eq!(tool.key(), key, "{}", tool.label());
+            assert!(!RESERVED_VERB_KEYS.contains(&key));
+        }
+        // Every tool has its own key.
+        for (i, a) in GridTool::ALL.iter().enumerate() {
+            for b in &GridTool::ALL[i + 1..] {
+                assert_ne!(a.key(), b.key(), "{} and {}", a.label(), b.label());
+            }
+        }
     }
 }

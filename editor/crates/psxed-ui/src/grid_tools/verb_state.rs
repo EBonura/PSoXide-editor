@@ -67,6 +67,10 @@ pub(crate) enum VerbDrag {
     Raise(RaiseDrag),
     Ramp(RampDrag),
     Stairs(StairsDrag),
+    /// Break: the amount is the intensity, 0 to 100.
+    Break(Box<super::break_tool::BreakLive>),
+    /// Rough: the amount is the level, 0 to 3.
+    Rough(Box<super::rough_tool::RoughLive>),
 }
 
 /// A verb being dragged: the amount follows the pointer's vertical travel.
@@ -130,6 +134,10 @@ pub(crate) struct VerbState {
     pub stairs: StairsParams,
     /// Stairs: the waypoints of the finished path.
     pub stairs_path: Vec<[i32; 2]>,
+    /// Break: its options and the seed of the next break.
+    pub brk: super::break_tool::BreakOptions,
+    /// Rough: its options.
+    pub rough: super::rough_tool::RoughOptions,
     /// The last line a verb reported (amount, counts), for the Inspector.
     pub readout: String,
 }
@@ -157,6 +165,8 @@ impl Default for VerbState {
             ramp_hover: None,
             stairs: StairsParams::default(),
             stairs_path: Vec::new(),
+            brk: super::break_tool::BreakOptions::default(),
+            rough: super::rough_tool::RoughOptions::default(),
             readout: String::new(),
         }
     }

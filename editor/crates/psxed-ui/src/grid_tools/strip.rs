@@ -134,7 +134,11 @@ impl EditorWorkspace {
                 );
             }
             GridTool::Split => {}
-            GridTool::Raise | GridTool::Ramp | GridTool::Stairs => self.draw_verb_options(ui),
+            GridTool::Raise
+            | GridTool::Ramp
+            | GridTool::Stairs
+            | GridTool::Break
+            | GridTool::Rough => self.draw_verb_options(ui),
             GridTool::Bands => {
                 use psxed_project::grid::edit::bands::BandScope;
                 ui.label(RichText::new("Scope").color(STUDIO_TEXT_WEAK).size(11.0));
@@ -227,13 +231,15 @@ impl EditorWorkspace {
             GridTool::Floor => "Drag rectangle | Shift height | Ctrl delete | Esc cancel",
             GridTool::Ceiling => "Drag rectangle | Shift height | Ctrl delete | Esc cancel",
             GridTool::Wall => "Drag a run | R direction | Ctrl remove | Esc cancel",
-            GridTool::Height => "Drag up/down | Alt fine | L link | PgUp/PgDn nudge | Esc cancel",
+            GridTool::Height => "Drag up/down | Alt fine | Alt+drag a face: one triangle | L link | PgUp/PgDn nudge | Esc cancel",
             GridTool::Paint => "Click or drag paint | Ctrl sample | pick in the palette",
-            GridTool::Split => "Click a floor or ceiling | Click again for the ceiling in Top",
+            GridTool::Split => "Click a floor or ceiling flips its diagonal | Shift+click voids a triangle | Click again for the ceiling in Top",
             GridTool::Bands => "Hover a wall, click to cut | Drag a line | Del removes it | Shift+click picks a band | Esc cancel",
             GridTool::Raise => "Pick sectors | Press on them, drag up/down | Tab Offset/Level | Alt fine | Shift add | Esc cancel",
             GridTool::Ramp => "Pick sectors | Press near the side to keep, drag up/down | R turn the side | Tab hold to walkable | Esc cancel",
             GridTool::Stairs => "Click waypoints, Enter | Press on the path, drag up/down | [ ] width | Tab steps/ramp | Esc cancel",
+            GridTool::Break => "Pick sectors | Press on them, drag up for intensity | Tab target | Shift+X re-roll | Enter commit | Esc cancel",
+            GridTool::Rough => "Pick sectors | Press on them, drag up for the level 0-3 | Enter commit | Esc cancel",
             GridTool::Place => "Click to place at the sector centre | Alt 64 | Shift+Alt free",
         }
     }
