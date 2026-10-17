@@ -19,6 +19,8 @@ impl EditorWorkspace {
         ui.add_space(6.0);
         if self.plane_primary().is_some() {
             self.draw_plane_inspector(ui);
+        } else if self.grid.tool == GridTool::Mesh || self.mesh_primary().is_some() {
+            self.draw_mesh_panels(ui);
         } else if self.grid.tool.is_verb() {
             self.draw_verb_inspector(ui);
         } else {
@@ -33,6 +35,10 @@ impl EditorWorkspace {
         let planes = self.apply_material_to_selected_planes(material);
         if planes > 0 {
             return planes;
+        }
+        let meshes = self.apply_material_to_selected_mesh(material);
+        if meshes > 0 {
+            return meshes;
         }
         // A band picked with Shift+click in the Bands tool takes the
         // material instead of the whole wall.

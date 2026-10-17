@@ -104,6 +104,25 @@ impl EditorWorkspace {
                 ui.checkbox(&mut self.grid.new_plane.double_sided, "Both sides")
                     .on_hover_text("New planes draw their back too");
             }
+            GridTool::Mesh => {
+                let name = self
+                    .grid
+                    .mesh_asset
+                    .and_then(|a| {
+                        self.project
+                            .active_scene()
+                            .world
+                            .grid()
+                            .and_then(|w| w.mesh_assets.get(usize::from(a)))
+                            .map(|a| a.name.clone())
+                    })
+                    .unwrap_or_else(|| "none (pick one in the palette)".to_string());
+                ui.label(
+                    RichText::new(format!("Mesh: {name}   heading {}\u{b0}", self.grid.mesh_turn))
+                        .color(STUDIO_TEXT_WEAK)
+                        .size(11.0),
+                );
+            }
             GridTool::Select | GridTool::Height => {
                 ui.toggle_value(&mut self.grid.link, "Link")
                     .on_hover_text("L: coincident corners move together");
@@ -162,7 +181,7 @@ impl EditorWorkspace {
         ui.separator();
         let snap_text = if matches!(self.grid.tool, GridTool::Plane | GridTool::Select)
             && !self.grid.plane_sel.is_empty()
-            || self.grid.tool == GridTool::Plane
+            || matches!(self.grid.tool, GridTool::Plane | GridTool::Mesh)
         {
             format!("Snap {CLICK_UNITS} (Alt {FINE_UNITS}, Shift+Alt free)")
         } else {
@@ -227,6 +246,9 @@ impl EditorWorkspace {
             }
             GridTool::Select => {
                 "Click pick | Shift range | Ctrl toggle | Drag box | Shift-drag height | Del delete | Ctrl+C/V copy"
+            }
+            GridTool::Mesh => {
+                "Click a floor to place the chosen mesh | Drag a mesh to move it | R turn 90, [ ] 15 | Del removes | Alt 64, Shift+Alt free"
             }
             GridTool::Floor => "Drag rectangle | Shift height | Ctrl delete | Esc cancel",
             GridTool::Ceiling => "Drag rectangle | Shift height | Ctrl delete | Esc cancel",

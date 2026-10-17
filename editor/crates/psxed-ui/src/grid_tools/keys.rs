@@ -10,7 +10,7 @@ use super::*;
 use psxed_project::grid::edit::Transform;
 use psxed_project::grid::{CLICK_UNITS, FINE_UNITS};
 
-use super::{bands_tool, clipboard_tool, height_tool, plane_tool, select_tool, verb_tool};
+use super::{bands_tool, clipboard_tool, height_tool, mesh_tool, plane_tool, select_tool, verb_tool};
 
 /// Keys the level verbs still to come (design: `docs/grid/level-tools-design.md`,
 /// 7.12) will take, kept free of other meanings now: S Sculpt, B Room,
@@ -113,10 +113,17 @@ impl EditorWorkspace {
             }
         }
         if pressed(ctx, egui::Key::Delete) || pressed(ctx, egui::Key::Backspace) {
-            // With a band line selected, Delete removes the line.
-            if !(self.grid.tool == GridTool::Bands && bands_tool::delete_line(self)) {
+            // With a mesh selected in the Mesh tool, Delete removes it; with
+            // a band line selected, the line.
+            if self.grid.tool == GridTool::Mesh && mesh_tool::delete_selected(self) {
+            } else if !(self.grid.tool == GridTool::Bands && bands_tool::delete_line(self)) {
                 clipboard_tool::delete_selection(self);
             }
+        }
+        // Shift+N is the Mesh tool (before the tool keys, which would take
+        // the N for the Plane tool whatever Shift says).
+        if pressed_shift(ctx, egui::Key::N) {
+            self.set_grid_tool(GridTool::Mesh);
         }
         // Shift+X draws the next Break seed (before the tool keys, which
         // would take the X whatever Shift says).
@@ -130,7 +137,7 @@ impl EditorWorkspace {
         // With the free camera's look button held, W and D fly the camera.
         let flying = ctx.input(|i| i.pointer.secondary_down());
         for tool in GridTool::ALL {
-            if !flying && pressed(ctx, tool.key()) {
+            if !flying && !tool.shift() && pressed(ctx, tool.key()) {
                 self.set_grid_tool(tool);
             }
         }
@@ -142,6 +149,16 @@ impl EditorWorkspace {
                 self.status = format!("Wall direction: {}", self.grid.wall_dir.label());
             } else if self.grid.tool == GridTool::Ramp {
                 super::ramp_tool::turn(self);
+            } else if self.grid.tool == GridTool::Mesh {
+                mesh_tool::turn(self, 90);
+            }
+        }
+        if self.grid.tool == GridTool::Mesh {
+            if pressed(ctx, egui::Key::OpenBracket) {
+                mesh_tool::turn(self, -15);
+            }
+            if pressed(ctx, egui::Key::CloseBracket) {
+                mesh_tool::turn(self, 15);
             }
         }
         if pressed(ctx, egui::Key::L) {
@@ -215,8 +232,16 @@ mod tests {
         // Every tool has its own key.
         for (i, a) in GridTool::ALL.iter().enumerate() {
             for b in &GridTool::ALL[i + 1..] {
-                assert_ne!(a.key(), b.key(), "{} and {}", a.label(), b.label());
+                assert_ne!(
+                    (a.key(), a.shift()),
+                    (b.key(), b.shift()),
+                    "{} and {}",
+                    a.label(),
+                    b.label()
+                );
             }
         }
+        // Mesh is the chord Shift+N; N alone stays the Plane tool.
+        assert_eq!((GridTool::Mesh.key(), GridTool::Mesh.shift()), (egui::Key::N, true));
     }
 }

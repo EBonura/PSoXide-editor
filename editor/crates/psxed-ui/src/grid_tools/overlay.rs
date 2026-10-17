@@ -297,6 +297,8 @@ impl EditorWorkspace {
             GridHover::None
             | GridHover::Band { .. }
             | GridHover::Plane(_)
+            | GridHover::Mesh(_)
+            | GridHover::MeshSpot { .. }
             | GridHover::Grip(..)
             | GridHover::PlaneSpot(..) => {}
         }
@@ -350,6 +352,7 @@ impl EditorWorkspace {
             }
         }
         self.draw_plane_overlay_2d(painter, transform);
+        self.draw_mesh_overlay_2d(painter, transform);
         self.draw_verb_overlay_2d(painter, transform);
         self.draw_walk_overlay_2d(painter, transform);
         self.draw_heat_overlay_2d(painter, transform);
@@ -588,6 +591,7 @@ impl EditorWorkspace {
             self.draw_paste_ghost_3d(&polygon, world, ghost);
         }
         self.draw_plane_overlay_3d(painter, rect);
+        self.draw_mesh_overlay_3d(painter, rect);
         self.draw_band_overlay_3d(painter, rect);
         self.draw_verb_overlay_3d(painter, rect);
         self.draw_walk_overlay_3d(painter, rect);

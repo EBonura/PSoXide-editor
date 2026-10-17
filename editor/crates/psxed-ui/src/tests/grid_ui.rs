@@ -283,7 +283,7 @@ fn the_question_mark_opens_the_key_help_and_escape_closes_it() {
         &mut ws,
         &ctx,
         true,
-        Vec2::new(1920.0, 1500.0),
+        Vec2::new(1920.0, 2600.0),
     ));
     assert!(open.contains("Grid editor keys"), "{open}");
     assert!(open.contains("Shift+drag"), "{open}");

@@ -14,6 +14,7 @@ use super::*;
 
 use psxed_project::grid::faces::{cell_faces_with, GridFace};
 use psxed_project::grid::light::{bake_face_corners, FacingShade};
+use psxed_project::grid::mesh_faces::{mesh_faces_with, placed as placed_mesh};
 use psxed_project::grid::plane_faces::plane_faces_with;
 use psxed_project::grid::uv::ProjectUvDefaults;
 use psxed_project::grid::uv_split;
@@ -199,6 +200,52 @@ pub(super) fn walk_grid(
             }
             faces.clear();
             plane_faces_with(world, &defaults, room_index, index, &mut faces);
+            for face in &faces {
+                emit_cut_face(
+                    project,
+                    textures,
+                    camera,
+                    world.scale,
+                    face,
+                    room.ambient,
+                    &lights,
+                    world.shading,
+                    scratch,
+                );
+            }
+        }
+        // Placed static meshes, culled by their own boxes, drawn with the
+        // faces (and so the bake) the cook uses.
+        for index in 0..room.meshes.len() {
+            let Some(placed) = placed_mesh(world, room_index, index) else {
+                continue;
+            };
+            let Some((lo, hi)) = placed.mesh.bounds(&placed.built) else {
+                continue;
+            };
+            let scale = world.scale;
+            let y = |v: i32| f64::from(scale.to_editor(room.y_offset + v));
+            let bounds = PreviewCellBounds {
+                min: [
+                    f64::from(scale.to_editor(lo[0])),
+                    y(lo[1]),
+                    f64::from(scale.to_editor(lo[2])),
+                ],
+                max: [
+                    f64::from(scale.to_editor(hi[0])),
+                    y(hi[1]),
+                    f64::from(scale.to_editor(hi[2])),
+                ],
+            };
+            if !preview_cell_bounds_visible(camera, bounds) {
+                continue;
+            }
+            if scratch.geometry_full() {
+                scratch.dropped = scratch.dropped.saturating_add(1);
+                continue;
+            }
+            faces.clear();
+            mesh_faces_with(world, &defaults, room_index, index, &mut faces);
             for face in &faces {
                 emit_cut_face(
                     project,

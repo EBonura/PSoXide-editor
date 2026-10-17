@@ -36,6 +36,9 @@ mod height_tool;
 mod help;
 mod keys;
 mod lasso;
+mod mesh_overlay;
+mod mesh_panel;
+mod mesh_tool;
 mod overlay;
 mod panels;
 pub(crate) mod pick;
@@ -72,7 +75,7 @@ use pick::PickCache;
 pub use rooms::grid_preview_hidden_rooms;
 use view::{GridPointer, GridView};
 
-/// The nine grid tools, in strip order.
+/// The grid tools, in strip order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum GridTool {
     /// Pick, range-select, box-select, shift-drag heights.
@@ -95,6 +98,8 @@ pub(crate) enum GridTool {
     Place,
     /// Cut wall runs into horizontal bands.
     Bands,
+    /// Place, move and turn static meshes (arches, columns, rubble).
+    Mesh,
     /// Raise or lower a region of sectors.
     Raise,
     /// Slope a region from one side to the other.
@@ -130,13 +135,14 @@ impl ToolGroup {
 
 impl GridTool {
     /// Every tool, in strip order (grouped).
-    pub(crate) const ALL: [Self; 15] = [
+    pub(crate) const ALL: [Self; 16] = [
         Self::Select,
         Self::Height,
         Self::Floor,
         Self::Ceiling,
         Self::Wall,
         Self::Plane,
+        Self::Mesh,
         Self::Paint,
         Self::Split,
         Self::Place,
@@ -173,6 +179,7 @@ impl GridTool {
             Self::Ceiling => "Ceiling",
             Self::Wall => "Wall",
             Self::Plane => "Plane",
+            Self::Mesh => "Mesh",
             Self::Height => "Height",
             Self::Paint => "Paint",
             Self::Split => "Split",
@@ -192,7 +199,7 @@ impl GridTool {
             Self::Floor => egui::Key::F,
             Self::Ceiling => egui::Key::C,
             Self::Wall => egui::Key::W,
-            Self::Plane => egui::Key::N,
+            Self::Plane | Self::Mesh => egui::Key::N,
             Self::Height => egui::Key::H,
             Self::Paint => egui::Key::P,
             Self::Split => egui::Key::D,
@@ -206,6 +213,12 @@ impl GridTool {
         }
     }
 
+    /// Whether the tool's key is pressed with Shift (the Mesh tool is Shift+N,
+    /// the solid sibling of the Plane tool's N: every plain letter is taken).
+    pub(crate) const fn shift(self) -> bool {
+        matches!(self, Self::Mesh)
+    }
+
     pub(crate) const fn key_label(self) -> &'static str {
         match self {
             Self::Select => "V",
@@ -213,6 +226,7 @@ impl GridTool {
             Self::Ceiling => "C",
             Self::Wall => "W",
             Self::Plane => "N",
+            Self::Mesh => "Shift+N",
             Self::Height => "H",
             Self::Paint => "P",
             Self::Split => "D",
@@ -233,6 +247,7 @@ impl GridTool {
             Self::Ceiling => icons::LAYERS,
             Self::Wall => icons::BRICK_WALL,
             Self::Plane => icons::SCALE_3D,
+            Self::Mesh => icons::BOX,
             Self::Height => icons::MOVE,
             Self::Paint => icons::PALETTE,
             Self::Split => icons::SCAN,
@@ -260,6 +275,9 @@ impl GridTool {
             }
             Self::Plane => {
                 "Click a surface to put a free plane on it; drag to size it. Select a plane to move, turn and stretch it with its handles."
+            }
+            Self::Mesh => {
+                "Pick a mesh in the Meshes palette (right dock), click a floor to place it. Drag to move, R turns a quarter, [ and ] 15 degrees, Delete removes. Arches carry a perch at the crown."
             }
             Self::Height => {
                 "Drag a vertex, edge or face up and down. Alt snaps finer, Alt+drag a face moves one triangle. L unlinks."
@@ -385,6 +403,8 @@ pub(crate) enum Gesture {
     Node,
     /// A plane being placed or one of its handles being dragged.
     Plane(plane_tool::PlaneGesture),
+    /// A mesh being dragged.
+    Mesh(mesh_tool::MeshDrag),
     /// A band line being dragged.
     Band(bands_tool::BandDrag),
     /// A level verb's region being picked.
@@ -430,6 +450,14 @@ pub(crate) enum GridHover {
     },
     /// A free plane under the pointer.
     Plane(PlaneId),
+    /// A placed mesh under the pointer, by stable id.
+    Mesh(u16),
+    /// Where the Mesh tool would put a new instance: its room and position
+    /// (grid units, `y` relative to the room).
+    MeshSpot {
+        room: usize,
+        position: [i32; 3],
+    },
     /// A handle of the selected plane under the pointer.
     Grip(PlaneId, plane_math::Handle),
     /// Where the Plane tool would put a new plane, in room `0`.
@@ -482,6 +510,14 @@ pub(crate) struct GridEditState {
     pub plane_paste: Option<PlanePaste>,
     /// Collision and sidedness of the next placed plane.
     pub new_plane: NewPlane,
+    /// The selected mesh instance, by stable id.
+    pub mesh_sel: Option<u16>,
+    /// The asset the Mesh tool places (index into the world's assets).
+    pub mesh_asset: Option<u16>,
+    /// Heading, degrees, of the next placed mesh.
+    pub mesh_turn: i32,
+    /// Path typed in the Meshes palette for Import OBJ.
+    pub mesh_import_path: String,
     /// The last press was taken by a plane, so its click is too.
     pub plane_press: bool,
     /// Which thing a repeated Top view click takes next.
@@ -544,6 +580,10 @@ impl Default for GridEditState {
                 double_sided: false,
             },
             plane_press: false,
+            mesh_sel: None,
+            mesh_asset: None,
+            mesh_turn: 0,
+            mesh_import_path: String::new(),
             cycle: cycle::CycleState::default(),
             band_scope: psxed_project::grid::edit::bands::BandScope::Run,
             band_line: None,
@@ -672,7 +712,7 @@ impl EditorWorkspace {
         match &self.grid.gesture {
             Gesture::Height(_) => return C::ResizeVertical,
             Gesture::Rect(_) | Gesture::Walls(_) | Gesture::Marquee { .. } => return C::Crosshair,
-            Gesture::Plane(_) => return C::Grabbing,
+            Gesture::Plane(_) | Gesture::Mesh(_) => return C::Grabbing,
             Gesture::Paint { .. } => return C::Crosshair,
             Gesture::Band(_) => return C::ResizeVertical,
             Gesture::Verb(_) => return C::ResizeVertical,
@@ -707,6 +747,7 @@ impl EditorWorkspace {
             | GridTool::Ceiling
             | GridTool::Wall
             | GridTool::Plane
+            | GridTool::Mesh
             | GridTool::Paint
             | GridTool::Place => C::Crosshair,
         }

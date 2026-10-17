@@ -13,7 +13,7 @@ use crate::workspace::tools2d::{ToolFrame2d, ViewportTool2d};
 use crate::workspace::tools3d::{SelectTool, ToolFrame3d, ViewportTool3d};
 
 use super::{
-    bands_tool, clipboard_tool, face_tools, height_tool, place_tool, plane_tool, rect_tool,
+    bands_tool, clipboard_tool, face_tools, height_tool, mesh_tool, place_tool, plane_tool, rect_tool,
     select_tool, triangle_tool, verb_tool, wall_tool,
 };
 
@@ -96,6 +96,12 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
         (GridTool::Height, Ev::Drag) => height_tool::drag(ws, &ptr),
         (GridTool::Height, Ev::Release) => height_tool::release(ws),
         (GridTool::Height, Ev::Click) => select_tool::click(ws, &ptr),
+
+        (GridTool::Mesh, Ev::Hover) => mesh_tool::hover(ws, &ptr),
+        (GridTool::Mesh, Ev::Press) => mesh_tool::press(ws, &ptr),
+        (GridTool::Mesh, Ev::Drag) => mesh_tool::drag(ws, &ptr),
+        (GridTool::Mesh, Ev::Release) => mesh_tool::release(ws),
+        (GridTool::Mesh, Ev::Click) => mesh_tool::click(ws, &ptr),
 
         (GridTool::Paint, Ev::Hover) | (GridTool::Split, Ev::Hover) => face_tools::hover(ws, &ptr),
         (GridTool::Paint, Ev::Press) => face_tools::paint_press(ws, &ptr),

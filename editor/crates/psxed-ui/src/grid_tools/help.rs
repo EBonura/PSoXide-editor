@@ -74,6 +74,33 @@ const PLANE: Rows = &[
         "Position, size, angles, material, texture, sides, collision",
     ),
 ];
+const MESH: Rows = &[
+    (
+        "Meshes palette (right dock)",
+        "Pick an asset, or make one: + Arch, + Column, + Rubble, or Import OBJ (a path, one OBJ unit is one sector). Its recipe is edited below the list and every copy follows",
+    ),
+    (
+        "Click a floor",
+        "Place the chosen mesh standing on the floor under the pointer (256 lattice, Alt 64, Shift+Alt free) at the heading shown in the option row",
+    ),
+    (
+        "Click a mesh, drag",
+        "Select it (the Inspector shows its numbers) and move it; it follows the floor",
+    ),
+    (
+        "R, [ and ]",
+        "Turn the selected mesh a quarter or 15 degrees, or the heading of the next one when none is selected",
+    ),
+    ("Delete", "Remove the selected mesh"),
+    (
+        "Arch (the + Arch recipe)",
+        "Profile, span, rise, spring, thickness, depth, segments; the crown carries a hook socket so the player can perch under it. Piers block, the crown is a surface to stand on",
+    ),
+    (
+        "Shift+N",
+        "The Mesh tool's key: N alone is the Plane tool",
+    ),
+];
 const HEIGHT: Rows = &[
     ("Drag", "Raise or lower a vertex, edge or face"),
     ("Alt", "Fine step (64 units instead of 256)"),
@@ -309,11 +336,12 @@ impl EditorWorkspace {
             return;
         }
         let mut open = true;
-        let sections: [(&str, Rows); 16] = [
+        let sections: [(&str, Rows); 17] = [
             ("Select (V)", SELECT),
             ("Floor (F) and Ceiling (C)", FLOOR),
             ("Wall (W)", WALL),
             ("Plane (N)", PLANE),
+            ("Mesh (Shift+N)", MESH),
             ("Height (H)", HEIGHT),
             ("Paint (P)", PAINT),
             ("Bands (E)", BANDS),
@@ -336,7 +364,7 @@ impl EditorWorkspace {
             .show(ctx, |ui| {
                 ui.set_width(1500.0_f32.min(ctx.screen_rect().width() - 60.0));
                 ui.label(
-                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, P Paint, D Split, O Place, E Bands | U Raise, A Ramp, T Stairs, X Break, M Rough")
+                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, Shift+N Mesh, P Paint, D Split, O Place, E Bands | U Raise, A Ramp, T Stairs, X Break, M Rough")
                         .color(STUDIO_TEXT_WEAK),
                 );
                 ui.add_space(4.0);
