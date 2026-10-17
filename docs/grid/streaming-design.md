@@ -454,3 +454,10 @@ All go into the existing hardware-tests suite, in the single linear run, never a
 * The seek table in `psx-residency-sim` clamps at 512 sectors and says so; the cook gate and the layout cost therefore underprice far seeks.
 * `hk-psx/docs/STREAMING.md` is partly stale (it states scene-gate as production, the prefetch and code streaming landed later) and contains joined-word typos.
 * `docs/grid/level-tools-design.md` section 13 lists T16 as "design-level"; this document is that spec, so T16 should point here.
+
+## Decisions (2026-10-17)
+
+- World shape (Manny): a mix of indoor and outdoor sections, like Dark Souls. Interiors stay cheap; outdoor areas need wide frontiers, so the frontier budget warning, fog and far-vista settings, and node LOD (level-tools T15) are on the streaming critical path rather than optional.
+- Animation compression has landed: commit 949ad78a ("Pack animation clips into keyed tracks inside a vertex-space error budget", in origin/main and grid/main) took Graybox Reach resident clips from 487,872 B to 305,976 B. No separate mesh compression commit was found. Archetypes stay resident in v1.
+- Taken on the recommendations above: automatic unit planner with hints; keep the collision wall plus a red counter when the guarantee fails, no speed governor; hook targets in non-resident units unselectable; slow doors and lifts allowed as ordinary design only; combat-radius music with XA yield first, SPU loop fallback; 255 world materials and 64 VRAM slots for now with a pinned common set; hk-psx and cs-psx moved to the SDK transport separately; console measurements batched after the first host-side planner phase.
+- The CONFLICT items in section 4 are fixed as their own phase right after the natural-terrain N1 to N4 block, together with the format bump T10 needs.
