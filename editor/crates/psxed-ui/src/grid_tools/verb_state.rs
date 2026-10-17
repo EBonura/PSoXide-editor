@@ -5,6 +5,7 @@
 
 use psxed_project::grid::edit::verbs::raise::{RaiseDrag, RaiseMode};
 use psxed_project::grid::edit::verbs::ramp::{RampDir, RampDrag};
+use psxed_project::grid::edit::verbs::stairs::{StairsDrag, StairsParams};
 use psxed_project::grid::edit::Region;
 
 use super::*;
@@ -59,6 +60,7 @@ pub(crate) enum RegionGesture {
 pub(crate) enum VerbDrag {
     Raise(RaiseDrag),
     Ramp(RampDrag),
+    Stairs(StairsDrag),
 }
 
 /// A verb being dragged: the amount follows the pointer's vertical travel.
@@ -105,6 +107,11 @@ pub(crate) struct VerbState {
     pub ramp_clamp: bool,
     /// Ramp: the side a press at the pointer would keep.
     pub ramp_hover: Option<RampDir>,
+    /// Stairs: the riser option and ramp switch (width, ceilings and the
+    /// wall material come from the shared options).
+    pub stairs: StairsParams,
+    /// Stairs: the waypoints of the finished path.
+    pub stairs_path: Vec<[i32; 2]>,
     /// The last line a verb reported (amount, counts), for the Inspector.
     pub readout: String,
 }
@@ -125,6 +132,8 @@ impl Default for VerbState {
             ramp_from: None,
             ramp_clamp: false,
             ramp_hover: None,
+            stairs: StairsParams::default(),
+            stairs_path: Vec::new(),
             readout: String::new(),
         }
     }
@@ -138,6 +147,7 @@ impl VerbState {
         self.preview.clear();
         self.ramp_hover = None;
         self.ramp_from = None;
+        self.stairs_path.clear();
         self.readout.clear();
     }
 }

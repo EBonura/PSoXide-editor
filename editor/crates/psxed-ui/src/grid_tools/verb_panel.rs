@@ -43,6 +43,7 @@ impl EditorWorkspace {
         match self.grid.tool {
             GridTool::Raise => self.draw_raise_options(ui),
             GridTool::Ramp => self.draw_ramp_options(ui),
+            GridTool::Stairs => self.draw_stairs_options(ui),
             _ => {}
         }
         ui.separator();
@@ -62,6 +63,53 @@ impl EditorWorkspace {
         {
             super::verb_tool::apply_typed(self);
         }
+    }
+
+    fn draw_stairs_options(&mut self, ui: &mut egui::Ui) {
+        use psxed_project::grid::edit::verbs::stairs::RiserOption;
+        ui.label(RichText::new("Riser").color(STUDIO_TEXT_WEAK).size(11.0));
+        let current = self.grid.verb.stairs.riser;
+        for (option, hint) in [
+            (
+                RiserOption::Click,
+                "One click (256 units), half the climb limit: comfortable",
+            ),
+            (
+                RiserOption::Max,
+                "The tallest riser the character steps up (40 runtime units)",
+            ),
+        ] {
+            if ui
+                .selectable_label(current == option, super::stairs_tool::riser_label(option))
+                .on_hover_text(hint)
+                .clicked()
+            {
+                self.grid.verb.stairs.riser = option;
+            }
+        }
+        let mut typed = match current {
+            RiserOption::Typed(v) => v as f32 / psxed_project::grid::CLICK_UNITS as f32,
+            _ => 1.0,
+        };
+        if ui
+            .add(
+                egui::DragValue::new(&mut typed)
+                    .speed(0.05)
+                    .range(0.25..=8.0)
+                    .suffix(" clicks"),
+            )
+            .on_hover_text("A typed riser, held to the climb limit")
+            .changed()
+        {
+            self.grid.verb.stairs.riser = RiserOption::Typed(psxed_project::grid::units::snap_to(
+                (typed * psxed_project::grid::CLICK_UNITS as f32).round() as i32,
+                psxed_project::grid::FINE_UNITS,
+            ));
+        }
+        ui.checkbox(&mut self.grid.verb.stairs.ramp, "Ramp")
+            .on_hover_text("Slope every tread instead of stepping (Tab)");
+        ui.checkbox(&mut self.grid.verb.follow_ceiling, "Follow ceiling")
+            .on_hover_text("Ceilings move with the floors (headroom stays)");
     }
 
     fn draw_ramp_options(&mut self, ui: &mut egui::Ui) {
@@ -159,6 +207,18 @@ impl EditorWorkspace {
                         .size(11.5)
                         .color(STUDIO_TEXT_WEAK),
                     );
+                }
+                if self.grid.tool == GridTool::Stairs {
+                    ui.label(format!(
+                        "Path: {} waypoints, width {}",
+                        self.grid.verb.stairs_path.len(),
+                        self.grid.verb.path_width
+                    ));
+                    ui.label(format!(
+                        "Riser: {}{}",
+                        super::stairs_tool::riser_label(self.grid.verb.stairs.riser),
+                        if self.grid.verb.stairs.ramp { ", ramp" } else { "" }
+                    ));
                 }
                 if self.grid.tool == GridTool::Ramp {
                     ui.label(format!(

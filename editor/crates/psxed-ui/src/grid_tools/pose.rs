@@ -23,6 +23,8 @@
 //! * `region=x0,z0:x1,z1` the level verbs' region (a marquee, committed)
 //! * `overlay=walk` the walkability overlay (Alt+W); `overlay=perf` the
 //!   performance heatmap (Alt+P)
+//! * `stairs-path=x,z:x,z:...` the Stairs tool's finished path (waypoints),
+//!   and the region it covers
 //! * `ramp-from=north|east|south|west` the A edge a Ramp keeps; `ramp-clamp`
 //!   holds Ramp to the steepest walkable slope
 //! * `verb-drag=clicks` a level verb's amount drag in flight at `clicks`
@@ -117,9 +119,25 @@ impl EditorWorkspace {
                     CellRect::from_corners(a, b),
                 ));
             }
+            "stairs-path" => {
+                let waypoints = parts
+                    .iter()
+                    .map(|p| cell(p))
+                    .collect::<Result<Vec<_>, _>>()?;
+                self.grid.verb.region = Some(psxed_project::grid::edit::Region::from_path(
+                    room,
+                    &waypoints,
+                    self.grid.verb.path_width,
+                ));
+                self.grid.verb.stairs_path = waypoints;
+            }
             "overlay" => match value {
                 "walk" => self.grid.overlays.walk = true,
-                "perf" => self.grid.overlays.perf = true,
+                "perf" => {
+                    self.grid.overlays.perf = true;
+                    // A capture has one frame: compute the heatmap now.
+                    self.grid.overlays.heat_sync = true;
+                }
                 other => return Err(format!("unknown overlay {other:?}")),
             },
             "ramp-from" => {

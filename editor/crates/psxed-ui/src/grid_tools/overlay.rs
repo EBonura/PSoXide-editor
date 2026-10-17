@@ -352,6 +352,7 @@ impl EditorWorkspace {
         self.draw_plane_overlay_2d(painter, transform);
         self.draw_verb_overlay_2d(painter, transform);
         self.draw_walk_overlay_2d(painter, transform);
+        self.draw_heat_overlay_2d(painter, transform);
     }
 
     // ---- 3D view ----
@@ -590,6 +591,7 @@ impl EditorWorkspace {
         self.draw_band_overlay_3d(painter, rect);
         self.draw_verb_overlay_3d(painter, rect);
         self.draw_walk_overlay_3d(painter, rect);
+        self.draw_heat_overlay_3d(painter, rect);
     }
 
     #[allow(clippy::too_many_arguments)]

@@ -22,6 +22,7 @@ pub mod plan;
 pub mod planes;
 pub mod read;
 pub mod rooms;
+pub mod verbs;
 pub mod walls;
 
 use std::collections::BTreeSet;

@@ -158,14 +158,33 @@ const RAMP: Rows = &[
         "Sectors a body can stand on, sectors too steep for it (the readout says which)",
     ),
 ];
+const STAIRS: Rows = &[
+    (
+        "Click, Enter",
+        "Click the waypoints of the flight, Enter finishes the path",
+    ),
+    (
+        "Press on it, drag up or down",
+        "The total rise; each sector is a tread, a turn is a landing, the ghost numbers the steps",
+    ),
+    ("[ and ]", "Width of the flight in sectors"),
+    (
+        "Riser (option row)",
+        "1 click, Max (what the character steps up) or a typed riser; steps follow from the rise",
+    ),
+    (
+        "Tab, Ramp",
+        "Slope every tread instead of stepping; also the answer to a refused, too steep flight",
+    ),
+];
 const OVERLAYS: Rows = &[
     (
         "Alt+W, Walk button",
         "Walkability: orange too steep, blue headroom under the body, red step taller than it climbs, yellow dashed drop, hatched floors no spawn reaches",
     ),
     (
-        "Alt+P",
-        "Reserved for the performance heatmap",
+        "Alt+P, Perf button",
+        "Performance heatmap: a model of the world render cost at every spot, green under 60% of the budget, amber to 90%, red above (the Reserve field edits what the player and sky take)",
     ),
 ];
 const OTHER: Rows = &[
@@ -236,7 +255,7 @@ impl EditorWorkspace {
             return;
         }
         let mut open = true;
-        let sections: [(&str, Rows); 13] = [
+        let sections: [(&str, Rows); 14] = [
             ("Select (V)", SELECT),
             ("Floor (F) and Ceiling (C)", FLOOR),
             ("Wall (W)", WALL),
@@ -246,6 +265,7 @@ impl EditorWorkspace {
             ("Bands (E)", BANDS),
             ("Raise (U)", RAISE),
             ("Ramp (A)", RAMP),
+            ("Stairs (T)", STAIRS),
             ("Overlays", OVERLAYS),
             ("More", OTHER),
             ("Snapping and reserved keys", SNAP),
@@ -260,7 +280,7 @@ impl EditorWorkspace {
             .show(ctx, |ui| {
                 ui.set_width(1500.0_f32.min(ctx.screen_rect().width() - 60.0));
                 ui.label(
-                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, P Paint, D Split, O Place, E Bands | U Raise, A Ramp")
+                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, P Paint, D Split, O Place, E Bands | U Raise, A Ramp, T Stairs")
                         .color(STUDIO_TEXT_WEAK),
                 );
                 ui.add_space(4.0);

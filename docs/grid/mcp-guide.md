@@ -46,6 +46,8 @@ The world's scale turns grid units into **editor units**: 5/4 for a new project,
 | `grid_planes`, `grid_bands` | Free planes with what they cook to; the cut lines and bands of a wall run. |
 | `grid_budget` | The face budget against its cap and every `limits::validate` finding. |
 | `cook_check` | The real cook in memory: its errors one per line, warnings, exact size. What would stop a playtest build. |
+| `grid_walkability` | The walkability overlay as text, with the motor's numbers: too steep, low headroom, steps taller than the body climbs, drops, ghost floors and floors no player spawn reaches, a map and the flagged edges. |
+| `grid_heatmap` | The performance heatmap as text: a labelled MODEL of world render cost per spot against the 30 fps budget, percentiles, a map in tenths of the budget, the hottest spots. `playtest` telemetry is the measurement. |
 | `grid_plan` | A top-down PNG: heights as colour, wall lines by kind, numbered rooms, plane footprints, numbered node markers, axes in sector coordinates. The picture for layout. |
 
 **ACT**. Every tool stages in memory and reports numbers (what changed, what snapped, what it skipped). An edit that introduces validation findings says so in its reply.
@@ -53,7 +55,8 @@ The world's scale turns grid units into **editor units**: 5/4 for a new project,
 | Area | Tools |
 | --- | --- |
 | Rooms | `grid_add_room`, `grid_delete_room`, `grid_set_room` (name, raise, ambient, wall material, open wall height, clean overrides), `grid_convert_room`, `grid_set_shading` |
-| Surfaces | `grid_add_surface` (floor or ceiling over a rectangle at a height), `grid_remove_surface`, `grid_set_heights` (corners, one edge for a slope, absolute or relative, optional weld to neighbours), `grid_set_split` |
+| Surfaces | `grid_add_surface` (floor or ceiling over a rectangle at a height), `grid_remove_surface`, `grid_set_heights` (corners, one edge for a slope, absolute or relative, optional weld to neighbours), `grid_set_split` (flip, set, or `auto` to let surfaces choose their own diagonal from their heights), `grid_set_walkable` (ghost floors and ceilings) |
+| Level verbs | `grid_raise` (the Raise tool: offset or level, ceilings follow), `grid_ramp` (the Ramp tool: `keep` a side, `rise` or `walkable`), `grid_stairs` (the Stairs tool: a path, riser option, ramp option) |
 | Walls | `grid_place_wall`, `grid_remove_wall` (authored runs), `grid_wall_override` (hide, ghost, repaint a derived wall; reset) |
 | Look | `grid_paint`, `grid_paint_wall` (a wall or its whole run), `grid_tiling` (World density or Fit N x M, turns, flips, offset, scale), `grid_material_tiling` (a material's default) |
 | Bands | `grid_band_cut`, `grid_band_move`, `grid_band_delete`, `grid_band_set` (material, tiling and V per band; scope `run` or `room`) |
@@ -100,7 +103,7 @@ An edit is atomic: it runs on a copy of the world and an error leaves the docume
 
 ## What is not here yet
 
-Added with the verbs they belong to, each as a wrapper over that verb's own edit function: Raise and Lower with the auto split and Region selection, Ramp with the walkability overlay, Stairs with the performance heatmap, Sculpt, Room and Corridor, Opening, Stamps. Until they land, a slope is `grid_set_heights` on an edge, a ramp is a plane, and an opening is a pair of ghosted closure walls. The overlays have no MCP equivalent: `playtest` with `track_player` is the walkability check, `telemetry` the performance one.
+Added with the verbs they belong to, each as a wrapper over that verb's own edit function: Sculpt, Room and Corridor, Opening, Stamps. Raise and Lower, Ramp and Stairs are here (`grid_raise`, `grid_ramp`, `grid_stairs`) with the two overlays as reads (`grid_walkability`, `grid_heatmap`). A region is a rectangle of sectors in the MCP (the editor also has a brush and a path; a path is `grid_stairs`' `path`).
 
 ## The proof
 

@@ -46,6 +46,7 @@ pub const SCAN: char = '\u{e257}';
 pub const SQUARE: char = '\u{e167}';
 pub const SUN: char = '\u{e178}';
 pub const TERMINAL: char = '\u{e183}';
+pub const STAIRS: char = '\u{e06a}';
 pub const TRENDING_UP: char = '\u{e191}';
 pub const TRASH: char = '\u{e18d}';
 pub const WAYPOINT: char = '\u{e546}';

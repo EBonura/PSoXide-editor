@@ -105,6 +105,7 @@ fn drag_chip(ws: &EditorWorkspace, world: &GridWorld) -> Option<String> {
             };
             format!("Ramp from {}  {amount}   {fits}", d.params().from.label())
         }
+        VerbDrag::Stairs(d) => super::stairs_tool::chip(world, d, g.amount),
     })
 }
 
@@ -152,6 +153,7 @@ impl EditorWorkspace {
         }
         self.draw_path_2d(painter, transform, world);
         self.draw_ramp_overlay_2d(painter, transform, world);
+        self.draw_stairs_overlay_2d(painter, transform, world);
         if let (Some(b), Some(text)) = (bounds, drag_chip(self, world)) {
             label_chip(
                 painter,
@@ -267,6 +269,7 @@ impl EditorWorkspace {
         }
         self.draw_level_ghost_3d(&polygon, world);
         self.draw_ramp_overlay_3d(painter, &cam, &polygon, world);
+        self.draw_stairs_overlay_3d(painter, &cam, &polygon, world);
         if centre_sum.1 > 0 {
             let n = centre_sum.1 as f32;
             let mid = [
@@ -497,6 +500,10 @@ fn ramp_classes(
         .collect()
 }
 
+/// A sector of a flight: its place, the tread it belongs to and whether it is
+/// a landing.
+type Tread = ([i32; 2], usize, bool);
+
 /// Green to stand on, orange when too steep.
 fn class_color(class: psxed_project::grid::SlopeClass) -> Color32 {
     use psxed_project::grid::SlopeClass;
@@ -504,4 +511,144 @@ fn class_color(class: psxed_project::grid::SlopeClass) -> Color32 {
         SlopeClass::Flat | SlopeClass::Slope => Color32::from_rgb(96, 232, 132),
         SlopeClass::Steep => Color32::from_rgb(255, 112, 48),
     }
+}
+
+impl EditorWorkspace {
+    /// The flight being dragged: `(sector, tread number, landing, refused)`.
+    fn stairs_ghost(&self) -> Option<(Vec<Tread>, bool, usize)> {
+        let Gesture::Verb(g) = &self.grid.gesture else {
+            return None;
+        };
+        let VerbDrag::Stairs(d) = &g.drag else {
+            return None;
+        };
+        let flight = d.plan(g.amount);
+        Some((d.ghost(), flight.refusal.is_some(), flight.steps))
+    }
+
+    /// Treads of a flight over the Top view: each sector tinted by its step,
+    /// numbered, landings blue, a refused flight orange.
+    fn draw_stairs_overlay_2d(
+        &self,
+        painter: &egui::Painter,
+        transform: ViewportTransform,
+        world: &GridWorld,
+    ) {
+        if self.grid.tool != GridTool::Stairs {
+            return;
+        }
+        let screen = |p: [f32; 2]| transform.world_to_screen(p);
+        // The path itself, once finished.
+        let centre = |cell: [i32; 2]| {
+            let c = plan_corners(world, cell);
+            screen([(c[0][0] + c[2][0]) * 0.5, (c[0][1] + c[2][1]) * 0.5])
+        };
+        let way: Vec<Pos2> = self
+            .grid
+            .verb
+            .stairs_path
+            .iter()
+            .map(|c| centre(*c))
+            .collect();
+        for pair in way.windows(2) {
+            painter.line_segment([pair[0], pair[1]], Stroke::new(2.0, CREATE));
+        }
+        let Some((ghost, refused, steps)) = self.stairs_ghost() else {
+            return;
+        };
+        let mut tread_no = 0usize;
+        let mut last = usize::MAX;
+        for (cell, index, landing) in ghost {
+            let c = plan_corners(world, cell);
+            let r = Rect::from_two_pos(screen(c[0]), screen(c[2]));
+            if index != last {
+                last = index;
+                if !landing {
+                    tread_no += 1;
+                }
+            }
+            painter.rect_filled(
+                r,
+                0.0,
+                fill(stair_color(tread_no, steps, landing, refused), 150),
+            );
+            painter.rect_stroke(r, 0.0, Stroke::new(1.0, Color32::BLACK), StrokeKind::Inside);
+            if r.width() > 26.0 && !landing && tread_no <= steps {
+                painter.text(
+                    r.center(),
+                    Align2::CENTER_CENTER,
+                    format!("{tread_no}"),
+                    FontId::proportional(13.0),
+                    Color32::WHITE,
+                );
+            }
+        }
+    }
+
+    /// The same flight over the 3D view, at its floors.
+    fn draw_stairs_overlay_3d(
+        &self,
+        painter: &egui::Painter,
+        cam: &Cam,
+        polygon: &PolygonFn,
+        world: &GridWorld,
+    ) {
+        if self.grid.tool != GridTool::Stairs {
+            return;
+        }
+        let Some(region) = &self.grid.verb.region else {
+            return;
+        };
+        if let Some((ghost, refused, steps)) = self.stairs_ghost() {
+            let (mut tread_no, mut last) = (0usize, usize::MAX);
+            for (cell, index, landing) in ghost {
+                if index != last {
+                    last = index;
+                    if !landing {
+                        tread_no += 1;
+                    }
+                }
+                let pts = floor_points(world, region.room, cell);
+                polygon(
+                    &pts,
+                    stair_color(tread_no, steps, landing, refused),
+                    120,
+                    1.0,
+                );
+                if !landing && tread_no <= steps {
+                    let mid = [
+                        (pts[0][0] + pts[2][0]) * 0.5,
+                        (pts[0][1] + pts[1][1] + pts[2][1] + pts[3][1]) * 0.25 + 30.0,
+                        (pts[0][2] + pts[2][2]) * 0.5,
+                    ];
+                    if let Some((s, _)) = cam.project(mid) {
+                        painter.text(
+                            s,
+                            Align2::CENTER_CENTER,
+                            format!("{tread_no}"),
+                            FontId::proportional(13.0),
+                            Color32::WHITE,
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Tread colour: a warm gradient up the flight, blue landings, orange when
+/// the flight is refused.
+fn stair_color(tread: usize, steps: usize, landing: bool, refused: bool) -> Color32 {
+    if refused {
+        return Color32::from_rgb(255, 112, 48);
+    }
+    if landing || tread > steps {
+        return Color32::from_rgb(90, 140, 255);
+    }
+    let t = tread as f32 / steps.max(1) as f32;
+    Color32::from_rgb(
+        (255.0 * (0.55 + 0.45 * t)) as u8,
+        (190.0 - 60.0 * t) as u8,
+        80,
+    )
 }

@@ -360,3 +360,95 @@ fn the_ramp_pose_and_typed_amount_work_without_a_pointer() {
     assert!(matches!(rig.ws.grid.gesture, Gesture::Idle));
     assert_eq!(floor_at(&rig, [3, 1]), [0; 4]);
 }
+
+fn lay_path(rig: &mut GridRig) {
+    rig.tool(GridTool::Stairs);
+    rig.click(rig.cell_centre(1, 2));
+    rig.click(rig.cell_centre(6, 2));
+    rig.key(egui::Key::Enter);
+}
+
+#[test]
+fn stairs_take_waypoints_then_a_vertical_drag_lays_a_flight_and_undo_removes_it() {
+    let mut rig = GridRig::top("verb-stairs", hall());
+    let original = rig.ws.project.clone();
+    lay_path(&mut rig);
+    assert_eq!(rig.ws.grid.verb.stairs_path.len(), 2, "{}", rig.ws.status);
+    assert!(rig.ws.grid.verb.path.is_empty());
+    let from = rig.cell_centre(3, 2);
+    rig.drag_hold(
+        from,
+        from - Vec2::new(0.0, 6.0 * CLICK_PX),
+        egui::Modifiers::NONE,
+    );
+    assert!(
+        matches!(rig.ws.grid.gesture, Gesture::Verb(_)),
+        "{}",
+        rig.ws.status
+    );
+    // Six treads, six clicks: a click each.
+    for (i, x) in (1..=6).enumerate() {
+        assert_eq!(
+            floor_at(&rig, [x, 2]),
+            [256 * (i as i32 + 1); 4],
+            "{x}: {}",
+            rig.ws.status
+        );
+    }
+    assert!(rig.ws.status.contains("6 steps"), "{}", rig.ws.status);
+    rig.release(from - Vec2::new(0.0, 6.0 * CLICK_PX), egui::Modifiers::NONE);
+    rig.ws.do_undo();
+    assert_eq!(rig.ws.project, original);
+}
+
+#[test]
+fn a_flight_that_is_too_steep_for_treads_is_refused_and_tab_makes_it_a_ramp() {
+    let mut rig = GridRig::top("verb-stairs-steep", hall());
+    let original = rig.ws.project.clone();
+    lay_path(&mut rig);
+    let from = rig.cell_centre(3, 2);
+    // Six treads and 36 clicks: six clicks a riser, over the two click limit.
+    rig.drag_hold(
+        from,
+        from - Vec2::new(0.0, 36.0 * CLICK_PX),
+        egui::Modifiers::NONE,
+    );
+    assert!(rig.ws.status.contains("refused"), "{}", rig.ws.status);
+    assert_eq!(rig.ws.project, original, "a refusal writes nothing");
+    rig.key(egui::Key::Tab);
+    assert!(rig.ws.grid.verb.stairs.ramp);
+    rig.drag_hold(
+        from,
+        from - Vec2::new(0.0, 36.0 * CLICK_PX + 1.0),
+        egui::Modifiers::NONE,
+    );
+    assert!(!rig.ws.status.contains("refused"), "{}", rig.ws.status);
+    assert_ne!(rig.ws.project, original);
+    rig.key(egui::Key::Escape);
+    assert_eq!(rig.ws.project, original);
+}
+
+#[test]
+fn the_stairs_pose_and_the_riser_option_work_without_a_pointer() {
+    let mut rig = GridRig::top("verb-stairs-pose", hall());
+    rig.ws
+        .apply_grid_pose("tool=stairs;stairs-path=1,2:6,2;verb-drag=6")
+        .unwrap();
+    assert_eq!(
+        floor_at(&rig, [6, 2]),
+        [1536; 4],
+        "{} {:?}",
+        rig.ws.status,
+        rig.ws.grid.verb.stairs_path
+    );
+    rig.key(egui::Key::Escape);
+    rig.ws.grid.verb.stairs.riser = psxed_project::grid::edit::verbs::stairs::RiserOption::Max;
+    rig.ws
+        .apply_grid_pose("stairs-path=1,2:6,2;verb-drag=7.5")
+        .unwrap();
+    // This rig's world is 1:1, where the tallest riser the motor steps up
+    // (40 runtime units) is 640 grid units: three of them, then a landing.
+    assert_eq!(floor_at(&rig, [1, 2]), [640; 4], "{}", rig.ws.status);
+    assert_eq!(floor_at(&rig, [3, 2]), [1920; 4]);
+    assert_eq!(floor_at(&rig, [6, 2]), [1920; 4]);
+}

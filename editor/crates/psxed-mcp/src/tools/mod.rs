@@ -13,6 +13,7 @@ mod planes;
 mod project;
 mod query;
 mod surfaces;
+mod verbs;
 mod verify;
 
 use std::path::PathBuf;
@@ -51,6 +52,7 @@ impl EditorServer {
             + Self::surfaces_router()
             + Self::bands_router()
             + Self::planes_router()
+            + Self::verbs_router()
             + Self::verify_router();
         Self {
             workspace: Arc::new(Mutex::new(workspace)),

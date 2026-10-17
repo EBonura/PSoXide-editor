@@ -30,6 +30,7 @@ mod clipboard_tool;
 mod cycle;
 pub(crate) mod events;
 mod face_tools;
+mod heat_overlay;
 mod height_tool;
 mod help;
 mod keys;
@@ -50,6 +51,7 @@ mod rooms_walls;
 mod rules_panel;
 mod select_tool;
 mod shading_panel;
+mod stairs_tool;
 mod strip;
 mod tiling_panel;
 mod verb_overlay;
@@ -92,6 +94,8 @@ pub(crate) enum GridTool {
     Raise,
     /// Slope a region from one side to the other.
     Ramp,
+    /// Lay a flight of steps along a path.
+    Stairs,
 }
 
 /// The strip's groups, in order.
@@ -117,7 +121,7 @@ impl ToolGroup {
 
 impl GridTool {
     /// Every tool, in strip order (grouped).
-    pub(crate) const ALL: [Self; 12] = [
+    pub(crate) const ALL: [Self; 13] = [
         Self::Select,
         Self::Height,
         Self::Floor,
@@ -130,13 +134,14 @@ impl GridTool {
         Self::Bands,
         Self::Raise,
         Self::Ramp,
+        Self::Stairs,
     ];
 
     /// The strip group of the tool.
     pub(crate) const fn group(self) -> ToolGroup {
         match self {
             Self::Select | Self::Height => ToolGroup::Pick,
-            Self::Raise | Self::Ramp => ToolGroup::Build,
+            Self::Raise | Self::Ramp | Self::Stairs => ToolGroup::Build,
             _ => ToolGroup::Draw,
         }
     }
@@ -144,7 +149,7 @@ impl GridTool {
     /// Whether the tool is one of the level verbs (region, then verb, then
     /// amount).
     pub(crate) const fn is_verb(self) -> bool {
-        matches!(self, Self::Raise | Self::Ramp)
+        matches!(self, Self::Raise | Self::Ramp | Self::Stairs)
     }
 
     pub(crate) const fn label(self) -> &'static str {
@@ -161,6 +166,7 @@ impl GridTool {
             Self::Bands => "Bands",
             Self::Raise => "Raise",
             Self::Ramp => "Ramp",
+            Self::Stairs => "Stairs",
         }
     }
 
@@ -178,6 +184,7 @@ impl GridTool {
             Self::Bands => egui::Key::E,
             Self::Raise => egui::Key::U,
             Self::Ramp => egui::Key::A,
+            Self::Stairs => egui::Key::T,
         }
     }
 
@@ -195,6 +202,7 @@ impl GridTool {
             Self::Bands => "E",
             Self::Raise => "U",
             Self::Ramp => "A",
+            Self::Stairs => "T",
         }
     }
 
@@ -212,6 +220,7 @@ impl GridTool {
             Self::Bands => icons::ROWS_3,
             Self::Raise => icons::ARROW_UP_FROM_LINE,
             Self::Ramp => icons::TRENDING_UP,
+            Self::Stairs => icons::STAIRS,
         }
     }
 
@@ -242,6 +251,9 @@ impl GridTool {
             }
             Self::Ramp => {
                 "Pick sectors, then press near the side that keeps its height and drag up or down: the opposite side rises. R turns the side, Tab holds the slope to what the character can walk."
+            }
+            Self::Stairs => {
+                "Click the waypoints of a flight, Enter finishes, then press on it and drag up or down for the total rise. Each sector is a tread, a turn is a landing. Tab switches steps and ramp."
             }
         }
     }
@@ -344,7 +356,7 @@ pub(crate) enum Gesture {
     /// A level verb's region being picked.
     Region(verb_state::RegionGesture),
     /// A level verb's amount being dragged.
-    Verb(verb_state::VerbGesture),
+    Verb(Box<verb_state::VerbGesture>),
 }
 
 /// What the pointer is over, for hover highlights and ghosts.
@@ -641,12 +653,15 @@ impl EditorWorkspace {
             GridTool::Split => C::Default,
             GridTool::Bands if over => C::PointingHand,
             GridTool::Bands => C::Default,
-            GridTool::Raise | GridTool::Ramp if self.grid.verb.region.is_some() => {
+            GridTool::Raise | GridTool::Ramp | GridTool::Stairs
+                if self.grid.verb.region.is_some() =>
+            {
                 C::ResizeVertical
             }
             GridTool::Floor
             | GridTool::Raise
             | GridTool::Ramp
+            | GridTool::Stairs
             | GridTool::Ceiling
             | GridTool::Wall
             | GridTool::Plane

@@ -51,6 +51,10 @@ pub(super) fn cell_under(ws: &EditorWorkspace, ptr: &GridPointer) -> Option<(usi
 pub(super) fn on_tool_changed(ws: &mut EditorWorkspace) {
     ws.grid.verb.path.clear();
     ws.grid.verb.preview.clear();
+    if ws.grid.tool == GridTool::Stairs {
+        // A flight is a path: the other sources make no order of treads.
+        ws.grid.verb.source = RegionSource::Path;
+    }
     if !ws.grid.tool.is_verb() || ws.grid.verb.region.is_some() {
         return;
     }
@@ -301,6 +305,7 @@ fn begin_amount(ws: &mut EditorWorkspace, ptr: &GridPointer, room: usize, cell: 
     match ws.grid.tool {
         GridTool::Raise => begin_raise(ws, ptr, room, cell),
         GridTool::Ramp => super::ramp_tool::begin(ws, ptr, room, cell),
+        GridTool::Stairs => super::stairs_tool::begin(ws, ptr, room, cell),
         _ => false,
     }
 }
@@ -355,14 +360,14 @@ fn begin_raise(ws: &mut EditorWorkspace, ptr: &GridPointer, room: usize, cell: [
     };
     ws.grid.verb.reference = reference;
     let ppu = drag_rate(ws, ptr, room, cell, reference);
-    ws.grid.gesture = Gesture::Verb(VerbGesture {
+    ws.grid.gesture = Gesture::Verb(Box::new(VerbGesture {
         drag: VerbDrag::Raise(drag),
         press_y: ptr.at_press().pos.y,
         pixels_per_unit: ppu,
         amount: 0,
         before: Some(Box::new(ws.project.clone())),
         max_rise: None,
-    });
+    }));
     true
 }
 
@@ -387,6 +392,9 @@ pub(crate) fn pose_drag(ws: &mut EditorWorkspace, amount: i32) -> Result<(), Str
             max_rise = Some(m);
             VerbDrag::Ramp(d)
         }
+        GridTool::Stairs => {
+            VerbDrag::Stairs(super::stairs_tool::drag_for(ws).ok_or("no path: use stairs-path=")?)
+        }
         other => return Err(format!("the {} tool has no drag to pose", other.label())),
     };
     let mut gesture = VerbGesture {
@@ -398,7 +406,7 @@ pub(crate) fn pose_drag(ws: &mut EditorWorkspace, amount: i32) -> Result<(), Str
         max_rise,
     };
     apply_amount(ws, &mut gesture);
-    ws.grid.gesture = Gesture::Verb(gesture);
+    ws.grid.gesture = Gesture::Verb(Box::new(gesture));
     Ok(())
 }
 
@@ -457,6 +465,10 @@ pub(super) fn apply_amount(ws: &mut EditorWorkspace, g: &mut VerbGesture) {
             }
             line
         }
+        VerbDrag::Stairs(drag) => {
+            let flight = drag.apply(world, g.amount);
+            super::stairs_tool::readout(world, &flight, g.amount)
+        }
     };
     ws.grid.verb.readout = line.clone();
     ws.status = line;
@@ -487,6 +499,10 @@ fn counts_text(applied: &psxed_project::grid::edit::verbs::Applied, mode: &str) 
 
 /// Tab: the other Raise mode, live when a drag is in flight.
 pub(super) fn toggle_mode(ws: &mut EditorWorkspace) {
+    if ws.grid.tool == GridTool::Stairs {
+        super::stairs_tool::toggle_ramp(ws);
+        return;
+    }
     if ws.grid.tool == GridTool::Ramp {
         ws.grid.verb.ramp_clamp = !ws.grid.verb.ramp_clamp;
         ws.status = if ws.grid.verb.ramp_clamp {
@@ -506,7 +522,7 @@ pub(super) fn toggle_mode(ws: &mut EditorWorkspace) {
             None
         }
     };
-    let current = match &live {
+    let current = match live.as_deref() {
         Some(VerbGesture {
             drag: VerbDrag::Raise(d),
             ..
@@ -582,5 +598,7 @@ pub(crate) fn apply_typed(ws: &mut EditorWorkspace) {
         apply_amount(ws, &mut gesture);
     } else if ws.grid.tool == GridTool::Ramp {
         super::ramp_tool::apply_typed(ws, &region, amount);
+    } else if ws.grid.tool == GridTool::Stairs {
+        super::stairs_tool::apply_typed(ws, amount);
     }
 }

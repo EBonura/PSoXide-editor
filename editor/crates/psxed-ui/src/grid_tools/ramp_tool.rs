@@ -95,14 +95,14 @@ pub(super) fn begin(
     let max = drag.max_walkable_rise();
     ws.grid.verb.ramp_hover = Some(params.from);
     let ppu = super::verb_tool::drag_rate(ws, ptr, room, cell, base);
-    ws.grid.gesture = Gesture::Verb(VerbGesture {
+    ws.grid.gesture = Gesture::Verb(Box::new(VerbGesture {
         drag: VerbDrag::Ramp(drag),
         press_y: ptr.at_press().pos.y,
         pixels_per_unit: ppu,
         amount: 0,
         before: Some(Box::new(ws.project.clone())),
         max_rise: Some(max),
-    });
+    }));
     true
 }
 
