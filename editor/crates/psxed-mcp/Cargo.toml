@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 publish = false
-description = "MCP server exposing PSoXide level authoring to an agent. Read-only tools (Phase 1); bodies are pure functions of a ProjectDocument so they move into the live editor later."
+description = "MCP server exposing PSoXide level authoring to an agent: grid geometry, materials and tiling, bands, planes, nodes, screenshots and headless playtests. Tool bodies are pure functions of a ProjectDocument so they move into the live editor later."
 
 [[bin]]
 name = "psxed-mcp"
