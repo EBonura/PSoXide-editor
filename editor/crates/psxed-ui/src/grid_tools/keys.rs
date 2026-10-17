@@ -10,7 +10,9 @@ use super::*;
 use psxed_project::grid::edit::Transform;
 use psxed_project::grid::{CLICK_UNITS, FINE_UNITS};
 
-use super::{bands_tool, clipboard_tool, height_tool, mesh_tool, plane_tool, select_tool, verb_tool};
+use super::{
+    bands_tool, clipboard_tool, height_tool, mesh_tool, plane_tool, select_tool, verb_tool,
+};
 
 /// Keys the level verbs still to come (design: `docs/grid/level-tools-design.md`,
 /// 7.12) will take, kept free of other meanings now: S Sculpt, B Room,
@@ -160,6 +162,12 @@ impl EditorWorkspace {
             if pressed(ctx, egui::Key::CloseBracket) {
                 mesh_tool::turn(self, 15);
             }
+            if pressed(ctx, egui::Key::Minus) {
+                mesh_tool::scale_step(self, -1);
+            }
+            if pressed(ctx, egui::Key::Equals) {
+                mesh_tool::scale_step(self, 1);
+            }
         }
         if pressed(ctx, egui::Key::L) {
             self.grid.link = !self.grid.link;
@@ -242,6 +250,9 @@ mod tests {
             }
         }
         // Mesh is the chord Shift+N; N alone stays the Plane tool.
-        assert_eq!((GridTool::Mesh.key(), GridTool::Mesh.shift()), (egui::Key::N, true));
+        assert_eq!(
+            (GridTool::Mesh.key(), GridTool::Mesh.shift()),
+            (egui::Key::N, true)
+        );
     }
 }

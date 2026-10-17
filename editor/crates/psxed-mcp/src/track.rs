@@ -222,10 +222,16 @@ mod tests {
         let events = events(log, route);
         assert_eq!(
             events,
-            vec![(20, "arch:attached".to_string()), (30, "arch:drop".to_string())]
+            vec![
+                (20, "arch:attached".to_string()),
+                (30, "arch:drop".to_string())
+            ]
         );
         let text = describe_events(&events, 10);
-        assert_eq!(text, "hook events (route poll): arch:attached at 10, arch:drop at 20\n");
+        assert_eq!(
+            text,
+            "hook events (route poll): arch:attached at 10, arch:drop at 20\n"
+        );
         assert!(describe_events(&[], 0).is_empty());
     }
 

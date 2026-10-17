@@ -38,7 +38,11 @@ fn edit_recipe(ui: &mut egui::Ui, kind: &mut MeshKind) -> bool {
         ui.horizontal(|ui| {
             ui.label(label);
             *changed |= ui
-                .add(egui::DragValue::new(value).speed(speed).range(range.0..=range.1))
+                .add(
+                    egui::DragValue::new(value)
+                        .speed(speed)
+                        .range(range.0..=range.1),
+                )
                 .changed();
         });
     }
@@ -71,8 +75,22 @@ fn edit_recipe(ui: &mut egui::Ui, kind: &mut MeshKind) -> bool {
             if spec.profile != ArchProfile::Flat {
                 drag(ui, &mut changed, "Rise", &mut spec.rise, 16.0, (64, 8192));
             }
-            drag(ui, &mut changed, "Spring", &mut spec.spring, 16.0, (0, 8192));
-            drag(ui, &mut changed, "Thickness", &mut spec.thickness, 8.0, (64, 2048));
+            drag(
+                ui,
+                &mut changed,
+                "Spring",
+                &mut spec.spring,
+                16.0,
+                (0, 8192),
+            );
+            drag(
+                ui,
+                &mut changed,
+                "Thickness",
+                &mut spec.thickness,
+                8.0,
+                (64, 2048),
+            );
             drag(ui, &mut changed, "Depth", &mut spec.depth, 16.0, (64, 4096));
             let mut segments = i32::from(spec.segments);
             drag(ui, &mut changed, "Segments", &mut segments, 0.1, (1, 8));
@@ -83,13 +101,34 @@ fn edit_recipe(ui: &mut egui::Ui, kind: &mut MeshKind) -> bool {
                 .changed();
         }
         MeshKind::Column(spec) => {
-            drag(ui, &mut changed, "Radius", &mut spec.radius, 8.0, (64, 1024));
-            drag(ui, &mut changed, "Height", &mut spec.height, 16.0, (256, 16384));
+            drag(
+                ui,
+                &mut changed,
+                "Radius",
+                &mut spec.radius,
+                8.0,
+                (64, 1024),
+            );
+            drag(
+                ui,
+                &mut changed,
+                "Height",
+                &mut spec.height,
+                16.0,
+                (256, 16384),
+            );
             let mut sides = i32::from(spec.sides);
             drag(ui, &mut changed, "Sides", &mut sides, 0.1, (3, 12));
             spec.sides = sides.clamp(3, 12) as u8;
             drag(ui, &mut changed, "Plinth", &mut spec.plinth, 8.0, (0, 2048));
-            drag(ui, &mut changed, "Capital", &mut spec.capital, 8.0, (0, 2048));
+            drag(
+                ui,
+                &mut changed,
+                "Capital",
+                &mut spec.capital,
+                8.0,
+                (0, 2048),
+            );
         }
         MeshKind::Rubble(spec) => {
             drag(ui, &mut changed, "Size", &mut spec.size, 16.0, (128, 4096));
@@ -97,7 +136,14 @@ fn edit_recipe(ui: &mut egui::Ui, kind: &mut MeshKind) -> bool {
             drag(ui, &mut changed, "Stones", &mut pieces, 0.1, (1, 6));
             spec.pieces = pieces.clamp(1, 6) as u8;
             let mut seed = i32::from(spec.seed);
-            drag(ui, &mut changed, "Seed", &mut seed, 0.2, (0, i32::from(u16::MAX)));
+            drag(
+                ui,
+                &mut changed,
+                "Seed",
+                &mut seed,
+                0.2,
+                (0, i32::from(u16::MAX)),
+            );
             spec.seed = seed.clamp(0, i32::from(u16::MAX)) as u16;
         }
         MeshKind::Imported(mesh) => {
@@ -105,7 +151,11 @@ fn edit_recipe(ui: &mut egui::Ui, kind: &mut MeshKind) -> bool {
                 RichText::new(format!(
                     "{} faces from {}",
                     mesh.faces.len(),
-                    if mesh.source.is_empty() { "an OBJ file" } else { &mesh.source }
+                    if mesh.source.is_empty() {
+                        "an OBJ file"
+                    } else {
+                        &mesh.source
+                    }
                 ))
                 .size(11.0)
                 .color(STUDIO_TEXT_WEAK),

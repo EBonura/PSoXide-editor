@@ -141,11 +141,18 @@ fn an_arch_spans_two_points_cooks_a_hook_under_the_crown_and_is_perched_on() {
     // little under the crown.
     assert_eq!((hooks[0].x, hooks[0].z), (240, 160));
     assert_eq!(hooks[0].y, 62);
-    assert_eq!(hooks[0].flags, 2, "HOOK_BARE: the arch is the masonry, no floating ruin");
+    assert_eq!(
+        hooks[0].flags, 2,
+        "HOOK_BARE: the arch is the masonry, no floating ruin"
+    );
 
     // ---- PLAY: perch on the crown and drop off ------------------------------
     if std::env::var("PSXED_MCP_VERIFY").as_deref() == Ok("1") {
-        assert!(frontend.is_file(), "PSXED_MCP_VERIFY needs {}", frontend.display());
+        assert!(
+            frontend.is_file(),
+            "PSXED_MCP_VERIFY needs {}",
+            frontend.display()
+        );
         // Triangle swaps to the ranged stance (72 ticks), L2 aims, the right
         // stick up raises the camera until the crown is at the reticle, R2
         // fires the hook, Circle lets go.
@@ -193,7 +200,10 @@ fn an_arch_spans_two_points_cooks_a_hook_under_the_crown_and_is_perched_on() {
             .find(|(_, n)| n == "arch:drop")
             .expect("the player let go");
         assert!(attached.0 < dropped.0, "{events:?}");
-        assert!(!events.iter().any(|(_, n)| n == "arch:blocked"), "{events:?}");
+        assert!(
+            !events.iter().any(|(_, n)| n == "arch:blocked"),
+            "{events:?}"
+        );
         // The path: up to the crown (an editor unit is a sixteenth of a
         // runtime unit; the hang is about 77 units up, 1232 editor), then
         // down to the floor.
@@ -215,7 +225,8 @@ fn an_arch_spans_two_points_cooks_a_hook_under_the_crown_and_is_perched_on() {
         assert!(end[1].abs() < 40, "fell back to the floor: {end:?}");
         // Under the arch: z within its depth (2560 +- 640 editor).
         assert!(
-            path.iter().any(|p| p[1] > 1000 && (p[2] - 2560).abs() < 700),
+            path.iter()
+                .any(|p| p[1] > 1000 && (p[2] - 2560).abs() < 700),
             "{path:?}"
         );
         for (i, png) in run.images.iter().enumerate() {

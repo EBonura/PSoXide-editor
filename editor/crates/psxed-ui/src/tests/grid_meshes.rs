@@ -29,8 +29,11 @@ fn rig(label: &str, persp: bool) -> GridRig {
             .world
             .grid_mut()
             .expect("grid");
-        let arch = add_asset(world, MeshAsset::new("arch", MeshKind::Arch(ArchSpec::default())))
-            .expect("arch");
+        let arch = add_asset(
+            world,
+            MeshAsset::new("arch", MeshKind::Arch(ArchSpec::default())),
+        )
+        .expect("arch");
         add_asset(
             world,
             MeshAsset::new("column", MeshKind::Column(ColumnSpec::default())),
@@ -88,7 +91,10 @@ fn a_click_in_3d_places_on_the_surface_under_the_pointer() {
     let meshes = &rig.room(0).meshes;
     assert_eq!(meshes.len(), 1, "{}", rig.ws.status);
     let m = &meshes[0];
-    assert!((m.position[0] - 3584).abs() <= 256 && (m.position[2] - 3584).abs() <= 256, "{m:?}");
+    assert!(
+        (m.position[0] - 3584).abs() <= 256 && (m.position[2] - 3584).abs() <= 256,
+        "{m:?}"
+    );
     assert_eq!(m.position[1], 0);
 }
 
@@ -103,7 +109,11 @@ fn dragging_an_instance_moves_it_and_one_undo_puts_it_back() {
     rig.drag(from, to);
     let moved = rig.room(0).meshes[0].position;
     assert_eq!(moved, [start[0] + 768, 0, start[2] - 512], "{moved:?}");
-    assert_eq!(rig.room(0).meshes.len(), 1, "a drag never places a second one");
+    assert_eq!(
+        rig.room(0).meshes.len(),
+        1,
+        "a drag never places a second one"
+    );
     rig.ws.do_undo();
     assert_eq!(rig.room(0).meshes[0].position, start);
 }
@@ -189,4 +199,28 @@ fn the_overlay_hover_ghost_follows_the_pointer() {
         rig.ws.grid.hover,
         crate::grid_tools::GridHover::Mesh(_)
     ));
+}
+
+#[test]
+fn minus_and_equals_scale_the_selection_by_eighths_with_undo() {
+    let mut rig = rig("mesh-scale", false);
+    rig.click(rig.cell_centre(3, 3));
+    assert_eq!(rig.room(0).meshes[0].scale, [256; 3]);
+    rig.key(egui::Key::Equals);
+    rig.key(egui::Key::Equals);
+    assert_eq!(rig.room(0).meshes[0].scale, [320; 3]);
+    rig.key(egui::Key::Minus);
+    assert_eq!(rig.room(0).meshes[0].scale, [288; 3]);
+    rig.ws.do_undo();
+    assert_eq!(rig.room(0).meshes[0].scale, [320; 3]);
+    // With nothing selected the key says what to do.
+    rig.ws.grid.mesh_sel = None;
+    rig.key(egui::Key::Equals);
+    assert!(rig.ws.status.contains("Select a mesh"), "{}", rig.ws.status);
+    // The scale never leaves the document's range.
+    rig.click(rig.cell_centre(3, 3));
+    for _ in 0..40 {
+        rig.key(egui::Key::Minus);
+    }
+    assert_eq!(rig.room(0).meshes[0].scale, [32; 3]);
 }

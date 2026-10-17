@@ -146,9 +146,14 @@ fn kind_of(r: &MeshRecipe, current: Option<&MeshKind>) -> Result<MeshKind, Strin
                 .path
                 .as_deref()
                 .ok_or("an obj recipe needs a path to the .obj file")?;
-            let text = std::fs::read_to_string(path)
-                .map_err(|e| format!("cannot read {path}: {e}"))?;
-            let proxy = match r.collision.as_deref().map(str::to_ascii_lowercase).as_deref() {
+            let text =
+                std::fs::read_to_string(path).map_err(|e| format!("cannot read {path}: {e}"))?;
+            let proxy = match r
+                .collision
+                .as_deref()
+                .map(str::to_ascii_lowercase)
+                .as_deref()
+            {
                 None | Some("none") => ImportProxy::None,
                 Some("box") => ImportProxy::Box,
                 Some("box_top") => ImportProxy::BoxTop,
@@ -254,7 +259,12 @@ pub fn describe_asset(index: usize, asset: &MeshAsset, world: &GridWorld) -> Str
 }
 
 /// Describe one instance in a block.
-pub fn describe_mesh(room: usize, mesh: &GridMesh, world: &GridWorld, mats: &Materials<'_>) -> String {
+pub fn describe_mesh(
+    room: usize,
+    mesh: &GridMesh,
+    world: &GridWorld,
+    mats: &Materials<'_>,
+) -> String {
     let asset = world.mesh_assets.get(usize::from(mesh.asset));
     let (cells, kind) = match asset.and_then(|a| a.build().ok()) {
         Some(built) => {
@@ -286,7 +296,11 @@ pub fn describe_mesh(room: usize, mesh: &GridMesh, world: &GridWorld, mats: &Mat
 }
 
 /// List the assets and the placed instances.
-pub fn list(world: &GridWorld, mats: &Materials<'_>, room: Option<usize>) -> Result<String, String> {
+pub fn list(
+    world: &GridWorld,
+    mats: &Materials<'_>,
+    room: Option<usize>,
+) -> Result<String, String> {
     let rooms: Vec<usize> = match room {
         Some(_) => vec![pick_room(world, room)?],
         None => (0..world.rooms.len()).collect(),
@@ -397,9 +411,7 @@ pub fn place(
         .slots
         .len();
     let mut mesh = GridMesh::new(0, asset, req.position);
-    mesh.rotation = req
-        .rotation
-        .unwrap_or([req.yaw.unwrap_or(0), 0, 0]);
+    mesh.rotation = req.rotation.unwrap_or([req.yaw.unwrap_or(0), 0, 0]);
     if let Some(scale) = &req.scale {
         mesh.scale = scale_q8(scale)?;
     }
@@ -522,7 +534,13 @@ pub fn set(
         if let Some(s) = scale {
             mesh.scale = s;
         }
-        if let Err(e) = apply_look(mesh, mats, req.material.as_deref(), req.materials.as_deref(), slots) {
+        if let Err(e) = apply_look(
+            mesh,
+            mats,
+            req.material.as_deref(),
+            req.materials.as_deref(),
+            slots,
+        ) {
             failure = Some(e);
         }
         if let Some(v) = req.collide {
@@ -654,7 +672,13 @@ pub fn arch(
     let slots = 4;
     {
         let mut look = world.rooms[r].meshes[i].clone();
-        apply_look(&mut look, mats, req.material.as_deref(), req.materials.as_deref(), slots)?;
+        apply_look(
+            &mut look,
+            mats,
+            req.material.as_deref(),
+            req.materials.as_deref(),
+            slots,
+        )?;
         look.collide = req.collide.unwrap_or(true);
         let (m, c) = (look.materials.clone(), look.collide);
         update_mesh(world, id, |mesh| {

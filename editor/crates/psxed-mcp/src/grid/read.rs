@@ -93,11 +93,12 @@ pub fn rooms(world: &GridWorld, mats: &Materials<'_>) -> String {
         );
         let _ = writeln!(
             out,
-            "  default wall material {}, open wall height {}, {} band set(s), {} plane(s), {} edge override(s)",
+            "  default wall material {}, open wall height {}, {} band set(s), {} plane(s), {} mesh(es), {} edge override(s)",
             mats.label(room.defaults.wall_material),
             room.defaults.open_wall,
             room.band_sets.len(),
             room.planes.len(),
+            room.meshes.len(),
             room.edge_overrides.len()
         );
         if let Some((lo, hi)) = floor_span(room) {
@@ -541,8 +542,8 @@ pub fn budget(world: &GridWorld) -> String {
     let mut out = String::new();
     let _ = writeln!(
         out,
-        "rooms {}, sectors {}, floors {}, ceilings {}, authored walls {}, planes {}",
-        b.rooms, b.sectors, b.floors, b.ceilings, b.walls, b.planes
+        "rooms {}, sectors {}, floors {}, ceilings {}, authored walls {}, planes {}, meshes {}",
+        b.rooms, b.sectors, b.floors, b.ceilings, b.walls, b.planes, b.meshes
     );
     let _ = writeln!(
         out,
@@ -554,11 +555,12 @@ pub fn budget(world: &GridWorld) -> String {
     );
     let _ = writeln!(
         out,
-        "caps: {} rooms, {} sectors a room side, {} walls an edge, {} planes a room",
+        "caps: {} rooms, {} sectors a room side, {} walls an edge, {} planes a room, {} meshes a room",
         limits::MAX_ROOMS,
         limits::MAX_ROOM_SIDE,
         limits::MAX_WALLS_PER_EDGE,
-        limits::MAX_PLANES_PER_ROOM
+        limits::MAX_PLANES_PER_ROOM,
+        psxed_project::grid::mesh::MAX_MESHES_PER_ROOM
     );
     let issues = issue_texts(world);
     if issues.is_empty() {

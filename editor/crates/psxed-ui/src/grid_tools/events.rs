@@ -13,8 +13,8 @@ use crate::workspace::tools2d::{ToolFrame2d, ViewportTool2d};
 use crate::workspace::tools3d::{SelectTool, ToolFrame3d, ViewportTool3d};
 
 use super::{
-    bands_tool, clipboard_tool, face_tools, height_tool, mesh_tool, place_tool, plane_tool, rect_tool,
-    select_tool, triangle_tool, verb_tool, wall_tool,
+    bands_tool, clipboard_tool, face_tools, height_tool, mesh_tool, place_tool, plane_tool,
+    rect_tool, select_tool, triangle_tool, verb_tool, wall_tool,
 };
 
 /// A pointer event.

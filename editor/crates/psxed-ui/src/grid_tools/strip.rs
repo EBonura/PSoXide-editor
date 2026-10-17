@@ -118,9 +118,12 @@ impl EditorWorkspace {
                     })
                     .unwrap_or_else(|| "none (pick one in the palette)".to_string());
                 ui.label(
-                    RichText::new(format!("Mesh: {name}   heading {}\u{b0}", self.grid.mesh_turn))
-                        .color(STUDIO_TEXT_WEAK)
-                        .size(11.0),
+                    RichText::new(format!(
+                        "Mesh: {name}   heading {}\u{b0}",
+                        self.grid.mesh_turn
+                    ))
+                    .color(STUDIO_TEXT_WEAK)
+                    .size(11.0),
                 );
             }
             GridTool::Select | GridTool::Height => {
@@ -248,7 +251,7 @@ impl EditorWorkspace {
                 "Click pick | Shift range | Ctrl toggle | Drag box | Shift-drag height | Del delete | Ctrl+C/V copy"
             }
             GridTool::Mesh => {
-                "Click a floor to place the chosen mesh | Drag a mesh to move it | R turn 90, [ ] 15 | Del removes | Alt 64, Shift+Alt free"
+                "Click a floor to place | Drag moves | R turns, [ ] 15 | - = scale | Del removes | Alt 64"
             }
             GridTool::Floor => "Drag rectangle | Shift height | Ctrl delete | Esc cancel",
             GridTool::Ceiling => "Drag rectangle | Shift height | Ctrl delete | Esc cancel",

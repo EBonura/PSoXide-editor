@@ -74,11 +74,7 @@ pub(super) fn spot(ws: &EditorWorkspace, ptr: &GridPointer) -> Option<(usize, [i
         point[1].round() as i32 + 96
     };
     let floor = world
-        .floor_height_at(
-            world.scale.to_editor(gx),
-            world.scale.to_editor(gz),
-            limit,
-        )
+        .floor_height_at(world.scale.to_editor(gx), world.scale.to_editor(gz), limit)
         .map(|f| world.scale.to_grid(f));
     let y_world = floor.unwrap_or_else(|| {
         if point[1] == f32::MAX {
@@ -139,7 +135,8 @@ impl EditorWorkspace {
                 continue;
             }
             for index in 0..room.meshes.len() {
-                let Some(placed) = psxed_project::grid::mesh_faces::placed(world, room_index, index)
+                let Some(placed) =
+                    psxed_project::grid::mesh_faces::placed(world, room_index, index)
                 else {
                     continue;
                 };
@@ -226,7 +223,11 @@ impl EditorWorkspace {
         };
         let slots = world
             .find_mesh(id)
-            .and_then(|(r, i)| world.mesh_assets.get(usize::from(world.rooms[r].meshes[i].asset)))
+            .and_then(|(r, i)| {
+                world
+                    .mesh_assets
+                    .get(usize::from(world.rooms[r].meshes[i].asset))
+            })
             .and_then(|a| a.build().ok())
             .map_or(1, |b| b.slots.len());
         let changed = update_mesh(world, id, |m| {
@@ -376,8 +377,7 @@ pub(crate) fn turn(ws: &mut EditorWorkspace, degrees: i32) {
             ws.grid_changed();
         }
     } else {
-        ws.grid.mesh_turn =
-            psxed_project::grid::plane::wrap_degrees(ws.grid.mesh_turn + degrees);
+        ws.grid.mesh_turn = psxed_project::grid::plane::wrap_degrees(ws.grid.mesh_turn + degrees);
         ws.status = format!("Next mesh turned to {} degrees", ws.grid.mesh_turn);
     }
 }
@@ -399,4 +399,29 @@ pub(crate) fn delete_selected(ws: &mut EditorWorkspace) -> bool {
     ws.status = format!("Deleted mesh {id}");
     ws.grid_changed();
     true
+}
+
+/// Scale the selected instance by `steps` eighths (Q8 steps of 32, so a
+/// uniform scale stays on the lattice the Inspector shows as a multiple of
+/// 12.5 percent). Without a selection, say what to do.
+pub(crate) fn scale_step(ws: &mut EditorWorkspace, steps: i32) {
+    let Some(id) = ws.mesh_primary() else {
+        ws.status = "Select a mesh to scale it (the Inspector has the numbers)".to_string();
+        return;
+    };
+    let before = ws.project.clone();
+    let Some(world) = ws.project.active_scene_mut().world.grid_mut() else {
+        return;
+    };
+    let step = i32::from(psxed_project::grid::mesh::SCALE_ONE) / 8 * steps;
+    let changed = update_mesh(world, id, |m| {
+        for s in &mut m.scale {
+            *s = (i32::from(*s) + step).clamp(0, i32::from(u16::MAX)) as u16;
+        }
+    })
+    .unwrap_or(false);
+    if changed {
+        ws.history.record(before);
+        ws.grid_changed();
+    }
 }

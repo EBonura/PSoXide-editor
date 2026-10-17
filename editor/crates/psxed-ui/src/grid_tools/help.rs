@@ -91,6 +91,7 @@ const MESH: Rows = &[
         "R, [ and ]",
         "Turn the selected mesh a quarter or 15 degrees, or the heading of the next one when none is selected",
     ),
+    ("- and =", "Scale the selected mesh down or up by an eighth (Q8 steps of 32; the Inspector has the exact numbers)"),
     ("Delete", "Remove the selected mesh"),
     (
         "Arch (the + Arch recipe)",

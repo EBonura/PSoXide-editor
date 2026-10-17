@@ -589,14 +589,25 @@ pub fn render(
     for &ri in &order {
         let r = &world.rooms[ri];
         for mesh in &r.meshes {
-            let Some(placed) = psxed_project::grid::mesh_faces::placed(world, ri, r.meshes.iter().position(|m| m.id == mesh.id).unwrap_or(0)) else {
+            let Some(placed) = psxed_project::grid::mesh_faces::placed(
+                world,
+                ri,
+                r.meshes.iter().position(|m| m.id == mesh.id).unwrap_or(0),
+            ) else {
                 continue;
             };
             let Some(foot) = mesh.footprint(&placed.built) else {
                 continue;
             };
-            let c = if mesh.collide { [255, 170, 60] } else { [200, 160, 110] };
-            let pts: Vec<(f32, f32)> = foot.iter().map(|p| (gx(p[0] as f32), gz(p[1] as f32))).collect();
+            let c = if mesh.collide {
+                [255, 170, 60]
+            } else {
+                [200, 160, 110]
+            };
+            let pts: Vec<(f32, f32)> = foot
+                .iter()
+                .map(|p| (gx(p[0] as f32), gz(p[1] as f32)))
+                .collect();
             canvas.fill_polygon(&pts, c, 0.35);
             for k in 0..4 {
                 let (a, b) = (pts[k], pts[(k + 1) % 4]);
@@ -604,11 +615,22 @@ pub fn render(
             }
             let cx = pts.iter().map(|p| p.0).sum::<f32>() / 4.0;
             let cy = pts.iter().map(|p| p.1).sum::<f32>() / 4.0;
-            canvas.text(cx as i32 - 3, cy as i32 - 4, &mesh.id.to_string(), 2, [0, 0, 0]);
+            canvas.text(
+                cx as i32 - 3,
+                cy as i32 - 4,
+                &mesh.id.to_string(),
+                2,
+                [0, 0, 0],
+            );
             for socket in &placed.built.sockets {
                 let psxed_project::grid::mesh::Socket::Hook { anchor, .. } = *socket;
                 let g = mesh.place(anchor);
-                canvas.ring(gx(g[0] as f32) as i32, gz(g[2] as f32) as i32, 3, [255, 255, 255]);
+                canvas.ring(
+                    gx(g[0] as f32) as i32,
+                    gz(g[2] as f32) as i32,
+                    3,
+                    [255, 255, 255],
+                );
             }
             let _ = writeln!(
                 mesh_lines,

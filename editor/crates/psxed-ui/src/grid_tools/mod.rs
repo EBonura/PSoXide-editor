@@ -454,10 +454,7 @@ pub(crate) enum GridHover {
     Mesh(u16),
     /// Where the Mesh tool would put a new instance: its room and position
     /// (grid units, `y` relative to the room).
-    MeshSpot {
-        room: usize,
-        position: [i32; 3],
-    },
+    MeshSpot { room: usize, position: [i32; 3] },
     /// A handle of the selected plane under the pointer.
     Grip(PlaneId, plane_math::Handle),
     /// Where the Plane tool would put a new plane, in room `0`.

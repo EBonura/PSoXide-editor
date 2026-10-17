@@ -31,8 +31,15 @@ fn editor_point(world: &GridWorld, room_y: i32, g: [i32; 3]) -> [f32; 3] {
     ]
 }
 
-fn draw_of(world: &GridWorld, room_y: i32, mesh: &GridMesh, built: &psxed_project::grid::mesh::BuiltMesh) -> Option<Drawn> {
-    let corners = mesh.oriented_box(built)?.map(|g| editor_point(world, room_y, g));
+fn draw_of(
+    world: &GridWorld,
+    room_y: i32,
+    mesh: &GridMesh,
+    built: &psxed_project::grid::mesh::BuiltMesh,
+) -> Option<Drawn> {
+    let corners = mesh
+        .oriented_box(built)?
+        .map(|g| editor_point(world, room_y, g));
     let hooks = built
         .sockets
         .iter()
@@ -94,7 +101,11 @@ impl EditorWorkspace {
     }
 
     /// Footprints, selection, hover and ghost over the Top view.
-    pub(crate) fn draw_mesh_overlay_2d(&self, painter: &egui::Painter, transform: ViewportTransform) {
+    pub(crate) fn draw_mesh_overlay_2d(
+        &self,
+        painter: &egui::Painter,
+        transform: ViewportTransform,
+    ) {
         let Some(world) = self.project.active_scene().world.grid() else {
             return;
         };
