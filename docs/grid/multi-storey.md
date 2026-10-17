@@ -622,6 +622,6 @@ What each phase does to code other lines are changing: `grid/natural` edits `der
 - Constants as proposed: slab 1 click, minimum headroom 3 clicks, span cap 8, storey pitch 12 clicks.
 - Add `RoomDefaults.closure_facing` so derived exterior walls can render from outside (the tower must not look hollow).
 - Camera ring clearance: keep a one-sector ring; widen only if frames look cramped.
-- Keys: `M` Slab, `Z` cutaway, Alt+Up/Down storey cursor, `G` go to level. `G` was reserved for Vault in natural-terrain.md; Vault moves to `J`.
+- Keys: `Q` Slab (`M` went to Rough in N2), `Z` cutaway, Alt+Up/Down storey cursor, `G` go to level. `G` was reserved for Vault in natural-terrain.md; Vault moves to `J`.
 - Storey detection: a derived list, a cursor that follows edits, and raising past headroom creating a new span only via an explicit option (as the study assumed); Manny may revise.
 - Sequencing: spans land with the T8 leaf port (the one data-model change), derivation R4 and open-set pairing after natural-terrain N1 merges, format via the v4 bump shared with T10 and the compact-format C phases.
