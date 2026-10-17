@@ -5,7 +5,7 @@ use super::grid_rig::*;
 use super::*;
 use crate::grid_tools::GridTool;
 
-fn full_context() -> egui::Context {
+pub(super) fn full_context() -> egui::Context {
     let ctx = egui::Context::default();
     let mut fonts = egui::FontDefinitions::default();
     let proportional = fonts.families[&egui::FontFamily::Proportional].clone();
@@ -16,7 +16,11 @@ fn full_context() -> egui::Context {
     ctx
 }
 
-fn draw_editor(ws: &mut EditorWorkspace, ctx: &egui::Context, view_2d: bool) -> egui::FullOutput {
+pub(super) fn draw_editor(
+    ws: &mut EditorWorkspace,
+    ctx: &egui::Context,
+    view_2d: bool,
+) -> egui::FullOutput {
     let texture = ctx.load_texture(
         "grid-ui",
         egui::ColorImage::new([1, 1], egui::Color32::BLACK),

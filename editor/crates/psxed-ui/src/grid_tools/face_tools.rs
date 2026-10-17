@@ -74,6 +74,12 @@ pub(super) fn face_under(
 }
 
 pub(super) fn hover(ws: &mut EditorWorkspace, ptr: &GridPointer) {
+    if ws.grid.tool == GridTool::Paint {
+        if let Some(id) = super::plane_tool::paint_target(ws, ptr) {
+            ws.grid.hover = GridHover::Plane(id);
+            return;
+        }
+    }
     ws.grid.hover = match face_under(ws, ptr) {
         Some((faces, tri)) if faces.len() == 1 => GridHover::Face {
             face: faces[0],
@@ -96,6 +102,17 @@ fn paint_at(
         ws.status = "Pick a material in the palette first".to_string();
         return false;
     };
+    if let Some(id) = super::plane_tool::paint_target(ws, ptr) {
+        let snapshot = ws.project.clone();
+        let changed = super::plane_tool::paint(ws, id, Some(material));
+        if changed {
+            if before.is_none() {
+                *before = Some(snapshot);
+            }
+            ws.grid_changed();
+        }
+        return changed;
+    }
     let Some((faces, tri)) = face_under(ws, ptr) else {
         return false;
     };
@@ -173,6 +190,23 @@ pub(super) fn paint_click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
 
 /// Eyedropper: take the material of the face under the pointer.
 fn sample(ws: &mut EditorWorkspace, ptr: &GridPointer) {
+    if let Some(id) = super::plane_tool::paint_target(ws, ptr) {
+        let material = ws
+            .project
+            .active_scene()
+            .world
+            .grid()
+            .and_then(|w| id.get(w))
+            .and_then(|p| p.material);
+        if let Some(material) = material {
+            ws.grid.material = Some(material);
+            ws.grid.palette_scroll_to = Some(material);
+            ws.status = "Sampled material".to_string();
+        } else {
+            ws.status = "That plane has no material".to_string();
+        }
+        return;
+    }
     let Some((faces, tri)) = face_under(ws, ptr) else {
         return;
     };

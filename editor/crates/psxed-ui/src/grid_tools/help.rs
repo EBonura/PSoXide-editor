@@ -35,6 +35,41 @@ const WALL: Rows = &[
     ("R", "Turn the direction: auto, N, E, S, W, two diagonals"),
     ("Ctrl/Cmd+drag", "Remove walls"),
 ];
+const PLANE: Rows = &[
+    (
+        "Click a surface",
+        "Put a plane on it, facing out, snapped (a click is one sector)",
+    ),
+    ("Drag", "Size the new plane from the press point"),
+    (
+        "Click a plane",
+        "Select it (Select works too); Shift extends, Ctrl toggles",
+    ),
+    (
+        "Corner, edge handles",
+        "Stretch; the opposite edges stay put",
+    ),
+    (
+        "Green ring knob",
+        "Turn about the vertical axis (15 degree steps)",
+    ),
+    ("Blue arrow tip", "Tilt the front up and down"),
+    (
+        "Drag the body",
+        "Slide in the plane; Shift moves it up and down",
+    ),
+    ("Ctrl/Cmd, Alt", "Fine snap (64 units), free movement"),
+    ("R", "Quarter turn"),
+    ("PgUp / PgDn, ] / [", "Nudge up or down a click"),
+    (
+        "Del, Ctrl/Cmd+C, V",
+        "Delete, copy, paste (R turns, H flips the ghost)",
+    ),
+    (
+        "Inspector",
+        "Position, size, angles, material, texture, sides, collision",
+    ),
+];
 const HEIGHT: Rows = &[
     ("Drag", "Raise or lower a vertex, edge or face"),
     ("Alt", "Fine step (64 units instead of 256)"),
@@ -104,10 +139,11 @@ impl EditorWorkspace {
             return;
         }
         let mut open = true;
-        let sections: [(&str, Rows); 7] = [
+        let sections: [(&str, Rows); 8] = [
             ("Select (V)", SELECT),
             ("Floor (F) and Ceiling (C)", FLOOR),
             ("Wall (W)", WALL),
+            ("Plane (N)", PLANE),
             ("Height (H)", HEIGHT),
             ("Paint (P)", PAINT),
             ("More", OTHER),
@@ -122,7 +158,7 @@ impl EditorWorkspace {
             .show(ctx, |ui| {
                 ui.set_width(1040.0_f32.min(ctx.screen_rect().width() - 80.0));
                 ui.label(
-                    RichText::new("Tools: V Select, F Floor, C Ceiling, W Wall, H Height, P Paint, D Split, O Place")
+                    RichText::new("Tools: V Select, F Floor, C Ceiling, W Wall, N Plane, H Height, P Paint, D Split, O Place")
                         .color(STUDIO_TEXT_WEAK),
                 );
                 ui.add_space(4.0);

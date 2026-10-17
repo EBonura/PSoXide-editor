@@ -1,7 +1,7 @@
 //! The grid world editing tools.
 //!
-//! One strip of eight tools (Select, Floor, Ceiling, Wall, Height, Paint,
-//! Split, Place), each written once and driven from both the Top view and
+//! One strip of nine tools (Select, Floor, Ceiling, Wall, Plane, Height,
+//! Paint, Split, Place), each written once and driven from both the Top view and
 //! the 3D view through [`view::GridPointer`]. The document edits themselves
 //! are the pure functions in `psxed_project::grid::edit`; this module owns
 //! the gestures, the picking, the overlays and the panels around them.
@@ -17,8 +17,10 @@ use super::*;
 
 use std::cell::RefCell;
 
-use psxed_project::grid::edit::{GridClipboard, GridSelection, HeightDrag, SurfaceKind};
-use psxed_project::grid::WallEdge;
+use psxed_project::grid::edit::{
+    GridClipboard, GridSelection, HeightDrag, PlaneClipboard, PlaneId, SurfaceKind,
+};
+use psxed_project::grid::{GridPlane, PlaneCollision, WallEdge};
 
 mod clipboard_tool;
 pub(crate) mod events;
@@ -30,6 +32,11 @@ mod overlay;
 mod panels;
 pub(crate) mod pick;
 mod place_tool;
+mod plane_math;
+mod plane_overlay;
+mod plane_panel;
+mod plane_pick;
+mod plane_tool;
 mod pose;
 mod rect_tool;
 mod rooms;
@@ -43,7 +50,7 @@ use pick::PickCache;
 pub use rooms::grid_preview_hidden_rooms;
 use view::{GridPointer, GridView};
 
-/// The eight grid tools, in strip order.
+/// The nine grid tools, in strip order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum GridTool {
     /// Pick, range-select, box-select, shift-drag heights.
@@ -54,6 +61,8 @@ pub(crate) enum GridTool {
     Ceiling,
     /// Drag a run of walls along edges.
     Wall,
+    /// Place free planes on any surface and stretch, turn and move them.
+    Plane,
     /// Raise and lower vertices, edges and faces.
     Height,
     /// Apply the palette material to clicked faces.
@@ -65,11 +74,12 @@ pub(crate) enum GridTool {
 }
 
 impl GridTool {
-    pub(crate) const ALL: [Self; 8] = [
+    pub(crate) const ALL: [Self; 9] = [
         Self::Select,
         Self::Floor,
         Self::Ceiling,
         Self::Wall,
+        Self::Plane,
         Self::Height,
         Self::Paint,
         Self::Split,
@@ -82,6 +92,7 @@ impl GridTool {
             Self::Floor => "Floor",
             Self::Ceiling => "Ceiling",
             Self::Wall => "Wall",
+            Self::Plane => "Plane",
             Self::Height => "Height",
             Self::Paint => "Paint",
             Self::Split => "Split",
@@ -95,6 +106,7 @@ impl GridTool {
             Self::Floor => egui::Key::F,
             Self::Ceiling => egui::Key::C,
             Self::Wall => egui::Key::W,
+            Self::Plane => egui::Key::N,
             Self::Height => egui::Key::H,
             Self::Paint => egui::Key::P,
             Self::Split => egui::Key::D,
@@ -108,6 +120,7 @@ impl GridTool {
             Self::Floor => "F",
             Self::Ceiling => "C",
             Self::Wall => "W",
+            Self::Plane => "N",
             Self::Height => "H",
             Self::Paint => "P",
             Self::Split => "D",
@@ -121,6 +134,7 @@ impl GridTool {
             Self::Floor => icons::SQUARE,
             Self::Ceiling => icons::LAYERS,
             Self::Wall => icons::BRICK_WALL,
+            Self::Plane => icons::SCALE_3D,
             Self::Height => icons::MOVE,
             Self::Paint => icons::PALETTE,
             Self::Split => icons::SCAN,
@@ -139,6 +153,9 @@ impl GridTool {
             }
             Self::Wall => {
                 "Drag along an edge to place a run of walls. R turns the direction, Ctrl removes."
+            }
+            Self::Plane => {
+                "Click a surface to put a free plane on it; drag to size it. Select a plane to move, turn and stretch it with its handles."
             }
             Self::Height => "Drag a vertex, edge or face up and down. Alt snaps finer. L unlinks.",
             Self::Paint => "Click faces to apply the material chosen in the palette. Ctrl samples.",
@@ -238,6 +255,8 @@ pub(crate) enum Gesture {
     },
     /// A node (light, spawn, actor) stroke handed to the node tools.
     Node,
+    /// A plane being placed or one of its handles being dragged.
+    Plane(plane_tool::PlaneGesture),
 }
 
 /// What the pointer is over, for hover highlights and ghosts.
@@ -267,6 +286,12 @@ pub(crate) enum GridHover {
     },
     /// A sector centre and height where a node would land.
     Spot { position: [f32; 3] },
+    /// A free plane under the pointer.
+    Plane(PlaneId),
+    /// A handle of the selected plane under the pointer.
+    Grip(PlaneId, plane_math::Handle),
+    /// Where the Plane tool would put a new plane, in room `0`.
+    PlaneSpot(usize, Box<GridPlane>),
 }
 
 /// A clipboard ghost following the pointer.
@@ -274,6 +299,21 @@ pub(crate) enum GridHover {
 pub(crate) struct PasteGhost {
     pub clip: GridClipboard,
     pub at: Option<[i32; 2]>,
+}
+
+/// A plane clipboard ghost following the pointer.
+#[derive(Clone, Debug)]
+pub(crate) struct PlanePaste {
+    pub clip: PlaneClipboard,
+    /// World `[x, z]` grid units the group's anchor hangs at.
+    pub at: Option<[i32; 2]>,
+}
+
+/// What the Plane tool gives a new plane.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct NewPlane {
+    pub collision: PlaneCollision,
+    pub double_sided: bool,
 }
 
 /// All grid editing state of the workspace. Not saved with the project.
@@ -293,6 +333,15 @@ pub(crate) struct GridEditState {
     pub wall_dir: WallDirection,
     pub clipboard: Option<GridClipboard>,
     pub paste: Option<PasteGhost>,
+    /// The selected free planes, the last one primary. A plane selection and
+    /// a face selection never exist together.
+    pub plane_sel: Vec<PlaneId>,
+    pub plane_clip: Option<PlaneClipboard>,
+    pub plane_paste: Option<PlanePaste>,
+    /// Collision and sidedness of the next placed plane.
+    pub new_plane: NewPlane,
+    /// The last press was taken by a plane, so its click is too.
+    pub plane_press: bool,
     /// The room tools create in when none is marked active.
     pub last_room: usize,
     /// Bumped by every document change; the pick cache and budget follow it.
@@ -330,6 +379,14 @@ impl Default for GridEditState {
             wall_dir: WallDirection::Auto,
             clipboard: None,
             paste: None,
+            plane_sel: Vec::new(),
+            plane_clip: None,
+            plane_paste: None,
+            new_plane: NewPlane {
+                collision: PlaneCollision::Decor,
+                double_sided: false,
+            },
+            plane_press: false,
             last_room: 0,
             rev: 1,
             cache: RefCell::new(None),
@@ -350,6 +407,8 @@ impl GridEditState {
     pub(crate) fn abandon(&mut self) {
         self.gesture = Gesture::Idle;
         self.paste = None;
+        self.plane_paste = None;
+        self.plane_press = false;
         self.hover_pinned = false;
         self.hover = GridHover::None;
     }
@@ -432,12 +491,16 @@ impl EditorWorkspace {
     /// The mouse cursor the active tool wants over the viewport.
     pub(crate) fn grid_cursor(&self) -> egui::CursorIcon {
         use egui::CursorIcon as C;
-        if self.grid.paste.is_some() {
+        if self.grid.paste.is_some() || self.grid.plane_paste.is_some() {
             return C::Move;
+        }
+        if matches!(self.grid.hover, GridHover::Grip(..)) {
+            return C::Grab;
         }
         match &self.grid.gesture {
             Gesture::Height(_) => return C::ResizeVertical,
             Gesture::Rect(_) | Gesture::Walls(_) | Gesture::Marquee { .. } => return C::Crosshair,
+            Gesture::Plane(_) => return C::Grabbing,
             Gesture::Paint { .. } => return C::Crosshair,
             _ => {}
         }
@@ -452,6 +515,7 @@ impl EditorWorkspace {
             GridTool::Floor
             | GridTool::Ceiling
             | GridTool::Wall
+            | GridTool::Plane
             | GridTool::Paint
             | GridTool::Place => C::Crosshair,
         }

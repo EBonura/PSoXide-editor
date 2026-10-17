@@ -17,13 +17,21 @@ impl EditorWorkspace {
     pub(crate) fn draw_grid_panels(&mut self, ui: &mut egui::Ui) {
         self.draw_grid_palette(ui);
         ui.add_space(6.0);
-        self.draw_grid_face_inspector(ui);
+        if self.plane_primary().is_some() {
+            self.draw_plane_inspector(ui);
+        } else {
+            self.draw_grid_face_inspector(ui);
+        }
         ui.add_space(8.0);
         ui.separator();
     }
 
     /// Apply the palette material to every selected face.
     pub(crate) fn apply_grid_material_to_selection(&mut self, material: ResourceId) -> usize {
+        let planes = self.apply_material_to_selected_planes(material);
+        if planes > 0 {
+            return planes;
+        }
         let Some(world) = self.project.active_scene().world.grid() else {
             return 0;
         };

@@ -10,7 +10,7 @@ use super::*;
 use psxed_project::grid::edit::Transform;
 use psxed_project::grid::{CLICK_UNITS, FINE_UNITS};
 
-use super::{clipboard_tool, height_tool, select_tool};
+use super::{clipboard_tool, height_tool, plane_tool, select_tool};
 
 fn pressed(ctx: &egui::Context, key: egui::Key) -> bool {
     ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, key))
@@ -41,6 +41,18 @@ impl EditorWorkspace {
             return;
         }
 
+        if self.grid.plane_paste.is_some() {
+            for key in [egui::Key::H, egui::Key::R] {
+                if pressed(ctx, key) {
+                    plane_tool::transform_ghost(self, key);
+                }
+            }
+            if pressed(ctx, egui::Key::Escape) {
+                self.grid.plane_paste = None;
+                self.status = "Paste cancelled".to_string();
+            }
+            return;
+        }
         if self.grid.paste.is_some() {
             if pressed(ctx, egui::Key::H) {
                 clipboard_tool::transform_ghost(self, Transform::FlipH);
@@ -59,7 +71,9 @@ impl EditorWorkspace {
         }
 
         if pressed(ctx, egui::Key::Escape) {
-            if !matches!(self.grid.gesture, Gesture::Idle) {
+            if plane_tool::cancel(self) {
+                self.status = "Cancelled".to_string();
+            } else if !matches!(self.grid.gesture, Gesture::Idle) {
                 // Undo whatever a height drag already did.
                 if let Gesture::Height(g) = std::mem::take(&mut self.grid.gesture) {
                     if g.delta != 0 {
@@ -68,8 +82,9 @@ impl EditorWorkspace {
                 }
                 self.grid.gesture = Gesture::Idle;
                 self.status = "Cancelled".to_string();
-            } else if !self.grid.selection.is_empty() {
+            } else if !self.grid.selection.is_empty() || !self.grid.plane_sel.is_empty() {
                 self.grid.selection.clear();
+                self.grid.plane_sel.clear();
                 self.status = "Selection cleared".to_string();
             }
         }
@@ -83,9 +98,13 @@ impl EditorWorkspace {
                 self.set_grid_tool(tool);
             }
         }
-        if self.grid.tool == GridTool::Wall && pressed(ctx, egui::Key::R) {
-            self.grid.wall_dir = self.grid.wall_dir.next();
-            self.status = format!("Wall direction: {}", self.grid.wall_dir.label());
+        if pressed(ctx, egui::Key::R) {
+            if !self.grid.plane_sel.is_empty() {
+                plane_tool::turn_selected(self);
+            } else if self.grid.tool == GridTool::Wall {
+                self.grid.wall_dir = self.grid.wall_dir.next();
+                self.status = format!("Wall direction: {}", self.grid.wall_dir.label());
+            }
         }
         if pressed(ctx, egui::Key::L) {
             self.grid.link = !self.grid.link;

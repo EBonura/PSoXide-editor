@@ -46,6 +46,7 @@ pub(crate) struct PickCache {
     pub faces: Vec<PickFace>,
     pub corners: Vec<PickCorner>,
     pub edges: Vec<PickEdge>,
+    pub planes: Vec<super::plane_pick::PickPlane>,
 }
 
 fn to_f32(p: [i32; 3]) -> [f32; 3] {
@@ -61,6 +62,8 @@ fn build_cache(world: &GridWorld, rev: u64) -> PickCache {
                 (FaceTarget::Surface(SurfaceKind::Ceiling), triangle)
             }
             GridFaceKind::Wall { edge, index } => (FaceTarget::Wall { edge, index }, None),
+            // Free planes have their own entries below.
+            GridFaceKind::Plane { .. } => continue,
         };
         faces.push(PickFace {
             face: FaceRef {
@@ -118,6 +121,7 @@ fn build_cache(world: &GridWorld, rev: u64) -> PickCache {
         faces,
         corners,
         edges,
+        planes: super::plane_pick::build_planes(world),
     }
 }
 
@@ -180,6 +184,8 @@ pub(crate) struct FaceHit {
     pub point: [f32; 3],
     /// Distance along the ray.
     pub depth: f32,
+    /// Unit normal of the face, on the side the ray came from.
+    pub normal: [f32; 3],
 }
 
 /// The finest thing a tool wants to pick.
@@ -239,9 +245,11 @@ impl EditorWorkspace {
                 }
                 let Some(depth) = hit else { continue };
                 if best.is_none_or(|b| depth < b.depth) {
+                    let flip = if facing > 0.0 { -1.0 } else { 1.0 };
                     best = Some(FaceHit {
                         face: pf.face,
                         tri: pf.tri,
+                        normal: pf.normal.map(|v| v * flip),
                         point: [
                             origin[0] + dir[0] * depth,
                             origin[1] + dir[1] * depth,

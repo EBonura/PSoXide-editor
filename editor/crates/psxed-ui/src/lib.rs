@@ -2628,6 +2628,7 @@ impl EditorWorkspace {
                 // Grid caches and selection describe the old document.
                 self.grid.abandon();
                 self.grid.selection.clear();
+                self.grid.plane_sel.clear();
                 self.grid.rev = self.grid.rev.wrapping_add(1);
                 self.grid.fit_pending = true;
                 self.selection.selected_node = NodeId::ROOT;

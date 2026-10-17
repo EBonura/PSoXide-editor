@@ -11,6 +11,9 @@ use psxed_project::grid::edit::{clear_cells, delete_faces, GridClipboard, GridEl
 
 /// Ctrl+C.
 pub(super) fn copy(ws: &mut EditorWorkspace) {
+    if !ws.grid.plane_sel.is_empty() && super::plane_tool::copy(ws) {
+        return;
+    }
     let Some(world) = ws.project.active_scene().world.grid() else {
         return;
     };
@@ -31,6 +34,9 @@ pub(super) fn copy(ws: &mut EditorWorkspace) {
 
 /// Ctrl+V.
 pub(super) fn begin_paste(ws: &mut EditorWorkspace) {
+    if ws.grid.clipboard.is_none() && super::plane_tool::begin_paste(ws) {
+        return;
+    }
     let Some(clip) = ws.grid.clipboard.clone() else {
         ws.status = "Nothing copied".to_string();
         return;
@@ -106,6 +112,9 @@ pub(super) fn click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
 /// Delete or Backspace: remove the selected faces (a selected sector is
 /// cleared entirely). Returns whether the selection held anything.
 pub(super) fn delete_selection(ws: &mut EditorWorkspace) -> bool {
+    if super::plane_tool::delete_selected(ws) {
+        return true;
+    }
     if ws.grid.selection.is_empty() {
         return false;
     }

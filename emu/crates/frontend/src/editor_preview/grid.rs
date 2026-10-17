@@ -14,6 +14,7 @@ use super::*;
 
 use psxed_project::grid::faces::{cell_faces, GridFace};
 use psxed_project::grid::light::bake_face_corners;
+use psxed_project::grid::plane_faces::plane_faces;
 use psxed_project::grid::{GridRoom, GridSector, GridWorld, SECTOR_UNITS};
 
 /// Editor-space bounds of one sector, from its lowest to highest geometry.
@@ -144,6 +145,54 @@ pub(super) fn walk_grid(
                 );
             }
         }
+        // Free planes, culled by their own boxes.
+        for (index, plane) in room.planes.iter().enumerate() {
+            if !plane.enabled
+                || !preview_cell_bounds_visible(camera, plane_bounds(world, room, plane))
+            {
+                continue;
+            }
+            if scratch.geometry_full() {
+                scratch.dropped = scratch.dropped.saturating_add(1);
+                continue;
+            }
+            faces.clear();
+            plane_faces(world, room_index, index, &mut faces);
+            for face in &faces {
+                emit_grid_face(
+                    project,
+                    textures,
+                    camera,
+                    face,
+                    room.ambient,
+                    &lights,
+                    scratch,
+                );
+            }
+        }
+    }
+}
+
+/// Editor-space box around a free plane, for the same cull the cells get.
+fn plane_bounds(
+    world: &GridWorld,
+    room: &GridRoom,
+    plane: &psxed_project::grid::GridPlane,
+) -> PreviewCellBounds {
+    let (lo, hi) = plane.bounds();
+    let scale = world.scale;
+    let y = |v: i32| f64::from(scale.to_editor(room.y_offset + v));
+    PreviewCellBounds {
+        min: [
+            f64::from(scale.to_editor(lo[0])),
+            y(lo[1]),
+            f64::from(scale.to_editor(lo[2])),
+        ],
+        max: [
+            f64::from(scale.to_editor(hi[0])),
+            y(hi[1]),
+            f64::from(scale.to_editor(hi[2])),
+        ],
     }
 }
 

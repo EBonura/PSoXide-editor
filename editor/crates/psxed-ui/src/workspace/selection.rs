@@ -514,8 +514,10 @@ impl EditorWorkspace {
     pub(crate) fn reconcile_selection_after_document_change(&mut self) {
         if let Some(world) = self.project.active_scene().world.grid() {
             self.grid.selection.retain_valid(world);
+            self.grid.plane_sel.retain(|id| id.exists(world));
         } else {
             self.grid.selection.clear();
+            self.grid.plane_sel.clear();
         }
         let valid_nodes: HashSet<NodeId> = self
             .project

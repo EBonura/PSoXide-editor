@@ -184,6 +184,9 @@ pub(super) fn release(ws: &mut EditorWorkspace) {
 
 /// Raise or lower the whole selection by `delta` grid units (the keyboard).
 pub(super) fn nudge_selection(ws: &mut EditorWorkspace, delta: i32) {
+    if super::plane_tool::nudge_selected(ws, delta) {
+        return;
+    }
     let Some(world) = ws.project.active_scene().world.grid() else {
         return;
     };

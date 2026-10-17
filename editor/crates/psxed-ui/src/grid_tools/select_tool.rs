@@ -26,6 +26,7 @@ impl EditorWorkspace {
         let Some(primary) = self.grid.selection.primary().copied() else {
             return;
         };
+        self.grid.plane_sel.clear();
         let scroll_to = self.project.active_scene().world.grid().and_then(|world| {
             let face = self.grid.selection.faces(world).first().copied()?;
             psxed_project::grid::edit::material_of(world, face, None)
@@ -214,6 +215,7 @@ pub(super) fn click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     let Some(picked) = picked else {
         if !ptr.shift() && !ptr.command() {
             ws.grid.selection.clear();
+            ws.grid.plane_sel.clear();
         }
         return;
     };

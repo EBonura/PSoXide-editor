@@ -69,6 +69,29 @@ impl EditorWorkspace {
                     self.grid.wall_dir = self.grid.wall_dir.next();
                 }
             }
+            GridTool::Plane => {
+                ui.label(
+                    RichText::new("New plane")
+                        .color(STUDIO_TEXT_WEAK)
+                        .size(11.0),
+                );
+                egui::ComboBox::from_id_salt("plane_new_collision")
+                    .selected_text(self.grid.new_plane.collision.label())
+                    .width(104.0)
+                    .show_ui(ui, |ui| {
+                        for class in psxed_project::grid::PlaneCollision::ALL {
+                            ui.selectable_value(
+                                &mut self.grid.new_plane.collision,
+                                class,
+                                class.label(),
+                            );
+                        }
+                    })
+                    .response
+                    .on_hover_text("Collision class a new plane starts with");
+                ui.checkbox(&mut self.grid.new_plane.double_sided, "Both sides")
+                    .on_hover_text("New planes draw their back too");
+            }
             GridTool::Select | GridTool::Height => {
                 ui.toggle_value(&mut self.grid.link, "Link")
                     .on_hover_text("L: coincident corners move together");
@@ -101,11 +124,15 @@ impl EditorWorkspace {
             GridTool::Split => {}
         }
         ui.separator();
-        ui.label(
-            RichText::new(format!("Snap {CLICK_UNITS} (Alt {FINE_UNITS})"))
-                .color(STUDIO_TEXT_WEAK)
-                .size(11.0),
-        );
+        let snap_text = if matches!(self.grid.tool, GridTool::Plane | GridTool::Select)
+            && !self.grid.plane_sel.is_empty()
+            || self.grid.tool == GridTool::Plane
+        {
+            format!("Snap {CLICK_UNITS} (Ctrl {FINE_UNITS}, Alt free)")
+        } else {
+            format!("Snap {CLICK_UNITS} (Alt {FINE_UNITS})")
+        };
+        ui.label(RichText::new(snap_text).color(STUDIO_TEXT_WEAK).size(11.0));
         if ui
             .selectable_label(self.grid.help_open, "?")
             .on_hover_text("Every tool key and gesture (?)")
@@ -120,7 +147,18 @@ impl EditorWorkspace {
         if self.grid.paste.is_some() {
             return "Click place | Shift keep stamping | H/V flip | R turn | Esc cancel";
         }
+        if self.grid.plane_paste.is_some() {
+            return "Click place | Shift keep stamping | R turn | H flip | Esc cancel";
+        }
+        if !self.grid.plane_sel.is_empty()
+            && matches!(self.grid.tool, GridTool::Select | GridTool::Plane)
+        {
+            return "Drag a handle: corners and edges stretch, green ring turns, blue tip tilts | Drag body slides, Shift up/down | Ctrl 64, Alt free | R turn | Del | Ctrl+C/V";
+        }
         match self.grid.tool {
+            GridTool::Plane => {
+                "Click a surface to place a plane | Drag sizes it | Click a plane to select | Ctrl 64, Alt free"
+            }
             GridTool::Select => {
                 "Click pick | Shift range | Ctrl toggle | Drag box | Shift-drag height | Del delete | Ctrl+C/V copy"
             }

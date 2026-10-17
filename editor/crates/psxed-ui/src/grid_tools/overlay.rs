@@ -17,13 +17,13 @@ use std::collections::BTreeSet;
 /// Draws a polygon given as editor-space points: colour, fill alpha, line width.
 type PolygonFn<'a> = dyn Fn(&[[f32; 3]], Color32, u8, f32) + 'a;
 
-const SELECT: Color32 = Color32::from_rgb(255, 214, 64);
-const HOVER: Color32 = Color32::from_rgb(110, 220, 255);
-const CREATE: Color32 = Color32::from_rgb(96, 232, 132);
-const ERASE: Color32 = Color32::from_rgb(244, 96, 84);
-const GHOST: Color32 = Color32::from_rgb(240, 240, 250);
+pub(super) const SELECT: Color32 = Color32::from_rgb(255, 214, 64);
+pub(super) const HOVER: Color32 = Color32::from_rgb(110, 220, 255);
+pub(super) const CREATE: Color32 = Color32::from_rgb(96, 232, 132);
+pub(super) const ERASE: Color32 = Color32::from_rgb(244, 96, 84);
+pub(super) const GHOST: Color32 = Color32::from_rgb(240, 240, 250);
 
-fn fill(c: Color32, alpha: u8) -> Color32 {
+pub(super) fn fill(c: Color32, alpha: u8) -> Color32 {
     Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), alpha)
 }
 
@@ -116,7 +116,7 @@ fn rect_ghost(world: &GridWorld, g: &RectGesture, rect: CellRect) -> (Color32, O
 }
 
 /// A short label on a dark chip so it reads over any picture.
-fn label_chip(painter: &egui::Painter, at: Pos2, align: Align2, text: &str) {
+pub(super) fn label_chip(painter: &egui::Painter, at: Pos2, align: Align2, text: &str) {
     let galley =
         painter.layout_no_wrap(text.to_string(), FontId::proportional(13.0), Color32::WHITE);
     let rect = align
@@ -292,7 +292,10 @@ impl EditorWorkspace {
                     Stroke::new(1.5, CREATE),
                 );
             }
-            GridHover::None => {}
+            GridHover::None
+            | GridHover::Plane(_)
+            | GridHover::Grip(..)
+            | GridHover::PlaneSpot(..) => {}
         }
         match &self.grid.gesture {
             Gesture::Rect(g) => {
@@ -343,6 +346,7 @@ impl EditorWorkspace {
                 }
             }
         }
+        self.draw_plane_overlay_2d(painter, transform);
     }
 
     // ---- 3D view ----
@@ -587,6 +591,7 @@ impl EditorWorkspace {
         if let Some(ghost) = &self.grid.paste {
             self.draw_paste_ghost_3d(&polygon, world, ghost);
         }
+        self.draw_plane_overlay_3d(painter, rect);
     }
 
     #[allow(clippy::too_many_arguments)]

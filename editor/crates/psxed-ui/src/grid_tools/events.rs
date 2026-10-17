@@ -13,7 +13,8 @@ use crate::workspace::tools2d::{ToolFrame2d, ViewportTool2d};
 use crate::workspace::tools3d::{SelectTool, ToolFrame3d, ViewportTool3d};
 
 use super::{
-    clipboard_tool, face_tools, height_tool, place_tool, rect_tool, select_tool, wall_tool,
+    clipboard_tool, face_tools, height_tool, place_tool, plane_tool, rect_tool, select_tool,
+    wall_tool,
 };
 
 /// A pointer event.
@@ -36,7 +37,26 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, ptr: GridPointer) {
         }
         return;
     }
+    if ws.grid.plane_paste.is_some() {
+        match ev {
+            Ev::Hover | Ev::Drag => plane_tool::paste_hover(ws, &ptr),
+            Ev::Click => plane_tool::paste_click(ws, &ptr),
+            Ev::Press | Ev::Release => {}
+        }
+        return;
+    }
+    let taken = match ev {
+        Ev::Hover => plane_tool::hover(ws, &ptr),
+        Ev::Press => plane_tool::press(ws, &ptr),
+        Ev::Drag => plane_tool::drag(ws, &ptr),
+        Ev::Release => plane_tool::release(ws, &ptr),
+        Ev::Click => plane_tool::click(ws, &ptr),
+    };
+    if taken {
+        return;
+    }
     match (ws.grid.tool, ev) {
+        (GridTool::Plane, _) => {}
         (GridTool::Select, Ev::Hover) => select_tool::hover(ws, &ptr),
         (GridTool::Select, Ev::Press) => select_tool::press(ws, &ptr),
         (GridTool::Select, Ev::Drag) => select_tool::drag(ws, &ptr),
