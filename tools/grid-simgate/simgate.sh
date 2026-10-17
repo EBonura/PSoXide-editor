@@ -13,7 +13,10 @@
 #   simgate.sh disc LABEL PROJECT          build a sim-trace disc (editor/projects/PROJECT)
 #   simgate.sh run  LABEL TAPE STOP_POLL [RUN]   replay it headlessly, keep the sim-state lines
 #                                          (stored under RUN, default LABEL, so one disc serves many tapes)
-#   simgate.sh cmp  LABEL_A LABEL_B        compare two runs tick for tick
+#   simgate.sh cmp  RUN_A RUN_B [FROM]     compare two runs tick for tick from tick FROM
+#                                          (default 1100: the tapes issue no gameplay input before 1200, and the
+#                                          first gameplay tick moves by a poll or two with load time, which only
+#                                          shifts the spawn drop; earlier ticks are reported but not judged)
 #
 # Work dir: $SIMGATE_DIR (default build/simgate). The frontend is $FRONTEND
 # (default target/release/frontend); the emulator core does not differ between
@@ -47,7 +50,7 @@ run)
   ;;
 cmp)
   a=$work/runs/$1/sim.txt; b=$work/runs/$2/sim.txt
-  awk -F, -v A="$1" -v B="$2" '
+  awk -F, -v A="$1" -v B="$2" -v FROM="${3:-1100}" '
     BEGIN {
       split("tick px py pz yaw vy grounded room eyex eyey eyez cyaw cpitch nent ehash e0x e0y e0z e1x e1y e1z e2x e2y e2z", N, " ")
     }
@@ -59,6 +62,7 @@ cmp)
       for (i = 1; i <= nb; i++) {
         t = kb[i]
         if (!(t in ra)) continue
+        if (t + 0 < FROM + 0) { if (ra[t] != rb[t]) early++; continue }
         common++
         if (ra[t] == rb[t]) { same++; continue }
         nd++
@@ -68,7 +72,7 @@ cmp)
       }
       printf "%s: %d ticks (tick %s..%s)\n", A, na, ka[1], ka[na]
       printf "%s: %d ticks (tick %s..%s)\n", B, nb, kb[1], kb[nb]
-      printf "common ticks %d, identical %d, different %d\n", common, same, nd
+      printf "judged ticks %d (from tick %d), identical %d, different %d; earlier load-phase ticks differing (not judged): %d\n", common, FROM, same, nd, early
       if (nd == 0 && common > 0) { print "RESULT: MATCH (sim state identical on every common tick)"; exit 0 }
       if (common == 0) { print "RESULT: NO COMMON TICKS"; exit 2 }
       printf "RESULT: DIVERGES, first differing tick %s\n", first
