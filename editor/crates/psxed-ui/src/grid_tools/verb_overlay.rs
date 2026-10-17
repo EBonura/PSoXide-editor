@@ -152,6 +152,7 @@ impl EditorWorkspace {
             }
         }
         self.draw_path_2d(painter, transform, world);
+        self.draw_lasso_2d(painter, transform, world);
         self.draw_ramp_overlay_2d(painter, transform, world);
         self.draw_stairs_overlay_2d(painter, transform, world);
         if let (Some(b), Some(text)) = (bounds, drag_chip(self, world)) {
@@ -180,6 +181,100 @@ impl EditorWorkspace {
         }
         for p in points {
             painter.circle_filled(p, 5.0, CREATE);
+        }
+    }
+
+    /// The lasso in progress over the Top view: its corners, the rubber band
+    /// to the pointer and the sectors the shape would take.
+    fn draw_lasso_2d(
+        &self,
+        painter: &egui::Painter,
+        transform: ViewportTransform,
+        world: &GridWorld,
+    ) {
+        let points = super::lasso::shape(self);
+        if self.grid.verb.lasso.is_empty() {
+            return;
+        }
+        for cell in super::lasso::cells_of(&points) {
+            let c = plan_corners(world, cell);
+            let r = Rect::from_two_pos(
+                transform.world_to_screen(c[0]),
+                transform.world_to_screen(c[2]),
+            );
+            painter.rect_filled(r, 0.0, fill(CREATE, 56));
+            painter.rect_stroke(
+                r,
+                0.0,
+                Stroke::new(1.0, fill(CREATE, 150)),
+                StrokeKind::Inside,
+            );
+        }
+        let screen: Vec<Pos2> = points
+            .iter()
+            .map(|p| transform.world_to_screen(super::lasso::editor_of(world.scale, *p)))
+            .collect();
+        for pair in screen.windows(2) {
+            painter.line_segment([pair[0], pair[1]], Stroke::new(2.5, CREATE));
+        }
+        if let (Some(&first), Some(&last)) = (screen.first(), screen.last()) {
+            if screen.len() > 2 {
+                painter.add(egui::Shape::dashed_line(
+                    &[last, first],
+                    Stroke::new(1.5, fill(CREATE, 190)),
+                    6.0,
+                    4.0,
+                ));
+            }
+        }
+        let corners = self.grid.verb.lasso.len();
+        for p in screen.iter().take(corners) {
+            painter.circle_filled(*p, 5.0, CREATE);
+        }
+    }
+
+    /// The same over the 3D view, a hand above the floor.
+    fn draw_lasso_3d(&self, painter: &egui::Painter, rect: Rect, world: &GridWorld) {
+        if self.grid.verb.lasso.is_empty() {
+            return;
+        }
+        let camera = self.viewport_3d_camera();
+        let cam = Cam::new(camera, rect);
+        let room = self.grid.verb.lasso_room;
+        let points = super::lasso::shape(self);
+        let lifted: Vec<[f32; 3]> = points
+            .iter()
+            .map(|p| {
+                let xz = super::lasso::editor_of(world.scale, *p);
+                let cell = [p[0].floor() as i32, p[1].floor() as i32];
+                let pts = floor_points(world, room, cell);
+                let y = pts.iter().map(|q| q[1]).sum::<f32>() * 0.25 + 40.0;
+                [xz[0], y, xz[1]]
+            })
+            .collect();
+        for cell in super::lasso::cells_of(&points) {
+            let pts = floor_points(world, room, cell);
+            let projected: Vec<Pos2> = pts
+                .iter()
+                .filter_map(|q| cam.project(*q).map(|(s, _)| s))
+                .collect();
+            if projected.len() == 4 {
+                painter.add(egui::Shape::convex_polygon(
+                    projected,
+                    fill(CREATE, 50),
+                    Stroke::new(1.0, fill(CREATE, 140)),
+                ));
+            }
+        }
+        for pair in lifted.windows(2) {
+            if let Some([a, b]) = super::view::project_segment(camera, rect, pair[0], pair[1]) {
+                painter.line_segment([a, b], Stroke::new(3.0, CREATE));
+            }
+        }
+        for p in lifted.iter().take(self.grid.verb.lasso.len()) {
+            if let Some((s, _)) = cam.project(*p) {
+                painter.circle_filled(s, 5.0, CREATE);
+            }
         }
     }
 
@@ -267,6 +362,7 @@ impl EditorWorkspace {
                 painter.circle_filled(s, 5.0, CREATE);
             }
         }
+        self.draw_lasso_3d(painter, rect, world);
         self.draw_level_ghost_3d(&polygon, world);
         self.draw_ramp_overlay_3d(painter, &cam, &polygon, world);
         self.draw_stairs_overlay_3d(painter, &cam, &polygon, world);

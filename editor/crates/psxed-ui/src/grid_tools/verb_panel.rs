@@ -37,7 +37,7 @@ impl EditorWorkspace {
                 )
                 .on_hover_text("Path width in sectors ([ and ])");
             }
-            RegionSource::Marquee => {}
+            RegionSource::Marquee | RegionSource::Lasso => {}
         }
         ui.separator();
         match self.grid.tool {
@@ -165,6 +165,16 @@ impl EditorWorkspace {
         }
         ui.checkbox(&mut self.grid.verb.follow_ceiling, "Follow ceiling")
             .on_hover_text("Ceilings move with the floors (headroom stays); off holds a floor one click under its ceiling");
+        let has_region = self.grid.verb.region.is_some();
+        if ui
+            .add_enabled(has_region, egui::Button::new("Cut corners"))
+            .on_hover_text(
+                "Crack the outer triangle of every convex corner of the region down by the last raise (a click when there is none): a plateau with 45 degree corners",
+            )
+            .clicked()
+        {
+            super::verb_tool::cut_corners(self);
+        }
     }
 
     /// The Inspector's Region context: what the region holds and what the

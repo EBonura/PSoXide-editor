@@ -34,6 +34,7 @@ mod heat_overlay;
 mod height_tool;
 mod help;
 mod keys;
+mod lasso;
 mod overlay;
 mod panels;
 pub(crate) mod pick;
@@ -546,6 +547,8 @@ impl GridEditState {
         self.band_line = None;
         self.band_sel = None;
         self.verb.path.clear();
+        self.verb.lasso.clear();
+        self.verb.lasso_cursor = None;
         self.verb.preview.clear();
         self.hover_pinned = false;
         self.hover = GridHover::None;

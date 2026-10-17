@@ -164,3 +164,110 @@ fn the_triangle_drag_pose_puts_one_in_flight() {
     assert_eq!(floor_of(&rig, [2, 2]).heights_b, Some([256, 0, 256, 256]));
     let _ = FaceRef::floor(0, [2, 2]);
 }
+
+fn corner_cracks(rig: &GridRig) -> Vec<[i32; 2]> {
+    let mut out = Vec::new();
+    for (x, z, sector) in rig.room(0).iter() {
+        if sector.floor.as_ref().is_some_and(|f| f.heights_b.is_some()) {
+            out.push(rig.room(0).world_cell(x, z));
+        }
+    }
+    out
+}
+
+#[test]
+fn the_lasso_closes_into_the_polygon_sectors_and_shift_snaps_to_45_degrees() {
+    use crate::grid_tools::verb_state::RegionSource;
+    use psxed_project::grid::edit::outline::polygon_cells;
+    let mut rig = GridRig::top("natural-lasso", hall());
+    rig.tool(GridTool::Raise);
+    rig.ws.grid.verb.source = RegionSource::Lasso;
+    let at = |rig: &GridRig, x: f32, z: f32| rig.top_at(x * S, z * S);
+    rig.click(at(&rig, 1.0, 1.0));
+    rig.click_with(at(&rig, 6.0, 1.2), SHIFT);
+    rig.click_with(at(&rig, 4.2, 3.1), SHIFT);
+    let points = rig.ws.grid.verb.lasso.clone();
+    assert_eq!(points.len(), 3, "{}", rig.ws.status);
+    // The second segment is level, the third a 45 degree line of two sectors.
+    assert!((points[1][1] - points[0][1]).abs() < 1e-3, "{points:?}");
+    assert!(
+        (points[2][0] - points[1][0] + 2.0).abs() < 1e-3
+            && (points[2][1] - points[1][1] - 2.0).abs() < 1e-3,
+        "{points:?}"
+    );
+    // The shape is not a region until Enter.
+    assert!(rig.ws.grid.verb.region.is_none());
+    rig.key(egui::Key::Enter);
+    let region = rig.ws.grid.verb.region.clone().expect("a region");
+    let expect = polygon_cells(&points);
+    assert!(!expect.is_empty());
+    assert_eq!(
+        region.cells().collect::<Vec<_>>(),
+        expect.into_iter().collect::<Vec<_>>()
+    );
+    assert!(rig.ws.grid.verb.lasso.is_empty());
+    // Press on the lasso region and raise it like any other.
+    let first = region.cells().next().unwrap();
+    let from = rig.cell_centre(first[0], first[1]);
+    rig.drag(from, from - Vec2::new(0.0, CLICK_PX));
+    let raised = floor_of(&rig, first).heights;
+    assert_eq!(raised, [256; 4], "{}", rig.ws.status);
+}
+
+#[test]
+fn escape_drops_a_lasso_in_progress_before_the_region() {
+    use crate::grid_tools::verb_state::RegionSource;
+    let mut rig = GridRig::top("natural-lasso-esc", hall());
+    rig.tool(GridTool::Raise);
+    rig.ws.grid.verb.source = RegionSource::Lasso;
+    rig.click(rig.cell_centre(1, 1));
+    rig.click(rig.cell_centre(4, 1));
+    assert_eq!(rig.ws.grid.verb.lasso.len(), 2);
+    // Fewer than three corners cannot close.
+    rig.key(egui::Key::Enter);
+    assert_eq!(rig.ws.grid.verb.lasso.len(), 2);
+    rig.key(egui::Key::Escape);
+    assert!(rig.ws.grid.verb.lasso.is_empty());
+    assert!(rig.ws.grid.verb.region.is_none());
+}
+
+#[test]
+fn the_lasso_pose_draws_a_half_made_shape() {
+    let mut rig = GridRig::top("natural-lasso-pose", hall());
+    rig.ws
+        .apply_grid_pose("tool=raise;lasso=1,1:5.5,1:5.5,4.5")
+        .unwrap();
+    assert_eq!(rig.ws.grid.verb.lasso.len(), 3);
+    assert_eq!(rig.ws.grid.verb.lasso[1], [5.5, 1.0]);
+    rig.pump(vec![], egui::Modifiers::NONE);
+}
+
+#[test]
+fn cut_corners_cracks_the_convex_corners_of_the_region_in_one_undo_step() {
+    let mut rig = GridRig::top("natural-cut-corners", hall());
+    rig.tool(GridTool::Raise);
+    rig.drag(rig.cell_centre(2, 2), rig.cell_centre(4, 4));
+    let from = rig.cell_centre(3, 3);
+    rig.drag(from, from - Vec2::new(0.0, 2.0 * CLICK_PX));
+    let raised = rig.ws.project.clone();
+    assert!(corner_cracks(&rig).is_empty());
+    crate::grid_tools::verb_tool::cut_corners(&mut rig.ws);
+    let mut cracked = corner_cracks(&rig);
+    cracked.sort();
+    assert_eq!(
+        cracked,
+        vec![[2, 2], [2, 4], [4, 2], [4, 4]],
+        "{}",
+        rig.ws.status
+    );
+    // The last raise (two clicks) is how far each outer triangle drops.
+    let f = floor_of(&rig, [2, 2]);
+    let (low, high) = (
+        f.heights.iter().min().unwrap(),
+        f.heights_b.unwrap().iter().min().copied().unwrap(),
+    );
+    assert_eq!(*low.min(&high), 0, "{f:?}");
+    assert!(rig.ws.status.contains("Cut 4 corners"), "{}", rig.ws.status);
+    rig.ws.do_undo();
+    assert_eq!(rig.ws.project, raised);
+}

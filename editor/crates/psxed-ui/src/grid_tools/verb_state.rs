@@ -19,16 +19,19 @@ pub(crate) enum RegionSource {
     Brush,
     /// Click waypoints; Enter finishes.
     Path,
+    /// Click the corners of a shape; Enter closes it.
+    Lasso,
 }
 
 impl RegionSource {
-    pub(crate) const ALL: [Self; 3] = [Self::Marquee, Self::Brush, Self::Path];
+    pub(crate) const ALL: [Self; 4] = [Self::Marquee, Self::Brush, Self::Path, Self::Lasso];
 
     pub(crate) const fn label(self) -> &'static str {
         match self {
             Self::Marquee => "Marquee",
             Self::Brush => "Brush",
             Self::Path => "Path",
+            Self::Lasso => "Lasso",
         }
     }
 
@@ -37,6 +40,9 @@ impl RegionSource {
             Self::Marquee => "Drag a rectangle of sectors",
             Self::Brush => "Paint sectors; [ and ] change the radius",
             Self::Path => "Click waypoints, Enter finishes; [ and ] change the width",
+            Self::Lasso => {
+                "Click the corners of a shape, Enter closes it; Shift snaps a segment to 45 degrees"
+            }
         }
     }
 }
@@ -92,6 +98,15 @@ pub(crate) struct VerbState {
     pub path: Vec<[i32; 2]>,
     /// Cells under the pointer for the brush and path previews.
     pub preview: Vec<[i32; 2]>,
+    /// Corners of a lasso being drawn, in sector coordinates.
+    pub lasso: Vec<[f64; 2]>,
+    /// The room the lasso's first corner was in.
+    pub lasso_room: usize,
+    /// The lasso adds to the region instead of replacing it (Shift on the
+    /// first corner).
+    pub lasso_add: bool,
+    /// Where the next lasso corner would land, for the rubber band.
+    pub lasso_cursor: Option<[f64; 2]>,
     /// Ceilings move with their floors.
     pub follow_ceiling: bool,
     /// Offset or Level; `None` picks from the region (Level when it is flat).
@@ -100,6 +115,9 @@ pub(crate) struct VerbState {
     pub reference: i32,
     /// Typed amount in clicks, for the option row.
     pub typed_clicks: f32,
+    /// The size of the last Raise or Lower, grid units (what Cut corners
+    /// drops a corner by; a click when there has been none).
+    pub last_raise: i32,
     /// Ramp: the side that keeps its height, once R has set it; `None`
     /// follows the pointer.
     pub ramp_from: Option<RampDir>,
@@ -125,10 +143,15 @@ impl Default for VerbState {
             region: None,
             path: Vec::new(),
             preview: Vec::new(),
+            lasso: Vec::new(),
+            lasso_room: 0,
+            lasso_add: false,
+            lasso_cursor: None,
             follow_ceiling: true,
             raise_mode: None,
             reference: 0,
             typed_clicks: 1.0,
+            last_raise: 0,
             ramp_from: None,
             ramp_clamp: false,
             ramp_hover: None,
@@ -144,6 +167,8 @@ impl VerbState {
     pub(crate) fn clear(&mut self) {
         self.region = None;
         self.path.clear();
+        self.lasso.clear();
+        self.lasso_cursor = None;
         self.preview.clear();
         self.ramp_hover = None;
         self.ramp_from = None;

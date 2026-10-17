@@ -50,6 +50,8 @@ pub(super) fn cell_under(ws: &EditorWorkspace, ptr: &GridPointer) -> Option<(usi
 /// there is none.
 pub(super) fn on_tool_changed(ws: &mut EditorWorkspace) {
     ws.grid.verb.path.clear();
+    ws.grid.verb.lasso.clear();
+    ws.grid.verb.lasso_cursor = None;
     ws.grid.verb.preview.clear();
     if ws.grid.tool == GridTool::Stairs {
         // A flight is a path: the other sources make no order of treads.
@@ -94,8 +96,9 @@ pub(super) fn hover(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     let radius = ws.grid.verb.brush_radius;
     ws.grid.verb.preview = match ws.grid.verb.source {
         RegionSource::Brush => Region::brush(room, cell, radius).cells().collect(),
-        RegionSource::Marquee | RegionSource::Path => vec![cell],
+        RegionSource::Marquee | RegionSource::Path | RegionSource::Lasso => vec![cell],
     };
+    super::lasso::hover(ws, ptr);
     super::ramp_tool::hover(ws, cell);
 }
 
@@ -105,6 +108,7 @@ pub(super) fn press(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     };
     let verb = &ws.grid.verb;
     let inside = verb.path.is_empty()
+        && verb.lasso.is_empty()
         && verb
             .region
             .as_ref()
@@ -128,7 +132,7 @@ pub(super) fn press(ws: &mut EditorWorkspace, ptr: &GridPointer) {
             ws.grid.verb.region = Some(cells.clone());
             ws.grid.gesture = Gesture::Region(RegionGesture::Brush { room, cells });
         }
-        RegionSource::Path => {}
+        RegionSource::Path | RegionSource::Lasso => {}
     }
 }
 
@@ -223,6 +227,7 @@ pub(super) fn click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
             );
             ws.grid.verb.region = Some(region);
         }
+        RegionSource::Lasso => super::lasso::click(ws, ptr),
         RegionSource::Marquee | RegionSource::Brush => {
             let mut region = base_region(ws, room, add);
             let radius = match ws.grid.verb.source {
@@ -238,6 +243,9 @@ pub(super) fn click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
 
 /// Enter: the path in progress is finished; the next click starts a new one.
 pub(super) fn finish_path(ws: &mut EditorWorkspace) -> bool {
+    if super::lasso::close(ws) {
+        return true;
+    }
     if ws.grid.verb.path.is_empty() {
         return false;
     }
@@ -271,6 +279,9 @@ pub(super) fn cancel(ws: &mut EditorWorkspace) -> bool {
             ws.grid.gesture = other;
             if !ws.grid.tool.is_verb() {
                 return false;
+            }
+            if super::lasso::cancel(ws) {
+                return true;
             }
             let had = ws.grid.verb.region.is_some() || !ws.grid.verb.path.is_empty();
             ws.grid.verb.clear();
@@ -448,6 +459,9 @@ pub(super) fn apply_amount(ws: &mut EditorWorkspace, g: &mut VerbGesture) {
     let line = match &g.drag {
         VerbDrag::Raise(drag) => {
             let applied = drag.apply(world, g.amount);
+            if g.amount != 0 {
+                ws.grid.verb.last_raise = g.amount.abs();
+            }
             let mode = drag.params().mode.label();
             format!(
                 "{} {}{}",
@@ -567,7 +581,7 @@ pub(super) fn adjust_size(ws: &mut EditorWorkspace, delta: i32) {
                 verb.region = Some(Region::from_path(region.room, &verb.path, verb.path_width));
             }
         }
-        RegionSource::Marquee => {}
+        RegionSource::Marquee | RegionSource::Lasso => {}
     }
 }
 
@@ -601,4 +615,55 @@ pub(crate) fn apply_typed(ws: &mut EditorWorkspace) {
     } else if ws.grid.tool == GridTool::Stairs {
         super::stairs_tool::apply_typed(ws, amount);
     }
+}
+
+/// The Cut corners chip: crack the outer triangle of every convex corner of
+/// the region down by the last raise (a click when there has been none), one
+/// undo step.
+pub(crate) fn cut_corners(ws: &mut EditorWorkspace) {
+    use psxed_project::grid::edit::outline::{cut_corners, CornerCut};
+    let Some(region) = ws.grid.verb.region.clone() else {
+        ws.status = "Pick a region first".to_string();
+        return;
+    };
+    let drop = match ws.grid.verb.last_raise {
+        0 => CLICK_UNITS,
+        last => last,
+    };
+    let cells: Vec<[i32; 2]> = region.cells().collect();
+    let footprint: std::collections::BTreeSet<[i32; 2]> = cells.iter().copied().collect();
+    let before = ws.project.clone();
+    let Some(world) = ws.project.active_scene_mut().world.grid_mut() else {
+        return;
+    };
+    let report = cut_corners(
+        world,
+        region.room,
+        &cells,
+        Some(&footprint),
+        CornerCut::Crack { drop },
+    );
+    if report.cut == 0 {
+        ws.status = if report.skipped > 0 {
+            format!(
+                "No corner cut: {} already hold another diagonal",
+                report.skipped
+            )
+        } else {
+            "No convex corner in the region".to_string()
+        };
+        return;
+    }
+    ws.history.record(before);
+    ws.status = format!(
+        "Cut {} corners by {} units{}",
+        report.cut,
+        drop,
+        if report.skipped > 0 {
+            format!(", {} left alone (another diagonal)", report.skipped)
+        } else {
+            String::new()
+        }
+    );
+    ws.grid_changed();
 }

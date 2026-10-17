@@ -23,6 +23,10 @@
 //! * `region=x0,z0:x1,z1` the level verbs' region (a marquee, committed)
 //! * `overlay=walk` the walkability overlay (Alt+W); `overlay=perf` the
 //!   performance heatmap (Alt+P)
+//! * `lasso=x,z:x,z:...` a half-drawn lasso (the region source), corners in
+//!   sector coordinates that may be decimals (an integer is a lattice corner,
+//!   sector `i,j` has its centre at `i+0.5,j+0.5`); the overlay shows the
+//!   shape and the sectors it would take, Enter-closing is not posed
 //! * `stairs-path=x,z:x,z:...` the Stairs tool's finished path (waypoints),
 //!   and the region it covers
 //! * `ramp-from=north|east|south|west` the A edge a Ramp keeps; `ramp-clamp`
@@ -55,6 +59,12 @@ use psxed_project::grid::{CLICK_UNITS, SECTOR_UNITS};
 fn ints(text: &str) -> Result<Vec<i32>, String> {
     text.split(',')
         .map(|v| v.trim().parse::<i32>().map_err(|e| format!("{v:?}: {e}")))
+        .collect()
+}
+
+fn floats(text: &str) -> Result<Vec<f64>, String> {
+    text.split(',')
+        .map(|v| v.trim().parse::<f64>().map_err(|e| format!("{v:?}: {e}")))
         .collect()
 }
 
@@ -122,6 +132,19 @@ impl EditorWorkspace {
                     room,
                     CellRect::from_corners(a, b),
                 ));
+            }
+            "lasso" => {
+                let points = parts
+                    .iter()
+                    .map(|p| match floats(p)?.as_slice() {
+                        [x, z] => Ok([*x, *z]),
+                        _ => Err(format!("expected x,z in {p:?}")),
+                    })
+                    .collect::<Result<Vec<_>, String>>()?;
+                self.grid.verb.source = verb_state::RegionSource::Lasso;
+                self.grid.verb.lasso = points;
+                self.grid.verb.lasso_room = room;
+                self.grid.verb.lasso_cursor = None;
             }
             "stairs-path" => {
                 let waypoints = parts
