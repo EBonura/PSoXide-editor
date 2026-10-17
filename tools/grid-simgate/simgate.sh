@@ -11,7 +11,8 @@
 # the same poll-bound tape, and the lines are compared tick for tick.
 #
 #   simgate.sh disc LABEL PROJECT          build a sim-trace disc (editor/projects/PROJECT)
-#   simgate.sh run  LABEL TAPE STOP_POLL   replay it headlessly, keep the sim-state lines
+#   simgate.sh run  LABEL TAPE STOP_POLL [RUN]   replay it headlessly, keep the sim-state lines
+#                                          (stored under RUN, default LABEL, so one disc serves many tapes)
 #   simgate.sh cmp  LABEL_A LABEL_B        compare two runs tick for tick
 #
 # Work dir: $SIMGATE_DIR (default build/simgate). The frontend is $FRONTEND
@@ -37,12 +38,12 @@ disc)
   echo "$label disc built"
   ;;
 run)
-  label=$1; tape=$2; stop=$3
-  d=$work/runs/$label; mkdir -p $d
+  label=$1; tape=$2; stop=$3; run=${4:-$1}
+  d=$work/runs/$run; mkdir -p $d
   $frontend launch --path $work/discs/$label/*.cue --embedded-playtest --input-tape $tape \
     --stop-at-poll $stop --steps 120000000000 --guest-debug-log >| $d/run.log 2>&1
   sed -n 's/^\[guest [^]]*\] //p' $d/run.log | grep -a '^sim-state,' >| $d/sim.txt
-  echo "$label: $(wc -l < $d/sim.txt | tr -d ' ') sim ticks"
+  echo "$run: $(wc -l < $d/sim.txt | tr -d ' ') sim ticks"
   ;;
 cmp)
   a=$work/runs/$1/sim.txt; b=$work/runs/$2/sim.txt
