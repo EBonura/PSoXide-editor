@@ -153,5 +153,6 @@ The cook warns when a texture is not 64 by 64, when faces have no material the c
 ## Known gaps
 
 * Camera and character: the starter and imported levels use the Graybox Reach character, which costs most of the frame.
-* Free planes: they are not yet in the psxed-mcp tools, and translucent planes follow the engine's ordering of blended packets.
+* Free planes: translucent planes follow the engine's ordering of blended packets.
+* An agent can build and play a grid level end to end through the psxed-mcp server (`docs/grid/mcp-guide.md`): the geometry tools wrap the same edit functions as the tools above.
 * Brush and BSP authoring still exist for brush projects and are hidden for grid ones; the PXBSP cook is only a transitional bridge for collision.

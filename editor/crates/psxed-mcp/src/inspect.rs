@@ -51,6 +51,15 @@ fn resolve_texture(project_root: &Path, raw: &str) -> Option<std::path::PathBuf>
 /// 1024 units and a 128x128 every 2048, and nothing in the project file says
 /// which one a material is.
 pub fn materials(project: &ProjectDocument, project_root: &Path) -> String {
+    materials_filtered(project, project_root, None)
+}
+
+/// [`materials`], listing only the resource ids in `only` when given.
+pub fn materials_filtered(
+    project: &ProjectDocument,
+    project_root: &Path,
+    only: Option<&std::collections::HashSet<u64>>,
+) -> String {
     let mut out = String::from("# Materials\n\n");
     out.push_str("| name | id | texels | tile repeat | depth | blend | tint |\n");
     out.push_str("| --- | --- | --- | --- | --- | --- | --- |\n");
@@ -59,6 +68,9 @@ pub fn materials(project: &ProjectDocument, project_root: &Path) -> String {
         let ResourceData::Material(material) = &resource.data else {
             continue;
         };
+        if only.is_some_and(|ids| !ids.contains(&resource.id.raw())) {
+            continue;
+        }
         listed += 1;
         let (size, repeat, depth) = material
             .psxt_path
@@ -91,7 +103,9 @@ pub fn materials(project: &ProjectDocument, project_root: &Path) -> String {
     let _ = writeln!(
         out,
         "\n{listed} materials. `tile repeat` is how many authored world units one \
-         full texture covers at identity UV scale, at {} units per texel.",
+         full texture covers at identity UV scale, at {} units per texel. In a grid \
+         world the default mapping spends 32 texels on a sector, so a 64 texel tile \
+         covers two sectors; grid_tiling and grid_material_tiling change that.",
         crate::UNITS_PER_TEXEL
     );
     out

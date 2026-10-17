@@ -6,12 +6,16 @@
 //! shape (see `docs/editor-mcp-plan-2026-09-18.md`).
 
 pub mod combat;
+pub mod cost;
 pub mod duel;
 pub mod edit;
+pub mod grid;
 pub mod inspect;
 pub mod nodes;
 pub mod play;
+pub mod route;
 pub mod shot;
+pub mod track;
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;

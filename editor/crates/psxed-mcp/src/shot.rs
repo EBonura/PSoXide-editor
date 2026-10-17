@@ -10,6 +10,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use psxed_project::ProjectDocument;
+use schemars::JsonSchema;
+use serde::Deserialize;
 
 use crate::resolve_scene;
 
@@ -43,6 +45,152 @@ pub fn frame(target: [i32; 3], distance: i32, yaw: Option<u16>, pitch: Option<u1
         radius: distance.max(MIN_RADIUS),
         target,
     }
+}
+
+/// One camera pose, in EDITOR units (what nodes and `grid_rooms` extents use).
+///
+/// Three ways to say where the camera is, in this order of precedence:
+///
+/// 1. an **eye pose**: `position` plus either `look_at` or a heading
+///    (`yaw_deg`/`pitch_deg`, or the raw `yaw`/`pitch` in 4096 per turn);
+/// 2. an **orbit**: `target` (or `node`) plus `distance`, `yaw`, `pitch`;
+/// 3. nothing: orbit the middle of the world.
+///
+/// Heading convention (the editor's orbit camera): yaw 0 looks toward -Z
+/// (north), yaw 90 degrees looks toward -X (west). Pitch is positive looking
+/// UP in `pitch_deg` (an eye pose) and in the raw `pitch` of an orbit
+/// positive puts the eye BELOW the target, so a high orbit pitch near a full
+/// turn (4096 - 320, say) looks down from above.
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema)]
+pub struct ShotSpec {
+    /// Name for this shot in the reply.
+    pub label: Option<String>,
+    /// Eye position `[x, y, z]`, editor units. Needs `look_at` or a heading.
+    pub position: Option<[i32; 3]>,
+    /// With `position`: the point to look at.
+    pub look_at: Option<[i32; 3]>,
+    /// Heading in degrees, 0 looks north (-Z), 90 west (-X), 180 south, 270
+    /// east. With `position`.
+    pub yaw_deg: Option<f32>,
+    /// Pitch in degrees, positive looks up. With `position`. Default 0.
+    pub pitch_deg: Option<f32>,
+    /// World point to orbit. Omit and give a `node` to frame an entity, or
+    /// neither to frame the middle of the world.
+    pub target: Option<[i32; 3]>,
+    /// Node name or id to orbit.
+    pub node: Option<String>,
+    /// Orbit radius, editor units. Default 3000.
+    pub distance: Option<i32>,
+    /// Raw yaw, 4096 per turn. Default 0.
+    pub yaw: Option<u16>,
+    /// Raw orbit pitch, 4096 per turn. Near a full turn looks down from
+    /// above the target, small values look slightly upward. Default 3776.
+    pub pitch: Option<u16>,
+}
+
+fn q12_from_degrees(degrees: f32) -> u16 {
+    (degrees / 360.0 * 4096.0).round().rem_euclid(4096.0) as u16
+}
+
+fn orbit_offset(yaw_q12: u16, pitch_q12: u16) -> [f32; 3] {
+    let tau = std::f32::consts::TAU;
+    let (y, p) = (
+        f32::from(yaw_q12) / 4096.0 * tau,
+        f32::from(pitch_q12) / 4096.0 * tau,
+    );
+    [p.cos() * y.sin(), -p.sin(), p.cos() * y.cos()]
+}
+
+/// The orbit camera whose eye sits exactly at `position` with a given
+/// heading. The eye is `target + radius * orbit_offset`, so the target lies
+/// `radius` ahead of the eye.
+pub fn eye_shot(position: [i32; 3], yaw_q12: u16, pitch_q12: u16) -> Shot {
+    let radius = MIN_RADIUS;
+    let offset = orbit_offset(yaw_q12, pitch_q12);
+    let target = [
+        (position[0] as f32 - radius as f32 * offset[0]).round() as i32,
+        (position[1] as f32 - radius as f32 * offset[1]).round() as i32,
+        (position[2] as f32 - radius as f32 * offset[2]).round() as i32,
+    ];
+    Shot {
+        yaw_q12,
+        pitch_q12,
+        radius,
+        target,
+    }
+}
+
+/// Heading (raw q12 yaw and pitch) from `position` toward `look_at`.
+pub fn heading_toward(position: [i32; 3], look_at: [i32; 3]) -> Result<(u16, u16), String> {
+    let d = [
+        (look_at[0] - position[0]) as f32,
+        (look_at[1] - position[1]) as f32,
+        (look_at[2] - position[2]) as f32,
+    ];
+    let length = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
+    if length < 1.0 {
+        return Err("position and look_at are the same point".to_string());
+    }
+    // offset = -d/|d| = [cos p sin y, -sin p, cos p cos y]
+    let pitch = (d[1] / length).asin().to_degrees();
+    let yaw = (-d[0]).atan2(-d[2]).to_degrees();
+    Ok((q12_from_degrees(yaw), q12_from_degrees(pitch)))
+}
+
+/// Solve one [`ShotSpec`] to an orbit camera. `node_position` looks a node
+/// up by name or id.
+pub fn solve(
+    project: &ProjectDocument,
+    scene: Option<usize>,
+    spec: &ShotSpec,
+) -> Result<Shot, String> {
+    if let Some(position) = spec.position {
+        let (yaw, pitch) = match spec.look_at {
+            Some(look_at) => heading_toward(position, look_at)?,
+            None => (
+                spec.yaw_deg.map(q12_from_degrees).or(spec.yaw).unwrap_or(0),
+                spec.pitch_deg
+                    .map(q12_from_degrees)
+                    .or(spec.pitch)
+                    .unwrap_or(0),
+            ),
+        };
+        return Ok(eye_shot(position, yaw, pitch));
+    }
+    if spec.look_at.is_some() {
+        return Err("look_at needs a position (the eye); for an orbit give target".to_string());
+    }
+    let target = match (spec.target, spec.node.as_deref()) {
+        (Some(point), _) => point,
+        (None, Some(needle)) => {
+            let index = resolve_scene(project, scene)?;
+            let scene_doc = &project.scenes[index];
+            let id = crate::nodes::find_node(scene_doc, needle)?;
+            scene_doc
+                .node(id)
+                .ok_or_else(|| format!("node {needle:?} vanished"))?
+                .transform
+                .translation
+                .map(|value| value.round() as i32)
+        }
+        (None, None) => world_center(project, scene)?,
+    };
+    Ok(frame(
+        target,
+        spec.distance.unwrap_or(3000),
+        spec.yaw.or(spec.yaw_deg.map(q12_from_degrees)),
+        spec.pitch,
+    ))
+}
+
+/// Where the eye ends up, for the reply text.
+pub fn eye_of(shot: &Shot) -> [i32; 3] {
+    let o = orbit_offset(shot.yaw_q12, shot.pitch_q12);
+    [
+        (shot.target[0] as f32 + shot.radius as f32 * o[0]).round() as i32,
+        (shot.target[1] as f32 + shot.radius as f32 * o[1]).round() as i32,
+        (shot.target[2] as f32 + shot.radius as f32 * o[2]).round() as i32,
+    ]
 }
 
 /// The middle of the scene's grid world, a little above the first room's
@@ -213,6 +361,38 @@ mod tests {
         let side = world.scale.sector_editor_units() * 6;
         assert_eq!((x, z), (side / 2, side / 2));
         assert!(y > 0);
+    }
+
+    #[test]
+    fn an_eye_pose_puts_the_orbit_eye_at_the_position() {
+        for (position, yaw, pitch) in [
+            ([1000, 500, 2000], 0u16, 0u16),
+            ([-300, 900, 4000], 1024, 3900),
+            ([5000, 100, -2000], 3000, 200),
+        ] {
+            let shot = eye_shot(position, yaw, pitch);
+            let eye = eye_of(&shot);
+            assert!(
+                (0..3).all(|i| (eye[i] - position[i]).abs() <= 1),
+                "{position:?} vs {eye:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn look_at_points_the_camera_along_the_line() {
+        let from = [0, 500, 0];
+        let to = [0, 500, -4000];
+        // North is -Z: yaw 0, level.
+        let (yaw, pitch) = heading_toward(from, to).unwrap();
+        assert_eq!((yaw, pitch), (0, 0));
+        // West is -X: a quarter turn of yaw.
+        let (yaw, _) = heading_toward(from, [-4000, 500, 0]).unwrap();
+        assert_eq!(yaw, 1024);
+        // Looking up gives a small positive pitch.
+        let (_, pitch) = heading_toward(from, [0, 1500, -1000]).unwrap();
+        assert!(pitch > 0 && pitch < 1024, "{pitch}");
+        assert!(heading_toward(from, from).is_err());
     }
 
     #[test]

@@ -10,6 +10,7 @@ use std::fmt::Write as _;
 use std::hash::{Hash as _, Hasher as _};
 use std::path::{Path, PathBuf};
 
+use psxed_project::grid::{GridWorld, SceneWorld};
 use psxed_project::{NodeId, NodeKind, ProjectDocument, ResourceData, ResourceId, Transform3};
 
 use crate::nodes::{find_node, node_kind_from_ron};
@@ -23,7 +24,19 @@ pub struct Workspace {
     base: u64,
     dirty: bool,
     log: Vec<String>,
+    /// In-memory snapshots of the staged document, newest last.
+    checkpoints: Vec<Checkpoint>,
 }
+
+/// A named snapshot of the staged document.
+struct Checkpoint {
+    name: String,
+    doc: ProjectDocument,
+    log: Vec<String>,
+}
+
+/// How many checkpoints are kept; the oldest go first.
+const CHECKPOINT_LIMIT: usize = 24;
 
 fn hash_bytes(text: &str) -> u64 {
     let mut hasher = DefaultHasher::new();
@@ -53,6 +66,7 @@ impl Workspace {
             doc,
             dirty: false,
             log: Vec::new(),
+            checkpoints: Vec::new(),
         })
     }
 
@@ -85,6 +99,195 @@ impl Workspace {
     fn record(&mut self, entry: String) {
         self.dirty = true;
         self.log.push(entry);
+    }
+
+    /// Edit the grid world of a scene through `body`, atomically.
+    ///
+    /// `body` works on a copy of the world and may read the whole project (to
+    /// look materials up). An error leaves the document untouched; a change is
+    /// staged under `label`. The report gains the validation findings the edit
+    /// introduced, so a bad edit says so at once.
+    pub fn grid_edit(
+        &mut self,
+        scene: Option<usize>,
+        label: &str,
+        body: impl FnOnce(&mut GridWorld, &ProjectDocument) -> Result<String, String>,
+    ) -> Result<String, String> {
+        self.document()?;
+        let index = resolve_scene(&self.doc, scene)?;
+        let original = self.doc.scenes[index]
+            .world
+            .grid()
+            .cloned()
+            .ok_or_else(|| format!("scene {index} has no grid world"))?;
+        let before: std::collections::BTreeSet<String> =
+            crate::grid::issue_texts(&original).into_iter().collect();
+        let mut world = original.clone();
+        let mut report = body(&mut world, &self.doc)?;
+        if world == original {
+            report.push_str("\n(the world did not change)");
+            return Ok(report);
+        }
+        report.push_str(&crate::grid::new_issues(&before, &world));
+        self.doc.scenes[index].world = SceneWorld::Grid(world);
+        self.record(label.to_string());
+        Ok(report)
+    }
+
+    /// Edit the project document (resources, settings) through `body`,
+    /// atomically, like [`Self::grid_edit`].
+    pub fn project_edit(
+        &mut self,
+        label: &str,
+        body: impl FnOnce(&mut ProjectDocument) -> Result<String, String>,
+    ) -> Result<String, String> {
+        self.document()?;
+        let mut candidate = self.doc.clone();
+        let mut report = body(&mut candidate)?;
+        if candidate == self.doc {
+            report.push_str("\n(the project did not change)");
+            return Ok(report);
+        }
+        self.doc = candidate;
+        self.record(label.to_string());
+        Ok(report)
+    }
+
+    /// Snapshot the staged document under `name` (or the next free `cp-N`).
+    /// Same name replaces. Cheap: it is an in-memory clone.
+    pub fn checkpoint(&mut self, name: Option<&str>) -> Result<String, String> {
+        self.document()?;
+        let name = match name.map(str::trim).filter(|n| !n.is_empty()) {
+            Some(name) => name.to_string(),
+            None => {
+                let mut n = self.checkpoints.len() + 1;
+                while self.checkpoints.iter().any(|c| c.name == format!("cp-{n}")) {
+                    n += 1;
+                }
+                format!("cp-{n}")
+            }
+        };
+        self.checkpoints.retain(|c| c.name != name);
+        self.checkpoints.push(Checkpoint {
+            name: name.clone(),
+            doc: self.doc.clone(),
+            log: self.log.clone(),
+        });
+        while self.checkpoints.len() > CHECKPOINT_LIMIT {
+            self.checkpoints.remove(0);
+        }
+        Ok(format!(
+            "checkpoint {name:?} taken ({} edit(s) staged at the time); {} checkpoint(s) kept",
+            self.log.len(),
+            self.checkpoints.len()
+        ))
+    }
+
+    /// Put the staged document back to a checkpoint (the newest when `name`
+    /// is omitted). Later checkpoints stay, so a restore can be undone by
+    /// restoring a later one. Nothing is written to disk.
+    pub fn restore(&mut self, name: Option<&str>) -> Result<String, String> {
+        let position = match name.map(str::trim).filter(|n| !n.is_empty()) {
+            Some(name) => self
+                .checkpoints
+                .iter()
+                .position(|c| c.name == name)
+                .ok_or_else(|| {
+                    format!(
+                        "no checkpoint {name:?}; have: {}",
+                        self.checkpoint_names().join(", ")
+                    )
+                })?,
+            None => self
+                .checkpoints
+                .len()
+                .checked_sub(1)
+                .ok_or("there are no checkpoints; call checkpoint first")?,
+        };
+        let (taken, doc, log) = {
+            let cp = &self.checkpoints[position];
+            (cp.name.clone(), cp.doc.clone(), cp.log.clone())
+        };
+        let on_disk = Self::open(&self.path)?;
+        self.doc = doc;
+        self.log = log;
+        // Clean only when it equals what is on disk; otherwise it is a
+        // staged change like any other, and save writes it.
+        self.dirty = self.doc != on_disk.doc;
+        if !self.dirty {
+            self.log.clear();
+        }
+        Ok(format!(
+            "restored checkpoint {taken:?}; {} edit(s) staged, {}",
+            self.log.len(),
+            if self.dirty {
+                "not yet saved"
+            } else {
+                "identical to the file on disk"
+            }
+        ))
+    }
+
+    /// Checkpoint names, oldest first.
+    pub fn checkpoint_names(&self) -> Vec<String> {
+        self.checkpoints.iter().map(|c| c.name.clone()).collect()
+    }
+
+    /// A directory the renderer can read the CURRENT document from.
+    ///
+    /// With nothing staged that is the project directory. With staged edits it
+    /// is a sibling directory (`.mcp-stage-<name>`, next to the project so the
+    /// `../default/assets` style paths in project.ron still resolve) holding
+    /// the staged project.ron plus links to everything else the project has,
+    /// so a screenshot or a playtest shows the edits before they are saved.
+    /// The guard deletes it when dropped.
+    pub fn render_root(&mut self) -> Result<RenderRoot, String> {
+        self.document()?;
+        let real = std::fs::canonicalize(self.root())
+            .map_err(|error| format!("resolve {}: {error}", self.root().display()))?;
+        if !self.dirty {
+            return Ok(RenderRoot {
+                path: real,
+                cleanup: None,
+            });
+        }
+        let name = real.file_name().map_or_else(
+            || "project".to_string(),
+            |n| n.to_string_lossy().into_owned(),
+        );
+        let parent = real
+            .parent()
+            .ok_or("the project directory has no parent")?
+            .to_path_buf();
+        let stage = parent.join(format!(".mcp-stage-{name}"));
+        let _ = std::fs::remove_dir_all(&stage);
+        std::fs::create_dir_all(&stage)
+            .map_err(|error| format!("create {}: {error}", stage.display()))?;
+        let text = self
+            .doc
+            .to_ron_string()
+            .map_err(|error| format!("serialize the staged project: {error}"))?;
+        std::fs::write(stage.join("project.ron"), text)
+            .map_err(|error| format!("write the staged project.ron: {error}"))?;
+        for entry in std::fs::read_dir(&real)
+            .map_err(|error| format!("read {}: {error}", real.display()))?
+            .flatten()
+        {
+            let file_name = entry.file_name();
+            let lossy = file_name.to_string_lossy();
+            if lossy == "project.ron" || lossy == "baked" || lossy.starts_with(".mcp-") {
+                continue;
+            }
+            #[cfg(unix)]
+            std::os::unix::fs::symlink(entry.path(), stage.join(&file_name))
+                .map_err(|error| format!("link {lossy} into the stage: {error}"))?;
+            #[cfg(not(unix))]
+            return Err("staged rendering needs a unix host".to_string());
+        }
+        Ok(RenderRoot {
+            path: stage.clone(),
+            cleanup: Some(stage),
+        })
     }
 
     /// Replace one set's timing tracks atomically after full cook validation.
@@ -478,6 +681,28 @@ impl Workspace {
     }
 }
 
+/// A directory to render or build from, deleted on drop when it was staged.
+pub struct RenderRoot {
+    /// The directory to pass to the renderer.
+    pub path: PathBuf,
+    cleanup: Option<PathBuf>,
+}
+
+impl RenderRoot {
+    /// Whether this is a scratch copy of staged edits rather than the project.
+    pub fn is_staged(&self) -> bool {
+        self.cleanup.is_some()
+    }
+}
+
+impl Drop for RenderRoot {
+    fn drop(&mut self) {
+        if let Some(dir) = &self.cleanup {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+    }
+}
+
 /// Copy `source` and every descendant under `parent`, returning the new root.
 fn clone_subtree(
     scene: &mut psxed_project::Scene,
@@ -600,6 +825,111 @@ mod tests {
         let path = dir.join("project.ron");
         std::fs::write(&path, ProjectDocument::starter().to_ron_string().unwrap()).unwrap();
         Workspace::open(&path).unwrap()
+    }
+
+    #[test]
+    fn grid_edits_are_atomic_and_checkpoints_restore() {
+        let dir = std::env::temp_dir().join(format!("psxed-mcp-grid-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut workspace = workspace(&dir);
+        workspace.checkpoint(Some("clean")).unwrap();
+
+        // An error inside the body stages nothing.
+        let failed = workspace.grid_edit(None, "fail", |world, _| {
+            world.rooms[0].name = "changed".to_string();
+            Err("nope".to_string())
+        });
+        assert_eq!(failed.unwrap_err(), "nope");
+        assert!(!workspace.is_dirty());
+
+        // A change stages, and says what it introduced.
+        let report = workspace
+            .grid_edit(None, "rename", |world, _| {
+                world.rooms[0].name = "Renamed".to_string();
+                Ok("renamed".to_string())
+            })
+            .unwrap();
+        assert_eq!(report, "renamed");
+        assert!(workspace.is_dirty());
+        // A body that changes nothing is reported, not staged again.
+        let same = workspace
+            .grid_edit(None, "again", |_, _| Ok("noop".to_string()))
+            .unwrap();
+        assert!(same.contains("did not change"), "{same}");
+        assert_eq!(workspace.log().len(), 1);
+
+        workspace.checkpoint(Some("renamed")).unwrap();
+        workspace
+            .grid_edit(None, "more", |world, _| {
+                world.rooms[0].name = "Again".to_string();
+                Ok(String::new())
+            })
+            .unwrap();
+        let name = |w: &mut Workspace| {
+            w.document()
+                .unwrap()
+                .active_scene()
+                .world
+                .grid()
+                .unwrap()
+                .rooms[0]
+                .name
+                .clone()
+        };
+        assert_eq!(name(&mut workspace), "Again");
+        workspace.restore(Some("renamed")).unwrap();
+        assert_eq!(name(&mut workspace), "Renamed");
+        assert!(workspace.is_dirty());
+        // Restoring the clean checkpoint is clean again, and the later ones stay.
+        let back = workspace.restore(Some("clean")).unwrap();
+        assert!(back.contains("identical to the file on disk"), "{back}");
+        assert!(!workspace.is_dirty());
+        assert_eq!(workspace.checkpoint_names(), ["clean", "renamed"]);
+        assert!(workspace
+            .restore(Some("missing"))
+            .unwrap_err()
+            .contains("clean, renamed"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_staged_render_copy_links_the_project_and_vanishes() {
+        let base = std::env::temp_dir().join(format!("psxed-mcp-stage-{}", std::process::id()));
+        let dir = base.join("proj");
+        std::fs::create_dir_all(dir.join("baked")).unwrap();
+        std::fs::create_dir_all(dir.join("assets")).unwrap();
+        std::fs::write(dir.join("assets/a.txt"), "a").unwrap();
+        let mut workspace = workspace(&dir);
+
+        // Clean: the project itself is rendered, nothing is copied.
+        let clean = workspace.render_root().unwrap();
+        assert!(!clean.is_staged());
+        drop(clean);
+        assert!(!base.join(".mcp-stage-proj").exists());
+
+        workspace
+            .add_light(None, [0, 100, 0], 1000, [255; 3], 1.0, Some("L"))
+            .unwrap();
+        let stage_path;
+        {
+            let staged = workspace.render_root().unwrap();
+            assert!(staged.is_staged());
+            stage_path = staged.path.clone();
+            let text = std::fs::read_to_string(stage_path.join("project.ron")).unwrap();
+            assert!(text.contains("\"L\""), "the staged edit is in the copy");
+            // Assets are reachable through a link; the disc directory is not copied.
+            assert_eq!(
+                std::fs::read_to_string(stage_path.join("assets/a.txt")).unwrap(),
+                "a"
+            );
+            assert!(!stage_path.join("baked").exists());
+        }
+        assert!(!stage_path.exists(), "the guard removed the copy");
+        // The real project file is untouched.
+        assert!(!std::fs::read_to_string(dir.join("project.ron"))
+            .unwrap()
+            .contains("\"L\""));
+        std::fs::remove_dir_all(&base).ok();
     }
 
     /// The write path end to end: stage, save, and the staleness guard that
