@@ -182,3 +182,122 @@ fn a_polygon_outline_gets_forty_five_degree_walls() {
         .text;
     assert!(restored.contains("brought back"), "{restored}");
 }
+
+#[test]
+fn break_rough_and_paint_rules_work_through_the_tools_and_reroll_is_deterministic() {
+    let tmp = std::env::temp_dir().join(format!("psxed-mcp-natural-break-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    let project = new_project(&tmp);
+    let mut c = Client::start(&["--project", project.to_str().unwrap()], &[], &repo_root());
+    // A plateau two clicks up inside a bigger floor.
+    c.ok(
+        "grid_add_surface",
+        json!({"kind": "floor", "from": [0, 0], "to": [13, 13], "height": 0}),
+    );
+    c.ok(
+        "grid_add_surface",
+        json!({"kind": "ceiling", "from": [0, 0], "to": [13, 13], "height": 3072}),
+    );
+    c.ok(
+        "grid_raise",
+        json!({"from": [4, 4], "to": [9, 9], "amount": 512, "follow_ceiling": true}),
+    );
+    let heights = |c: &mut Client| {
+        c.ok("grid_heights", json!({"from": [2, 2], "to": [11, 11]}))
+            .text
+    };
+    let flat = heights(&mut c);
+
+    // A dry run reports and changes nothing.
+    let dry = c
+        .ok(
+            "grid_break",
+            json!({"from": [4, 4], "to": [9, 9], "intensity": 90, "seed": 3, "dry_run": true,
+                   "targets": ["walls", "floor", "ceiling"]}),
+        )
+        .text;
+    assert!(
+        dry.contains("break seed 3") && dry.contains("dry run"),
+        "{dry}"
+    );
+    assert_eq!(heights(&mut c), flat);
+
+    let broken = c
+        .ok(
+            "grid_break",
+            json!({"from": [4, 4], "to": [9, 9], "intensity": 90, "seed": 3,
+                   "targets": ["walls", "floor", "ceiling"]}),
+        )
+        .text;
+    assert!(broken.contains("break seed 3 intensity 90"), "{broken}");
+    assert!(broken.contains("walkability:"), "{broken}");
+    assert!(broken.contains("collision"), "{broken}");
+    let first = heights(&mut c);
+    assert_ne!(first, flat, "the break changed the heights");
+
+    // The same seed again gives the same document; another seed another.
+    c.ok(
+        "grid_break",
+        json!({"from": [4, 4], "to": [9, 9], "intensity": 90, "seed": 3, "reroll": true,
+               "targets": ["walls", "floor", "ceiling"]}),
+    );
+    assert_eq!(heights(&mut c), first, "same seed, same result");
+    let next = c
+        .ok(
+            "grid_break",
+            json!({"from": [4, 4], "to": [9, 9], "intensity": 90, "reroll": true,
+                   "targets": ["walls", "floor", "ceiling"]}),
+        )
+        .text;
+    assert!(
+        next.contains("break seed 4") && next.contains("re-rolled"),
+        "{next}"
+    );
+    let after = c.ok("grid_walkability", json!({})).text;
+    assert!(
+        after.contains("0 too steep") && after.contains("0 step(s) taller"),
+        "keep_walkable held the mask: {after}"
+    );
+    // Restoring the checkpoint puts the plateau back exactly.
+    c.ok("restore", json!({"name": "before-break"}));
+    assert_eq!(heights(&mut c), flat);
+
+    // Rough: levels over a region and the room settings.
+    let rough = c
+        .ok(
+            "grid_rough",
+            json!({"brush": {"centre": [6, 6], "radius": 2}, "level": 2, "seed": 5, "tint": 20}),
+        )
+        .text;
+    assert!(rough.contains("rough level 2"), "{rough}");
+    assert!(rough.contains("tint 20%"), "{rough}");
+    let budget = c.ok("grid_budget", json!({})).text;
+    assert!(
+        !budget.contains("rough jitter"),
+        "default amplitudes are within the cap: {budget}"
+    );
+    let big = c.ok("grid_rough", json!({"amp": [20, 40, 80]})).text;
+    assert!(big.contains("[20, 40, 80]"), "{big}");
+    let budget = c.ok("grid_budget", json!({})).text;
+    assert!(
+        budget.contains("rough jitter"),
+        "an over-large jitter warns: {budget}"
+    );
+    c.ok("grid_rough", json!({"amp": [13, 26, 51]}));
+    let cook = c.ok("cook_check", json!({})).text;
+    assert!(!cook.to_lowercase().contains("error"), "{cook}");
+
+    // Paint rules by height, reapplied to the plateau.
+    let rules = c
+        .ok(
+            "grid_paint_rules",
+            json!({"floor_by_height": {"at": [256], "materials": ["Graybox / Cliff 64", "Graybox / Original 64"]},
+                   "from": [2, 2], "to": [11, 11]}),
+        )
+        .text;
+    assert!(rules.contains("floor(s) painted"), "{rules}");
+    let low = c.ok("grid_sector", json!({"cell": [3, 3]})).text;
+    let high = c.ok("grid_sector", json!({"cell": [6, 6]})).text;
+    assert!(low.contains("Cliff 64"), "{low}");
+    assert!(high.contains("Original 64"), "{high}");
+}

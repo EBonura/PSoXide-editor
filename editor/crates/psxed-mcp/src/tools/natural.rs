@@ -5,6 +5,7 @@ use rmcp::model::CallToolResult;
 use rmcp::ErrorData;
 
 use psxed_mcp::grid::natural::{self, ChamferReq, CrackReq, PolygonReq, SetWallReq, VoidReq};
+use psxed_mcp::grid::rock::{self, BreakReq, PaintRulesReq, RoughReq, BREAK_CHECKPOINT};
 use psxed_mcp::grid::Materials;
 
 use super::EditorServer;
@@ -68,6 +69,92 @@ impl EditorServer {
     ) -> Result<CallToolResult, ErrorData> {
         self.grid_edit(req.scene, "grid_chamfer", |world, _| {
             natural::chamfer(world, &req)
+        })
+    }
+
+    #[rmcp::tool(
+        description = "Break a region: add natural detail to walls, floors and ceilings in one call, like the Cathedral's hand-broken tiles and 45 degree plateau edges. targets (walls, floor, ceiling; default walls and floor): walls crumbles the lip of a plateau, bites its edge (the half of a cell on the low side drops, a diagonal wall appears) and ragges the top of open-topped rock walls; floor tilts interior vertices and cracks tiles along a diagonal; ceiling does the same to the roof. intensity 0 to 100 (default 40) sets the chance and size of every change, seed makes it repeatable, amplitude is the largest change at intensity 100 in fine steps (default 4, one click). keep_walkable (default true) checks every change against the walkability analysis with the motor's own numbers: nothing that adds a floor too steep to stand on, a step the character cannot climb or too little headroom survives, and what the mask drops is listed. A checkpoint is taken first; reroll true restores it and breaks again with the next seed, dry_run true only reports. The region is from/to, brush, path or polygon. Writes ordinary corner heights, split-level cells, void triangles and open wall tops, so it is hand-editable after."
+    )]
+    async fn grid_break(
+        &self,
+        Parameters(req): Parameters<BreakReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let text = self.with(|workspace| {
+            let reroll = req.reroll.unwrap_or(false);
+            let dry = req.dry_run.unwrap_or(false);
+            // The plan reads the staged document; a reroll reads the one the
+            // checkpoint holds, so restore it first.
+            if reroll && !dry {
+                workspace.restore(Some(BREAK_CHECKPOINT)).map_err(|_| {
+                    "nothing to re-roll: no grid_break has been applied this session".to_string()
+                })?;
+            }
+            let (plan, seed, note) = {
+                let project = workspace.document()?;
+                let index = psxed_mcp::resolve_scene(project, req.scene)?;
+                let world = project.scenes[index]
+                    .world
+                    .grid()
+                    .ok_or_else(|| format!("scene {index} has no grid world"))?;
+                let plan = rock::plan_break(world, project, &req)?;
+                let last = workspace.last_break_seed();
+                let (seed, note) = match (req.seed, reroll, last) {
+                    (Some(seed), _, _) => (seed, None),
+                    (None, true, Some(last)) => (
+                        last.wrapping_add(1),
+                        Some(format!("re-rolled with seed {}", last.wrapping_add(1))),
+                    ),
+                    (None, _, last) => {
+                        let seed = last.map_or(1, |s| s.wrapping_add(1));
+                        (seed, None)
+                    }
+                };
+                (plan, seed, note)
+            };
+            if dry {
+                let project = workspace.document()?.clone();
+                let index = psxed_mcp::resolve_scene(&project, req.scene)?;
+                let mut world = project.scenes[index]
+                    .world
+                    .grid()
+                    .cloned()
+                    .ok_or("no grid world")?;
+                let text = rock::run_break(&mut world, &plan, seed, Some("dry run: nothing was changed"))?;
+                return Ok(text);
+            }
+            if !reroll {
+                workspace.checkpoint(Some(BREAK_CHECKPOINT))?;
+            }
+            let text = workspace.grid_edit(req.scene, "grid_break", |world, _| {
+                rock::run_break(world, &plan, seed, note.as_deref())
+            })?;
+            workspace.set_last_break_seed(Some(seed));
+            Ok(format!(
+                "{text}\n(checkpoint {BREAK_CHECKPOINT:?} holds the document before this break: restore it, or call grid_break with reroll true)"
+            ) + &Self::staged_note(workspace))
+        })?;
+        Ok(super::text_result(text))
+    }
+
+    #[rmcp::tool(
+        description = "Make rock rough: render-only jitter that turns straight walls into rock. level 0 to 3 over a region (from/to, brush, path or polygon) displaces, by up to the room's amplitude for that level, the plan position of every face corner that meets at a lattice point touching those sectors, the same way in the preview and in Play and watertight (heights are never moved, a vertical edge shifts rigidly). Collision is not moved, so amplitudes above a third of the character's radius (4 runtime units, the default top level) are a validation warning. seed changes the pattern, amp sets the amplitudes at levels 1, 2, 3 in grid units, tint adds brightness noise (percent) to rough faces. Omit the region to change only the room's settings."
+    )]
+    async fn grid_rough(
+        &self,
+        Parameters(req): Parameters<RoughReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.grid_edit(req.scene, "grid_rough", |world, _| rock::rough(world, &req))
+    }
+
+    #[rmcp::tool(
+        description = "Set a room's smart paint rules, the ones the verbs (raise, ramp, stairs, break) apply to floors not painted by hand: floor_by_class [flat, slope, steep], floor_by_height (up to three thresholds in grid units and a material per band: scree low, rock high), wall (the derived wall material of shaped sectors), wall_by_height (strata: the verbs make it the room's default band set with an absolute cut line per threshold) and trim (the foot of every wall). Give a region (from/to, brush, path or polygon) to apply the floor rules to it now."
+    )]
+    async fn grid_paint_rules(
+        &self,
+        Parameters(req): Parameters<PaintRulesReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.grid_edit(req.scene, "grid_paint_rules", |world, project| {
+            rock::paint_rules(world, &Materials::new(project), &req)
         })
     }
 }

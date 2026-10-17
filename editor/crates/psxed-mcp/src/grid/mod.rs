@@ -22,6 +22,7 @@ pub mod paint;
 pub mod plan;
 pub mod planes;
 pub mod read;
+pub mod rock;
 pub mod rooms;
 pub mod verbs;
 pub mod walls;

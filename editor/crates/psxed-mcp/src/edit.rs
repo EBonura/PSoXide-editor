@@ -26,6 +26,8 @@ pub struct Workspace {
     log: Vec<String>,
     /// In-memory snapshots of the staged document, newest last.
     checkpoints: Vec<Checkpoint>,
+    /// The seed of the last `grid_break`, for the next one and for re-roll.
+    last_break_seed: Option<u32>,
 }
 
 /// A named snapshot of the staged document.
@@ -67,6 +69,7 @@ impl Workspace {
             dirty: false,
             log: Vec::new(),
             checkpoints: Vec::new(),
+            last_break_seed: None,
         })
     }
 
@@ -226,6 +229,16 @@ impl Workspace {
                 "identical to the file on disk"
             }
         ))
+    }
+
+    /// The seed of the last break this session, if any.
+    pub fn last_break_seed(&self) -> Option<u32> {
+        self.last_break_seed
+    }
+
+    /// Remember the seed of a break that was applied.
+    pub fn set_last_break_seed(&mut self, seed: Option<u32>) {
+        self.last_break_seed = seed;
     }
 
     /// Checkpoint names, oldest first.
