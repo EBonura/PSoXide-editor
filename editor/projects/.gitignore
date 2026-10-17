@@ -4,13 +4,12 @@
 # Everything here is ignored by default. Only named fixtures are tracked, and a
 # new project stays local unless it is added below on purpose.
 #
-#   default             the shipped Cortex Ignition build (formerly
-#                       cortex-ignition-tech-demo-0.4b) and the New Project
-#                       template. Its project.ron is include_str!'d into
-#                       psxed-project and its starter assets seed every new
-#                       project, so the build needs it on disk.
-#   graybox-valley      outdoor traversal fixture using the Picotron grid
-#   graybox-reach   large mixed outdoor/interior traversal fixture
+#   default             the starter project: characters, animations, audio,
+#                       UI and one starter room. Its project.ron is
+#                       include_str!'d into psxed-project and its assets seed
+#                       every new project, so the build needs it on disk.
+#   graybox-reach       the base project every grid project borrows its
+#                       player, camera, sky and assets from
 #   grid-cathedral, grid-level008, grid-dungeon, grid-cave, grid-sewers,
 #   grid-west          the six grid reference levels (permanent: the grid
 #                      importer is gone, these are the fixtures). Each links
@@ -21,8 +20,6 @@
 # tech-demo) are local-only, same arrangement as editor/archive/legacy-grid/.
 !default/
 !default/**
-!graybox-valley/
-!graybox-valley/**
 !graybox-reach/
 !graybox-reach/**
 !grid-cathedral/
@@ -40,26 +37,6 @@
 # The New Project template: the starter room File > New Grid Project makes.
 !grid-starter/
 !grid-starter/**
-# cortex-two-area-level: only the project, its own cooked textures and the two
-# layout sources are tracked. review/ (candidate discs and screenshots, 8 GB),
-# the generator scripts, the Blender files and the ground-paint
-# and ground-v3 texture studies stay local.
-!cortex-two-area-level/
-!cortex-two-area-level/project.ron
-!cortex-two-area-level/assets/
-!cortex-two-area-level/assets/**
-!cortex-two-area-level/source_assets/
-!cortex-two-area-level/source_assets/layout.json
-!cortex-two-area-level/source_assets/integrated.json
-# The five cooked ground textures project.ron reads; the rest of ground-v3
-# (source PNGs, prompts) stays local.
-!cortex-two-area-level/source_assets/ground-v3/
-cortex-two-area-level/source_assets/ground-v3/*
-!cortex-two-area-level/source_assets/ground-v3/structure_floor_readable_128.psxt
-!cortex-two-area-level/source_assets/ground-v3/structure_peeling_v3_128.psxt
-!cortex-two-area-level/source_assets/ground-v3/terrain_rock_fractured_128.psxt
-!cortex-two-area-level/source_assets/ground-v3/terrain_road_worn_128.psxt
-!cortex-two-area-level/source_assets/ground-v3/terrain_sand_soft_ripples_v2_64.psxt
 # The per-user editor view file inside a tracked project stays local.
 **/.psxed-view.ron
 

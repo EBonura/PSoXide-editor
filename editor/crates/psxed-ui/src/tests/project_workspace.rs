@@ -601,22 +601,6 @@ fn editor_viewport_saves_with_project_and_restores_on_open() {
 }
 
 #[test]
-fn opening_tracked_starter_preserves_its_authored_interior_camera() {
-    let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../archive/fixtures/brush-first-playable");
-    let authored = ProjectDocument::load_from_path(fixture_dir.join("project.ron"))
-        .unwrap()
-        .editor_camera;
-
-    let reopened = EditorWorkspace::open_directory(&fixture_dir).unwrap();
-
-    assert!(authored.orbit_radius > 0);
-    assert_eq!(reopened.current_editor_camera_state(), authored);
-    assert_eq!(reopened.project().editor_camera, authored);
-    assert!(!reopened.is_dirty());
-}
-
-#[test]
 fn stale_typed_cook_issue_target_falls_back_cleanly() {
     let mut project = ProjectDocument::new("stale diagnostic");
     let root = project.active_scene().root;

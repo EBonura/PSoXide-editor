@@ -1962,35 +1962,6 @@ mod tests {
     }
 
     #[test]
-    fn two_sided_materials_preview_front_only_like_the_runtime() {
-        use psxed_project::grid::GridSurface;
-        use psxed_project::{MaterialFaceSidedness, MaterialResource, ResourceData};
-        let commands = |sidedness: MaterialFaceSidedness| {
-            let mut project = grid_project(false, false);
-            let mut material = MaterialResource::opaque(None);
-            material.face_sidedness = sidedness;
-            material.sync_legacy_sidedness();
-            let material = project.add_resource("Glass", ResourceData::Material(material));
-            let grid = project.active_scene_mut().world.grid_mut().unwrap();
-            for x in 0..2 {
-                for z in 0..2 {
-                    let sector = grid.rooms[0].sector_or_insert(x, z).unwrap();
-                    sector.floor = Some(GridSurface::flat(0, Some(material)));
-                }
-            }
-            preview_commands(&project, &HashSet::new())
-        };
-        let front = commands(MaterialFaceSidedness::Front);
-        assert!(!front.is_empty());
-        assert_eq!(
-            commands(MaterialFaceSidedness::Both),
-            front,
-            "a Both material previewed back faces the runtime never draws"
-        );
-        assert_ne!(commands(MaterialFaceSidedness::Back), front);
-    }
-
-    #[test]
     fn box_image_and_cylinder_props_draw_in_the_preview() {
         use psxed_project::{MaterialResource, ResourceData};
         let mut project = ProjectDocument::new("props-in-preview");

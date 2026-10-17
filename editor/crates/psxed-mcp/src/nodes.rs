@@ -174,7 +174,7 @@ mod tests {
     #[test]
     fn node_kinds_round_trip_through_ron() {
         // The default project keeps its authored level nodes (lights, enemies,
-        // props), which is what exercises many node kinds.
+        // props, logic), which is what exercises many node kinds.
         let project = ProjectDocument::load_from_path(
             psxed_project::default_project_dir().join("project.ron"),
         )
