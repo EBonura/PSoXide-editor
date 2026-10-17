@@ -12,7 +12,9 @@
 //! * `room=N` the active room; `hide=N` hides room N
 //! * `help` opens the key help overlay
 //! * `select=cells:x0,z0:x1,z1`, `select=floors:...`, `select=ceilings:...`,
-//!   `select=walls:...`, `select=vertex:x,z,corner`, `select=edge:x,z,edge`
+//!   `select=walls:...`, `select=vertex:x,z,corner`, `select=edge:x,z,edge`,
+//!   `select=plane:i[,j...]` planes of the active room by index
+//! * `hover=plane:i` a plane under the pointer
 //! * `rect=floor|ceiling:x0,z0:x1,z1[:clicks][:erase]`
 //! * `walls=north|east|south|west|nwse|nesw:x0,z0:x1,z1`
 //! * `hover=cell:x,z`, `hover=wall:edge:x,z`, `hover=face:floor|ceiling:x,z`,
@@ -221,6 +223,18 @@ impl EditorWorkspace {
 
     fn pose_select(&mut self, room: usize, parts: &[&str]) -> Result<(), String> {
         let kind = *parts.first().ok_or("missing kind")?;
+        if kind == "plane" {
+            let ids: Vec<psxed_project::grid::edit::PlaneId> =
+                ints(parts.get(1).ok_or("missing i")?)?
+                    .into_iter()
+                    .map(|i| psxed_project::grid::edit::PlaneId {
+                        room,
+                        index: i as usize,
+                    })
+                    .collect();
+            self.select_planes(ids);
+            return Ok(());
+        }
         let world = self
             .project
             .active_scene()
@@ -344,6 +358,10 @@ impl EditorWorkspace {
                     layer: 0,
                     corner: n as u8,
                 })])
+            }
+            "plane" => {
+                let index = ints(parts.get(1).ok_or("missing i")?)?[0] as usize;
+                GridHover::Plane(psxed_project::grid::edit::PlaneId { room, index })
             }
             "spot" => {
                 let c = cell(parts.get(1).ok_or("missing x,z")?)?;

@@ -103,36 +103,39 @@ impl EditorWorkspace {
                 );
                 ui.separator();
                 ui.label(RichText::new("Transform").color(STUDIO_TEXT_WEAK).size(11.0));
-                egui::Grid::new("plane_transform")
-                    .num_columns(4)
-                    .spacing([6.0, 3.0])
-                    .show(ui, |ui| {
-                        ui.label("Position");
-                        for axis in 0..3 {
-                            ui.add(egui::DragValue::new(&mut edited.center[axis]).speed(16.0));
-                        }
-                        ui.end_row();
-                        ui.label("Size");
-                        for axis in 0..2 {
-                            ui.add(
-                                egui::DragValue::new(&mut edited.size[axis])
-                                    .speed(16.0)
-                                    .range(MIN_PLANE_SIZE..=MAX_PLANE_SIZE),
-                            );
-                        }
-                        ui.label("");
-                        ui.end_row();
-                        ui.label("Yaw Pitch Roll");
-                        for axis in 0..3 {
-                            ui.add(
-                                egui::DragValue::new(&mut edited.rotation[axis])
-                                    .speed(1.0)
-                                    .range(-180..=180)
-                                    .suffix("\u{b0}"),
-                            );
-                        }
-                        ui.end_row();
-                    });
+                ui.horizontal(|ui| {
+                    ui.label("Pos");
+                    for (axis, name) in ["x", "y", "z"].into_iter().enumerate() {
+                        ui.add(
+                            egui::DragValue::new(&mut edited.center[axis])
+                                .speed(16.0)
+                                .prefix(format!("{name} ")),
+                        );
+                    }
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Size");
+                    for (axis, name) in ["w", "h"].into_iter().enumerate() {
+                        ui.add(
+                            egui::DragValue::new(&mut edited.size[axis])
+                                .speed(16.0)
+                                .range(MIN_PLANE_SIZE..=MAX_PLANE_SIZE)
+                                .prefix(format!("{name} ")),
+                        );
+                    }
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Turn");
+                    for (axis, name) in ["yaw", "pitch", "roll"].into_iter().enumerate() {
+                        ui.add(
+                            egui::DragValue::new(&mut edited.rotation[axis])
+                                .speed(1.0)
+                                .range(-180..=180)
+                                .prefix(format!("{name} "))
+                                .suffix("\u{b0}"),
+                        );
+                    }
+                });
                 ui.horizontal_wrapped(|ui| {
                     for (label, pitch, hint) in [
                         ("Wall", 0, "Stand upright"),

@@ -21,7 +21,7 @@ use psxed_project::grid::{GridWorld, PlaneShape};
 
 const DECOR: Color32 = Color32::from_rgb(120, 190, 200);
 const WALKABLE: Color32 = Color32::from_rgb(110, 210, 120);
-const SOLID: Color32 = Color32::from_rgb(236, 160, 80);
+const SOLID: Color32 = Color32::from_rgb(250, 96, 92);
 const OFF: Color32 = Color32::from_rgb(110, 110, 120);
 const YAW_KNOB: Color32 = Color32::from_rgb(110, 230, 130);
 const PITCH_KNOB: Color32 = Color32::from_rgb(120, 170, 255);

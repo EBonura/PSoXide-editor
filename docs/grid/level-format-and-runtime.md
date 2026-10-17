@@ -6,7 +6,7 @@ Status (2026-10-17): phases 0 to 4 and the container half of phase 5 are built o
 * Room chunks sit in one resident blob laid out like `WORLD.PAK` (each chunk on a 2048-byte boundary, `pack_sector` the sector offset inside the blob). The guest reads the blob in place; streaming the chunks off the disc and the page-pool latches are not built, so `pool_pages` is the whole level and the cook refuses a level above 512 pages.
 * Portals are derived (side by side and stacked) and drive activation (`ACTIVE_HOPS` rings). The portal-clipper visibility traversal of 7.2 is not ported: rooms in the camera room's ring that touch the frustum are drawn and the per-cell cull does the rest.
 * The distance LOD of 4.8 is built: the cook merges horizontal quads of 4x4 blocks, the renderer draws them under the material's texture window beyond `LOD_FAR_CELLS` sectors.
-* Movers, liquids and free planes have their records in the format and no producer yet (the grid document has no door, liquid or plane objects).
+* Movers and liquids have their records in the format and no producer yet (the grid document has no door or liquid objects). Free planes are built end to end (section 9 below, with the differences listed there).
 
 Original proposal, kept as written. It replaces three things on `grid/main`: the prototype `GRD1` render pack, the thin-collision-brush derivation that feeds PXBSP (`editor/crates/psxed-project/src/brush_grid/collision.rs`), and the roughly 20 `BspRuntime` methods the playtest guest still calls for everything that is not drawing.
 
@@ -683,6 +683,13 @@ By cook-time classification of the plane normal (`ny` = normal y component), wit
 * **Blocker** otherwise: the plane's conservative AABB, handed to the existing `CharacterCollisionAabb` layer. It over-blocks and says so; the cook warns once per such plane.
 
 A plane overlapping several cells is copied into each cell's run (28 B each; a 3x3 platform is 252 B) and carries an `id` so a trace that crosses two cells counts it once.
+
+### 9.4a As built (2026-10-17)
+
+* **Format version 2.** `PlaneRef` now names a run of quads: `quad` u16, `count` u8, `flags` u8, then the cell rectangle and the vertical range (the old `col` field was read by nothing). A plane is cut into one quad per sector of its width and height from its top-left corner (a `Stretch` plane is one quad), so every piece stays inside one texture repeat and the bake has corners to work with. Plane quads sit after the cell quads and carry `QUAD_PLANE`; they are in no cell list. The renderer frustum-tests each `PlaneRef` box (its cell rectangle between `min_y` and `max_y`) and queues the survivors' quads through the same facing test as cell quads. `VERSION` and `MIN_READER` are 2; `LEVEL_HAS_PLANES` and `CHUNK_HAS_PLANES` are set by the cook.
+* **Collision** (`psx-grid/src/collision/planes.rs`). `ColPlane.flags` is reserved. The shape is chosen by the plane's authored normal (`GridPlane::shape`): `|ny| >= 0.7` platform, `|ny| <= 0.35` wall, else blocker. A platform stores its footprint ring (the cook orders it so every edge test is `>= 0` inside), the surface height at `xz[0]`, two Q12 slopes and a 16 unit slab below the surface. A wall stores its two plan endpoints, bottom and height, and the unit direction in Q12 in the two slope fields (no square root at runtime). A blocker stores the box. Records are copied into every sector the shape touches (separating-axis test with a one unit margin), so the column scan of a body finds them next to the wall pieces. Body scans offer them as forbidden feet-height intervals (platform: one slab under each of the five footprint samples, wall: a vertical span when the circle is within `r` of the segment, blocker: a vertical span when the circle touches the box). Point traces and line of sight run an analytic ray test per plane (Cyrus-Beck against the platform or blocker prism, a two-sided crossing for a wall) and fold it into the earliest hit. Contact normals are the slope normal for a platform top, the facing side for a wall, and the usual up/down/horizontal codes otherwise. Levels with no planes skip all of it behind one flag.
+* **Not built:** the per-plane camera pass-through and one-sided collision flags of 9.2, the group tag, and a separate translucent draw list (blended planes ride the normal path and the packet ordering).
+* **Caps** in `limits.rs`: 64 planes per room, size 64 to 8192 grid units per side, a plane must lie inside its room's sector rectangle.
 
 ### 9.5 Editor
 
