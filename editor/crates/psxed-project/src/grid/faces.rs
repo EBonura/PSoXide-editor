@@ -21,7 +21,7 @@
 //!   front-face convention, so the right-handed cross product of a ring points
 //!   away from the viewer. [`GridFace::normal`] is the visible-side normal.
 
-use crate::brush::FaceUv;
+use crate::face_uv::FaceUv;
 use crate::ResourceId;
 
 use super::sector::{GridSector, WallEdge};
@@ -62,6 +62,10 @@ pub struct GridFace {
     pub kind: GridFaceKind,
     /// Corners in editor units, clockwise seen from the visible side.
     pub points: Vec<[i32; 3]>,
+    /// The same corners in grid units with the room's vertical offset
+    /// applied, `[x, y, z]`. The cook maps these to runtime units in one
+    /// step so what is drawn and what is stood on round identically.
+    pub grid: Vec<[i32; 3]>,
     /// Texel coordinates per corner, before any wrap into the texture.
     pub texels: Vec<[f64; 2]>,
     /// Unit normal of the visible side.
@@ -75,6 +79,7 @@ pub struct GridFace {
 #[derive(Clone, Copy)]
 struct Corner {
     p: [i32; 3],
+    g: [i32; 3],
     uv: [f64; 2],
 }
 
@@ -172,6 +177,7 @@ impl Builder<'_> {
             cell: self.cell,
             kind,
             points: deduped.iter().map(|c| c.p).collect(),
+            grid: deduped.iter().map(|c| c.g).collect(),
             texels: deduped.iter().map(|c| c.uv).collect(),
             normal,
             material,
@@ -203,6 +209,7 @@ impl Builder<'_> {
         };
         let corner = |h: &[i32; 4], i: usize, uv: &FaceUv| Corner {
             p: editor_point(scale, y_offset, xz[i][0], h[i], xz[i][1]),
+            g: [xz[i][0], y_offset + h[i], xz[i][1]],
             uv: place(
                 uv,
                 centre,
@@ -291,6 +298,7 @@ impl Builder<'_> {
             let [px, pz] = if end == 0 { a } else { b };
             Corner {
                 p: editor_point(scale, y_offset, px, gy, pz),
+                g: [px, y_offset + gy, pz],
                 uv: place(&wall.uv, centre, [u_at(end), v_of(gy)]),
             }
         };
@@ -607,13 +615,13 @@ mod tests {
             .points
             .iter()
             .copied()
-            .filter(|p| p[0] == 1344)
+            .filter(|p| p[0] == 1280)
             .collect();
         let west_of_second: Vec<[i32; 3]> = faces[1]
             .points
             .iter()
             .copied()
-            .filter(|p| p[0] == 1344)
+            .filter(|p| p[0] == 1280)
             .collect();
         assert_eq!(east_of_first.len(), 2);
         let mut a = east_of_first;
@@ -642,10 +650,10 @@ mod tests {
                 .map(|(_, t)| t[0])
                 .collect()
         };
-        assert!(u_at(&faces[0], 1344)
+        assert!(u_at(&faces[0], 1280)
             .iter()
             .all(|u| (*u - 32.0).abs() < 1e-9));
-        assert!(u_at(&faces[1], 1344)
+        assert!(u_at(&faces[1], 1280)
             .iter()
             .all(|u| (*u - 32.0).abs() < 1e-9));
     }

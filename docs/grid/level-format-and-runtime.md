@@ -1,6 +1,14 @@
 # Grid level format and runtime (design, 2026-10-16)
 
-Status: design proposal for Manny's review. Nothing here is built. It replaces three things on `grid/main`: the prototype `GRD1` render pack, the thin-collision-brush derivation that feeds PXBSP (`editor/crates/psxed-project/src/brush_grid/collision.rs`), and the roughly 20 `BspRuntime` methods the playtest guest still calls for everything that is not drawing.
+Status (2026-10-17): phases 0 to 4 and the container half of phase 5 are built on `grid/format-runtime`. The format (`engine/crates/psx-grid/src/format.rs`), the cook (`editor/crates/psxed-project/src/grid/cook/`), the renderer (`psx-grid/src/render/`), the native collision (`psx-grid/src/collision/`) and `GridRuntime` (`engine/examples/editor-playtest/src/grid_runtime.rs`) exist and Play uses them for grid worlds with no PXBSP data at all. Differences from the text below, all deliberate:
+
+* `Quad.d` is the plane constant of the normal dotted with a corner shifted right by 7, as designed. Quads, vertices and cells are exactly the designed records (40, 8, 8 bytes).
+* Room chunks sit in one resident blob laid out like `WORLD.PAK` (each chunk on a 2048-byte boundary, `pack_sector` the sector offset inside the blob). The guest reads the blob in place; streaming the chunks off the disc and the page-pool latches are not built, so `pool_pages` is the whole level and the cook refuses a level above 512 pages.
+* Portals are derived (side by side and stacked) and drive activation (`ACTIVE_HOPS` rings). The portal-clipper visibility traversal of 7.2 is not ported: rooms in the camera room's ring that touch the frustum are drawn and the per-cell cull does the rest.
+* The distance LOD of 4.8 is built: the cook merges horizontal quads of 4x4 blocks, the renderer draws them under the material's texture window beyond `LOD_FAR_CELLS` sectors.
+* Movers, liquids and free planes have their records in the format and no producer yet (the grid document has no door, liquid or plane objects).
+
+Original proposal, kept as written. It replaces three things on `grid/main`: the prototype `GRD1` render pack, the thin-collision-brush derivation that feeds PXBSP (`editor/crates/psxed-project/src/brush_grid/collision.rs`), and the roughly 20 `BspRuntime` methods the playtest guest still calls for everything that is not drawing.
 
 How to read the numbers. Every figure carries one of four tags.
 
