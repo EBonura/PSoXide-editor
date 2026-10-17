@@ -120,24 +120,34 @@ pub fn describe(samples: &[Sample], from_poll: u64, wanted: &[u64]) -> String {
             );
         }
     }
-    // The whole path at a glance, one point every half second.
+    // The whole path at a glance, one point every half second. A player who
+    // stands still (against a wall, say) is one `from-to:` entry, not twenty.
     let last_poll = last.poll;
-    let mut trace = String::new();
+    let mut runs: Vec<(u64, u64, [i32; 3])> = Vec::new();
     let mut poll = from_poll;
     while poll <= last_poll {
         if let Some(s) = at_poll(samples, poll) {
-            let _ = write!(
-                trace,
-                " {}:[{},{},{}]",
-                poll - from_poll,
-                s.editor[0],
-                s.editor[1],
-                s.editor[2]
-            );
+            let at = poll - from_poll;
+            match runs.last_mut() {
+                Some((_, to, pos)) if *pos == s.editor => *to = at,
+                _ => runs.push((at, at, s.editor)),
+            }
         }
         poll += 30;
     }
-    let _ = writeln!(out, "path, route poll:[x,y,z] every 30 polls:{trace}");
+    let mut trace = String::new();
+    for (from, to, pos) in &runs {
+        let when = if from == to {
+            from.to_string()
+        } else {
+            format!("{from}-{to}")
+        };
+        let _ = write!(trace, " {when}:[{},{},{}]", pos[0], pos[1], pos[2]);
+    }
+    let _ = writeln!(
+        out,
+        "path, route poll:[x,y,z] every 30 polls (a stay is from-to):{trace}"
+    );
     out
 }
 
