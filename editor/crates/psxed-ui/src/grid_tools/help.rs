@@ -299,6 +299,7 @@ impl EditorWorkspace {
                     column_of.push((running * 3 / total.max(1)).min(2));
                     running += weight(rows);
                 }
+                let column_width = (ui.available_width() / 3.0 - 20.0).max(200.0);
                 ui.columns(3, |columns| {
                     for (index, (title, rows)) in sections.iter().enumerate() {
                         let ui = &mut columns[column_of[index]];
@@ -306,6 +307,7 @@ impl EditorWorkspace {
                         ui.label(RichText::new(*title).strong().color(STUDIO_TEXT));
                         egui::Grid::new(format!("grid_help_{title}"))
                             .num_columns(2)
+                            .max_col_width(column_width * 0.64)
                             .spacing([12.0, 2.0])
                             .show(ui, |ui| {
                                 for (gesture, what) in rows.iter() {

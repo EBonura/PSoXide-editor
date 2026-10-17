@@ -21,6 +21,17 @@ pub(super) fn draw_editor(
     ctx: &egui::Context,
     view_2d: bool,
 ) -> egui::FullOutput {
+    draw_editor_sized(ws, ctx, view_2d, Vec2::new(1600.0, 900.0))
+}
+
+/// [`draw_editor`] on a screen of `size` (the help page needs a tall one: its
+/// rows below the screen are not drawn).
+pub(super) fn draw_editor_sized(
+    ws: &mut EditorWorkspace,
+    ctx: &egui::Context,
+    view_2d: bool,
+    size: Vec2,
+) -> egui::FullOutput {
     let texture = ctx.load_texture(
         "grid-ui",
         egui::ColorImage::new([1, 1], egui::Color32::BLACK),
@@ -30,7 +41,7 @@ pub(super) fn draw_editor(
     ws.view_2d = view_2d;
     ws.active_workspace = WorkspaceView::Room;
     let input = egui::RawInput {
-        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1600.0, 900.0))),
+        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, size)),
         ..egui::RawInput::default()
     };
     ctx.run(input, |ctx| {
@@ -268,10 +279,14 @@ fn the_question_mark_opens_the_key_help_and_escape_closes_it() {
     assert!(ws.grid.help_open);
     // egui sizes a new window invisibly first; the next frame shows it.
     drop(open);
-    let open = shapes_text(&draw_editor(&mut ws, &ctx, true));
+    let open = shapes_text(&draw_editor_sized(
+        &mut ws,
+        &ctx,
+        true,
+        Vec2::new(1920.0, 1500.0),
+    ));
     assert!(open.contains("Grid editor keys"), "{open}");
-    // The page is three columns of sections; on this small test screen the
-    // top rows of the first column sit under the title, so check the titles.
+    assert!(open.contains("Shift+drag"), "{open}");
     for title in ["Raise (U)", "Ramp (A)", "Stairs (T)", "Overlays"] {
         assert!(open.contains(title), "{title}: {open}");
     }
