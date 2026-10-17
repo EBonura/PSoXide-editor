@@ -11,6 +11,11 @@
 #                       project, so the build needs it on disk.
 #   graybox-valley      outdoor traversal fixture using the Picotron grid
 #   graybox-reach   large mixed outdoor/interior traversal fixture
+#   grid-cathedral, grid-level008, grid-dungeon, grid-cave, grid-sewers,
+#   grid-west          the six grid reference levels (permanent: the grid
+#                      importer is gone, these are the fixtures). Each links
+#                      its `assets` to ../graybox-reach/assets; its baked/
+#                      directory is regenerated and stays ignored.
 #
 # Superseded level projects (0.2, 0.3, 0.4, null-choir-texture-kit, mantis,
 # tech-demo) are local-only, same arrangement as editor/archive/legacy-grid/.
@@ -20,6 +25,18 @@
 !graybox-valley/**
 !graybox-reach/
 !graybox-reach/**
+!grid-cathedral/
+!grid-cathedral/**
+!grid-level008/
+!grid-level008/**
+!grid-dungeon/
+!grid-dungeon/**
+!grid-cave/
+!grid-cave/**
+!grid-sewers/
+!grid-sewers/**
+!grid-west/
+!grid-west/**
 # cortex-two-area-level: only the project, its own cooked textures and the two
 # layout sources are tracked. review/ (candidate discs and screenshots, 8 GB),
 # the generator scripts, the Blender files and the ground-paint
