@@ -425,8 +425,9 @@ pub struct ChamferReq {
     pub scene: Option<usize>,
     /// Room index. Required when the world has several rooms.
     pub room: Option<usize>,
-    /// The rectangle of WORLD sectors whose corners may be cut. The outline
-    /// is the room's floors, whether or not the neighbour is in the rectangle.
+    /// The rectangle of WORLD sectors whose corners may be cut. For `void` the
+    /// outline is the room's floors; for `crack` it is the rectangle itself (a
+    /// plateau: the floors around it exist, only lower).
     #[serde(flatten)]
     pub cells: Cells,
     /// `void` (default): the outer triangle disappears and the cell closes
@@ -456,7 +457,17 @@ pub fn chamfer(world: &mut GridWorld, req: &ChamferReq) -> Result<String, String
                     drop: req.drop.unwrap_or(psxed_project::grid::units::CLICK_UNITS),
                 }
             };
-            let report = cut_corners(world, room, &list, None, cut);
+            // A plateau corner is a corner of the rectangle given (the floors
+            // around it exist, only lower); a room outline is the room's own
+            // floors.
+            let footprint: std::collections::BTreeSet<[i32; 2]> = list.iter().copied().collect();
+            let report = cut_corners(
+                world,
+                room,
+                &list,
+                (mode == "crack").then_some(&footprint),
+                cut,
+            );
             format!(
                 "room {room}: {} convex corner(s) cut ({mode}), {} left alone (a split-level surface with the other diagonal)",
                 report.cut, report.skipped

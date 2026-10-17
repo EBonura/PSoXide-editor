@@ -61,7 +61,7 @@ impl EditorServer {
     }
 
     #[rmcp::tool(
-        description = "Cut the convex staircase corners of existing floors in a rectangle into 45 degree lines. mode void (default) voids the outer triangle so the cell closes itself with a diagonal wall (a room or cave outline); crack drops the outer triangle of a plateau corner by drop (a diagonal riser, the Cathedral's cut corner); restore brings voids back. A corner is a cell with exactly two adjacent neighbours missing; one-wide corridors and tips keep their square ends."
+        description = "Cut the convex staircase corners of existing floors in a rectangle into 45 degree lines. mode void (default) voids the outer triangle so the cell closes itself with a diagonal wall (a room or cave outline); crack takes the rectangle you give as the plateau and drops the outer triangle of each of its convex corners by drop (a diagonal riser, the Cathedral's cut corner); restore brings voids back. A corner is a cell with exactly two adjacent neighbours missing; one-wide corridors and tips keep their square ends."
     )]
     async fn grid_chamfer(
         &self,
