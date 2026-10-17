@@ -3,6 +3,7 @@
 use super::verb_state::RegionSource;
 use super::*;
 
+use psxed_project::grid::edit::verbs::break_verb::BreakStyle;
 use psxed_project::grid::edit::verbs::raise::RaiseMode;
 
 impl EditorWorkspace {
@@ -131,6 +132,15 @@ impl EditorWorkspace {
         ui.separator();
         let has_region = self.grid.verb.region.is_some();
         let brk = &mut self.grid.verb.brk;
+        if ui
+            .button("Cathedral style")
+            .on_hover_text(
+                "The Cathedral's sparse hand-made look: walls and floor, one click of amplitude, intensity 15",
+            )
+            .clicked()
+        {
+            brk.apply_style(BreakStyle::Cathedral);
+        }
         ui.add(
             egui::DragValue::new(&mut brk.typed_intensity)
                 .range(0..=100)

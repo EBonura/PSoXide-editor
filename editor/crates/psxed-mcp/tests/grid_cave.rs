@@ -232,6 +232,28 @@ fn a_cave_is_built_with_the_natural_terrain_tools_and_played() {
             .text,
         map
     );
+    // The default is the Cathedral's sparse look, 15; the cathedral style
+    // sets the same, and an explicit intensity still wins.
+    c.ok("restore", json!({"name": "before-break"}));
+    let default = call(&mut c, json!({"seed": 5}));
+    assert!(default.contains("break seed 5 intensity 15"), "{default}");
+    c.ok("restore", json!({"name": "before-break"}));
+    let styled = call(&mut c, json!({"seed": 5, "style": "cathedral"}));
+    assert!(styled.contains("break seed 5 intensity 15"), "{styled}");
+    c.ok("restore", json!({"name": "before-break"}));
+    let own = call(
+        &mut c,
+        json!({"seed": 5, "style": "cathedral", "intensity": 30}),
+    );
+    assert!(own.contains("break seed 5 intensity 30"), "{own}");
+    let mut refused = region.clone();
+    refused["style"] = json!("rubble");
+    let error = c
+        .call("grid_break", refused)
+        .expect_err("an unknown style is refused");
+    assert!(error.contains("unknown style"), "{error}");
+    c.ok("restore", json!({"name": "before-break"}));
+    call(&mut c, json!({"intensity": 40, "seed": 5}));
     // The mask held: nothing steeper, no step the character cannot climb
     // beyond the ledge's own, no cell cut off.
     let walk = c.ok("grid_walkability", json!({})).text;
@@ -328,10 +350,36 @@ fn a_cave_is_built_with_the_natural_terrain_tools_and_played() {
         );
     }
 
+    // The streaming radii are a per-level setting the cook writes into the core.
+    let radii = c
+        .ok(
+            "grid_set_stream",
+            json!({"draw_far": 30, "active_radius": 12}),
+        )
+        .text;
+    assert!(
+        radii.contains("draw 30 sector(s)") && radii.contains("lead 8"),
+        "{radii}"
+    );
+    let error = c
+        .call("grid_set_stream", json!({}))
+        .expect_err("a call that changes nothing is refused");
+    assert!(error.contains("nothing to change"), "{error}");
     let saved = c.ok("save", json!({})).text;
     assert!(saved.contains("saved"), "{saved}");
     let doc = psxed_project::ProjectDocument::load_from_path(project.join("project.ron"))
         .expect("the saved project loads");
+    assert_watertight(&doc);
+    let radii = doc
+        .active_scene()
+        .world
+        .grid()
+        .expect("a grid world")
+        .stream;
+    assert_eq!(
+        (radii.draw_far, radii.active_radius, radii.lead_radius),
+        (30, 12, 8)
+    );
     let (_, report) = psxed_project::playtest::build_package(&doc, &project);
     assert!(
         report.is_ok(),
@@ -339,4 +387,53 @@ fn a_cave_is_built_with_the_natural_terrain_tools_and_played() {
         report.error_messages()
     );
     let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Binds every material to a 64 by 64 texture, which is all the surface check
+/// needs of a binder.
+struct Flat;
+impl psxed_project::grid::cook::MaterialBinder for Flat {
+    fn bind(
+        &mut self,
+        material: Option<psxed_project::ResourceId>,
+    ) -> Result<psxed_project::grid::cook::BoundMaterial, String> {
+        Ok(psxed_project::grid::cook::BoundMaterial {
+            asset: material.map_or(0, |m| m.raw() as u16),
+            flags: 0,
+            blend: 0,
+            uv_motion: 0,
+            tint: [128; 3],
+            textured: material.is_some(),
+            texels: [64, 64],
+        })
+    }
+}
+
+/// The cooked cave has no hole in its surface: every open edge has another
+/// open edge along it (at worst a T-junction), so Play and the preview show no
+/// slit onto the void. The pillar's corner cells used to open one after a
+/// Break turned a diagonal under a void triangle.
+fn assert_watertight(doc: &psxed_project::ProjectDocument) {
+    let world = doc.active_scene().world.grid().expect("a grid world");
+    let cooked = psxed_project::grid::cook::cook_level(
+        psxed_project::grid::cook::CookInput {
+            world,
+            binder: &mut Flat,
+            lights: &[],
+            first_pack_sector: 0,
+            lod_far_cells: 0,
+            texture_repeat: true,
+        },
+        None,
+    )
+    .expect("the cave cooks");
+    for (room, chunk) in cooked.tables.iter().enumerate() {
+        let holes: Vec<String> = psxed_project::grid::cook::mesh::open_edges(chunk)
+            .iter()
+            .filter(|edge| edge.hole)
+            .take(8)
+            .map(|edge| format!("{:?} -> {:?} (quad {})", edge.a, edge.b, edge.quad))
+            .collect();
+        assert!(holes.is_empty(), "room {room} has holes: {holes:?}");
+    }
 }

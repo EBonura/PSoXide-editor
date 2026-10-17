@@ -388,7 +388,9 @@ pub fn set_split(world: &mut GridWorld, req: &SetSplitReq) -> Result<String, Str
         if want.is_none_or(|w| w != current) && toggle_split(world, face) {
             changed += 1;
         }
-        if req.auto == Some(false) {
+        // An explicit diagonal is a choice even when it is the one the
+        // surface already has: pin it, or a later height change re-picks.
+        if req.auto != Some(true) {
             if let Some(surface) = face.surface_mut(world) {
                 surface.auto_split = false;
             }

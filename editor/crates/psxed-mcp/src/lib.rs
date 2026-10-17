@@ -175,13 +175,14 @@ fn grid_summary(out: &mut String, project: &ProjectDocument, world: &GridWorld) 
     );
     let _ = writeln!(
         out,
-        "{} sectors, {} floors, {} ceilings, {} wall segments; faces {} of {}",
+        "{} sectors, {} floors, {} ceilings, {} wall segments; faces {} (busiest room {} of {})",
         budget.sectors,
         budget.floors,
         budget.ceilings,
         budget.walls,
         budget.faces,
-        limits::MAX_WORLD_FACES
+        budget.largest_room_faces,
+        limits::MAX_ROOM_FACES
     );
     for (index, room) in world.rooms.iter().enumerate() {
         let _ = writeln!(

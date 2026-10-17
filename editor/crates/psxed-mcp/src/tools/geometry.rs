@@ -6,7 +6,7 @@ use rmcp::ErrorData;
 
 use psxed_mcp::grid::build::{self, AddSurfaceReq, RemoveSurfaceReq, SetHeightsReq, SetSplitReq};
 use psxed_mcp::grid::rooms::{
-    self, AddRoomReq, ConvertRoomReq, DeleteRoomReq, SetRoomReq, ShadingReq,
+    self, AddRoomReq, ConvertRoomReq, DeleteRoomReq, SetRoomReq, ShadingReq, StreamReq,
 };
 use psxed_mcp::grid::walls::{self, PlaceWallReq, RemoveWallReq};
 use psxed_mcp::grid::Materials;
@@ -72,6 +72,18 @@ impl EditorServer {
     ) -> Result<CallToolResult, ErrorData> {
         self.grid_edit(req.scene, "grid_set_shading", |world, _| {
             rooms::set_shading(world, &req)
+        })
+    }
+
+    #[rmcp::tool(
+        description = "Set the world's streaming radii in sectors, walked over the portals: draw_far (a room farther than this from the camera is not drawn and is not needed in memory; 0 is unbounded; default 48), active_radius (entities within this walk distance of the player think; default 32) and lead_radius (sectors past draw_far a streamer prefetches; default 8). They are written into the cooked level."
+    )]
+    async fn grid_set_stream(
+        &self,
+        Parameters(req): Parameters<StreamReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.grid_edit(req.scene, "grid_set_stream", |world, _| {
+            rooms::set_stream(world, &req)
         })
     }
 

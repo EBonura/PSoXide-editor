@@ -546,9 +546,10 @@ pub fn budget(world: &GridWorld) -> String {
     );
     let _ = writeln!(
         out,
-        "drawable faces {} of {} ({}%; the editor turns orange from 85%)",
+        "drawable faces {}; busiest room {} of {} ({}%; the editor turns orange from 85%)",
         b.faces,
-        limits::MAX_WORLD_FACES,
+        b.largest_room_faces,
+        limits::MAX_ROOM_FACES,
         b.faces_percent()
     );
     let _ = writeln!(

@@ -205,6 +205,51 @@ pub struct ShadingReq {
     pub side_z: Option<u16>,
 }
 
+/// Set the world's streaming radii.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct StreamReq {
+    /// Scene index. Omit for the first scene with a grid world.
+    pub scene: Option<usize>,
+    /// Draw distance in sectors, walked over the portals: a room farther
+    /// than this from the camera is not drawn and is not needed in memory.
+    /// 0 is unbounded. Default 48.
+    pub draw_far: Option<u8>,
+    /// Entities in rooms within this many sectors of the player think.
+    /// Default 32.
+    pub active_radius: Option<u8>,
+    /// Sectors past the draw distance a streamer prefetches. Default 8.
+    pub lead_radius: Option<u8>,
+}
+
+/// Apply [`StreamReq`].
+pub fn set_stream(world: &mut GridWorld, req: &StreamReq) -> Result<String, String> {
+    if req.draw_far.is_none() && req.active_radius.is_none() && req.lead_radius.is_none() {
+        return Err("nothing to change: give draw_far, active_radius or lead_radius".to_string());
+    }
+    let mut radii = world.stream;
+    if let Some(v) = req.draw_far {
+        radii.draw_far = v;
+    }
+    if let Some(v) = req.active_radius {
+        radii.active_radius = v;
+    }
+    if let Some(v) = req.lead_radius {
+        radii.lead_radius = v;
+    }
+    world.stream = radii;
+    Ok(format!(
+        "stream radii: draw {} sector(s){}, active {}, lead {}",
+        radii.draw_far,
+        if radii.draw_far == 0 {
+            " (unbounded)"
+        } else {
+            ""
+        },
+        radii.active_radius,
+        radii.lead_radius
+    ))
+}
+
 /// Apply [`ShadingReq`].
 pub fn set_shading(world: &mut GridWorld, req: &ShadingReq) -> Result<String, String> {
     let mut shade = match req.preset.as_deref() {

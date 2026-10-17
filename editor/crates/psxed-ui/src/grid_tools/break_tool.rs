@@ -12,7 +12,7 @@ use super::verb_state::{VerbDrag, VerbGesture};
 use super::*;
 
 use psxed_project::grid::edit::verbs::break_verb::{
-    BreakDrag, BreakParams, BreakReport, BreakSnap, BreakTargets,
+    BreakDrag, BreakParams, BreakReport, BreakSnap, BreakStyle, BreakTargets, DEFAULT_INTENSITY,
 };
 use psxed_project::grid::faces::face_count;
 use psxed_project::grid::walk::{self, WalkLimits};
@@ -96,12 +96,27 @@ impl Default for BreakOptions {
             mix_materials: false,
             jitter: 0,
             seed: 1,
-            typed_intensity: 40,
+            typed_intensity: DEFAULT_INTENSITY,
         }
     }
 }
 
 impl BreakOptions {
+    /// Set every option to a named look and its intensity.
+    pub(crate) fn apply_style(&mut self, style: BreakStyle) {
+        let look = style.params();
+        self.targets = TARGET_SETS
+            .iter()
+            .position(|(_, t)| *t == look.targets)
+            .unwrap_or(0);
+        self.keep_walkable = look.keep_walkable;
+        self.snap = look.snap;
+        self.amplitude = look.amplitude;
+        self.mix_materials = look.mix_materials;
+        self.jitter = look.jitter;
+        self.typed_intensity = style.intensity();
+    }
+
     /// The label of the current target set.
     pub(crate) fn targets_label(&self) -> &'static str {
         TARGET_SETS[self.targets % TARGET_SETS.len()].0

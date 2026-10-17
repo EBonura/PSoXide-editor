@@ -9,7 +9,8 @@ use psxed_project::grid::cook::collision as cook_collision;
 use psxed_project::grid::edit::outline::polygon_cells;
 use psxed_project::grid::edit::rough as edit_rough;
 use psxed_project::grid::edit::verbs::break_verb::{
-    BreakDrag, BreakParams, BreakReport, BreakSnap, BreakTargets, WalkCount,
+    BreakDrag, BreakParams, BreakReport, BreakSnap, BreakStyle, BreakTargets, WalkCount,
+    DEFAULT_INTENSITY,
 };
 use psxed_project::grid::edit::verbs::rules::{ensure_strata, reapply_floor_rules};
 use psxed_project::grid::edit::{CellRect, Region};
@@ -110,8 +111,13 @@ pub struct BreakReq {
     /// crumbles plateau lips, bites plateau edges and ragges open wall tops;
     /// floor tilts and cracks tiles; ceiling does the same to the roof.
     pub targets: Option<Vec<String>>,
-    /// 0 to 100: the chance and the size of every change (default 40).
+    /// 0 to 100: the chance and the size of every change (default 15, the
+    /// Cathedral's sparse hand-made look).
     pub intensity: Option<u32>,
+    /// A named look, `cathedral`: sets the intensity, amplitude, snap and
+    /// targets of the Cathedral's hand-broken tiles. Any of those given
+    /// explicitly wins.
+    pub style: Option<String>,
     /// A number: the same seed gives the same result. Omit to take the next
     /// one after the last break.
     pub seed: Option<u32>,
@@ -164,16 +170,21 @@ pub fn plan_break(
 ) -> Result<BreakPlan, String> {
     let room = pick_room(world, req.room)?;
     let region = req.region.region(room)?;
+    let style = match req.style.as_deref() {
+        None => None,
+        Some(name) => Some(
+            BreakStyle::parse(name)
+                .ok_or_else(|| format!("unknown style {name:?}; use cathedral"))?,
+        ),
+    };
+    let base = style.map(BreakStyle::params).unwrap_or_default();
     let mut targets = BreakTargets {
         walls: false,
         floor: false,
         ceiling: false,
     };
     match &req.targets {
-        None => {
-            targets.walls = true;
-            targets.floor = true;
-        }
+        None => targets = base.targets,
         Some(list) => {
             for t in list {
                 match t.to_ascii_lowercase().as_str() {
@@ -197,13 +208,14 @@ pub fn plan_break(
         None => walk::player_spawns(project, world),
     };
     let snap = match req.snap.as_deref() {
-        None | Some("fine") => BreakSnap::Fine,
+        None => base.snap,
+        Some("fine") => BreakSnap::Fine,
         Some("click") => BreakSnap::Click,
         Some(other) => return Err(format!("unknown snap {other:?}; use fine or click")),
     };
     let params = BreakParams {
         targets,
-        amplitude: req.amplitude.unwrap_or(4).clamp(1, 32),
+        amplitude: req.amplitude.unwrap_or(base.amplitude).clamp(1, 32),
         snap,
         keep_walkable: req.keep_walkable.unwrap_or(true),
         spawns,
@@ -219,7 +231,10 @@ pub fn plan_break(
         room,
         region,
         params,
-        intensity: req.intensity.unwrap_or(40).min(100),
+        intensity: req
+            .intensity
+            .unwrap_or_else(|| style.map_or(DEFAULT_INTENSITY, BreakStyle::intensity))
+            .min(100),
         seed: req.seed,
     })
 }

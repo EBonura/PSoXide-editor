@@ -2,7 +2,7 @@
 
 use super::*;
 
-use psxed_project::grid::limits::MAX_WORLD_FACES;
+use psxed_project::grid::limits::MAX_ROOM_FACES;
 use psxed_project::grid::{GridBudget, CLICK_UNITS, FINE_UNITS};
 
 impl EditorWorkspace {
@@ -337,10 +337,11 @@ impl EditorWorkspace {
                         let view_text = in_view.map_or(String::new(), |n| format!("   in view: {n} faces"))
                             + &worst.clone().unwrap_or_default();
                         let budget_text = format!(
-                            "room {room}{}: {room_sectors} sectors   world: {} rooms, {} faces / {MAX_WORLD_FACES} ({percent}%){view_text}",
+                            "room {room}{}: {room_sectors} sectors   world: {} rooms, {} faces, busiest room {} / {MAX_ROOM_FACES} ({percent}%){view_text}",
                             if room_name.is_empty() { String::new() } else { format!(" {room_name}") },
                             room_count,
                             budget.faces,
+                            budget.largest_room_faces,
                         );
                         ui.label(
                             RichText::new(budget_text)
