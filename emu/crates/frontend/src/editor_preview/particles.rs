@@ -1,4 +1,4 @@
-//! Particle-emitter preview submission for BSP editor scenes.
+//! Particle-emitter preview submission for editor scenes.
 
 use super::*;
 

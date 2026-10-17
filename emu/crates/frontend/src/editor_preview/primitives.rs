@@ -18,12 +18,12 @@ type SplitPreviewTri = (
 
 const PREVIEW_CLIP_EDGE_MARGIN: i32 = 16;
 const PREVIEW_CLIP_ATTR_ONE: i64 = 1 << 16;
-/// Keep the editor on the cooked PXBSP face contract. Exact clipping can add
+/// Keep the editor on the cooked face contract. Exact clipping can add
 /// at most one vertex per frustum plane.
 pub(crate) const PREVIEW_FACE_VERTEX_CAP: usize = 39;
 const PREVIEW_CLIP_VERTEX_CAP: usize = PREVIEW_FACE_VERTEX_CAP + 5;
 
-/// Camera-space brush vertex carried through the editor's exact frustum clip.
+/// Camera-space vertex carried through the editor's exact frustum clip.
 /// UV and colour attributes stay Q16 until the clipped polygon is projected so
 /// a near/side-plane intersection cannot tear a textured or Gouraud edge.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -85,13 +85,13 @@ impl PreviewClipVertex {
     }
 }
 
-/// Clip a convex brush polygon against the same near and guarded screen-edge
-/// planes used by the runtime PXBSP renderer. The previous editor path asked
+/// Clip a convex polygon against the same near and guarded screen-edge
+/// planes used by the runtime grid renderer. The previous editor path asked
 /// `project_world_quad` to project each fan triangle and therefore dropped a
 /// partially visible triangle when any corner crossed the near plane. It also
 /// clamped wholly off-screen triangles into the GPU guard band, producing
 /// screen-sized wedges and exhausting the preview packet arena on E1M1.
-pub(crate) fn clip_preview_brush_polygon(
+pub(crate) fn clip_preview_polygon(
     projection: psx_engine::WorldProjection,
     vertices: &[PreviewClipVertex],
 ) -> PreviewClippedPolygon {
@@ -221,17 +221,17 @@ fn preview_clip_distance(
     }
 }
 
-/// Conservative brush-level frustum test. A brush is rejected only when all
+/// Conservative cell-level frustum test. A cell is rejected only when all
 /// eight corners of its world-space AABB are outside the same clip plane, so a
 /// visible face can never be lost. This avoids projecting and clipping every
-/// subdivided face in distant E1M1 brushes during camera navigation.
-pub(crate) fn preview_brush_bounds_visible(
+/// subdivided face in distant cells during camera navigation.
+pub(crate) fn preview_cell_bounds_visible(
     camera: psx_engine::WorldCamera,
-    bounds: PreviewBrushBounds,
+    bounds: PreviewCellBounds,
 ) -> bool {
     // Fixed-point world-to-view uses two rounded Q12 stages. Keep several
     // screen pixels of distance slack so a rounding difference at an AABB
-    // interior point cannot turn a boundary-touching brush into a rejection.
+    // interior point cannot turn a boundary-touching cell into a rejection.
     const CULL_DISTANCE_MARGIN: i64 = 1024;
     let coordinate = |value: f64, round_down: bool| -> Option<i32> {
         if !value.is_finite() || value < f64::from(i32::MIN) || value > f64::from(i32::MAX) {
@@ -312,7 +312,7 @@ fn interpolate_preview_clip_vertex(
     }
 }
 
-/// Emit one face triangle at a surface-owned OT slot. BSP brush polygons are
+/// Emit one face triangle at a surface-owned OT slot. Polygons are
 /// often fans of several triangles; sorting every triangle by its own centroid
 /// lets another wall land between the halves of one planar face, producing the
 /// conspicuous diagonal wedges seen around arches and pillars.

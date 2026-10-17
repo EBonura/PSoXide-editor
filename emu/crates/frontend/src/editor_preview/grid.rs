@@ -1,11 +1,11 @@
 //! Sector-grid world walker for the editor preview.
 //!
-//! Brush scenes render through the BSP CSG surfaces; a grid scene renders
-//! the faces `psxed_project::grid::faces` derives from the document. Each
+//! A grid scene renders the faces `psxed_project::grid::faces` derives from
+//! the document. Each
 //! visible sector is expanded to polygons, lit per corner from the scene's
 //! point lights and the room ambient, and submitted through the same
-//! polygon path (`emit_uv_polygon`) the brushes use, so clipping, depth
-//! slots, texture windows and sidedness behave identically.
+//! polygon path (`emit_uv_polygon`), so clipping, depth slots, texture
+//! windows and sidedness are shared with every other preview surface.
 //!
 //! Cells are culled by their bounding box before any face is built, so a
 //! close view of a large level only pays for what is on screen.
@@ -23,13 +23,13 @@ fn cell_bounds(
     x: usize,
     z: usize,
     sector: &GridSector,
-) -> Option<PreviewBrushBounds> {
+) -> Option<PreviewCellBounds> {
     let (low, high) = sector.height_range()?;
     let [cx, cz] = room.world_cell(x, z);
     let scale = world.scale;
     let y0 = scale.to_editor(room.y_offset + low);
     let y1 = scale.to_editor(room.y_offset + high);
-    Some(PreviewBrushBounds {
+    Some(PreviewCellBounds {
         min: [
             f64::from(scale.to_editor(cx * SECTOR_UNITS)),
             f64::from(y0),
@@ -44,7 +44,7 @@ fn cell_bounds(
 }
 
 /// Widest span the preview camera's fixed-point rotate handles safely; a
-/// world past it is clipped by the same guard the brush path uses.
+/// world past it is clipped by the same guard the runtime uses.
 const PREVIEW_COORD_LIMIT: i32 = 500_000;
 
 fn emit_grid_face(
@@ -67,7 +67,7 @@ fn emit_grid_face(
     let shade = face_shade(
         project,
         face.material,
-        brush_fallback_color(face.cell[0].unsigned_abs() as usize),
+        fallback_face_color(face.cell[0].unsigned_abs() as usize),
         textures,
     );
     let sidedness = if face.double_sided {
@@ -121,7 +121,7 @@ pub(super) fn walk_grid(
             let Some(bounds) = cell_bounds(world, room, x, z, sector) else {
                 continue;
             };
-            if !preview_brush_bounds_visible(camera, bounds) {
+            if !preview_cell_bounds_visible(camera, bounds) {
                 continue;
             }
             if scratch.geometry_full() {

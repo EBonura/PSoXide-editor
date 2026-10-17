@@ -1831,8 +1831,7 @@ impl EditorWorkspace {
                                 .auto_shrink([false, false])
                                 .show(ui, |ui| {
                                     constrain_resizable_dock_content(ui, content_width);
-                                    // Selection priority: selected BSP brush →
-                                    // resource → node.
+                                    // Selection priority: resource → node.
                                     if self.active_workspace == WorkspaceView::Room
                                         && self.is_grid_world()
                                     {

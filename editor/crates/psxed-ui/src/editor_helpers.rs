@@ -538,7 +538,7 @@ pub(crate) fn owning_entity_id(scene: &psxed_project::Scene, node_id: NodeId) ->
 
 /// Authored units per engine unit: the cook divides every length by this
 /// (`psxed_project::units::WORLD_UNIT_DIVISOR`), so it is the finest step a
-/// position or brush point keeps through the cook.
+/// position keeps through the cook.
 pub(crate) const ENGINE_UNIT: u16 = psxed_project::units::WORLD_UNIT_DIVISOR as u16;
 
 /// Largest grid step the editor offers.
@@ -556,7 +556,7 @@ pub(crate) fn engine_grid_units(requested: u16) -> u16 {
 /// - bounds are big enough to click reliably at typical
 ///   editor zoom levels,
 /// - small enough that a Light marker doesn't block
-///   selection of nearby brush faces,
+///   selection of nearby surfaces,
 /// - distinct enough to read at a glance.
 ///
 /// `None` for node kinds that don't get a 3D bound (World,

@@ -2014,10 +2014,8 @@ fn fresh_project_inspector_switches_logic_to_door_and_interactable_to_checkpoint
         psxed_project::LogicNodeKind::Door {
             box_prop: String::new(),
             start_open: false,
-            open_offset: psxed_project::default_brush_door_open_offset(),
-            travel_ticks: psxed_project::default_brush_door_travel_ticks(),
         },
-        "picking Door must seat the shared brush-door defaults"
+        "picking Door must seat the defaults"
     );
     assert!(workspace.is_dirty());
     workspace.do_undo();

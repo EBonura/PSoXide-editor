@@ -442,7 +442,7 @@ impl EditorServer {
     }
 
     #[rmcp::tool(
-        description = "Place a static point light. Radius is given in world units here and converted to the sectors the format stores. IMPORTANT: point lights do nothing while bsp_cook_mode is Draft, which is the default, because Draft packs every surface fullbright and skips the bake entirely; the tool says so when that is the case."
+        description = "Place a static point light. Radius is given in world units here and converted to the sectors the format stores."
     )]
     async fn add_light(
         &self,
@@ -613,7 +613,7 @@ impl EditorServer {
     }
 
     #[rmcp::tool(
-        description = "Health check: which project is open, whether edits are staged, the BSP cook mode, the scene's brush and node counts, and whether a renderer binary was found. Call this first in a session, and whenever something behaves unexpectedly."
+        description = "Health check: which project is open, whether edits are staged, the scene's world and node counts, and whether a renderer binary was found. Call this first in a session, and whenever something behaves unexpectedly."
     )]
     async fn status(&self) -> Result<CallToolResult, ErrorData> {
         let renderer = match shot::find_frontend(self.frontend.as_deref().map(PathBuf::as_path)) {

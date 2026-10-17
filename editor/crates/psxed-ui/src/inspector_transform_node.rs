@@ -1397,7 +1397,7 @@ pub(crate) fn light_transform_editor(
 /// The one snap rule for moving a node, shared by every move path (axis and
 /// plane gizmo, 2D drag, placement): the grid step, in world units, the
 /// node's position lands on. `None` for nodes that move by the gesture's
-/// delta without landing on the grid: a Group follows its brushes (which
+/// delta without landing on the grid: a Group follows its children (which
 /// keep their own offsets).
 pub(crate) fn node_snap_step(kind: &NodeKind, grid_step: i32) -> Option<i32> {
     match kind {
@@ -1452,7 +1452,7 @@ pub(crate) fn node_gizmo_translation(
 }
 
 /// Translate a node by a plane-handle drag. The delta is quantised to
-/// `world_quantum` like the brushes it may move with, and the moved
+/// `world_quantum`, and the moved
 /// components then land on the node's snap step.
 pub(crate) fn node_gizmo_plane_translation(
     node: &psxed_project::SceneNode,
@@ -1857,8 +1857,8 @@ pub(crate) fn normalise_light_transform(transform: &mut psxed_project::Transform
     changed
 }
 
-/// Snap a raw world-unit component to a caller-chosen grid (the brush
-/// `snap_units` in BSP scenes). Quantum 1 rounds to whole units.
+/// Snap a raw world-unit component to a caller-chosen grid (the editor's
+/// `snap_units`). Quantum 1 rounds to whole units.
 pub(crate) fn snap_world_units_component(value: f32, quantum: i32) -> f32 {
     let q = quantum.max(1) as f32;
     (value / q).round() * q
@@ -2118,7 +2118,7 @@ pub(crate) struct NodeKindEditorContext<'a> {
     pub(crate) boost_module_options: &'a [(ResourceId, String)],
     pub(crate) animator_clip_context: Option<&'a AnimatorClipContext>,
     /// The World node's sector size. Point-light radius is stored in these
-    /// sectors, and the cook, the brush-light bake and the viewport preview
+    /// sectors, and the cook, the light bake and the viewport preview
     /// all scale it by this value, so the Inspector has to as well.
     pub(crate) world_sector_size: i32,
     pub(crate) nav_target: &'a mut Option<ResourceId>,
@@ -3896,8 +3896,6 @@ pub(crate) fn draw_node_kind_editor(
                             *logic_kind = psxed_project::LogicNodeKind::Door {
                                 box_prop: String::new(),
                                 start_open: false,
-                                open_offset: psxed_project::default_brush_door_open_offset(),
-                                travel_ticks: psxed_project::default_brush_door_travel_ticks(),
                             };
                             changed = true;
                         }
@@ -3947,8 +3945,6 @@ pub(crate) fn draw_node_kind_editor(
                 psxed_project::LogicNodeKind::Door {
                     box_prop,
                     start_open,
-                    open_offset,
-                    travel_ticks,
                 } => {
                     ui.horizontal(|ui| {
                         ui.label(RichText::new("Box Prop").color(STUDIO_TEXT_WEAK));
@@ -3960,42 +3956,6 @@ pub(crate) fn draw_node_kind_editor(
                             .changed();
                     });
                     changed |= ui.checkbox(start_open, "Start open").changed();
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new("Open offset").color(STUDIO_TEXT_WEAK));
-                        for (axis, label) in ["X", "Y", "Z"].iter().enumerate() {
-                            let mut value = i32::from(open_offset[axis]);
-                            if ui
-                                .add(
-                                    egui::DragValue::new(&mut value)
-                                        .speed(8.0)
-                                        .range(i16::MIN as i32..=i16::MAX as i32)
-                                        .prefix(format!("{label} ")),
-                                )
-                                .changed()
-                            {
-                                open_offset[axis] =
-                                    value.clamp(i16::MIN as i32, i16::MAX as i32) as i16;
-                                changed = true;
-                            }
-                        }
-                    });
-                    if *open_offset == [0; 3] {
-                        ui.colored_label(
-                            Color32::from_rgb(220, 120, 100),
-                            "Open offset must move on at least one axis",
-                        );
-                    }
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new("Travel (ticks)").color(STUDIO_TEXT_WEAK));
-                        let mut value = i32::from(*travel_ticks);
-                        if ui
-                            .add(egui::DragValue::new(&mut value).speed(0.2).range(1..=3600))
-                            .changed()
-                        {
-                            *travel_ticks = value.clamp(1, u16::MAX as i32) as u16;
-                            changed = true;
-                        }
-                    });
                 }
             }
             ui.separator();

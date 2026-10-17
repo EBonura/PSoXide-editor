@@ -764,14 +764,13 @@ impl EditorWorkspace {
     }
 
     /// Whether the editor's global grid is currently on. In 2D this controls
-    /// the background grid; in 3D it also controls legacy streaming chunk
-    /// boundaries. BSP face compositing has its own subordinate toggle.
+    /// the background grid; in 3D it also controls the grid overlays.
     pub fn show_grid_enabled(&self) -> bool {
         self.show_grid
     }
 
-    /// Current world-space grid interval. Brush surface grids use the
-    /// same live value as snapping and the orthographic BSP grid, so
+    /// Current world-space grid interval. The overlays use the
+    /// same live value as snapping, so
     /// changing the toolbar value updates every viewport consistently.
     pub fn grid_snap_units(&self) -> u16 {
         self.snap_units.max(1)

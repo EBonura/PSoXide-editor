@@ -374,7 +374,7 @@ impl EditorWorkspace {
     }
 
     /// Switch the grid tool, abandoning any ghost, and keep the shared tool
-    /// state the node tools and the brush strip read in step.
+    /// state the node tools read in step.
     pub(crate) fn set_grid_tool(&mut self, tool: GridTool) {
         if self.grid.tool != tool {
             self.grid.abandon();

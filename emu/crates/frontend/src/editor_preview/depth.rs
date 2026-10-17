@@ -7,7 +7,7 @@ const DEFAULT_DEPTH_RANGE: psx_engine::DepthRange = psx_engine::DepthRange::new(
 );
 
 /// Expand only as needed, retaining the original four-unit buckets in close
-/// scenes. Both brushes and the engine model pass must use this same range.
+/// scenes. Both world surfaces and the engine model pass must use this same range.
 fn range_for_farthest_depth(farthest: i32) -> psx_engine::DepthRange {
     psx_engine::DepthRange::new(
         DEFAULT_DEPTH_RANGE.near(),
@@ -97,7 +97,7 @@ mod tests {
     }
 
     #[test]
-    fn brushes_and_models_share_overview_depth_mapping() {
+    fn surfaces_and_models_share_overview_depth_mapping() {
         let range = range_for_farthest_depth(120_000);
         let options = preview_model_surface_options(
             TextureMaterial::opaque(0, 0, (128, 128, 128)),

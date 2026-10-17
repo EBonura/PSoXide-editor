@@ -376,7 +376,7 @@ fn world_grid_stroke(index: i32) -> Stroke {
     Stroke::new(1.0, color)
 }
 
-// Selection and visibility state for one 2D BSP scene-viewport pass.
+// Selection and visibility state for one 2D scene-viewport pass.
 pub(crate) struct SceneViewportContext<'a> {
     pub(crate) hidden_scene_nodes: &'a HashSet<NodeId>,
     pub(crate) selected: NodeId,

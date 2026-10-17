@@ -1,6 +1,6 @@
 use super::*;
 
-/// Material state resolved once per BSP face before packet emission.
+/// Material state resolved once per face before packet emission.
 #[derive(Copy, Clone)]
 pub(super) enum FaceShade {
     Flat {
@@ -64,9 +64,7 @@ pub(super) fn face_shade(
     textures: &EditorTextures,
 ) -> FaceShade {
     let tint = material_color(project, material, fallback);
-    // Every caller shades a brush face, so preview the side the PXBSP
-    // runtime draws (front only for `Both`).
-    let sidedness = material_sidedness(project, material).brush_face_drawn();
+    let sidedness = material_sidedness(project, material);
     if let Some(id) = material {
         if let Some(slot) = textures.slot(id) {
             return FaceShade::Textured {
@@ -120,7 +118,7 @@ pub(super) const fn psx_blend_mode(mode: psxed_project::PsxBlendMode) -> BlendMo
     }
 }
 
-/// BSP preview models currently use the scene's unfogged render path. Keeping
+/// Preview models currently use the scene's unfogged render path. Keeping
 /// the neutral transform here lets the shared PSX model renderer stay intact
 /// without retaining room fog authoring.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]

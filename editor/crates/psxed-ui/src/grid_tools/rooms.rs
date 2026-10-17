@@ -48,7 +48,7 @@ impl EditorWorkspace {
         }
     }
 
-    /// The Rooms panel. Does nothing for a brush world.
+    /// The Rooms panel. Does nothing without a grid world.
     pub(crate) fn draw_grid_rooms_panel(&mut self, ui: &mut egui::Ui) {
         let Some(world) = self.project.active_scene().world.grid() else {
             return;

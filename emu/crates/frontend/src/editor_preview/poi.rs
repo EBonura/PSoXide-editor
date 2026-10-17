@@ -1,9 +1,9 @@
 //! Depth-sorted Point of Interest beacons for the editor preview.
 //!
 //! POIs used to be painted by egui after the preview texture. That made the
-//! complete beacon visible through every BSP surface. Keep the authoring
+//! complete beacon visible through every world surface. Keep the authoring
 //! colors and steady rotation, but submit the shell as ordinary world
-//! triangles so the preview ordering table gives brushes normal occlusion.
+//! triangles so the preview ordering table gives surfaces normal occlusion.
 
 use super::*;
 

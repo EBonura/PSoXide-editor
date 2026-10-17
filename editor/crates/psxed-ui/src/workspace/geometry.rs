@@ -962,7 +962,7 @@ impl EditorWorkspace {
 
     /// Pop the most recent snapshot back into `project`.
     /// Undo and redo replace the whole document. A drag still in flight
-    /// holds brush indices and base copies from the OLD document, and its
+    /// holds indices and base copies from the OLD document, and its
     /// next preview or commit would write them over the restored one (or
     /// index past its end), so every live gesture ends here first.
     fn abandon_gestures_for_document_swap(&mut self) {

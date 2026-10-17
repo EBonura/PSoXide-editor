@@ -1069,7 +1069,7 @@ impl EditorWorkspace {
 
     /// Pick the nearest entity bound under the camera ray.
     /// Returns the `EntityBoundHit` plus its world distance --
-    /// the 3D click handler compares this against brush hits to
+    /// the 3D click handler compares this against surface hits to
     /// pick whichever is closer.
     pub fn pick_entity_bound(
         &self,

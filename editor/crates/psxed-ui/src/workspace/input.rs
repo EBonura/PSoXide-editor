@@ -1106,7 +1106,7 @@ impl EditorWorkspace {
                         .color(STUDIO_ERROR),
                     );
                     // Every row is focusable, not just the first: the author
-                    // reading error four wants error four's brush.
+                    // reading error four wants error four's node.
                     for error in &self.last_cook_errors {
                         ui.horizontal_wrapped(|ui| {
                             ui.add(

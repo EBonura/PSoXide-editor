@@ -313,7 +313,7 @@ fn embedded_world_pack_payload_from(generated_dir: &Path) -> Result<Option<Vec<u
                 order_file.display()
             ));
         }
-        // Resident PXBSP projects deliberately have no streamed room chunks,
+        // Resident grid projects deliberately have no streamed room chunks,
         // but the cooked manifest still places UI.PAK after a one-sector,
         // header-only WORLD.PAK. Preserve that sector in Embedded Play so
         // gameplay-transient assets (notably the sky panorama) use the same
@@ -728,26 +728,26 @@ mod tests {
 
     #[test]
     #[cfg(feature = "editor")]
-    fn pxbsp_empty_world_pack_keeps_streamed_ui_pack_at_the_manifest_lba() {
-        let root = frontend_test_temp_dir("pxbsp-empty-world-pack");
+    fn resident_empty_world_pack_keeps_streamed_ui_pack_at_the_manifest_lba() {
+        let root = frontend_test_temp_dir("resident-empty-world-pack");
         let chunks = root.join(psxed_project::playtest::STREAM_CHUNKS_DIRNAME);
         std::fs::create_dir_all(&chunks).unwrap();
         std::fs::write(
             root.join(psxed_project::playtest::WORLD_PACK_ORDER_FILENAME),
-            "# PXBSP has no streamed grid rooms\n",
+            "# resident grid has no streamed rooms\n",
         )
         .unwrap();
 
         let world_pack = embedded_world_pack_payload_from(&root)
-            .expect("empty PXBSP WORLD.PAK builds")
-            .expect("PXBSP keeps a header-only WORLD.PAK");
+            .expect("empty resident WORLD.PAK builds")
+            .expect("a resident world keeps a header-only WORLD.PAK");
         let mut exe = vec![0u8; psx_iso::EXE_HEADER_BYTES];
         exe[..8].copy_from_slice(b"PS-X EXE");
         exe[0x10..0x14].copy_from_slice(&0x8001_2340u32.to_le_bytes());
         exe[0x18..0x1C].copy_from_slice(&0x8001_0000u32.to_le_bytes());
         let ui_pack = build_world_pack(&[(1, b"sky-panorama".as_slice())]);
-        let image = embedded_playtest_disc_image("PXBSP_SKY", exe, Some(world_pack), Some(ui_pack), &[])
-            .expect("PXBSP playtest disc builds");
+        let image = embedded_playtest_disc_image("RESIDENT_SKY", exe, Some(world_pack), Some(ui_pack), &[])
+            .expect("resident playtest disc builds");
         let disc = Disc::from_bin(image);
         let world_sector = disc
             .read_sector_user(psx_iso::WORLD_PACK_DEFAULT_START_LBA)

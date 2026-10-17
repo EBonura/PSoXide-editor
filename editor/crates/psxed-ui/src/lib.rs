@@ -285,7 +285,7 @@ const STARTER_CHARACTER_ASSET_DIRS: &[&str] = &[
     // The energy blades' noise texture.
     "assets/models/weapon_energy",
     // The canonical default project is also the material library for a new
-    // BSP map. Copy every saved PSXT so its synced Material resource is usable
+    // project. Copy every saved PSXT so its synced Material resource is usable
     // immediately instead of pointing back into another project.
     "assets/textures",
 ];
@@ -1788,7 +1788,7 @@ enum PlaceKind {
     /// Placed `Logic` graph node (trigger volume by default; switch
     /// the kind to relay/multisource/door in the inspector).
     Logic,
-    /// Damageable owner for one or more BSP brushes.
+    /// Shared health and damage state for a breakable object.
     Destructible,
     /// Entity host with a procedural readable Point of Interest component.
     PointOfInterest,
@@ -2102,7 +2102,7 @@ impl EditorWorkspace {
         self.status = format!("Workspace: {}", self.active_workspace.label());
     }
 
-    /// Enter the 3D workspace's Top orthographic BSP viewport. This remains
+    /// Enter the 3D workspace's Top orthographic viewport. This remains
     /// separate from the UI workspace even though both use a 2D canvas.
     pub fn show_room_orthographic(&mut self) {
         self.active_workspace = WorkspaceView::Room;
@@ -2121,7 +2121,7 @@ impl EditorWorkspace {
 
     /// Open the project at `dir`. Errors when `dir/project.ron` is
     /// missing or malformed -- the frontend wraps the error and falls
-    /// back to the bundled BSP starter so a real load failure surfaces
+    /// back to the bundled starter so a real load failure surfaces
     /// in the status bar instead of silently spawning a fresh
     /// starter (which masked the path-resolution bug previously).
     pub fn open_directory(dir: impl Into<PathBuf>) -> Result<Self, String> {
@@ -2238,7 +2238,7 @@ impl EditorWorkspace {
             show_play_debug_overlays: editor_visibility.show_play_debug_overlays,
             play_debug_terminal_lines: VecDeque::with_capacity(PLAY_DEBUG_TERMINAL_LINE_CAP),
             shortcut_group_flash: None,
-            // The 3D workspace uses the bit-faithful BSP preview by
+            // The 3D workspace uses the bit-faithful preview by
             // default, but the top-level workspace itself is restored from
             // the project so UI/Animation authoring reopens where it left off.
             view_2d: false,
@@ -2894,7 +2894,7 @@ impl EditorWorkspace {
         true
     }
 
-    /// Cook the active BSP project into the playtest example's
+    /// Cook the active project into the playtest example's
     /// `generated/` directory and write a fresh ignored cooked manifest.
     /// Returns a status
     /// string suitable for `self.status`. The "& Play" half is

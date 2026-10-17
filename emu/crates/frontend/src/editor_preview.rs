@@ -1,7 +1,7 @@
-//! Editor 3D viewport for BSP-authored projects.
+//! Editor 3D viewport for grid projects.
 //!
-//! The preview compiles the authored CSG brushes, renders the resulting BSP
-//! surfaces through the PSX-style ordering-table path, and then draws the
+//! The preview renders the grid world's surfaces through the PSX-style
+//! ordering-table path, and then draws the
 //! project's models, lights, particles, sky, and editor overlays. The camera,
 //! projection, packet limits, and material handling intentionally mirror the
 //! playtest renderer so the editor is a useful approximation of console output.
@@ -97,7 +97,7 @@ const MAX_PREVIEW_MODEL_INSTANCES: usize = 8;
 /// editor-playtest also renders here.
 const PREVIEW_JOINT_CAP: usize = 32;
 /// Ordering-table depth -- tradeoff between Z resolution and the
-/// per-frame chain-walk cost. Brush-heavy close views need finer buckets than
+/// per-frame chain-walk cost. Close views of dense rooms need finer buckets than
 /// the original 64-world-unit bands or adjacent trims can swap order.
 const OT_DEPTH: usize = 4096;
 const PREVIEW_GEOMETRY_SLOT_MIN: usize = 1;
@@ -666,17 +666,16 @@ fn scene_node_hidden(scene: &Scene, hidden_scene_nodes: &HashSet<NodeId>, id: No
     false
 }
 
-fn brush_fallback_color(face: usize) -> (u8, u8, u8) {
+fn fallback_face_color(face: usize) -> (u8, u8, u8) {
     let shade = 0x6c + ((face as u8) % 3) * 0x14;
     (shade, shade, shade)
 }
 
-/// Ambient term for world-space (BSP) preview lighting, matching the
-/// Release bake contract (`PXBSP_AMBIENT_RGB` in the cooked manifest).
+/// Ambient term for world-space preview lighting.
 const PREVIEW_AMBIENT: [u8; 3] = [32; 3];
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct PreviewBrushBounds {
+pub(crate) struct PreviewCellBounds {
     min: [f64; 3],
     max: [f64; 3],
 }
@@ -712,7 +711,7 @@ fn emit_uv_polygon(
             colors.map_or(default_color, |colors| colors[index]),
         );
     }
-    let clipped = clip_preview_brush_polygon(camera.projection, &clip_vertices[..verts.len()]);
+    let clipped = clip_preview_polygon(camera.projection, &clip_vertices[..verts.len()]);
     let clipped = clipped.as_slice();
     let surface_slot = clipped_surface_depth_slot(clipped, scratch.depth_range);
     let Some(anchor) = clipped
@@ -1357,10 +1356,10 @@ fn draw_preview_model_instances(
     instances: &[PreviewModelInstance<'_>],
     scratch: &mut PreviewScratch,
 ) {
-    // BSP/brush geometry and animated models have independent packet arenas.
-    // A dense BSP can legitimately fill `tex_tris` while `model_tex_tris` is
+    // World geometry and animated models have independent packet arenas.
+    // A dense world can legitimately fill `tex_tris` while `model_tex_tris` is
     // still empty; checking the world counter here used to hide every model
-    // preview in a full Quake level.
+    // preview in a large level.
     if instances.is_empty() || !preview_model_triangle_capacity_available(scratch.model_tex_used) {
         return;
     }
