@@ -1,0 +1,43 @@
+# The octagonal tower of docs/grid/multi-storey.md section 8, built only with
+# the server's tools. One call per line: the tool, then its arguments as JSON.
+# Run by tests/grid_tower.rs; a project this builds is what
+# editor/projects/grid-tower holds.
+
+# 1. The starter room's 6 by 6 floor goes; the tower grows its own footprint.
+grid_remove_surface {"kind":"floor","from":[0,0],"to":[5,5]}
+grid_remove_surface {"kind":"ceiling","from":[0,0],"to":[5,5]}
+grid_set_room {"room":0,"name":"Tower","wall_material":"Graybox / Warm Stone 64","ambient":[112,112,112]}
+
+# 2. One tall hall in the shape of an octagon, 12 by 12 sectors with 3 sector
+# chamfers, 48 clicks (12288 grid units) tall. The outline sits a quarter of a
+# sector out so the 12 diagonal cells are in, and every convex corner of the
+# staircase outline is cut into a 45 degree wall.
+grid_polygon {"kind":"room","points":[[2.75,-0.25],[9.25,-0.25],[12.25,2.75],[12.25,9.25],[9.25,12.25],[2.75,12.25],[-0.25,9.25],[-0.25,2.75]],"floor_height":0,"ceiling_height":12288,"chamfer":"corners","material":"Graybox / Warm Stone 64","ceiling_material":"Graybox / Dark Trim 64"}
+
+# 3. Three floors, inserted into the hall afterwards: 12, 24 and 36 clicks up,
+# over every sector but the one wide ring the stairs wind round.
+grid_insert_slab {"rects":[[3,1,8,1],[2,2,9,2],[1,3,10,8],[2,9,9,9],[3,10,8,10]],"y":3072,"material":"Graybox / Warm Stone 64"}
+grid_insert_slab {"rects":[[3,1,8,1],[2,2,9,2],[1,3,10,8],[2,9,9,9],[3,10,8,10]],"y":6144,"material":"Graybox / Warm Stone 64"}
+grid_insert_slab {"rects":[[3,1,8,1],[2,2,9,2],[1,3,10,8],[2,9,9,9],[3,10,8,10]],"y":9216,"material":"Graybox / Warm Stone 64"}
+
+# 4. The central well: a 2 by 2 hole through all three floors.
+grid_cut_hole {"rects":[[5,5,6,6]],"y":3072,"which":"all_above"}
+
+# 5. The stairs: 44 sectors of ring, 12 treads a storey (the straight runs),
+# the chamfers are landings. Three storeys, one call.
+grid_spiral_stairs {"ring":[[3,0],[8,0],[9,0],[9,1],[10,1],[10,2],[11,2],[11,3],[11,8],[11,9],[10,9],[10,10],[9,10],[9,11],[8,11],[3,11],[2,11],[2,10],[1,10],[1,9],[0,9],[0,8],[0,3],[0,2],[1,2],[1,1],[2,1],[2,0]],"storeys":3,"rise_per_storey":3072,"material":"Graybox / Wood 64"}
+
+# 6. Light: two lamps over each floor, one at the top of the well.
+delete_node {"node":"Starter Light"}
+add_light {"position":[4480,2200,4480],"radius":6200,"name":"Ground NW"}
+add_light {"position":[10880,2200,10880],"radius":6200,"name":"Ground SE"}
+add_light {"position":[4480,6040,4480],"radius":6200,"name":"First NW"}
+add_light {"position":[10880,6040,10880],"radius":6200,"name":"First SE"}
+add_light {"position":[4480,9880,4480],"radius":6200,"name":"Second NW"}
+add_light {"position":[10880,9880,10880],"radius":6200,"name":"Second SE"}
+add_light {"position":[4480,13720,4480],"radius":6200,"name":"Third NW"}
+add_light {"position":[10880,13720,10880],"radius":6200,"name":"Third SE"}
+add_light {"position":[7680,15400,7680],"radius":8000,"name":"Well top"}
+
+# 7. The player on the ground floor, a step from the first tread.
+move_node {"node":"Aletha (Player)","position":[4480,64,1920]}

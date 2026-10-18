@@ -122,8 +122,15 @@ fn a_raise_that_would_break_the_column_is_refused_and_a_sliver_is_filled_solid()
     assert!(rig.ws.status.contains("out of order"), "{}", rig.ws.status);
     let held = column(&rig, [3, 3]);
     assert_eq!(held.len(), 2, "{held:?}");
-    assert!(held[0].1 <= held[1].0, "the column stays in order: {held:?}");
-    assert_eq!(held[1], (Some(1536), Some(3072)), "the floor above is not moved");
+    assert!(
+        held[0].1 <= held[1].0,
+        "the column stays in order: {held:?}"
+    );
+    assert_eq!(
+        held[1],
+        (Some(1536), Some(3072)),
+        "the floor above is not moved"
+    );
     rig.ws.do_undo();
     assert_eq!(rig.ws.project, before);
 

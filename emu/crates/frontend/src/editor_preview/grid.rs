@@ -18,8 +18,8 @@ use psxed_project::grid::mesh_faces::{mesh_faces_with, placed as placed_mesh};
 use psxed_project::grid::plane_faces::plane_faces_with;
 use psxed_project::grid::uv::ProjectUvDefaults;
 use psxed_project::grid::uv_split;
-use psxed_ui::GridPreviewView;
 use psxed_project::grid::{GridRoom, GridWorld, SECTOR_UNITS};
+use psxed_ui::GridPreviewView;
 
 /// Editor-space bounds of one sector, from its lowest to highest geometry.
 fn cell_bounds(

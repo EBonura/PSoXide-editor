@@ -34,6 +34,10 @@
 !grid-sewers/**
 !grid-west/
 !grid-west/**
+# The octagonal tower test level of docs/grid/multi-storey.md section 8, built
+# only with the MCP tools (editor/crates/psxed-mcp/tests/grid_tower.script).
+!grid-tower/
+!grid-tower/**
 # The sim-state gate fixture (tools/grid-simgate): three rooms in a row joined
 # by ghosted openings, the last with a one click step, the player in the first.
 !grid-gate/
