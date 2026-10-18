@@ -288,7 +288,8 @@ fn ceilings_as_floors(world: &GridWorld) -> GridWorld {
         for z in 0..room.depth {
             for x in 0..room.width {
                 if let Some(sector) = room.sector_mut(x, z) {
-                    sector.floor = sector.ceiling.take();
+                    let ceiling = sector.take_ceiling();
+                    sector.set_floor(ceiling);
                 }
             }
         }
@@ -915,7 +916,7 @@ mod tests {
         let mats2 = Materials::new(&p2);
         for x in 2..=3 {
             for z in 2..=3 {
-                w2.rooms[0].sector_mut(x, z).unwrap().floor = None;
+                w2.rooms[0].sector_mut(x, z).unwrap().set_floor(None);
             }
         }
         let over_pit = add(&mut w2, &mats2, &req(0, "floor")).unwrap();
