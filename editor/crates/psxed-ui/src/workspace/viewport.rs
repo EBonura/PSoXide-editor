@@ -184,15 +184,9 @@ impl EditorWorkspace {
             .paint_at(ui, rect);
         let painter = ui.painter_at(rect);
         Self::draw_viewport_3d_overlay_lines(&painter, rect, &viewport_3d);
-        if self
-            .collect_entity_bounds()
-            .iter()
-            .any(|bounds| bounds.kind == EntityBoundKind::PointOfInterest)
-        {
-            // POI beacons rotate in both the editor and the game. Keep this
-            // depth-sorted preview geometry moving even when the scene is idle.
-            ui.ctx().request_repaint();
-        }
+        // POI beacons rotate in both the editor and the game. The preview
+        // reports that it draws from the clock (`publish_preview_animated`)
+        // and the redraw interval keeps it moving while the scene is idle.
         self.draw_character_behavior_overlay(&painter, rect);
         self.draw_node_gizmo(&painter, rect, hovered_node_handle);
         if self.is_grid_world() {

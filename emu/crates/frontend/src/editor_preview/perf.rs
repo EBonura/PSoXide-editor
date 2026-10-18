@@ -156,6 +156,109 @@ fn perf_preview_frame() {
                 frame_hash(&frame)
             );
 
+            // Camera orbit: the geometry is kept, every frame is a new view.
+            let mut orbit = Vec::new();
+            let mut frame = EditorPreviewFrame::default();
+            let mut moving = camera;
+            for _ in 0..40 {
+                moving.yaw_q12 = moving.yaw_q12.wrapping_add(24);
+                let t = Instant::now();
+                frame = build_phase1_frame_reusing(
+                    &project,
+                    moving,
+                    true,
+                    true,
+                    &hidden,
+                    NodeId::ROOT,
+                    None,
+                    None,
+                    &[],
+                    None,
+                    &textures,
+                    &assets,
+                    frame,
+                );
+                orbit.push(ms(t));
+            }
+            report(&label("orbit frame"), &name, &mut orbit);
+
+            // Editing: a sector's floor goes up and down, the frame is rebuilt.
+            let mut edited = project.clone();
+            let mut edit = Vec::new();
+            let target = edited.active_scene().world.grid().and_then(|world| {
+                world.rooms.iter().enumerate().find_map(|(index, room)| {
+                    room.iter()
+                        .find(|(_, _, sector)| sector.ground_floor().is_some())
+                        .map(|(x, z, _)| (index, x, z))
+                })
+            });
+            if let Some((room_index, x, z)) = target {
+                for step in 0..20 {
+                    edited.active_scene_mut().world.grid_mut().unwrap().rooms[room_index]
+                        .sector_mut(x, z)
+                        .and_then(|sector| sector.ground_floor_mut())
+                        .unwrap()
+                        .heights = [256 * (step % 3); 4];
+                    let t = Instant::now();
+                    frame = build_phase1_frame_reusing(
+                        &edited,
+                        camera,
+                        true,
+                        true,
+                        &hidden,
+                        NodeId::ROOT,
+                        None,
+                        None,
+                        &[],
+                        None,
+                        &textures,
+                        &assets,
+                        frame,
+                    );
+                    edit.push(ms(t));
+                }
+                report(&label("edit + rebuild"), &name, &mut edit);
+            }
+
+            // A camera that does not move: does the frame come back as it was?
+            let still = build_phase1_frame_reusing(
+                &project,
+                camera,
+                true,
+                true,
+                &hidden,
+                NodeId::ROOT,
+                None,
+                None,
+                &[],
+                None,
+                &textures,
+                &assets,
+                EditorPreviewFrame::default(),
+            );
+            let serial = still.serial;
+            let t = Instant::now();
+            let again = build_phase1_frame_reusing(
+                &project,
+                camera,
+                true,
+                true,
+                &hidden,
+                NodeId::ROOT,
+                None,
+                None,
+                &[],
+                None,
+                &textures,
+                &assets,
+                still,
+            );
+            println!(
+                "PERF still frame {view:<10} {name:<15} handed back: {} ({:.3} ms)",
+                again.serial == serial,
+                ms(t)
+            );
+
             if let Some((device, queue)) = gpu.as_ref() {
                 let mut hw =
                     psx_gpu_render::HwRenderer::new_headless(device.clone(), queue.clone());

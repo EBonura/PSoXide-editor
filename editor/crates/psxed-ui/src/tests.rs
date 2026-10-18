@@ -27,6 +27,7 @@ mod grid_walk;
 mod grid_world;
 mod perf;
 mod project_workspace;
+mod redraw;
 mod scene_tree_selection;
 mod ui_layout;
 mod ui_preview;

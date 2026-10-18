@@ -28,6 +28,7 @@ impl EditorWorkspace {
     ) {
         self.poll_project_watch(false);
         self.publish_grid_view();
+        self.note_frame_activity(ctx, playtest_status);
         apply_studio_visuals(ctx);
         if self.character_motion_preview().is_some() {
             ctx.request_repaint_after(std::time::Duration::from_millis(16));

@@ -345,7 +345,7 @@ pub fn build_phase1_frame(
     textures: &EditorTextures,
     assets: &crate::editor_assets::EditorAssets,
 ) -> EditorPreviewFrame {
-    build_phase1_frame_reusing(
+    build_frame(
         project,
         camera,
         preview_bounds,
@@ -359,6 +359,7 @@ pub fn build_phase1_frame(
         textures,
         assets,
         EditorPreviewFrame::default(),
+        false,
     )
 }
 
@@ -379,7 +380,46 @@ pub fn build_phase1_frame_reusing(
     hovered_entity_node: Option<psxed_project::NodeId>,
     textures: &EditorTextures,
     assets: &crate::editor_assets::EditorAssets,
+    output: EditorPreviewFrame,
+) -> EditorPreviewFrame {
+    build_frame(
+        project,
+        camera,
+        preview_bounds,
+        show_lights,
+        hidden_scene_nodes,
+        selected,
+        character_motion,
+        selected_bounds,
+        entity_bounds,
+        hovered_entity_node,
+        textures,
+        assets,
+        output,
+        true,
+    )
+}
+
+/// Both entry points. `live` is the editor's own viewport frame: only it may
+/// be handed back unchanged and only it tells the editor whether the preview
+/// moves with the clock. A one-shot build (the camera preview, the command line,
+/// tests) leaves what the live frame remembers alone.
+#[allow(clippy::too_many_arguments)]
+fn build_frame(
+    project: &ProjectDocument,
+    camera: ViewportCameraState,
+    preview_bounds: bool,
+    show_lights: bool,
+    hidden_scene_nodes: &HashSet<NodeId>,
+    selected: psxed_project::NodeId,
+    character_motion: Option<psxed_ui::EditorCharacterMotionPreview>,
+    selected_bounds: Option<([f32; 3], [f32; 3])>,
+    entity_bounds: &[psxed_ui::EntityBounds],
+    hovered_entity_node: Option<psxed_project::NodeId>,
+    textures: &EditorTextures,
+    assets: &crate::editor_assets::EditorAssets,
     mut output: EditorPreviewFrame,
+    live: bool,
 ) -> EditorPreviewFrame {
     let preview_context_node = project.active_scene().root;
 
@@ -404,10 +444,11 @@ pub fn build_phase1_frame_reusing(
         textures,
         assets,
     );
-    if state.memo_hit(&key, &output) {
+    if live && state.memo_hit(&key, &output) {
         // Nothing the frame is made from has changed, and nothing in it moves
         // with the clock: the frame already in `output` is the frame.
         psxed_ui::report_preview_overflow(state.memo_dropped());
+        psxed_ui::publish_preview_animated(false);
         return output;
     }
     state
@@ -555,7 +596,12 @@ pub fn build_phase1_frame_reusing(
         .extend_from_slice(&scratch.overlay_lines);
     psxed_ui::report_preview_overflow(scratch.dropped);
     let (clock_used, dropped) = (scratch.clock_used, scratch.dropped);
-    state.remember(key, clock_used, dropped, &mut output);
+    // An editor that is not touched still has to redraw a preview that moves
+    // with the clock; tell it whether this one does.
+    if live {
+        psxed_ui::publish_preview_animated(clock_used);
+        state.remember(key, clock_used, dropped, &mut output);
+    }
     output
 }
 

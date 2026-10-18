@@ -153,6 +153,12 @@ impl EditorAssets {
             }
         }
         self.checked = Some((document, std::time::Instant::now()));
+        self.scan(project, project_root);
+    }
+
+    /// [`Self::refresh`] without the "nothing changed lately" shortcut: look
+    /// at every model and clip file now.
+    fn scan(&mut self, project: &ProjectDocument, project_root: &Path) {
         let mut alive_meshes: Vec<ResourceId> = Vec::new();
         let mut alive_anims: Vec<AnimKey> = Vec::new();
 
@@ -521,7 +527,7 @@ mod tests {
         );
 
         let mut assets = EditorAssets::new();
-        assets.refresh(&project, &dir);
+        assets.scan(&project, &dir);
         assert!(
             assets.mesh_bytes(model_id).is_none(),
             "missing file must not produce bytes"
@@ -545,7 +551,7 @@ mod tests {
         // unchanged, no re-read attempt should mutate the
         // slot. The signature object compares equal across
         // refreshes -- that's the no-churn observation.
-        assets.refresh(&project, &dir);
+        assets.scan(&project, &dir);
         let signature_after_second = assets
             .meshes
             .get(&model_id)
@@ -557,7 +563,7 @@ mod tests {
         // the desired signature differs from the cached
         // Failed signature → refresh re-reads → Loaded.
         fs::write(dir.join("missing.psxmdl"), b"loaded-now").unwrap();
-        assets.refresh(&project, &dir);
+        assets.scan(&project, &dir);
         assert_eq!(
             assets.mesh_bytes(model_id).unwrap(),
             b"loaded-now",

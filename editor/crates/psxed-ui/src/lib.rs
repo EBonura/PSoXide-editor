@@ -15,6 +15,8 @@ mod material_lab;
 mod model_animation_viewer;
 pub mod model_import_preview;
 mod play_mode;
+mod redraw;
+pub use redraw::publish_preview_animated;
 mod selection;
 pub use selection::*;
 mod starter_catalogue;
@@ -632,6 +634,8 @@ pub struct EditorWorkspace {
     texture_thumb_scan: Option<(u64, f64)>,
     /// Derived wall strokes of the Top view, per document revision.
     top_wall_lines: grid_view::DerivedWallLines,
+    /// What the last frames say about how soon the next redraw is due.
+    redraw: redraw::RedrawState,
     psoxide_logo_texture: Option<egui::TextureHandle>,
     /// Cached egui textures of the on-device bitmap UI fonts, rasterized once
     /// so the UI-scene preview shows the real glyphs the runtime draws instead
@@ -2287,6 +2291,7 @@ impl EditorWorkspace {
             texture_thumbs: HashMap::new(),
             texture_thumb_scan: None,
             top_wall_lines: grid_view::DerivedWallLines::default(),
+            redraw: redraw::RedrawState::default(),
             psoxide_logo_texture: None,
             ui_font_textures: Vec::new(),
             model_resource_preview_texture: None,
