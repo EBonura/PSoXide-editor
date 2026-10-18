@@ -620,3 +620,106 @@ fn a_still_scene_is_handed_back_and_any_change_rebuilds_it() {
     );
     assert_ne!(stranger.serial, 0);
 }
+
+/// Where an edit's rebuild goes: noticing the change, invalidating, rebuilding.
+#[test]
+#[ignore]
+fn perf_edit_breakdown() {
+    for name in levels() {
+        let (_root, project, textures, assets) = load_level(&name);
+        let camera = cameras(&project)[0].1;
+        let mut edited = project.clone();
+        let hidden = HashSet::new();
+        let mut frame = EditorPreviewFrame::default();
+        frame = build_phase1_frame_reusing(
+            &edited,
+            camera,
+            true,
+            true,
+            &hidden,
+            NodeId::ROOT,
+            None,
+            None,
+            &[],
+            None,
+            &textures,
+            &assets,
+            frame,
+        );
+        let target = edited.active_scene().world.grid().and_then(|world| {
+            world.rooms.iter().enumerate().find_map(|(index, room)| {
+                room.iter()
+                    .find(|(_, _, sector)| sector.ground_floor().is_some())
+                    .map(|(x, z, _)| (index, x, z))
+            })
+        });
+        let (room_index, x, z) = target.expect("a floor");
+        let (mut observe, mut sync, mut total) = (Vec::new(), Vec::new(), Vec::new());
+        for step in 0..20 {
+            edited.active_scene_mut().world.grid_mut().unwrap().rooms[room_index]
+                .sector_mut(x, z)
+                .and_then(|sector| sector.ground_floor_mut())
+                .unwrap()
+                .heights = [256 * (step % 3); 4];
+            let t = Instant::now();
+            let generation = document_generation(&edited);
+            observe.push(ms(t));
+            let t = Instant::now();
+            preview_state().lock().unwrap().geometry.sync(
+                &edited,
+                generation,
+                textures.generation(),
+            );
+            sync.push(ms(t));
+            // The rebuild proper (the observe and sync above are now no-ops).
+            let t = Instant::now();
+            frame = build_phase1_frame_reusing(
+                &edited,
+                camera,
+                true,
+                true,
+                &hidden,
+                NodeId::ROOT,
+                None,
+                None,
+                &[],
+                None,
+                &textures,
+                &assets,
+                frame,
+            );
+            total.push(ms(t));
+        }
+        report("edit: observe (compare+clone)", &name, &mut observe);
+        report("edit: geometry sync", &name, &mut sync);
+        report("edit: build after both", &name, &mut total);
+    }
+}
+
+/// How much of an edit's rebuild is deriving the cull bounds of a room's cells.
+#[test]
+#[ignore]
+fn perf_room_bounds() {
+    for name in levels() {
+        let (_root, project, _textures, _assets) = load_level(&name);
+        let world = project.active_scene().world.grid().expect("grid");
+        let mut times = Vec::new();
+        for _ in 0..20 {
+            let t = Instant::now();
+            for index in 0..world.rooms.len() {
+                std::hint::black_box(grid::prepare_room(world, index));
+            }
+            times.push(ms(t));
+        }
+        println!(
+            "PERF rooms: {} room(s), {} cells",
+            world.rooms.len(),
+            world
+                .rooms
+                .iter()
+                .map(|r| r.face_cells().len())
+                .sum::<usize>()
+        );
+        report("prepare_room (bounds, all rooms)", &name, &mut times);
+    }
+}
