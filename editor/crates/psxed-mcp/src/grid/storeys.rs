@@ -10,10 +10,13 @@ use std::fmt::Write as _;
 
 use psxed_project::grid::derive::cell_walls;
 use psxed_project::grid::edit::spans::{
-    cut_hole, fill_hole, insert_slab, shift_above, CutScope, SpanOutcome, SpanRefusal,
+    cut_hole, fill_hole, insert_slab, shift_above, CutScope, SpanOutcome,
 };
 use psxed_project::grid::edit::CellRect;
-use psxed_project::grid::storeys::{storeys, SLAB_THICKNESS, STOREY_PITCH};
+use psxed_project::grid::sector::MAX_SPANS_PER_CELL;
+use psxed_project::grid::storeys::{
+    storeys, MIN_HEADROOM, SLAB_THICKNESS, STOREY_MIN_CELLS, STOREY_PITCH,
+};
 use psxed_project::grid::GridWorld;
 use psxed_project::ProjectDocument;
 use schemars::JsonSchema;
@@ -102,69 +105,11 @@ fn rects_of(rects: &[[i32; 4]]) -> Result<Vec<CellRect>, String> {
         .collect()
 }
 
-/// Add one rectangle's outcome to a running total.
-fn add(total: &mut SpanOutcome, part: SpanOutcome) {
-    total.changed += part.changed;
-    total.skipped.no_span += part.skipped.no_span;
-    total.skipped.sloped += part.skipped.sloped;
-    total.skipped.headroom += part.skipped.headroom;
-    total.skipped.span_cap += part.skipped.span_cap;
-    total.skipped.no_slab += part.skipped.no_slab;
-    total.refused = total.refused.or(part.refused);
-}
-
-/// Turn a refusal into the error the tool returns (nothing changed).
-fn refusal_text(reason: SpanRefusal) -> String {
-    match reason {
-        SpanRefusal::NoSuchRoom => "no such room".to_string(),
-        SpanRefusal::MixedCells => {
-            "the room has cells of several sizes: the storey verbs work on whole sectors (S1)"
-                .to_string()
-        }
-        SpanRefusal::BadThickness => {
-            "the slab thickness must be between 0 and the minimum headroom (768 grid units)"
-                .to_string()
-        }
-        SpanRefusal::Interpenetrates { cell } => format!(
-            "the shift would make the column at sector [{}, {}] overlap itself; nothing changed",
-            cell[0], cell[1]
-        ),
-    }
-}
-
-/// The skip counts of an outcome as words, for a reply.
-fn skips_text(outcome: &SpanOutcome) -> String {
-    let s = outcome.skipped;
-    if s.total() == 0 {
-        return "none".to_string();
-    }
-    let mut parts = Vec::new();
-    if s.no_span > 0 {
-        parts.push(format!("{} with no span at that height", s.no_span));
-    }
-    if s.sloped > 0 {
-        parts.push(format!("{} where a sloped surface crosses it", s.sloped));
-    }
-    if s.headroom > 0 {
-        parts.push(format!(
-            "{} with less than 3 clicks of headroom",
-            s.headroom
-        ));
-    }
-    if s.span_cap > 0 {
-        parts.push(format!("{} at the span cap", s.span_cap));
-    }
-    if s.no_slab > 0 {
-        parts.push(format!("{} with no slab at that height", s.no_slab));
-    }
-    parts.join(", ")
-}
-
 /// The storey list as one line for a reply.
 fn storey_line(world: &GridWorld) -> String {
     let found = storeys(world);
     if found.is_empty() {
-        return "no storeys (a floor height needs 8 cells)".to_string();
+        return format!("no storeys (a floor height needs {STOREY_MIN_CELLS} cells)");
     }
     let parts: Vec<String> = found
         .iter()
@@ -178,7 +123,10 @@ pub fn storeys_text(world: &GridWorld) -> String {
     let found = storeys(world);
     let mut out = String::new();
     if found.is_empty() {
-        out.push_str("no storeys: no floor height is shared by 8 cells\n");
+        let _ = writeln!(
+            out,
+            "no storeys: no floor height is shared by {STOREY_MIN_CELLS} cells"
+        );
     }
     for (ordinal, storey) in found.iter().enumerate() {
         let _ = writeln!(
@@ -191,16 +139,17 @@ pub fn storeys_text(world: &GridWorld) -> String {
     }
     let _ = writeln!(
         out,
-        "storey pitch {} clicks; slab {} clicks; minimum headroom 3 clicks; column cap 8 spans",
-        STOREY_PITCH / 256,
-        SLAB_THICKNESS / 256
+        "storey pitch {} clicks; slab {} clicks; minimum headroom {} clicks; column cap {MAX_SPANS_PER_CELL} spans",
+        clicks(STOREY_PITCH),
+        clicks(SLAB_THICKNESS),
+        clicks(MIN_HEADROOM)
     );
     for (index, room) in world.rooms.iter().enumerate() {
-        let mut by = [0usize; 9];
+        let mut by = [0usize; MAX_SPANS_PER_CELL + 1];
         for (_, leaf) in room.leaves.iter() {
-            by[leaf.span_count().min(8)] += 1;
+            by[leaf.span_count().min(MAX_SPANS_PER_CELL)] += 1;
         }
-        let parts: Vec<String> = (1..9)
+        let parts: Vec<String> = (1..=MAX_SPANS_PER_CELL)
             .filter(|n| by[*n] > 0)
             .map(|n| format!("{} with {n}", by[n]))
             .collect();
@@ -302,17 +251,17 @@ pub fn slab(
         } else {
             insert_slab(world, room, rect, req.y, thickness, material)
         };
-        add(&mut total, part);
+        total.merge(part);
     }
     if let Some(reason) = total.refused {
-        return Err(refusal_text(reason));
+        return Err(reason.describe());
     }
     let verb = if fill { "filled" } else { "inserted a slab at" };
     Ok(format!(
         "room {room}: {verb} {} clicks: {} cell(s) changed; skipped: {}\n{}",
         clicks(req.y),
         total.changed,
-        skips_text(&total),
+        total.skipped.describe(),
         storey_line(world)
     ))
 }
@@ -330,16 +279,16 @@ pub fn cut(world: &mut GridWorld, req: &CutReq) -> Result<String, String> {
     };
     let mut total = SpanOutcome::default();
     for rect in rects {
-        add(&mut total, cut_hole(world, room, rect, req.y, scope));
+        total.merge(cut_hole(world, room, rect, req.y, scope));
     }
     if let Some(reason) = total.refused {
-        return Err(refusal_text(reason));
+        return Err(reason.describe());
     }
     Ok(format!(
         "room {room}: cut the slab at {} clicks: {} cell(s) changed; skipped: {}\n{}",
         clicks(req.y),
         total.changed,
-        skips_text(&total),
+        total.skipped.describe(),
         storey_line(world)
     ))
 }
@@ -349,18 +298,15 @@ pub fn shift(world: &mut GridWorld, req: &ShiftReq) -> Result<String, String> {
     let room = pick_room(world, req.room)?;
     let mut total = SpanOutcome::default();
     match &req.rects {
-        None => add(&mut total, shift_above(world, room, None, req.y, req.delta)),
+        None => total.merge(shift_above(world, room, None, req.y, req.delta)),
         Some(rects) => {
             for rect in rects_of(rects)? {
-                add(
-                    &mut total,
-                    shift_above(world, room, Some(rect), req.y, req.delta),
-                );
+                total.merge(shift_above(world, room, Some(rect), req.y, req.delta));
             }
         }
     }
     if let Some(reason) = total.refused {
-        return Err(refusal_text(reason));
+        return Err(reason.describe());
     }
     Ok(format!(
         "room {room}: moved everything at or above {} clicks by {} clicks: {} cell(s) changed\n{}",
