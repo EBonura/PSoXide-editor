@@ -388,7 +388,7 @@ pub(crate) enum Gesture {
     Idle,
     Rect(RectGesture),
     Walls(WallGesture),
-    Height(HeightGesture),
+    Height(Box<HeightGesture>),
     /// A marquee over the view, from `start` to `current`.
     Marquee {
         start: Pos2,

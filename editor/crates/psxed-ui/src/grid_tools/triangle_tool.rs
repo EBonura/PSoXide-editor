@@ -149,14 +149,14 @@ pub(super) fn begin_drag(ws: &mut EditorWorkspace, ptr: &GridPointer) -> bool {
         "{}: drag up or down, Shift for the fine step",
         triangle.label()
     );
-    ws.grid.gesture = Gesture::Height(HeightGesture {
+    ws.grid.gesture = Gesture::Height(Box::new(HeightGesture {
         drag,
         press_y: press.pos.y,
         pixels_per_unit: ppu,
         delta: 0,
         before: Some(Box::new(ws.project.clone())),
         triangle: Some(triangle),
-    });
+    }));
     true
 }
 
@@ -179,7 +179,7 @@ pub(crate) fn pose_drag(
         triangle: Some(triangle),
     };
     nudge_gesture(ws, &mut gesture, delta);
-    ws.grid.gesture = Gesture::Height(gesture);
+    ws.grid.gesture = Gesture::Height(Box::new(gesture));
     Ok(())
 }
 

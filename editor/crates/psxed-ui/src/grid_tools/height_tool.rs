@@ -143,14 +143,14 @@ pub(super) fn begin(ws: &mut EditorWorkspace, ptr: &GridPointer) -> bool {
         })
         .unwrap_or([0.0; 3]);
     let ppu = ws.grid_pixels_per_unit(&press, grab);
-    ws.grid.gesture = Gesture::Height(HeightGesture {
+    ws.grid.gesture = Gesture::Height(Box::new(HeightGesture {
         drag,
         press_y: press.pos.y,
         pixels_per_unit: ppu,
         delta: 0,
         before: Some(Box::new(ws.project.clone())),
         triangle: None,
-    });
+    }));
     true
 }
 
