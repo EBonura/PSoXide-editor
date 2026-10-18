@@ -323,7 +323,7 @@ pub(super) fn walk_grid(
                 });
                 for face in faces
                     .iter()
-                    .filter(|face| !view.cutaway.is_some_and(|cut| face.low_y >= cut))
+                    .filter(|face| view.cutaway.is_none_or(|cut| face.low_y < cut))
                 {
                     for piece in &face.pieces {
                         emit_uv_polygon(

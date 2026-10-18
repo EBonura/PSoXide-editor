@@ -477,7 +477,8 @@ fn an_incremental_build_equals_a_cold_one_after_every_kind_of_edit() {
         for (_, camera) in &cameras {
             frame = build(&project, *camera, &textures, &assets, frame);
         }
-        let mut edits: Vec<(&str, Box<dyn Fn(&mut ProjectDocument)>)> = Vec::new();
+        type Edit = Box<dyn Fn(&mut ProjectDocument)>;
+        let mut edits: Vec<(&str, Edit)> = Vec::new();
         edits.push((
             "raise a floor",
             Box::new(|p| {
@@ -535,7 +536,6 @@ fn an_incremental_build_equals_a_cold_one_after_every_kind_of_edit() {
             for (view, camera) in &cameras {
                 let incremental = build(&project, *camera, &textures, &assets, frame);
                 let hash = frame_hash(&incremental);
-                frame = incremental;
                 // Build the same frame from nothing, then put the warm
                 // state back for the next edit.
                 let cold = cold_hash(&project, *camera, &textures, &assets);

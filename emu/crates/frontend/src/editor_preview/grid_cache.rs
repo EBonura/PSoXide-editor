@@ -87,7 +87,6 @@ pub(super) struct RoomSlot {
 }
 
 /// What every face of every room is made from besides its own room.
-#[derive(PartialEq)]
 pub(super) struct GeometryContext {
     scale: GridScale,
     shading: FacingShade,
@@ -102,20 +101,45 @@ pub(super) struct GeometryContext {
 }
 
 impl GeometryContext {
-    fn of(project: &ProjectDocument, world: &GridWorld, textures_generation: u64) -> Self {
+    fn of(
+        world: &GridWorld,
+        lights: Vec<GridLight>,
+        project: &ProjectDocument,
+        textures_generation: u64,
+    ) -> Self {
         Self {
             scale: world.scale,
             shading: world.shading,
             mesh_assets: world.mesh_assets.clone(),
-            lights: collect_grid_bake_lights(project),
-            materials: project
-                .resources
-                .iter()
-                .filter(|resource| matches!(resource.data, ResourceData::Material(_)))
-                .cloned()
-                .collect(),
+            lights,
+            materials: Self::materials_of(project).cloned().collect(),
             textures_generation,
         }
+    }
+
+    fn materials_of(project: &ProjectDocument) -> impl Iterator<Item = &Resource> {
+        project
+            .resources
+            .iter()
+            .filter(|resource| matches!(resource.data, ResourceData::Material(_)))
+    }
+
+    /// Whether the context built from the arguments would equal this one,
+    /// without building it (an edit that touches one room leaves the context
+    /// alone, and must not pay to copy every material to find that out).
+    fn is(
+        &self,
+        world: &GridWorld,
+        lights: &[GridLight],
+        project: &ProjectDocument,
+        textures_generation: u64,
+    ) -> bool {
+        self.scale == world.scale
+            && self.shading == world.shading
+            && self.textures_generation == textures_generation
+            && self.mesh_assets == world.mesh_assets
+            && self.lights == lights
+            && self.materials.iter().eq(Self::materials_of(project))
     }
 }
 
@@ -147,11 +171,20 @@ impl GridGeometry {
             self.rooms.clear();
             return;
         };
-        let context = GeometryContext::of(project, world, textures_generation);
-        if self.context.as_ref() != Some(&context) {
+        let lights = collect_grid_bake_lights(project);
+        let unchanged = self
+            .context
+            .as_ref()
+            .is_some_and(|context| context.is(world, &lights, project, textures_generation));
+        if !unchanged {
             // Everything is made from the context: start over.
             self.rooms.clear();
-            self.context = Some(context);
+            self.context = Some(GeometryContext::of(
+                world,
+                lights,
+                project,
+                textures_generation,
+            ));
         }
         self.rooms.truncate(world.rooms.len());
         for (index, room) in world.rooms.iter().enumerate() {

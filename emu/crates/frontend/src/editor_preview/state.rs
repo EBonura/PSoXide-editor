@@ -12,6 +12,9 @@ use super::*;
 
 use super::grid_cache::GridGeometry;
 
+/// Editor-space bounds of the grid world.
+type GridBounds = Option<([f64; 3], [f64; 3])>;
+
 /// Everything besides the document that a frame is built from.
 #[derive(PartialEq)]
 pub(super) struct FrameKey {
@@ -45,7 +48,7 @@ pub(super) struct PreviewState {
     generation: u64,
     pub(super) geometry: GridGeometry,
     /// `(document generation, bounds)` of the grid world, for the depth range.
-    grid_bounds: Option<(u64, Option<([f64; 3], [f64; 3])>)>,
+    grid_bounds: Option<(u64, GridBounds)>,
     memo: Option<FrameMemo>,
     next_serial: u64,
 }
@@ -76,10 +79,7 @@ impl PreviewState {
     }
 
     /// Bounds of the active grid world, kept for the document generation.
-    pub(super) fn grid_bounds(
-        &mut self,
-        project: &ProjectDocument,
-    ) -> Option<([f64; 3], [f64; 3])> {
+    pub(super) fn grid_bounds(&mut self, project: &ProjectDocument) -> GridBounds {
         match self.grid_bounds {
             Some((generation, bounds)) if generation == self.generation => bounds,
             _ => {
