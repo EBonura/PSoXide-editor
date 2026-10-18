@@ -326,10 +326,19 @@ pub fn refuse_several_spans(
     room_index: usize,
     rect: CellRect,
 ) -> Result<(), String> {
+    refuse_several_spans_in(world, room_index, rect.cells())
+}
+
+/// [`refuse_several_spans`] for any set of world sectors.
+pub fn refuse_several_spans_in(
+    world: &GridWorld,
+    room_index: usize,
+    cells: impl IntoIterator<Item = [i32; 2]>,
+) -> Result<(), String> {
     let Some(room) = world.rooms.get(room_index) else {
         return Ok(());
     };
-    for cell in rect.cells() {
+    for cell in cells {
         let Some([x, z]) = room.local(cell) else {
             continue;
         };
@@ -339,6 +348,35 @@ pub fn refuse_several_spans(
         if !sector.is_single_span() {
             return Err(format!(
                 "sector [{}, {}] has {} spans, and this tool refuses rather than guess which one you mean. Pass y (grid units relative to the room) or storey (an ordinal of grid_storeys) to aim it at one span; read the column with grid_column, or change the spans themselves with grid_insert_slab, grid_cut_hole or grid_shift_above",
+                cell[0],
+                cell[1],
+                sector.span_count()
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// [`refuse_several_spans`] for a rectangle of world clicks (quarter
+/// sectors, inclusive): the leaves of any size the rectangle touches. The
+/// fine verbs cannot be aimed at a span, so a leaf of several spans refuses
+/// them whole.
+pub fn refuse_several_spans_in_clicks(
+    world: &GridWorld,
+    room_index: usize,
+    lo: [i32; 2],
+    hi: [i32; 2],
+) -> Result<(), String> {
+    let Some(room) = world.rooms.get(room_index) else {
+        return Ok(());
+    };
+    for (key, sector) in room.leaves() {
+        let [x1, z1] = key.end_click();
+        let touches = key.x <= hi[0] && key.z <= hi[1] && x1 > lo[0] && z1 > lo[1];
+        if touches && !sector.is_single_span() {
+            let cell = key.cell();
+            return Err(format!(
+                "the cell at sector [{}, {}] has {} spans, and the fine verbs (unit: click, size: half or quarter) edit one floor per cell and cannot be aimed at a span. Change the spans with grid_insert_slab, grid_cut_hole or grid_shift_above, or edit whole sectors with y or storey",
                 cell[0],
                 cell[1],
                 sector.span_count()

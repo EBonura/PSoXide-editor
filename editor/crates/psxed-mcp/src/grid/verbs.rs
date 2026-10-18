@@ -217,6 +217,13 @@ fn raise_clicks(
 ) -> Result<String, String> {
     use psxed_project::grid::edit::verbs::raise_leaves::raise_click_rect;
     let (lo, hi) = super::cells::click_rect(&req.cells, super::cells::Unit::Click)?;
+    if req.aim.y.is_some() || req.aim.storey.is_some() {
+        return Err(
+            "y and storey aim a whole sector's span; unit: click edits cells smaller than a sector, which hold one floor each. Leave them out, or raise whole sectors"
+                .to_string(),
+        );
+    }
+    super::storeys::refuse_several_spans_in_clicks(world, room, lo, hi)?;
     let (amount, note) = req.snap.unwrap_or_default().apply(req.amount);
     let mode = match req.mode.as_deref() {
         None | Some("offset") => RaiseMode::Offset,
@@ -426,6 +433,10 @@ pub struct StairsReq {
     /// waypoints and the width count cells of that size, and each cell of the
     /// path is one tread (a quarter cell tread is a fine step).
     pub size: Option<String>,
+    /// Which span of a column to edit: `y` or `storey`. Needed where a
+    /// sector of the path has several spans.
+    #[serde(flatten)]
+    pub aim: super::aim::SpanAim,
 }
 
 /// Apply [`StairsReq`].
@@ -494,12 +505,16 @@ pub fn stairs(
             _ => Err("the path crosses no cell".to_string()),
         };
     }
-    let drag = StairsDrag::begin(world, room, &req.path, params)
-        .ok_or("the path crosses no sector of the room")?;
-    let rise = snap_to(req.rise, FINE_UNITS);
-    let flight = drag.apply(world, rise);
-    if let Some(refusal) = flight.refusal {
-        return Err(match refusal {
+    let cells: Vec<[i32; 2]> = Region::from_path(room, &req.path, params.width)
+        .cells()
+        .collect();
+    super::aim::aimed_cells(world, room, cells, &req.aim, |world| {
+        let drag = StairsDrag::begin(world, room, &req.path, params)
+            .ok_or("the path crosses no sector of the room")?;
+        let rise = snap_to(req.rise, FINE_UNITS);
+        let flight = drag.apply(world, rise);
+        if let Some(refusal) = flight.refusal {
+            return Err(match refusal {
             psxed_project::grid::edit::verbs::stairs::Refusal::TooSteep { riser, limit } => format!(
                 "too steep for treads: the shortest riser this path allows is {} but the character steps up at most {} (grid units). Use ramp true, a longer path or a smaller rise",
                 riser, limit
@@ -508,30 +523,130 @@ pub fn stairs(
                 "the path is outside the room".to_string()
             }
         });
+        }
+        let mut out = format!(
+            "room {room}: {} step(s) of {} over {} path sector(s), width {}, total {}",
+            flight.steps,
+            clicks_text(flight.riser),
+            flight.cells,
+            params.width,
+            clicks_text(flight.total)
+        );
+        if flight.applied.created > 0 {
+            let _ = write!(
+                out,
+                "\n{} floor(s) made where the path crossed holes",
+                flight.applied.created
+            );
+        }
+        if flight.applied.skipped > 0 {
+            let _ = write!(
+                out,
+                "\n{} sector(s) outside the room were skipped",
+                flight.applied.skipped
+            );
+        }
+        let _ = CLICK_UNITS;
+        Ok(out)
+    })
+}
+
+/// Wind stairs round a ring of sectors, a slab per tread.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SpiralReq {
+    /// Scene index. Omit for the first scene with a grid world.
+    pub scene: Option<usize>,
+    /// Room index. Required when the world has several rooms.
+    pub room: Option<usize>,
+    /// The ring: waypoints, WORLD sectors `[x, z]`, in walking order. Each
+    /// pair is joined by a four-connected walk and the last waypoint joins
+    /// back to the first. The result must be at least four distinct sectors.
+    /// A straight run of the ring is treads, a turn is a landing.
+    pub ring: Vec<[i32; 2]>,
+    /// Storeys to climb (default 1).
+    pub storeys: Option<usize>,
+    /// The climb of one storey, grid units (256 a click). The treads per
+    /// storey follow from it and the riser, and the climb is `treads per
+    /// storey x riser` as laid.
+    pub rise_per_storey: i32,
+    /// `click` (one click, default), `max` (the tallest riser the character
+    /// steps up) or a number of grid units, held to that limit.
+    pub riser: Option<serde_json::Value>,
+    /// Material (name or id) of the treads' walking surface.
+    pub material: Option<String>,
+    /// Which floor of the ring's first sector the climb starts from: `y` or
+    /// `storey`. Needed where a sector of the ring has several spans.
+    #[serde(flatten)]
+    pub aim: super::aim::SpanAim,
+}
+
+/// Apply [`SpiralReq`]: lay a tread slab at every visit of the walk round
+/// the ring (the `Spiral` tool's code).
+pub fn spiral_stairs(
+    world: &mut GridWorld,
+    project: &ProjectDocument,
+    req: &SpiralReq,
+) -> Result<String, String> {
+    use psxed_project::grid::edit::verbs::spiral::{
+        base_height, ring_cells, SpiralDrag, SpiralParams,
+    };
+    let room = pick_room(world, req.room)?;
+    if req.ring.is_empty() {
+        return Err("the ring needs waypoints".to_string());
+    }
+    let ring = ring_cells(&req.ring).ok_or_else(|| {
+        psxed_project::grid::edit::verbs::spiral::SpiralRefusal::NotARing.describe()
+    })?;
+    let riser = match &req.riser {
+        None => RiserOption::Click,
+        Some(serde_json::Value::String(s)) if s == "click" => RiserOption::Click,
+        Some(serde_json::Value::String(s)) if s == "max" => RiserOption::Max,
+        Some(serde_json::Value::Number(n)) => RiserOption::Typed(n.as_i64().unwrap_or(0) as i32),
+        Some(other) => {
+            return Err(format!(
+                "unknown riser {other}; use \"click\", \"max\" or a number"
+            ))
+        }
+    };
+    let params = SpiralParams {
+        storeys: req.storeys.unwrap_or(1).clamp(1, 16),
+        riser,
+        material: Materials::new(project).resolve_opt(req.material.as_deref())?,
+    };
+    // The floor the climb starts from, as the aim sees the first sector.
+    let base = match super::aim::aim_focus(world, room, ring.iter().copied(), &req.aim)? {
+        Some(focus) => base_height(&focus.view(world), room, &ring),
+        None => base_height(world, room, &ring),
+    };
+    let drag = SpiralDrag::begin_at(world, room, &ring, params, base).ok_or(
+        "the room is missing or has cells of several sizes (the spiral works on whole sectors)",
+    )?;
+    let report = drag.apply(world, req.rise_per_storey);
+    if let Some(refusal) = report.refused {
+        return Err(refusal.describe());
     }
     let mut out = format!(
-        "room {room}: {} step(s) of {} over {} path sector(s), width {}, total {}",
-        flight.steps,
-        clicks_text(flight.riser),
-        flight.cells,
-        params.width,
-        clicks_text(flight.total)
+        "room {room}: spiral of {} treads (riser {}) round a ring of {} sectors, {} per storey as laid, {} storey(s), total {}, {} lap(s), {} landing visit(s)\n{} slab(s) laid",
+        report.treads,
+        clicks_text(report.riser),
+        ring.len(),
+        clicks_text(report.per_storey),
+        params.storeys,
+        clicks_text(report.total),
+        report.laps,
+        report.landings,
+        report.slabs.changed
     );
-    if flight.applied.created > 0 {
+    if report.already > 0 {
         let _ = write!(
             out,
-            "\n{} floor(s) made where the path crossed holes",
-            flight.applied.created
+            "; {} visit(s) already had a floor there",
+            report.already
         );
     }
-    if flight.applied.skipped > 0 {
-        let _ = write!(
-            out,
-            "\n{} sector(s) outside the room were skipped",
-            flight.applied.skipped
-        );
+    if report.slabs.skipped.total() > 0 {
+        let _ = write!(out, "\nskipped: {}", report.slabs.skipped.describe());
     }
-    let _ = CLICK_UNITS;
     Ok(out)
 }
 

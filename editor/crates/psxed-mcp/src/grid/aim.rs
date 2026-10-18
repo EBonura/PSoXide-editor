@@ -7,14 +7,14 @@
 //! as always and a column of several is an error that lists what to pass
 //! (`docs/grid/multi-storey.md`, 6.1: ambiguity is an error, not a guess).
 
-use psxed_project::grid::edit::focus::with_span_at;
+use psxed_project::grid::edit::focus::Focus;
 use psxed_project::grid::edit::CellRect;
 use psxed_project::grid::storeys::storeys;
 use psxed_project::grid::GridWorld;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-use super::storeys::refuse_several_spans;
+use super::storeys::refuse_several_spans_in;
 
 /// The span of a column a tool edits.
 #[derive(Debug, Default, Deserialize, JsonSchema)]
@@ -50,20 +50,66 @@ impl SpanAim {
     }
 }
 
+/// The focus an aim names over `cells`, or `None` without an aim (columns of
+/// one span are used as they are, a column of several is an error).
+pub fn aim_focus(
+    world: &GridWorld,
+    room: usize,
+    cells: impl IntoIterator<Item = [i32; 2]>,
+    aim: &SpanAim,
+) -> Result<Option<Focus>, String> {
+    let cells: Vec<[i32; 2]> = cells.into_iter().collect();
+    let Some(height) = aim.height(world, room)? else {
+        refuse_several_spans_in(world, room, cells.iter().copied())?;
+        return Ok(None);
+    };
+    Focus::capture(world, room, cells, Some(height))
+        .map(Some)
+        .map_err(|refusal| refusal.describe())
+}
+
 /// Run `edit` on the span `aim` names in every column of `rect`, or, with no
-/// aim, on the columns as they are when none holds several spans.
-pub fn aimed<T>(
+/// aim, on the columns as they are when none holds several spans. A span the
+/// edit leaves too thin to stand in is filled solid and the reply says so.
+pub fn aimed(
     world: &mut GridWorld,
     room: usize,
     rect: CellRect,
     aim: &SpanAim,
-    edit: impl FnOnce(&mut GridWorld) -> Result<T, String>,
-) -> Result<T, String> {
-    let Some(y) = aim.height(world, room)? else {
-        refuse_several_spans(world, room, rect)?;
+    edit: impl FnOnce(&mut GridWorld) -> Result<String, String>,
+) -> Result<String, String> {
+    aimed_cells(world, room, rect.cells(), aim, edit)
+}
+
+/// [`aimed`] over any set of world sectors (a path, a ring).
+pub fn aimed_cells(
+    world: &mut GridWorld,
+    room: usize,
+    cells: impl IntoIterator<Item = [i32; 2]>,
+    aim: &SpanAim,
+    edit: impl FnOnce(&mut GridWorld) -> Result<String, String>,
+) -> Result<String, String> {
+    let cells: Vec<[i32; 2]> = cells.into_iter().collect();
+    let Some(height) = aim.height(world, room)? else {
+        // No aim: columns of one span are edited as they always were, and a
+        // column of several is an error that lists the way out.
+        refuse_several_spans_in(world, room, cells.iter().copied())?;
         return edit(world);
     };
-    with_span_at(world, room, rect, y, edit).map_err(|refusal| refusal.describe())?
+    let focus =
+        Focus::capture(world, room, cells, Some(height)).map_err(|refusal| refusal.describe())?;
+    let done = focus
+        .run(world, edit)
+        .map_err(|refusal| refusal.describe())?;
+    let mut text = done.value?;
+    if done.slivers > 0 {
+        text.push_str(&format!(
+            "\n{} span(s) left under {} clicks of headroom were filled solid",
+            done.slivers,
+            psxed_project::grid::storeys::MIN_HEADROOM / psxed_project::grid::CLICK_UNITS
+        ));
+    }
+    Ok(text)
 }
 
 #[cfg(test)]
@@ -108,7 +154,7 @@ mod tests {
         CellRect::from_corners([0, 0], [3, 2])
     }
 
-    fn lift(aim: &SpanAim, world: &mut GridWorld) -> Result<(), String> {
+    fn lift(aim: &SpanAim, world: &mut GridWorld) -> Result<String, String> {
         aimed(world, 0, rect(), aim, |world| {
             for z in 0..3 {
                 for x in 0..4 {
@@ -116,7 +162,7 @@ mod tests {
                     sector.ground_floor_mut().unwrap().heights = [1792; 4];
                 }
             }
-            Ok(())
+            Ok(String::new())
         })
     }
 

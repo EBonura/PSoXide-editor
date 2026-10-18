@@ -101,7 +101,7 @@ pub fn crack(world: &mut GridWorld, req: &CrackReq) -> Result<String, String> {
         let face = FaceRef::new(
             room,
             psxed_project::grid::LeafKey::sector(cell),
-            psxed_project::grid::edit::FaceTarget::Surface(kind),
+            psxed_project::grid::edit::FaceTarget::ground(kind),
         );
         if !face.exists(world) {
             missing += 1;

@@ -72,8 +72,14 @@ pub fn select_faces(
     for cell in rect.cells() {
         for face in faces_of_cell(world, room, cell) {
             let keep = match face.target {
-                FaceTarget::Surface(SurfaceKind::Floor) => floor,
-                FaceTarget::Surface(SurfaceKind::Ceiling) => ceiling,
+                FaceTarget::Surface {
+                    kind: SurfaceKind::Floor,
+                    ..
+                } => floor,
+                FaceTarget::Surface {
+                    kind: SurfaceKind::Ceiling,
+                    ..
+                } => ceiling,
                 FaceTarget::Wall { edge: e, .. } => authored && edge.is_none_or(|w| w == e),
                 FaceTarget::Derived { .. } => false,
             };
@@ -150,8 +156,14 @@ pub fn paint(
     let (mut changed, mut floors, mut ceilings, mut walls) = (0usize, 0usize, 0usize, 0usize);
     for face in &faces {
         match face.target {
-            FaceTarget::Surface(SurfaceKind::Floor) => floors += 1,
-            FaceTarget::Surface(SurfaceKind::Ceiling) => ceilings += 1,
+            FaceTarget::Surface {
+                kind: SurfaceKind::Floor,
+                ..
+            } => floors += 1,
+            FaceTarget::Surface {
+                kind: SurfaceKind::Ceiling,
+                ..
+            } => ceilings += 1,
             _ => walls += 1,
         }
         if set_material(world, *face, req.tri, material) {

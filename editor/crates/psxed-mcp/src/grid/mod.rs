@@ -299,8 +299,14 @@ pub fn new_issues(before: &BTreeSet<String>, world: &GridWorld) -> String {
 pub fn face_label(face: &FaceRef) -> String {
     use psxed_project::grid::edit::{FaceTarget, SurfaceKind};
     match face.target {
-        FaceTarget::Surface(SurfaceKind::Floor) => "floor".to_string(),
-        FaceTarget::Surface(SurfaceKind::Ceiling) => "ceiling".to_string(),
+        FaceTarget::Surface {
+            kind: SurfaceKind::Floor,
+            ..
+        } => "floor".to_string(),
+        FaceTarget::Surface {
+            kind: SurfaceKind::Ceiling,
+            ..
+        } => "ceiling".to_string(),
         FaceTarget::Wall { edge, index } => format!("{} wall {index}", edge.label()),
         FaceTarget::Derived { edge, kind, seg } => {
             if seg > 0 {

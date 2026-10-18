@@ -6,7 +6,7 @@ use rmcp::model::CallToolResult;
 use rmcp::ErrorData;
 
 use psxed_mcp::grid::verbs::{
-    self, HeatmapReq, RaiseReq, RampReq, SetWalkableReq, StairsReq, WalkabilityReq,
+    self, HeatmapReq, RaiseReq, RampReq, SetWalkableReq, SpiralReq, StairsReq, WalkabilityReq,
 };
 
 use super::EditorServer;
@@ -46,6 +46,18 @@ impl EditorServer {
     ) -> Result<CallToolResult, ErrorData> {
         self.grid_edit(req.scene, "grid_stairs", |world, project| {
             verbs::stairs(world, project, &req)
+        })
+    }
+
+    #[rmcp::tool(
+        description = "Wind stairs round a ring of sectors, a storey per half or full turn: the editor's Spiral tool. ring is waypoints (WORLD sectors) in walking order, joined by a four-connected walk, the last back to the first (at least four distinct sectors). A straight run of the ring is treads (one riser up each), a turn is a landing (flat). The walk goes round the ring as often as storeys x rise_per_storey needs, then through the landings after the last tread. Each tread is a slab laid with the storey primitive, so a sector the stairs pass twice holds two treads a storey apart, and a tread more than three clicks up leaves a walkable undercroft below it. The climb starts from the floor of the ring's first sector (y or storey picks one where it has several). Build the storeys' own floors with grid_insert_slab and the stairwell with grid_cut_hole. Cells where a tread does not fit (too little headroom, no column, span cap) are skipped and counted."
+    )]
+    async fn grid_spiral_stairs(
+        &self,
+        Parameters(req): Parameters<SpiralReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.grid_edit(req.scene, "grid_spiral_stairs", |world, project| {
+            verbs::spiral_stairs(world, project, &req)
         })
     }
 
