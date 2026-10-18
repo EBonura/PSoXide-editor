@@ -9,9 +9,12 @@ pub(crate) fn draw_viewport_overlay(
     view: OrthographicView,
     grid_world: bool,
 ) {
+    // A grid world's plan says what it is and how far in it is: the snap is
+    // in the tool row and the counts of nodes and resources are not a plan's
+    // business.
     let overlay = Rect::from_min_size(
         rect.left_top() + Vec2::new(12.0, 12.0),
-        Vec2::new(132.0, 94.0),
+        Vec2::new(132.0, if grid_world { 48.0 } else { 94.0 }),
     );
     painter.rect_filled(
         overlay,
@@ -24,21 +27,17 @@ pub(crate) fn draw_viewport_overlay(
         Stroke::new(1.0, STUDIO_BORDER),
         StrokeKind::Inside,
     );
-    let lines = [
-        format!("{} Orthographic", view.label()),
-        if grid_world {
-            format!(
-                "Snap {} (Alt {})",
-                psxed_project::grid::CLICK_UNITS,
-                psxed_project::grid::FINE_UNITS
-            )
-        } else {
-            format!("Grid: {snap_units} units")
-        },
-        format!("{} nodes", project.active_scene().nodes().len()),
-        format!("{} resources", project.resources.len()),
-        format_viewport_zoom(zoom),
-    ];
+    let lines: Vec<String> = if grid_world {
+        vec!["Plan".to_string(), format_viewport_zoom(zoom)]
+    } else {
+        vec![
+            format!("{} Orthographic", view.label()),
+            format!("Grid: {snap_units} units"),
+            format!("{} nodes", project.active_scene().nodes().len()),
+            format!("{} resources", project.resources.len()),
+            format_viewport_zoom(zoom),
+        ]
+    };
     for (idx, line) in lines.iter().enumerate() {
         painter.text(
             overlay.left_top() + Vec2::new(10.0, 10.0 + idx as f32 * 15.0),

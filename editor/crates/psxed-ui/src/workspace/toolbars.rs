@@ -1,4 +1,5 @@
 use super::*;
+use crate::grid_tools::GridViewMode;
 
 impl EditorWorkspace {
     pub(crate) fn draw_viewport(
@@ -71,230 +72,273 @@ impl EditorWorkspace {
                             return;
                         }
 
+                        if self.is_grid_world()
+                            && self.grid.split
+                            && self.active_workspace == WorkspaceView::Room
+                        {
+                            self.draw_viewport_split_body(ui, viewport_3d);
+                            return;
+                        }
+
                         if !self.view_2d {
                             self.draw_viewport_3d_body(ui, viewport_3d);
                             return;
                         }
 
-                        let size = ui.available_size();
-                        let size = Vec2::new(size.x.max(320.0), size.y.max(240.0));
-                        let (rect, response) =
-                            ui.allocate_exact_size(size, Sense::click_and_drag());
-                        surrender_stale_focus_on_viewport_pointer(ui.ctx(), &response);
-                        self.last_viewport_size = rect.size();
-                        if self.grid.fit_pending && self.is_grid_world() {
-                            // The open-time framing guessed the pane size; fit
-                            // the world to the real one, once.
-                            self.grid.fit_pending = false;
-                            self.frame_viewport();
-                        }
-                        #[cfg(test)]
-                        {
-                            self.last_orthographic_viewport_rect = rect;
-                            self.last_orthographic_response = Some((
-                                response.id,
-                                response.hovered(),
-                                response.drag_started_by(egui::PointerButton::Primary),
-                                response.dragged_by(egui::PointerButton::Primary),
-                            ));
-                        }
-                        let orthographic_view = self.orthographic_view;
-                        let top_view = orthographic_view == OrthographicView::Top;
-                        let dnd_active = egui::DragAndDrop::has_any_payload(ui.ctx());
-                        let resource_drop_hovered =
-                            top_view && response.dnd_hover_payload::<ResourceId>().is_some();
-
-                        if !dnd_active
-                            && (response.dragged_by(egui::PointerButton::Middle)
-                                || response.dragged_by(egui::PointerButton::Secondary))
-                        {
-                            let delta = ui.input(|input| input.pointer.delta());
-                            let [horizontal, vertical] = orthographic_view.plane_axes();
-                            let world = ViewportTransform::from_focus(
-                                rect,
-                                orthographic_view,
-                                [0.0, 0.0],
-                                self.viewport_zoom,
-                            )
-                            .screen_delta_to_world(delta);
-                            self.orthographic_focus[horizontal] -= world[0];
-                            self.orthographic_focus[vertical] -= world[1];
-                        }
-
-                        if !dnd_active && response.hovered() {
-                            let scroll = ui.input(|input| input.raw_scroll_delta.y);
-                            if scroll.abs() > f32::EPSILON {
-                                let pointer = ui
-                                    .input(|input| input.pointer.hover_pos())
-                                    .unwrap_or_else(|| rect.center());
-                                let before = ViewportTransform::from_focus(
-                                    rect,
-                                    orthographic_view,
-                                    orthographic_view.project_f32(self.orthographic_focus),
-                                    self.viewport_zoom,
-                                )
-                                .screen_to_world(pointer);
-                                let zoom_factor = (1.0 + scroll * 0.0015).clamp(0.75, 1.25);
-                                self.viewport_zoom = (self.viewport_zoom * zoom_factor)
-                                    .clamp(MIN_VIEWPORT_ZOOM, MAX_VIEWPORT_ZOOM);
-                                let after = ViewportTransform::from_focus(
-                                    rect,
-                                    orthographic_view,
-                                    orthographic_view.project_f32(self.orthographic_focus),
-                                    self.viewport_zoom,
-                                )
-                                .screen_to_world(pointer);
-                                let projected_focus =
-                                    orthographic_view.project_f32(self.orthographic_focus);
-                                self.orthographic_focus = orthographic_view.with_projected_focus(
-                                    self.orthographic_focus,
-                                    [
-                                        projected_focus[0] + before[0] - after[0],
-                                        projected_focus[1] + before[1] - after[1],
-                                    ],
-                                );
-                            }
-                        }
-
-                        let transform = ViewportTransform::from_focus(
-                            rect,
-                            orthographic_view,
-                            orthographic_view.project_f32(self.orthographic_focus),
-                            self.viewport_zoom,
-                        );
-                        if top_view {
-                            let dropped_resource = resource_drop_hovered
-                                .then(|| response.dnd_release_payload::<ResourceId>())
-                                .flatten()
-                                .map(|payload| *payload);
-                            if let Some(pointer) =
-                                response.interact_pointer_pos().or(response.hover_pos())
-                            {
-                                let world = transform.screen_to_world(pointer);
-                                if let Some(resource_id) = dropped_resource {
-                                    self.drop_resource_2d(resource_id, world);
-                                }
-                            }
-                        }
-                        let painter = ui.painter_at(rect);
-                        painter.rect_filled(rect, 0.0, STUDIO_VIEWPORT);
-                        if self.show_grid && !self.is_grid_world() {
-                            draw_world_grid(&painter, transform, self.snap_units.max(1) as f32);
-                        }
-
-                        if top_view {
-                            if let Some(world) = self.project.active_scene().world.grid() {
-                                crate::grid_view::draw_grid_world(
-                                    &painter,
-                                    transform,
-                                    world,
-                                    true,
-                                    &crate::grid_view::GridRoomView {
-                                        hidden: &self.grid_hidden_rooms,
-                                        active: self.grid_active_room,
-                                        level: self.grid.level.y,
-                                    },
-                                );
-                            }
-                        }
-
-                        if top_view {
-                            self.draw_grid_room_chips(ui, rect);
-                        }
-
-                        let hits = if top_view {
-                            draw_scene_viewport(
-                                &painter,
-                                transform,
-                                &self.project,
-                                SceneViewportContext {
-                                    hidden_scene_nodes: &self.hidden_scene_nodes,
-                                    selected: self.selection.selected_node,
-                                    selected_nodes: &self.selection.selected_nodes,
-                                    show_lights: self.show_lights,
-                                },
-                            )
-                        } else {
-                            Vec::new()
-                        };
-
-                        let pointer_world = response
-                            .hover_pos()
-                            .or_else(|| response.interact_pointer_pos())
-                            .map(|pos| transform.screen_to_world(pos));
-                        let tool_frame = tools2d::ToolFrame2d {
-                            rect,
-                            transform,
-                            top_view,
-                            pointer_world,
-                            pointer_interact: response.interact_pointer_pos(),
-                            press_origin: ui.input(|input| input.pointer.press_origin()),
-                            modifiers: ui.input(|input| input.modifiers),
-                            hits: &hits,
-                            hovered: response.hovered(),
-                            dnd_active,
-                            drag_started: response.drag_started_by(egui::PointerButton::Primary),
-                            dragged: response.dragged_by(egui::PointerButton::Primary),
-                            drag_stopped: response.drag_stopped_by(egui::PointerButton::Primary),
-                            clicked: response.clicked_by(egui::PointerButton::Primary),
-                        };
-                        let tool2d = tools2d::tool_impl_2d(self);
-                        tool2d.hover(self, ui, &tool_frame);
-                        if tool_frame.drag_started {
-                            tool2d.primary_pressed(self, ui, &tool_frame);
-                        }
-                        if tool_frame.dragged {
-                            tool2d.primary_dragged(self, ui, &tool_frame);
-                        }
-                        if tool_frame.drag_stopped {
-                            tool2d.primary_released(self, ui, &tool_frame);
-                        }
-                        tool2d.frame_end(self, &tool_frame);
-                        if tool_frame.clicked {
-                            tool2d.primary_clicked(self, ui, &tool_frame);
-                        }
-                        if top_view && self.is_grid_world() {
-                            self.draw_grid_overlay_2d(&painter, transform);
-                        } else if self.is_grid_world() {
-                            painter.text(
-                                rect.center_top() + Vec2::new(0.0, 14.0),
-                                Align2::CENTER_TOP,
-                                "Grid worlds are edited in the Top and 3D views",
-                                FontId::proportional(13.0),
-                                STUDIO_TEXT_WEAK,
-                            );
-                        }
-                        draw_viewport_overlay(
-                            &painter,
-                            rect,
-                            &self.project,
-                            self.viewport_zoom,
-                            self.snap_units,
-                            orthographic_view,
-                            self.is_grid_world(),
-                        );
-                        draw_axes_gizmo(&painter, rect, orthographic_view);
-                        if resource_drop_hovered {
-                            painter.rect_stroke(
-                                rect.shrink(2.0),
-                                2.0,
-                                Stroke::new(EDITOR_OUTLINE_STROKE_WIDTH, EDITOR_OUTLINE_ACCENT),
-                                StrokeKind::Inside,
-                            );
-                            painter.text(
-                                rect.center_top() + Vec2::new(0.0, 16.0),
-                                Align2::CENTER_TOP,
-                                "Drop resource into scene",
-                                FontId::proportional(13.0),
-                                STUDIO_ACCENT,
-                            );
-                        }
+                        self.draw_viewport_2d_body(ui);
                     });
                 });
             });
     }
 
+    /// The plan: the orthographic view of the world from above, with its
+    /// tools, overlays and picking. Drawn alone, or beside the 3D view in
+    /// the split layout.
+    pub(crate) fn draw_viewport_2d_body(&mut self, ui: &mut egui::Ui) {
+        let size = ui.available_size();
+        let size = Vec2::new(size.x.max(320.0), size.y.max(240.0));
+        let (rect, response) = ui.allocate_exact_size(size, Sense::click_and_drag());
+        surrender_stale_focus_on_viewport_pointer(ui.ctx(), &response);
+        self.last_viewport_size = rect.size();
+        if self.grid.fit_pending && self.is_grid_world() {
+            // The open-time framing guessed the pane size; fit
+            // the world to the real one, once.
+            self.grid.fit_pending = false;
+            self.frame_viewport();
+        }
+        #[cfg(test)]
+        {
+            self.last_orthographic_viewport_rect = rect;
+            self.last_orthographic_response = Some((
+                response.id,
+                response.hovered(),
+                response.drag_started_by(egui::PointerButton::Primary),
+                response.dragged_by(egui::PointerButton::Primary),
+            ));
+        }
+        let orthographic_view = self.orthographic_view;
+        let top_view = orthographic_view == OrthographicView::Top;
+        let dnd_active = egui::DragAndDrop::has_any_payload(ui.ctx());
+        let resource_drop_hovered =
+            top_view && response.dnd_hover_payload::<ResourceId>().is_some();
+
+        if !dnd_active
+            && (response.dragged_by(egui::PointerButton::Middle)
+                || response.dragged_by(egui::PointerButton::Secondary))
+        {
+            let delta = ui.input(|input| input.pointer.delta());
+            let [horizontal, vertical] = orthographic_view.plane_axes();
+            let world = ViewportTransform::from_focus(
+                rect,
+                orthographic_view,
+                [0.0, 0.0],
+                self.viewport_zoom,
+            )
+            .screen_delta_to_world(delta);
+            self.orthographic_focus[horizontal] -= world[0];
+            self.orthographic_focus[vertical] -= world[1];
+        }
+
+        if !dnd_active && response.hovered() {
+            let scroll = ui.input(|input| input.raw_scroll_delta.y);
+            if scroll.abs() > f32::EPSILON {
+                let pointer = ui
+                    .input(|input| input.pointer.hover_pos())
+                    .unwrap_or_else(|| rect.center());
+                let before = ViewportTransform::from_focus(
+                    rect,
+                    orthographic_view,
+                    orthographic_view.project_f32(self.orthographic_focus),
+                    self.viewport_zoom,
+                )
+                .screen_to_world(pointer);
+                let zoom_factor = (1.0 + scroll * 0.0015).clamp(0.75, 1.25);
+                self.viewport_zoom =
+                    (self.viewport_zoom * zoom_factor).clamp(MIN_VIEWPORT_ZOOM, MAX_VIEWPORT_ZOOM);
+                let after = ViewportTransform::from_focus(
+                    rect,
+                    orthographic_view,
+                    orthographic_view.project_f32(self.orthographic_focus),
+                    self.viewport_zoom,
+                )
+                .screen_to_world(pointer);
+                let projected_focus = orthographic_view.project_f32(self.orthographic_focus);
+                self.orthographic_focus = orthographic_view.with_projected_focus(
+                    self.orthographic_focus,
+                    [
+                        projected_focus[0] + before[0] - after[0],
+                        projected_focus[1] + before[1] - after[1],
+                    ],
+                );
+            }
+        }
+
+        let transform = ViewportTransform::from_focus(
+            rect,
+            orthographic_view,
+            orthographic_view.project_f32(self.orthographic_focus),
+            self.viewport_zoom,
+        );
+        if top_view {
+            let dropped_resource = resource_drop_hovered
+                .then(|| response.dnd_release_payload::<ResourceId>())
+                .flatten()
+                .map(|payload| *payload);
+            if let Some(pointer) = response.interact_pointer_pos().or(response.hover_pos()) {
+                let world = transform.screen_to_world(pointer);
+                if let Some(resource_id) = dropped_resource {
+                    self.drop_resource_2d(resource_id, world);
+                }
+            }
+        }
+        let painter = ui.painter_at(rect);
+        painter.rect_filled(rect, 0.0, STUDIO_VIEWPORT);
+        if self.show_grid && !self.is_grid_world() {
+            draw_world_grid(&painter, transform, self.snap_units.max(1) as f32);
+        }
+
+        if top_view {
+            if let Some(world) = self.project.active_scene().world.grid() {
+                crate::grid_view::draw_grid_world(
+                    &painter,
+                    transform,
+                    world,
+                    true,
+                    &crate::grid_view::GridRoomView {
+                        hidden: &self.grid_hidden_rooms,
+                        active: self.grid_active_room,
+                        level: self.grid.level.y,
+                    },
+                );
+            }
+        }
+
+        let hits = if top_view {
+            draw_scene_viewport(
+                &painter,
+                transform,
+                &self.project,
+                SceneViewportContext {
+                    hidden_scene_nodes: &self.hidden_scene_nodes,
+                    selected: self.selection.selected_node,
+                    selected_nodes: &self.selection.selected_nodes,
+                    show_lights: self.show_lights,
+                },
+            )
+        } else {
+            Vec::new()
+        };
+
+        let pointer_world = response
+            .hover_pos()
+            .or_else(|| response.interact_pointer_pos())
+            .map(|pos| transform.screen_to_world(pos));
+        let tool_frame = tools2d::ToolFrame2d {
+            rect,
+            transform,
+            top_view,
+            pointer_world,
+            pointer_interact: response.interact_pointer_pos(),
+            press_origin: ui.input(|input| input.pointer.press_origin()),
+            modifiers: ui.input(|input| input.modifiers),
+            hits: &hits,
+            hovered: response.hovered(),
+            dnd_active,
+            drag_started: response.drag_started_by(egui::PointerButton::Primary),
+            dragged: response.dragged_by(egui::PointerButton::Primary),
+            drag_stopped: response.drag_stopped_by(egui::PointerButton::Primary),
+            clicked: response.clicked_by(egui::PointerButton::Primary),
+        };
+        let tool2d = tools2d::tool_impl_2d(self);
+        tool2d.hover(self, ui, &tool_frame);
+        if tool_frame.drag_started {
+            tool2d.primary_pressed(self, ui, &tool_frame);
+        }
+        if tool_frame.dragged {
+            tool2d.primary_dragged(self, ui, &tool_frame);
+        }
+        if tool_frame.drag_stopped {
+            tool2d.primary_released(self, ui, &tool_frame);
+        }
+        tool2d.frame_end(self, &tool_frame);
+        if tool_frame.clicked {
+            tool2d.primary_clicked(self, ui, &tool_frame);
+        }
+        if top_view && self.is_grid_world() {
+            self.draw_grid_overlay_2d(&painter, transform);
+        } else if self.is_grid_world() {
+            painter.text(
+                rect.center_top() + Vec2::new(0.0, 14.0),
+                Align2::CENTER_TOP,
+                "Grid worlds are edited in the Top and 3D views",
+                FontId::proportional(13.0),
+                STUDIO_TEXT_WEAK,
+            );
+        }
+        draw_viewport_overlay(
+            &painter,
+            rect,
+            &self.project,
+            self.viewport_zoom,
+            self.snap_units,
+            orthographic_view,
+            self.is_grid_world(),
+        );
+        draw_axes_gizmo(&painter, rect, orthographic_view);
+        if resource_drop_hovered {
+            painter.rect_stroke(
+                rect.shrink(2.0),
+                2.0,
+                Stroke::new(EDITOR_OUTLINE_STROKE_WIDTH, EDITOR_OUTLINE_ACCENT),
+                StrokeKind::Inside,
+            );
+            painter.text(
+                rect.center_top() + Vec2::new(0.0, 16.0),
+                Align2::CENTER_TOP,
+                "Drop resource into scene",
+                FontId::proportional(13.0),
+                STUDIO_ACCENT,
+            );
+        }
+    }
+
+    /// The plan on the left and the 3D view on the right, each in its own
+    /// half of the centre, both live: a tool works in either, and what one
+    /// view hovers the other outlines.
+    pub(crate) fn draw_viewport_split_body(
+        &mut self,
+        ui: &mut egui::Ui,
+        viewport_3d: EditorViewport3dPresentation,
+    ) {
+        let whole = ui.available_rect_before_wrap();
+        let gap = 6.0;
+        let half = ((whole.width() - gap) / 2.0).max(1.0);
+        let left = Rect::from_min_size(whole.min, Vec2::new(half, whole.height()));
+        let right = Rect::from_min_size(
+            whole.min + Vec2::new(half + gap, 0.0),
+            Vec2::new(half, whole.height()),
+        );
+        // The plan is always the Top orthographic view.
+        self.orthographic_view = OrthographicView::Top;
+        ui.allocate_new_ui(egui::UiBuilder::new().max_rect(left), |ui| {
+            ui.set_clip_rect(left);
+            self.draw_viewport_2d_body(ui);
+        });
+        ui.allocate_new_ui(egui::UiBuilder::new().max_rect(right), |ui| {
+            ui.set_clip_rect(right);
+            self.draw_viewport_3d_body(ui, viewport_3d);
+        });
+        ui.painter().line_segment(
+            [
+                Pos2::new(whole.min.x + half + gap / 2.0, whole.min.y),
+                Pos2::new(whole.min.x + half + gap / 2.0, whole.max.y),
+            ],
+            Stroke::new(1.0, STUDIO_BORDER),
+        );
+    }
+
     pub(crate) fn draw_viewport_header_toolbar(&mut self, ui: &mut egui::Ui) {
+        let grid_room = self.is_grid_world() && self.active_workspace == WorkspaceView::Room;
         egui::Frame::new()
             .fill(STUDIO_PANEL_HEADER)
             .inner_margin(egui::Margin::symmetric(8, 3))
@@ -302,6 +346,14 @@ impl EditorWorkspace {
                 ui.spacing_mut().item_spacing = Vec2::new(4.0, 3.0);
                 ui.horizontal(|ui| {
                     self.draw_workspace_tabs(ui);
+                    if grid_room {
+                        // The view switch and the overlays sit with the tabs, so
+                        // the plan is one click away and the tool row below is
+                        // tools and their options only.
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            self.draw_grid_view_controls(ui);
+                        });
+                    }
                 });
                 ui.separator();
                 if self.active_workspace == WorkspaceView::Material {
@@ -317,15 +369,70 @@ impl EditorWorkspace {
                     if let Some(action) = action {
                         self.handle_animation_viewer_action(action);
                     }
+                } else if grid_room {
+                    ui.horizontal_wrapped(|ui| self.draw_grid_tool_strip(ui));
+                    ui.horizontal_wrapped(|ui| self.draw_grid_context_controls(ui));
+                } else if self.is_grid_world() {
+                    ui.horizontal_wrapped(|ui| self.draw_viewport_toolbar(ui));
                 } else {
-                    if self.is_grid_world() {
-                        // The grid strip wraps instead of running off a narrow viewport.
-                        ui.horizontal_wrapped(|ui| self.draw_viewport_toolbar(ui));
-                    } else {
-                        ui.horizontal(|ui| self.draw_viewport_toolbar(ui));
-                    }
+                    ui.horizontal(|ui| self.draw_viewport_toolbar(ui));
                 }
             });
+    }
+
+    /// The right end of the tab row in a grid world, right to left: Keys and
+    /// the overlays, the camera, visibility and frame buttons, and the view
+    /// switch (3D, Plan, Split).
+    pub(crate) fn draw_grid_view_controls(&mut self, ui: &mut egui::Ui) {
+        self.retain_shortcut_group_flash();
+        if self.shortcut_group_flash.is_some() {
+            ui.ctx().request_repaint();
+        }
+        self.draw_grid_overlay_controls(ui);
+        ui.separator();
+        toolbar_group_menu_icon_only(
+            ui,
+            7,
+            self.shortcut_group_glow(ShortcutGroup::Visibility),
+            self.visibility_group_icon(),
+            "Visibility",
+            self.visibility_group_label(),
+            |ui| self.draw_visibility_menu_contents(ui),
+        );
+        toolbar_group_menu_icon_only(
+            ui,
+            8,
+            self.shortcut_group_glow(ShortcutGroup::Camera),
+            self.camera_rig.mode.icon(),
+            "Camera",
+            self.viewport_camera_mode_label(),
+            |ui| self.draw_camera_group_menu(ui),
+        );
+        if ui
+            .add(egui::Button::new(icons::text(icons::FOCUS, 14.0)).min_size(Vec2::new(28.0, 23.0)))
+            .on_hover_text("Frame selection (.)")
+            .clicked()
+        {
+            self.frame_viewport();
+        }
+        ui.separator();
+        // Right to left: the last mode is added first.
+        let current = self.grid_view_mode();
+        for mode in GridViewMode::ALL.into_iter().rev() {
+            let response = ui
+                .add(
+                    egui::Button::new(icons::label(mode.icon(), mode.label()))
+                        .selected(current == mode)
+                        .min_size(Vec2::new(28.0, 23.0)),
+                )
+                .on_hover_text(format!(
+                    "{}\nCtrl/Cmd+9 cycles 3D, Plan and Split",
+                    mode.tooltip()
+                ));
+            if response.clicked() {
+                self.set_grid_view_mode(mode);
+            }
+        }
     }
 
     /// Always-visible top-level workspaces. Their row stays separate from

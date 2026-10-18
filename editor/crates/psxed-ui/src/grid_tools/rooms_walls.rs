@@ -5,8 +5,8 @@
 use super::*;
 
 use psxed_project::grid::edit::{clean_overrides, convert_to_derived, ConvertMode};
-use psxed_project::grid::WallMode;
 use psxed_project::grid::CLICK_UNITS;
+use psxed_project::grid::{ClosureFacing, WallMode};
 
 impl EditorWorkspace {
     /// Wall mode, Convert and the derived-wall defaults of room `index`.
@@ -47,6 +47,8 @@ impl EditorWorkspace {
         let mut set_wall_material: Option<Option<ResourceId>> = None;
         let mut clean = false;
         let mut open_changed = false;
+        let facing = room.defaults.closure_facing;
+        let mut set_facing: Option<ClosureFacing> = None;
         ui.horizontal(|ui| {
             ui.label(RichText::new("Walls").color(STUDIO_TEXT_WEAK).size(11.0));
             match mode {
@@ -116,6 +118,22 @@ impl EditorWorkspace {
                         )
                         .changed();
                 });
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Outside").color(STUDIO_TEXT_WEAK).size(11.0));
+                    egui::ComboBox::from_id_salt("room_closure_facing")
+                        .selected_text(facing.label())
+                        .show_ui(ui, |ui| {
+                            for choice in [ClosureFacing::Front, ClosureFacing::Both] {
+                                if ui.selectable_label(facing == choice, choice.label()).clicked() {
+                                    set_facing = Some(choice);
+                                }
+                            }
+                        })
+                        .response
+                        .on_hover_text(
+                            "Which sides of the room's outer walls are drawn. A building you walk around wants inside and outside, or it looks hollow from outside. Collision does not change.",
+                        );
+                });
                 if !band_sets.is_empty() {
                     ui.horizontal(|ui| {
                         ui.label(RichText::new("Bands").color(STUDIO_TEXT_WEAK).size(11.0));
@@ -179,6 +197,9 @@ impl EditorWorkspace {
                 r.defaults.bands = bands;
                 psxed_project::grid::edit::bands::prune_sets(r);
             });
+        }
+        if let Some(choice) = set_facing {
+            self.edit_room(index, |r| r.defaults.closure_facing = choice);
         }
         if open_changed {
             let units = (open_clicks.max(0.0) * CLICK_UNITS as f32).round() as i32;

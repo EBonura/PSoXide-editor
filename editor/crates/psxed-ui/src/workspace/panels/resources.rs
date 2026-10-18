@@ -559,6 +559,40 @@ impl EditorWorkspace {
         }
     }
 
+    /// Add a flat Material resource and select it. Returns its id.
+    pub(crate) fn add_material_resource(&mut self) -> ResourceId {
+        let id = self.project.add_resource(
+            "New Material",
+            ResourceData::Material(MaterialResource::opaque(None)),
+        );
+        self.replace_resource_selection(id);
+        self.clear_node_selection_state();
+        self.status = "Added material".to_string();
+        self.mark_dirty();
+        id
+    }
+
+    /// Add a transition Material (a host-baked blend of two Material images),
+    /// starting from the selected Material when there is one. Returns its id.
+    pub(crate) fn add_transition_material_resource(&mut self) -> ResourceId {
+        let mut material = MaterialResource::opaque(None);
+        material.texture_mode = MaterialTextureMode::Transition;
+        material.transition.source_a = self.selection.selected_resource.filter(|id| {
+            self.project
+                .resource(*id)
+                .is_some_and(|resource| matches!(resource.data, ResourceData::Material(_)))
+        });
+        let id = self
+            .project
+            .add_resource("New Transition", ResourceData::Material(material));
+        self.replace_resource_selection(id);
+        self.material_lab.focused_material = Some(id);
+        self.clear_node_selection_state();
+        self.status = "Added transition material".to_string();
+        self.mark_dirty();
+        id
+    }
+
     pub(crate) fn draw_resource_panel_actions(&mut self, ui: &mut egui::Ui) {
         ui.menu_button(icons::text(icons::PLUS, 14.0), |ui| {
             ui.set_min_width(220.0);
@@ -663,43 +697,25 @@ impl EditorWorkspace {
                 self.mark_dirty();
                 ui.close_menu();
             }
-            if ui
-                .button(icons::label(icons::BLEND, "Material"))
-                .on_hover_text("Add a new Material resource.")
-                .clicked()
-            {
-                let id = self.project.add_resource(
-                    "New Material",
-                    ResourceData::Material(MaterialResource::opaque(None)),
-                );
-                self.replace_resource_selection(id);
-                self.clear_node_selection_state();
-                self.status = "Added material".to_string();
-                self.mark_dirty();
-                ui.close_menu();
-            }
-            if ui
-                .button(icons::label(icons::BLEND, "Transition Material"))
-                .on_hover_text("Add a host-baked transition between two Material images.")
-                .clicked()
-            {
-                let mut material = MaterialResource::opaque(None);
-                material.texture_mode = MaterialTextureMode::Transition;
-                material.transition.source_a = self.selection.selected_resource.filter(|id| {
-                    self.project
-                        .resource(*id)
-                        .is_some_and(|resource| matches!(resource.data, ResourceData::Material(_)))
-                });
-                let id = self.project.add_resource(
-                    "New Transition",
-                    ResourceData::Material(material),
-                );
-                self.replace_resource_selection(id);
-                self.material_lab.focused_material = Some(id);
-                self.clear_node_selection_state();
-                self.status = "Added transition material".to_string();
-                self.mark_dirty();
-                ui.close_menu();
+            if !self.is_grid_world() {
+                // A grid world makes and imports its materials in the Materials
+                // palette (right dock), their one home.
+                if ui
+                    .button(icons::label(icons::BLEND, "Material"))
+                    .on_hover_text("Add a new Material resource.")
+                    .clicked()
+                {
+                    self.add_material_resource();
+                    ui.close_menu();
+                }
+                if ui
+                    .button(icons::label(icons::BLEND, "Transition Material"))
+                    .on_hover_text("Add a host-baked transition between two Material images.")
+                    .clicked()
+                {
+                    self.add_transition_material_resource();
+                    ui.close_menu();
+                }
             }
 
             ui.separator();
@@ -714,10 +730,13 @@ impl EditorWorkspace {
                 self.open_model_import_dialog();
                 ui.close_menu();
             }
-            if ui
-                .button(icons::label(icons::FILE_PLUS, "Import Texture"))
-                .on_hover_text("Open the PNG/JPG/BMP texture import preview with PSXT cook settings.")
-                .clicked()
+            if !self.is_grid_world()
+                && ui
+                    .button(icons::label(icons::FILE_PLUS, "Import Texture"))
+                    .on_hover_text(
+                        "Open the PNG/JPG/BMP texture import preview with PSXT cook settings.",
+                    )
+                    .clicked()
             {
                 self.open_texture_import_dialog();
                 ui.close_menu();
@@ -1071,6 +1090,12 @@ impl EditorWorkspace {
     }
 
     pub(crate) fn draw_resources_tab(&mut self, ui: &mut egui::Ui) {
+        // A grid world's materials live in the Materials palette, so they are
+        // not listed here a second time.
+        let grid = self.is_grid_world();
+        if grid && self.resource_filter == ResourceFilter::Material {
+            self.resource_filter = ResourceFilter::All;
+        }
         let tab_height = ui.available_height().max(1.0);
         ui.horizontal(|ui| {
             section_frame().show(ui, |ui| {
@@ -1094,6 +1119,9 @@ impl EditorWorkspace {
                                 icons::label(ResourceFilter::All.icon(), "All"),
                             );
                             for (filter, count) in resource_filter_counts(&self.project) {
+                                if grid && filter == ResourceFilter::Material {
+                                    continue;
+                                }
                                 ui.selectable_value(
                                     &mut self.resource_filter,
                                     filter,
@@ -1125,7 +1153,12 @@ impl EditorWorkspace {
                     .resources
                     .iter()
                     .filter(|resource| {
-                        resource_matches_filter(resource, self.resource_filter, search.as_str())
+                        !(grid && ResourceFilter::Material.matches(&resource.data))
+                            && resource_matches_filter(
+                                resource,
+                                self.resource_filter,
+                                search.as_str(),
+                            )
                     })
                     .map(|resource| resource.id)
                     .collect();

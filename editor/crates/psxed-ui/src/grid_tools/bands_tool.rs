@@ -158,9 +158,9 @@ fn wall_at_top(ws: &EditorWorkspace, transform: ViewportTransform, pos: Pos2) ->
     let r = world.rooms.get(room)?;
     if let Some(wall) = psxed_project::grid::derive::edge_walls(r, cell, edge)
         .into_iter()
-        .find(|w| !w.hidden)
+        .find(|w| !w.hidden && crate::grid_view::wall_in_slice(r, w, ws.grid.level.y))
     {
-        return Some(FaceRef::derived(room, cell, edge, wall.kind));
+        return Some(FaceRef::of_derived(room, &wall));
     }
     let [x, z] = r.local(cell)?;
     (!r.sector(x, z)?.walls(edge).is_empty()).then(|| FaceRef::wall(room, cell, edge, 0))

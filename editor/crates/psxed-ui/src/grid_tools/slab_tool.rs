@@ -142,15 +142,15 @@ pub(super) fn begin(
     ptr: &GridPointer,
     room: usize,
     cell: [i32; 2],
-) -> bool {
+) -> super::verb_tool::Begin {
     if ws.grid.verb.slab.mode != SlabMode::Insert {
-        return false;
+        return super::verb_tool::Begin::Refused;
     }
     let live = match start(ws) {
         Ok(live) => live,
         Err(why) => {
             ws.status = why;
-            return false;
+            return super::verb_tool::Begin::Refused;
         }
     };
     let pixels_per_unit = super::verb_tool::drag_rate(ws, ptr, room, cell, live.base);
@@ -164,7 +164,7 @@ pub(super) fn begin(
         max_rise: None,
         focus: Focus::none(0),
     }));
-    true
+    super::verb_tool::Begin::Started
 }
 
 /// A click on the region in Cut or Fill mode: act on it, as one undo step.

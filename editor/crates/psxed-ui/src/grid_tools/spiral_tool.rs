@@ -115,12 +115,12 @@ pub(super) fn begin(
     ptr: &GridPointer,
     room: usize,
     cell: [i32; 2],
-) -> bool {
+) -> super::verb_tool::Begin {
     let (drag, focus) = match start(ws) {
         Ok(started) => started,
         Err(why) => {
             ws.status = why;
-            return false;
+            return super::verb_tool::Begin::Refused;
         }
     };
     let ppu = super::verb_tool::drag_rate(ws, ptr, room, cell, 0);
@@ -133,7 +133,7 @@ pub(super) fn begin(
         max_rise: None,
         focus,
     }));
-    true
+    super::verb_tool::Begin::Started
 }
 
 /// What a spiral came to, for the status line.

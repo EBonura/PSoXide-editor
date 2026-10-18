@@ -57,6 +57,9 @@ pub(crate) struct LevelState {
     pub y: Option<i32>,
     /// How the 3D view treats what lies above `y`.
     pub cutaway: Cutaway,
+    /// A level being renamed in the Levels panel: its floor height and the
+    /// text typed so far.
+    pub renaming: Option<(i32, String)>,
     /// `G` was pressed: the next click in a view sets the cursor.
     pub picking: bool,
     /// The derived storeys, per document revision.
@@ -167,10 +170,11 @@ impl EditorWorkspace {
         let y = self.grid.level.y?;
         let world = self.project.active_scene().world.grid()?;
         let list = self.level_storeys();
-        let name = list
-            .iter()
-            .position(|s| s.height == y)
-            .map_or_else(|| "Level -".to_string(), |i| format!("Level {i}"));
+        let name = if list.iter().any(|s| s.height == y) {
+            super::levels_panel::level_name(world, &list, y)
+        } else {
+            "Level -".to_string()
+        };
         let ru = psxed_project::grid::cook::RuntimeUnits::new(world.scale)
             .map(|u| format!(" ({:+} ru)", u.rt(y)))
             .unwrap_or_default();

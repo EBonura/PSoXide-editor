@@ -122,10 +122,10 @@ pub(super) fn begin(
     ptr: &GridPointer,
     _room: usize,
     _cell: [i32; 2],
-) -> bool {
+) -> super::verb_tool::Begin {
     let Some(live) = start(ws) else {
         ws.status = "Nothing to roughen: the region holds no sector".to_string();
-        return false;
+        return super::verb_tool::Begin::Refused;
     };
     let base = live.base;
     ws.status = format!(
@@ -141,7 +141,7 @@ pub(super) fn begin(
         max_rise: None,
         focus: Focus::none(0),
     }));
-    true
+    super::verb_tool::Begin::Started
 }
 
 /// The level the pointer is at: the base plus whole levels of travel.

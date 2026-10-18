@@ -6,7 +6,7 @@
 # 1. The starter room's 6 by 6 floor goes; the tower grows its own footprint.
 grid_remove_surface {"kind":"floor","from":[0,0],"to":[5,5]}
 grid_remove_surface {"kind":"ceiling","from":[0,0],"to":[5,5]}
-grid_set_room {"room":0,"name":"Tower","wall_material":"Graybox / Warm Stone 64","ambient":[112,112,112]}
+grid_set_room {"room":0,"name":"Tower","wall_material":"Graybox / Warm Stone 64","ambient":[112,112,112],"closure_facing":"both"}
 
 # 2. One tall hall in the shape of an octagon, 12 by 12 sectors with 3 sector
 # chamfers, 48 clicks (12288 grid units) tall. The outline sits a quarter of a

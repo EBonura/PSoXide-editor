@@ -42,7 +42,6 @@ impl EditorWorkspace {
 
     /// Options of the active tool, next to the strip.
     pub(crate) fn draw_grid_context_controls(&mut self, ui: &mut egui::Ui) {
-        ui.separator();
         if super::cell_size::takes_size(self.grid.tool) {
             self.draw_cell_size_selector(ui);
         }
@@ -197,37 +196,19 @@ impl EditorWorkspace {
             format!("Snap {CLICK_UNITS} (Alt {FINE_UNITS})")
         };
         ui.label(RichText::new(snap_text).color(STUDIO_TEXT_WEAK).size(11.0));
+    }
+
+    /// The overlays and the key page: Walk, Cells and Perf toggles, and the
+    /// button that opens the page of every key and gesture.
+    pub(crate) fn draw_grid_overlay_controls(&mut self, ui: &mut egui::Ui) {
+        // The row is laid out right to left, so the rightmost button comes
+        // first: Keys, Perf (and its reserve), Sizes, Walk.
         if ui
-            .selectable_label(
-                self.grid.overlays.walk,
-                icons::label(icons::FOOTPRINTS, "Walk"),
-            )
-            .on_hover_text("Walkability overlay (Alt+W): too steep, low headroom, steps taller than the body climbs, drops, and floors no spawn reaches")
+            .selectable_label(self.grid.help_open, icons::label(icons::KEYBOARD, "Keys"))
+            .on_hover_text("Every tool key and gesture (?)")
             .clicked()
         {
-            self.toggle_walk_overlay();
-        }
-        if ui
-            .selectable_label(
-                self.grid.overlays.leaves,
-                icons::label(icons::GRID, "Cells"),
-            )
-            .on_hover_text(
-                "Cell sizes (Alt+L): every cell outlined and labelled with its size in sectors",
-            )
-            .clicked()
-        {
-            self.toggle_leaf_overlay();
-        }
-        if ui
-            .selectable_label(
-                self.grid.overlays.perf,
-                icons::label(icons::FLAME, "Perf"),
-            )
-            .on_hover_text("Performance heatmap (Alt+P): a model of the world render cost at every spot, against the 30 fps budget")
-            .clicked()
-        {
-            self.toggle_perf_overlay();
+            self.grid.help_open = !self.grid.help_open;
         }
         if self.grid.overlays.perf {
             let mut thousands = self.grid.overlays.reserve / 1000;
@@ -240,11 +221,36 @@ impl EditorWorkspace {
             }
         }
         if ui
-            .selectable_label(self.grid.help_open, "?")
-            .on_hover_text("Every tool key and gesture (?)")
+            .selectable_label(
+                self.grid.overlays.perf,
+                icons::label(icons::FLAME, "Perf"),
+            )
+            .on_hover_text("Performance heatmap (Alt+P): a model of the world render cost at every spot, against the 30 fps budget")
             .clicked()
         {
-            self.grid.help_open = !self.grid.help_open;
+            self.toggle_perf_overlay();
+        }
+        if ui
+            .selectable_label(
+                self.grid.overlays.leaves,
+                icons::label(icons::GRID, "Sizes"),
+            )
+            .on_hover_text(
+                "Cell sizes (Alt+L): every cell outlined and labelled with its size in sectors",
+            )
+            .clicked()
+        {
+            self.toggle_leaf_overlay();
+        }
+        if ui
+            .selectable_label(
+                self.grid.overlays.walk,
+                icons::label(icons::FOOTPRINTS, "Walk"),
+            )
+            .on_hover_text("Walkability overlay (Alt+W): too steep, low headroom, steps taller than the body climbs, drops, and floors no spawn reaches")
+            .clicked()
+        {
+            self.toggle_walk_overlay();
         }
     }
 

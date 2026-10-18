@@ -92,7 +92,15 @@ fn build_cache(world: &GridWorld, rev: u64) -> PickCache {
                             [sx / n.max(1), sz / n.max(1)],
                         )
                     });
-                (FaceTarget::Derived { edge, kind, seg }, None)
+                (
+                    FaceTarget::Derived {
+                        edge,
+                        kind,
+                        seg,
+                        span: face.span,
+                    },
+                    None,
+                )
             }
             // Free planes have their own entries below.
             GridFaceKind::Plane { .. } | GridFaceKind::Mesh { .. } => continue,
@@ -423,8 +431,11 @@ impl EditorWorkspace {
                 };
                 let derived = room.wall_mode == WallMode::Derived;
                 for edge in WallEdge::ALL {
+                    let level = self.grid.level.y;
                     let has_derived = derived
-                        && !psxed_project::grid::derive::edge_walls(room, cell, edge).is_empty();
+                        && psxed_project::grid::derive::edge_walls(room, cell, edge)
+                            .iter()
+                            .any(|w| crate::grid_view::wall_in_slice(room, w, level));
                     if sector.walls(edge).is_empty() && !has_derived {
                         continue;
                     }
@@ -471,9 +482,10 @@ impl EditorWorkspace {
                         faces.extend(
                             psxed_project::grid::derive::edge_walls(r, cell, edge)
                                 .into_iter()
-                                .map(|w| {
-                                    GridElement::Face(FaceRef::derived(room, cell, edge, w.kind))
-                                }),
+                                .filter(|w| {
+                                    crate::grid_view::wall_in_slice(r, w, self.grid.level.y)
+                                })
+                                .map(|w| GridElement::Face(FaceRef::of_derived(room, &w))),
                         );
                     }
                     return Some(faces);

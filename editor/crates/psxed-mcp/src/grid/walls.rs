@@ -236,16 +236,14 @@ pub fn resolve_wall(world: &GridWorld, wall: &WallRef) -> Result<FaceRef, String
         let found = derived
             .iter()
             .find(|d| d.kind.label() == kind.to_ascii_lowercase());
-        return found
-            .map(|d| FaceRef::derived(room, wall.cell, edge, d.kind))
-            .ok_or_else(|| {
-                format!(
-                    "no derived {kind} on the {} edge of {:?}; this edge has {}",
-                    edge.label(),
-                    wall.cell,
-                    candidates()
-                )
-            });
+        return found.map(|d| FaceRef::of_derived(room, d)).ok_or_else(|| {
+            format!(
+                "no derived {kind} on the {} edge of {:?}; this edge has {}",
+                edge.label(),
+                wall.cell,
+                candidates()
+            )
+        });
     }
     if let Some(index) = wall.index {
         return if index < authored {
@@ -260,7 +258,7 @@ pub fn resolve_wall(world: &GridWorld, wall: &WallRef) -> Result<FaceRef, String
         };
     }
     match (derived.as_slice(), authored) {
-        ([only], _) => Ok(FaceRef::derived(room, wall.cell, edge, only.kind)),
+        ([only], _) => Ok(FaceRef::of_derived(room, only)),
         ([], 1) => Ok(FaceRef::wall(room, wall.cell, edge, 0)),
         _ => Err(format!(
             "the {} edge of {:?} needs `kind` or `index`: {}",
@@ -417,7 +415,12 @@ fn resolve_leaf_wall(
         FaceRef::new(
             room,
             key,
-            psxed_project::grid::edit::FaceTarget::Derived { edge, kind, seg },
+            psxed_project::grid::edit::FaceTarget::Derived {
+                edge,
+                kind,
+                seg,
+                span: 0,
+            },
         )
     };
     if let Some(kind) = &wall.kind {

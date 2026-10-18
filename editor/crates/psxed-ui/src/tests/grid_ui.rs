@@ -21,7 +21,7 @@ pub(super) fn draw_editor(
     ctx: &egui::Context,
     view_2d: bool,
 ) -> egui::FullOutput {
-    draw_editor_sized(ws, ctx, view_2d, Vec2::new(1600.0, 900.0))
+    draw_editor_sized(ws, ctx, view_2d, Vec2::new(1600.0, 1400.0))
 }
 
 /// [`draw_editor`] on a screen of `size` (the help page needs a tall one: its
@@ -221,7 +221,7 @@ pub(super) fn draw_with_events(
     ws.view_2d = true;
     ws.active_workspace = WorkspaceView::Room;
     let input = egui::RawInput {
-        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1600.0, 900.0))),
+        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1600.0, 1400.0))),
         events,
         ..egui::RawInput::default()
     };

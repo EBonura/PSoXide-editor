@@ -10,7 +10,10 @@ impl EditorWorkspace {
     ) {
         let status = self.action_bar_status(playtest_status);
         let strip_width = ui.available_width().max(1.0);
-        let compact = strip_width < 180.0;
+        // A grid world prints its message in the status bar under the
+        // viewport; the strip keeps the state badge only.
+        let compact = strip_width < 180.0
+            || (self.is_grid_world() && self.active_workspace == WorkspaceView::Room);
         let strip_height = ui.available_height().max(26.0);
         let frame = egui::Frame::new()
             .fill(STUDIO_PANEL_HEADER)
@@ -120,6 +123,13 @@ impl EditorWorkspace {
     }
 
     pub(crate) fn draw_scene_filesystem_split(&mut self, ui: &mut egui::Ui) {
+        // A grid world has no use for a file tree: its resources are in the
+        // Resources dock and its materials in the palette. The dock holds the
+        // levels, the rooms and the scene graph.
+        if self.is_grid_world() && self.active_workspace == WorkspaceView::Room {
+            self.draw_grid_left_dock(ui);
+            return;
+        }
         let content_width = ui.available_width().max(1.0);
         let total_height = ui.available_height().max(1.0);
         let splitter_height = LEFT_DOCK_SPLITTER_HEIGHT.min(total_height);
@@ -1834,8 +1844,9 @@ impl EditorWorkspace {
                                     // Selection priority: resource → node.
                                     if self.active_workspace == WorkspaceView::Room
                                         && self.is_grid_world()
+                                        && self.draw_grid_panels(ui)
                                     {
-                                        self.draw_grid_panels(ui);
+                                        return;
                                     }
 
                                 if self.active_workspace == WorkspaceView::Ui {

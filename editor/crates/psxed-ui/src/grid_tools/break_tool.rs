@@ -253,12 +253,12 @@ pub(super) fn begin(
     ptr: &GridPointer,
     _room: usize,
     _cell: [i32; 2],
-) -> bool {
+) -> super::verb_tool::Begin {
     let (live, focus) = match start(ws) {
         Ok(started) => started,
         Err(why) => {
             ws.status = why;
-            return false;
+            return super::verb_tool::Begin::Refused;
         }
     };
     ws.status = format!(
@@ -274,7 +274,7 @@ pub(super) fn begin(
         max_rise: None,
         focus,
     }));
-    true
+    super::verb_tool::Begin::Started
 }
 
 /// The intensity the pointer is at.

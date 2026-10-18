@@ -78,23 +78,23 @@ pub(super) fn begin(
     ptr: &GridPointer,
     room: usize,
     cell: [i32; 2],
-) -> bool {
+) -> super::verb_tool::Begin {
     let Some(region) = ws.grid.verb.region.clone() else {
-        return false;
+        return super::verb_tool::Begin::Refused;
     };
     let from = params_at(ws, &region, cell).from;
     let focus = match super::verb_tool::region_focus(ws, &region) {
         Ok(focus) => focus,
         Err(why) => {
             ws.status = why;
-            return false;
+            return super::verb_tool::Begin::Refused;
         }
     };
     let Some((drag, max)) = ws.with_focused_world(&focus, |ws| {
         super::verb_tool::verb_drag_over(ws, &region, cell)
     }) else {
         ws.status = "Nothing to ramp: no sector of the region has a floor".to_string();
-        return false;
+        return super::verb_tool::Begin::Refused;
     };
     let base = match &drag {
         VerbDrag::Ramp(d) => d.base(),
@@ -113,7 +113,7 @@ pub(super) fn begin(
         max_rise: max,
         focus,
     }));
-    true
+    super::verb_tool::Begin::Started
 }
 
 /// The amount a Ramp gesture applies: the pointer's, held to the walkable
