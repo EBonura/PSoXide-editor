@@ -385,7 +385,7 @@ fn an_agent_builds_a_grid_level_through_the_mcp_and_plays_it() {
             json!({"position": [4480, 2100, 7200], "yaw_deg": 0, "pitch_deg": -25, "label": "heading"}),
         );
         assert!(
-            heading.text.contains("heading: eye [4480, 2100, 7200]"),
+            heading.text.contains("exact eye [4480, 2100, 7200]"),
             "{}",
             heading.text
         );

@@ -22,7 +22,8 @@ struct ScreenshotReq {
     /// Scene index. Omit for the first scene with a grid world.
     scene: Option<usize>,
     /// A single shot, given inline (position/look_at, or target/node with
-    /// distance, yaw, pitch). Ignored when `shots` is given.
+    /// distance, yaw, pitch). With `shots`, only its hide_player, hide_actors,
+    /// hide_overlays and clean are used, as the default for every shot.
     #[serde(flatten)]
     single: ShotSpec,
     /// Several shots in one call (at most 8), each a pose of its own.
@@ -85,8 +86,20 @@ impl EditorServer {
         Parameters(req): Parameters<ScreenshotReq>,
     ) -> Result<CallToolResult, ErrorData> {
         let frontend = self.frontend_path()?;
+        // The hiding switches given beside `shots` are the default for every
+        // shot that does not set its own.
+        let defaults = req.single.clone();
         let specs: Vec<ShotSpec> = match req.shots {
-            Some(list) if !list.is_empty() => list,
+            Some(list) if !list.is_empty() => list
+                .into_iter()
+                .map(|mut spec| {
+                    spec.hide_player = spec.hide_player.or(defaults.hide_player);
+                    spec.hide_actors = spec.hide_actors.or(defaults.hide_actors);
+                    spec.hide_overlays = spec.hide_overlays.or(defaults.hide_overlays);
+                    spec.clean = spec.clean.or(defaults.clean);
+                    spec
+                })
+                .collect(),
             _ => vec![req.single],
         };
         if specs.len() > MAX_SHOTS {

@@ -237,6 +237,48 @@ pub(super) fn draw_tiling(
     ops
 }
 
+/// The "Fit across the selection" row of a multi-face selection: tiles across
+/// the whole selected rectangle rather than across each face. Returns the
+/// repeats when the button is clicked. `surfaces` is how many floors and
+/// ceilings the selection holds (walls fit per run and are skipped).
+pub(super) fn draw_fit_across(ui: &mut egui::Ui, surfaces: usize) -> Option<[f32; 2]> {
+    if surfaces < 2 {
+        return None;
+    }
+    let id = ui.id().with("fit_across_repeats");
+    let mut tiles: [f32; 2] = ui.data_mut(|d| d.get_persisted(id)).unwrap_or([2.0, 2.0]);
+    let mut apply = None;
+    ui.separator();
+    ui.label(
+        RichText::new("Fit across the selection")
+            .color(STUDIO_TEXT_WEAK)
+            .size(11.0),
+    )
+    .on_hover_text(
+        "Put this many tiles across the whole selected rectangle (floors and ceilings), not across each face. A patch of 4 x 2 cells at 2 x 2 is one tiling, each cell showing its share.",
+    );
+    ui.horizontal(|ui| {
+        ui.label("Tiles across");
+        for t in &mut tiles {
+            ui.add(
+                egui::DragValue::new(t)
+                    .range(0.0625..=psxed_project::grid::uv_region::MAX_PATCH_REPEATS)
+                    .speed(0.05)
+                    .max_decimals(2),
+            );
+        }
+        if ui
+            .button(format!("Fit across {surfaces} faces"))
+            .on_hover_text("Apply to every selected floor and ceiling (one undo step)")
+            .clicked()
+        {
+            apply = Some(tiles);
+        }
+    });
+    ui.data_mut(|d| d.insert_persisted(id, tiles));
+    apply
+}
+
 /// A tile count without trailing zeros.
 fn trim(value: f32) -> String {
     format!("{value:.2}")

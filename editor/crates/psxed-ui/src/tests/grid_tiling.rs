@@ -228,3 +228,48 @@ fn clicking_the_tiling_buttons_edits_the_selected_face() {
     click_label(&mut ws, "Reset");
     assert!(floor_uv(&ws).is_identity());
 }
+
+#[test]
+fn a_multi_face_selection_fits_across_the_whole_rectangle() {
+    let mut ws =
+        EditorWorkspace::with_project(test_temp_dir("tiling-across"), flat_project(6, 4, true));
+    ws.apply_grid_pose("tool=select;select=floors:1,1:4,2")
+        .unwrap();
+    let text = inspector_text(&mut ws);
+    assert!(text.contains("Fit across the selection"), "{text}");
+    assert!(text.contains("Fit across 8 faces"), "{text}");
+    // A single face has no patch to fit across.
+    let mut single = workspace("tiling-across-single");
+    assert!(!inspector_text(&mut single).contains("Fit across the selection"));
+    click_label(&mut ws, "Fit across 8 faces");
+    let world = ws.project.active_scene().world.grid().unwrap();
+    let uv = |cell: [i32; 2]| {
+        psxed_project::grid::edit::uv_of(world, FaceRef::floor(0, cell), None).unwrap()
+    };
+    // The default is 2 x 2 across the 4 x 2 patch: every face is fitted,
+    // each widened by what the patch reaches past it.
+    for z in 1..=2 {
+        for x in 1..=4 {
+            let u = uv([x, z]);
+            assert_eq!(u.mode, UvMode::fit(2, 2), "cell {x},{z}");
+            let want = [
+                [(x - 1) * 1024, (z - 1) * 1024],
+                [(4 - x) * 1024, (2 - z) * 1024],
+            ];
+            assert_eq!(u.grow, want, "cell {x},{z}");
+        }
+    }
+    // A face outside the selection is untouched.
+    assert!(uv([0, 0]).is_identity());
+    // The face the Inspector shows reads back as part of the patch, and the
+    // whole thing is one undo step.
+    let text = inspector_text(&mut ws);
+    assert!(text.contains("part of 2 x 2 across its patch"), "{text}");
+    ws.do_undo();
+    let world = ws.project.active_scene().world.grid().unwrap();
+    assert!(
+        psxed_project::grid::edit::uv_of(world, FaceRef::floor(0, [2, 2]), None)
+            .unwrap()
+            .is_identity()
+    );
+}

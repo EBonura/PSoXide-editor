@@ -285,6 +285,7 @@ impl EditorWorkspace {
             );
         }
         let mut ops: Vec<UvOp> = Vec::new();
+        let mut fit_across: Option<[f32; 2]> = None;
         let mut toggle = false;
         let mut facing: Option<WallFacing> = None;
         let mut solid: Option<bool> = None;
@@ -337,6 +338,11 @@ impl EditorWorkspace {
                 None,
             );
             ops.extend(super::tiling_panel::draw_tiling(ui, uv, report, None));
+            let surfaces = faces
+                .iter()
+                .filter(|f| matches!(f.target, FaceTarget::Surface(_)))
+                .count();
+            fit_across = super::tiling_panel::draw_fit_across(ui, surfaces);
         }
         match primary.target {
             FaceTarget::Wall { .. } => {
@@ -426,6 +432,7 @@ impl EditorWorkspace {
         // Apply what changed to every selected face.
         if toggle
             || !ops.is_empty()
+            || fit_across.is_some()
             || facing.is_some()
             || solid.is_some()
             || hidden.is_some()
@@ -434,6 +441,17 @@ impl EditorWorkspace {
             let faces = faces.to_vec();
             let before = self.project.clone();
             if let Some(world) = self.project.active_scene_mut().world.grid_mut() {
+                if let Some(repeats) = fit_across {
+                    // The patch is the selection's bounding rectangle. The
+                    // material defaults come from the project as it was.
+                    let defaults = psxed_project::grid::uv::ProjectUvDefaults(&before);
+                    match psxed_project::grid::uv_region::fit_across(
+                        world, &defaults, &faces, None, repeats,
+                    ) {
+                        Ok(report) => self.status = report.describe(repeats).replace('\n', "; "),
+                        Err(error) => self.status = error,
+                    }
+                }
                 for face in &faces {
                     if toggle {
                         toggle_split(world, *face);
