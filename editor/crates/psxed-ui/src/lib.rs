@@ -2920,7 +2920,12 @@ impl EditorWorkspace {
         // Build once: projects have enough materials, animation and world
         // geometry that doing this again merely for the status summary makes
         // every Play launch needlessly expensive.
+        let package_started = std::time::Instant::now();
         let (package, report) = psxed_project::playtest::build_package(&project, &self.project_dir);
+        psxed_project::playtest::emit_cook_output(format_args!(
+            "[cook] timing: package {} ms",
+            package_started.elapsed().as_millis(),
+        ));
         let summary = package.as_ref().map(|p| PackageSummary {
             assets: p.assets.len(),
             textures: p.texture_asset_count(),
