@@ -8,6 +8,7 @@ use psxed_project::grid::edit::{
     edit_uv, faces_of_cell, set_material, uv_of, FaceRef, FaceTarget, SurfaceKind, UvOp,
 };
 use psxed_project::grid::uv::{report_for, ProjectUvDefaults};
+use psxed_project::grid::uv_region::fit_across;
 use psxed_project::grid::{derive, GridWorld, WallEdge};
 use psxed_project::{ProjectDocument, ResourceData};
 use schemars::JsonSchema;
@@ -230,15 +231,22 @@ pub struct TilingReq {
     /// Floors and ceilings: one triangle (0 or 1). Omit for both.
     pub tri: Option<u8>,
     /// `world` (the texture follows the world: neighbours line up, a bigger
-    /// face tiles more), `fit` (a fixed number of tiles across the whole
-    /// face) or `inherit` (the material's own tiling default, else the
-    /// legacy 32 texels per sector).
+    /// face tiles more), `fit` (a fixed number of tiles across EACH face:
+    /// 2 x 2 over a 4 x 2 patch of cells is eight small tilings),
+    /// `fit_across` (a fixed number of tiles across the WHOLE selected
+    /// rectangle: `repeats` [2, 2] over 4 x 2 cells is one 2 x 2 tiling,
+    /// each cell showing its share; floors and ceilings, each its own patch;
+    /// walls fit per run) or `inherit` (the material's own tiling default,
+    /// else the legacy 32 texels per sector).
     pub mode: Option<String>,
     /// For `world`: texels per sector along the frame's two axes. 32 is the
     /// legacy density (half a 64 texel tile per sector); 64 is one tile.
     pub density: Option<[u16; 2]>,
     /// For `fit`: tiles across the face, horizontal and vertical, in steps
-    /// of 1/16 up to 16. `[2, 2]` is "2 x 2 on this face".
+    /// of 1/16 up to 16. `[2, 2]` is "2 x 2 on this face". For `fit_across`:
+    /// tiles across the whole patch, up to 64. A primitive holds at most 4
+    /// tiles per axis, so more than 4 per cell makes the cook cut faces (the
+    /// reply says how many).
     pub repeats: Option<[f32; 2]>,
     /// Quarter turns of the texture, clockwise, 0..3.
     pub turns: Option<u8>,
@@ -257,9 +265,17 @@ pub struct TilingReq {
     pub reset: Option<bool>,
 }
 
+/// Whether the request fits across a whole patch (`fit_across`).
+fn is_across(req: &TilingReq) -> bool {
+    req.mode
+        .as_deref()
+        .is_some_and(|m| matches!(m.to_ascii_lowercase().as_str(), "fit_across" | "fit-across"))
+}
+
 fn parse_mode(req: &TilingReq) -> Result<Option<UvMode>, String> {
     let mode = req.mode.as_deref().map(str::to_ascii_lowercase);
     match mode.as_deref() {
+        Some("fit_across" | "fit-across") => Ok(None),
         None => {
             if req.density.is_some() {
                 return Ok(Some(UvMode::World {
@@ -276,7 +292,9 @@ fn parse_mode(req: &TilingReq) -> Result<Option<UvMode>, String> {
             texels_per_sector: req.density.unwrap_or([32, 32]),
         })),
         Some("fit") => fit(req.repeats.or(Some([1.0, 1.0]))).map(Some),
-        Some(other) => Err(format!("unknown mode {other:?}; use world, fit or inherit")),
+        Some(other) => Err(format!(
+            "unknown mode {other:?}; use world, fit, fit_across or inherit"
+        )),
     }
 }
 
@@ -374,8 +392,10 @@ pub fn tiling(
     if faces.is_empty() {
         return Err("no faces of that kind there".to_string());
     }
+    let across = is_across(req);
     let any = req.reset.is_some()
         || mode.is_some()
+        || across
         || req.turns.is_some()
         || req.flip_h.is_some()
         || req.flip_v.is_some()
@@ -385,15 +405,33 @@ pub fn tiling(
     if !any {
         return Err("nothing to change: give mode, density, repeats, turns, flip_h, flip_v, offset, scale_q8, rotation_deg or reset".to_string());
     }
+    if across && req.wall.is_some() {
+        return Err(
+            "fit_across spans a rectangle of floors or ceilings; a wall's frame is already its whole run (use mode fit with run: true)"
+                .to_string(),
+        );
+    }
+    let defaults = ProjectUvDefaults(project);
     let mut changed = 0;
     for face in &faces {
         if apply_tiling(world, *face, req, mode) {
             changed += 1;
         }
     }
-    let defaults = ProjectUvDefaults(project);
+    let mut across_text = None;
+    if across {
+        // After the other ops: a reset clears the frame, the mode sets it.
+        let repeats = req.repeats.unwrap_or([1.0, 1.0]);
+        let fitted = fit_across(world, &defaults, &faces, req.tri, repeats)?;
+        changed = changed.max(fitted.changed);
+        across_text = Some(fitted.describe(repeats));
+    }
     let first = faces[0];
     let mut out = format!("tiling set on {} face(s), {changed} changed", faces.len());
+    if let Some(text) = across_text {
+        out.push('\n');
+        out.push_str(&text);
+    }
     if let Some(report) = report_for(world, &defaults, first, req.tri) {
         out.push_str(&format!(
             "\n{}: effective {}",

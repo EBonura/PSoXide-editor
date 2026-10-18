@@ -78,7 +78,7 @@ struct PlaytestReq {
 #[rmcp::tool_router(router = verify_router, vis = "pub(super)")]
 impl EditorServer {
     #[rmcp::tool(
-        description = "Render the editor's 3D preview (the PS1 renderer) from one or several camera poses. Poses: an eye position plus look_at (or yaw_deg and pitch_deg), or an orbit around a target point or a node with distance, yaw and pitch. Up to 8 shots in one call via shots. It renders the STAGED document, saved or not. All positions are editor units (a new grid project's sector is 1280); use grid_plan for layout and this for materials, lighting, scale and whether a pose actually sees what you meant."
+        description = "Render the editor's 3D preview (the PS1 renderer) from one or several camera poses. Poses: an EXACT eye (position plus look_at, or yaw_deg and pitch_deg; the camera is at position, no orbit) or an orbit around a target point or a node with distance, yaw and pitch. Heading: yaw_deg 0 looks north (-Z), 90 west (-X), 180 south, 270 east; pitch_deg positive looks UP (an orbit's raw pitch is the other way round). Up to 8 shots in one call via shots. It renders the STAGED document, saved or not. hide_player, hide_actors, hide_overlays (entity bounds boxes and light bulbs) or clean (all three; the preview has no HUD) leave things out: a shot from the entrance is inside the player's model unless hide_player is set. All positions are editor units (a new grid project's sector is 1280); use grid_plan for layout and this for materials, lighting, scale and whether a pose actually sees what you meant."
     )]
     async fn screenshot(
         &self,
@@ -95,8 +95,8 @@ impl EditorServer {
                 None,
             ));
         }
-        let (solved, root) = self.with(|workspace| {
-            let root = workspace.render_root()?;
+        let (solved, dirty) = self.with(|workspace| {
+            let dirty = workspace.is_dirty();
             let project = workspace.document()?;
             let mut solved = Vec::new();
             for (i, spec) in specs.iter().enumerate() {
@@ -107,22 +107,32 @@ impl EditorServer {
                         .clone()
                         .unwrap_or_else(|| format!("shot {}", i + 1)),
                     shot,
+                    spec.render_opts(),
                 ));
             }
-            Ok((solved, root))
+            Ok((solved, dirty))
         })?;
         let mut blocks = Vec::new();
-        for (label, shot) in solved {
-            let png = shot::render(&frontend, &root.path, shot, self.scratch.as_path())
+        // One scratch copy per way of hiding actors (the guard deletes it).
+        let mut roots: Vec<(Option<shot::ActorHide>, psxed_mcp::edit::RenderRoot)> = Vec::new();
+        for (label, shot, opts) in solved {
+            let hide = opts.actor_hide();
+            if !roots.iter().any(|(h, _)| *h == hide) {
+                let root = self.with(|workspace| workspace.render_root_without(hide))?;
+                roots.push((hide, root));
+            }
+            let root = &roots
+                .iter()
+                .find(|(h, _)| *h == hide)
+                .expect("the root was just made")
+                .1;
+            let png = shot::render(&frontend, &root.path, shot, opts, self.scratch.as_path())
                 .map_err(|error| ErrorData::internal_error(format!("{label}: {error}"), None))?;
-            let eye = shot::eye_of(&shot);
             blocks.push(ContentBlock::text(format!(
-                "{label}: eye {eye:?}, target {:?}, yaw {} pitch {} radius {}{}",
-                shot.target,
-                shot.yaw_q12,
-                shot.pitch_q12,
-                shot.radius,
-                if root.is_staged() {
+                "{label}: {}{}{}",
+                shot::describe(&shot),
+                shot::describe_opts(opts),
+                if dirty {
                     " (staged edits, not saved)"
                 } else {
                     ""
