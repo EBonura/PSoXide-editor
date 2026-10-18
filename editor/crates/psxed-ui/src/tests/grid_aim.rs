@@ -481,3 +481,57 @@ fn a_spiral_with_many_storeys_passes_a_sector_more_than_once() {
         rig.ws.status
     );
 }
+
+#[test]
+fn break_works_on_the_floor_at_the_level() {
+    let mut rig = GridRig::top("aim-break", two_floors());
+    upper_level(&mut rig);
+    rig.ws
+        .apply_grid_pose("tool=break;region=2,2:5,5;break-drag=30:3")
+        .unwrap_or_else(|e| panic!("{e}"));
+    rig.ws.grid.gesture = Gesture::Idle;
+    let heights = |rig: &GridRig, span: usize| -> Vec<i32> {
+        let room = rig.room(0);
+        let mut out = Vec::new();
+        for z in 2..=5 {
+            for x in 2..=5 {
+                let [lx, lz] = room.local([x, z]).unwrap();
+                let floor = room.sector(lx, lz).unwrap().spans()[span]
+                    .floor
+                    .as_ref()
+                    .unwrap();
+                out.extend(floor.heights);
+            }
+        }
+        out
+    };
+    assert!(
+        heights(&rig, 0).iter().all(|h| *h == 0),
+        "the ground floor is untouched: {}",
+        rig.ws.status
+    );
+    assert!(
+        heights(&rig, 1).iter().any(|h| *h != 1536),
+        "the upper floor was broken: {}",
+        rig.ws.status
+    );
+}
+
+#[test]
+fn the_place_tool_in_the_top_view_lands_on_the_floor_at_the_level() {
+    let mut rig = GridRig::top("aim-place", two_floors());
+    rig.tool(GridTool::Place);
+    let spot = |rig: &mut GridRig| {
+        rig.move_to(rig.cell_centre(3, 3), egui::Modifiers::NONE);
+        match &rig.ws.grid.hover {
+            crate::grid_tools::GridHover::Spot { position } => position[1],
+            other => panic!("{other:?}"),
+        }
+    };
+    // With no level the highest floor, with the ground level the ground.
+    assert_eq!(spot(&mut rig), 1536.0);
+    alt_up(&mut rig);
+    assert_eq!(spot(&mut rig), 0.0);
+    alt_up(&mut rig);
+    assert_eq!(spot(&mut rig), 1536.0);
+}
