@@ -9,6 +9,7 @@ mod bands;
 mod cells;
 mod combat;
 mod geometry;
+mod instructions;
 mod meshes;
 mod natural;
 mod nodes;
@@ -43,31 +44,69 @@ pub struct EditorServer {
     scratch: Arc<PathBuf>,
     /// Every tool, combined from the per-area routers.
     pub(crate) tool_router: ToolRouter<Self>,
+    /// The tool names each router registered, for the instructions.
+    pub(crate) areas: Arc<Vec<(&'static str, Vec<String>)>>,
 }
 
 impl EditorServer {
     /// A server over `workspace`.
     pub fn new(workspace: Workspace, frontend: Option<PathBuf>, scratch: PathBuf) -> Self {
-        let tool_router = Self::project_router()
-            + Self::nodes_router()
-            + Self::combat_router()
-            + Self::query_router()
-            + Self::geometry_router()
-            + Self::surfaces_router()
-            + Self::bands_router()
-            + Self::cells_router()
-            + Self::storeys_router()
-            + Self::planes_router()
-            + Self::meshes_router()
-            + Self::verbs_router()
-            + Self::natural_router()
-            + Self::verify_router();
+        let routers = Self::routers();
+        let areas: Vec<(&'static str, Vec<String>)> = routers
+            .iter()
+            .map(|(name, router)| {
+                (
+                    *name,
+                    router
+                        .list_all()
+                        .iter()
+                        .map(|t| t.name.to_string())
+                        .collect(),
+                )
+            })
+            .collect();
+        let tool_router = routers
+            .into_iter()
+            .map(|(_, router)| router)
+            .fold(ToolRouter::new(), |all, router| all + router);
         Self {
             workspace: Arc::new(Mutex::new(workspace)),
             frontend: frontend.map(Arc::new),
             scratch: Arc::new(scratch),
             tool_router,
+            areas: Arc::new(areas),
         }
+    }
+
+    /// Every router with the name the instructions list it under (see
+    /// `instructions::AREAS`).
+    fn routers() -> Vec<(&'static str, ToolRouter<Self>)> {
+        vec![
+            ("project", Self::project_router()),
+            ("nodes", Self::nodes_router()),
+            ("combat", Self::combat_router()),
+            ("query", Self::query_router()),
+            ("geometry", Self::geometry_router()),
+            ("surfaces", Self::surfaces_router()),
+            ("bands", Self::bands_router()),
+            ("cells", Self::cells_router()),
+            ("storeys", Self::storeys_router()),
+            ("planes", Self::planes_router()),
+            ("meshes", Self::meshes_router()),
+            ("verbs", Self::verbs_router()),
+            ("natural", Self::natural_router()),
+            ("verify", Self::verify_router()),
+        ]
+    }
+
+    /// A server over nothing, to list the tools (tests).
+    #[cfg(test)]
+    pub(crate) fn for_listing() -> Self {
+        let workspace = Workspace::open(
+            &PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../projects/default"),
+        )
+        .expect("the default project opens");
+        Self::new(workspace, None, std::env::temp_dir())
     }
 
     /// Run `body` against the workspace. Reads see staged edits; with nothing

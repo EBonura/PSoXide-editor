@@ -101,6 +101,13 @@ pub fn rooms(world: &GridWorld, mats: &Materials<'_>) -> String {
             room.meshes.len(),
             room.edge_overrides.len()
         );
+        if room.defaults.closure_facing != psxed_project::grid::ClosureFacing::Front {
+            let _ = writeln!(
+                out,
+                "  closure walls drawn {}",
+                room.defaults.closure_facing.label()
+            );
+        }
         if let Some((lo, hi)) = floor_span(room) {
             let _ = writeln!(
                 out,
@@ -197,7 +204,7 @@ pub fn sector(
         }
     }
     for wall in derive::cell_walls(r, cell) {
-        let face = FaceRef::derived(room, cell, wall.edge, wall.kind);
+        let face = FaceRef::of_derived(room, &wall);
         let tiling = psxed_project::grid::uv::report_for(world, &defaults, face, None)
             .map_or_else(String::new, |rep| {
                 format!(", tiling {}", rep.effective_text())

@@ -287,11 +287,18 @@ fn pointing_at_an_existing_floor_makes_the_next_rectangle_continue_at_its_height
     let mut rig = GridRig::persp("persp-continue-height", project);
     rig.tool(GridTool::Floor);
     assert_eq!(rig.ws.grid.floor_height, 0);
-    // Hover the platform: its height is adopted.
+    // Hovering the platform shows the ghost at its level and changes no
+    // setting.
     rig.move_to(ground(&rig, 1.5, 1.5, 512.0), egui::Modifiers::NONE);
+    assert_eq!(rig.ws.grid.floor_height, 0);
+    assert!(matches!(
+        rig.ws.grid.hover,
+        crate::grid_tools::GridHover::Cell { height: 512, .. }
+    ));
+    // Pressing on it takes its level, and the drag out over the void next to
+    // it makes cells level with it.
+    rig.drag(ground(&rig, 1.5, 1.5, 512.0), ground(&rig, 4.5, 1.5, 512.0));
     assert_eq!(rig.ws.grid.floor_height, 512);
-    // Drag out over the void next to it: the new cells are level with it.
-    rig.drag(ground(&rig, 2.5, 1.5, 512.0), ground(&rig, 4.5, 1.5, 512.0));
     assert_eq!(floor_heights(rig.world(), 0, [3, 1]), Some([512; 4]));
     assert_eq!(floor_heights(rig.world(), 0, [4, 1]), Some([512; 4]));
 }

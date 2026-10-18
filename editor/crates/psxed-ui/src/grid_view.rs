@@ -145,6 +145,28 @@ pub(crate) fn slice_of(sector: &GridSector, level: Option<i32>) -> Slice {
     below.map_or(Slice::Above, Slice::Below)
 }
 
+/// Whether a derived wall belongs to the slice the Top view shows at `level`
+/// (grid units, room offsets included): a column of one span has only its own
+/// walls, and in a column of several only the walls the span shown at the
+/// level hosts are drawn and picked, so the storeys stacked on one edge do
+/// not pile into one line.
+pub(crate) fn wall_in_slice(
+    room: &GridRoom,
+    wall: &psxed_project::grid::DerivedWall,
+    level: Option<i32>,
+) -> bool {
+    let Some(sector) = room.local(wall.host).and_then(|[x, z]| room.sector(x, z)) else {
+        return true;
+    };
+    if sector.is_single_span() {
+        return true;
+    }
+    matches!(
+        slice_of(sector, level.map(|y| y - room.y_offset)),
+        Slice::Active(i) if i == usize::from(wall.span)
+    )
+}
+
 /// Whether the floor's diagonal changes what is drawn and is worth marking.
 fn split_matters(sector: &GridSector) -> bool {
     sector.ground_floor().is_some_and(|floor| {
@@ -225,6 +247,7 @@ fn draw_derived_walls(
     room: &GridRoom,
     cell: [i32; 2],
     thickness: f32,
+    level: Option<i32>,
 ) {
     let point = |p: [i32; 2]| match p {
         [0, 0] => corners[0],
@@ -233,6 +256,9 @@ fn draw_derived_walls(
         _ => corners[3],
     };
     for wall in psxed_project::grid::derive::cell_walls(room, cell) {
+        if !wall_in_slice(room, &wall, level) {
+            continue;
+        }
         let (a, b) = wall.edge.endpoints();
         let color = if wall.hidden {
             WALL_HIDDEN
@@ -429,7 +455,7 @@ pub(crate) fn draw_grid_world(
             let size = rect.width().min(rect.height());
             let thickness = (size * 0.1).clamp(2.0, 4.5);
             if derived && !mixed {
-                draw_derived_walls(painter, corners, room, key.cell(), thickness);
+                draw_derived_walls(painter, corners, room, key.cell(), thickness, view.level);
             }
             draw_walls(painter, corners, sector, thickness);
         }
@@ -479,83 +505,6 @@ pub(crate) fn draw_grid_world(
                 egui::FontId::proportional(11.0),
                 ROOM_LABEL,
             );
-        }
-    }
-}
-
-impl EditorWorkspace {
-    /// Room chips in the corner of the Top view when a grid world has more
-    /// than one room: an eye toggles a room's visibility, the name makes it
-    /// the active room (click again to clear).
-    pub(crate) fn draw_grid_room_chips(&mut self, parent: &mut egui::Ui, rect: Rect) {
-        let Some(world) = self.project.active_scene().world.grid() else {
-            return;
-        };
-        if world.rooms.len() < 2 {
-            return;
-        }
-        let rooms: Vec<(String, i32)> = world
-            .rooms
-            .iter()
-            .enumerate()
-            .map(|(i, r)| {
-                let name = if r.name.is_empty() {
-                    format!("Room {i}")
-                } else {
-                    r.name.clone()
-                };
-                (name, r.y_offset)
-            })
-            .collect();
-        // A child ui over the viewport's top-right corner. It is not an
-        // `egui::Area`, so it shows on the first frame (an Area spends one
-        // frame measuring itself, which a single headless capture misses).
-        const CHIP_WIDTH: f32 = 200.0;
-        let chip_rect = Rect::from_min_size(
-            rect.right_top() + Vec2::new(-CHIP_WIDTH - 12.0, 12.0),
-            Vec2::new(CHIP_WIDTH, 40.0 + 24.0 * rooms.len() as f32),
-        );
-        let mut ui = parent.new_child(
-            egui::UiBuilder::new()
-                .max_rect(chip_rect)
-                .layout(egui::Layout::top_down(egui::Align::Min)),
-        );
-        let ui = &mut ui;
-        {
-            {
-                egui::Frame::new()
-                    .fill(STUDIO_PANEL_HEADER)
-                    .stroke(egui::Stroke::new(1.0, STUDIO_BORDER))
-                    .inner_margin(egui::Margin::same(6))
-                    .show(ui, |ui| {
-                        ui.label(
-                            egui::RichText::new("Rooms")
-                                .color(STUDIO_TEXT_WEAK)
-                                .size(11.0),
-                        );
-                        for (index, (name, y_offset)) in rooms.iter().enumerate() {
-                            ui.horizontal(|ui| {
-                                let mut shown = !self.grid_hidden_rooms.contains(&index);
-                                if ui.checkbox(&mut shown, "").changed() {
-                                    if shown {
-                                        self.grid_hidden_rooms.remove(&index);
-                                    } else {
-                                        self.grid_hidden_rooms.insert(index);
-                                    }
-                                }
-                                let label = if *y_offset == 0 {
-                                    name.clone()
-                                } else {
-                                    format!("{name}  (y {y_offset:+})")
-                                };
-                                let active = self.grid_active_room == Some(index);
-                                if ui.selectable_label(active, label).clicked() {
-                                    self.grid_active_room = (!active).then_some(index);
-                                }
-                            });
-                        }
-                    });
-            }
         }
     }
 }

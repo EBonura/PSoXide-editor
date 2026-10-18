@@ -78,7 +78,7 @@ impl EditorWorkspace {
                             let response = ui
                                 .selectable_label(active == index, label)
                                 .on_hover_text(
-                                    "Click to make this the room new geometry goes into. Double-click to rename.",
+                                    "Click to pin this as the room new geometry goes into, click again to follow your edits. Double-click to rename.",
                                 );
                             if response.clicked() {
                                 activate = Some(index);
@@ -103,10 +103,23 @@ impl EditorWorkspace {
                     });
                 }
             });
-        self.draw_grid_room_settings(ui, active);
-        self.draw_grid_room_walls(ui, active);
-        self.draw_grid_room_rules(ui, active);
-        self.draw_grid_room_rough(ui, active);
+        let title = format!(
+            "Settings of {}",
+            rows.get(active).map_or("the room", |r| r.0.as_str())
+        );
+        let settings_open = self.grid.room_settings_open;
+        let header = egui::CollapsingHeader::new(RichText::new(title).size(12.0))
+            .id_salt("grid_room_settings")
+            .open(Some(settings_open))
+            .show(ui, |ui| {
+                self.draw_grid_room_settings(ui, active);
+                self.draw_grid_room_walls(ui, active);
+                self.draw_grid_room_rules(ui, active);
+                self.draw_grid_room_rough(ui, active);
+            });
+        if header.header_response.clicked() {
+            self.grid.room_settings_open = !settings_open;
+        }
         ui.separator();
 
         if let Some(next) = rename_start {
@@ -121,8 +134,7 @@ impl EditorWorkspace {
             }
         }
         if let Some(index) = activate {
-            self.grid_active_room = Some(index);
-            self.grid.last_room = index;
+            self.toggle_room_pin(index);
         }
         if add {
             self.grid_add_room();
@@ -133,6 +145,19 @@ impl EditorWorkspace {
         if let Some((before, epoch)) = undo_candidate {
             self.finish_inspector_undo_frame(before, epoch, &ctx);
         }
+    }
+
+    /// Pin room `index` as the room new geometry goes into; pinning the
+    /// pinned room again lets the room follow your edits.
+    pub(crate) fn toggle_room_pin(&mut self, index: usize) {
+        if self.grid_active_room == Some(index) {
+            self.grid_active_room = None;
+            self.status = "Room follows your edits".to_string();
+        } else {
+            self.grid_active_room = Some(index);
+            self.status = format!("New geometry goes into room {index}");
+        }
+        self.grid.last_room = index;
     }
 
     /// Raise and ambient of the active room.

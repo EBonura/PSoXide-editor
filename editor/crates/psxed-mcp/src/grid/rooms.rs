@@ -3,7 +3,7 @@
 use psxed_project::grid::edit::{clean_overrides, convert_to_derived, ConvertMode};
 use psxed_project::grid::limits::MAX_ROOMS;
 use psxed_project::grid::units::{snap_to, FINE_UNITS};
-use psxed_project::grid::{FacingShade, GridRoom, GridWorld};
+use psxed_project::grid::{ClosureFacing, FacingShade, GridRoom, GridWorld};
 use schemars::JsonSchema;
 use serde::Deserialize;
 
@@ -99,6 +99,10 @@ pub struct SetRoomReq {
     /// Open wall height: how tall the closure wall around a floor with NO
     /// ceiling is, grid units. 0 leaves such edges open (the outdoor look).
     pub open_wall: Option<i32>,
+    /// Which sides of the room's closure walls are drawn: `front` (inside
+    /// only, the default) or `both`. A building seen from outside needs
+    /// `both`, or it looks hollow. Collision is unchanged.
+    pub closure_facing: Option<String>,
     /// Drop wall overrides that no longer belong to any derived wall (after
     /// a platform was lowered again).
     pub clean_overrides: Option<bool>,
@@ -121,6 +125,16 @@ pub fn set_room(
             return Err("open_wall must be 0 or more".to_string());
         }
     }
+    let facing = match req.closure_facing.as_deref() {
+        None => None,
+        Some("front") | Some("inside") => Some(ClosureFacing::Front),
+        Some("both") => Some(ClosureFacing::Both),
+        Some(other) => {
+            return Err(format!(
+                "unknown closure_facing {other:?}; use front or both"
+            ))
+        }
+    };
     let room = &mut world.rooms[index];
     if let Some(name) = &req.name {
         room.name = name.clone();
@@ -145,6 +159,10 @@ pub fn set_room(
     if let Some(open) = req.open_wall {
         room.defaults.open_wall = open;
         notes.push(format!("open wall height {open}"));
+    }
+    if let Some(facing) = facing {
+        room.defaults.closure_facing = facing;
+        notes.push(format!("closure walls {}", facing.label()));
     }
     if req.clean_overrides.unwrap_or(false) {
         let removed = clean_overrides(world, index);
@@ -334,6 +352,7 @@ mod tests {
                 ambient: Some([128; 3]),
                 wall_material: None,
                 open_wall: None,
+                closure_facing: None,
                 clean_overrides: None,
             },
         )

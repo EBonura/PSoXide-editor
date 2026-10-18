@@ -21,6 +21,7 @@ mod grid_tiling;
 mod grid_tools_persp;
 mod grid_tools_top;
 mod grid_ui;
+mod grid_ux;
 mod grid_verbs;
 mod grid_walk;
 mod grid_world;

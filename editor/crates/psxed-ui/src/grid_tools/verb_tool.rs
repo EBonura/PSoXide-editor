@@ -458,7 +458,7 @@ fn describe_region(ws: &mut EditorWorkspace, region: &Region) {
 }
 
 /// What a press on the region came to.
-enum Begin {
+pub(super) enum Begin {
     /// The amount drag is under way.
     Started,
     /// The verb could not begin and has put the reason in the status line.
@@ -469,7 +469,7 @@ enum Begin {
 
 /// Press on the region: start the amount drag of the active verb.
 fn begin_amount(ws: &mut EditorWorkspace, ptr: &GridPointer, room: usize, cell: [i32; 2]) -> Begin {
-    let started = match ws.grid.tool {
+    match ws.grid.tool {
         GridTool::Raise => begin_raise(ws, ptr, room, cell),
         GridTool::Ramp => super::ramp_tool::begin(ws, ptr, room, cell),
         GridTool::Stairs => super::stairs_tool::begin(ws, ptr, room, cell),
@@ -478,15 +478,10 @@ fn begin_amount(ws: &mut EditorWorkspace, ptr: &GridPointer, room: usize, cell: 
         GridTool::Rough => super::rough_tool::begin(ws, ptr, room, cell),
         // Cut and Fill are clicks on the region: a press starts a new one.
         GridTool::Slab if ws.grid.verb.slab.mode != super::slab_tool::SlabMode::Insert => {
-            return Begin::NotApplicable
+            Begin::NotApplicable
         }
         GridTool::Slab => super::slab_tool::begin(ws, ptr, room, cell),
-        _ => return Begin::NotApplicable,
-    };
-    if started {
-        Begin::Started
-    } else {
-        Begin::Refused
+        _ => Begin::NotApplicable,
     }
 }
 
@@ -541,21 +536,21 @@ fn raise_drag(ws: &EditorWorkspace, region: &Region, cell: [i32; 2]) -> Option<(
     RaiseDrag::begin(world, region, params).map(|d| (d, reference))
 }
 
-fn begin_raise(ws: &mut EditorWorkspace, ptr: &GridPointer, room: usize, cell: [i32; 2]) -> bool {
+fn begin_raise(ws: &mut EditorWorkspace, ptr: &GridPointer, room: usize, cell: [i32; 2]) -> Begin {
     let Some(region) = ws.grid.verb.region.clone() else {
-        return false;
+        return Begin::Refused;
     };
     let focus = match region_focus(ws, &region) {
         Ok(focus) => focus,
         Err(why) => {
             ws.status = why;
-            return false;
+            return Begin::Refused;
         }
     };
     let Some((drag, _)) = ws.with_focused_world(&focus, |ws| verb_drag_over(ws, &region, cell))
     else {
         ws.status = "Nothing to raise: no sector of the region has a floor".to_string();
-        return false;
+        return Begin::Refused;
     };
     let ppu = drag_rate(ws, ptr, room, cell, ws.grid.verb.reference);
     ws.grid.gesture = Gesture::Verb(Box::new(VerbGesture {
@@ -567,7 +562,7 @@ fn begin_raise(ws: &mut EditorWorkspace, ptr: &GridPointer, room: usize, cell: [
         max_rise: None,
         focus,
     }));
-    true
+    Begin::Started
 }
 
 /// A scripted drag in flight at `amount` grid units (poses, tests).

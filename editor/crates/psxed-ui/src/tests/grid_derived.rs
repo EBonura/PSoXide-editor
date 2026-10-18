@@ -199,6 +199,7 @@ fn the_rooms_panel_offers_convert_for_legacy_rooms_and_the_defaults_for_derived_
     let ctx = full_context();
     let mut ws =
         EditorWorkspace::with_project(test_temp_dir("derived-panel"), flat_project(3, 3, true));
+    ws.grid.room_settings_open = true;
     ws.last_viewport_size = Vec2::new(1200.0, 700.0);
     let legacy = text_of(&draw_editor(&mut ws, &ctx, true));
     assert!(legacy.contains("authored (legacy)"), "{legacy}");

@@ -453,7 +453,7 @@ impl EditorWorkspace {
                     .find(|w| !w.hidden)
             })
             .ok_or("no derived wall there")?;
-        let face = FaceRef::derived(room, at, edge, wall.kind);
+        let face = FaceRef::of_derived(room, &wall);
         let (span, _) = wall_spans(world, face).ok_or("no wall span")?;
         let u = (span.u[0] + span.u[1]) / 2;
         let _ = (position_on_wall, band_at);
@@ -573,11 +573,7 @@ impl EditorWorkspace {
                                 picked.extend(
                                     psxed_project::grid::derive::cell_walls(r, c)
                                         .into_iter()
-                                        .map(|w| {
-                                            GridElement::Face(FaceRef::derived(
-                                                room, c, w.edge, w.kind,
-                                            ))
-                                        }),
+                                        .map(|w| GridElement::Face(FaceRef::of_derived(room, &w))),
                                 );
                             }
                         }

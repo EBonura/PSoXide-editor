@@ -10,24 +10,41 @@ use psxed_project::grid::edit::{
 use psxed_project::grid::surface::WallFacing;
 use psxed_project::grid::GridSplit;
 
-const SWATCH: f32 = 44.0;
-
 impl EditorWorkspace {
-    /// Palette, then the properties of the selected faces.
-    pub(crate) fn draw_grid_panels(&mut self, ui: &mut egui::Ui) {
+    /// Palette, then the properties of what the grid tools have picked.
+    /// Returns whether a grid selection (faces, a plane, a mesh or a level
+    /// verb) owns the rest of the Inspector: the World settings do not
+    /// follow it. With nothing picked the node and World inspectors come
+    /// after the palette, as before.
+    pub(crate) fn draw_grid_panels(&mut self, ui: &mut egui::Ui) -> bool {
         self.draw_grid_palette(ui);
         ui.add_space(6.0);
-        if self.plane_primary().is_some() {
+        let picked_faces = self
+            .project
+            .active_scene()
+            .world
+            .grid()
+            .is_some_and(|w| !self.grid.selection.faces(w).is_empty());
+        let node_selected = self.selection.selected_node != NodeId::ROOT
+            || !self.selection.selected_nodes.is_empty();
+        let owns = if self.plane_primary().is_some() {
             self.draw_plane_inspector(ui);
+            true
         } else if self.grid.tool == GridTool::Mesh || self.mesh_primary().is_some() {
             self.draw_mesh_panels(ui);
+            true
         } else if self.grid.tool.is_verb() {
             self.draw_verb_inspector(ui);
-        } else {
+            true
+        } else if picked_faces || !node_selected {
             self.draw_grid_face_inspector(ui);
-        }
+            picked_faces
+        } else {
+            false
+        };
         ui.add_space(8.0);
         ui.separator();
+        owns
     }
 
     /// Apply the palette material to every selected face.
@@ -79,113 +96,6 @@ impl EditorWorkspace {
             self.grid_changed();
         }
         changed
-    }
-
-    fn draw_grid_palette(&mut self, ui: &mut egui::Ui) {
-        self.refresh_texture_thumbs(ui.ctx());
-        let materials =
-            psxed_project::grid::palette::palette_materials(&self.project, self.grid.palette_all);
-        egui::CollapsingHeader::new(RichText::new("Materials").strong())
-            .default_open(true)
-            .show(ui, |ui| {
-                ui.checkbox(&mut self.grid.palette_all, "Show all project materials")
-                    .on_hover_text(
-                        "Off: only wall, floor and ceiling images. On: also HUD, menu, sky and character images.",
-                    );
-                if materials.is_empty() {
-                    ui.label(RichText::new("No materials in this project").color(STUDIO_TEXT_WEAK));
-                    return;
-                }
-                let scroll_to = self.grid.palette_scroll_to.take();
-                egui::ScrollArea::vertical()
-                    .id_salt("grid_palette_scroll")
-                    .max_height(236.0)
-                    .auto_shrink([false, true])
-                    .show(ui, |ui| {
-                        ui.horizontal_wrapped(|ui| {
-                            ui.spacing_mut().item_spacing = Vec2::splat(4.0);
-                            for (id, name) in &materials {
-                                let selected = self.grid.material == Some(*id);
-                                let response = self.draw_swatch(ui, *id, name, selected);
-                                if scroll_to == Some(*id) {
-                                    response.scroll_to_me(Some(egui::Align::Center));
-                                }
-                                if response.clicked() {
-                                    self.grid.material = Some(*id);
-                                    let applied = self.apply_grid_material_to_selection(*id);
-                                    self.status = if applied > 0 {
-                                        format!("Applied {name} to {applied} faces")
-                                    } else {
-                                        format!("Material: {name}")
-                                    };
-                                }
-                            }
-                        });
-                    });
-            });
-    }
-
-    fn draw_swatch(
-        &self,
-        ui: &mut egui::Ui,
-        id: ResourceId,
-        name: &str,
-        selected: bool,
-    ) -> egui::Response {
-        let (rect, response) = ui.allocate_exact_size(Vec2::splat(SWATCH), egui::Sense::click());
-        let thumb = self.texture_thumbs.get(&id);
-        let painter = ui.painter_at(rect);
-        match thumb {
-            Some(entry) => {
-                painter.image(
-                    entry.handle.id(),
-                    rect.shrink(1.0),
-                    Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
-                    Color32::WHITE,
-                );
-            }
-            None => {
-                painter.rect_filled(rect, 2.0, Color32::from_rgb(52, 56, 66));
-                painter.text(
-                    rect.center(),
-                    Align2::CENTER_CENTER,
-                    name.chars().next().unwrap_or('?').to_string(),
-                    FontId::proportional(16.0),
-                    STUDIO_TEXT_WEAK,
-                );
-            }
-        }
-        // A small badge when the material carries its own grid tiling.
-        if let Some(psxed_project::ResourceData::Material(m)) =
-            self.project.resource(id).map(|r| &r.data)
-        {
-            if !m.grid_uv.is_inherit() {
-                let label = match m.grid_uv {
-                    psxed_project::face_uv::UvMode::Fit { repeats_q4 } => format!(
-                        "{}x{}",
-                        repeats_q4[0] as f32 / 16.0,
-                        repeats_q4[1] as f32 / 16.0
-                    ),
-                    _ => "W".to_string(),
-                };
-                painter.text(
-                    rect.right_bottom() - Vec2::new(3.0, 2.0),
-                    Align2::RIGHT_BOTTOM,
-                    label,
-                    FontId::proportional(9.5),
-                    Color32::from_rgb(255, 214, 120),
-                );
-            }
-        }
-        let stroke = if selected {
-            Stroke::new(2.5, STUDIO_ACCENT)
-        } else if response.hovered() {
-            Stroke::new(1.5, Color32::from_rgb(200, 200, 210))
-        } else {
-            Stroke::new(1.0, STUDIO_BORDER)
-        };
-        painter.rect_stroke(rect, 2.0, stroke, StrokeKind::Inside);
-        response.on_hover_text(name)
     }
 
     fn draw_grid_face_inspector(&mut self, ui: &mut egui::Ui) {
@@ -273,10 +183,17 @@ impl EditorWorkspace {
                     primary.cell()[0],
                     primary.cell()[1]
                 ),
-                FaceTarget::Derived { edge, kind, .. } => format!(
-                    "{} {} (derived) at {},{}",
+                FaceTarget::Derived {
+                    edge, kind, span, ..
+                } => format!(
+                    "{} {} (derived{}) at {},{}",
                     edge.label(),
                     kind.label(),
+                    if span > 0 {
+                        format!(", floor {}", span + 1)
+                    } else {
+                        String::new()
+                    },
                     primary.cell()[0],
                     primary.cell()[1]
                 ),

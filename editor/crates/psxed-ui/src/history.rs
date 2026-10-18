@@ -58,6 +58,16 @@ impl UndoStack {
         true
     }
 
+    /// Whether there is a step to undo.
+    pub(crate) fn can_undo(&self) -> bool {
+        self.cursor > 0
+    }
+
+    /// Whether there is a step to redo.
+    pub(crate) fn can_redo(&self) -> bool {
+        self.cursor < self.timeline.len()
+    }
+
     /// Drop all undo / redo entries. Used after filesystem-backed
     /// operations because snapshots only capture project metadata,
     /// not file moves that have already happened on disk.

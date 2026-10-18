@@ -76,17 +76,26 @@ fn height_under(
     Some(heights.iter().sum::<i32>() / 4)
 }
 
+/// The height the next rectangle is made at: pointing at an existing surface
+/// of the same kind in the 3D view continues at its level, so extending a
+/// platform or a ceiling stays on it; otherwise the tool's own height. The
+/// second value says whether the surface under the pointer was taken.
+fn aimed_height(
+    ws: &EditorWorkspace,
+    ptr: &GridPointer,
+    kind: SurfaceKind,
+    room: usize,
+) -> (i32, bool) {
+    match height_under(ws, ptr, kind, room) {
+        Some(height) => (height, true),
+        None => (default_height(ws, kind), false),
+    }
+}
+
 pub(super) fn hover(ws: &mut EditorWorkspace, ptr: &GridPointer, kind: SurfaceKind) {
     let (room, y_offset) = room_offset(ws);
-    // Pointing at an existing surface of the same kind adopts its height, so
-    // extending a platform or a ceiling continues at the same level.
-    if let Some(height) = height_under(ws, ptr, kind, room) {
-        match kind {
-            SurfaceKind::Floor => ws.grid.floor_height = height,
-            SurfaceKind::Ceiling => ws.grid.ceiling_height = height,
-        }
-    }
-    let height = default_height(ws, kind);
+    // The ghost shows where a press would land; hovering changes no setting.
+    let (height, _) = aimed_height(ws, ptr, kind, room);
     let level = ws.grid.cell_size.level();
     ws.grid.hover = match cell_under(ws, ptr, y_offset, height, level) {
         Some(cell) => GridHover::Cell { room, cell, height },
@@ -96,7 +105,16 @@ pub(super) fn hover(ws: &mut EditorWorkspace, ptr: &GridPointer, kind: SurfaceKi
 
 pub(super) fn press(ws: &mut EditorWorkspace, ptr: &GridPointer, kind: SurfaceKind) {
     let (room, y_offset) = room_offset(ws);
-    let height = default_height(ws, kind);
+    let ptr_at_press = ptr.at_press();
+    let (height, adopted) = aimed_height(ws, &ptr_at_press, kind, room);
+    if adopted {
+        // Taking the level of the surface under the pointer is a change to
+        // the tool's height, so it happens on the press, not on a hover.
+        match kind {
+            SurfaceKind::Floor => ws.grid.floor_height = height,
+            SurfaceKind::Ceiling => ws.grid.ceiling_height = height,
+        }
+    }
     let level = ws.grid.cell_size.level();
     let Some(cell) = cell_under(ws, &ptr.at_press(), y_offset, height, level) else {
         return;

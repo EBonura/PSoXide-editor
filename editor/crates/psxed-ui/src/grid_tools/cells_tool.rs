@@ -119,6 +119,8 @@ pub(crate) struct CellsStroke {
     fresh: BTreeSet<LeafKey>,
     changed: usize,
     refused: Option<MergeBlock>,
+    /// Cells the stroke would have divided that hold several storeys.
+    storeys: usize,
 }
 
 /// The room and click under the pointer.
@@ -185,6 +187,7 @@ pub(super) fn press(ws: &mut EditorWorkspace, ptr: &GridPointer) {
         fresh: BTreeSet::new(),
         changed: 0,
         refused: None,
+        storeys: 0,
     };
     ws.grid.gesture = Gesture::Cells(Box::new(stroke));
     drag(ws, &ptr.at_press());
@@ -220,8 +223,10 @@ fn act(ws: &mut EditorWorkspace, stroke: &mut CellsStroke, room: usize, click: [
                     }
                     let at = [click[0] + dx, click[1] + dz];
                     let before = r.leaf_count();
-                    if tree::subdivide_to(r, at, level).is_ok() {
-                        did += usize::from(r.leaf_count() != before);
+                    match tree::subdivide_to(r, at, level) {
+                        Ok(_) => did += usize::from(r.leaf_count() != before),
+                        Err(tree::SubdivideBlock::Storeys) => stroke.storeys += 1,
+                        Err(_) => {}
                     }
                 }
             }
@@ -243,9 +248,15 @@ fn act(ws: &mut EditorWorkspace, stroke: &mut CellsStroke, room: usize, click: [
                         }
                         Err(block) => stroke.refused = Some(block),
                     }
-                } else if let Ok(children) = tree::subdivide(r, key) {
-                    stroke.fresh.extend(children);
-                    did += 1;
+                } else {
+                    match tree::subdivide(r, key) {
+                        Ok(children) => {
+                            stroke.fresh.extend(children);
+                            did += 1;
+                        }
+                        Err(tree::SubdivideBlock::Storeys) => stroke.storeys += 1,
+                        Err(_) => {}
+                    }
                 }
             }
         }
@@ -275,6 +286,11 @@ pub(super) fn release(ws: &mut EditorWorkspace) {
         );
     } else if let Some(block) = stroke.refused {
         ws.status = format!("Cannot merge: {}", block.describe());
+    } else if stroke.storeys > 0 {
+        ws.status = format!(
+            "Cannot subdivide: {}",
+            tree::SubdivideBlock::Storeys.describe()
+        );
     } else if stroke.merge {
         ws.status = "Nothing to merge there".to_string();
     } else {

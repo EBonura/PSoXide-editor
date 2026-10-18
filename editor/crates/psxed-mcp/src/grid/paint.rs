@@ -97,7 +97,7 @@ pub fn select_faces(
             for wall in derive::cell_walls(r, cell) {
                 let anchor = if by_host { wall.host } else { wall.owner };
                 if rect.contains(anchor) && edge.is_none_or(|w| w == wall.edge) {
-                    out.insert(FaceRef::derived(room, wall.host, wall.edge, wall.kind));
+                    out.insert(FaceRef::of_derived(room, &wall));
                 }
             }
         }

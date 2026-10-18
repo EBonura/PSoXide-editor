@@ -41,6 +41,8 @@ mod keys;
 mod lasso;
 mod leaf_overlay;
 mod level;
+pub(crate) mod levels_panel;
+mod materials_panel;
 mod mesh_overlay;
 mod mesh_panel;
 mod mesh_tool;
@@ -366,6 +368,55 @@ impl GridTool {
     }
 }
 
+/// What the centre of a grid world shows: the 3D picture, the plan (the Top
+/// view) or both side by side.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum GridViewMode {
+    /// The 3D view.
+    Persp,
+    /// The plan, the Top orthographic view.
+    Plan,
+    /// The plan beside the 3D view.
+    Split,
+}
+
+impl GridViewMode {
+    pub(crate) const ALL: [Self; 3] = [Self::Persp, Self::Plan, Self::Split];
+
+    pub(crate) const fn label(self) -> &'static str {
+        match self {
+            Self::Persp => "3D",
+            Self::Plan => "Plan",
+            Self::Split => "Split",
+        }
+    }
+
+    pub(crate) const fn icon(self) -> char {
+        match self {
+            Self::Persp => icons::BOX,
+            Self::Plan => icons::MAP,
+            Self::Split => icons::COLUMNS,
+        }
+    }
+
+    pub(crate) const fn tooltip(self) -> &'static str {
+        match self {
+            Self::Persp => "The 3D view: the PS1 picture of the level",
+            Self::Plan => "The plan: the world from above, every room and level",
+            Self::Split => "The plan and the 3D view side by side; a tool works in either",
+        }
+    }
+
+    /// The next mode (Ctrl/Cmd+9).
+    pub(crate) const fn next(self) -> Self {
+        match self {
+            Self::Persp => Self::Plan,
+            Self::Plan => Self::Split,
+            Self::Split => Self::Persp,
+        }
+    }
+}
+
 /// Direction of the next wall: the edge nearest the pointer, or a fixed one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum WallDirection {
@@ -624,6 +675,16 @@ pub(crate) struct GridEditState {
     pub help_open: bool,
     /// The palette lists every project material, not only world surfaces.
     pub palette_all: bool,
+    /// The Rooms panel's settings section is open (closed to give the scene
+    /// graph the room).
+    pub room_settings_open: bool,
+    /// The plan and the 3D view are both shown (see [`GridViewMode`]).
+    pub split: bool,
+    /// The search box of the Materials panel.
+    pub palette_search: String,
+    /// The material ids that existed when the palette opened the Import
+    /// dialog: what is new when it closes joins the palette.
+    pub palette_import_watch: Option<Vec<ResourceId>>,
     /// The room whose name is being edited in the Rooms panel.
     pub renaming_room: Option<usize>,
 }
@@ -674,6 +735,10 @@ impl Default for GridEditState {
             hover_pinned: false,
             help_open: false,
             palette_all: false,
+            split: false,
+            room_settings_open: false,
+            palette_search: String::new(),
+            palette_import_watch: None,
             renaming_room: None,
         }
     }

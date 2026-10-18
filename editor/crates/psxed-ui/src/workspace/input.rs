@@ -1,4 +1,5 @@
 use super::*;
+use crate::grid_tools::GridViewMode;
 
 impl EditorWorkspace {
     /// Build the camera ray in world units for the given pointer
@@ -360,14 +361,57 @@ impl EditorWorkspace {
     }
 
     pub(crate) fn cycle_view_dimension_group(&mut self, reverse: bool) {
-        // Two views: 3D and the Top plan. The direction does not matter.
+        // 3D, the Top plan and, in a grid world, both. The direction does not
+        // matter.
         let _ = reverse;
+        if self.is_grid_world() && self.active_workspace == WorkspaceView::Room {
+            self.set_grid_view_mode(self.grid_view_mode().next());
+            return;
+        }
         if self.view_2d {
             self.view_2d = false;
             self.status = "Viewport: 3D".to_string();
         } else {
             self.set_orthographic_view(OrthographicView::Top);
         }
+        self.mark_shortcut_group_changed(ShortcutGroup::Viewport);
+    }
+
+    /// What the centre of a grid world shows now.
+    pub(crate) fn grid_view_mode(&self) -> GridViewMode {
+        if self.grid.split {
+            GridViewMode::Split
+        } else if self.view_2d {
+            GridViewMode::Plan
+        } else {
+            GridViewMode::Persp
+        }
+    }
+
+    /// Show the 3D view, the plan or both.
+    pub(crate) fn set_grid_view_mode(&mut self, mode: GridViewMode) {
+        if self.grid_view_mode() == mode {
+            return;
+        }
+        self.active_workspace = WorkspaceView::Room;
+        match mode {
+            GridViewMode::Persp => {
+                self.grid.split = false;
+                self.view_2d = false;
+            }
+            GridViewMode::Plan => {
+                self.grid.split = false;
+                self.set_orthographic_view(OrthographicView::Top);
+            }
+            GridViewMode::Split => {
+                self.grid.split = true;
+                self.view_2d = false;
+                self.orthographic_view = OrthographicView::Top;
+                // The plan frames itself to its half of the pane.
+                self.grid.fit_pending = true;
+            }
+        }
+        self.status = format!("View: {}", mode.label());
         self.mark_shortcut_group_changed(ShortcutGroup::Viewport);
     }
 
@@ -703,6 +747,7 @@ impl EditorWorkspace {
                     ui.add_space(6.0);
                     self.draw_main_menus(ctx, ui, playtest_status);
                     ui.add_space(4.0);
+                    self.draw_undo_redo_buttons(ui);
                     ui.add_space(8.0);
                     self.draw_build_play_controls(ui, playtest_status, play_metrics);
                     let remaining = ui.available_width();
@@ -830,6 +875,27 @@ impl EditorWorkspace {
             .clone()
     }
 
+    /// Undo and Redo next to the menus: the keys are the only way to reach
+    /// them in a tool that is all pointer work.
+    pub(crate) fn draw_undo_redo_buttons(&mut self, ui: &mut egui::Ui) {
+        let can_undo = self.history.can_undo();
+        let can_redo = self.history.can_redo();
+        if ui
+            .add_enabled(can_undo, egui::Button::new(icons::text(icons::UNDO, 15.0)))
+            .on_hover_text(format!("Undo ({})", command_shortcut_text("Z")))
+            .clicked()
+        {
+            self.do_undo();
+        }
+        if ui
+            .add_enabled(can_redo, egui::Button::new(icons::text(icons::REDO, 15.0)))
+            .on_hover_text(format!("Redo ({})", command_shift_shortcut_text("Z")))
+            .clicked()
+        {
+            self.do_redo();
+        }
+    }
+
     pub(crate) fn draw_main_menus(
         &mut self,
         ctx: &egui::Context,
@@ -885,6 +951,27 @@ impl EditorWorkspace {
             }
         });
         ui.menu_button("Edit", |ui| {
+            if ui
+                .add_enabled(
+                    self.history.can_undo(),
+                    egui::Button::new(menu_label("Undo", &command_shortcut_text("Z"))),
+                )
+                .clicked()
+            {
+                self.do_undo();
+                ui.close_menu();
+            }
+            if ui
+                .add_enabled(
+                    self.history.can_redo(),
+                    egui::Button::new(menu_label("Redo", &command_shift_shortcut_text("Z"))),
+                )
+                .clicked()
+            {
+                self.do_redo();
+                ui.close_menu();
+            }
+            ui.separator();
             let can_node_delete = self.selection.selected_node != NodeId::ROOT;
             if ui
                 .button(menu_label(
@@ -907,7 +994,7 @@ impl EditorWorkspace {
         });
         ui.menu_button("View", |ui| {
             if ui
-                .checkbox(&mut self.left_dock_open, "World and files")
+                .checkbox(&mut self.left_dock_open, "Levels, rooms and scene")
                 .clicked()
             {
                 ui.close_menu();
@@ -923,12 +1010,25 @@ impl EditorWorkspace {
                 self.frame_viewport();
                 ui.close_menu();
             }
+            if self.is_grid_world() {
+                ui.separator();
+                for mode in GridViewMode::ALL {
+                    if ui
+                        .radio(self.grid_view_mode() == mode, mode.label())
+                        .on_hover_text(mode.tooltip())
+                        .clicked()
+                    {
+                        self.set_grid_view_mode(mode);
+                        ui.close_menu();
+                    }
+                }
+            }
             ui.separator();
-            if ui.button("3D Workspace").clicked() {
+            if ui.button("World").clicked() {
                 self.active_workspace = WorkspaceView::Room;
                 ui.close_menu();
             }
-            if ui.button("UI Workspace").clicked() {
+            if ui.button("HUD").clicked() {
                 self.active_workspace = WorkspaceView::Ui;
                 ui.close_menu();
             }
@@ -967,6 +1067,17 @@ impl EditorWorkspace {
             ui.label(RichText::new("PSoXide Editor").strong());
             ui.weak("Build cooks assets and compiles the PS1 runtime.");
             ui.weak("Play builds and runs inside the viewport.");
+            if self.is_grid_world() {
+                ui.separator();
+                if ui
+                    .button(icons::label(icons::KEYBOARD, "Keys and gestures (?)"))
+                    .on_hover_text("Every tool key and gesture of the grid tools")
+                    .clicked()
+                {
+                    self.grid.help_open = true;
+                    ui.close_menu();
+                }
+            }
         });
     }
 

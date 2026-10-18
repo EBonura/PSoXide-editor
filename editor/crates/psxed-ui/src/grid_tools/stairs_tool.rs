@@ -61,21 +61,21 @@ pub(super) fn begin(
     ptr: &GridPointer,
     room: usize,
     cell: [i32; 2],
-) -> bool {
+) -> super::verb_tool::Begin {
     let Some(region) = ws.grid.verb.region.clone() else {
         ws.status = "Click the waypoints of the flight with Path, then press Enter".to_string();
-        return false;
+        return super::verb_tool::Begin::Refused;
     };
     let focus = match super::verb_tool::region_focus(ws, &region) {
         Ok(focus) => focus,
         Err(why) => {
             ws.status = why;
-            return false;
+            return super::verb_tool::Begin::Refused;
         }
     };
     let Some(drag) = ws.with_focused_world(&focus, |ws| drag_for(ws)) else {
         ws.status = "Click the waypoints of the flight with Path, then press Enter".to_string();
-        return false;
+        return super::verb_tool::Begin::Refused;
     };
     let ppu = super::verb_tool::drag_rate(ws, ptr, room, cell, 0);
     ws.grid.gesture = Gesture::Verb(Box::new(VerbGesture {
@@ -87,7 +87,7 @@ pub(super) fn begin(
         max_rise: None,
         focus,
     }));
-    true
+    super::verb_tool::Begin::Started
 }
 
 /// Tab: steps and ramp, live when a drag is in flight.
