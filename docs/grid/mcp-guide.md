@@ -50,6 +50,8 @@ The world's scale turns grid units into **editor units**: 5/4 for a new project,
 | `grid_walkability` | The walkability overlay as text, with the motor's numbers: too steep, low headroom, steps taller than the body climbs, drops, ghost floors and floors no player spawn reaches, a map and the flagged edges. |
 | `grid_heatmap` | The performance heatmap as text: a labelled MODEL of world render cost per spot against the 30 fps budget, percentiles, a map in tenths of the budget, the hottest spots. `playtest` telemetry is the measurement. |
 | `grid_leaves` | The cells of a room (4 sectors across down to a quarter): counts by size, whether the tree is sound, and a map with one character per click giving each cell's level. `grid_sector` lists the cells of a sector made of finer ones, `grid_heights` marks such a sector with `%`. |
+| `grid_storeys` | The storeys: floor heights that eight or more leaves share, in clicks, with the spans per leaf in each room. Derived, never stored. |
+| `grid_column` | One sector's column: each span's floor and ceiling in clicks, the solid between spans, the derived walls the cell hosts with kind, edge and owner. |
 | `grid_plan` | A top-down PNG: heights as colour, wall lines by kind, numbered rooms, plane footprints, numbered node markers, axes in sector coordinates. The picture for layout. |
 
 **ACT**. Every tool stages in memory and reports numbers (what changed, what snapped, what it skipped). An edit that introduces validation findings says so in its reply.
@@ -66,6 +68,7 @@ The world's scale turns grid units into **editor units**: 5/4 for a new project,
 | Bands | `grid_band_cut`, `grid_band_move`, `grid_band_delete`, `grid_band_set` (material, tiling and V per band; scope `run` or `room`) |
 | Planes | `grid_add_plane` (by centre, by the midpoints of its two ends, by `facing` and `lean_deg` or by a `normal`), `grid_set_plane`, `grid_delete_plane` |
 | Meshes | `grid_arch_span` (an arch between two floor points), `grid_place_mesh` (an asset or a recipe: arch, column, rubble, or an OBJ file), `grid_set_mesh` (move, turn, scale, retexture, or change the asset's recipe for every copy), `grid_delete_mesh` |
+| Storeys | `grid_insert_slab` (a slab at `y` over rectangles: splits the span it passes through, or raises a floor that would leave a sliver), `grid_fill_hole` (the same over a column open through `y`), `grid_cut_hole` (remove the slab at `y`, or every slab at or above it with `which: "all_above"`), `grid_shift_above` (move every surface and authored wall corner at or above `y` by `delta`, over rectangles or the room) |
 | Nodes | `place_node`, `set_node`, `move_node`, `delete_node`, `add_light`, `lights`, `get_node`, `entity_types` |
 | Safety | `checkpoint`, `restore`, `checkpoints`, `save`, `revert`, `undo_last_edit`, `list_backups` |
 
@@ -105,6 +108,22 @@ A mesh is not grid geometry. An **asset** is a recipe (or imported OBJ geometry)
 * **`grid_set_mesh`** by stable `id`: position, rotation, scale, materials, `collide`, `fullbright`, `enabled`, another asset, or `asset_recipe` to change the numbers of the asset in place so every copy follows. **`grid_delete_mesh`** removes by id; other ids never change.
 * **Collision.** Piers and columns block (a box; exact at any yaw), the arch's top pieces are surfaces to stand on (the crown holds the player at its extrados), the haunches block as boxes and the cook warns once that this over-blocks the space under them. `collide: false` makes a mesh decoration.
 * **Perch.** An arch with `perch` (the default) has a hook socket just under the crown. The cook spawns a hook point there, and the player can hang from it: Triangle for the ranged stance, hold L2, pitch the camera so the crown is at the reticle, press R2; Circle lets go. `playtest` with `track_player` reports `arch:attached` and `arch:drop`. The perch needs a ceiling clear of the arch's top, the body path under the crown clear, and the crown within 1,600 runtime units.
+
+## Storeys: floors stacked in one column
+
+A cell can hold several **spans**, each an open volume with its own floor and ceiling, one above another. Every level made before storeys has one span per cell and nothing changes for it. The storey verbs make the rest. A storey is what the floors of a world share: `grid_storeys` lists them, and nothing has to be declared first.
+
+* `grid_insert_slab` with `rects`, `y` (the walking surface, grid units relative to the room) and optionally `thickness` (default one click, 256) and `material`. A span that holds `y` is split: the span below keeps its floor and gets the slab's underside as its ceiling, the span above takes the new floor and the old ceiling. If the span below would keep less than three clicks, it is a sliver and its floor rises to `y` instead.
+* `grid_cut_hole` removes the slab whose floor is at `y` (`which: "one"`, the default) or every slab at or above `y` (`"all_above"`). The span above merges into the span below, so a stairwell opens. `grid_fill_hole` is the inverse: the same as `grid_insert_slab` over a column open through `y`.
+* `grid_shift_above` moves everything at or above `y` by `delta`, over `rects` or the whole room (`make this storey taller`). Surfaces that cross `y` stretch. It is refused, with nothing changed, if a column would overlap itself.
+* Cells are skipped and counted, never silently: no span at that height, a sloped surface crossing it, less than three clicks of headroom, the eight-span cap, or no slab there. Each reply says how many of each.
+* `grid_column` reads a cell back: every span with its floor and ceiling in clicks (a range when sloped), the solid between spans, and the derived walls the cell hosts. The derived walls of a slab edge (where a slab meets a taller neighbour) have kind `slab`.
+
+Heights are grid units relative to the room, as everywhere; replies print clicks (256 grid units). Rectangles are four world sector numbers `[x0, z0, x1, z1]`, inclusive. The storey verbs act on whole-sector cells: a room with fine cells refuses them.
+
+**Surface verbs on a multi-span cell refuse.** `grid_add_surface`, `grid_remove_surface`, `grid_set_heights`, `grid_raise` and `grid_ramp` edit the ground span only. On a cell with more than one span they refuse, naming the cell, rather than guess which floor you mean. Read it with `grid_column` and use the storey verbs. A `y` parameter that picks a span for these verbs is not built yet, and `grid_stairs` and the paint and wall tools do not check for spans yet.
+
+Not built in this phase: the `storey` name parameter (named storeys and their marks), editing a span other than the ground span with the surface verbs, moving nodes with `grid_shift_above`, and spans in rooms with fine cells (they refuse at the cook).
 
 ## Natural terrain: caves, canyons, rock
 

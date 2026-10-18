@@ -15,6 +15,7 @@ mod nodes;
 mod planes;
 mod project;
 mod query;
+mod storeys;
 mod surfaces;
 mod verbs;
 mod verify;
@@ -55,6 +56,7 @@ impl EditorServer {
             + Self::surfaces_router()
             + Self::bands_router()
             + Self::cells_router()
+            + Self::storeys_router()
             + Self::planes_router()
             + Self::meshes_router()
             + Self::verbs_router()

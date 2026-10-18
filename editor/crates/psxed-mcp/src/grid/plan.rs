@@ -329,6 +329,7 @@ fn edge_colour(kind: DerivedKind, hidden: bool, ghost: bool) -> Rgb {
         DerivedKind::Closure => [235, 235, 245],
         DerivedKind::Riser => [140, 210, 255],
         DerivedKind::Drop => [200, 140, 255],
+        DerivedKind::Slab => [255, 170, 110],
     }
 }
 

@@ -89,6 +89,7 @@ pub fn add_surface(
     let room = pick_room(world, req.room)?;
     let rect = req.cells.rect();
     check_rect(&rect)?;
+    super::storeys::refuse_several_spans(world, room, rect)?;
     let (height, note) = req.snap.unwrap_or_default().apply(req.height);
     let material = mats.resolve_opt(req.material.as_deref())?;
     let level = cell_level(&req.size)?;
@@ -165,6 +166,7 @@ pub fn remove_surface(world: &mut GridWorld, req: &RemoveSurfaceReq) -> Result<S
     let room = pick_room(world, req.room)?;
     let rect = req.cells.rect();
     check_rect(&rect)?;
+    super::storeys::refuse_several_spans(world, room, rect)?;
     let level = cell_level(&req.size)?;
     let outcome = if level != 2 {
         psxed_project::grid::edit::delete_surfaces_cells(
@@ -260,6 +262,7 @@ pub fn set_heights(world: &mut GridWorld, req: &SetHeightsReq) -> Result<String,
     let room = pick_room(world, req.room)?;
     let rect = req.cells.rect();
     check_rect(&rect)?;
+    super::storeys::refuse_several_spans(world, room, rect)?;
     let corners = corner_indices(req)?;
     let layer = req.layer.unwrap_or(0);
     let snap = req.snap.unwrap_or_default();

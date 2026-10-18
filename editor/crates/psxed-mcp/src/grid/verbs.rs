@@ -111,6 +111,7 @@ pub fn raise(
     }
     let rect = req.cells.rect();
     check_rect(&rect)?;
+    super::storeys::refuse_several_spans(world, room, rect)?;
     let level = size_level(&req.size)?;
     let region = Region::from_rect(room, rect).at_level(level);
     if level != 2 {
@@ -289,6 +290,7 @@ pub fn ramp(
     let room = pick_room(world, req.room)?;
     let rect = req.cells.rect();
     check_rect(&rect)?;
+    super::storeys::refuse_several_spans(world, room, rect)?;
     let level = size_level(&req.size)?;
     let region = Region::from_rect(room, rect).at_level(level);
     let params = RampParams {

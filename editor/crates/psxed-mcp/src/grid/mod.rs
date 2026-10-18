@@ -26,6 +26,7 @@ pub mod planes;
 pub mod read;
 pub mod rock;
 pub mod rooms;
+pub mod storeys;
 pub mod verbs;
 pub mod walls;
 

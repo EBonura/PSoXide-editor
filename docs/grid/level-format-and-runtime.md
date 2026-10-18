@@ -861,6 +861,19 @@ Header 32 B to 52 B; the Cathedral core goes from 120 B to the size printed in t
 
 
 
+### 9.4e Extra spans in a room chunk: no version bump (2026-10-18)
+
+A column of several spans (`docs/grid/multi-storey.md`) keeps its ground span in the record the room always had (`SECTORS`, cell order or leaf id). Its spans above the ground one are `Sector` records of their own, and the room says where they are with one flag and one block, so a room without extra spans keeps its bytes and the version stays 4.
+
+* **`ROOM_SPANS`** (room flag bit 5, also set in the core's `RoomRecord.flags`) says the chunk carries the span block. Only rooms with a column of several spans set it.
+* **Location.** With `ROOM_SPANS`, `RoomHeader.tree_ext` locates a `TreeExt` (20 B, as for a leaf tree; a dense room's sections are empty) and the `SpanExt` (28 B) follows it at `tree_ext + 20`.
+* **`SpanExt`**: `layout` (its own hash, `SPAN_LAYOUT_HASH`), `index` (u16 per record: an index into `runs`, or `NO_SPAN` 0xFFFF), `runs` (`SpanRun { first u16, count u16 }` per record with extra spans, 4 B), `spans` (`Sector`, 20 B, the extra spans bottom to top within a run).
+* **Reading.** `CollisionView::extra_spans(record)` returns a record's extra spans. The collision offers the floor and ceiling slabs of every span of a column; a room with extra spans never takes the `SECTOR_CLEAR` shortcut, and the ground record of a multi-span column keeps its walls (`ext`). The leaf frame of a tree room's extra span carries the leaf's size code in its flags, as the ground record does.
+* **Cost.** Per record in a room with spans 2 B of index, per multi-span column 4 B of run, per extra span 20 B. A single-span record costs nothing beyond the index, and the index exists only in such rooms.
+* **Not cooked yet.** A split-level surface above the ground span, and any column of several spans in a room with leaves of several sizes (the cook refuses both with the room and cell named).
+
+The cook writes the block from `psx_grid::write::SpanTables`; the reader and the collision are in `psx-grid` (`view.rs`, `collision/`), with the round trip in `format_tests.rs` and the collision checks in `collision/tests/spans.rs`.
+
 ### 9.4d Static meshes: no format change (2026-10-17)
 
 Placed meshes (`docs/grid/meshes.md`) add nothing to `PGL` or `PGRM`. The cook writes an instance's faces as one run of quads flagged `QUAD_PLANE` with one `PlaneRef` (the same record a free plane gets), its collision proxies as `ColPlane` records after the room's planes (ids continue from the plane count, `u8`), and its hook socket as an `EntityRecord`. Version stays 4. Two things moved in the entity record's reserved `flags`: `entity_flags::HOOK_SWAY` (the prototype sideways-moving perches, previously picked by slot number) and `HOOK_BARE` (a socket hook: no floating ruin drawn).
