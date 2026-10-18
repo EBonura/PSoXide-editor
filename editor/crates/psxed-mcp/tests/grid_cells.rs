@@ -385,7 +385,11 @@ fn build_the_natural_cells_demo() {
         )
         .text
     );
-    println!("{}", c.ok("grid_leaves", json!({"from": [10, 10], "to": [11, 11]})).text);
+    println!(
+        "{}",
+        c.ok("grid_leaves", json!({"from": [10, 10], "to": [11, 11]}))
+            .text
+    );
     c.ok("delete_node", json!({"node": "Starter Light"}));
     c.ok("add_light", json!({"name": "Hall lamp", "position": [11000, 2200, 11000], "radius": 7000, "color": [255, 226, 190], "intensity": 0.6}));
     c.ok("add_light", json!({"name": "Corner lamp", "position": [14200, 1500, 14200], "radius": 4000, "color": [255, 200, 150], "intensity": 0.5}));

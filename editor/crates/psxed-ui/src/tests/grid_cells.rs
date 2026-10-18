@@ -113,7 +113,12 @@ fn the_rectangle_tools_leave_cells_that_are_not_sectors_alone_without_panicking(
     rig.tool(GridTool::Cells);
     rig.click(rig.cell_centre(2, 2));
     let before = rig.ws.project.clone();
-    for tool in [GridTool::Floor, GridTool::Ceiling, GridTool::Wall, GridTool::Paint] {
+    for tool in [
+        GridTool::Floor,
+        GridTool::Ceiling,
+        GridTool::Wall,
+        GridTool::Paint,
+    ] {
         rig.tool(tool);
         rig.drag(rig.cell_centre(1, 2), rig.cell_centre(3, 2));
     }

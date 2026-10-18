@@ -8,6 +8,7 @@
 
 use std::fmt::Write as _;
 
+use psxed_project::grid::edit::verbs::fine::{run_fine, FineDrag, FineReport, FineVerb};
 use psxed_project::grid::edit::verbs::raise::{
     default_mode, height_under, raise_region, RaiseMode, RaiseParams,
 };
@@ -15,7 +16,6 @@ use psxed_project::grid::edit::verbs::ramp::{RampDir, RampDrag, RampParams};
 use psxed_project::grid::edit::verbs::stairs::{RiserOption, StairsDrag, StairsParams};
 use psxed_project::grid::edit::Region;
 use psxed_project::grid::heat::{heatmap, HeatOptions};
-use psxed_project::grid::edit::verbs::fine::{run_fine, FineDrag, FineReport, FineVerb};
 use psxed_project::grid::units::{snap_to, CLICK_UNITS, FINE_UNITS};
 use psxed_project::grid::walk::{self, analyse, EdgeKind, WalkLimits};
 use psxed_project::grid::GridWorld;
@@ -48,7 +48,9 @@ fn size_level(size: &Option<String>) -> Result<u8, String> {
         None | Some("sector") => Ok(2),
         Some("half") => Ok(3),
         Some("quarter") => Ok(4),
-        Some(other) => Err(format!("unknown size {other:?}; use sector, half or quarter")),
+        Some(other) => Err(format!(
+            "unknown size {other:?}; use sector, half or quarter"
+        )),
     }
 }
 
@@ -423,17 +425,27 @@ pub fn stairs(
     let level = size_level(&req.size)?;
     let fine = level != 2 || !world.rooms[room].leaves.is_sectors_only();
     if fine {
-        let footprint: Vec<[i32; 2]> =
-            Region::from_path(room, &req.path, params.width).cells().collect();
+        let footprint: Vec<[i32; 2]> = Region::from_path(room, &req.path, params.width)
+            .cells()
+            .collect();
         let verb = FineVerb::Stairs {
             params,
             path: req.path.clone(),
         };
-        let report = run_fine(world, room, level, &footprint, verb, snap_to(req.rise, FINE_UNITS));
+        let report = run_fine(
+            world,
+            room,
+            level,
+            &footprint,
+            verb,
+            snap_to(req.rise, FINE_UNITS),
+        );
         return match report {
             Some(FineReport::Flight(flight)) => {
                 if let Some(refusal) = flight.refusal {
-                    return Err(format!("{refusal:?}: use ramp true, a longer path or a smaller rise"));
+                    return Err(format!(
+                        "{refusal:?}: use ramp true, a longer path or a smaller rise"
+                    ));
                 }
                 Ok(format!(
                     "room {room}: {} step(s) of {} over {} path cell(s) of {}, total {}",

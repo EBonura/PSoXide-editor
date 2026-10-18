@@ -240,10 +240,17 @@ fn crack_leaves(world: &mut GridWorld, room: usize, req: &CrackReq) -> Result<St
         )
     };
     if missing > 0 {
-        let _ = write!(out, "\n{missing} cell(s) had no {} and were skipped", kind.label());
+        let _ = write!(
+            out,
+            "\n{missing} cell(s) had no {} and were skipped",
+            kind.label()
+        );
     }
     if refused > 0 {
-        let _ = write!(out, "\n{refused} cell(s) could not be split to a sector and were skipped");
+        let _ = write!(
+            out,
+            "\n{refused} cell(s) could not be split to a sector and were skipped"
+        );
     }
     let _ = write!(
         out,

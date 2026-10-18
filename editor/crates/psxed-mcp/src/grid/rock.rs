@@ -84,7 +84,11 @@ impl RegionReq {
             None | Some("sector") => 2,
             Some("half") => 3,
             Some("quarter") => 4,
-            Some(other) => return Err(format!("unknown size {other:?}; use sector, half or quarter")),
+            Some(other) => {
+                return Err(format!(
+                    "unknown size {other:?}; use sector, half or quarter"
+                ))
+            }
         };
         let region = if let Some(from) = self.from {
             let rect = CellRect::from_corners(from, self.to.unwrap_or(from));

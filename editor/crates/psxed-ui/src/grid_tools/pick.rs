@@ -70,9 +70,10 @@ fn build_cache(world: &GridWorld, rev: u64) -> PickCache {
                     .get(face.room)
                     .filter(|r| !r.leaves.is_sectors_only())
                     .map_or(0, |r| {
-                        let (n, sx, sz) = face.grid.iter().fold((0, 0, 0), |(n, x, z), g| {
-                            (n + 1, x + g[0], z + g[2])
-                        });
+                        let (n, sx, sz) = face
+                            .grid
+                            .iter()
+                            .fold((0, 0, 0), |(n, x, z), g| (n + 1, x + g[0], z + g[2]));
                         psxed_project::grid::leaf_derive::derived_segment(
                             r,
                             face.leaf,

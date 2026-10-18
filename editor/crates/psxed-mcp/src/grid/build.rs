@@ -74,7 +74,9 @@ fn cell_level(size: &Option<String>) -> Result<u8, String> {
         None | Some("sector") => Ok(2),
         Some("half") => Ok(3),
         Some("quarter") => Ok(4),
-        Some(other) => Err(format!("unknown size {other:?}; use sector, half or quarter")),
+        Some(other) => Err(format!(
+            "unknown size {other:?}; use sector, half or quarter"
+        )),
     }
 }
 
