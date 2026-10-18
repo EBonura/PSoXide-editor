@@ -765,7 +765,7 @@ impl EditorWorkspace {
                     .iter()
                     .find_map(|e| sector.walls(*e).iter().find_map(|w| w.material))
             };
-            let from_floor = || sector.floor().and_then(|f| f.tri_a.material);
+            let from_floor = || sector.ground_floor().and_then(|f| f.tri_a.material);
             let found = if wall {
                 from_walls().or_else(from_floor)
             } else {

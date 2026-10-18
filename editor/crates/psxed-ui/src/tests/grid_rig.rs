@@ -38,9 +38,9 @@ pub(crate) fn flat_project(width: usize, depth: usize, ceiling: bool) -> Project
     for z in 0..depth {
         for x in 0..width {
             let sector = room.sector_or_insert(x, z).unwrap();
-            sector.set_floor(Some(GridSurface::flat(0, None)));
+            sector.set_ground_floor(Some(GridSurface::flat(0, None)));
             if ceiling {
-                sector.set_ceiling(Some(GridSurface::flat(3072, None)));
+                sector.set_ground_ceiling(Some(GridSurface::flat(3072, None)));
             }
         }
     }
@@ -277,7 +277,7 @@ impl GridRig {
 pub(crate) fn floor_heights(world: &GridWorld, room: usize, cell: [i32; 2]) -> Option<[i32; 4]> {
     let r = world.rooms.get(room)?;
     let [x, z] = r.local(cell)?;
-    r.sector(x, z)?.floor().map(|f| f.heights)
+    r.sector(x, z)?.ground_floor().map(|f| f.heights)
 }
 
 pub(crate) fn walls_on(

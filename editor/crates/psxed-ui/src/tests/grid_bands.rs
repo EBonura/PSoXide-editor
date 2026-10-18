@@ -97,7 +97,7 @@ fn near_the_bottom_a_line_follows_the_floor_and_near_the_top_the_ceiling() {
                 world.rooms[0]
                     .sector_or_insert(x, z)
                     .unwrap()
-                    .set_ceiling(Some(psxed_project::grid::GridSurface::flat(1536, None)));
+                    .set_ground_ceiling(Some(psxed_project::grid::GridSurface::flat(1536, None)));
             }
         }
     }

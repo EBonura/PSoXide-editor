@@ -93,7 +93,8 @@ impl EditorWorkspace {
                 let [x, z] = room.local(cell)?;
                 let sector = room.sector(x, z)?;
                 Some(
-                    usize::from(sector.floor().is_some()) + usize::from(sector.ceiling().is_some()),
+                    usize::from(sector.ground_floor().is_some())
+                        + usize::from(sector.ground_ceiling().is_some()),
                 )
             })
             .unwrap_or(0);

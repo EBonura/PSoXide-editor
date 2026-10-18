@@ -76,7 +76,7 @@ pub(super) fn on_tool_changed(ws: &mut EditorWorkspace) {
                     && world.rooms.get(room).is_some_and(|ro| {
                         ro.local(*cell)
                             .and_then(|[x, z]| ro.sector(x, z))
-                            .is_some_and(|s| s.floor().is_some())
+                            .is_some_and(|s| s.ground_floor().is_some())
                     })
             })
             .map(|(_, cell)| *cell),

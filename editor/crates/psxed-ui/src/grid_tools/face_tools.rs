@@ -62,8 +62,10 @@ pub(super) fn face_under(
                 super::cycle::TopChoice::Layer(layer) => layer,
                 super::cycle::TopChoice::Plane(_) => 0,
             };
-            let face = if layer == 1 && sector.ceiling().is_some() || sector.floor().is_none() {
-                sector.ceiling()?;
+            let face = if layer == 1 && sector.ground_ceiling().is_some()
+                || sector.ground_floor().is_none()
+            {
+                sector.ground_ceiling()?;
                 FaceRef::ceiling(room, cell)
             } else {
                 FaceRef::floor(room, cell)

@@ -96,10 +96,10 @@ fn the_ceiling_tool_defaults_to_three_sectors_up() {
     rig.drag(rig.cell_centre(0, 0), rig.cell_centre(2, 0));
     let room = rig.room(0);
     for x in 0..3 {
-        let c = room.sector(x, 0).unwrap().ceiling().unwrap();
+        let c = room.sector(x, 0).unwrap().ground_ceiling().unwrap();
         assert_eq!(c.heights, [3072; 4]);
     }
-    assert!(room.sector(0, 1).unwrap().ceiling().is_none());
+    assert!(room.sector(0, 1).unwrap().ground_ceiling().is_none());
 }
 
 #[test]
@@ -340,9 +340,9 @@ fn the_split_tool_flips_the_diagonal_with_one_undo_step() {
     let split = |rig: &GridRig, ceiling: bool| {
         let s = rig.room(0).sector(0, 0).unwrap();
         if ceiling {
-            s.ceiling().unwrap().split
+            s.ground_ceiling().unwrap().split
         } else {
-            s.floor().unwrap().split
+            s.ground_floor().unwrap().split
         }
     };
     assert_eq!(split(&rig, false), GridSplit::NeSw);
@@ -381,7 +381,7 @@ fn paint_applies_the_palette_material_and_a_stroke_is_one_undo_step() {
         rig.room(0)
             .sector(x, 0)
             .unwrap()
-            .floor()
+            .ground_floor()
             .unwrap()
             .tri_a
             .material
@@ -414,7 +414,7 @@ fn the_palette_click_applies_to_the_selection() {
         rig.room(0)
             .sector(x, 0)
             .unwrap()
-            .floor()
+            .ground_floor()
             .unwrap()
             .tri_a
             .material
@@ -435,8 +435,16 @@ fn copy_flip_and_paste_stamps_the_selection_elsewhere() {
             .grid_mut()
             .unwrap()
             .rooms[0];
-        room.sector_mut(0, 0).unwrap().floor_mut().unwrap().heights = [0, 256, 256, 0];
-        room.sector_mut(1, 0).unwrap().floor_mut().unwrap().heights = [256, 512, 512, 256];
+        room.sector_mut(0, 0)
+            .unwrap()
+            .ground_floor_mut()
+            .unwrap()
+            .heights = [0, 256, 256, 0];
+        room.sector_mut(1, 0)
+            .unwrap()
+            .ground_floor_mut()
+            .unwrap()
+            .heights = [256, 512, 512, 256];
     }
     rig.tool(GridTool::Select);
     rig.drag(rig.top_at(0.1 * S, 0.1 * S), rig.top_at(1.9 * S, 0.9 * S));
@@ -506,7 +514,7 @@ fn the_place_tool_stands_the_node_at_the_sector_centre_on_the_floor() {
         .rooms[0]
         .sector_mut(1, 1)
         .unwrap()
-        .floor_mut()
+        .ground_floor_mut()
         .unwrap()
         .heights = [512; 4];
     rig.tool(GridTool::Place);
@@ -578,7 +586,13 @@ fn shift_paints_one_triangle_of_a_flat_quad() {
     rig.click_with(rig.top_at(1.8 * S, 0.2 * S), shift());
     rig.ws.grid.material = Some(moss);
     rig.click_with(rig.top_at(1.2 * S, 0.8 * S), shift());
-    let floor = rig.room(0).sector(1, 0).unwrap().floor().cloned().unwrap();
+    let floor = rig
+        .room(0)
+        .sector(1, 0)
+        .unwrap()
+        .ground_floor()
+        .cloned()
+        .unwrap();
     assert_eq!(floor.tri_a.material, Some(brick));
     assert_eq!(floor.tri_b.map(|t| t.material), Some(Some(moss)));
     // The neighbour is untouched.
@@ -586,13 +600,19 @@ fn shift_paints_one_triangle_of_a_flat_quad() {
         .room(0)
         .sector(0, 0)
         .unwrap()
-        .floor()
+        .ground_floor()
         .unwrap()
         .tri_b
         .is_none());
     // Without Shift the whole quad takes the material and merges again.
     rig.click(rig.cell_centre(1, 0));
-    let floor = rig.room(0).sector(1, 0).unwrap().floor().cloned().unwrap();
+    let floor = rig
+        .room(0)
+        .sector(1, 0)
+        .unwrap()
+        .ground_floor()
+        .cloned()
+        .unwrap();
     assert_eq!(floor.tri_a.material, Some(moss));
     assert!(floor.tri_b.is_none());
 }
@@ -609,7 +629,13 @@ fn new_surfaces_and_walls_take_the_materials_already_in_the_room() {
     rig.ws.grid.selection.clear();
     rig.tool(GridTool::Floor);
     rig.click(rig.cell_centre(4, 1));
-    let new_floor = rig.room(0).sector(4, 1).unwrap().floor().cloned().unwrap();
+    let new_floor = rig
+        .room(0)
+        .sector(4, 1)
+        .unwrap()
+        .ground_floor()
+        .cloned()
+        .unwrap();
     assert_eq!(new_floor.tri_a.material, Some(brick));
     rig.tool(GridTool::Wall);
     rig.click(rig.top_at(1.5 * S, 1.08 * S));

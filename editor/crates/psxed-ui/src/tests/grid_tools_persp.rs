@@ -234,7 +234,12 @@ fn paint_in_3d_paints_the_face_under_the_pointer() {
     let painted = |cell: [i32; 2]| {
         let r = rig.room(0);
         let [x, z] = r.local(cell).unwrap();
-        r.sector(x, z).unwrap().floor().unwrap().tri_a.material
+        r.sector(x, z)
+            .unwrap()
+            .ground_floor()
+            .unwrap()
+            .tri_a
+            .material
     };
     assert_eq!(painted([2, 2]), Some(id));
     assert_eq!(painted([1, 2]), None);
@@ -277,7 +282,7 @@ fn pointing_at_an_existing_floor_makes_the_next_rectangle_continue_at_its_height
         .leaves
         .iter_mut()
     {
-        sector.set_floor(Some(psxed_project::grid::GridSurface::flat(512, None)));
+        sector.set_ground_floor(Some(psxed_project::grid::GridSurface::flat(512, None)));
     }
     let mut rig = GridRig::persp("persp-continue-height", project);
     rig.tool(GridTool::Floor);

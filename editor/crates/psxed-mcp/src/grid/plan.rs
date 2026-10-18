@@ -442,7 +442,7 @@ pub fn render(
             continue;
         }
         for (_, _, s) in r.iter() {
-            if let Some(f) = s.floor() {
+            if let Some(f) = s.ground_floor() {
                 let (a, b) = f.height_range();
                 lowest = lowest.min(r.y_offset + a);
                 highest = highest.max(r.y_offset + b);
@@ -461,7 +461,7 @@ pub fn render(
             if cell[0] < min[0] || cell[0] > max[0] || cell[1] < min[1] || cell[1] > max[1] {
                 continue;
             }
-            let colour = match s.floor() {
+            let colour = match s.ground_floor() {
                 Some(f) => {
                     let mean = r.y_offset as f32 + f.heights.iter().sum::<i32>() as f32 / 4.0;
                     height_colour((mean - lowest as f32) / span)
@@ -475,7 +475,7 @@ pub fn render(
                 sy(cell[1] + 1),
                 colour,
             );
-            if let Some(f) = s.floor() {
+            if let Some(f) = s.ground_floor() {
                 // A sloped or bent floor gets its diagonal drawn.
                 if !f.is_planar() || f.heights[0] != f.heights[2] || f.heights[1] != f.heights[3] {
                     let (a, b) = match f.split {

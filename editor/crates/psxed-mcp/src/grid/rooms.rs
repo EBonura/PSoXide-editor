@@ -363,8 +363,8 @@ mod tests {
         let mut room = GridRoom::new("old", 2, 1);
         for x in 0..2 {
             let sector = room.sector_or_insert(x, 0).unwrap();
-            sector.set_floor(Some(GridSurface::flat(0, None)));
-            sector.set_ceiling(Some(GridSurface::flat(1024, None)));
+            sector.set_ground_floor(Some(GridSurface::flat(0, None)));
+            sector.set_ground_ceiling(Some(GridSurface::flat(1024, None)));
             sector.north.push(GridWall::span(0, 1024, None));
         }
         let mut world = GridWorld {

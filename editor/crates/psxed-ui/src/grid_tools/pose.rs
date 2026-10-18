@@ -232,7 +232,7 @@ impl EditorWorkspace {
                     .grid()
                     .and_then(|w| w.rooms.get(room))
                     .and_then(|r| r.local(cell).and_then(|[x, z]| r.sector(x, z)))
-                    .is_some_and(|s| s.floor().is_some());
+                    .is_some_and(|s| s.ground_floor().is_some());
                 let face = if has_floor {
                     FaceRef::floor(room, cell)
                 } else {

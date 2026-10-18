@@ -46,9 +46,9 @@ pub(super) fn top_element(
     let surface_of = |cell: [i32; 2]| {
         let r = &world.rooms[room];
         let sector = r.local(cell).and_then(|[x, z]| r.sector(x, z))?;
-        if sector.floor().is_some() {
+        if sector.ground_floor().is_some() {
             Some(FaceRef::floor(room, cell))
-        } else if sector.ceiling().is_some() {
+        } else if sector.ground_ceiling().is_some() {
             Some(FaceRef::ceiling(room, cell))
         } else {
             None

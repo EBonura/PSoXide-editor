@@ -842,7 +842,7 @@ fn snap_entities_to_floor_keeps_the_exact_floor_height_and_deduplicates_componen
         grid.rooms[0]
             .sector_or_insert(0, 0)
             .unwrap()
-            .set_floor(Some(psxed_project::grid::GridSurface::flat(64, None)));
+            .set_ground_floor(Some(psxed_project::grid::GridSurface::flat(64, None)));
     }
     let entity = project
         .active_scene_mut()

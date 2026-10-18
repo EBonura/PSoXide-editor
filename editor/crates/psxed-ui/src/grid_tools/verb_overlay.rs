@@ -34,7 +34,7 @@ pub(super) fn floor_points(world: &GridWorld, room: usize, cell: [i32; 2]) -> [[
     let r = world.rooms.get(room);
     let heights = r
         .and_then(|r| r.local(cell).and_then(|[x, z]| r.sector(x, z)))
-        .and_then(|s| s.floor())
+        .and_then(|s| s.ground_floor())
         .map_or([0; 4], |f| f.heights);
     let y_offset = r.map_or(0, |r| r.y_offset);
     core::array::from_fn(|i| {
@@ -594,7 +594,7 @@ fn ramp_classes(
             let floor = room
                 .local(cell)
                 .and_then(|[x, z]| room.sector(x, z))?
-                .floor()?;
+                .ground_floor()?;
             Some((
                 cell,
                 psxed_project::grid::slope::surface_class(&units, room.y_offset, floor, &limits),

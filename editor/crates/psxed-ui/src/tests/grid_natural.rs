@@ -22,7 +22,7 @@ const CLICK_PX: f32 = crate::grid_tools::view::TOP_PIXELS_PER_CLICK;
 fn floor_of(rig: &GridRig, cell: [i32; 2]) -> GridSurface {
     let r = rig.room(0);
     let [x, z] = r.local(cell).unwrap();
-    r.sector(x, z).unwrap().floor().cloned().unwrap()
+    r.sector(x, z).unwrap().ground_floor().cloned().unwrap()
 }
 
 /// A point inside triangle B (south-west half of a NW to SE split) of `cell`.
@@ -180,7 +180,7 @@ fn the_triangle_drag_pose_puts_one_in_flight() {
 fn corner_cracks(rig: &GridRig) -> Vec<[i32; 2]> {
     let mut out = Vec::new();
     for (x, z, sector) in rig.room(0).iter() {
-        if sector.floor().is_some_and(|f| f.heights_b.is_some()) {
+        if sector.ground_floor().is_some_and(|f| f.heights_b.is_some()) {
             out.push(rig.room(0).world_cell(x, z));
         }
     }
@@ -388,7 +388,7 @@ fn tab_cycles_the_targets_live_and_enter_commits() {
     let ceiling = |rig: &GridRig| -> Vec<[i32; 4]> {
         rig.room(0)
             .iter()
-            .filter_map(|(_, _, s)| s.ceiling().map(|c| c.heights))
+            .filter_map(|(_, _, s)| s.ground_ceiling().map(|c| c.heights))
             .collect()
     };
     let flat_ceiling = ceiling(&rig);
@@ -400,7 +400,7 @@ fn tab_cycles_the_targets_live_and_enter_commits() {
     assert_ne!(ceiling(&rig), flat_ceiling, "{}", rig.ws.status);
     // Floors are untouched while only the ceiling breaks.
     for (_, _, s) in rig.room(0).iter() {
-        assert_eq!(s.floor().unwrap().heights, [0; 4]);
+        assert_eq!(s.ground_floor().unwrap().heights, [0; 4]);
     }
     rig.key(egui::Key::Enter);
     assert!(matches!(rig.ws.grid.gesture, Gesture::Idle));

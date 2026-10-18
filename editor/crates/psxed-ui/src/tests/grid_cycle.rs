@@ -106,9 +106,9 @@ fn paint_reaches_the_ceiling_by_clicking_again_not_by_alt() {
     let material = |rig: &GridRig, ceiling: bool| {
         let sector = rig.room(0).sector(1, 1).unwrap();
         let surface = if ceiling {
-            sector.ceiling()
+            sector.ground_ceiling()
         } else {
-            sector.floor()
+            sector.ground_floor()
         };
         surface.unwrap().tri_a.material
     };
