@@ -237,3 +237,86 @@ fn play_the_cells_demo() {
     }
     assert!(!run.text.contains("stalled"), "{}", run.text);
 }
+
+/// Builds the T10 natural-detail demo: a 12 by 12 hall whose south-east
+/// sector is divided into quarter-sector cells carrying a split-level crack,
+/// a chamfered (void triangle) corner and a stair of fine treads. Run it with
+/// `PSXED_CELLS_DEMO=grid-natural-cells-demo cargo test -p psxed-mcp --test grid_cells -- --ignored build_the_natural_cells_demo`.
+#[test]
+#[ignore]
+fn build_the_natural_cells_demo() {
+    let Ok(dir) = std::env::var("PSXED_NATURAL_DEMO") else {
+        return;
+    };
+    let projects = repo_root().join("editor/projects");
+    let project = projects.join(&dir);
+    let _ = std::fs::remove_dir_all(&project);
+    let made = std::process::Command::new(env!("CARGO_BIN_EXE_psxed-mcp"))
+        .args(["--new", project.to_str().unwrap()])
+        .output()
+        .expect("run --new");
+    assert!(
+        made.status.success(),
+        "{}",
+        String::from_utf8_lossy(&made.stderr)
+    );
+    let mut c = Client::start(&["--project", project.to_str().unwrap()], &[], &repo_root());
+    c.ok(
+        "grid_add_surface",
+        json!({"kind": "floor", "from": [0, 0], "to": [11, 11], "height": 0}),
+    );
+    c.ok(
+        "grid_add_surface",
+        json!({"kind": "ceiling", "from": [0, 0], "to": [11, 11], "height": 3072}),
+    );
+    c.ok(
+        "grid_merge",
+        json!({"from": [0, 0], "to": [11, 11], "up_to": "four"}),
+    );
+    // The south-east sector in quarter cells (clicks 44 to 47 on each axis).
+    c.ok(
+        "grid_subdivide",
+        json!({"from": [11, 11], "to": [11, 11], "size": "quarter"}),
+    );
+    // A split-level crack: the far triangle of one quarter cell sits a fine
+    // step higher.
+    println!(
+        "{}",
+        c.ok(
+            "grid_crack",
+            json!({"from": [45, 46], "unit": "click", "kind": "floor",
+                   "triangle": "b", "delta": 64, "snap": "fine"}),
+        )
+        .text
+    );
+    // A chamfer: half of the corner cell is void, the other half closes
+    // itself along the diagonal.
+    println!(
+        "{}",
+        c.ok(
+            "grid_void",
+            json!({"from": [47, 46], "unit": "click", "triangle": "b"}),
+        )
+        .text
+    );
+    println!(
+        "{}",
+        c.ok(
+            "grid_void",
+            json!({"from": [44, 44], "unit": "click", "triangle": "a"}),
+        )
+        .text
+    );
+    println!("{}", c.ok("grid_leaves", json!({"from": [10, 10], "to": [11, 11]})).text);
+    c.ok("delete_node", json!({"node": "Starter Light"}));
+    c.ok("add_light", json!({"name": "Hall lamp", "position": [11000, 2200, 11000], "radius": 7000, "color": [255, 226, 190], "intensity": 0.6}));
+    c.ok("add_light", json!({"name": "Corner lamp", "position": [14200, 1500, 14200], "radius": 4000, "color": [255, 200, 150], "intensity": 0.5}));
+    // The player starts west of the corner cells, facing east along the row
+    // that holds the crack and the chamfer.
+    c.ok(
+        "move_node",
+        json!({"node": "Aletha (Player)", "position": [12700, 64, 14875]}),
+    );
+    println!("{}", c.ok("cook_check", json!({})).text);
+    c.ok("save", json!({}));
+}

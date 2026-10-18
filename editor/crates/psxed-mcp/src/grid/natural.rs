@@ -18,6 +18,7 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 
 use super::build::Surface;
+use super::cells::{click_rect, Unit};
 use super::walls::{resolve_wall, WallRef};
 use super::{check_rect, parse_edge, pick_room, Cells, Materials, Snap, MAX_CELLS_PER_CALL};
 
@@ -69,11 +70,18 @@ pub struct CrackReq {
     pub heal: Option<bool>,
     /// `click` (default) or `fine`.
     pub snap: Option<Snap>,
+    /// What the corners count: `sector` (default) or `click` (quarter
+    /// sectors). In a room with cells of several sizes either way names the
+    /// cells that touch the rectangle, whatever their size.
+    pub unit: Option<Unit>,
 }
 
 /// Apply [`CrackReq`].
 pub fn crack(world: &mut GridWorld, req: &CrackReq) -> Result<String, String> {
     let room = pick_room(world, req.room)?;
+    if req.unit == Some(Unit::Click) || !world.rooms[room].leaves.is_sectors_only() {
+        return crack_leaves(world, room, req);
+    }
     let rect = req.cells.rect();
     check_rect(&rect)?;
     let kind = req.kind.unwrap_or(Surface::Floor).kind();
@@ -157,6 +165,111 @@ pub fn crack(world: &mut GridWorld, req: &CrackReq) -> Result<String, String> {
     Ok(out)
 }
 
+/// [`crack`] on the cells (leaves of any size) that touch the rectangle.
+fn crack_leaves(world: &mut GridWorld, room: usize, req: &CrackReq) -> Result<String, String> {
+    let (lo, hi) = click_rect(&req.cells, req.unit.unwrap_or_default())?;
+    let kind = req.kind.unwrap_or(Surface::Floor).kind();
+    let heal = req.heal.unwrap_or(false);
+    let tri = tri_index(req.triangle.unwrap_or(Triangle::B))
+        .ok_or("triangle must be a or b for a crack")?;
+    let snap = req.snap.unwrap_or_default();
+    match (req.delta, req.height, heal) {
+        (Some(_), Some(_), _) => return Err("give delta, height or heal, not several".to_string()),
+        (None, None, false) => return Err("give delta, height or heal".to_string()),
+        _ => {}
+    }
+    let keys = touching_leaves(&world.rooms[room], lo, hi);
+    if keys.is_empty() {
+        return Err("no cell lies in that rectangle".to_string());
+    }
+    let (mut changed, mut missing, mut refused) = (0usize, 0usize, 0usize);
+    for key in &keys {
+        let has = world.rooms[room].leaf(*key).is_some_and(|l| match kind {
+            psxed_project::grid::edit::SurfaceKind::Floor => l.ground_floor().is_some(),
+            psxed_project::grid::edit::SurfaceKind::Ceiling => l.ground_ceiling().is_some(),
+        });
+        if !has {
+            missing += 1;
+            continue;
+        }
+        // Split-level surfaces live on cells of a sector or smaller; a larger
+        // cell is split to sectors first (lossless).
+        if key.level < psxed_project::grid::leaf::SECTOR_LEVEL && !heal {
+            psxed_project::grid::tree::subdivide_all_to(
+                &mut world.rooms[room],
+                &[*key],
+                psxed_project::grid::leaf::SECTOR_LEVEL,
+            );
+        }
+    }
+    let keys = touching_leaves(&world.rooms[room], lo, hi);
+    for key in &keys {
+        if key.level < psxed_project::grid::leaf::SECTOR_LEVEL && !heal {
+            refused += 1;
+            continue;
+        }
+        let ok = if heal {
+            natural::heal_leaf(world, room, *key, kind)
+        } else if let Some(delta) = req.delta {
+            natural::crack_leaf(world, room, *key, kind, tri, snap.apply(delta).0)
+        } else if let Some(height) = req.height {
+            let h = snap.apply(height).0;
+            natural::set_triangle_heights_leaf(world, room, *key, kind, tri, [h; 4])
+        } else {
+            false
+        };
+        changed += usize::from(ok);
+    }
+    psxed_project::grid::tree::normalize(&mut world.rooms[room]);
+    let r = &world.rooms[room];
+    let diag: usize = keys
+        .iter()
+        .map(|k| psxed_project::grid::leaf_diag::diagonal_face_count(r, *k, None))
+        .sum();
+    let mut out = if heal {
+        format!(
+            "room {room}: {changed} {} surface(s) merged back into one plane",
+            kind.label()
+        )
+    } else {
+        format!(
+            "room {room}: {changed} {} triangle {} changed over {} cell(s) (cells of any size touching the rectangle)",
+            kind.label(),
+            if tri == 0 { "A" } else { "B" },
+            keys.len()
+        )
+    };
+    if missing > 0 {
+        let _ = write!(out, "\n{missing} cell(s) had no {} and were skipped", kind.label());
+    }
+    if refused > 0 {
+        let _ = write!(out, "\n{refused} cell(s) could not be split to a sector and were skipped");
+    }
+    let _ = write!(
+        out,
+        "\n{diag} derived diagonal wall face(s) now stand on these cells (grid_walls lists them)"
+    );
+    Ok(out)
+}
+
+/// The distinct leaves of a room that touch a rectangle of clicks, in map
+/// order.
+fn touching_leaves(
+    room: &psxed_project::grid::GridRoom,
+    lo: [i32; 2],
+    hi: [i32; 2],
+) -> Vec<psxed_project::grid::LeafKey> {
+    let mut keys = std::collections::BTreeSet::new();
+    for z in lo[1]..=hi[1] {
+        for x in lo[0]..=hi[0] {
+            if let Some((key, _)) = room.leaf_at([x, z]) {
+                keys.insert(key);
+            }
+        }
+    }
+    keys.into_iter().collect()
+}
+
 /// Void or restore triangles: half a cell with nothing in it.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct VoidReq {
@@ -171,11 +284,18 @@ pub struct VoidReq {
     pub kind: Option<Surface>,
     /// `a`, `b` or `both` to void; `none` restores both.
     pub triangle: Triangle,
+    /// What the corners count: `sector` (default) or `click`. In a room with
+    /// cells of several sizes either way names the cells that touch the
+    /// rectangle.
+    pub unit: Option<Unit>,
 }
 
 /// Apply [`VoidReq`].
 pub fn void(world: &mut GridWorld, req: &VoidReq) -> Result<String, String> {
     let room = pick_room(world, req.room)?;
+    if req.unit == Some(Unit::Click) || !world.rooms[room].leaves.is_sectors_only() {
+        return void_leaves(world, room, req);
+    }
     let rect = req.cells.rect();
     check_rect(&rect)?;
     let (which, set) = match req.triangle {
@@ -211,6 +331,63 @@ pub fn void(world: &mut GridWorld, req: &VoidReq) -> Result<String, String> {
         "room {room}: {changed} surface(s) {} over {} sector(s); {closures} diagonal closure wall(s) stand in this rectangle\nA void triangle draws nothing and the other half of the cell closes itself along the diagonal (derived rooms). Collision keeps the floor under it; the closure wall stops bodies.",
         if set { "voided" } else { "restored" },
         rect.count()
+    ))
+}
+
+/// [`void`] on the cells (leaves of any size) that touch the rectangle.
+fn void_leaves(world: &mut GridWorld, room: usize, req: &VoidReq) -> Result<String, String> {
+    let (lo, hi) = click_rect(&req.cells, req.unit.unwrap_or_default())?;
+    let (which, set) = match req.triangle {
+        Triangle::A => (Triangles::A, true),
+        Triangle::B => (Triangles::B, true),
+        Triangle::Both => (Triangles::Both, true),
+        Triangle::None => (Triangles::Both, false),
+    };
+    let kinds: Vec<_> = match req.kind {
+        Some(k) => vec![k.kind()],
+        None => vec![
+            psxed_project::grid::edit::SurfaceKind::Floor,
+            psxed_project::grid::edit::SurfaceKind::Ceiling,
+        ],
+    };
+    let keys = touching_leaves(&world.rooms[room], lo, hi);
+    if keys.is_empty() {
+        return Err("no cell lies in that rectangle".to_string());
+    }
+    if set {
+        // A void triangle needs a cell of a sector or smaller.
+        psxed_project::grid::tree::subdivide_all_to(
+            &mut world.rooms[room],
+            &keys,
+            psxed_project::grid::leaf::SECTOR_LEVEL,
+        );
+    }
+    let keys = touching_leaves(&world.rooms[room], lo, hi);
+    let mut changed = 0usize;
+    for key in &keys {
+        if key.level < psxed_project::grid::leaf::SECTOR_LEVEL && set {
+            continue;
+        }
+        for &kind in &kinds {
+            changed += usize::from(natural::set_void_leaf(world, room, *key, kind, which, set));
+        }
+    }
+    psxed_project::grid::tree::normalize(&mut world.rooms[room]);
+    let r = &world.rooms[room];
+    let closures: usize = keys
+        .iter()
+        .map(|k| {
+            psxed_project::grid::leaf_diag::diagonal_face_count(
+                r,
+                *k,
+                Some(derive::DerivedKind::Closure),
+            )
+        })
+        .sum();
+    Ok(format!(
+        "room {room}: {changed} surface(s) {} over {} cell(s) of any size; {closures} diagonal closure wall(s) stand on them\nA void triangle draws nothing and the other half of the cell closes itself along the diagonal (derived rooms). Collision keeps the floor under it; the closure wall stops bodies.",
+        if set { "voided" } else { "restored" },
+        keys.len()
     ))
 }
 
