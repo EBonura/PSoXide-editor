@@ -365,6 +365,8 @@ mod tests {
         WallRef {
             room: None,
             cell: [2, 0],
+            unit: None,
+            segment: None,
             edge: "north".into(),
             kind: None,
             index: None,

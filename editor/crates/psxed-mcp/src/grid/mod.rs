@@ -300,7 +300,13 @@ pub fn face_label(face: &FaceRef) -> String {
         FaceTarget::Surface(SurfaceKind::Floor) => "floor".to_string(),
         FaceTarget::Surface(SurfaceKind::Ceiling) => "ceiling".to_string(),
         FaceTarget::Wall { edge, index } => format!("{} wall {index}", edge.label()),
-        FaceTarget::Derived { edge, kind } => format!("{} {}", edge.label(), kind.label()),
+        FaceTarget::Derived { edge, kind, seg } => {
+            if seg > 0 {
+                format!("{} {} (segment {seg})", edge.label(), kind.label())
+            } else {
+                format!("{} {}", edge.label(), kind.label())
+            }
+        }
     }
 }
 

@@ -62,7 +62,27 @@ fn build_cache(world: &GridWorld, rev: u64) -> PickCache {
                 (FaceTarget::Surface(SurfaceKind::Ceiling), triangle)
             }
             GridFaceKind::Wall { edge, index } => (FaceTarget::Wall { edge, index }, None),
-            GridFaceKind::Derived { edge, kind } => (FaceTarget::Derived { edge, kind }, None),
+            GridFaceKind::Derived { edge, kind } => {
+                // A cell next to smaller ones has several faces of one rule on
+                // one side: name which by where this one lies.
+                let seg = world
+                    .rooms
+                    .get(face.room)
+                    .filter(|r| !r.leaves.is_sectors_only())
+                    .map_or(0, |r| {
+                        let (n, sx, sz) = face.grid.iter().fold((0, 0, 0), |(n, x, z), g| {
+                            (n + 1, x + g[0], z + g[2])
+                        });
+                        psxed_project::grid::leaf_derive::derived_segment(
+                            r,
+                            face.leaf,
+                            edge,
+                            kind,
+                            [sx / n.max(1), sz / n.max(1)],
+                        )
+                    });
+                (FaceTarget::Derived { edge, kind, seg }, None)
+            }
             // Free planes have their own entries below.
             GridFaceKind::Plane { .. } | GridFaceKind::Mesh { .. } => continue,
         };

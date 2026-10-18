@@ -12,6 +12,7 @@ use psxed_project::grid::edit::verbs::break_verb::{
     BreakDrag, BreakParams, BreakReport, BreakSnap, BreakStyle, BreakTargets, WalkCount,
     DEFAULT_INTENSITY,
 };
+use psxed_project::grid::edit::verbs::fine::{run_fine, FineReport, FineVerb};
 use psxed_project::grid::edit::verbs::rules::{ensure_strata, reapply_floor_rules};
 use psxed_project::grid::edit::{CellRect, Region};
 use psxed_project::grid::faces::face_count;
@@ -57,6 +58,13 @@ pub struct RegionReq {
     /// A closed polygon in sector coordinates (numbers; cell `[3, 2]` has its
     /// centre at `[3.5, 2.5]`): the sectors whose centres it contains.
     pub polygon: Option<Vec<[f64; 2]>>,
+    /// What a cell is: `sector` (default), `half` or `quarter`. Every
+    /// coordinate above then counts cells of that size, WORLD anchored
+    /// (half cell `h` is world click `2h`, quarter cell `q` is click `q`), a
+    /// brush radius or path width counts cells, and a polygon is in units of
+    /// that cell. Cells smaller than a sector are made by splitting larger
+    /// leaves to fit.
+    pub size: Option<String>,
 }
 
 impl RegionReq {
@@ -72,6 +80,12 @@ impl RegionReq {
                     .to_string(),
             );
         }
+        let level = match self.size.as_deref() {
+            None | Some("sector") => 2,
+            Some("half") => 3,
+            Some("quarter") => 4,
+            Some(other) => return Err(format!("unknown size {other:?}; use sector, half or quarter")),
+        };
         let region = if let Some(from) = self.from {
             let rect = CellRect::from_corners(from, self.to.unwrap_or(from));
             check_rect(&rect)?;
@@ -93,7 +107,7 @@ impl RegionReq {
                 region.len()
             ));
         }
-        Ok(region)
+        Ok(region.at_level(level))
     }
 }
 
@@ -261,6 +275,36 @@ pub fn run_break(
     seed: u32,
     first_seed_note: Option<&str>,
 ) -> Result<String, String> {
+    if plan.region.is_fine(world) {
+        let cells: Vec<[i32; 2]> = plan.region.cells().collect();
+        let faces = face_count(world);
+        let bytes = collision_bytes(world, plan.room);
+        let verb = FineVerb::Break {
+            params: plan.params.clone(),
+            seed,
+        };
+        let report = run_fine(
+            world,
+            plan.room,
+            plan.region.level(),
+            &cells,
+            verb,
+            plan.intensity as i32,
+        );
+        let Some(FineReport::Break(report)) = report else {
+            return Err(match report {
+                Some(FineReport::Refused(why)) => why,
+                _ => "nothing to break there".to_string(),
+            });
+        };
+        return Ok(describe(
+            &report,
+            cells.len(),
+            (faces, face_count(world)),
+            bytes.zip(collision_bytes(world, plan.room)),
+            first_seed_note,
+        ));
+    }
     let drag = BreakDrag::begin(world, &plan.region, plan.params.clone())
         .ok_or("nothing to break: no sector of the region has a floor or a ceiling")?;
     let faces = face_count(world);
@@ -389,7 +433,14 @@ pub fn rough(world: &mut GridWorld, req: &RoughReq) -> Result<String, String> {
     if let Some(level) = req.level {
         let region = req.region.region(room)?;
         let cells: Vec<[i32; 2]> = region.cells().collect();
-        let changed = edit_rough::set_level(world, room, &cells, level);
+        let changed = if region.is_fine(world) {
+            cells
+                .iter()
+                .map(|c| edit_rough::set_level_cells(world, room, region.level(), *c, *c, level))
+                .sum()
+        } else {
+            edit_rough::set_level(world, room, &cells, level)
+        };
         let _ = write!(
             out,
             "room {room}: {changed} of {} sector(s) set to rough level {}",

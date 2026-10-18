@@ -272,7 +272,7 @@ impl EditorWorkspace {
                     primary.cell()[0],
                     primary.cell()[1]
                 ),
-                FaceTarget::Derived { edge, kind } => format!(
+                FaceTarget::Derived { edge, kind, .. } => format!(
                     "{} {} (derived) at {},{}",
                     edge.label(),
                     kind.label(),

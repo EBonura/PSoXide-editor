@@ -62,6 +62,20 @@ pub struct AddSurfaceReq {
     pub snap: Option<Snap>,
     /// Material name or id (see `materials`). Omit for untextured.
     pub material: Option<String>,
+    /// What a cell is: `sector` (default), `half` or `quarter`. The rectangle
+    /// then counts cells of that size, WORLD anchored (half cell `h` is world
+    /// click `2h`, quarter cell `q` is click `q`); larger leaves under it are
+    /// split to fit and the tree is balanced.
+    pub size: Option<String>,
+}
+
+fn cell_level(size: &Option<String>) -> Result<u8, String> {
+    match size.as_deref() {
+        None | Some("sector") => Ok(2),
+        Some("half") => Ok(3),
+        Some("quarter") => Ok(4),
+        Some(other) => Err(format!("unknown size {other:?}; use sector, half or quarter")),
+    }
 }
 
 /// Create the surfaces. Sectors that already have one are left untouched.
@@ -75,7 +89,21 @@ pub fn add_surface(
     check_rect(&rect)?;
     let (height, note) = req.snap.unwrap_or_default().apply(req.height);
     let material = mats.resolve_opt(req.material.as_deref())?;
-    let outcome = create_surfaces(world, room, req.kind.kind(), rect, height, material);
+    let level = cell_level(&req.size)?;
+    let outcome = if level != 2 {
+        psxed_project::grid::edit::create_surfaces_cells(
+            world,
+            room,
+            req.kind.kind(),
+            level,
+            rect.min,
+            rect.max,
+            height,
+            material,
+        )
+    } else {
+        create_surfaces(world, room, req.kind.kind(), rect, height, material)
+    };
     if let Some(refusal) = outcome.refused {
         return Err(describe_refusal(refusal));
     }
@@ -124,6 +152,9 @@ pub struct RemoveSurfaceReq {
     /// The rectangle of WORLD sectors.
     #[serde(flatten)]
     pub cells: Cells,
+    /// What a cell is: `sector` (default), `half` or `quarter` (see
+    /// grid_add_surface).
+    pub size: Option<String>,
 }
 
 /// Delete the surfaces; emptied sectors go and the room shrinks around what
@@ -132,7 +163,19 @@ pub fn remove_surface(world: &mut GridWorld, req: &RemoveSurfaceReq) -> Result<S
     let room = pick_room(world, req.room)?;
     let rect = req.cells.rect();
     check_rect(&rect)?;
-    let outcome = delete_surfaces(world, room, req.kind.kind(), rect);
+    let level = cell_level(&req.size)?;
+    let outcome = if level != 2 {
+        psxed_project::grid::edit::delete_surfaces_cells(
+            world,
+            room,
+            req.kind.kind(),
+            level,
+            rect.min,
+            rect.max,
+        )
+    } else {
+        delete_surfaces(world, room, req.kind.kind(), rect)
+    };
     if let Some(refusal) = outcome.refused {
         return Err(describe_refusal(refusal));
     }
@@ -566,6 +609,7 @@ mod tests {
                 height: 256,
                 snap: None,
                 material: None,
+                size: None,
             },
         )
         .unwrap();
@@ -578,6 +622,7 @@ mod tests {
                 room: None,
                 kind: Surface::Floor,
                 cells: cells([6, 0], [8, 2]),
+                size: None,
             },
         )
         .unwrap();

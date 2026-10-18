@@ -232,6 +232,7 @@ pub(super) fn commit(ws: &mut EditorWorkspace, g: &WallGesture) {
             Err(WallRefusal::Covered) => covered += 1,
             Err(WallRefusal::RoomTooLarge) => too_large = true,
             Err(WallRefusal::NoSuchRoom) => {}
+            Err(WallRefusal::BigCell) => covered += 1,
         }
     }
     if done == 0 {

@@ -42,6 +42,11 @@ pub struct PlaceWallReq {
     pub facing: Option<String>,
     /// Material name or id.
     pub material: Option<String>,
+    /// What the corners count: `sector` (default) or `click`, WORLD clicks
+    /// (quarter sectors). With clicks the wall goes on the side of every cell
+    /// the run touches, whatever its size (a sector or smaller; larger cells
+    /// carry no authored walls).
+    pub unit: Option<super::cells::Unit>,
 }
 
 /// Place the run with the editor's gap-filling wall tool. A derived face on
@@ -64,6 +69,9 @@ pub fn place_wall(
     let start = req.cells.from;
     let end = req.cells.to.unwrap_or(start);
     let cells = wall_run_cells(start, end, edge);
+    if req.unit == Some(super::cells::Unit::Click) {
+        return place_leaf_walls(world, room, &cells, edge, req.pick_y, spec);
+    }
     let outcome = place_wall_run(world, room, &cells, edge, req.pick_y, spec);
     let mut out = format!(
         "room {room}: placed {} {} wall(s) over {} cell(s); {} edge(s) had no gap left (covered)",
@@ -88,6 +96,50 @@ pub fn place_wall(
         out.push_str(
             "\nNothing was placed. In a derived room the edge of a floor already has a closure wall and a step already has a riser; pick_y chooses another gap.",
         );
+    }
+    Ok(out)
+}
+
+/// [`place_wall`] with the run given in clicks: one wall per cell the run
+/// touches.
+fn place_leaf_walls(
+    world: &mut GridWorld,
+    room: usize,
+    clicks: &[[i32; 2]],
+    edge: psxed_project::grid::WallEdge,
+    pick_y: Option<i32>,
+    spec: WallSpec,
+) -> Result<String, String> {
+    use psxed_project::grid::edit::{place_wall_leaf, WallRefusal};
+    let mut keys = Vec::new();
+    for click in clicks {
+        if let Some((key, _)) = world.rooms[room].leaf_at(*click) {
+            if !keys.contains(&key) {
+                keys.push(key);
+            }
+        }
+    }
+    if keys.is_empty() {
+        return Err("no cell covers that run".to_string());
+    }
+    let (mut placed, mut covered, mut big) = (0, 0, 0);
+    for key in &keys {
+        match place_wall_leaf(world, room, *key, edge, pick_y, spec) {
+            Ok(_) => placed += 1,
+            Err(WallRefusal::Covered) => covered += 1,
+            Err(WallRefusal::BigCell) => big += 1,
+            Err(other) => return Err(format!("{other:?}")),
+        }
+    }
+    let mut out = format!(
+        "room {room}: placed {placed} {} wall(s) on {} cell(s) of any size; {covered} had no gap left (covered)",
+        edge.label(),
+        keys.len()
+    );
+    if big > 0 {
+        out.push_str(&format!(
+            "\n{big} cell(s) are larger than a sector and carry no authored walls: subdivide them (grid_subdivide) or rely on derived walls"
+        ));
     }
     Ok(out)
 }
@@ -136,6 +188,14 @@ pub struct WallRef {
     /// The HOST sector `[x, z]`: the cell whose edge the wall is listed on.
     /// grid_walls and grid_sector print it.
     pub cell: [i32; 2],
+    /// What `cell` counts: `sector` (default) or `click`, a WORLD click (a
+    /// quarter sector), which names the cell of any size that covers it (see
+    /// grid_leaves). In a room with cells of several sizes a sector `cell`
+    /// names the cell covering the middle of that sector.
+    pub unit: Option<super::cells::Unit>,
+    /// A derived wall on a side that has smaller cells across it comes in
+    /// segments along the side: which one, 0 for the first.
+    pub segment: Option<u8>,
     /// `north`, `east`, `south` or `west`.
     pub edge: String,
     /// A derived wall: `riser`, `drop` or `closure`. Omit when the edge has
@@ -150,6 +210,9 @@ pub fn resolve_wall(world: &GridWorld, wall: &WallRef) -> Result<FaceRef, String
     let room = pick_room(world, wall.room)?;
     let edge = parse_edge(&wall.edge)?;
     let r = &world.rooms[room];
+    if wall.unit == Some(super::cells::Unit::Click) || !r.leaves.is_sectors_only() {
+        return resolve_leaf_wall(world, room, wall, edge);
+    }
     // A diagonal derived face (a split-level riser, a void closure) is
     // addressed by its host cell, the diagonal and its kind.
     let derived: Vec<_> = derive::edge_walls(r, wall.cell, edge);
@@ -326,6 +389,8 @@ mod tests {
         let wall = WallRef {
             room: None,
             cell: [0, 0],
+            unit: None,
+            segment: None,
             edge: "north".into(),
             kind: None,
             index: None,
@@ -395,6 +460,8 @@ mod tests {
             &WallRef {
                 room: None,
                 cell: [2, 1],
+                unit: None,
+                segment: None,
                 edge: "south".into(),
                 kind: None,
                 index: None,
@@ -407,6 +474,8 @@ mod tests {
             &WallRef {
                 room: None,
                 cell: [1, 1],
+                unit: None,
+                segment: None,
                 edge: "south".into(),
                 kind: Some("riser".into()),
                 index: None,
@@ -436,6 +505,7 @@ mod tests {
                 pick_y: None,
                 facing: None,
                 material: None,
+                unit: None,
             },
         )
         .unwrap();
@@ -455,5 +525,98 @@ mod tests {
         )
         .unwrap();
         assert!(gone.contains("removed 2"), "{gone}");
+    }
+}
+
+/// [`resolve_wall`] for the cells of a room with leaves of several sizes.
+fn resolve_leaf_wall(
+    world: &GridWorld,
+    room: usize,
+    wall: &WallRef,
+    edge: psxed_project::grid::WallEdge,
+) -> Result<FaceRef, String> {
+    use psxed_project::grid::leaf_derive::derived_walls_of;
+    use psxed_project::grid::LeafKey;
+    let r = &world.rooms[room];
+    let click = if wall.unit == Some(super::cells::Unit::Click) {
+        wall.cell
+    } else {
+        // A sector: the cell holding its middle click.
+        [wall.cell[0] * 4 + 2, wall.cell[1] * 4 + 2]
+    };
+    let (key, sector) = r
+        .leaf_at(click)
+        .ok_or_else(|| format!("no cell covers {click:?}; grid_leaves maps them"))?;
+    let key: LeafKey = key;
+    let derived: Vec<_> = derived_walls_of(r, key)
+        .into_iter()
+        .filter(|w| w.edge == edge)
+        .collect();
+    let authored = sector.walls(edge).len();
+    let candidates = || {
+        let mut c: Vec<String> = derived
+            .iter()
+            .map(|d| format!("kind {:?}", d.kind.label()))
+            .collect();
+        c.extend((0..authored).map(|i| format!("index {i}")));
+        if c.is_empty() {
+            "none: that side has no wall".to_string()
+        } else {
+            c.join(", ")
+        }
+    };
+    let seg = wall.segment.unwrap_or(0);
+    let derived_face = |kind: psxed_project::grid::derive::DerivedKind| {
+        FaceRef::new(
+            room,
+            key,
+            psxed_project::grid::edit::FaceTarget::Derived { edge, kind, seg },
+        )
+    };
+    if let Some(kind) = &wall.kind {
+        let found: Vec<_> = derived
+            .iter()
+            .filter(|d| d.kind.label() == kind.to_ascii_lowercase())
+            .collect();
+        return found
+            .get(usize::from(seg))
+            .map(|d| derived_face(d.kind))
+            .ok_or_else(|| {
+                format!(
+                    "no derived {kind} (segment {seg}) on the {} side of the cell of level {} at clicks ({}, {}); that side has {}",
+                    edge.label(),
+                    key.level,
+                    key.x,
+                    key.z,
+                    candidates()
+                )
+            });
+    }
+    if let Some(index) = wall.index {
+        return if index < authored {
+            Ok(FaceRef::new(
+                room,
+                key,
+                psxed_project::grid::edit::FaceTarget::Wall { edge, index },
+            ))
+        } else {
+            Err(format!(
+                "no authored wall {index} on the {} side of that cell; it has {}",
+                edge.label(),
+                candidates()
+            ))
+        };
+    }
+    match (derived.as_slice(), authored) {
+        ([only], _) => Ok(derived_face(only.kind)),
+        ([], 1) => Ok(FaceRef::new(
+            room,
+            key,
+            psxed_project::grid::edit::FaceTarget::Wall { edge, index: 0 },
+        )),
+        _ => Err(format!(
+            "that side of the cell needs `kind` (and `segment`) or `index`: {}",
+            candidates()
+        )),
     }
 }

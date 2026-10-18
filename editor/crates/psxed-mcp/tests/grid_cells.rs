@@ -82,10 +82,11 @@ fn a_corner_of_a_big_floor_is_subdivided_shaped_read_cooked_and_merged() {
     let sector = c.ok("grid_sector", json!({"cell": [1, 1]})).text;
     assert!(sector.contains("[1024, 1024, 1024, 1024]"), "{sector}");
 
-    // The cook takes it and warns about the sector it cannot collide exactly.
+    // The cook takes it and collides the fine cells exactly, with no warning
+    // about an approximated sector.
     let check = c.ok("cook_check", json!({})).text;
     assert!(!check.contains("error"), "{check}");
-    assert!(check.contains("sector 1,1"), "{check}");
+    assert!(!check.contains("collision stands on"), "{check}");
 
     // The plan draws the cell borders.
     let plan = c.ok("grid_plan", json!({"leaves": true}));
@@ -102,6 +103,83 @@ fn a_corner_of_a_big_floor_is_subdivided_shaped_read_cooked_and_merged() {
     assert!(merged.contains("merge"), "{merged}");
     let after = c.ok("grid_leaves", json!({})).text;
     assert!(after.contains("36 leaves: 36 of 1 sector"), "{after}");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// The level verbs, rough, walls and floors on cells smaller than a sector,
+/// over the protocol.
+#[test]
+fn verbs_walls_and_floors_work_on_cells_smaller_than_a_sector() {
+    let tmp = std::env::temp_dir().join(format!("psxed-mcp-fine-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    let project = new_project(&tmp);
+    let mut c = Client::start(&["--project", project.to_str().unwrap()], &[], &repo_root());
+    c.ok(
+        "grid_add_surface",
+        json!({"kind": "floor", "from": [0, 0], "to": [7, 7], "height": 0}),
+    );
+    c.ok(
+        "grid_add_surface",
+        json!({"kind": "ceiling", "from": [0, 0], "to": [7, 7], "height": 3072}),
+    );
+    // A ramp over eight quarter cells (clicks 16..23 along X, one click deep).
+    let r = c
+        .ok(
+            "grid_ramp",
+            json!({"from": [16, 16], "to": [23, 16], "size": "quarter", "keep": "west", "rise": 512}),
+        )
+        .text;
+    assert!(r.contains("8 cell(s) sloped"), "{r}");
+    // A flight of four quarter-cell treads next to it.
+    let r = c
+        .ok(
+            "grid_stairs",
+            json!({"path": [[16, 20], [19, 20]], "size": "quarter", "rise": 256}),
+        )
+        .text;
+    assert!(r.contains("4 step(s)"), "{r}");
+    // Raise two half cells, rough a quarter, break a few.
+    let r = c
+        .ok(
+            "grid_raise",
+            json!({"from": [8, 8], "to": [9, 8], "size": "half", "amount": 256, "mode": "offset"}),
+        )
+        .text;
+    assert!(r.contains("cell(s) of half"), "{r}");
+    let r = c
+        .ok(
+            "grid_rough",
+            json!({"from": [30, 30], "to": [31, 31], "size": "quarter", "level": 2}),
+        )
+        .text;
+    assert!(r.contains("rough level 2"), "{r}");
+    let r = c
+        .ok(
+            "grid_break",
+            json!({"from": [24, 24], "to": [27, 27], "size": "quarter", "intensity": 50, "seed": 4, "keep_walkable": false}),
+        )
+        .text;
+    assert!(r.contains("break seed 4"), "{r}");
+    // A floor and a ceiling on quarter cells beside the room, a wall on one.
+    let r = c
+        .ok(
+            "grid_add_surface",
+            json!({"kind": "floor", "from": [32, 0], "to": [35, 3], "height": 0, "size": "quarter"}),
+        )
+        .text;
+    assert!(r.contains("16"), "{r}");
+    let r = c
+        .ok(
+            "grid_place_wall",
+            json!({"from": [32, 0], "to": [35, 0], "edge": "north", "unit": "click"}),
+        )
+        .text;
+    assert!(r.contains("wall(s)"), "{r}");
+    let leaves = c.ok("grid_leaves", json!({})).text;
+    assert!(leaves.contains("tree: balanced"), "{leaves}");
+    assert!(leaves.contains("of 1/4 sector"), "{leaves}");
+    let cooked = c.ok("cook_check", json!({})).text;
+    assert!(cooked.contains("cook: OK"), "{cooked}");
     let _ = std::fs::remove_dir_all(&tmp);
 }
 

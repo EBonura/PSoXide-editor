@@ -15,6 +15,7 @@ use psxed_project::grid::edit::verbs::ramp::{RampDir, RampDrag, RampParams};
 use psxed_project::grid::edit::verbs::stairs::{RiserOption, StairsDrag, StairsParams};
 use psxed_project::grid::edit::Region;
 use psxed_project::grid::heat::{heatmap, HeatOptions};
+use psxed_project::grid::edit::verbs::fine::{run_fine, FineDrag, FineReport, FineVerb};
 use psxed_project::grid::units::{snap_to, CLICK_UNITS, FINE_UNITS};
 use psxed_project::grid::walk::{self, analyse, EdgeKind, WalkLimits};
 use psxed_project::grid::GridWorld;
@@ -39,6 +40,21 @@ fn wall_material(
     name.as_deref()
         .map(|n| Materials::new(project).resolve(n))
         .transpose()
+}
+
+/// The cell level a `size` names: 2 sector (default), 3 half, 4 quarter.
+fn size_level(size: &Option<String>) -> Result<u8, String> {
+    match size.as_deref() {
+        None | Some("sector") => Ok(2),
+        Some("half") => Ok(3),
+        Some("quarter") => Ok(4),
+        Some(other) => Err(format!("unknown size {other:?}; use sector, half or quarter")),
+    }
+}
+
+/// The cells of a rectangle of cells of `level`.
+fn rect_cells(rect: psxed_project::grid::edit::CellRect) -> Vec<[i32; 2]> {
+    rect.cells().collect()
 }
 
 /// Raise or lower a region of floors.
@@ -74,6 +90,11 @@ pub struct RaiseReq {
     /// and a cell it cuts through is subdivided to fit, so one step of a
     /// fine staircase is one call.
     pub unit: Option<super::cells::Unit>,
+    /// What a cell is: `sector` (default), `half` or `quarter`. The
+    /// rectangle's corners then count cells of that size (WORLD anchored:
+    /// half cell `h` is world click `2h`, quarter cell `q` is click `q`), and
+    /// the verb runs on exactly those cells, splitting larger ones to fit.
+    pub size: Option<String>,
 }
 
 /// Apply [`RaiseReq`].
@@ -88,7 +109,40 @@ pub fn raise(
     }
     let rect = req.cells.rect();
     check_rect(&rect)?;
-    let region = Region::from_rect(room, rect);
+    let level = size_level(&req.size)?;
+    let region = Region::from_rect(room, rect).at_level(level);
+    if level != 2 {
+        let (amount, note) = req.snap.unwrap_or_default().apply(req.amount);
+        let params = RaiseParams {
+            mode: match req.mode.as_deref() {
+                None | Some("offset") => RaiseMode::Offset,
+                Some("level") => RaiseMode::Level,
+                Some(other) => return Err(format!("unknown mode {other:?}; use offset or level")),
+            },
+            follow_ceiling: req.follow_ceiling.unwrap_or(true),
+            wall_material: wall_material(project, &req.wall_material)?,
+            reference: req.reference.unwrap_or(0),
+        };
+        let cells = rect_cells(rect);
+        let report = run_fine(world, room, level, &cells, FineVerb::Raise(params), amount);
+        let Some(FineReport::Applied(applied)) = report else {
+            return Err(match report {
+                Some(FineReport::Refused(why)) => why,
+                _ => "nothing to raise".to_string(),
+            });
+        };
+        let mut out = format!(
+            "room {room}: {} {} cell(s) of {} by {}",
+            if amount < 0 { "lowered" } else { "raised" },
+            applied.moved,
+            req.size.as_deref().unwrap_or("sector"),
+            clicks_text(amount)
+        );
+        if let Some(note) = note {
+            let _ = write!(out, "\n{note}");
+        }
+        return Ok(out);
+    }
     let (amount, note) = req.snap.unwrap_or_default().apply(req.amount);
     let first = region.cells().next().unwrap_or([0, 0]);
     let mode = match req.mode.as_deref() {
@@ -206,6 +260,10 @@ pub struct RampReq {
     pub follow_ceiling: Option<bool>,
     /// Material (name or id) of the derived walls of the shaped sectors.
     pub wall_material: Option<String>,
+    /// What a cell is: `sector` (default), `half` or `quarter` (see
+    /// grid_raise). The rectangle counts cells of that size and the slope
+    /// runs over them.
+    pub size: Option<String>,
 }
 
 fn parse_dir(name: &str) -> Result<RampDir, String> {
@@ -229,12 +287,45 @@ pub fn ramp(
     let room = pick_room(world, req.room)?;
     let rect = req.cells.rect();
     check_rect(&rect)?;
-    let region = Region::from_rect(room, rect);
+    let level = size_level(&req.size)?;
+    let region = Region::from_rect(room, rect).at_level(level);
     let params = RampParams {
         from: parse_dir(&req.keep)?,
         follow_ceiling: req.follow_ceiling.unwrap_or(true),
         wall_material: wall_material(project, &req.wall_material)?,
     };
+    if region.is_fine(world) {
+        let cells = rect_cells(rect);
+        let drag = FineDrag::begin(world, room, level, &cells, FineVerb::Ramp(params))
+            .ok_or("nothing to ramp there")?;
+        let max = drag.max_walkable_rise(world).unwrap_or(0);
+        let rise = match (req.rise, req.walkable) {
+            (Some(r), _) => snap_to(r, FINE_UNITS),
+            (None, Some(true)) => max,
+            (None, _) => {
+                return Err("give a rise, or walkable true for the steepest walkable slope".into())
+            }
+        };
+        let rise = if req.walkable == Some(true) {
+            rise.clamp(-max, max)
+        } else {
+            rise
+        };
+        return match drag.apply(world, rise) {
+            FineReport::Applied(applied) => Ok(format!(
+                "room {room}: ramp from the {} edge over {} cell(s) of {}: {} at the far side, {}; the steepest walkable rise here is {}\n{} cell(s) sloped",
+                params.from.label(),
+                cells.len(),
+                req.size.as_deref().unwrap_or("sector"),
+                clicks_text(rise),
+                if rise.abs() <= max { "walkable" } else { "TOO STEEP to stand on" },
+                clicks_text(max),
+                applied.moved
+            )),
+            FineReport::Refused(why) => Err(why),
+            _ => Err("nothing to ramp there".to_string()),
+        };
+    }
     let drag = RampDrag::begin(world, &region, params)
         .ok_or("nothing to ramp: no sector of the rectangle has a floor")?;
     let max = drag.max_walkable_rise();
@@ -295,6 +386,10 @@ pub struct StairsReq {
     pub follow_ceiling: Option<bool>,
     /// Material (name or id) of the derived walls of the shaped sectors.
     pub wall_material: Option<String>,
+    /// What a cell is: `sector` (default), `half` or `quarter`. The path's
+    /// waypoints and the width count cells of that size, and each cell of the
+    /// path is one tread (a quarter cell tread is a fine step).
+    pub size: Option<String>,
 }
 
 /// Apply [`StairsReq`].
@@ -325,6 +420,34 @@ pub fn stairs(
         follow_ceiling: req.follow_ceiling.unwrap_or(true),
         wall_material: wall_material(project, &req.wall_material)?,
     };
+    let level = size_level(&req.size)?;
+    let fine = level != 2 || !world.rooms[room].leaves.is_sectors_only();
+    if fine {
+        let footprint: Vec<[i32; 2]> =
+            Region::from_path(room, &req.path, params.width).cells().collect();
+        let verb = FineVerb::Stairs {
+            params,
+            path: req.path.clone(),
+        };
+        let report = run_fine(world, room, level, &footprint, verb, snap_to(req.rise, FINE_UNITS));
+        return match report {
+            Some(FineReport::Flight(flight)) => {
+                if let Some(refusal) = flight.refusal {
+                    return Err(format!("{refusal:?}: use ramp true, a longer path or a smaller rise"));
+                }
+                Ok(format!(
+                    "room {room}: {} step(s) of {} over {} path cell(s) of {}, total {}",
+                    flight.steps,
+                    clicks_text(flight.riser),
+                    flight.cells,
+                    req.size.as_deref().unwrap_or("sector"),
+                    clicks_text(flight.total)
+                ))
+            }
+            Some(FineReport::Refused(why)) => Err(why),
+            _ => Err("the path crosses no cell".to_string()),
+        };
+    }
     let drag = StairsDrag::begin(world, room, &req.path, params)
         .ok_or("the path crosses no sector of the room")?;
     let rise = snap_to(req.rise, FINE_UNITS);
