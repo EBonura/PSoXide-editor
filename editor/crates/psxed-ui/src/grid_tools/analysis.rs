@@ -107,15 +107,7 @@ impl EditorWorkspace {
         if cache.walk.as_ref().is_none_or(|e| e.rev != self.grid.rev) {
             let spawns = psxed_project::grid::walk::player_spawns(&self.project, world);
             let started = Instant::now();
-            // Walkability is judged at the runtime's granularity: whole
-            // sectors, so a room with finer cells is read through its
-            // sector view (what the cook collides).
-            let view = psxed_project::grid::sector_view::sector_world(world);
-            let analysis = analyse(
-                view.as_ref().map_or(world, |(w, _)| w),
-                &spawns,
-                &psx_engine::WalkLimits::DEFAULT,
-            )?;
+            let analysis = analyse(world, &spawns, &psx_engine::WalkLimits::DEFAULT)?;
             cache.walk = Some(WalkEntry {
                 rev: self.grid.rev,
                 analysis: Rc::new(analysis),
