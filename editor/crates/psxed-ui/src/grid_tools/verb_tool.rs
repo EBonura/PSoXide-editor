@@ -300,6 +300,9 @@ pub(super) fn click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
         return;
     };
     let add = ptr.shift();
+    if ws.grid.tool == GridTool::Slab && !add && super::slab_tool::click(ws, room, cell) {
+        return;
+    }
     match ws.grid.verb.source {
         RegionSource::Path => {
             // A path belongs to one room.
@@ -392,6 +395,12 @@ pub(super) fn cancel(ws: &mut EditorWorkspace) -> bool {
                     ws.grid_changed();
                 }
                 VerbDrag::Break(_) | VerbDrag::Rough(_) => {}
+                // A slab drag records its change at once, whatever the amount.
+                VerbDrag::Slab(_) => {
+                    if g.before.is_none() {
+                        ws.do_undo();
+                    }
+                }
                 // A recorded step means the document changed: take it back.
                 _ => {
                     if g.before.is_none() && g.amount != 0 {
@@ -450,6 +459,7 @@ fn begin_amount(ws: &mut EditorWorkspace, ptr: &GridPointer, room: usize, cell: 
         GridTool::Stairs => super::stairs_tool::begin(ws, ptr, room, cell),
         GridTool::Break => super::break_tool::begin(ws, ptr, room, cell),
         GridTool::Rough => super::rough_tool::begin(ws, ptr, room, cell),
+        GridTool::Slab => super::slab_tool::begin(ws, ptr, room, cell),
         _ => false,
     }
 }
@@ -532,6 +542,7 @@ pub(crate) fn pose_drag(ws: &mut EditorWorkspace, amount: i32) -> Result<(), Str
             super::stairs_tool::drag_for(ws).ok_or("no path: use stairs-path=")?,
             None,
         ),
+        GridTool::Slab => return super::slab_tool::pose_drag(ws, amount),
         other => return Err(format!("the {} tool has no drag to pose", other.label())),
     };
     let mut gesture = VerbGesture {
@@ -666,6 +677,7 @@ pub(super) fn apply_amount(ws: &mut EditorWorkspace, g: &mut VerbGesture) {
             return;
         }
         VerbDrag::Rough(live) => super::rough_tool::apply(world, live, g.amount),
+        VerbDrag::Slab(live) => super::slab_tool::apply(world, live, g.amount),
     };
     ws.grid.verb.readout = line.clone();
     ws.status = line;
@@ -739,6 +751,10 @@ pub(super) fn toggle_mode(ws: &mut EditorWorkspace) {
         super::stairs_tool::toggle_ramp(ws);
         return;
     }
+    if ws.grid.tool == GridTool::Slab {
+        super::slab_tool::cycle_mode(ws);
+        return;
+    }
     if ws.grid.tool == GridTool::Ramp {
         ws.grid.verb.ramp_clamp = !ws.grid.verb.ramp_clamp;
         ws.status = if ws.grid.verb.ramp_clamp {
@@ -808,6 +824,7 @@ pub(crate) fn apply_typed(ws: &mut EditorWorkspace) {
     match ws.grid.tool {
         GridTool::Break => return super::break_tool::apply_typed(ws),
         GridTool::Rough => return super::rough_tool::apply_typed(ws),
+        GridTool::Slab => return super::slab_tool::apply_typed(ws),
         _ => {}
     }
     let amount = snap_to(

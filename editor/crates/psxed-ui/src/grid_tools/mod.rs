@@ -39,6 +39,7 @@ mod help;
 mod keys;
 mod lasso;
 mod leaf_overlay;
+mod level;
 mod mesh_overlay;
 mod mesh_panel;
 mod mesh_tool;
@@ -61,6 +62,7 @@ mod rough_tool;
 mod rules_panel;
 mod select_tool;
 mod shading_panel;
+pub(crate) mod slab_tool;
 mod stairs_tool;
 mod strip;
 mod tiling_panel;
@@ -80,6 +82,7 @@ pub(crate) use events::{grid_tool_2d, grid_tool_3d};
 pub(crate) fn cells_target_quarter() -> cells_tool::CellsTarget {
     cells_tool::CellsTarget::Quarter
 }
+pub use level::grid_preview_cutaway;
 use pick::PickCache;
 pub use rooms::grid_preview_hidden_rooms;
 use view::{GridPointer, GridView};
@@ -121,6 +124,9 @@ pub(crate) enum GridTool {
     Rough,
     /// Subdivide cells into finer ones and merge them back.
     Cells,
+    /// Insert a slab into a tall hall, or cut one out: a floor between
+    /// storeys.
+    Slab,
 }
 
 /// The strip's groups, in order.
@@ -146,7 +152,7 @@ impl ToolGroup {
 
 impl GridTool {
     /// Every tool, in strip order (grouped).
-    pub(crate) const ALL: [Self; 17] = [
+    pub(crate) const ALL: [Self; 18] = [
         Self::Select,
         Self::Height,
         Self::Floor,
@@ -164,15 +170,20 @@ impl GridTool {
         Self::Break,
         Self::Rough,
         Self::Cells,
+        Self::Slab,
     ];
 
     /// The strip group of the tool.
     pub(crate) const fn group(self) -> ToolGroup {
         match self {
             Self::Select | Self::Height => ToolGroup::Pick,
-            Self::Raise | Self::Ramp | Self::Stairs | Self::Break | Self::Rough | Self::Cells => {
-                ToolGroup::Build
-            }
+            Self::Raise
+            | Self::Ramp
+            | Self::Stairs
+            | Self::Break
+            | Self::Rough
+            | Self::Cells
+            | Self::Slab => ToolGroup::Build,
             _ => ToolGroup::Draw,
         }
     }
@@ -182,7 +193,7 @@ impl GridTool {
     pub(crate) const fn is_verb(self) -> bool {
         matches!(
             self,
-            Self::Raise | Self::Ramp | Self::Stairs | Self::Break | Self::Rough
+            Self::Raise | Self::Ramp | Self::Stairs | Self::Break | Self::Rough | Self::Slab
         )
     }
 
@@ -205,6 +216,7 @@ impl GridTool {
             Self::Break => "Break",
             Self::Rough => "Rough",
             Self::Cells => "Cells",
+            Self::Slab => "Slab",
         }
     }
 
@@ -225,14 +237,15 @@ impl GridTool {
             Self::Stairs => egui::Key::T,
             Self::Break => egui::Key::X,
             Self::Rough => egui::Key::M,
-            Self::Cells => egui::Key::Q,
+            Self::Cells | Self::Slab => egui::Key::Q,
         }
     }
 
     /// Whether the tool's key is pressed with Shift (the Mesh tool is Shift+N,
-    /// the solid sibling of the Plane tool's N: every plain letter is taken).
+    /// the solid sibling of the Plane tool's N, and the Slab tool Shift+Q,
+    /// beside the Cells tool's Q: every plain letter is taken).
     pub(crate) const fn shift(self) -> bool {
-        matches!(self, Self::Mesh)
+        matches!(self, Self::Mesh | Self::Slab)
     }
 
     pub(crate) const fn key_label(self) -> &'static str {
@@ -254,6 +267,7 @@ impl GridTool {
             Self::Break => "X",
             Self::Rough => "M",
             Self::Cells => "Q",
+            Self::Slab => "Shift+Q",
         }
     }
 
@@ -276,6 +290,7 @@ impl GridTool {
             Self::Break => icons::HAMMER,
             Self::Rough => icons::MOUNTAIN,
             Self::Cells => icons::GRID,
+            Self::Slab => icons::LAYERS_2,
         }
     }
 
@@ -325,6 +340,9 @@ impl GridTool {
             }
             Self::Cells => {
                 "Paint over the plan to subdivide cells into four finer ones; Alt merges them back. Enter and Shift+Enter subdivide and merge the Select tool's cells. [ and ] change the brush."
+            }
+            Self::Slab => {
+                "Pick sectors, then press on them. Insert drags up for a floor at that height over the level; Cut and Fill are clicks on the region: Cut takes the first slab above the level out, Fill closes the opening up to the next level. Tab changes the mode."
             }
         }
     }
@@ -563,6 +581,8 @@ pub(crate) struct GridEditState {
     pub cells: cells_tool::CellsOptions,
     /// The cell size of the cell tools: a sector, a half or a quarter.
     pub cell_size: cell_size::CellSize,
+    /// The storey cursor and the cutaway (Alt+Up/Down, G, Z).
+    pub level: level::LevelState,
     /// Which overlays are on (Alt+W, Alt+P, Alt+L).
     pub overlays: analysis::Overlays,
     /// The overlays' analyses, per document revision.
@@ -623,6 +643,7 @@ impl Default for GridEditState {
             verb: verb_state::VerbState::default(),
             cells: cells_tool::CellsOptions::default(),
             cell_size: cell_size::CellSize::default(),
+            level: level::LevelState::default(),
             overlays: analysis::Overlays::default(),
             analysis: RefCell::new(analysis::AnalysisCache::default()),
             last_room: 0,
@@ -654,6 +675,7 @@ impl GridEditState {
         self.verb.lasso.clear();
         self.verb.lasso_cursor = None;
         self.verb.preview.clear();
+        self.level.picking = false;
         self.hover_pinned = false;
         self.hover = GridHover::None;
     }
@@ -771,6 +793,7 @@ impl EditorWorkspace {
             | GridTool::Stairs
             | GridTool::Break
             | GridTool::Rough
+            | GridTool::Slab
                 if self.grid.verb.region.is_some() =>
             {
                 C::ResizeVertical
@@ -782,6 +805,7 @@ impl EditorWorkspace {
             | GridTool::Break
             | GridTool::Rough
             | GridTool::Cells
+            | GridTool::Slab
             | GridTool::Ceiling
             | GridTool::Wall
             | GridTool::Plane

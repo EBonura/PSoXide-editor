@@ -8,9 +8,12 @@
 //!
 //! Commands (cells are world sectors, `x,z`):
 //!
-//! * `tool=select|floor|ceiling|wall|height|paint|split|place|bands|raise|ramp|stairs|break|rough|cells`
+//! * `tool=select|floor|ceiling|wall|height|paint|split|place|bands|raise|ramp|stairs|break|rough|cells|slab`
 //!   (the tool labels, any case)
 //! * `room=N` the active room; `hide=N` hides room N
+//! * `level=N` puts the storey cursor on storey `N` of the derived list
+//!   (0 is the lowest), `level=y:CLICKS` at a height in clicks;
+//!   `cutaway=cut|off` the 3D cutaway
 //! * `help` opens the key help overlay
 //! * `select=cells:x0,z0:x1,z1`, `select=floors:...`, `select=ceilings:...`,
 //!   `select=walls:...`, `select=derived:...` (the derived walls hosted by
@@ -38,7 +41,8 @@
 //! * `ramp-from=north|east|south|west` the A edge a Ramp keeps; `ramp-clamp`
 //!   holds Ramp to the steepest walkable slope
 //! * `verb-drag=clicks` a level verb's amount drag in flight at `clicks`
-//!   (the active verb tool and its region)
+//!   (the active verb tool and its region; for the Slab tool the height of
+//!   the slab over the level)
 //! * `break-drag=intensity[:seed]` a Break drag in flight on the region at
 //!   `intensity` (0 to 100), with `seed` when given (the seed of the Break
 //!   option row otherwise); switches to the Break tool
@@ -116,6 +120,10 @@ impl EditorWorkspace {
             self.pose_command(name, value)
                 .map_err(|e| format!("{command}: {e}"))?;
         }
+        // The 3D preview reads the view settings the workspace publishes each
+        // frame; a capture renders it before the first frame, so publish now.
+        self.publish_grid_room_visibility();
+        self.publish_grid_cutaway();
         Ok(())
     }
 
@@ -140,6 +148,28 @@ impl EditorWorkspace {
                 self.grid_hidden_rooms.insert(index);
             }
             "help" => self.grid.help_open = true,
+            "level" => match value.strip_prefix("y:") {
+                Some(clicks) => {
+                    let clicks = clicks.parse::<f32>().map_err(|e| e.to_string())?;
+                    self.set_level((clicks * CLICK_UNITS as f32).round() as i32);
+                }
+                None => {
+                    let ordinal = value.parse::<usize>().map_err(|e| e.to_string())?;
+                    let height = self
+                        .level_storeys()
+                        .get(ordinal)
+                        .ok_or_else(|| format!("no storey {ordinal}"))?
+                        .height;
+                    self.set_level(height);
+                }
+            },
+            "cutaway" => {
+                self.grid.level.cutaway = match value {
+                    "cut" => level::Cutaway::Cut,
+                    "off" => level::Cutaway::Off,
+                    other => return Err(format!("cutaway cut or off, not {other:?}")),
+                };
+            }
             "region" => {
                 let (a, b) = (
                     cell(parts.first().ok_or("missing x0,z0")?)?,

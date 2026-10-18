@@ -255,6 +255,34 @@ const ROUGH: Rows = &[
         "Jitters the corners of the faces of rough sectors in the render only; collision stays on the grid",
     ),
 ];
+const SLAB: Rows = &[
+    (
+        "Alt+Up, Alt+Down",
+        "Move the level cursor to the next storey up or down; the Level chip at the top of the view shows where it is. A storey is a floor height many sectors share",
+    ),
+    (
+        "G, then click",
+        "Set the level to the surface under the click (3D), or to the topmost floor of the column (Top). Esc cancels",
+    ),
+    (
+        "Z",
+        "Cutaway on or off: the 3D view and picking hide everything from the next storey above the level up",
+    ),
+    (
+        "Insert: pick a region, press on it, drag up",
+        "A floor at that height over the level, one click thick; the hall above and below keep their walls. Sectors with nothing open at that height are skipped and counted",
+    ),
+    (
+        "Cut: pick a region, click it",
+        "The first slab above the level comes out, so the spans around it merge (a stairwell)",
+    ),
+    (
+        "Fill: pick a region, click it",
+        "Closes the region up to the next storey above the level",
+    ),
+    ("Tab", "Insert, Cut, Fill"),
+    ("Esc", "Put the document back exactly"),
+];
 const CELLS: Rows = &[
     (
         "Paint",
@@ -368,7 +396,7 @@ impl EditorWorkspace {
             return;
         }
         let mut open = true;
-        let sections: [(&str, Rows); 18] = [
+        let sections: [(&str, Rows); 19] = [
             ("Select (V)", SELECT),
             ("Floor (F) and Ceiling (C)", FLOOR),
             ("Wall (W)", WALL),
@@ -383,6 +411,7 @@ impl EditorWorkspace {
             ("Break (X)", BREAK),
             ("Rough (M)", ROUGH),
             ("Cells (Q)", CELLS),
+            ("Slab (Shift+Q) and levels", SLAB),
             ("Overlays", OVERLAYS),
             ("More", OTHER),
             ("Snapping and reserved keys", SNAP),
@@ -397,7 +426,7 @@ impl EditorWorkspace {
             .show(ctx, |ui| {
                 ui.set_width(1500.0_f32.min(ctx.screen_rect().width() - 60.0));
                 ui.label(
-                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, Shift+N Mesh, P Paint, D Split, O Place, E Bands | U Raise, A Ramp, T Stairs, X Break, M Rough, Q Cells")
+                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, Shift+N Mesh, P Paint, D Split, O Place, E Bands | U Raise, A Ramp, T Stairs, X Break, M Rough, Q Cells, Shift+Q Slab | Alt+Up/Down level, G go to level, Z cutaway")
                         .color(STUDIO_TEXT_WEAK),
                 );
                 ui.label(

@@ -46,6 +46,14 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
         }
         return;
     }
+    if ws.grid.level.picking {
+        // G was pressed: the click that follows sets the storey cursor and
+        // nothing else sees the pointer until then.
+        if ev == Ev::Click {
+            ws.level_pick_click(&ptr);
+        }
+        return;
+    }
     let taken = match ev {
         Ev::Hover => plane_tool::hover(ws, &ptr),
         Ev::Press => plane_tool::press(ws, &ptr),
@@ -131,23 +139,48 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
         }
 
         (
-            GridTool::Raise | GridTool::Ramp | GridTool::Stairs | GridTool::Break | GridTool::Rough,
+            GridTool::Raise
+            | GridTool::Ramp
+            | GridTool::Stairs
+            | GridTool::Break
+            | GridTool::Rough
+            | GridTool::Slab,
             Ev::Hover,
         ) => verb_tool::hover(ws, &ptr),
         (
-            GridTool::Raise | GridTool::Ramp | GridTool::Stairs | GridTool::Break | GridTool::Rough,
+            GridTool::Raise
+            | GridTool::Ramp
+            | GridTool::Stairs
+            | GridTool::Break
+            | GridTool::Rough
+            | GridTool::Slab,
             Ev::Press,
         ) => verb_tool::press(ws, &ptr),
         (
-            GridTool::Raise | GridTool::Ramp | GridTool::Stairs | GridTool::Break | GridTool::Rough,
+            GridTool::Raise
+            | GridTool::Ramp
+            | GridTool::Stairs
+            | GridTool::Break
+            | GridTool::Rough
+            | GridTool::Slab,
             Ev::Drag,
         ) => verb_tool::drag(ws, &ptr),
         (
-            GridTool::Raise | GridTool::Ramp | GridTool::Stairs | GridTool::Break | GridTool::Rough,
+            GridTool::Raise
+            | GridTool::Ramp
+            | GridTool::Stairs
+            | GridTool::Break
+            | GridTool::Rough
+            | GridTool::Slab,
             Ev::Release,
         ) => verb_tool::release(ws),
         (
-            GridTool::Raise | GridTool::Ramp | GridTool::Stairs | GridTool::Break | GridTool::Rough,
+            GridTool::Raise
+            | GridTool::Ramp
+            | GridTool::Stairs
+            | GridTool::Break
+            | GridTool::Rough
+            | GridTool::Slab,
             Ev::Click,
         ) => verb_tool::click(ws, &ptr),
     }

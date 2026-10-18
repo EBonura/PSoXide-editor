@@ -10,6 +10,7 @@ mod grid_cells;
 mod grid_cycle;
 mod grid_derived;
 mod grid_heat;
+mod grid_levels;
 mod grid_meshes;
 mod grid_natural;
 mod grid_planes;

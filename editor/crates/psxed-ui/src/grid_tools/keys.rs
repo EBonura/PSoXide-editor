@@ -16,9 +16,10 @@ use super::{
 
 /// Keys the level verbs still to come (design: `docs/grid/level-tools-design.md`,
 /// 7.12) will take, kept free of other meanings now: S Sculpt, B Room,
-/// K Corridor, I Opening, Y Stamps, G Vault. U Raise, A Ramp and T Stairs are
+/// K Corridor, I Opening, Y Stamps, J Vault. U Raise, A Ramp and T Stairs are
 /// tools now, and so are X Break and M Rough; E is the Bands tool and N the
-/// Plane tool, Q the Cells tool. Alt+W, Alt+P and Alt+L are the overlays.
+/// Plane tool, Q the Cells tool and Shift+Q the Slab tool; G goes to a level
+/// and Z switches the cutaway. Alt+W, Alt+P and Alt+L are the overlays.
 #[cfg(test)]
 pub(crate) const RESERVED_VERB_KEYS: [egui::Key; 6] = [
     egui::Key::S,
@@ -26,7 +27,7 @@ pub(crate) const RESERVED_VERB_KEYS: [egui::Key; 6] = [
     egui::Key::K,
     egui::Key::I,
     egui::Key::Y,
-    egui::Key::G,
+    egui::Key::J,
 ];
 
 fn pressed(ctx: &egui::Context, key: egui::Key) -> bool {
@@ -63,6 +64,13 @@ impl EditorWorkspace {
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::ALT, egui::Key::L)) {
             self.toggle_leaf_overlay();
         }
+        // The storey cursor: Alt+Up and Alt+Down step through the storeys.
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::ALT, egui::Key::ArrowUp)) {
+            self.step_level(true);
+        }
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::ALT, egui::Key::ArrowDown)) {
+            self.step_level(false);
+        }
         let modifiers = ctx.input(|i| i.modifiers);
         if modifiers.command || modifiers.ctrl || modifiers.alt {
             return;
@@ -98,7 +106,9 @@ impl EditorWorkspace {
         }
 
         if pressed(ctx, egui::Key::Escape) {
-            if plane_tool::cancel(self) || bands_tool::cancel(self) {
+            if self.cancel_level_pick() {
+                // The go-to-level click was waiting.
+            } else if plane_tool::cancel(self) || bands_tool::cancel(self) {
                 self.status = "Cancelled".to_string();
             } else if verb_tool::cancel(self) {
                 // A verb drag, a pick in flight or the region itself.
@@ -129,6 +139,10 @@ impl EditorWorkspace {
         // the N for the Plane tool whatever Shift says).
         if pressed_shift(ctx, egui::Key::N) {
             self.set_grid_tool(GridTool::Mesh);
+        }
+        // Shift+Q is the Slab tool, beside the Cells tool's Q.
+        if pressed_shift(ctx, egui::Key::Q) {
+            self.set_grid_tool(GridTool::Slab);
         }
         // Shift+X draws the next Break seed (before the tool keys, which
         // would take the X whatever Shift says).
@@ -179,6 +193,13 @@ impl EditorWorkspace {
             } else {
                 "Vertices unlinked".to_string()
             };
+        }
+        // G goes to a level, Z switches the cutaway.
+        if pressed(ctx, egui::Key::G) {
+            self.begin_level_pick();
+        }
+        if pressed(ctx, egui::Key::Z) {
+            self.cycle_cutaway();
         }
         if self.grid.tool == GridTool::Cells {
             // Shift+Enter first: a plain Enter also matches when Shift is held.
@@ -251,6 +272,7 @@ mod tests {
             (GridTool::Break, egui::Key::X),
             (GridTool::Rough, egui::Key::M),
             (GridTool::Cells, egui::Key::Q),
+            (GridTool::Slab, egui::Key::Q),
         ] {
             assert_eq!(tool.key(), key, "{}", tool.label());
             assert!(!RESERVED_VERB_KEYS.contains(&key));

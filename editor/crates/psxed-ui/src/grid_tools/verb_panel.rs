@@ -47,6 +47,7 @@ impl EditorWorkspace {
             GridTool::Stairs => self.draw_stairs_options(ui),
             GridTool::Break => return self.draw_break_options(ui),
             GridTool::Rough => return self.draw_rough_options(ui),
+            GridTool::Slab => return self.draw_slab_options(ui),
             _ => {}
         }
         ui.separator();
@@ -65,6 +66,38 @@ impl EditorWorkspace {
             .clicked()
         {
             super::verb_tool::apply_typed(self);
+        }
+    }
+
+    /// Slab: the mode and a typed height over the level.
+    fn draw_slab_options(&mut self, ui: &mut egui::Ui) {
+        use super::slab_tool::SlabMode;
+        ui.label(RichText::new("Slab").color(STUDIO_TEXT_WEAK).size(11.0));
+        for mode in SlabMode::ALL {
+            if ui
+                .selectable_label(self.grid.verb.slab.mode == mode, mode.label())
+                .on_hover_text(format!("{} (Tab cycles)", mode.hint()))
+                .clicked()
+            {
+                self.grid.verb.slab.mode = mode;
+            }
+        }
+        ui.separator();
+        ui.label(RichText::new("Height").color(STUDIO_TEXT_WEAK).size(11.0));
+        ui.add(
+            egui::DragValue::new(&mut self.grid.verb.slab.typed_clicks)
+                .speed(0.05)
+                .suffix(" clicks")
+                .max_decimals(2),
+        )
+        .on_hover_text("A typed height of the slab's top over the level, in 256-unit clicks");
+        let has_region = self.grid.verb.region.is_some();
+        if ui
+            .add_enabled(has_region, egui::Button::new("Apply"))
+            .on_hover_text("Apply the mode to the region as one undo step")
+            .clicked()
+        {
+            super::slab_tool::apply_typed(self);
         }
     }
 

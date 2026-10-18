@@ -30,6 +30,7 @@ pub const GRID: char = '\u{e0e9}';
 pub const HAMMER: char = '\u{e0ec}';
 pub const HOUSE: char = '\u{e0f5}';
 pub const LAYERS: char = '\u{e529}';
+pub const LAYERS_2: char = '\u{e52a}';
 pub const MAP_PIN: char = '\u{e111}';
 pub const MOUNTAIN: char = '\u{e231}';
 pub const MOVE: char = '\u{e121}';

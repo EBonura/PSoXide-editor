@@ -246,10 +246,15 @@ impl EditorWorkspace {
     /// double-sided), skipping hidden rooms.
     pub(crate) fn pick_face_3d(&self, rect: Rect, pos: Pos2) -> Option<FaceHit> {
         let (origin, dir) = self.camera_ray_for_pointer(rect, pos)?;
+        let cut = self.cutaway_plane().map(|y| y as f32);
         self.with_pick_cache(|cache| {
             let mut best: Option<FaceHit> = None;
             for pf in &cache.faces {
                 if self.grid_hidden_rooms.contains(&pf.face.room) {
+                    continue;
+                }
+                // The cutaway hides what lies above the level: not pickable.
+                if cut.is_some_and(|cut| pf.points.iter().all(|p| p[1] >= cut)) {
                     continue;
                 }
                 let facing = pf.normal[0] * dir[0] + pf.normal[1] * dir[1] + pf.normal[2] * dir[2];
@@ -297,12 +302,15 @@ impl EditorWorkspace {
         // Depth is along the ray, the camera's is along its axis; the
         // tolerance covers the difference and neighbouring geometry.
         let visible = |depth: f32| limit.is_none_or(|l| depth <= l * 1.02 + 24.0);
+        let cut = self.cutaway_plane().map(|y| y as f32);
         let found = self
             .with_pick_cache(|cache| {
                 if level == PickLevel::Vertex {
                     let mut best: Option<(f32, f32, CornerRef)> = None;
                     for c in &cache.corners {
-                        if self.grid_hidden_rooms.contains(&c.corner.face.room) {
+                        if self.grid_hidden_rooms.contains(&c.corner.face.room)
+                            || cut.is_some_and(|cut| c.pos[1] >= cut)
+                        {
                             continue;
                         }
                         let Some((screen, depth)) = cam.project(c.pos) else {
@@ -326,7 +334,9 @@ impl EditorWorkspace {
                 if level != PickLevel::Face {
                     let mut best: Option<(f32, EdgeRef)> = None;
                     for e in &cache.edges {
-                        if self.grid_hidden_rooms.contains(&e.edge.face.room) {
+                        if self.grid_hidden_rooms.contains(&e.edge.face.room)
+                            || cut.is_some_and(|cut| e.a[1].min(e.b[1]) >= cut)
+                        {
                             continue;
                         }
                         let (Some((a, da)), Some((b, db))) = (cam.project(e.a), cam.project(e.b))

@@ -395,6 +395,7 @@ impl EditorWorkspace {
         self.draw_walk_overlay_2d(painter, transform);
         self.draw_heat_overlay_2d(painter, transform);
         self.draw_leaf_overlay_2d(painter, transform);
+        self.draw_level_chip(painter, painter.clip_rect());
     }
 
     // ---- 3D view ----
@@ -645,6 +646,7 @@ impl EditorWorkspace {
         self.draw_heat_overlay_3d(painter, rect);
         self.draw_leaf_overlay_3d(painter, rect);
         self.draw_leaf_hover_3d(painter, rect);
+        self.draw_level_chip(painter, rect);
     }
 
     #[allow(clippy::too_many_arguments)]

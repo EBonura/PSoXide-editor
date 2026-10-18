@@ -152,6 +152,12 @@ fn emit_cut_face(
     }
 }
 
+/// Whether `face` lies wholly at or above the cutaway plane the editor
+/// publishes (see `psxed_ui::grid_preview_cutaway`), and so is not drawn.
+fn above_cut(face: &GridFace, cut: Option<i32>) -> bool {
+    cut.is_some_and(|cut| face.points.iter().all(|p| p[1] >= cut))
+}
+
 /// Draw the active scene's grid world, if it has one.
 pub(super) fn walk_grid(
     project: &ProjectDocument,
@@ -167,6 +173,8 @@ pub(super) fn walk_grid(
     // Rooms the author hid in the Rooms panel; a view setting the workspace
     // publishes, since the preview only sees the project.
     let hidden = psxed_ui::grid_preview_hidden_rooms();
+    // The storey cutaway: nothing at or above this height is drawn.
+    let cut = psxed_ui::grid_preview_cutaway();
     let mut faces = Vec::new();
     for (room_index, room) in world.rooms.iter().enumerate() {
         if hidden.contains(&room_index) {
@@ -176,7 +184,9 @@ pub(super) fn walk_grid(
             let Some(bounds) = cell_bounds(world, room, x, z) else {
                 continue;
             };
-            if !preview_cell_bounds_visible(camera, bounds) {
+            if !preview_cell_bounds_visible(camera, bounds)
+                || cut.is_some_and(|cut| bounds.min[1] >= f64::from(cut))
+            {
                 continue;
             }
             if scratch.geometry_full() {
@@ -187,7 +197,7 @@ pub(super) fn walk_grid(
             }
             faces.clear();
             cell_faces_with(world, &defaults, room_index, x, z, &mut faces);
-            for face in &faces {
+            for face in faces.iter().filter(|face| !above_cut(face, cut)) {
                 emit_cut_face(
                     project,
                     textures,
@@ -214,7 +224,7 @@ pub(super) fn walk_grid(
             }
             faces.clear();
             plane_faces_with(world, &defaults, room_index, index, &mut faces);
-            for face in &faces {
+            for face in faces.iter().filter(|face| !above_cut(face, cut)) {
                 emit_cut_face(
                     project,
                     textures,
@@ -260,7 +270,7 @@ pub(super) fn walk_grid(
             }
             faces.clear();
             mesh_faces_with(world, &defaults, room_index, index, &mut faces);
-            for face in &faces {
+            for face in faces.iter().filter(|face| !above_cut(face, cut)) {
                 emit_cut_face(
                     project,
                     textures,
