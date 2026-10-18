@@ -69,6 +69,11 @@ pub struct RaiseReq {
     pub wall_material: Option<String>,
     /// `click` (default) or `fine`.
     pub snap: Option<Snap>,
+    /// What the rectangle's corners count: `sector` (default) or `click` (a
+    /// quarter sector). With `click`, the cells inside the rectangle move
+    /// and a cell it cuts through is subdivided to fit, so one step of a
+    /// fine staircase is one call.
+    pub unit: Option<super::cells::Unit>,
 }
 
 /// Apply [`RaiseReq`].
@@ -78,6 +83,9 @@ pub fn raise(
     req: &RaiseReq,
 ) -> Result<String, String> {
     let room = pick_room(world, req.room)?;
+    if req.unit == Some(super::cells::Unit::Click) {
+        return raise_clicks(world, project, req, room);
+    }
     let rect = req.cells.rect();
     check_rect(&rect)?;
     let region = Region::from_rect(room, rect);
@@ -123,6 +131,54 @@ pub fn raise(
             "\n{} floor(s) held one click under their ceiling",
             applied.clamped
         );
+    }
+    Ok(out)
+}
+
+/// [`raise`] over a rectangle of clicks.
+fn raise_clicks(
+    world: &mut GridWorld,
+    project: &ProjectDocument,
+    req: &RaiseReq,
+    room: usize,
+) -> Result<String, String> {
+    use psxed_project::grid::edit::verbs::raise_leaves::raise_click_rect;
+    let (lo, hi) = super::cells::click_rect(&req.cells, super::cells::Unit::Click)?;
+    let (amount, note) = req.snap.unwrap_or_default().apply(req.amount);
+    let mode = match req.mode.as_deref() {
+        None | Some("offset") => RaiseMode::Offset,
+        Some("level") => RaiseMode::Level,
+        Some(other) => return Err(format!("unknown mode {other:?}; use offset or level")),
+    };
+    let reference = req
+        .reference
+        .or_else(|| {
+            let (_, leaf) = world.rooms.get(room)?.leaf_at(lo)?;
+            let f = leaf.ground_floor()?;
+            Some(snap_to(f.heights.iter().sum::<i32>() / 4, FINE_UNITS))
+        })
+        .unwrap_or(0);
+    let params = RaiseParams {
+        mode,
+        follow_ceiling: req.follow_ceiling.unwrap_or(true),
+        wall_material: wall_material(project, &req.wall_material)?,
+        reference,
+    };
+    let applied = raise_click_rect(world, room, lo, hi, params, amount)
+        .ok_or("nothing to raise: no cell lies in that rectangle")?;
+    let mut out = format!(
+        "room {room}: {} {} cell(s) by {} in {} mode ({})",
+        if amount < 0 { "lowered" } else { "raised" },
+        applied.moved,
+        clicks_text(amount),
+        mode.label(),
+        super::cells::census(&world.rooms[room]),
+    );
+    if let Some(note) = note {
+        let _ = write!(out, "\n{note}");
+    }
+    if applied.skipped > 0 {
+        let _ = write!(out, "\n{} cell(s) had no floor", applied.skipped);
     }
     Ok(out)
 }

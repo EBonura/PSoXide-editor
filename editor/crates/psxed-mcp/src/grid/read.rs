@@ -161,10 +161,14 @@ pub fn sector(
         r.y_offset
     );
     let sector = r.sector(local[0], local[1]);
+    if sector.is_none() && !r.leaves.in_sector(cell).is_empty() {
+        return Ok(out + &cells_in_sector(world, project, r, room, cell));
+    }
     let Some(sector) = sector else {
         out.push_str("empty: no floor, no ceiling, no walls\n");
         return Ok(out);
     };
+    out.push_str("leaf: level 2, a whole sector\n");
     match sector.ground_floor() {
         Some(s) => {
             let _ = writeln!(out, "floor: {}", surface_line(s, &mats));
@@ -217,6 +221,87 @@ pub fn sector(
         mats.label(sector.ground_wall_material())
     );
     Ok(out)
+}
+
+/// A sector that is not one cell: each leaf in it (or the bigger one over
+/// it) with its size, corners and walls, and the derived walls on its edges.
+fn cells_in_sector(
+    world: &GridWorld,
+    project: &ProjectDocument,
+    r: &GridRoom,
+    room: usize,
+    cell: [i32; 2],
+) -> String {
+    let mats = Materials::new(project);
+    let mut out = String::new();
+    let sizes = [
+        "4 sectors",
+        "2 sectors",
+        "1 sector",
+        "1/2 sector",
+        "1/4 sector",
+    ];
+    for (key, leaf) in r.leaves.in_sector(cell) {
+        let _ = writeln!(
+            out,
+            "leaf level {} ({} across) at clicks ({}, {}) {}",
+            key.level,
+            sizes[usize::from(key.level.min(4))],
+            key.x,
+            key.z,
+            if key.level < 2 {
+                format!(
+                    "(covers sectors {:?} to {:?})",
+                    key.sector_range().0,
+                    key.sector_range().1
+                )
+            } else {
+                String::new()
+            }
+        );
+        match leaf.ground_floor() {
+            Some(s) => {
+                let _ = writeln!(out, "  floor: {}", surface_line(s, &mats));
+            }
+            None => out.push_str("  floor: none\n"),
+        }
+        match leaf.ground_ceiling() {
+            Some(s) => {
+                let _ = writeln!(out, "  ceiling: {}", surface_line(s, &mats));
+            }
+            None => out.push_str("  ceiling: none\n"),
+        }
+        for edge in WallEdge::ALL {
+            for (index, wall) in leaf.walls(edge).iter().enumerate() {
+                let _ = writeln!(
+                    out,
+                    "  authored wall {} {index}: heights {:?}, material {}",
+                    edge.label(),
+                    wall.heights,
+                    mats.label(wall.material),
+                );
+            }
+        }
+    }
+    for seg in psxed_project::grid::leaf_derive::cell_wall_segments(r, cell) {
+        let _ = writeln!(
+            out,
+            "derived wall {} from grid ({}, {}) to ({}, {}), hidden {}",
+            seg.kind.label(),
+            seg.a[0],
+            seg.a[1],
+            seg.b[0],
+            seg.b[1],
+            seg.hidden
+        );
+    }
+    let _ = world;
+    let _ = room;
+    out
+}
+
+fn x_cell(r: &GridRoom, lx: usize, lz: usize) -> [i32; 2] {
+    r.world_cell(lx, lz)
 }
 
 /// What a height map shows.
@@ -307,6 +392,16 @@ pub fn height_map(
             rect.width()
         ));
     }
+    // A room with cells of other sizes is read through the sector view; a
+    // sector that holds finer cells is marked with %.
+    let views: Vec<Option<GridRoom>> = world
+        .rooms
+        .iter()
+        .map(|r| {
+            (!r.leaves.is_sectors_only())
+                .then(|| psxed_project::grid::sector_view::sector_room(r).0)
+        })
+        .collect();
     let width = if show == MapShow::Both { 7 } else { 5 };
     let mut out = String::new();
     let _ = write!(out, "{:>6} ", "z\\x");
@@ -326,9 +421,18 @@ pub fn height_map(
                 let Some([lx, lz]) = r.local([x, z]) else {
                     continue;
                 };
-                let Some(sector) = r.sector(lx, lz) else {
+                let sector = match &views[i] {
+                    Some(view) => view.sector(lx, lz),
+                    None => r.sector(lx, lz),
+                };
+                let Some(sector) = sector else {
                     continue;
                 };
+                let fine = views[i].is_some()
+                    && r.leaves
+                        .in_sector(x_cell(r, lx, lz))
+                        .iter()
+                        .any(|(k, _)| k.level > 2);
                 let surface = match show {
                     MapShow::Ceiling => sector.ground_ceiling(),
                     _ => sector.ground_floor(),
@@ -336,7 +440,10 @@ pub fn height_map(
                 let Some(surface) = surface else { continue };
                 covered += 1;
                 let h = r.y_offset + surface.heights.iter().sum::<i32>() / 4;
-                let text = cell_text(world, r, Some(sector), show, width);
+                let mut text = cell_text(world, r, Some(sector), show, width);
+                if fine {
+                    text = format!("{:>width$}", format!("%{}", text.trim()));
+                }
                 if best.as_ref().is_none_or(|(b, _)| h > *b) {
                     best = Some((h, text));
                 }
@@ -358,7 +465,8 @@ pub fn height_map(
     let _ = writeln!(
         out,
         "\nheights in clicks (1 click = 256 grid units; 0.25 = one fine step), world height \
-         including each room's y_offset. '/' = sloped (mean), '.' = none, '*' = rooms overlap here."
+         including each room's y_offset. '/' = sloped (mean), '.' = none, '*' = rooms overlap here, \
+         '%' = a sector made of finer cells (the mean of its corners; grid_leaves maps them)."
     );
     Ok(out)
 }

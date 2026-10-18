@@ -30,6 +30,9 @@ pub struct PlanReq {
     pub pixels_per_sector: Option<u32>,
     /// Draw numbered node markers (player spawn, lights, entities). Default true.
     pub nodes: Option<bool>,
+    /// Draw the borders of the cells that are not whole sectors (violet 4
+    /// sectors, blue 2, amber 1/2, red 1/4). Default true.
+    pub leaves: Option<bool>,
 }
 
 /// The framing rectangle.
@@ -441,7 +444,7 @@ pub fn render(
         if req.room.is_some_and(|only| only != i) {
             continue;
         }
-        for (_, _, s) in r.iter() {
+        for (_, s) in r.leaves() {
             if let Some(f) = s.ground_floor() {
                 let (a, b) = f.height_range();
                 lowest = lowest.min(r.y_offset + a);
@@ -456,11 +459,23 @@ pub fn render(
     order.sort_by_key(|i| (world.rooms[*i].y_offset, *i));
     for &ri in &order {
         let r = &world.rooms[ri];
-        for (x, z, s) in r.iter() {
-            let cell = r.world_cell(x, z);
-            if cell[0] < min[0] || cell[0] > max[0] || cell[1] < min[1] || cell[1] > max[1] {
+        for (key, s) in r.leaves() {
+            if !r.contains_leaf(key) {
                 continue;
             }
+            let (lo, hi) = key.sector_range();
+            if hi[0] < min[0] || lo[0] > max[0] || hi[1] < min[1] || lo[1] > max[1] {
+                continue;
+            }
+            // Pixel position of a click (a quarter sector).
+            let kx = |click: i32| {
+                origin.0 + ((click * ppx_i) as f32 / 4.0).round() as i32 - min[0] * ppx_i
+            };
+            let kz = |click: i32| {
+                origin.1 + ((click * ppx_i) as f32 / 4.0).round() as i32 - min[1] * ppx_i
+            };
+            let n = key.edge_clicks();
+            let (x0, y0, x1, y1) = (kx(key.x), kz(key.z), kx(key.x + n), kz(key.z + n));
             let colour = match s.ground_floor() {
                 Some(f) => {
                     let mean = r.y_offset as f32 + f.heights.iter().sum::<i32>() as f32 / 4.0;
@@ -468,28 +483,30 @@ pub fn render(
                 }
                 None => [28, 28, 34],
             };
-            canvas.rect(
-                sx(cell[0]) + 1,
-                sy(cell[1]) + 1,
-                sx(cell[0] + 1),
-                sy(cell[1] + 1),
-                colour,
-            );
+            canvas.rect(x0 + 1, y0 + 1, x1, y1, colour);
             if let Some(f) = s.ground_floor() {
                 // A sloped or bent floor gets its diagonal drawn.
                 if !f.is_planar() || f.heights[0] != f.heights[2] || f.heights[1] != f.heights[3] {
                     let (a, b) = match f.split {
-                        psxed_project::grid::GridSplit::NwSe => (
-                            (sx(cell[0]), sy(cell[1])),
-                            (sx(cell[0] + 1), sy(cell[1] + 1)),
-                        ),
-                        psxed_project::grid::GridSplit::NeSw => (
-                            (sx(cell[0] + 1), sy(cell[1])),
-                            (sx(cell[0]), sy(cell[1] + 1)),
-                        ),
+                        psxed_project::grid::GridSplit::NwSe => ((x0, y0), (x1, y1)),
+                        psxed_project::grid::GridSplit::NeSw => ((x1, y0), (x0, y1)),
                     };
                     canvas.line(a, b, [0, 0, 0], 1);
                 }
+            }
+            // Where the leaves are not whole sectors, their borders show.
+            if req.leaves.unwrap_or(true) && !r.leaves.is_sectors_only() {
+                let c = match key.level {
+                    0 => [168, 124, 244],
+                    1 => [104, 164, 244],
+                    2 => [60, 64, 76],
+                    3 => [255, 190, 84],
+                    _ => [255, 108, 92],
+                };
+                canvas.line((x0, y0), (x1, y0), c, 1);
+                canvas.line((x1, y0), (x1, y1), c, 1);
+                canvas.line((x1, y1), (x0, y1), c, 1);
+                canvas.line((x0, y1), (x0, y0), c, 1);
             }
         }
     }
@@ -498,7 +515,26 @@ pub fn render(
         let r = &world.rooms[ri];
         for z in (min[1] - 1)..=(max[1] + 1) {
             for x in (min[0] - 1)..=(max[0] + 1) {
+                if !r.leaves.is_sectors_only() {
+                    for seg in psxed_project::grid::leaf_derive::cell_wall_segments(r, [x, z]) {
+                        let ghost = false;
+                        let c = edge_colour(seg.kind, seg.hidden, ghost);
+                        canvas.line(
+                            (gx(seg.a[0] as f32) as i32, gz(seg.a[1] as f32) as i32),
+                            (gx(seg.b[0] as f32) as i32, gz(seg.b[1] as f32) as i32),
+                            c,
+                            if seg.kind == DerivedKind::Closure {
+                                3
+                            } else {
+                                2
+                            },
+                        );
+                    }
+                }
                 for wall in derive::cell_walls(r, [x, z]) {
+                    if !r.leaves.is_sectors_only() {
+                        break;
+                    }
                     let ghost = !wall.hidden
                         && wall.kind == DerivedKind::Closure
                         && wall.solid == Some(false);
@@ -515,21 +551,27 @@ pub fn render(
                         },
                     );
                 }
-                let Some([lx, lz]) = r.local([x, z]) else {
+                if r.local([x, z]).is_none() {
                     continue;
-                };
-                let Some(s) = r.sector(lx, lz) else { continue };
-                for edge in WallEdge::ALL {
-                    if s.walls(edge).is_empty() {
+                }
+                for (key, s) in r.leaves.in_sector([x, z]) {
+                    if key.cell() != [x, z] || key.level < 2 {
                         continue;
                     }
-                    let (a, b) = edge.endpoints();
-                    canvas.line(
-                        (sx(x + a[0]), sy(z + a[1])),
-                        (sx(x + b[0]), sy(z + b[1])),
-                        [255, 140, 40],
-                        2,
-                    );
+                    let n = key.edge_clicks() as f32 / 4.0;
+                    let at = |p: [i32; 2]| {
+                        (
+                            gx((key.x as f32 / 4.0 + p[0] as f32 * n) * 1024.0) as i32,
+                            gz((key.z as f32 / 4.0 + p[1] as f32 * n) * 1024.0) as i32,
+                        )
+                    };
+                    for edge in WallEdge::ALL {
+                        if s.walls(edge).is_empty() {
+                            continue;
+                        }
+                        let (a, b) = edge.endpoints();
+                        canvas.line(at(a), at(b), [255, 140, 40], 2);
+                    }
                 }
             }
         }

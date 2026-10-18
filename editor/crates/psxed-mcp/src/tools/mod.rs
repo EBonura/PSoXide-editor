@@ -6,6 +6,7 @@
 //! `ProjectDocument`, so they could move into a live editor bridge unchanged.
 
 mod bands;
+mod cells;
 mod combat;
 mod geometry;
 mod meshes;
@@ -53,6 +54,7 @@ impl EditorServer {
             + Self::geometry_router()
             + Self::surfaces_router()
             + Self::bands_router()
+            + Self::cells_router()
             + Self::planes_router()
             + Self::meshes_router()
             + Self::verbs_router()
