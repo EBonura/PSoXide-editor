@@ -106,3 +106,19 @@ fn raise_lifts_the_fine_cells_of_a_region_and_the_height_tool_drags_a_fine_corne
     let (key, _) = rig.room(0).leaf_at([8, 8]).unwrap();
     assert_eq!(key, LeafKey::new(3, 8, 8).unwrap());
 }
+
+#[test]
+fn the_rectangle_tools_leave_cells_that_are_not_sectors_alone_without_panicking() {
+    let mut rig = GridRig::top("cells-floor", hall());
+    rig.tool(GridTool::Cells);
+    rig.click(rig.cell_centre(2, 2));
+    let before = rig.ws.project.clone();
+    for tool in [GridTool::Floor, GridTool::Ceiling, GridTool::Wall, GridTool::Paint] {
+        rig.tool(tool);
+        rig.drag(rig.cell_centre(1, 2), rig.cell_centre(3, 2));
+    }
+    assert!(check(rig.room(0)).is_empty(), "{:?}", check(rig.room(0)));
+    // The fine cells are still there, whatever the tools did around them.
+    assert_eq!(levels(&rig)[3], 4);
+    let _ = before;
+}

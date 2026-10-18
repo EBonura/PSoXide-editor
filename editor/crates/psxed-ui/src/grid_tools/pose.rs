@@ -8,7 +8,7 @@
 //!
 //! Commands (cells are world sectors, `x,z`):
 //!
-//! * `tool=select|floor|ceiling|wall|height|paint|split|place|bands|raise|ramp|stairs|break|rough`
+//! * `tool=select|floor|ceiling|wall|height|paint|split|place|bands|raise|ramp|stairs|break|rough|cells`
 //!   (the tool labels, any case)
 //! * `room=N` the active room; `hide=N` hides room N
 //! * `help` opens the key help overlay
@@ -26,7 +26,9 @@
 //!   `hover=vertex:x,z,corner`, `hover=spot:x,z`
 //! * `region=x0,z0:x1,z1` the level verbs' region (a marquee, committed)
 //! * `overlay=walk` the walkability overlay (Alt+W); `overlay=perf` the
-//!   performance heatmap (Alt+P)
+//!   performance heatmap (Alt+P); `overlay=leaves` the cell sizes (Alt+L)
+//! * `hover=leaf:level,x,z` the Cells tool over the cell of `level` whose
+//!   corner is at world click `x,z`
 //! * `lasso=x,z:x,z:...` a half-drawn lasso (the region source), corners in
 //!   sector coordinates that may be decimals (an integer is a lattice corner,
 //!   sector `i,j` has its centre at `i+0.5,j+0.5`); the overlay shows the
@@ -175,6 +177,7 @@ impl EditorWorkspace {
             }
             "overlay" => match value {
                 "walk" => self.grid.overlays.walk = true,
+                "leaves" | "cells" => self.grid.overlays.leaves = true,
                 "perf" => {
                     self.grid.overlays.perf = true;
                     // A capture has one frame: compute the heatmap now.
@@ -590,6 +593,16 @@ impl EditorWorkspace {
                     edge,
                     heights: wall_gap(r, c, edge, None),
                 }
+            }
+            "leaf" => {
+                // hover=leaf:level,clickx,clickz
+                let v = ints(parts.get(1).ok_or("missing level,x,z")?)?;
+                let [level, x, z] = v[..] else {
+                    return Err("expected level,x,z (world clicks)".to_string());
+                };
+                let key = psxed_project::grid::LeafKey::new(level as u8, x, z)
+                    .ok_or("that is not a place a cell of that level can be")?;
+                GridHover::Leaf { room, key }
             }
             "face" => {
                 let c = cell(parts.get(2).ok_or("missing x,z")?)?;

@@ -38,7 +38,7 @@ Lists the materials the world already uses, the images imported with a level (`l
 
 ## Tools
 
-The strip has sixteen tools in three groups (PICK, DRAW, BUILD). Wrapped to a second line when the window is narrow. Keys work in the 3D and Top views.
+The strip has seventeen tools in three groups (PICK, DRAW, BUILD). Wrapped to a second line when the window is narrow. Keys work in the 3D and Top views.
 
 | Tool | Key | Gesture |
 | --- | --- | --- |
@@ -59,6 +59,7 @@ The strip has sixteen tools in three groups (PICK, DRAW, BUILD). Wrapped to a se
 | Stairs | T | Click the waypoints of a flight, Enter, then press on it and drag up or down for the rise. See Level verbs below. |
 | Break | X | Pick a region, press on it and drag up for the intensity (0 to 100). Tab changes the target, Shift+X re-rolls the seed, Enter commits, Esc cancels. See Natural terrain below. |
 | Rough | M | Pick a region, press on it and drag up for the rock level (0 to 3). See Natural terrain below. |
+| Cells | Q | Paint over the plan to subdivide the cell under the pointer into four finer ones, Alt+paint to merge them back. See Cells of several sizes below. |
 
 Letters kept free for the level verbs that come next: S Sculpt, B Room, K Corridor, I Opening, Y Stamps, G Vault (N is the Plane tool and Shift+N the Mesh tool, E the Bands tool, U Raise, A Ramp, T Stairs, X Break, M Rough). L toggles Link and R turns, so no plain letter was left for Mesh. Alt+W is the walkability overlay and Alt+P the performance heatmap (below).
 
@@ -79,6 +80,20 @@ Static meshes are arches, columns, rubble and imported props: not grid geometry,
 * **Select, move, turn**: click a mesh (the Top view picks by footprint, the 3D view by its box). Drag it; it follows the floor. R, `[` and `]` turn it. Delete removes it. The Top view draws every footprint (orange, the selection yellow, hover white-ish) and a ring at each hook socket; the 3D view draws the mesh itself and boxes the selection.
 * **Inspector** (a mesh selected): asset, position and turn as numbers, scale (uniform in percent, or x y z), a material per slot with Use palette and Clear (clicking a swatch applies it to every slot), Collides, Fullbright, Enabled, Delete. The Inspector wraps a drag in one undo step.
 * **What the cook does with it**: draws it with the room's free planes, collides it (piers and columns block, flat tops and the arch crown are surfaces to stand on), spawns a hook point under an arch's crown. The 3D preview and Play bake the same light, except that the preview casts no shadows.
+
+## Cells of several sizes
+
+A room is a quadtree of cells. Level 2 is the sector every older level is made of; a cell can be split into four (a half sector, then a quarter) and, where the floor is one flat or sloped plane, four sectors can become one cell two or four sectors across. Big cells keep a large flat floor cheap to edit; small ones are where detail goes (steps, a chip in a ledge). A split changes how the room is stored, never what it looks like or stands on.
+
+**Q, the Cells tool.** Press and drag over the plan (or click): each cell under the pointer becomes four. The options row says how far: `One level`, or straight down to `1/2 sector` or `1/4 sector` at every click the brush covers; `[` and `]` set the brush radius in quarter sectors. **Alt** merges instead: the four cells that share a parent become it, but only when the bigger cell would look and stand exactly as the four do (one plane, the same materials, no wall between them); `Merge up to` limits how big the result may be (a sector, two or four across). Enter and Shift+Enter split and merge the cells the Select tool picked. One undo step per stroke.
+
+**Cell sizes (Alt+L, the Cells button).** Every cell outlined in a colour that says its size and labelled where there is room: violet 4 sectors across, blue 2, grey 1, amber 1/2, red 1/4. Works in the Top and 3D views. The status bar counts the cells by size.
+
+What the tree guarantees (the editor keeps it, `limits::validate` checks it): neighbouring cells differ by at most one level (a split can split a neighbour too: the **balance**); cells bigger than a sector are one plane with no wall on them (a corner dragged on one splits it first); and where a coarse cell meets two finer ones the corner on its edge sits at the average of the edge's ends when the floor is continuous there (a **hanging corner**, moved for you). The faces insert that corner into the coarse polygon, so the preview and Play have no crack.
+
+Raise (U) and Height (H) work on cells of any size: Raise moves every cell inside the region and splits a bigger cell to fit it; the Height tool splits a cell above a sector only when the corners you grab would bend it. Paint and Select address the cell under the pointer. Not yet on cells smaller than a sector: Floor, Ceiling and Wall rectangles (they skip cells that are not whole sectors), Break, Ramp, Stairs, Rough, the Convert command, derived-wall painting, and a split-level or void triangle (a sector holding one cannot be split, and a merge never makes one).
+
+**Play.** Collision and portals are built per whole sector until the leaf format (phase T10): a bigger cell is expanded to its sectors exactly, fine cells that merge back exactly are collided exactly, and any other sector is stood on through the heights at its four corners (the cook warns, one line per sector). What you see is the real fine geometry.
 
 ## Walkability overlay
 

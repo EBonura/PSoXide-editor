@@ -104,3 +104,52 @@ fn a_corner_of_a_big_floor_is_subdivided_shaped_read_cooked_and_merged() {
     assert!(after.contains("36 leaves: 36 of 1 sector"), "{after}");
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+/// Builds the T9 demo project through the protocol: a 12 by 12 sector open
+/// floor of big cells with one corner of quarter-sector cells holding a
+/// staircase of fine treads. Run it with
+/// `PSXED_CELLS_DEMO=<dir under editor/projects> cargo test -p psxed-mcp --test grid_cells -- --ignored build_the_cells_demo`.
+#[test]
+#[ignore]
+fn build_the_cells_demo() {
+    let Ok(dir) = std::env::var("PSXED_CELLS_DEMO") else {
+        return;
+    };
+    let projects = repo_root().join("editor/projects");
+    let project = projects.join(&dir);
+    let _ = std::fs::remove_dir_all(&project);
+    let made = std::process::Command::new(env!("CARGO_BIN_EXE_psxed-mcp"))
+        .args(["--new", project.to_str().unwrap()])
+        .output()
+        .expect("run --new");
+    assert!(made.status.success(), "{}", String::from_utf8_lossy(&made.stderr));
+    let mut c = Client::start(&["--project", project.to_str().unwrap()], &[], &repo_root());
+
+    // A 12 by 12 hall: floor, ceiling, merged into big cells.
+    c.ok("grid_add_surface", json!({"kind": "floor", "from": [0, 0], "to": [11, 11], "height": 0}));
+    c.ok("grid_add_surface", json!({"kind": "ceiling", "from": [0, 0], "to": [11, 11], "height": 3072}));
+    let merged = c.ok("grid_merge", json!({"from": [0, 0], "to": [11, 11], "up_to": "four"})).text;
+    println!("{merged}");
+    // The south-east corner: two sectors of quarter cells.
+    let sub = c.ok("grid_subdivide", json!({"from": [8, 8], "to": [9, 9], "size": "quarter"})).text;
+    println!("{sub}");
+    // A staircase of fine treads, 64 grid units a tread, one quarter sector
+    // deep: eight treads across two sectors.
+    for k in 0..8 {
+        let click = 32 + k;
+        c.ok(
+            "grid_raise",
+            json!({"from": [click, 32], "to": [click, 39], "unit": "click",
+                   "amount": 64 * (k + 1), "mode": "level", "reference": 0, "snap": "fine",
+                   "follow_ceiling": false}),
+        );
+    }
+    println!("{}", c.ok("grid_leaves", json!({})).text);
+    c.ok("delete_node", json!({"node": "Starter Light"}));
+    c.ok("add_light", json!({"name": "Hall lamp", "position": [8800, 2200, 8800], "radius": 7000, "color": [255, 226, 190], "intensity": 1.3}));
+    c.ok("add_light", json!({"name": "Stair lamp", "position": [12000, 1200, 12000], "radius": 6000, "color": [255, 200, 150], "intensity": 1.2}));
+    // The player starts west of the stairs, facing east.
+    c.ok("move_node", json!({"node": "Aletha (Player)", "position": [8000, 64, 12400]}));
+    println!("{}", c.ok("cook_check", json!({})).text);
+    c.ok("save", json!({}));
+}
