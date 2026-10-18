@@ -13,7 +13,7 @@ use psxed_project::grid::storeys::{Storey, STOREY_MIN_CELLS, STOREY_PITCH};
 use psxed_project::grid::{GridWorld, CLICK_UNITS};
 
 /// Maximum height of the level list before it scrolls.
-const LIST_MAX_HEIGHT: f32 = 112.0;
+const LIST_MAX_HEIGHT: f32 = 150.0;
 
 /// The click index a storey's name is kept under.
 pub(crate) fn name_key(height: i32) -> i32 {
