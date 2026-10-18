@@ -43,6 +43,9 @@ impl EditorWorkspace {
     /// Options of the active tool, next to the strip.
     pub(crate) fn draw_grid_context_controls(&mut self, ui: &mut egui::Ui) {
         ui.separator();
+        if super::cell_size::takes_size(self.grid.tool) {
+            self.draw_cell_size_selector(ui);
+        }
         match self.grid.tool {
             GridTool::Floor | GridTool::Ceiling => {
                 let ceiling = self.grid.tool == GridTool::Ceiling;

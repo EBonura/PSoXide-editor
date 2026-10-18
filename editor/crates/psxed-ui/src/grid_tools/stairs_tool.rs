@@ -10,8 +10,9 @@
 use super::verb_state::{VerbDrag, VerbGesture};
 use super::*;
 
+use psxed_project::grid::edit::verbs::fine::{FineDrag, FineVerb};
 use psxed_project::grid::edit::verbs::stairs::{Flight, Refusal, RiserOption, StairsDrag};
-use psxed_project::grid::units::{snap_to, FINE_UNITS};
+use psxed_project::grid::edit::Region;
 use psxed_project::grid::CLICK_UNITS;
 
 /// The Stairs options of the editor, as the verb's parameters.
@@ -25,14 +26,28 @@ pub(super) fn params(
     p
 }
 
-/// A drag on the finished path.
-pub(super) fn drag_for(ws: &EditorWorkspace) -> Option<StairsDrag> {
+/// A drag on the finished path: the sector flight, or the library's fine
+/// flight through the lens when the treads are smaller than a sector.
+pub(super) fn drag_for(ws: &EditorWorkspace) -> Option<VerbDrag> {
     let world = ws.project.active_scene().world.grid()?;
-    let room = ws.grid.verb.region.as_ref()?.room;
-    if ws.grid.verb.stairs_path.is_empty() {
+    let region = ws.grid.verb.region.as_ref()?;
+    let room = region.room;
+    let path = &ws.grid.verb.stairs_path;
+    if path.is_empty() {
         return None;
     }
-    StairsDrag::begin(world, room, &ws.grid.verb.stairs_path, params(ws))
+    if super::verb_tool::through_lens(ws, region) {
+        let footprint: Vec<[i32; 2]> = Region::from_path(room, path, params(ws).width)
+            .cells()
+            .collect();
+        let verb = FineVerb::Stairs {
+            params: params(ws),
+            path: path.clone(),
+        };
+        let drag = FineDrag::begin(world, room, region.level(), &footprint, verb)?;
+        return Some(VerbDrag::Fine(Box::new(drag)));
+    }
+    StairsDrag::begin(world, room, path, params(ws)).map(VerbDrag::Stairs)
 }
 
 /// Enter: the waypoints become the flight's path.
@@ -53,7 +68,7 @@ pub(super) fn begin(
     };
     let ppu = super::verb_tool::drag_rate(ws, ptr, room, cell, 0);
     ws.grid.gesture = Gesture::Verb(Box::new(VerbGesture {
-        drag: VerbDrag::Stairs(drag),
+        drag,
         press_y: ptr.at_press().pos.y,
         pixels_per_unit: ppu,
         amount: 0,
@@ -63,30 +78,18 @@ pub(super) fn begin(
     true
 }
 
-/// The typed amount, as one undo step.
-pub(super) fn apply_typed(ws: &mut EditorWorkspace, amount: i32) {
-    let Some(drag) = drag_for(ws) else {
-        ws.status = "Click the waypoints of the flight with Path, then press Enter".to_string();
-        return;
-    };
-    let mut gesture = VerbGesture {
-        drag: VerbDrag::Stairs(drag),
-        press_y: 0.0,
-        pixels_per_unit: 1.0,
-        amount: snap_to(amount, FINE_UNITS),
-        before: Some(Box::new(ws.project.clone())),
-        max_rise: None,
-    };
-    super::verb_tool::apply_amount(ws, &mut gesture);
-}
-
 /// Tab: steps and ramp, live when a drag is in flight.
 pub(super) fn toggle_ramp(ws: &mut EditorWorkspace) {
     ws.grid.verb.stairs.ramp = !ws.grid.verb.stairs.ramp;
     if let Gesture::Verb(mut g) = std::mem::take(&mut ws.grid.gesture) {
         let fresh = params(ws);
-        if let VerbDrag::Stairs(d) = &mut g.drag {
-            d.set_params(fresh);
+        match &mut g.drag {
+            VerbDrag::Stairs(d) => d.set_params(fresh),
+            VerbDrag::Fine(d) => d.set_verb(FineVerb::Stairs {
+                params: fresh,
+                path: ws.grid.verb.stairs_path.clone(),
+            }),
+            _ => {}
         }
         super::verb_tool::apply_amount(ws, &mut g);
         ws.grid.gesture = Gesture::Verb(g);

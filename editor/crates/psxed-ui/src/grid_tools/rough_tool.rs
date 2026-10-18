@@ -10,10 +10,11 @@
 use super::verb_state::{VerbDrag, VerbGesture};
 use super::*;
 
-use psxed_project::grid::edit::rough::set_level;
+use psxed_project::grid::edit::rough::{set_level, set_level_cells};
 use psxed_project::grid::edit::verbs::Snapshot;
+use psxed_project::grid::leaf::edge_clicks;
 use psxed_project::grid::rough::{Rough, MAX_LEVEL};
-use psxed_project::grid::GridWorld;
+use psxed_project::grid::{GridRoom, GridWorld};
 
 /// Pixels of upward travel for one level.
 const PIXELS_PER_LEVEL: f32 = 24.0;
@@ -29,8 +30,15 @@ pub(crate) struct RoughOptions {
 #[derive(Clone, Debug)]
 pub(crate) struct RoughLive {
     room: usize,
+    /// The cells, in cells of `level`.
     cells: Vec<[i32; 2]>,
-    snapshot: Snapshot,
+    /// The cell level: 2 sectors, or finer (the leaves of a fine region are
+    /// set one by one, from the room as it began).
+    level: u8,
+    /// The sector snapshot every change restores (sector regions only).
+    snapshot: Option<Snapshot>,
+    /// The room as it began, restored before every change of a fine region.
+    start_room: Option<Box<GridRoom>>,
     /// The room's settings when the gesture began (a level above zero gives
     /// a room without amplitudes the defaults).
     start_rough: Rough,
@@ -57,27 +65,49 @@ fn start(ws: &EditorWorkspace) -> Option<RoughLive> {
     let region = ws.grid.verb.region.clone()?;
     let world = ws.project.active_scene().world.grid()?;
     let room = world.rooms.get(region.room)?;
-    let cells: Vec<[i32; 2]> = region
-        .cells()
-        .filter(|&c| {
-            room.local(c)
-                .and_then(|[x, z]| room.sector(x, z))
-                .is_some_and(|s| !s.is_empty())
-        })
-        .collect();
+    let level = region.level();
+    let fine = super::verb_tool::through_lens(ws, &region);
+    // The leaves of a fine region, or the sectors of a sector one, that hold
+    // anything, and the highest rough level among them.
+    let (cells, base, snapshot) = if fine {
+        let e = edge_clicks(level);
+        let leaves: Vec<_> = region
+            .cells()
+            .filter_map(|c| {
+                room.leaf_at([c[0] * e, c[1] * e])
+                    .map(|(_, s)| (c, s.rough))
+            })
+            .collect();
+        let base = leaves.iter().map(|(_, r)| *r).max().unwrap_or(0);
+        let cells: Vec<[i32; 2]> = leaves.into_iter().map(|(c, _)| c).collect();
+        (cells, base, None)
+    } else {
+        let cells: Vec<[i32; 2]> = region
+            .cells()
+            .filter(|&c| {
+                room.local(c)
+                    .and_then(|[x, z]| room.sector(x, z))
+                    .is_some_and(|s| !s.is_empty())
+            })
+            .collect();
+        let base = cells
+            .iter()
+            .filter_map(|&c| room.local(c).and_then(|[x, z]| room.sector(x, z)))
+            .map(|s| s.rough)
+            .max()
+            .unwrap_or(0);
+        let snapshot = Snapshot::capture(world, region.room, &cells)?;
+        (cells, base, Some(snapshot))
+    };
     if cells.is_empty() {
         return None;
     }
-    let base = cells
-        .iter()
-        .filter_map(|&c| room.local(c).and_then(|[x, z]| room.sector(x, z)))
-        .map(|s| s.rough)
-        .max()
-        .unwrap_or(0);
     Some(RoughLive {
         room: region.room,
-        snapshot: Snapshot::capture(world, region.room, &cells)?,
         cells,
+        level,
+        snapshot,
+        start_room: fine.then(|| Box::new(room.clone())),
         start_rough: room.rough,
         base,
         start: Box::new(ws.project.clone()),
@@ -118,16 +148,32 @@ pub(super) fn level_at(g: &VerbGesture, live: &RoughLive, ptr: &GridPointer) -> 
     (i32::from(live.base) + travel).clamp(0, i32::from(MAX_LEVEL))
 }
 
-/// Set the region to `level` (the gesture's `amount`), from the snapshot.
+/// Set the region to `level` (the gesture's `amount`), from the start.
 /// Returns the status line.
 pub(super) fn apply(world: &mut GridWorld, live: &RoughLive, level: i32) -> String {
-    live.snapshot.restore(world);
-    if let Some(room) = world.rooms.get_mut(live.room) {
-        room.rough = live.start_rough;
+    match (&live.snapshot, &live.start_room) {
+        (Some(snapshot), _) => {
+            snapshot.restore(world);
+            if let Some(room) = world.rooms.get_mut(live.room) {
+                room.rough = live.start_rough;
+            }
+        }
+        (None, Some(start)) => {
+            if let Some(room) = world.rooms.get_mut(live.room) {
+                *room = (**start).clone();
+            }
+        }
+        (None, None) => {}
     }
     let level = level.clamp(0, i32::from(MAX_LEVEL)) as u8;
     if level != live.base {
-        set_level(world, live.room, &live.cells, level);
+        if live.snapshot.is_some() {
+            set_level(world, live.room, &live.cells, level);
+        } else {
+            for &cell in &live.cells {
+                set_level_cells(world, live.room, live.level, cell, cell, level);
+            }
+        }
     }
     describe(world, live.room, live.cells.len(), level)
 }

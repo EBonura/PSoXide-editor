@@ -3,6 +3,7 @@
 //!
 //! Nothing here is saved with the project.
 
+use psxed_project::grid::edit::verbs::fine::FineDrag;
 use psxed_project::grid::edit::verbs::raise::{RaiseDrag, RaiseMode};
 use psxed_project::grid::edit::verbs::ramp::{RampDir, RampDrag};
 use psxed_project::grid::edit::verbs::stairs::{StairsDrag, StairsParams};
@@ -67,6 +68,10 @@ pub(crate) enum VerbDrag {
     Raise(RaiseDrag),
     Ramp(RampDrag),
     Stairs(StairsDrag),
+    /// Raise, Ramp or Stairs on cells smaller than a sector, or in a room
+    /// with leaves of several sizes: the library's fine verbs through the
+    /// lens (what the MCP's `size` runs).
+    Fine(Box<FineDrag>),
     /// Break: the amount is the intensity, 0 to 100.
     Break(Box<super::break_tool::BreakLive>),
     /// Rough: the amount is the level, 0 to 3.

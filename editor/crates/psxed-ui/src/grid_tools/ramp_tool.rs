@@ -11,7 +11,6 @@ use super::*;
 
 use psxed_project::grid::edit::verbs::ramp::{RampDir, RampDrag, RampParams};
 use psxed_project::grid::edit::Region;
-use psxed_project::grid::units::{snap_to, FINE_UNITS};
 
 /// The side of the region's bounding box nearest `cell` (ties break in the
 /// order north, east, south, west).
@@ -60,7 +59,7 @@ pub(super) fn turn(ws: &mut EditorWorkspace) {
 }
 
 /// The parameters of a ramp pressed at `cell`.
-fn params_at(ws: &EditorWorkspace, region: &Region, cell: [i32; 2]) -> RampParams {
+pub(super) fn params_at(ws: &EditorWorkspace, region: &Region, cell: [i32; 2]) -> RampParams {
     RampParams {
         from: ws
             .grid
@@ -83,38 +82,28 @@ pub(super) fn begin(
     let Some(region) = ws.grid.verb.region.clone() else {
         return false;
     };
-    let Some(world) = ws.project.active_scene().world.grid() else {
-        return false;
-    };
-    let params = params_at(ws, &region, cell);
-    let Some(drag) = RampDrag::begin(world, &region, params) else {
+    let from = params_at(ws, &region, cell).from;
+    let Some((drag, max)) = super::verb_tool::verb_drag_over(ws, &region, cell) else {
         ws.status = "Nothing to ramp: no sector of the region has a floor".to_string();
         return false;
     };
-    let base = drag.base();
-    let max = drag.max_walkable_rise();
-    ws.grid.verb.ramp_hover = Some(params.from);
+    let base = match &drag {
+        VerbDrag::Ramp(d) => d.base(),
+        _ => ws.project.active_scene().world.grid().map_or(0, |w| {
+            super::verb_tool::floor_height_at(w, region.room, cell, region.level())
+        }),
+    };
+    ws.grid.verb.ramp_hover = Some(from);
     let ppu = super::verb_tool::drag_rate(ws, ptr, room, cell, base);
     ws.grid.gesture = Gesture::Verb(Box::new(VerbGesture {
-        drag: VerbDrag::Ramp(drag),
+        drag,
         press_y: ptr.at_press().pos.y,
         pixels_per_unit: ppu,
         amount: 0,
         before: Some(Box::new(ws.project.clone())),
-        max_rise: Some(max),
+        max_rise: max,
     }));
     true
-}
-
-/// A Ramp drag on `region`, from its first sector, for typed amounts and
-/// poses.
-pub(super) fn drag_for(ws: &EditorWorkspace, region: &Region) -> Option<(RampDrag, i32)> {
-    let world = ws.project.active_scene().world.grid()?;
-    let first = region.cells().next()?;
-    let params = params_at(ws, region, first);
-    let drag = RampDrag::begin(world, region, params)?;
-    let max = drag.max_walkable_rise();
-    Some((drag, max))
 }
 
 /// The amount a Ramp gesture applies: the pointer's, held to the walkable
@@ -152,21 +141,4 @@ pub(super) fn readout(
         drag.params().from.label(),
         clicks(max),
     )
-}
-
-/// The typed amount, as one undo step.
-pub(super) fn apply_typed(ws: &mut EditorWorkspace, region: &Region, amount: i32) {
-    let Some((drag, max)) = drag_for(ws, region) else {
-        ws.status = "Nothing to ramp: no sector of the region has a floor".to_string();
-        return;
-    };
-    let mut gesture = VerbGesture {
-        drag: VerbDrag::Ramp(drag),
-        press_y: 0.0,
-        pixels_per_unit: 1.0,
-        amount: snap_to(amount, FINE_UNITS),
-        before: Some(Box::new(ws.project.clone())),
-        max_rise: Some(max),
-    };
-    super::verb_tool::apply_amount(ws, &mut gesture);
 }

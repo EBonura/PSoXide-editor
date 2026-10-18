@@ -72,14 +72,15 @@ fn tri_corners(world: &GridWorld, face: FaceRef, tri: u8) -> Option<[[f32; 3]; 3
 }
 
 /// Plan-view outline of a cell in editor units: `[nw, ne, se, sw]`.
-fn cell_corners_xz(world: &GridWorld, cell: [i32; 2]) -> [[f32; 2]; 4] {
+/// Editor-space corners of a cell of `unit` grid units across.
+fn cell_corners_xz(world: &GridWorld, unit: i32, cell: [i32; 2]) -> [[f32; 2]; 4] {
     let s = world.scale;
-    let (x0, z0) = (cell[0] * SECTOR_UNITS, cell[1] * SECTOR_UNITS);
+    let (x0, z0) = (cell[0] * unit, cell[1] * unit);
     [
         editor_xz(s, x0, z0),
-        editor_xz(s, x0 + SECTOR_UNITS, z0),
-        editor_xz(s, x0 + SECTOR_UNITS, z0 + SECTOR_UNITS),
-        editor_xz(s, x0, z0 + SECTOR_UNITS),
+        editor_xz(s, x0 + unit, z0),
+        editor_xz(s, x0 + unit, z0 + unit),
+        editor_xz(s, x0, z0 + unit),
     ]
 }
 
@@ -146,10 +147,14 @@ impl EditorWorkspace {
             return;
         };
         let screen = |p: [f32; 2]| transform.world_to_screen(p);
-        let cell_rect = |cell: [i32; 2]| {
-            let c = cell_corners_xz(world, cell);
+        // Selected and pasted cells are sectors; hovers and ghosts use the
+        // cell size the tools use now, and a gesture carries its own level.
+        let unit_now = super::cell_size::cell_units(self.grid.cell_size.level());
+        let cell_rect_at = |unit: i32, cell: [i32; 2]| {
+            let c = cell_corners_xz(world, unit, cell);
             Rect::from_two_pos(screen(c[0]), screen(c[2]))
         };
+        let cell_rect = |cell: [i32; 2]| cell_rect_at(SECTOR_UNITS, cell);
         let leaf_rect = |key: psxed_project::grid::LeafKey| {
             let ([x0, z0], size) = super::view::leaf_square(world.scale, key);
             Rect::from_two_pos(screen([x0, z0]), screen([x0 + size, z0 + size]))
@@ -164,8 +169,8 @@ impl EditorWorkspace {
                 let at = |p: [i32; 2]| {
                     editor_xz(
                         world.scale,
-                        (cell[0] + p[0]) * SECTOR_UNITS,
-                        (cell[1] + p[1]) * SECTOR_UNITS,
+                        (cell[0] + p[0]) * unit_now,
+                        (cell[1] + p[1]) * unit_now,
                     )
                 };
                 line(at(a), at(b), color, width);
@@ -223,7 +228,7 @@ impl EditorWorkspace {
             }
             GridHover::Cell { cell, .. } => {
                 let color = if erase { ERASE } else { CREATE };
-                let r = cell_rect(*cell);
+                let r = cell_rect_at(unit_now, *cell);
                 painter.rect_filled(r, 0.0, fill(color, 60));
                 painter.rect_stroke(r, 0.0, Stroke::new(2.0, color), StrokeKind::Inside);
             }
@@ -335,9 +340,10 @@ impl EditorWorkspace {
             Gesture::Rect(g) => {
                 let rect = CellRect::from_corners(g.anchor, g.current);
                 let (color, warning) = rect_ghost(world, g, rect);
+                let unit = super::cell_size::cell_units(g.level);
                 if rect.count() <= GHOST_CELL_LIMIT {
                     for cell in rect.cells() {
-                        let r = cell_rect(cell);
+                        let r = cell_rect_at(unit, cell);
                         painter.rect_filled(r, 0.0, fill(color, 56));
                         painter.rect_stroke(
                             r,
@@ -347,7 +353,10 @@ impl EditorWorkspace {
                         );
                     }
                 }
-                let outer = Rect::from_two_pos(cell_rect(rect.min).min, cell_rect(rect.max).max);
+                let outer = Rect::from_two_pos(
+                    cell_rect_at(unit, rect.min).min,
+                    cell_rect_at(unit, rect.max).max,
+                );
                 painter.rect_stroke(outer, 0.0, Stroke::new(2.5, color), StrokeKind::Inside);
                 label_chip(
                     painter,
@@ -517,20 +526,24 @@ impl EditorWorkspace {
         }
 
         // Ghosts.
-        let rect_quad = |room: usize, r: CellRect, height: i32| -> Option<[[f32; 3]; 4]> {
-            let y_offset = world.rooms.get(room).map_or(0, |ro| ro.y_offset);
-            let y = editor_y(world, y_offset, height);
-            let s = world.scale;
-            let (x0, z0) = (r.min[0] * SECTOR_UNITS, r.min[1] * SECTOR_UNITS);
-            let (x1, z1) = ((r.max[0] + 1) * SECTOR_UNITS, (r.max[1] + 1) * SECTOR_UNITS);
-            let p = |x: i32, z: i32| [s.to_editor(x) as f32, y, s.to_editor(z) as f32];
-            Some([p(x0, z0), p(x1, z0), p(x1, z1), p(x0, z1)])
-        };
+        let rect_quad =
+            |room: usize, level: u8, r: CellRect, height: i32| -> Option<[[f32; 3]; 4]> {
+                let y_offset = world.rooms.get(room).map_or(0, |ro| ro.y_offset);
+                let y = editor_y(world, y_offset, height);
+                let s = world.scale;
+                let unit = super::cell_size::cell_units(level);
+                let (x0, z0) = (r.min[0] * unit, r.min[1] * unit);
+                let (x1, z1) = ((r.max[0] + 1) * unit, (r.max[1] + 1) * unit);
+                let p = |x: i32, z: i32| [s.to_editor(x) as f32, y, s.to_editor(z) as f32];
+                Some([p(x0, z0), p(x1, z0), p(x1, z1), p(x0, z1)])
+            };
         match &self.grid.hover {
             GridHover::Cell { room, cell, height }
                 if matches!(self.grid.gesture, Gesture::Idle) =>
             {
-                if let Some(quad) = rect_quad(*room, CellRect::from_corners(*cell, *cell), *height)
+                let level = self.grid.cell_size.level();
+                if let Some(quad) =
+                    rect_quad(*room, level, CellRect::from_corners(*cell, *cell), *height)
                 {
                     let color = if erase { ERASE } else { CREATE };
                     polygon(&quad, color, 70, 2.0);
@@ -564,15 +577,18 @@ impl EditorWorkspace {
         match &self.grid.gesture {
             Gesture::Rect(g) => {
                 let r = CellRect::from_corners(g.anchor, g.current);
-                if let Some(quad) = rect_quad(g.room, r, g.height) {
+                if let Some(quad) = rect_quad(g.room, g.level, r, g.height) {
                     let (color, warning) = rect_ghost(world, g, r);
                     polygon(&quad, color, 70, 2.5);
                     // Cell grid inside the ghost.
                     if r.count() <= GHOST_CELL_LIMIT {
                         for cell in r.cells() {
-                            if let Some(q) =
-                                rect_quad(g.room, CellRect::from_corners(cell, cell), g.height)
-                            {
+                            if let Some(q) = rect_quad(
+                                g.room,
+                                g.level,
+                                CellRect::from_corners(cell, cell),
+                                g.height,
+                            ) {
                                 polygon(&q, fill(color, 140), 0, 1.0);
                             }
                         }
@@ -643,12 +659,13 @@ impl EditorWorkspace {
         erase: bool,
     ) {
         let y_offset = world.rooms.get(room).map_or(0, |r| r.y_offset);
+        let unit = super::cell_size::cell_units(self.grid.cell_size.level());
         let (a, b) = edge.endpoints();
         let at = |p: [i32; 2], h: i32| {
             [
-                world.scale.to_editor((cell[0] + p[0]) * SECTOR_UNITS) as f32,
+                world.scale.to_editor((cell[0] + p[0]) * unit) as f32,
                 editor_y(world, y_offset, h),
-                world.scale.to_editor((cell[1] + p[1]) * SECTOR_UNITS) as f32,
+                world.scale.to_editor((cell[1] + p[1]) * unit) as f32,
             ]
         };
         match heights {

@@ -27,6 +27,7 @@ mod analysis;
 mod band_panel;
 mod bands_tool;
 mod break_tool;
+pub(crate) mod cell_size;
 mod cells_tool;
 mod clipboard_tool;
 mod cycle;
@@ -371,6 +372,9 @@ pub(crate) struct RectGesture {
     /// Pointer height and surface height at the moment Shift was pressed.
     pub adjust: Option<(f32, i32)>,
     pub erase: bool,
+    /// The cell level the rectangle is counted in (2 sectors, 3 halves, 4
+    /// quarters); its corners are cells of that level.
+    pub level: u8,
 }
 
 /// A run of walls being dragged.
@@ -557,6 +561,8 @@ pub(crate) struct GridEditState {
     pub verb: verb_state::VerbState,
     /// The Cells tool's options.
     pub cells: cells_tool::CellsOptions,
+    /// The cell size of the cell tools: a sector, a half or a quarter.
+    pub cell_size: cell_size::CellSize,
     /// Which overlays are on (Alt+W, Alt+P, Alt+L).
     pub overlays: analysis::Overlays,
     /// The overlays' analyses, per document revision.
@@ -616,6 +622,7 @@ impl Default for GridEditState {
             band_sel: None,
             verb: verb_state::VerbState::default(),
             cells: cells_tool::CellsOptions::default(),
+            cell_size: cell_size::CellSize::default(),
             overlays: analysis::Overlays::default(),
             analysis: RefCell::new(analysis::AnalysisCache::default()),
             last_room: 0,

@@ -276,6 +276,7 @@ impl EditorWorkspace {
                     height,
                     adjust: None,
                     erase: parts.contains(&"erase"),
+                    level: self.grid.cell_size.level(),
                 });
             }
             "walls" => {

@@ -14,6 +14,7 @@ use super::*;
 use psxed_project::grid::edit::verbs::break_verb::{
     BreakDrag, BreakParams, BreakReport, BreakSnap, BreakStyle, BreakTargets, DEFAULT_INTENSITY,
 };
+use psxed_project::grid::edit::verbs::fine::{FineDrag, FineReport, FineVerb};
 use psxed_project::grid::faces::face_count;
 use psxed_project::grid::walk::{self, WalkLimits};
 use psxed_project::grid::GridWorld;
@@ -123,10 +124,43 @@ impl BreakOptions {
     }
 }
 
+/// The break a drag runs: the sector break, or the library's fine break
+/// through the lens for cells smaller than a sector.
+#[derive(Clone, Debug)]
+pub(crate) enum BreakEngine {
+    Sector(BreakDrag),
+    Fine(FineDrag),
+}
+
+impl BreakEngine {
+    /// Replace the parameters and the seed, as the options and Shift+X do.
+    fn set_params(&mut self, params: BreakParams, seed: u32) {
+        match self {
+            Self::Sector(drag) => drag.set_params(params),
+            Self::Fine(drag) => drag.set_verb(FineVerb::Break { params, seed }),
+        }
+    }
+
+    /// Break at `intensity` from the start, with `seed`.
+    fn apply(&self, world: &mut GridWorld, intensity: u32, seed: u32) -> BreakReport {
+        match self {
+            Self::Sector(drag) => drag.apply(world, intensity, seed),
+            Self::Fine(drag) => match drag.apply(world, intensity as i32) {
+                FineReport::Break(report) => report,
+                _ => BreakReport {
+                    seed,
+                    intensity,
+                    ..BreakReport::default()
+                },
+            },
+        }
+    }
+}
+
 /// A break in flight.
 #[derive(Clone, Debug)]
 pub(crate) struct BreakLive {
-    drag: BreakDrag,
+    drag: BreakEngine,
     /// The document before the gesture, for the exact cancel.
     pub(super) start: Box<ProjectDocument>,
     /// Whether the undo step has been recorded (at the first change).
@@ -169,7 +203,22 @@ fn params(ws: &EditorWorkspace, world: &GridWorld) -> BreakParams {
 fn start(ws: &EditorWorkspace) -> Option<BreakLive> {
     let region = ws.grid.verb.region.clone()?;
     let world = ws.project.active_scene().world.grid()?;
-    let drag = BreakDrag::begin(world, &region, params(ws, world))?;
+    let drag = if super::verb_tool::through_lens(ws, &region) {
+        let cells: Vec<[i32; 2]> = region.cells().collect();
+        let verb = FineVerb::Break {
+            params: params(ws, world),
+            seed: ws.grid.verb.brk.seed,
+        };
+        BreakEngine::Fine(FineDrag::begin(
+            world,
+            region.room,
+            region.level(),
+            &cells,
+            verb,
+        )?)
+    } else {
+        BreakEngine::Sector(BreakDrag::begin(world, &region, params(ws, world))?)
+    };
     Some(BreakLive {
         drag,
         start: Box::new(ws.project.clone()),
@@ -345,7 +394,7 @@ fn refresh_live(ws: &mut EditorWorkspace) -> bool {
     if let Some(world) = ws.project.active_scene().world.grid() {
         let fresh = params(ws, world);
         if let VerbDrag::Break(b) = &mut g.drag {
-            b.drag.set_params(fresh);
+            b.drag.set_params(fresh, seed);
             b.seed = seed;
             live = true;
         }

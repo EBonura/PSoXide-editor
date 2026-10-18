@@ -6,10 +6,14 @@
 //! that has none, growing the room as needed. Ctrl or Cmd deletes instead.
 //! The last height used is kept for the next rectangle.
 
-use super::view::{cell_at_editor, editor_y};
+use super::cell_size::{cell_at, cell_origin_units};
+use super::view::editor_y;
 use super::*;
 
-use psxed_project::grid::edit::{create_surfaces, delete_surfaces, CellRect, RectRefusal};
+use psxed_project::grid::edit::{
+    create_surfaces, create_surfaces_cells, delete_surfaces, delete_surfaces_cells, CellRect,
+    RectRefusal,
+};
 use psxed_project::grid::units::snap_to;
 use psxed_project::grid::{GridRoom, CLICK_UNITS, FINE_UNITS};
 
@@ -33,17 +37,18 @@ fn default_height(ws: &EditorWorkspace, kind: SurfaceKind) -> i32 {
     }
 }
 
-/// The sector under the pointer on the plane at `height` of `room`.
+/// The cell of `level` under the pointer on the plane at `height` of `room`.
 fn cell_under(
     ws: &EditorWorkspace,
     ptr: &GridPointer,
     y_offset: i32,
     height: i32,
+    level: u8,
 ) -> Option<[i32; 2]> {
     let world = ws.project.active_scene().world.grid()?;
     let y = editor_y(world, y_offset, height);
     let p = ws.grid_plane_point(ptr, y)?;
-    Some(cell_at_editor(world.scale, p[0], p[2]))
+    Some(cell_at(world.scale, p[0], p[2], level))
 }
 
 /// Room-relative height of the `kind` surface under a 3D pointer, when the
@@ -79,7 +84,8 @@ pub(super) fn hover(ws: &mut EditorWorkspace, ptr: &GridPointer, kind: SurfaceKi
         }
     }
     let height = default_height(ws, kind);
-    ws.grid.hover = match cell_under(ws, ptr, y_offset, height) {
+    let level = ws.grid.cell_size.level();
+    ws.grid.hover = match cell_under(ws, ptr, y_offset, height, level) {
         Some(cell) => GridHover::Cell { room, cell, height },
         None => GridHover::None,
     };
@@ -88,7 +94,8 @@ pub(super) fn hover(ws: &mut EditorWorkspace, ptr: &GridPointer, kind: SurfaceKi
 pub(super) fn press(ws: &mut EditorWorkspace, ptr: &GridPointer, kind: SurfaceKind) {
     let (room, y_offset) = room_offset(ws);
     let height = default_height(ws, kind);
-    let Some(cell) = cell_under(ws, &ptr.at_press(), y_offset, height) else {
+    let level = ws.grid.cell_size.level();
+    let Some(cell) = cell_under(ws, &ptr.at_press(), y_offset, height, level) else {
         return;
     };
     ws.grid.gesture = Gesture::Rect(RectGesture {
@@ -99,6 +106,7 @@ pub(super) fn press(ws: &mut EditorWorkspace, ptr: &GridPointer, kind: SurfaceKi
         height,
         adjust: None,
         erase: ptr.command(),
+        level,
     });
 }
 
@@ -120,9 +128,9 @@ pub(super) fn drag(ws: &mut EditorWorkspace, ptr: &GridPointer) {
         // Height mode: the rectangle stays put, pointer travel is height.
         let (origin_y, base) = *g.adjust.get_or_insert((ptr.pos.y, g.height));
         let anchor_world = ws.project.active_scene().world.grid().map(|w| {
-            let c = g.current;
-            let x = w.scale.to_editor(c[0] * psxed_project::grid::SECTOR_UNITS) as f32;
-            let z = w.scale.to_editor(c[1] * psxed_project::grid::SECTOR_UNITS) as f32;
+            let [ux, uz] = cell_origin_units(g.level, g.current);
+            let x = w.scale.to_editor(ux) as f32;
+            let z = w.scale.to_editor(uz) as f32;
             [x, editor_y(w, y_offset, base), z]
         });
         let ppu = anchor_world.map_or(0.1, |p| ws.grid_pixels_per_unit(ptr, p));
@@ -131,7 +139,7 @@ pub(super) fn drag(ws: &mut EditorWorkspace, ptr: &GridPointer) {
         g.height = snap_to(base + raw, step);
     } else {
         g.adjust = None;
-        if let Some(cell) = cell_under(ws, ptr, y_offset, g.height) {
+        if let Some(cell) = cell_under(ws, ptr, y_offset, g.height, g.level) {
             g.current = cell;
         }
     }
@@ -141,7 +149,7 @@ pub(super) fn drag(ws: &mut EditorWorkspace, ptr: &GridPointer) {
 /// Create or delete over the finished rectangle. Returns the status line.
 pub(super) fn commit(ws: &mut EditorWorkspace, g: RectGesture) {
     let rect = CellRect::from_corners(g.anchor, g.current);
-    apply(ws, g.kind, g.room, rect, g.height, g.erase);
+    apply(ws, g.kind, g.room, rect, g.height, g.erase, g.level);
     if !g.erase {
         match g.kind {
             SurfaceKind::Floor => ws.grid.floor_height = g.height,
@@ -161,7 +169,8 @@ pub(super) fn release(ws: &mut EditorWorkspace) {
 pub(super) fn click(ws: &mut EditorWorkspace, ptr: &GridPointer, kind: SurfaceKind) {
     let (room, y_offset) = room_offset(ws);
     let height = default_height(ws, kind);
-    let Some(cell) = cell_under(ws, ptr, y_offset, height) else {
+    let level = ws.grid.cell_size.level();
+    let Some(cell) = cell_under(ws, ptr, y_offset, height, level) else {
         return;
     };
     apply(
@@ -171,9 +180,14 @@ pub(super) fn click(ws: &mut EditorWorkspace, ptr: &GridPointer, kind: SurfaceKi
         CellRect::from_corners(cell, cell),
         height,
         ptr.command(),
+        level,
     );
 }
 
+/// Apply a rectangle of cells of `level` (2 sectors, 3 halves, 4 quarters):
+/// the sector tools for whole sectors, the library's cell functions below
+/// that, as the MCP's `size: half|quarter` does.
+#[allow(clippy::too_many_arguments)]
 fn apply(
     ws: &mut EditorWorkspace,
     kind: SurfaceKind,
@@ -181,6 +195,7 @@ fn apply(
     rect: CellRect,
     height: i32,
     erase: bool,
+    level: u8,
 ) {
     let material = ws.grid_new_material(room, false);
     let before = ws.project.clone();
@@ -194,15 +209,22 @@ fn apply(
             return;
         }
         let mut first = GridRoom::new_derived("Room 0", 1, 1);
-        // The first room starts where the first rectangle does.
-        first.origin = rect.min;
+        // The first room starts where the first rectangle does, in sectors.
+        let per_sector = 2_i32.pow(u32::from(level) - 2).max(1);
+        first.origin = [
+            rect.min[0].div_euclid(per_sector),
+            rect.min[1].div_euclid(per_sector),
+        ];
         world.rooms.push(first);
         room = 0;
     }
-    let outcome = if erase {
-        delete_surfaces(world, room, kind, rect)
-    } else {
-        create_surfaces(world, room, kind, rect, height, material)
+    let outcome = match (level, erase) {
+        (2, true) => delete_surfaces(world, room, kind, rect),
+        (2, false) => create_surfaces(world, room, kind, rect, height, material),
+        (_, true) => delete_surfaces_cells(world, room, kind, level, rect.min, rect.max),
+        (_, false) => create_surfaces_cells(
+            world, room, kind, level, rect.min, rect.max, height, material,
+        ),
     };
     if let Some(refusal) = outcome.refused {
         ws.status = match refusal {

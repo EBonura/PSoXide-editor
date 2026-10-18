@@ -1,41 +1,66 @@
 //! Drawing the level verbs over the views: the region, the marquee and brush
 //! in flight, a path, and the amount of a drag.
 
+use super::cell_size::cell_units;
 use super::overlay::{fill, label_chip, PolygonFn, CREATE, HOVER};
 use super::pick::Cam;
 use super::verb_state::{RegionGesture, VerbDrag};
 use super::view::{editor_xz, editor_y};
 use super::*;
+use psxed_project::grid::edit::verbs::fine::FineVerb;
 use psxed_project::grid::edit::verbs::ramp::RampDir;
 
 use psxed_project::grid::edit::{CellRect, Region};
+use psxed_project::grid::leaf::edge_clicks;
 use psxed_project::grid::{GridWorld, SECTOR_UNITS};
 
 /// The region's colour: warm, so it reads against the selection yellow and
 /// the hover blue.
 pub(super) const REGION: Color32 = Color32::from_rgb(255, 150, 60);
 
-/// Editor-space `[nw, ne, se, sw]` plan corners of a world sector.
-fn plan_corners(world: &GridWorld, cell: [i32; 2]) -> [[f32; 2]; 4] {
+/// Editor-space `[nw, ne, se, sw]` plan corners of a cell of `level`.
+fn plan_corners_at(world: &GridWorld, level: u8, cell: [i32; 2]) -> [[f32; 2]; 4] {
     let s = world.scale;
-    let (x0, z0) = (cell[0] * SECTOR_UNITS, cell[1] * SECTOR_UNITS);
+    let unit = cell_units(level);
+    let (x0, z0) = (cell[0] * unit, cell[1] * unit);
     [
         editor_xz(s, x0, z0),
-        editor_xz(s, x0 + SECTOR_UNITS, z0),
-        editor_xz(s, x0 + SECTOR_UNITS, z0 + SECTOR_UNITS),
-        editor_xz(s, x0, z0 + SECTOR_UNITS),
+        editor_xz(s, x0 + unit, z0),
+        editor_xz(s, x0 + unit, z0 + unit),
+        editor_xz(s, x0, z0 + unit),
     ]
 }
 
-/// The floor of `cell` as four editor-space points (at its corner heights),
-/// or flat at the room's base when it has none.
+/// Editor-space plan corners of a world sector.
+fn plan_corners(world: &GridWorld, cell: [i32; 2]) -> [[f32; 2]; 4] {
+    plan_corners_at(world, 2, cell)
+}
+
+/// The floor of a sector as four editor-space points (see [`floor_points_at`]).
 pub(super) fn floor_points(world: &GridWorld, room: usize, cell: [i32; 2]) -> [[f32; 3]; 4] {
-    let plan = plan_corners(world, cell);
+    floor_points_at(world, room, 2, cell)
+}
+
+/// The floor of `cell` of `level` as four editor-space points, at its corner
+/// heights (a fine cell's leaf), or flat at the room's base when it has none.
+pub(super) fn floor_points_at(
+    world: &GridWorld,
+    room: usize,
+    level: u8,
+    cell: [i32; 2],
+) -> [[f32; 3]; 4] {
+    let plan = plan_corners_at(world, level, cell);
     let r = world.rooms.get(room);
-    let heights = r
-        .filter(|r| r.local(cell).is_some())
-        .and_then(|r| psxed_project::grid::sector_view::corner_heights(r, cell, false))
-        .unwrap_or([0; 4]);
+    let heights = if level == 2 {
+        r.filter(|r| r.local(cell).is_some())
+            .and_then(|r| psxed_project::grid::sector_view::corner_heights(r, cell, false))
+    } else {
+        let e = edge_clicks(level);
+        r.and_then(|r| r.leaf_at([cell[0] * e, cell[1] * e]))
+            .and_then(|(_, s)| s.ground_floor())
+            .map(|f| f.heights)
+    }
+    .unwrap_or([0; 4]);
     let y_offset = r.map_or(0, |r| r.y_offset);
     core::array::from_fn(|i| {
         [
@@ -61,9 +86,9 @@ fn shown_region(ws: &EditorWorkspace) -> Option<(Region, bool)> {
                     .verb
                     .region
                     .clone()
-                    .unwrap_or_else(|| Region::new(*room))
+                    .unwrap_or_else(|| Region::new_at(*room, ws.grid.cell_size.level()))
             } else {
-                Region::new(*room)
+                Region::new_at(*room, ws.grid.cell_size.level())
             };
             region.extend(&Region::from_rect(
                 *room,
@@ -114,6 +139,12 @@ fn drag_chip(ws: &EditorWorkspace, world: &GridWorld) -> Option<String> {
             format!("Ramp from {}  {amount}   {fits}", d.params().from.label())
         }
         VerbDrag::Stairs(d) => super::stairs_tool::chip(world, d, g.amount),
+        VerbDrag::Fine(d) => match d.verb() {
+            FineVerb::Raise(p) => format!("{}  {amount}", p.mode.label()),
+            FineVerb::Ramp(p) => format!("Ramp from {}  {amount}", p.from.label()),
+            FineVerb::Stairs { .. } => format!("Stairs  {amount}"),
+            FineVerb::Break { .. } => format!("Break  {amount}"),
+        },
     })
 }
 
@@ -131,14 +162,17 @@ impl EditorWorkspace {
             return;
         };
         let screen = |p: [f32; 2]| transform.world_to_screen(p);
-        let cell_rect = |cell: [i32; 2]| {
-            let c = plan_corners(world, cell);
+        // A region is drawn in its own cells; the preview in the cell size
+        // the tools use now.
+        let cell_rect_at = |level: u8, cell: [i32; 2]| {
+            let c = plan_corners_at(world, level, cell);
             Rect::from_two_pos(screen(c[0]), screen(c[2]))
         };
+        let current_level = self.grid.cell_size.level();
         let mut bounds: Option<Rect> = None;
         if let Some((region, picking)) = shown_region(self) {
             for cell in region.cells() {
-                let r = cell_rect(cell);
+                let r = cell_rect_at(region.level(), cell);
                 bounds = Some(bounds.map_or(r, |b| b.union(r)));
                 painter.rect_filled(r, 0.0, fill(REGION, if picking { 70 } else { 96 }));
                 painter.rect_stroke(
@@ -152,7 +186,7 @@ impl EditorWorkspace {
         for cell in &self.grid.verb.preview {
             if matches!(self.grid.gesture, Gesture::Idle) {
                 painter.rect_stroke(
-                    cell_rect(*cell),
+                    cell_rect_at(current_level, *cell),
                     0.0,
                     Stroke::new(1.5, HOVER),
                     StrokeKind::Inside,
@@ -180,7 +214,7 @@ impl EditorWorkspace {
         world: &GridWorld,
     ) {
         let centre = |cell: [i32; 2]| {
-            let c = plan_corners(world, cell);
+            let c = plan_corners_at(world, self.grid.cell_size.level(), cell);
             transform.world_to_screen([(c[0][0] + c[2][0]) * 0.5, (c[0][1] + c[2][1]) * 0.5])
         };
         let points: Vec<Pos2> = self.grid.verb.path.iter().map(|c| centre(*c)).collect();
@@ -323,7 +357,7 @@ impl EditorWorkspace {
         let mut centre_sum = ([0.0f32; 3], 0usize);
         if let Some((region, picking)) = shown_region(self) {
             for cell in region.cells() {
-                let pts = floor_points(world, region.room, cell);
+                let pts = floor_points_at(world, region.room, region.level(), cell);
                 polygon(&pts, REGION, if picking { 60 } else { 84 }, 1.5);
                 for p in pts {
                     for (acc, v) in centre_sum.0.iter_mut().zip(p) {
@@ -341,7 +375,8 @@ impl EditorWorkspace {
                 .as_ref()
                 .map_or_else(|| self.grid_target_room(), |r| r.room);
             for cell in &self.grid.verb.preview {
-                polygon(&floor_points(world, room, *cell), HOVER, 36, 1.5);
+                let level = self.grid.cell_size.level();
+                polygon(&floor_points_at(world, room, level, *cell), HOVER, 36, 1.5);
             }
         }
         // Waypoints of a path, lifted a hand above the floor.
@@ -352,7 +387,7 @@ impl EditorWorkspace {
             .path
             .iter()
             .map(|c| {
-                let p = floor_points(world, room, *c);
+                let p = floor_points_at(world, room, self.grid.cell_size.level(), *c);
                 [
                     (p[0][0] + p[2][0]) * 0.5,
                     (p[0][1] + p[1][1] + p[2][1] + p[3][1]) * 0.25 + 40.0,
@@ -446,6 +481,15 @@ impl EditorWorkspace {
         transform: ViewportTransform,
         world: &GridWorld,
     ) {
+        if self
+            .grid
+            .verb
+            .region
+            .as_ref()
+            .is_some_and(|r| r.level() != 2)
+        {
+            return;
+        }
         let Some((region, from, dragging)) = self.ramp_sides() else {
             return;
         };
@@ -483,6 +527,15 @@ impl EditorWorkspace {
         polygon: &PolygonFn,
         world: &GridWorld,
     ) {
+        if self
+            .grid
+            .verb
+            .region
+            .as_ref()
+            .is_some_and(|r| r.level() != 2)
+        {
+            return;
+        }
         let Some((region, from, dragging)) = self.ramp_sides() else {
             return;
         };
@@ -637,6 +690,15 @@ impl EditorWorkspace {
         transform: ViewportTransform,
         world: &GridWorld,
     ) {
+        if self
+            .grid
+            .verb
+            .region
+            .as_ref()
+            .is_some_and(|r| r.level() != 2)
+        {
+            return;
+        }
         if self.grid.tool != GridTool::Stairs {
             return;
         }
@@ -696,6 +758,15 @@ impl EditorWorkspace {
         polygon: &PolygonFn,
         world: &GridWorld,
     ) {
+        if self
+            .grid
+            .verb
+            .region
+            .as_ref()
+            .is_some_and(|r| r.level() != 2)
+        {
+            return;
+        }
         if self.grid.tool != GridTool::Stairs {
             return;
         }

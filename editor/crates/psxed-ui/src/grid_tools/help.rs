@@ -400,6 +400,10 @@ impl EditorWorkspace {
                     RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, Shift+N Mesh, P Paint, D Split, O Place, E Bands | U Raise, A Ramp, T Stairs, X Break, M Rough, Q Cells")
                         .color(STUDIO_TEXT_WEAK),
                 );
+                ui.label(
+                    RichText::new("Cell size (option row of Floor, Ceiling, Wall, Raise, Ramp, Stairs, Break, Rough): Sector by default. 1/2 and 1/4 snap these tools to half and quarter sectors, splitting bigger cells to fit. Changing it drops the region you picked.")
+                        .color(STUDIO_TEXT_WEAK),
+                );
                 ui.add_space(4.0);
                 // Three columns of sections, split where the rows balance
                 // (long descriptions count double, they wrap).
