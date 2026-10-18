@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- The shared chain loader can animate its loading screen. `Observer::tick` and
+  `Presentation::tick` (both default to nothing) are called after every payload
+  sector, once per spin of a seek wait and every 4 KiB of the checksum pass, and
+  `paint::take_vblank` counts VBlank edges while interrupts are masked. A
+  presentation that polls the SDK's `psx-loading` indicator there keeps its
+  text moving for the whole load. The transport itself (reads, stops, events,
+  checksum) is unchanged: the legacy-oracle traces still match.
+
 - `psxed-audio` can cook sounds straight from WAV files or in-memory bytes
   (`cook_sounds`, `import_files`), sharing the decode, resample, normalize and
   encode path with `import_pack`, so the `.psau` output is byte-identical.
