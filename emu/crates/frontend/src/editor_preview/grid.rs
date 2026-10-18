@@ -18,7 +18,7 @@ use psxed_project::grid::mesh_faces::{mesh_faces_with, placed as placed_mesh};
 use psxed_project::grid::plane_faces::plane_faces_with;
 use psxed_project::grid::uv::ProjectUvDefaults;
 use psxed_project::grid::uv_split;
-use psxed_project::grid::{GridRoom, GridWorld, SECTOR_UNITS};
+use psxed_project::grid::{GridRoom, GridSector, GridWorld, SECTOR_UNITS};
 
 /// Editor-space bounds of one sector, from its lowest to highest geometry.
 fn cell_bounds(
@@ -26,26 +26,14 @@ fn cell_bounds(
     room: &GridRoom,
     x: usize,
     z: usize,
+    sector: &GridSector,
 ) -> Option<PreviewCellBounds> {
     let [cx, cz] = room.world_cell(x, z);
-    // Every leaf that touches the sector: a sector, finer cells, or the part
-    // of a bigger cell over it.
-    let mut range: Option<(i32, i32)> = None;
-    for (_, leaf) in room.leaves.in_sector([cx, cz]) {
-        if let Some((lo, hi)) = leaf.height_range() {
-            range = Some(range.map_or((lo, hi), |(a, b)| (a.min(lo), b.max(hi))));
-        }
-    }
-    let (mut low, mut high) = range?;
+    let (mut low, mut high) = sector.height_range()?;
     // Derived walls hosted here can reach past the sector's own surfaces
     // (a riser runs down to the neighbour's floor).
     if room.wall_mode == psxed_project::grid::WallMode::Derived {
-        let derived = if room.leaves.is_sectors_only() {
-            psxed_project::grid::derive::derived_range(room, [cx, cz])
-        } else {
-            psxed_project::grid::leaf_derive::derived_range(room, [cx, cz])
-        };
-        if let Some((lo, hi)) = derived {
+        if let Some((lo, hi)) = psxed_project::grid::derive::derived_range(room, [cx, cz]) {
             low = low.min(lo);
             high = high.max(hi);
         }
@@ -170,8 +158,8 @@ pub(super) fn walk_grid(
         if hidden.contains(&room_index) {
             continue;
         }
-        for [x, z] in room.face_cells() {
-            let Some(bounds) = cell_bounds(world, room, x, z) else {
+        for (x, z, sector) in room.iter() {
+            let Some(bounds) = cell_bounds(world, room, x, z, sector) else {
                 continue;
             };
             if !preview_cell_bounds_visible(camera, bounds) {

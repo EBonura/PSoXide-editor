@@ -122,17 +122,66 @@ fn build_the_cells_demo() {
         .args(["--new", project.to_str().unwrap()])
         .output()
         .expect("run --new");
-    assert!(made.status.success(), "{}", String::from_utf8_lossy(&made.stderr));
+    assert!(
+        made.status.success(),
+        "{}",
+        String::from_utf8_lossy(&made.stderr)
+    );
     let mut c = Client::start(&["--project", project.to_str().unwrap()], &[], &repo_root());
 
     // A 12 by 12 hall: floor, ceiling, merged into big cells.
-    c.ok("grid_add_surface", json!({"kind": "floor", "from": [0, 0], "to": [11, 11], "height": 0}));
-    c.ok("grid_add_surface", json!({"kind": "ceiling", "from": [0, 0], "to": [11, 11], "height": 3072}));
-    let merged = c.ok("grid_merge", json!({"from": [0, 0], "to": [11, 11], "up_to": "four"})).text;
+    c.ok(
+        "grid_add_surface",
+        json!({"kind": "floor", "from": [0, 0], "to": [11, 11], "height": 0}),
+    );
+    c.ok(
+        "grid_add_surface",
+        json!({"kind": "ceiling", "from": [0, 0], "to": [11, 11], "height": 3072}),
+    );
+    if std::env::var("PSXED_CELLS_DEMO_STOP").as_deref() == Ok("seam") {
+        // A slope of whole sectors, finer cells in half of it with a bump:
+        // the seam between coarse and fine cells on a tilted floor.
+        c.ok(
+            "grid_ramp",
+            json!({"from": [2, 2], "to": [5, 3], "keep": "north", "rise": 1024}),
+        );
+        c.ok(
+            "grid_subdivide",
+            json!({"from": [3, 2], "to": [4, 3], "size": "half"}),
+        );
+        c.ok(
+            "grid_subdivide",
+            json!({"from": [3, 2], "to": [3, 2], "size": "quarter"}),
+        );
+        c.ok("grid_raise", json!({"from": [13, 9], "to": [14, 10], "unit": "click", "amount": 128, "mode": "offset", "snap": "fine"}));
+        println!("{}", c.ok("grid_leaves", json!({})).text);
+        c.ok("save", json!({}));
+        return;
+    }
+    let merged = c
+        .ok(
+            "grid_merge",
+            json!({"from": [0, 0], "to": [11, 11], "up_to": "four"}),
+        )
+        .text;
     println!("{merged}");
+    let stop = std::env::var("PSXED_CELLS_DEMO_STOP").unwrap_or_default();
+    if stop == "merged" {
+        c.ok("save", json!({}));
+        return;
+    }
     // The south-east corner: two sectors of quarter cells.
-    let sub = c.ok("grid_subdivide", json!({"from": [8, 8], "to": [9, 9], "size": "quarter"})).text;
+    let sub = c
+        .ok(
+            "grid_subdivide",
+            json!({"from": [8, 8], "to": [9, 9], "size": "quarter"}),
+        )
+        .text;
     println!("{sub}");
+    if stop == "subdivided" {
+        c.ok("save", json!({}));
+        return;
+    }
     // A staircase of fine treads, 64 grid units a tread, one quarter sector
     // deep: eight treads across two sectors.
     for k in 0..8 {
@@ -146,10 +195,45 @@ fn build_the_cells_demo() {
     }
     println!("{}", c.ok("grid_leaves", json!({})).text);
     c.ok("delete_node", json!({"node": "Starter Light"}));
-    c.ok("add_light", json!({"name": "Hall lamp", "position": [8800, 2200, 8800], "radius": 7000, "color": [255, 226, 190], "intensity": 1.3}));
-    c.ok("add_light", json!({"name": "Stair lamp", "position": [12000, 1200, 12000], "radius": 6000, "color": [255, 200, 150], "intensity": 1.2}));
+    c.ok("add_light", json!({"name": "Hall lamp", "position": [8800, 2200, 8800], "radius": 7000, "color": [255, 226, 190], "intensity": 0.6}));
+    c.ok("add_light", json!({"name": "Stair lamp", "position": [12000, 1200, 12000], "radius": 6000, "color": [255, 200, 150], "intensity": 0.5}));
     // The player starts west of the stairs, facing east.
-    c.ok("move_node", json!({"node": "Aletha (Player)", "position": [8000, 64, 12400]}));
+    c.ok(
+        "move_node",
+        json!({"node": "Aletha (Player)", "position": [8000, 64, 12400]}),
+    );
     println!("{}", c.ok("cook_check", json!({})).text);
     c.ok("save", json!({}));
+}
+
+/// Plays the demo: the player walks east up the fine staircase. Needs the
+/// built frontend and `PSOXIDE_GUEST_STAGE_ROOT`; pictures go to
+/// `PSXED_MCP_PNG_DIR`.
+#[test]
+#[ignore]
+fn play_the_cells_demo() {
+    let Ok(dir) = std::env::var("PSXED_CELLS_DEMO") else {
+        return;
+    };
+    let project = repo_root().join("editor/projects").join(dir);
+    let mut c = Client::start(&["--project", project.to_str().unwrap()], &[], &repo_root());
+    let run = c.ok(
+        "playtest",
+        json!({
+            "route": [ {"polls": 700, "dir": "right"} ],
+            "warmup_polls": 450,
+            "frames": [0, 45, 70, 95, 120, 140],
+            "track_player": true,
+            "telemetry": false
+        }),
+    );
+    println!("{}\nimages: {}", run.text, run.images.len());
+    if let Some(out) = std::env::var_os("PSXED_MCP_PNG_DIR") {
+        let out = PathBuf::from(out);
+        std::fs::create_dir_all(&out).unwrap();
+        for (i, png) in run.images.iter().enumerate() {
+            std::fs::write(out.join(format!("play-{i}.png")), png).unwrap();
+        }
+    }
+    assert!(!run.text.contains("stalled"), "{}", run.text);
 }
