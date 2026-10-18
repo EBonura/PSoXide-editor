@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- The shared chain loader can animate its loading screen. `Observer::tick` and
+  `Presentation::tick` (both default to nothing) are called after every payload
+  sector, once per spin of a seek wait and every 4 KiB of the checksum pass, and
+  `paint::take_vblank` counts VBlank edges while interrupts are masked. A
+  presentation that polls the SDK's `psx-loading` indicator there keeps its
+  text moving for the whole load. The transport itself (reads, stops, events,
+  checksum) is unchanged: the legacy-oracle traces still match.
 - Walls and floors close to the third-person camera are now drawn where they
   really are. The GTE's perspective divide pulled anything nearer than about
   50 units toward the screen centre, which warped near walls and let sky show
