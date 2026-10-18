@@ -15,6 +15,7 @@
 //! * the world's scale (5/4 for a new project) turns grid units into editor
 //!   units, which is what nodes and screenshots use.
 
+pub mod aim;
 pub mod bands;
 pub mod build;
 pub mod cells;

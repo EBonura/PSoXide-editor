@@ -318,9 +318,9 @@ pub fn shift(world: &mut GridWorld, req: &ShiftReq) -> Result<String, String> {
 }
 
 /// Refuse a rectangle that holds a column of several spans. The surface and
-/// level verbs edit the ground span only, and a tool that guessed which span
-/// a request meant would silently edit the wrong floor, so it refuses instead.
-/// Names the first such cell.
+/// level verbs edit one span, and a tool that guessed which a request meant
+/// would silently edit the wrong floor, so with no `y` or `storey` it refuses
+/// instead (see [`super::aim`]). Names the first such cell.
 pub fn refuse_several_spans(
     world: &GridWorld,
     room_index: usize,
@@ -338,7 +338,7 @@ pub fn refuse_several_spans(
         };
         if !sector.is_single_span() {
             return Err(format!(
-                "sector [{}, {}] has {} spans; this tool edits only the ground span and refuses rather than guess which one you mean. Read the column with grid_column and edit it with grid_insert_slab, grid_cut_hole or grid_shift_above",
+                "sector [{}, {}] has {} spans, and this tool refuses rather than guess which one you mean. Pass y (grid units relative to the room) or storey (an ordinal of grid_storeys) to aim it at one span; read the column with grid_column, or change the spans themselves with grid_insert_slab, grid_cut_hole or grid_shift_above",
                 cell[0],
                 cell[1],
                 sector.span_count()

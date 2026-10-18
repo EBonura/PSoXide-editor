@@ -530,6 +530,7 @@ mod tests {
         set_heights(
             &mut w,
             &SetHeightsReq {
+                aim: Default::default(),
                 scene: None,
                 room: None,
                 kind: Surface::Floor,

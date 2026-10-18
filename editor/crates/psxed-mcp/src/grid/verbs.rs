@@ -14,7 +14,7 @@ use psxed_project::grid::edit::verbs::raise::{
 };
 use psxed_project::grid::edit::verbs::ramp::{RampDir, RampDrag, RampParams};
 use psxed_project::grid::edit::verbs::stairs::{RiserOption, StairsDrag, StairsParams};
-use psxed_project::grid::edit::Region;
+use psxed_project::grid::edit::{CellRect, Region};
 use psxed_project::grid::heat::{heatmap, HeatOptions};
 use psxed_project::grid::units::{snap_to, CLICK_UNITS, FINE_UNITS};
 use psxed_project::grid::walk::{self, analyse, EdgeKind, WalkLimits};
@@ -97,6 +97,10 @@ pub struct RaiseReq {
     /// half cell `h` is world click `2h`, quarter cell `q` is click `q`), and
     /// the verb runs on exactly those cells, splitting larger ones to fit.
     pub size: Option<String>,
+    /// Which span of a column to edit: `y` or `storey`. Needed where a
+    /// sector has several spans.
+    #[serde(flatten)]
+    pub aim: super::aim::SpanAim,
 }
 
 /// Apply [`RaiseReq`].
@@ -111,7 +115,19 @@ pub fn raise(
     }
     let rect = req.cells.rect();
     check_rect(&rect)?;
-    super::storeys::refuse_several_spans(world, room, rect)?;
+    super::aim::aimed(world, room, rect, &req.aim, |world| {
+        raise_in(world, project, req, room, rect)
+    })
+}
+
+/// The edit itself, run with the aimed span standing in as the ground span.
+fn raise_in(
+    world: &mut GridWorld,
+    project: &ProjectDocument,
+    req: &RaiseReq,
+    room: usize,
+    rect: CellRect,
+) -> Result<String, String> {
     let level = size_level(&req.size)?;
     let region = Region::from_rect(room, rect).at_level(level);
     if level != 2 {
@@ -267,6 +283,10 @@ pub struct RampReq {
     /// grid_raise). The rectangle counts cells of that size and the slope
     /// runs over them.
     pub size: Option<String>,
+    /// Which span of a column to edit: `y` or `storey`. Needed where a
+    /// sector has several spans.
+    #[serde(flatten)]
+    pub aim: super::aim::SpanAim,
 }
 
 fn parse_dir(name: &str) -> Result<RampDir, String> {
@@ -290,7 +310,19 @@ pub fn ramp(
     let room = pick_room(world, req.room)?;
     let rect = req.cells.rect();
     check_rect(&rect)?;
-    super::storeys::refuse_several_spans(world, room, rect)?;
+    super::aim::aimed(world, room, rect, &req.aim, |world| {
+        ramp_in(world, project, req, room, rect)
+    })
+}
+
+/// The edit itself, run with the aimed span standing in as the ground span.
+fn ramp_in(
+    world: &mut GridWorld,
+    project: &ProjectDocument,
+    req: &RampReq,
+    room: usize,
+    rect: CellRect,
+) -> Result<String, String> {
     let level = size_level(&req.size)?;
     let region = Region::from_rect(room, rect).at_level(level);
     let params = RampParams {

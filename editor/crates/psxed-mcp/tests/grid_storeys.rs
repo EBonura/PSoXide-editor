@@ -126,6 +126,20 @@ fn a_two_storey_room_is_built_cooked_and_walked_on_its_ground_floor() {
         )
         .expect_err("a multi-span cell must be refused");
     assert!(refused.contains("has 2 spans"), "{refused}");
+    assert!(
+        refused.contains("storey"),
+        "it names the way out: {refused}"
+    );
+
+    // Aimed at the upper storey, the same verb edits the span above the slab
+    // and leaves the ground floor alone.
+    c.ok(
+        "grid_set_heights",
+        json!({"kind": "floor", "from": [0, 0], "to": [0, 0], "height": 3328, "storey": 1}),
+    );
+    let lifted = c.ok("grid_column", json!({"cell": [0, 0]})).text;
+    assert!(lifted.contains("span 0: floor 0 "), "{lifted}");
+    assert!(lifted.contains("span 1: floor 13 "), "{lifted}");
 
     // ---- the player on the ground floor, south of the stair hole ---------------
     c.ok(

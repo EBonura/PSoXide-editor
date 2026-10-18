@@ -3,8 +3,8 @@
 use std::collections::BTreeSet;
 
 use psxed_project::grid::edit::{
-    create_surfaces, delete_surfaces, toggle_split, CornerRef, FaceRef, RectRefusal, SurfaceKind,
-    WeldIndex,
+    create_surfaces, delete_surfaces, toggle_split, CellRect, CornerRef, FaceRef, RectRefusal,
+    SurfaceKind, WeldIndex,
 };
 use psxed_project::grid::overrides::WallMode;
 use psxed_project::grid::{GridSplit, GridWorld};
@@ -67,6 +67,10 @@ pub struct AddSurfaceReq {
     /// click `2h`, quarter cell `q` is click `q`); larger leaves under it are
     /// split to fit and the tree is balanced.
     pub size: Option<String>,
+    /// Which span of a column to edit: `y` or `storey`. Needed where a
+    /// sector has several spans.
+    #[serde(flatten)]
+    pub aim: super::aim::SpanAim,
 }
 
 fn cell_level(size: &Option<String>) -> Result<u8, String> {
@@ -89,7 +93,19 @@ pub fn add_surface(
     let room = pick_room(world, req.room)?;
     let rect = req.cells.rect();
     check_rect(&rect)?;
-    super::storeys::refuse_several_spans(world, room, rect)?;
+    super::aim::aimed(world, room, rect, &req.aim, |world| {
+        add_surface_in(world, mats, req, room, rect)
+    })
+}
+
+/// The edit itself, run with the aimed span standing in as the ground span.
+fn add_surface_in(
+    world: &mut GridWorld,
+    mats: &Materials<'_>,
+    req: &AddSurfaceReq,
+    room: usize,
+    rect: CellRect,
+) -> Result<String, String> {
     let (height, note) = req.snap.unwrap_or_default().apply(req.height);
     let material = mats.resolve_opt(req.material.as_deref())?;
     let level = cell_level(&req.size)?;
@@ -158,6 +174,10 @@ pub struct RemoveSurfaceReq {
     /// What a cell is: `sector` (default), `half` or `quarter` (see
     /// grid_add_surface).
     pub size: Option<String>,
+    /// Which span of a column to edit: `y` or `storey`. Needed where a
+    /// sector has several spans.
+    #[serde(flatten)]
+    pub aim: super::aim::SpanAim,
 }
 
 /// Delete the surfaces; emptied sectors go and the room shrinks around what
@@ -166,7 +186,18 @@ pub fn remove_surface(world: &mut GridWorld, req: &RemoveSurfaceReq) -> Result<S
     let room = pick_room(world, req.room)?;
     let rect = req.cells.rect();
     check_rect(&rect)?;
-    super::storeys::refuse_several_spans(world, room, rect)?;
+    super::aim::aimed(world, room, rect, &req.aim, |world| {
+        remove_surface_in(world, req, room, rect)
+    })
+}
+
+/// The edit itself, run with the aimed span standing in as the ground span.
+fn remove_surface_in(
+    world: &mut GridWorld,
+    req: &RemoveSurfaceReq,
+    room: usize,
+    rect: CellRect,
+) -> Result<String, String> {
     let level = cell_level(&req.size)?;
     let outcome = if level != 2 {
         psxed_project::grid::edit::delete_surfaces_cells(
@@ -227,6 +258,10 @@ pub struct SetHeightsReq {
     /// Height layer: 0 (default) or 1, the second triangle of a split-level
     /// surface (only when it has one).
     pub layer: Option<u8>,
+    /// Which span of a column to edit: `y` or `storey`. Needed where a
+    /// sector has several spans.
+    #[serde(flatten)]
+    pub aim: super::aim::SpanAim,
 }
 
 fn corner_indices(req: &SetHeightsReq) -> Result<Vec<u8>, String> {
@@ -262,7 +297,18 @@ pub fn set_heights(world: &mut GridWorld, req: &SetHeightsReq) -> Result<String,
     let room = pick_room(world, req.room)?;
     let rect = req.cells.rect();
     check_rect(&rect)?;
-    super::storeys::refuse_several_spans(world, room, rect)?;
+    super::aim::aimed(world, room, rect, &req.aim, |world| {
+        set_heights_in(world, req, room, rect)
+    })
+}
+
+/// The edit itself, run with the aimed span standing in as the ground span.
+fn set_heights_in(
+    world: &mut GridWorld,
+    req: &SetHeightsReq,
+    room: usize,
+    rect: CellRect,
+) -> Result<String, String> {
     let corners = corner_indices(req)?;
     let layer = req.layer.unwrap_or(0);
     let snap = req.snap.unwrap_or_default();
@@ -474,6 +520,7 @@ mod tests {
         let out = set_heights(
             &mut w,
             &SetHeightsReq {
+                aim: Default::default(),
                 scene: None,
                 room: None,
                 kind: Surface::Floor,
@@ -508,6 +555,7 @@ mod tests {
     fn linked_heights_move_welded_neighbours_and_unlinked_do_not() {
         let (_, mut w) = fixture();
         let req = |link| SetHeightsReq {
+            aim: Default::default(),
             scene: None,
             room: None,
             kind: Surface::Floor,
@@ -551,6 +599,7 @@ mod tests {
         let out = set_heights(
             &mut w,
             &SetHeightsReq {
+                aim: Default::default(),
                 scene: None,
                 room: None,
                 kind: Surface::Floor,
@@ -580,6 +629,7 @@ mod tests {
         assert!(set_heights(
             &mut w,
             &SetHeightsReq {
+                aim: Default::default(),
                 scene: None,
                 room: None,
                 kind: Surface::Floor,
@@ -607,6 +657,7 @@ mod tests {
             &mut w,
             &mats,
             &AddSurfaceReq {
+                aim: Default::default(),
                 scene: None,
                 room: None,
                 kind: Surface::Floor,
@@ -623,6 +674,7 @@ mod tests {
         let out = remove_surface(
             &mut w,
             &RemoveSurfaceReq {
+                aim: Default::default(),
                 scene: None,
                 room: None,
                 kind: Surface::Floor,
