@@ -34,7 +34,7 @@ impl EditorServer {
     }
 
     #[rmcp::tool(
-        description = "Add a free plane: a flat quad off the sector lattice for a bridge, ramp, slanted wall, banner or grate. Place it by centre, size and rotation (yaw, pitch, roll degrees; pitch 90 lays it flat facing up) or, for a bridge or ramp, by the midpoints of its two ends (from, to) and a width. Collision decor (drawn only), walkable (stand on it) or solid. Positions are GRID units (x, z on the world lattice, 1024 per sector; y relative to the room's y_offset). The room grows to hold the plane."
+        description = "Add a free plane: a flat quad off the sector lattice for a bridge, ramp, slanted wall, banner or grate. Place it by centre, size and rotation, or for a bridge or ramp by the midpoints of its two ends (from, to) and a width. ANGLES: rotation is [yaw, pitch, roll] whole degrees; at zero the plane stands upright facing south (+Z). Pitch tips the face up (+90 floor, -90 ceiling; on a wall +15 leans the top 15 degrees AWAY from the side it faces, -15 toward it); yaw turns it about the vertical (90 faces east +X, 180 north, -90 west). Easier: facing (north/south/east/west/up/down) with lean_deg, or a normal vector [x east, y up, z south]; the reply reads the pose back in words. A wall facing east leaning back 15 degrees: facing east, lean_deg 15 = rotation [90, 15, 0]. y is relative to the room: a plane within half a fine step of a floor or ceiling z-fights and the reply warns; lift it 64 or more. Collision decor (drawn only), walkable (stand on it) or solid. Positions are GRID units (x, z on the world lattice, 1024 per sector; y relative to the room's y_offset). The room grows to hold the plane."
     )]
     async fn grid_add_plane(
         &self,
@@ -46,7 +46,7 @@ impl EditorServer {
     }
 
     #[rmcp::tool(
-        description = "Change a plane by index: placement (any of centre, size, rotation, orientation, or a from/to span), material, tiling mode, sidedness, collision class, fullbright, camera pass-through, or enabled."
+        description = "Change a plane by index: placement (any of centre, size, rotation, facing with lean_deg, normal, orientation, or a from/to span; angle convention as grid_add_plane), material, tiling mode, sidedness, collision class, fullbright, camera pass-through, or enabled."
     )]
     async fn grid_set_plane(
         &self,

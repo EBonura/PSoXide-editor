@@ -60,16 +60,22 @@ The world's scale turns grid units into **editor units**: 5/4 for a new project,
 | Level verbs | `grid_raise` (the Raise tool: offset or level, ceilings follow), `grid_ramp` (the Ramp tool: `keep` a side, `rise` or `walkable`), `grid_stairs` (the Stairs tool: a path, riser option, ramp option) |
 | Natural terrain | `grid_polygon` (a polygon or corridor of floors, optional roof, 45 degree corner cuts), `grid_chamfer`, `grid_crack` (a triangle at its own height), `grid_void` (half a cell empty), `grid_set_wall` (an authored wall's four heights, an open top crumbled), `grid_break`, `grid_rough`, `grid_paint_rules` |
 | Walls | `grid_place_wall`, `grid_remove_wall` (authored runs), `grid_wall_override` (hide, ghost, repaint a derived wall; reset) |
-| Look | `grid_paint`, `grid_paint_wall` (a wall or its whole run), `grid_tiling` (World density or Fit N x M, turns, flips, offset, scale), `grid_material_tiling` (a material's default) |
+| Look | `grid_paint`, `grid_paint_wall` (a wall or its whole run), `grid_tiling` (World density, Fit N x M on each face, or `fit_across` N x M over the whole selected rectangle; turns, flips, offset, scale), `grid_material_tiling` (a material's default) |
 | Bands | `grid_band_cut`, `grid_band_move`, `grid_band_delete`, `grid_band_set` (material, tiling and V per band; scope `run` or `room`) |
-| Planes | `grid_add_plane` (by centre or by the midpoints of its two ends), `grid_set_plane`, `grid_delete_plane` |
+| Planes | `grid_add_plane` (by centre, by the midpoints of its two ends, by `facing` and `lean_deg` or by a `normal`), `grid_set_plane`, `grid_delete_plane` |
 | Meshes | `grid_arch_span` (an arch between two floor points), `grid_place_mesh` (an asset or a recipe: arch, column, rubble, or an OBJ file), `grid_set_mesh` (move, turn, scale, retexture, or change the asset's recipe for every copy), `grid_delete_mesh` |
 | Nodes | `place_node`, `set_node`, `move_node`, `delete_node`, `add_light`, `lights`, `get_node`, `entity_types` |
 | Safety | `checkpoint`, `restore`, `checkpoints`, `save`, `revert`, `undo_last_edit`, `list_backups` |
 
 **VERIFY**.
 
-* `screenshot` renders the **staged** document (saved or not) with the editor's preview renderer. A pose is an eye `position` plus `look_at` (or `yaw_deg` and `pitch_deg`), or an orbit around a `target` point or a `node` with `distance`, `yaw`, `pitch`. Up to 8 shots in one call through `shots`. Heading: yaw 0 looks north (-Z), 90 degrees looks west.
+* `screenshot` renders the **staged** document (saved or not) with the editor's preview renderer. A pose is an eye `position` plus `look_at` (or `yaw_deg` and `pitch_deg`), or an orbit around a `target` point or a `node` with `distance`, `yaw`, `pitch`. Up to 8 shots in one call through `shots`.
+
+**Pose convention.** An eye pose is exact: the eye is at `position` (editor units, to within a unit of rounding) and looks along the heading. The reply says `exact eye [x, y, z], heading yaw .. deg, pitch ..`. (The renderer only has an orbit camera, so an eye pose is rendered as the orbit whose target lies 320 units ahead of the eye; the image is pixel for pixel the one you get from an orbit with the same eye and heading from any distance. The older reply text printed that helper "radius 320", which read like an orbit around a point near the eye. It is not.) `look_at` is turned into a heading, which the renderer quantises to 1/4096 of a turn (0.09 degrees, 3 units at 2000 units out). Heading: `yaw_deg` 0 looks north (-Z), 90 west (-X), 180 south, 270 east; `pitch_deg` is positive looking UP (negative looks down). An orbit's raw `pitch` is the opposite way round (positive puts the eye below the target; 3776 looks down from above), and its reply prints the eye it ended up at.
+
+**Leave things out.** `hide_player` takes the player's model out of the picture (a shot from the entrance is inside it otherwise), `hide_actors` every character and enemy, `hide_overlays` the editor's own overlays (entity bounds boxes and light bulbs), and `clean: true` all three; the preview draws no HUD. The reply lists what was hidden. The Graybox textures carry their own grid lines and "64" labels: they are texture, not an overlay, so use the other palette materials (below) for a clean look.
+
+Light in the preview is the light in Play: both bake the same per corner function (a test cooks a lit floor and compares the corner colours: the preview and the cook agree to rounding), and the only difference is that the preview casts no shadows. Light multiplies the texture colour, so a warm light on a blue-grey texture has little to act on (a texel with 40 in red stays near 80); the Graybox base's three materials are blue-grey for exactly that reason. See Palette below.
 * `playtest` cooks a real disc (about half a minute), boots it headlessly and plays it (roughly 8 seconds per thousand polls). With a `route` it plays a path and returns frames along it and a frame-cost summary.
 
 ### Playtest routes
@@ -120,8 +126,30 @@ The tools above make axis-aligned rooms and slopes. These make rock. They write 
 * **A second room at another height**: `grid_add_room` with `origin` and `y_offset`, then `grid_add_surface` for its floor (and ceiling) at 0. Rooms may overlap in plan; that is how floors stack.
 * **An opening in a wall**: each side of a room edge is a derived closure wall. `grid_wall_override` with `hidden: true, solid: false` on the closure of both rooms (address it by host cell, edge and `kind: "closure"`) leaves a one-sector gap you can walk through.
 * **A banded wall**: `grid_band_cut` (`bottom`, `top` or `abs` anchor), then `grid_band_set` per band. Scope `room` makes the set the room default, `run` edits just that run.
-* **A FIT patch**: `grid_paint` the material, then `grid_tiling` with `mode: "fit", repeats: [2, 2]`. The reply reads back "2 x 2 on this face" and warns when the cook has to cut the face.
+* **A FIT patch**: `grid_paint` the material, then `grid_tiling` with `mode: "fit", repeats: [2, 2]` for 2 x 2 on EACH face (a 4 x 2 rectangle of cells is eight small tilings), or `mode: "fit_across", repeats: [2, 2]` for 2 x 2 across the WHOLE rectangle (`from`/`to`; each cell shows its share, neighbours line up exactly). `fit_across` takes the floors and the ceilings of the rectangle each as one patch, skips walls (a wall's frame is already its run: `mode: "fit"` with `run: true`), allows up to 64 tiles an axis, and says how many tiles each face shows and how many faces the cook has to cut (a primitive holds 4 tiles per axis). A later `mode` on a face, or `reset`, puts that face back on its own frame.
+* **A leaning wall**: `grid_add_plane` with `center`, `size`, `facing: "east", lean_deg: 15` (see Plane angles). The reply reads the pose back in words and the normal.
 * **The player**: `grid_height_at` for the floor under a point, then `move_node` the player entity (`Aletha (Player)` in a new project) a little above it.
+
+## Plane angles
+
+`rotation` is `[yaw, pitch, roll]` in whole degrees. At zero a plane stands upright facing south (+Z), like the north wall of a sector seen from inside. **Pitch** tips the face up: +90 is a floor facing up, -90 a ceiling facing down, and on a wall a positive pitch leans the TOP away from the side it faces (the face looks a little up), a negative one leans it toward that side (an overhang). **Yaw** turns the plane about the vertical axis: 90 faces east (+X), 180 north (-Z), -90 west. **Roll** spins it about its own normal. Yaw is applied after pitch.
+
+| Wanted | `rotation` | Or |
+| --- | --- | --- |
+| A floor | `[0, 90, 0]` | `facing: "up"`, `normal: [0, 1, 0]` |
+| A wall facing +X (east) | `[90, 0, 0]` | `facing: "east"` |
+| That wall leaning back 15 degrees | `[90, 15, 0]` | `facing: "east", lean_deg: 15`, `normal: [0.966, 0.259, 0]` |
+| That wall as an overhang | `[90, -15, 0]` | `facing: "east", lean_deg: -15` |
+
+`grid_add_plane` and `grid_set_plane` take one of `rotation`, `facing` (`north`, `south`, `east`, `west`, `+x`, `-x`, `+z`, `-z`, `up`, `down`; with `lean_deg`, whole degrees from -89 to 89) or `normal` (a vector `[x, y, z]`, x east, y up, z south, any length; rounded to whole degrees). Giving more than one is an error. The reply prints the rotation and says it in words ("faces east, top leans 15 degrees away from that side (face tips up), normal [0.97, 0.26, 0.00]"), so you can check a guess before you build on it. A walkable plane needs a normal within about 45 degrees of vertical.
+
+**Floor height.** A plane's `y` is relative to its room (`y: 0` is the room's own floor level, whatever its `y_offset`), and a plane at the height of a floor or ceiling draws at the same depth and z-fights. When a plane lies within 32 grid units (half a fine step) of a floor or ceiling over part of its area, the reply ends with a `warning:` that says how many of its sample points and how close; lift it by a fine step (64) or more, or change the surface instead. Upright planes are not checked against wall heights.
+
+## Palette
+
+A new grid project's palette (`materials` with `palette_only: true`) holds the base's three Graybox materials, which are one grid texture in three blue-grey tints (Ground, Original, Cliff), and six that read apart: `Graybox / Warm Stone 64`, `Dark Trim`, `Light Frieze`, `Wood`, `Metal` and `Moss`. They are generated materials (a base colour plus value noise baked to a 64 texel texture by the editor and the cook), so they need no image files and cost the same as any other texture. Use the blue-grey ones for graybox layout and the others when the picture has to read, in screenshots and under coloured light.
+
+The `materials` table's `grid tile` column says what one full tile of each material covers under the default mapping ("world 32 x 32 texels/sector: a tile is 2 x 2 sectors = 2560 x 2560 editor units"), follows the material's own default (`grid_material_tiling`) and reads "fit 2 x 2 tiles per face" for a Fit default. A project with no grid world keeps the brush figure (units per 64 texel tile).
 
 ## Staging and safety
 

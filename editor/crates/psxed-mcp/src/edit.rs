@@ -255,10 +255,20 @@ impl Workspace {
     /// so a screenshot or a playtest shows the edits before they are saved.
     /// The guard deletes it when dropped.
     pub fn render_root(&mut self) -> Result<RenderRoot, String> {
+        self.render_root_without(None)
+    }
+
+    /// [`Self::render_root`] with the models of some actors taken off in the
+    /// copy (never in the staged document), for shots that hide the player.
+    /// Always a scratch copy then, even when nothing is staged.
+    pub fn render_root_without(
+        &mut self,
+        hide: Option<crate::shot::ActorHide>,
+    ) -> Result<RenderRoot, String> {
         self.document()?;
         let real = std::fs::canonicalize(self.root())
             .map_err(|error| format!("resolve {}: {error}", self.root().display()))?;
-        if !self.dirty {
+        if !self.dirty && hide.is_none() {
             return Ok(RenderRoot {
                 path: real,
                 cleanup: None,
@@ -272,12 +282,20 @@ impl Workspace {
             .parent()
             .ok_or("the project directory has no parent")?
             .to_path_buf();
-        let stage = parent.join(format!(".mcp-stage-{name}"));
+        let tag = match hide {
+            None => "",
+            Some(crate::shot::ActorHide::Player) => "-no-player",
+            Some(crate::shot::ActorHide::All) => "-no-actors",
+        };
+        let stage = parent.join(format!(".mcp-stage-{name}{tag}"));
         let _ = std::fs::remove_dir_all(&stage);
         std::fs::create_dir_all(&stage)
             .map_err(|error| format!("create {}: {error}", stage.display()))?;
-        let text = self
-            .doc
+        let mut doc = self.doc.clone();
+        if let Some(hide) = hide {
+            crate::shot::without_actor_models(&mut doc, hide);
+        }
+        let text = doc
             .to_ron_string()
             .map_err(|error| format!("serialize the staged project: {error}"))?;
         std::fs::write(stage.join("project.ron"), text)

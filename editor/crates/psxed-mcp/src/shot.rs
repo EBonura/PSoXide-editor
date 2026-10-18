@@ -1,7 +1,11 @@
 //! 3D preview screenshots.
 //!
-//! The camera is an orbit camera, so a shot is a target point plus a heading
-//! and a distance. Rendering itself stays in the frontend binary, which owns
+//! A shot is either an orbit (a target point plus a heading and a distance) or
+//! an eye pose (a position plus a heading). The renderer only has an orbit
+//! camera, so an eye pose is the orbit whose target sits a fixed distance
+//! ahead of the eye: the eye lands on the position (the images are
+//! pixel-identical to the same view asked for as an orbit from far away; the
+//! 320 unit "radius" the reply used to print was only that helper point). Rendering itself stays in the frontend binary, which owns
 //! the PSX raster path and a headless wgpu device. Pulling that in would turn
 //! this crate into a 75-second build for one function, so the shot is taken
 //! by running `frontend dump-editor-preview` with the solved camera.
@@ -33,8 +37,27 @@ pub struct Shot {
     pub pitch_q12: u16,
     /// Distance from target to eye, world units.
     pub radius: i32,
-    /// World point the camera looks at.
+    /// World point the camera looks at (orbit shots; an eye pose keeps the
+    /// point `radius` ahead of the eye here, for the reply text only).
     pub target: [i32; 3],
+    /// An exact eye pose: the eye is this point and looks along
+    /// `yaw_q12`/`pitch_q12`. `None` is an orbit. The renderer only has an
+    /// orbit camera, so an eye pose is the orbit whose target lies
+    /// `radius` ahead of the eye along the heading; its eye is this point to
+    /// within a unit of rounding.
+    pub eye: Option<[i32; 3]>,
+}
+
+/// What a shot leaves out of the picture.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RenderOpts {
+    /// Do not draw the player's model.
+    pub hide_player: bool,
+    /// Do not draw any character or enemy model.
+    pub hide_actors: bool,
+    /// Do not draw the editor's own overlays: entity bounds boxes and the
+    /// light bulbs.
+    pub hide_overlays: bool,
 }
 
 /// An orbit camera framing `target` from `distance` away.
@@ -44,6 +67,7 @@ pub fn frame(target: [i32; 3], distance: i32, yaw: Option<u16>, pitch: Option<u1
         pitch_q12: pitch.unwrap_or(DEFAULT_PITCH),
         radius: distance.max(MIN_RADIUS),
         target,
+        eye: None,
     }
 }
 
@@ -56,11 +80,16 @@ pub fn frame(target: [i32; 3], distance: i32, yaw: Option<u16>, pitch: Option<u1
 /// 2. an **orbit**: `target` (or `node`) plus `distance`, `yaw`, `pitch`;
 /// 3. nothing: orbit the middle of the world.
 ///
-/// Heading convention (the editor's orbit camera): yaw 0 looks toward -Z
-/// (north), yaw 90 degrees looks toward -X (west). Pitch is positive looking
-/// UP in `pitch_deg` (an eye pose) and in the raw `pitch` of an orbit
-/// positive puts the eye BELOW the target, so a high orbit pitch near a full
-/// turn (4096 - 320, say) looks down from above.
+/// An eye pose is exact: the eye sits at `position` (the reply says "exact
+/// eye") and looks along the heading (`look_at` is turned into a
+/// heading; the heading is quantised to 1/4096 turn, 0.09 degrees, which is
+/// 3 units at 2000 units out).
+///
+/// Heading convention: yaw 0 looks toward -Z (north), yaw 90 degrees looks
+/// toward -X (west), 180 south, 270 east. `pitch_deg` is positive looking UP
+/// (negative looks down). In an orbit the raw `pitch` is the other way
+/// round: positive puts the eye BELOW the target, so a high orbit pitch near
+/// a full turn (4096 - 320, say) looks down from above.
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema)]
 pub struct ShotSpec {
     /// Name for this shot in the reply.
@@ -86,6 +115,93 @@ pub struct ShotSpec {
     /// Raw orbit pitch, 4096 per turn. Near a full turn looks down from
     /// above the target, small values look slightly upward. Default 3776.
     pub pitch: Option<u16>,
+    /// Do not draw the player's model. A shot from the entrance is inside it
+    /// otherwise.
+    pub hide_player: Option<bool>,
+    /// Do not draw any character or enemy model (the player included).
+    pub hide_actors: Option<bool>,
+    /// Do not draw the editor's overlays (entity bounds boxes, light bulbs).
+    pub hide_overlays: Option<bool>,
+    /// A clean view: no player, actors or overlays, as the level looks in
+    /// play without the HUD (the preview never draws a HUD). Shorthand for
+    /// the three switches above; they still win when given.
+    pub clean: Option<bool>,
+}
+
+/// Which actors a shot leaves out.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ActorHide {
+    /// Only the player-controlled entity.
+    Player,
+    /// Every character and enemy.
+    All,
+}
+
+impl RenderOpts {
+    /// The actors this leaves out, if any.
+    pub fn actor_hide(&self) -> Option<ActorHide> {
+        if self.hide_actors {
+            Some(ActorHide::All)
+        } else if self.hide_player {
+            Some(ActorHide::Player)
+        } else {
+            None
+        }
+    }
+}
+
+/// Take the model off the entities `hide` names, in a scratch copy of the
+/// project (the renderer draws an entity through its Model Renderer
+/// component, so one without a model draws nothing). Returns how many
+/// entities lost their model.
+pub fn without_actor_models(project: &mut ProjectDocument, hide: ActorHide) -> usize {
+    use psxed_project::NodeKind;
+    let mut stripped = 0;
+    for scene in &mut project.scenes {
+        let hosts: Vec<(psxed_project::NodeId, Vec<psxed_project::NodeId>, bool)> = scene
+            .nodes()
+            .iter()
+            .filter(|node| matches!(node.kind, NodeKind::Entity))
+            .map(|node| {
+                let is_player = node.children.iter().any(|id| {
+                    scene.node(*id).is_some_and(|child| {
+                        matches!(
+                            child.kind,
+                            NodeKind::CharacterController { player: true, .. }
+                        )
+                    })
+                });
+                (node.id, node.children.clone(), is_player)
+            })
+            .collect();
+        for (_, children, is_player) in hosts {
+            if hide == ActorHide::Player && !is_player {
+                continue;
+            }
+            let mut any = false;
+            for id in children {
+                if let Some(NodeKind::ModelRenderer { model, .. }) =
+                    scene.node_mut(id).map(|child| &mut child.kind)
+                {
+                    any |= model.take().is_some();
+                }
+            }
+            stripped += usize::from(any);
+        }
+    }
+    stripped
+}
+
+impl ShotSpec {
+    /// What this shot leaves out.
+    pub fn render_opts(&self) -> RenderOpts {
+        let clean = self.clean.unwrap_or(false);
+        RenderOpts {
+            hide_player: self.hide_player.unwrap_or(clean),
+            hide_actors: self.hide_actors.unwrap_or(clean),
+            hide_overlays: self.hide_overlays.unwrap_or(clean),
+        }
+    }
 }
 
 fn q12_from_degrees(degrees: f32) -> u16 {
@@ -101,9 +217,8 @@ fn orbit_offset(yaw_q12: u16, pitch_q12: u16) -> [f32; 3] {
     [p.cos() * y.sin(), -p.sin(), p.cos() * y.cos()]
 }
 
-/// The orbit camera whose eye sits exactly at `position` with a given
-/// heading. The eye is `target + radius * orbit_offset`, so the target lies
-/// `radius` ahead of the eye.
+/// An eye pose: the orbit whose eye is `position`, looking along the
+/// heading.
 pub fn eye_shot(position: [i32; 3], yaw_q12: u16, pitch_q12: u16) -> Shot {
     let radius = MIN_RADIUS;
     let offset = orbit_offset(yaw_q12, pitch_q12);
@@ -117,6 +232,7 @@ pub fn eye_shot(position: [i32; 3], yaw_q12: u16, pitch_q12: u16) -> Shot {
         pitch_q12,
         radius,
         target,
+        eye: Some(position),
     }
 }
 
@@ -183,8 +299,54 @@ pub fn solve(
     ))
 }
 
+fn degrees(q12: u16) -> f32 {
+    let d = f32::from(q12) / 4096.0 * 360.0;
+    if d > 180.0 {
+        d - 360.0
+    } else {
+        d
+    }
+}
+
+/// A shot in words, for the reply: where the eye is and where it looks.
+pub fn describe(shot: &Shot) -> String {
+    let eye = eye_of(shot);
+    match shot.eye {
+        Some(_) => format!(
+            "exact eye {eye:?}, heading yaw {:.1} deg, pitch {:+.1} deg (up positive; yaw 0 north, 90 west)",
+            degrees(shot.yaw_q12),
+            degrees(shot.pitch_q12)
+        ),
+        None => format!(
+            "orbit eye {eye:?} around target {:?}, radius {}, yaw {} pitch {} (raw q12, 4096 a turn)",
+            shot.target, shot.radius, shot.yaw_q12, shot.pitch_q12
+        ),
+    }
+}
+
+/// What a shot hides, for the reply.
+pub fn describe_opts(opts: RenderOpts) -> String {
+    let mut hidden = Vec::new();
+    if opts.hide_actors {
+        hidden.push("actors");
+    } else if opts.hide_player {
+        hidden.push("player");
+    }
+    if opts.hide_overlays {
+        hidden.push("overlays");
+    }
+    if hidden.is_empty() {
+        String::new()
+    } else {
+        format!("; hidden: {}", hidden.join(", "))
+    }
+}
+
 /// Where the eye ends up, for the reply text.
 pub fn eye_of(shot: &Shot) -> [i32; 3] {
+    if let Some(eye) = shot.eye {
+        return eye;
+    }
     let o = orbit_offset(shot.yaw_q12, shot.pitch_q12);
     [
         (shot.target[0] as f32 + shot.radius as f32 * o[0]).round() as i32,
@@ -251,12 +413,14 @@ pub fn render(
     frontend: &Path,
     project_dir: &Path,
     shot: Shot,
+    opts: RenderOpts,
     out_dir: &Path,
 ) -> Result<Vec<u8>, String> {
     std::fs::create_dir_all(out_dir)
         .map_err(|error| format!("create {}: {error}", out_dir.display()))?;
     let ppm = out_dir.join("mcp-shot.ppm");
-    let status = Command::new(frontend)
+    let mut command = Command::new(frontend);
+    command
         .arg("dump-editor-preview")
         .arg("--project")
         .arg(project_dir)
@@ -266,7 +430,11 @@ pub fn render(
         .arg(format!("--radius={}", shot.radius))
         .arg(format!("--target-x={}", shot.target[0]))
         .arg(format!("--target-y={}", shot.target[1]))
-        .arg(format!("--target-z={}", shot.target[2]))
+        .arg(format!("--target-z={}", shot.target[2]));
+    if opts.hide_overlays {
+        command.arg("--hide-editor-overlays");
+    }
+    let status = command
         .output()
         .map_err(|error| format!("run {}: {error}", frontend.display()))?;
     if !status.status.success() {
@@ -371,11 +539,18 @@ mod tests {
             ([5000, 100, -2000], 3000, 200),
         ] {
             let shot = eye_shot(position, yaw, pitch);
-            let eye = eye_of(&shot);
-            assert!(
-                (0..3).all(|i| (eye[i] - position[i]).abs() <= 1),
-                "{position:?} vs {eye:?}"
-            );
+            // The eye is the position, whatever the helper target is.
+            assert_eq!(shot.eye, Some(position));
+            assert_eq!(eye_of(&shot), position);
+            // The point kept for the reply lies MIN_RADIUS ahead along the
+            // heading.
+            let o = orbit_offset(yaw, pitch);
+            let ahead = [
+                position[0] as f32 - MIN_RADIUS as f32 * o[0],
+                position[1] as f32 - MIN_RADIUS as f32 * o[1],
+                position[2] as f32 - MIN_RADIUS as f32 * o[2],
+            ];
+            assert!((0..3).all(|i| (shot.target[i] as f32 - ahead[i]).abs() <= 1.0));
         }
     }
 
@@ -393,6 +568,80 @@ mod tests {
         let (_, pitch) = heading_toward(from, [0, 1500, -1000]).unwrap();
         assert!(pitch > 0 && pitch < 1024, "{pitch}");
         assert!(heading_toward(from, from).is_err());
+    }
+
+    #[test]
+    fn an_eye_pose_with_look_at_solves_to_the_eye_and_describes_itself() {
+        let project = ProjectDocument::starter();
+        let spec = ShotSpec {
+            position: Some([100, 600, 5000]),
+            look_at: Some([100, 600, 0]),
+            ..ShotSpec::default()
+        };
+        let shot = solve(&project, None, &spec).unwrap();
+        assert_eq!(shot.eye, Some([100, 600, 5000]));
+        assert_eq!((shot.yaw_q12, shot.pitch_q12), (0, 0));
+        let text = describe(&shot);
+        assert!(text.contains("exact eye [100, 600, 5000]"), "{text}");
+        assert!(text.contains("yaw 0.0 deg, pitch +0.0 deg"), "{text}");
+        // An orbit keeps its target and radius.
+        let orbit = solve(
+            &project,
+            None,
+            &ShotSpec {
+                target: Some([0, 0, 0]),
+                distance: Some(4000),
+                ..ShotSpec::default()
+            },
+        )
+        .unwrap();
+        assert_eq!((orbit.eye, orbit.radius), (None, 4000));
+        assert!(describe(&orbit).starts_with("orbit eye"));
+        // Pitch is degrees, positive up: looking down gives a negative one.
+        let down = solve(
+            &project,
+            None,
+            &ShotSpec {
+                position: Some([0, 2000, 0]),
+                look_at: Some([0, 0, -2000]),
+                ..ShotSpec::default()
+            },
+        )
+        .unwrap();
+        assert!(
+            describe(&down).contains("pitch -45.0 deg"),
+            "{}",
+            describe(&down)
+        );
+    }
+
+    #[test]
+    fn hiding_switches_compose_with_clean() {
+        let none = ShotSpec::default().render_opts();
+        assert_eq!(none, RenderOpts::default());
+        let clean = ShotSpec {
+            clean: Some(true),
+            ..ShotSpec::default()
+        };
+        let o = clean.render_opts();
+        assert!(o.hide_player && o.hide_actors && o.hide_overlays);
+        // An explicit switch wins over clean.
+        let keep = ShotSpec {
+            clean: Some(true),
+            hide_overlays: Some(false),
+            ..ShotSpec::default()
+        };
+        assert!(!keep.render_opts().hide_overlays && keep.render_opts().hide_player);
+        assert_eq!(
+            describe_opts(clean.render_opts()),
+            "; hidden: actors, overlays"
+        );
+        assert_eq!(describe_opts(RenderOpts::default()), "");
+        let player = ShotSpec {
+            hide_player: Some(true),
+            ..ShotSpec::default()
+        };
+        assert_eq!(describe_opts(player.render_opts()), "; hidden: player");
     }
 
     #[test]
