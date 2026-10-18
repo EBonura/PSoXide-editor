@@ -43,6 +43,9 @@ pub(super) fn top_element(
     let [wx, wz] = transform.screen_to_world(pos);
     let cell = cell_at_editor(scale, wx, wz);
     let room = ws.top_room_at(cell)?;
+    if !world.rooms[room].leaves.is_sectors_only() {
+        return top_leaf_element(ws, world, room, transform, pos);
+    }
     let surface_of = |cell: [i32; 2]| {
         let r = &world.rooms[room];
         let sector = r.local(cell).and_then(|[x, z]| r.sector(x, z))?;
@@ -97,6 +100,66 @@ pub(super) fn top_element(
     Some(GridElement::Face(face))
 }
 
+/// [`top_element`] in a room with leaves of several sizes: the corners and
+/// edges of the leaf under the pointer.
+fn top_leaf_element(
+    ws: &EditorWorkspace,
+    world: &psxed_project::grid::GridWorld,
+    room: usize,
+    transform: ViewportTransform,
+    pos: Pos2,
+) -> Option<GridElement> {
+    let [wx, wz] = transform.screen_to_world(pos);
+    let (key, sector) = view::leaf_at_editor(world.scale, &world.rooms[room], wx, wz)?;
+    let kind = if sector.ground_floor().is_some() {
+        psxed_project::grid::edit::SurfaceKind::Floor
+    } else if sector.ground_ceiling().is_some() {
+        psxed_project::grid::edit::SurfaceKind::Ceiling
+    } else {
+        return None;
+    };
+    let face = FaceRef::new(
+        room,
+        key,
+        psxed_project::grid::edit::FaceTarget::Surface(kind),
+    );
+    let ([x0, z0], size) = view::leaf_square(world.scale, key);
+    let screen = |dx: f32, dz: f32| transform.world_to_screen([x0 + dx * size, z0 + dz * size]);
+    let corners = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+    if let Some((i, _)) = corners
+        .iter()
+        .enumerate()
+        .map(|(i, c)| (i, screen(c.0, c.1).distance(pos)))
+        .filter(|(_, d)| *d <= TOP_VERTEX_PIXELS)
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+    {
+        return Some(GridElement::Vertex(CornerRef {
+            face,
+            layer: 0,
+            corner: i as u8,
+        }));
+    }
+    let _ = ws;
+    let (fx, fz) = ((wx - x0) / size, (wz - z0) / size);
+    let zoom_px = |d: f32| (d * size * transform.screen_radius(1.0)).abs();
+    let candidates = [
+        (zoom_px(fz), 0u8),
+        (zoom_px(1.0 - fx), 1),
+        (zoom_px(1.0 - fz), 2),
+        (zoom_px(fx), 3),
+    ];
+    if let Some((d, edge)) = candidates.into_iter().min_by(|a, b| a.0.total_cmp(&b.0)) {
+        if d <= TOP_EDGE_PIXELS {
+            return Some(GridElement::Edge(psxed_project::grid::edit::EdgeRef {
+                face,
+                layer: 0,
+                edge,
+            }));
+        }
+    }
+    Some(GridElement::Face(face))
+}
+
 /// What a press at `ptr` grabs for a height edit.
 pub(super) fn element_at(ws: &EditorWorkspace, ptr: &GridPointer) -> Option<GridElement> {
     match ptr.view {
@@ -126,10 +189,28 @@ pub(super) fn begin(ws: &mut EditorWorkspace, ptr: &GridPointer) -> bool {
         return false;
     };
     let corners = ws.grid.selection.corners(world);
-    let drag = HeightDrag::begin(world, &corners, ws.grid.link);
+    // The document before anything is made finer, for the undo step.
+    let before = Box::new(ws.project.clone());
+    let link = ws.grid.link;
+    let Some(world) = ws.project.active_scene_mut().world.grid_mut() else {
+        return false;
+    };
+    let (drag, followed) = HeightDrag::begin_following(world, &corners, link);
     if drag.is_empty() {
         return false;
     }
+    if followed != corners {
+        // Leaves above a sector were subdivided to let the corners move on
+        // their own; the selection moves to where its corners are now.
+        ws.grid
+            .selection
+            .set(followed.iter().map(|c| GridElement::Vertex(*c)));
+        ws.grid_changed();
+    }
+    let Some(world) = ws.project.active_scene().world.grid() else {
+        return false;
+    };
+    let corners = followed;
     // Rate: pixels per grid unit at the grabbed point.
     let grab = corners
         .first()
@@ -148,7 +229,7 @@ pub(super) fn begin(ws: &mut EditorWorkspace, ptr: &GridPointer) -> bool {
         press_y: press.pos.y,
         pixels_per_unit: ppu,
         delta: 0,
-        before: Some(Box::new(ws.project.clone())),
+        before: Some(before),
         triangle: None,
     }));
     true
@@ -222,11 +303,12 @@ pub(super) fn nudge_selection(ws: &mut EditorWorkspace, delta: i32) {
         ws.status = "Select something to raise or lower".to_string();
         return;
     }
-    let drag = HeightDrag::begin(world, &corners, ws.grid.link);
     let before = ws.project.clone();
+    let link = ws.grid.link;
     let Some(world) = ws.project.active_scene_mut().world.grid_mut() else {
         return;
     };
+    let drag = HeightDrag::begin_refining(world, &corners, link);
     if drag.apply(world, delta) {
         ws.history.record(before);
         ws.status = format!("Moved {} corners by {delta:+}", drag.len());

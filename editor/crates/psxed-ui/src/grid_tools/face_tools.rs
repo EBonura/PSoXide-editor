@@ -6,15 +6,15 @@ use super::*;
 use psxed_project::grid::edit::{
     material_of, set_material, toggle_split, FaceRef, FaceTarget, GridElement,
 };
-use psxed_project::grid::{GridSplit, GridWorld, SECTOR_UNITS};
+use psxed_project::grid::{GridSplit, GridWorld};
 
 /// Which triangle of `face` a point (editor units) is in, from where it
 /// falls against the diagonal.
 pub(super) fn tri_at(world: &GridWorld, face: FaceRef, x: f32, z: f32) -> Option<u8> {
     let surface = face.surface(world)?;
-    let size = world.scale.sector_editor_units() as f32;
-    let u = (x - world.scale.to_editor(face.cell()[0] * SECTOR_UNITS) as f32) / size;
-    let v = (z - world.scale.to_editor(face.cell()[1] * SECTOR_UNITS) as f32) / size;
+    let ([x0, z0], size) = super::view::leaf_square(world.scale, face.leaf);
+    let u = (x - x0) / size;
+    let v = (z - z0) / size;
     let first = match surface.split {
         GridSplit::NwSe => u >= v,
         GridSplit::NeSw => u + v <= 1.0,
@@ -55,7 +55,16 @@ pub(super) fn face_under(
             let [wx, wz] = transform.screen_to_world(ptr.pos);
             let cell = cell_at_editor(world.scale, wx, wz);
             let room = ws.top_room_at(cell)?;
-            let sector = FaceRef::floor(room, cell).sector(world)?;
+            // A room with leaves of several sizes names the leaf itself.
+            let (leaf, sector) = match world.rooms.get(room) {
+                Some(r) if !r.leaves.is_sectors_only() => {
+                    super::view::leaf_at_editor(world.scale, r, wx, wz)?
+                }
+                _ => (
+                    psxed_project::grid::LeafKey::sector(cell),
+                    FaceRef::floor(room, cell).sector(world)?,
+                ),
+            };
             // A repeated click takes the next layer down (see `cycle`): the
             // floor, then the ceiling. A sector with only one has only it.
             let layer = match ws.top_choice(ptr) {
@@ -66,9 +75,9 @@ pub(super) fn face_under(
                 || sector.ground_floor().is_none()
             {
                 sector.ground_ceiling()?;
-                FaceRef::ceiling(room, cell)
+                FaceRef::new(room, leaf, FaceTarget::Surface(SurfaceKind::Ceiling))
             } else {
-                FaceRef::floor(room, cell)
+                FaceRef::new(room, leaf, FaceTarget::Surface(SurfaceKind::Floor))
             };
             let tri = face.surface(world).and_then(|s| {
                 let split =

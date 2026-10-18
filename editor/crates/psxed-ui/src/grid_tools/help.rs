@@ -255,7 +255,38 @@ const ROUGH: Rows = &[
         "Jitters the corners of the faces of rough sectors in the render only; collision stays on the grid",
     ),
 ];
+const CELLS: Rows = &[
+    (
+        "Paint",
+        "Subdivide the cell under the pointer into four finer ones; the document looks and stands the same. Dragging paints, one undo step per stroke",
+    ),
+    (
+        "Alt+paint",
+        "Merge the four cells that share a parent back into it, when the parent reproduces them exactly",
+    ),
+    ("[ and ]", "Brush radius, in quarter sectors"),
+    (
+        "Subdivide to",
+        "One level finer, or straight down to half or a quarter of a sector",
+    ),
+    (
+        "Merge up to",
+        "The coarsest cell a merge may make: a sector, two sectors across, or four",
+    ),
+    (
+        "Enter, Shift+Enter",
+        "Subdivide or merge the cells the Select tool picked",
+    ),
+    (
+        "Raise (U), Height (H)",
+        "Work on cells of any size; a cell larger than a sector splits to fit the region",
+    ),
+];
 const OVERLAYS: Rows = &[
+    (
+        "Alt+L, Cells button",
+        "Cell sizes: each cell outlined and labelled with its size in sectors (violet 4, blue 2, grey 1, amber 1/2, red 1/4)",
+    ),
     (
         "Alt+W, Walk button",
         "Walkability: orange too steep, blue headroom under the body, red step taller than it climbs, yellow dashed drop, hatched floors no spawn reaches",
@@ -295,8 +326,8 @@ const SNAP: Rows = &[
         "Reserved for the level verbs still to come: Sculpt, Room, Corridor, Opening, Stamps, Vault",
     ),
     (
-        "Alt+W, Alt+P",
-        "Reserved for the walkability and performance overlays",
+        "Alt+W, Alt+P, Alt+L",
+        "The walkability, performance and cell size overlays",
     ),
 ];
 const VIEW: Rows = &[
@@ -337,7 +368,7 @@ impl EditorWorkspace {
             return;
         }
         let mut open = true;
-        let sections: [(&str, Rows); 17] = [
+        let sections: [(&str, Rows); 18] = [
             ("Select (V)", SELECT),
             ("Floor (F) and Ceiling (C)", FLOOR),
             ("Wall (W)", WALL),
@@ -351,6 +382,7 @@ impl EditorWorkspace {
             ("Stairs (T)", STAIRS),
             ("Break (X)", BREAK),
             ("Rough (M)", ROUGH),
+            ("Cells (Q)", CELLS),
             ("Overlays", OVERLAYS),
             ("More", OTHER),
             ("Snapping and reserved keys", SNAP),
@@ -365,7 +397,7 @@ impl EditorWorkspace {
             .show(ctx, |ui| {
                 ui.set_width(1500.0_f32.min(ctx.screen_rect().width() - 60.0));
                 ui.label(
-                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, Shift+N Mesh, P Paint, D Split, O Place, E Bands | U Raise, A Ramp, T Stairs, X Break, M Rough")
+                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, Shift+N Mesh, P Paint, D Split, O Place, E Bands | U Raise, A Ramp, T Stairs, X Break, M Rough, Q Cells")
                         .color(STUDIO_TEXT_WEAK),
                 );
                 ui.add_space(4.0);

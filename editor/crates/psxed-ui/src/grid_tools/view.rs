@@ -73,6 +73,39 @@ impl GridPointer {
     }
 }
 
+/// Editor-space minimum corner `[x, z]` and edge length of leaf `key`.
+pub(crate) fn leaf_square(scale: GridScale, key: psxed_project::grid::LeafKey) -> ([f32; 2], f32) {
+    let click = psxed_project::grid::CLICK_UNITS;
+    let n = key.edge_clicks();
+    let at = |c: i32| scale.to_editor(c.saturating_mul(click)) as f32;
+    let (x0, z0) = (at(key.x), at(key.z));
+    ([x0, z0], at(key.x + n) - x0)
+}
+
+/// The click (a quarter sector, the finest leaf) containing editor-space
+/// `(x, z)`.
+pub(crate) fn click_at_editor(scale: GridScale, x: f32, z: f32) -> [i32; 2] {
+    let per_click = f64::from(scale.num) * f64::from(psxed_project::grid::CLICK_UNITS)
+        / f64::from(scale.den.max(1));
+    [
+        (f64::from(x) / per_click).floor() as i32,
+        (f64::from(z) / per_click).floor() as i32,
+    ]
+}
+
+/// The leaf under editor-space `(x, z)` in `room`, with its key.
+pub(crate) fn leaf_at_editor(
+    scale: GridScale,
+    room: &psxed_project::grid::GridRoom,
+    x: f32,
+    z: f32,
+) -> Option<(
+    psxed_project::grid::LeafKey,
+    &psxed_project::grid::GridSector,
+)> {
+    room.leaf_at(click_at_editor(scale, x, z))
+}
+
 /// World sector containing editor-space `(x, z)`.
 pub(crate) fn cell_at_editor(scale: GridScale, x: f32, z: f32) -> [i32; 2] {
     let per_cell = f64::from(scale.num) * f64::from(SECTOR_UNITS) / f64::from(scale.den.max(1));

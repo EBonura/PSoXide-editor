@@ -27,6 +27,7 @@ mod analysis;
 mod band_panel;
 mod bands_tool;
 mod break_tool;
+mod cells_tool;
 mod clipboard_tool;
 mod cycle;
 pub(crate) mod events;
@@ -36,6 +37,7 @@ mod height_tool;
 mod help;
 mod keys;
 mod lasso;
+mod leaf_overlay;
 mod mesh_overlay;
 mod mesh_panel;
 mod mesh_tool;
@@ -71,6 +73,12 @@ mod walk_overlay;
 mod wall_tool;
 
 pub(crate) use events::{grid_tool_2d, grid_tool_3d};
+
+/// The Cells tool's quarter sector target (for tests).
+#[cfg(test)]
+pub(crate) fn cells_target_quarter() -> cells_tool::CellsTarget {
+    cells_tool::CellsTarget::Quarter
+}
 use pick::PickCache;
 pub use rooms::grid_preview_hidden_rooms;
 use view::{GridPointer, GridView};
@@ -110,6 +118,8 @@ pub(crate) enum GridTool {
     Break,
     /// Give a region the rock look: render-only jitter of its faces.
     Rough,
+    /// Subdivide cells into finer ones and merge them back.
+    Cells,
 }
 
 /// The strip's groups, in order.
@@ -135,7 +145,7 @@ impl ToolGroup {
 
 impl GridTool {
     /// Every tool, in strip order (grouped).
-    pub(crate) const ALL: [Self; 16] = [
+    pub(crate) const ALL: [Self; 17] = [
         Self::Select,
         Self::Height,
         Self::Floor,
@@ -152,13 +162,16 @@ impl GridTool {
         Self::Stairs,
         Self::Break,
         Self::Rough,
+        Self::Cells,
     ];
 
     /// The strip group of the tool.
     pub(crate) const fn group(self) -> ToolGroup {
         match self {
             Self::Select | Self::Height => ToolGroup::Pick,
-            Self::Raise | Self::Ramp | Self::Stairs | Self::Break | Self::Rough => ToolGroup::Build,
+            Self::Raise | Self::Ramp | Self::Stairs | Self::Break | Self::Rough | Self::Cells => {
+                ToolGroup::Build
+            }
             _ => ToolGroup::Draw,
         }
     }
@@ -190,6 +203,7 @@ impl GridTool {
             Self::Stairs => "Stairs",
             Self::Break => "Break",
             Self::Rough => "Rough",
+            Self::Cells => "Cells",
         }
     }
 
@@ -210,6 +224,7 @@ impl GridTool {
             Self::Stairs => egui::Key::T,
             Self::Break => egui::Key::X,
             Self::Rough => egui::Key::M,
+            Self::Cells => egui::Key::Q,
         }
     }
 
@@ -237,6 +252,7 @@ impl GridTool {
             Self::Stairs => "T",
             Self::Break => "X",
             Self::Rough => "M",
+            Self::Cells => "Q",
         }
     }
 
@@ -258,6 +274,7 @@ impl GridTool {
             Self::Stairs => icons::STAIRS,
             Self::Break => icons::HAMMER,
             Self::Rough => icons::MOUNTAIN,
+            Self::Cells => icons::GRID,
         }
     }
 
@@ -304,6 +321,9 @@ impl GridTool {
             }
             Self::Rough => {
                 "Pick sectors, then press on them and drag up for the rock level (0 to 3). The faces jitter in the render only; collision stays on the grid."
+            }
+            Self::Cells => {
+                "Paint over the plan to subdivide cells into four finer ones; Alt merges them back. Enter and Shift+Enter subdivide and merge the Select tool's cells. [ and ] change the brush."
             }
         }
     }
@@ -411,6 +431,8 @@ pub(crate) enum Gesture {
     Region(verb_state::RegionGesture),
     /// A level verb's amount being dragged.
     Verb(Box<verb_state::VerbGesture>),
+    /// A Cells brush stroke.
+    Cells(Box<cells_tool::CellsStroke>),
 }
 
 /// What the pointer is over, for hover highlights and ghosts.
@@ -447,6 +469,11 @@ pub(crate) enum GridHover {
         anchor: Option<psxed_project::grid::Anchor>,
         y: i32,
         line: Option<usize>,
+    },
+    /// The leaf the Cells brush would act on.
+    Leaf {
+        room: usize,
+        key: psxed_project::grid::LeafKey,
     },
     /// A free plane under the pointer.
     Plane(PlaneId),
@@ -528,7 +555,9 @@ pub(crate) struct GridEditState {
     pub band_sel: Option<(psxed_project::grid::edit::FaceRef, usize)>,
     /// The level verbs: region, options and the last readout.
     pub verb: verb_state::VerbState,
-    /// Which overlays are on (Alt+W, Alt+P).
+    /// The Cells tool's options.
+    pub cells: cells_tool::CellsOptions,
+    /// Which overlays are on (Alt+W, Alt+P, Alt+L).
     pub overlays: analysis::Overlays,
     /// The overlays' analyses, per document revision.
     pub analysis: RefCell<analysis::AnalysisCache>,
@@ -586,6 +615,7 @@ impl Default for GridEditState {
             band_line: None,
             band_sel: None,
             verb: verb_state::VerbState::default(),
+            cells: cells_tool::CellsOptions::default(),
             overlays: analysis::Overlays::default(),
             analysis: RefCell::new(analysis::AnalysisCache::default()),
             last_room: 0,
@@ -716,6 +746,9 @@ impl EditorWorkspace {
             Gesture::Region(_) => return C::Crosshair,
             _ => {}
         }
+        if matches!(self.grid.gesture, Gesture::Cells(_)) {
+            return C::Crosshair;
+        }
         let over = !matches!(self.grid.hover, GridHover::None);
         match self.grid.tool {
             GridTool::Select if over => C::PointingHand,
@@ -741,6 +774,7 @@ impl EditorWorkspace {
             | GridTool::Stairs
             | GridTool::Break
             | GridTool::Rough
+            | GridTool::Cells
             | GridTool::Ceiling
             | GridTool::Wall
             | GridTool::Plane

@@ -13,8 +13,8 @@ use crate::workspace::tools2d::{ToolFrame2d, ViewportTool2d};
 use crate::workspace::tools3d::{SelectTool, ToolFrame3d, ViewportTool3d};
 
 use super::{
-    bands_tool, clipboard_tool, face_tools, height_tool, mesh_tool, place_tool, plane_tool,
-    rect_tool, select_tool, triangle_tool, verb_tool, wall_tool,
+    bands_tool, cells_tool, clipboard_tool, face_tools, height_tool, mesh_tool, place_tool,
+    plane_tool, rect_tool, select_tool, triangle_tool, verb_tool, wall_tool,
 };
 
 /// A pointer event.
@@ -120,6 +120,15 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
         (GridTool::Bands, Ev::Drag) => bands_tool::drag(ws, &ptr),
         (GridTool::Bands, Ev::Release) => bands_tool::release(ws),
         (GridTool::Bands, Ev::Click) => bands_tool::click(ws, &ptr),
+
+        (GridTool::Cells, Ev::Hover) => cells_tool::hover(ws, &ptr),
+        (GridTool::Cells, Ev::Press) => cells_tool::press(ws, &ptr),
+        (GridTool::Cells, Ev::Drag) => cells_tool::drag(ws, &ptr),
+        (GridTool::Cells, Ev::Release) => cells_tool::release(ws),
+        (GridTool::Cells, Ev::Click) => {
+            cells_tool::press(ws, &ptr);
+            cells_tool::release(ws);
+        }
 
         (
             GridTool::Raise | GridTool::Ramp | GridTool::Stairs | GridTool::Break | GridTool::Rough,

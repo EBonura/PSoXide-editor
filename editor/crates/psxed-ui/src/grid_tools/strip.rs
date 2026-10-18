@@ -161,6 +161,7 @@ impl EditorWorkspace {
             | GridTool::Stairs
             | GridTool::Break
             | GridTool::Rough => self.draw_verb_options(ui),
+            GridTool::Cells => self.draw_cells_options(ui),
             GridTool::Bands => {
                 use psxed_project::grid::edit::bands::BandScope;
                 ui.label(RichText::new("Scope").color(STUDIO_TEXT_WEAK).size(11.0));
@@ -200,6 +201,18 @@ impl EditorWorkspace {
             .clicked()
         {
             self.toggle_walk_overlay();
+        }
+        if ui
+            .selectable_label(
+                self.grid.overlays.leaves,
+                icons::label(icons::GRID, "Cells"),
+            )
+            .on_hover_text(
+                "Cell sizes (Alt+L): every cell outlined and labelled with its size in sectors",
+            )
+            .clicked()
+        {
+            self.toggle_leaf_overlay();
         }
         if ui
             .selectable_label(
@@ -265,6 +278,7 @@ impl EditorWorkspace {
             GridTool::Stairs => "Click waypoints, Enter | Press on the path, drag up/down | [ ] width | Tab steps/ramp | Esc cancel",
             GridTool::Break => "Pick sectors | Press on them, drag up for intensity | Tab target | Shift+X re-roll | Enter commit | Esc cancel",
             GridTool::Rough => "Pick sectors | Press on them, drag up for the level 0-3 | Enter commit | Esc cancel",
+            GridTool::Cells => "Paint to subdivide | Alt+paint merges | [ ] brush | Enter / Shift+Enter subdivide / merge the selection | Alt+L cell sizes",
             GridTool::Place => "Click to place at the sector centre | Alt 64 | Shift+Alt free",
         }
     }
@@ -322,7 +336,7 @@ impl EditorWorkspace {
             .map(|w| {
                 let r = w.rooms.get(room);
                 (
-                    r.map_or(0, |r| r.sector_count()),
+                    r.map_or(0, |r| r.leaf_count()),
                     r.map_or(String::new(), |r| r.name.clone()),
                     w.rooms.len(),
                 )
@@ -362,8 +376,11 @@ impl EditorWorkspace {
                         let view_text = in_view.map_or(String::new(), |n| format!("   in view: {n} faces"))
                             + &worst.clone().unwrap_or_default();
                         let budget_text = format!(
-                            "room {room}{}: {room_sectors} sectors   world: {} rooms, {} faces, busiest room {} / {MAX_ROOM_FACES} ({percent}%){view_text}",
+                            "room {room}{}: {room_sectors} {}   world: {} rooms, {} faces, busiest room {} / {MAX_ROOM_FACES} ({percent}%){view_text}",
                             if room_name.is_empty() { String::new() } else { format!(" {room_name}") },
+                            budget
+                                .levels_text()
+                                .map_or("sectors".to_string(), |t| format!("cells ({t})")),
                             room_count,
                             budget.faces,
                             budget.largest_room_faces,

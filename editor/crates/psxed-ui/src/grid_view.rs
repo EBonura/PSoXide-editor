@@ -52,6 +52,27 @@ pub(crate) fn sector_screen_rect(
     (Rect::from_two_pos(corners[0], corners[2]), corners)
 }
 
+/// Screen rectangle of leaf `key`, and the editor-space corner positions
+/// `[nw, ne, se, sw]` it was built from.
+pub(crate) fn leaf_screen_rect(
+    world: &GridWorld,
+    transform: ViewportTransform,
+    key: psxed_project::grid::LeafKey,
+) -> (Rect, [Pos2; 4]) {
+    let click = CLICK_UNITS;
+    let n = key.edge_clicks();
+    let edge = |c: i32| world.scale.to_editor(c.saturating_mul(click)) as f32;
+    let (x0, x1) = (edge(key.x), edge(key.x + n));
+    let (z0, z1) = (edge(key.z), edge(key.z + n));
+    let corners = [
+        transform.world_to_screen([x0, z0]),
+        transform.world_to_screen([x1, z0]),
+        transform.world_to_screen([x1, z1]),
+        transform.world_to_screen([x0, z1]),
+    ];
+    (Rect::from_two_pos(corners[0], corners[2]), corners)
+}
+
 /// Blue (low) to orange (high) ramp, `t` in `0..=1`.
 fn height_color(t: f32) -> Color32 {
     let t = t.clamp(0.0, 1.0);
@@ -72,7 +93,7 @@ fn height_color(t: f32) -> Color32 {
 fn floor_range(world: &GridWorld) -> (i32, i32) {
     let mut range = (i32::MAX, i32::MIN);
     for room in &world.rooms {
-        for (_, _, sector) in room.iter() {
+        for (_, sector) in room.leaves() {
             if let Some(floor) = sector.ground_floor() {
                 let (low, high) = floor.height_range();
                 range = (
@@ -198,6 +219,33 @@ fn draw_derived_walls(
     }
 }
 
+/// Draw the walls a room with leaves of several sizes derives for `cell`.
+fn draw_leaf_walls(
+    painter: &egui::Painter,
+    transform: ViewportTransform,
+    world: &GridWorld,
+    room: &GridRoom,
+    cell: [i32; 2],
+    thickness: f32,
+) {
+    let at = |p: [i32; 2]| {
+        transform.world_to_screen([
+            world.scale.to_editor(p[0]) as f32,
+            world.scale.to_editor(p[1]) as f32,
+        ])
+    };
+    for seg in psxed_project::grid::leaf_derive::cell_wall_segments(room, cell) {
+        let color = if seg.hidden {
+            WALL_HIDDEN
+        } else if seg.kind == psxed_project::grid::DerivedKind::Closure && !seg.blocks {
+            WALL_PASSABLE
+        } else {
+            WALL_DERIVED
+        };
+        painter.line_segment([at(seg.a), at(seg.b)], egui::Stroke::new(thickness, color));
+    }
+}
+
 /// Which rooms the Top view shows and emphasises.
 ///
 /// Rooms can overlap in plan (that is how floors stack), so rooms draw from
@@ -256,8 +304,11 @@ pub(crate) fn draw_grid_world(
         let room = &world.rooms[room_index];
         let fade = view.fade(world, room_index);
         let mut bounds: Option<Rect> = None;
-        for (x, z, sector) in room.iter() {
-            let (rect, corners) = sector_screen_rect(world, room, transform, x, z);
+        for (key, sector) in room.leaves() {
+            if !room.contains_leaf(key) {
+                continue;
+            }
+            let (rect, corners) = leaf_screen_rect(world, transform, key);
             bounds = Some(bounds.map_or(rect, |b| b.union(rect)));
             if !visible.intersects(rect) {
                 continue;
@@ -305,20 +356,38 @@ pub(crate) fn draw_grid_world(
     for &room_index in &order {
         let room = &world.rooms[room_index];
         let derived = room.wall_mode == psxed_project::grid::WallMode::Derived;
-        for (x, z, sector) in room.iter() {
-            if sector.wall_count() == 0 && !derived {
+        let mixed = !room.leaves.is_sectors_only();
+        for (key, sector) in room.leaves() {
+            if (sector.wall_count() == 0 && !derived) || !room.contains_leaf(key) {
                 continue;
             }
-            let (rect, corners) = sector_screen_rect(world, room, transform, x, z);
+            let (rect, corners) = leaf_screen_rect(world, transform, key);
             if !visible.intersects(rect) {
                 continue;
             }
             let size = rect.width().min(rect.height());
             let thickness = (size * 0.1).clamp(2.0, 4.5);
-            if derived {
-                draw_derived_walls(painter, corners, room, room.world_cell(x, z), thickness);
+            if derived && !mixed {
+                draw_derived_walls(painter, corners, room, key.cell(), thickness);
             }
             draw_walls(painter, corners, sector, thickness);
+        }
+        if derived && mixed {
+            for [x, z] in room.face_cells() {
+                let (rect, _) = sector_screen_rect(world, room, transform, x, z);
+                if !visible.intersects(rect) {
+                    continue;
+                }
+                let thickness = (rect.width().min(rect.height()) * 0.05).clamp(1.5, 4.0);
+                draw_leaf_walls(
+                    painter,
+                    transform,
+                    world,
+                    room,
+                    room.world_cell(x, z),
+                    thickness,
+                );
+            }
         }
     }
     for &room_index in &order {

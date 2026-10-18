@@ -60,16 +60,13 @@ fn tri_corners(world: &GridWorld, face: FaceRef, tri: u8) -> Option<[[f32; 3]; 3
     let heights = surface.heights_for(usize::from(tri));
     let offsets = [[0, 0], [1, 0], [1, 1], [0, 1]];
     let ids = surface.split.triangle(usize::from(tri));
+    let ([x0, z0], size) = super::view::leaf_square(world.scale, face.leaf);
     Some(ids.map(|i| {
         let o = offsets[i];
         [
-            world
-                .scale
-                .to_editor((face.cell()[0] + o[0]) * SECTOR_UNITS) as f32,
+            x0 + size * o[0] as f32,
             editor_y(world, room.y_offset, heights[i]),
-            world
-                .scale
-                .to_editor((face.cell()[1] + o[1]) * SECTOR_UNITS) as f32,
+            z0 + size * o[1] as f32,
         ]
     }))
 }
@@ -153,6 +150,10 @@ impl EditorWorkspace {
             let c = cell_corners_xz(world, cell);
             Rect::from_two_pos(screen(c[0]), screen(c[2]))
         };
+        let leaf_rect = |key: psxed_project::grid::LeafKey| {
+            let ([x0, z0], size) = super::view::leaf_square(world.scale, key);
+            Rect::from_two_pos(screen([x0, z0]), screen([x0 + size, z0 + size]))
+        };
         let line = |a: [f32; 2], b: [f32; 2], color: Color32, width: f32| {
             painter.line_segment([screen(a), screen(b)], Stroke::new(width, color));
         };
@@ -169,6 +170,13 @@ impl EditorWorkspace {
                 };
                 line(at(a), at(b), color, width);
             };
+        let leaf_wall_line =
+            |key: psxed_project::grid::LeafKey, edge: WallEdge, color: Color32, width: f32| {
+                let ([x0, z0], size) = super::view::leaf_square(world.scale, key);
+                let (a, b) = edge.endpoints();
+                let at = |p: [i32; 2]| [x0 + size * p[0] as f32, z0 + size * p[1] as f32];
+                line(at(a), at(b), color, width);
+            };
         // Selection.
         for element in self.grid.selection.items() {
             match element {
@@ -179,12 +187,12 @@ impl EditorWorkspace {
                 }
                 GridElement::Face(f) => match f.target {
                     FaceTarget::Surface(_) => {
-                        let r = cell_rect(f.cell());
+                        let r = leaf_rect(f.leaf);
                         painter.rect_filled(r, 0.0, fill(SELECT, 70));
                         painter.rect_stroke(r, 0.0, Stroke::new(2.0, SELECT), StrokeKind::Inside);
                     }
                     FaceTarget::Wall { edge, .. } | FaceTarget::Derived { edge, .. } => {
-                        wall_line(f.room, f.cell(), edge, SELECT, 4.0)
+                        leaf_wall_line(f.leaf, edge, SELECT, 4.0)
                     }
                 },
                 GridElement::Edge(e) => {
@@ -202,6 +210,17 @@ impl EditorWorkspace {
         // Hover and ghosts.
         let erase = Self::erase_held(painter);
         match &self.grid.hover {
+            GridHover::Leaf { room, key } => {
+                let color = if painter.ctx().input(|i| i.modifiers.alt) {
+                    ERASE
+                } else {
+                    CREATE
+                };
+                let _ = room;
+                let rect = leaf_rect(*key);
+                painter.rect_filled(rect, 0.0, fill(color, 60));
+                painter.rect_stroke(rect, 0.0, Stroke::new(2.0, color), StrokeKind::Inside);
+            }
             GridHover::Cell { cell, .. } => {
                 let color = if erase { ERASE } else { CREATE };
                 let r = cell_rect(*cell);
@@ -236,14 +255,14 @@ impl EditorWorkspace {
                         GridElement::Face(f) => match f.target {
                             FaceTarget::Surface(_) => {
                                 painter.rect_stroke(
-                                    cell_rect(f.cell()),
+                                    leaf_rect(f.leaf),
                                     0.0,
                                     Stroke::new(2.0, HOVER),
                                     StrokeKind::Inside,
                                 );
                             }
                             FaceTarget::Wall { edge, .. } | FaceTarget::Derived { edge, .. } => {
-                                wall_line(f.room, f.cell(), edge, HOVER, 4.0)
+                                leaf_wall_line(f.leaf, edge, HOVER, 4.0)
                             }
                         },
                         GridElement::Edge(e) => {
@@ -272,13 +291,19 @@ impl EditorWorkspace {
                     ));
                 }
                 painter.rect_stroke(
-                    cell_rect(face.cell()),
+                    leaf_rect(face.leaf),
                     0.0,
                     Stroke::new(2.0, HOVER),
                     StrokeKind::Inside,
                 );
                 if let Some(s) = face.surface(world) {
-                    let c = cell_corners_xz(world, face.cell());
+                    let ([x0, z0], size) = super::view::leaf_square(world.scale, face.leaf);
+                    let c = [
+                        [x0, z0],
+                        [x0 + size, z0],
+                        [x0 + size, z0 + size],
+                        [x0, z0 + size],
+                    ];
                     let (a, b) = match s.split {
                         psxed_project::grid::GridSplit::NwSe => (c[0], c[2]),
                         psxed_project::grid::GridSplit::NeSw => (c[1], c[3]),
@@ -360,6 +385,7 @@ impl EditorWorkspace {
         self.draw_verb_overlay_2d(painter, transform);
         self.draw_walk_overlay_2d(painter, transform);
         self.draw_heat_overlay_2d(painter, transform);
+        self.draw_leaf_overlay_2d(painter, transform);
     }
 
     // ---- 3D view ----
@@ -447,19 +473,14 @@ impl EditorWorkspace {
             }
             // The diagonal, so a split click shows what it will flip.
             if let (Some(surface), Some(room)) = (face.surface(world), world.rooms.get(face.room)) {
+                let ([x0, z0], size) = super::view::leaf_square(world.scale, face.leaf);
                 let at = |i: usize| {
                     let o = [[0, 0], [1, 0], [1, 1], [0, 1]][i];
                     let h = surface.heights[i];
                     [
-                        world
-                            .scale
-                            .to_editor((face.cell()[0] + o[0]) * SECTOR_UNITS)
-                            as f32,
+                        x0 + size * o[0] as f32,
                         editor_y(world, room.y_offset, h),
-                        world
-                            .scale
-                            .to_editor((face.cell()[1] + o[1]) * SECTOR_UNITS)
-                            as f32,
+                        z0 + size * o[1] as f32,
                     ]
                 };
                 let (a, b) = match surface.split {
@@ -606,6 +627,8 @@ impl EditorWorkspace {
         self.draw_verb_overlay_3d(painter, rect);
         self.draw_walk_overlay_3d(painter, rect);
         self.draw_heat_overlay_3d(painter, rect);
+        self.draw_leaf_overlay_3d(painter, rect);
+        self.draw_leaf_hover_3d(painter, rect);
     }
 
     #[allow(clippy::too_many_arguments)]

@@ -195,7 +195,7 @@ impl EditorWorkspace {
             let Some(walk) = run.analysis.rooms.get(ri) else {
                 continue;
             };
-            for (x, z, _) in room.iter() {
+            for [x, z] in room.face_cells() {
                 let cell = room.world_cell(x, z);
                 let Some(w) = walk.cell(cell) else { continue };
                 let a = screen(editor_xz(
@@ -304,7 +304,7 @@ impl EditorWorkspace {
             let Some(walk) = run.analysis.rooms.get(ri) else {
                 continue;
             };
-            for (x, z, _) in room.iter() {
+            for [x, z] in room.face_cells() {
                 let cell = room.world_cell(x, z);
                 let Some(w) = walk.cell(cell) else { continue };
                 let pts = floor_points(world, ri, cell);

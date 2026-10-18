@@ -18,7 +18,7 @@ use super::{
 /// 7.12) will take, kept free of other meanings now: S Sculpt, B Room,
 /// K Corridor, I Opening, Y Stamps, G Vault. U Raise, A Ramp and T Stairs are
 /// tools now, and so are X Break and M Rough; E is the Bands tool and N the
-/// Plane tool. Alt+W and Alt+P are the overlays.
+/// Plane tool, Q the Cells tool. Alt+W, Alt+P and Alt+L are the overlays.
 #[cfg(test)]
 pub(crate) const RESERVED_VERB_KEYS: [egui::Key; 6] = [
     egui::Key::S,
@@ -59,6 +59,9 @@ impl EditorWorkspace {
         }
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::ALT, egui::Key::P)) {
             self.toggle_perf_overlay();
+        }
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::ALT, egui::Key::L)) {
+            self.toggle_leaf_overlay();
         }
         let modifiers = ctx.input(|i| i.modifiers);
         if modifiers.command || modifiers.ctrl || modifiers.alt {
@@ -177,6 +180,20 @@ impl EditorWorkspace {
                 "Vertices unlinked".to_string()
             };
         }
+        if self.grid.tool == GridTool::Cells {
+            // Shift+Enter first: a plain Enter also matches when Shift is held.
+            if pressed_shift(ctx, egui::Key::Enter) {
+                super::cells_tool::apply_selection(self, true);
+            } else if pressed(ctx, egui::Key::Enter) {
+                super::cells_tool::apply_selection(self, false);
+            }
+            for (key, delta) in [(egui::Key::CloseBracket, 1), (egui::Key::OpenBracket, -1)] {
+                if pressed(ctx, key) {
+                    super::cells_tool::adjust_radius(self, delta);
+                }
+            }
+            return;
+        }
         if self.grid.tool.is_verb() {
             if pressed(ctx, egui::Key::Tab) {
                 verb_tool::toggle_mode(self);
@@ -233,6 +250,7 @@ mod tests {
             (GridTool::Plane, egui::Key::N),
             (GridTool::Break, egui::Key::X),
             (GridTool::Rough, egui::Key::M),
+            (GridTool::Cells, egui::Key::Q),
         ] {
             assert_eq!(tool.key(), key, "{}", tool.label());
             assert!(!RESERVED_VERB_KEYS.contains(&key));

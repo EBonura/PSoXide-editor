@@ -24,6 +24,8 @@ pub(crate) struct Overlays {
     pub walk: bool,
     /// Performance heatmap (Alt+P).
     pub perf: bool,
+    /// Leaf sizes (Alt+L): every cell outlined and labelled with its size.
+    pub leaves: bool,
     /// Cycles the frame spends outside the world, editable: the player and
     /// the sky (470,000 and 58,000 measured on the Cathedral).
     pub reserve: u32,
@@ -37,6 +39,7 @@ impl Default for Overlays {
         Self {
             walk: false,
             perf: false,
+            leaves: false,
             reserve: HeatOptions::default().reserve,
             heat_sync: false,
         }
@@ -104,7 +107,15 @@ impl EditorWorkspace {
         if cache.walk.as_ref().is_none_or(|e| e.rev != self.grid.rev) {
             let spawns = psxed_project::grid::walk::player_spawns(&self.project, world);
             let started = Instant::now();
-            let analysis = analyse(world, &spawns, &psx_engine::WalkLimits::DEFAULT)?;
+            // Walkability is judged at the runtime's granularity: whole
+            // sectors, so a room with finer cells is read through its
+            // sector view (what the cook collides).
+            let view = psxed_project::grid::sector_view::sector_world(world);
+            let analysis = analyse(
+                view.as_ref().map_or(world, |(w, _)| w),
+                &spawns,
+                &psx_engine::WalkLimits::DEFAULT,
+            )?;
             cache.walk = Some(WalkEntry {
                 rev: self.grid.rev,
                 analysis: Rc::new(analysis),
@@ -229,6 +240,16 @@ impl EditorWorkspace {
             "Performance heatmap on (Alt+P): a model, see the legend".to_string()
         } else {
             "Performance heatmap off".to_string()
+        };
+    }
+
+    /// Alt+L.
+    pub(crate) fn toggle_leaf_overlay(&mut self) {
+        self.grid.overlays.leaves = !self.grid.overlays.leaves;
+        self.status = if self.grid.overlays.leaves {
+            "Cell sizes on (Alt+L): each cell outlined and labelled with its size".to_string()
+        } else {
+            "Cell sizes off".to_string()
         };
     }
 

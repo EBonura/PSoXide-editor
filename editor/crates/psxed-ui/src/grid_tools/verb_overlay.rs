@@ -33,9 +33,9 @@ pub(super) fn floor_points(world: &GridWorld, room: usize, cell: [i32; 2]) -> [[
     let plan = plan_corners(world, cell);
     let r = world.rooms.get(room);
     let heights = r
-        .and_then(|r| r.local(cell).and_then(|[x, z]| r.sector(x, z)))
-        .and_then(|s| s.ground_floor())
-        .map_or([0; 4], |f| f.heights);
+        .filter(|r| r.local(cell).is_some())
+        .and_then(|r| psxed_project::grid::sector_view::corner_heights(r, cell, false))
+        .unwrap_or([0; 4]);
     let y_offset = r.map_or(0, |r| r.y_offset);
     core::array::from_fn(|i| {
         [
