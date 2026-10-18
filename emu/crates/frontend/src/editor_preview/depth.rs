@@ -16,7 +16,7 @@ fn range_for_farthest_depth(farthest: i32) -> psx_engine::DepthRange {
 }
 
 pub(super) fn preview_scene_depth_range(
-    project: &ProjectDocument,
+    grid_bounds: Option<([f64; 3], [f64; 3])>,
     camera: psx_engine::WorldCamera,
     hidden: &HashSet<NodeId>,
     entities: &[psxed_ui::EntityBounds],
@@ -41,7 +41,7 @@ pub(super) fn preview_scene_depth_range(
             farthest = farthest.max(depth.saturating_add(1024));
         }
     };
-    if let Some((min, max)) = grid_world_bounds(project) {
+    if let Some((min, max)) = grid_bounds {
         include_bounds(min, max);
     }
     for entity in entities {

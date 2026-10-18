@@ -359,6 +359,7 @@ fn the_top_view_draws_the_slice_at_the_cursor() {
                             hidden: &hidden,
                             active: None,
                             level,
+                            walls: None,
                         },
                     );
                 });

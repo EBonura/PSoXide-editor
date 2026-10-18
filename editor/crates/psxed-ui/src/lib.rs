@@ -625,6 +625,13 @@ pub struct EditorWorkspace {
     /// re-decoding. Keyed on the *Texture* resource id; Materials
     /// follow `material.texture` to the same key.
     texture_thumbs: HashMap<ResourceId, ThumbnailEntry>,
+    /// Document revision and egui time of the last thumbnail scan. The scan
+    /// signs every material and retries every unreadable file, so it runs
+    /// when the document changed or, to notice files that appear on disk,
+    /// every `TEXTURE_THUMB_RESCAN_SECS`.
+    texture_thumb_scan: Option<(u64, f64)>,
+    /// Derived wall strokes of the Top view, per document revision.
+    top_wall_lines: grid_view::DerivedWallLines,
     psoxide_logo_texture: Option<egui::TextureHandle>,
     /// Cached egui textures of the on-device bitmap UI fonts, rasterized once
     /// so the UI-scene preview shows the real glyphs the runtime draws instead
@@ -651,6 +658,12 @@ pub struct EditorWorkspace {
     /// Most recent host-side PSX envelope. Before a successful cook this is
     /// the authored estimate; after it, the exact emitted-package report.
     last_playtest_budget: Option<psxed_project::playtest::PlaytestBudgetReport>,
+    /// The authored estimate the Play menu shows before any cook, kept per
+    /// document revision (`grid.rev`) and filled only while the menu is open:
+    /// the estimate derives every face of the world, so it must not run on
+    /// every frame.
+    authored_budget_estimate:
+        std::cell::RefCell<Option<(u64, psxed_project::playtest::PlaytestBudgetReport)>>,
     /// One-shot request emitted by the editor UI for the frontend
     /// to handle. The frontend owns emulator state and build child
     /// processes, so the editor never launches playtest directly.
@@ -1414,7 +1427,7 @@ impl ViewportCameraMode {
 /// Snapshot of the editor's 3D viewport camera, handed to the
 /// frontend each frame so it can drive the editor-owned `HwRenderer`
 /// from the same state the editor's viewport input updates.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ViewportCameraState {
     /// Active camera style.
     pub mode: ViewportCameraMode,
@@ -2272,6 +2285,8 @@ impl EditorWorkspace {
             },
             character_motion_preview: None,
             texture_thumbs: HashMap::new(),
+            texture_thumb_scan: None,
+            top_wall_lines: grid_view::DerivedWallLines::default(),
             psoxide_logo_texture: None,
             ui_font_textures: Vec::new(),
             model_resource_preview_texture: None,
@@ -2286,6 +2301,7 @@ impl EditorWorkspace {
             project_watch,
             status: "Editor ready".to_string(),
             last_playtest_budget: None,
+            authored_budget_estimate: std::cell::RefCell::new(None),
             pending_playtest_request: None,
             saved_view_state: psxed_project::EditorViewState::default(),
             close_confirmed: false,
@@ -2483,6 +2499,26 @@ impl EditorWorkspace {
     /// cook failed before producing a package.
     pub fn playtest_budget_report(&self) -> Option<&psxed_project::playtest::PlaytestBudgetReport> {
         self.last_playtest_budget.as_ref()
+    }
+
+    /// The report the Play menu shows: the exact last-cook one, else an
+    /// authored estimate computed once per document revision.
+    pub(crate) fn playtest_budget_for_menu(&self) -> psxed_project::playtest::PlaytestBudgetReport {
+        if let Some(report) = &self.last_playtest_budget {
+            return report.clone();
+        }
+        let mut cache = self.authored_budget_estimate.borrow_mut();
+        match cache.as_ref() {
+            Some((rev, report)) if *rev == self.grid.rev => report.clone(),
+            _ => {
+                let report = psxed_project::playtest::estimate_playtest_budgets(
+                    &self.project,
+                    &self.project_dir,
+                );
+                *cache = Some((self.grid.rev, report.clone()));
+                report
+            }
+        }
     }
 
     /// Directory containing this project on disk.

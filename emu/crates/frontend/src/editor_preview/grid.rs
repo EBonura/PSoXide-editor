@@ -12,6 +12,9 @@
 
 use super::*;
 
+use super::grid_cache::{
+    BoxSource, GridGeometry, LazyBox, PreparedFace, PreparedPiece, PreparedRoom,
+};
 use psxed_project::grid::faces::{cell_faces_with, GridFace};
 use psxed_project::grid::light::{bake_face_corners, FacingShade};
 use psxed_project::grid::mesh_faces::{mesh_faces_with, placed as placed_mesh};
@@ -72,15 +75,17 @@ fn cell_bounds(
 /// world past it is clipped by the same guard the runtime uses.
 const PREVIEW_COORD_LIMIT: i32 = 500_000;
 
-fn emit_grid_face(
+/// Prepare one face (already cut at the tile boundaries the way the cook cuts
+/// it) for emission: the shade, the baked corner colours and the texels
+/// rebased into the material's texture, none of which depend on the camera.
+fn prepare_piece(
     project: &ProjectDocument,
     textures: &EditorTextures,
-    camera: psx_engine::WorldCamera,
     face: &GridFace,
     ambient: [u8; 3],
     lights: &[psxed_project::grid::light::GridLight],
     facing: FacingShade,
-    scratch: &mut PreviewScratch,
+    out: &mut Vec<PreparedPiece>,
 ) {
     if face.points.len() > PREVIEW_FACE_VERTEX_CAP
         || face
@@ -110,7 +115,7 @@ fn emit_grid_face(
         .into_iter()
         .map(|c| (c[0], c[1], c[2]))
         .collect();
-    let vertices: Vec<[f64; 3]> = face.points.iter().map(|p| p.map(f64::from)).collect();
+    let verts: Vec<[f64; 3]> = face.points.iter().map(|p| p.map(f64::from)).collect();
     let mut texels = face.texels.clone();
     if let FaceShade::Textured { slot, .. } = shade {
         psxed_project::face_uv::rebase_texel_uvs(
@@ -121,165 +126,216 @@ fn emit_grid_face(
             ],
         );
     }
-    emit_uv_polygon(scratch, camera, shade, &vertices, &texels, Some(&colors));
+    out.push(PreparedPiece {
+        shade,
+        verts,
+        uvs: texels,
+        colors,
+    });
 }
 
-/// Emit `face`, cut at the texture tile boundaries the way the cook cuts
+/// Prepare `face`, cut at the texture tile boundaries the way the cook cuts
 /// it, so the preview shows what a Play build draws.
-#[allow(clippy::too_many_arguments)]
-fn emit_cut_face(
+fn prepare_face(
     project: &ProjectDocument,
     textures: &EditorTextures,
-    camera: psx_engine::WorldCamera,
     scale: psxed_project::grid::GridScale,
     face: &GridFace,
     ambient: [u8; 3],
     lights: &[psxed_project::grid::light::GridLight],
     facing: FacingShade,
-    scratch: &mut PreviewScratch,
-) {
+) -> PreparedFace {
+    let mut pieces = Vec::new();
     // The preview draws through the same texture window a Play build uses,
     // so it cuts at the same four-tile pieces.
     if uv_split::wants_split(face, true) {
         for piece in uv_split::split(face, scale, true) {
-            emit_grid_face(
-                project, textures, camera, &piece, ambient, lights, facing, scratch,
+            prepare_piece(
+                project,
+                textures,
+                &piece,
+                ambient,
+                lights,
+                facing,
+                &mut pieces,
             );
         }
     } else {
-        emit_grid_face(
-            project, textures, camera, face, ambient, lights, facing, scratch,
+        prepare_piece(
+            project,
+            textures,
+            face,
+            ambient,
+            lights,
+            facing,
+            &mut pieces,
         );
+    }
+    PreparedFace {
+        // The cutaway keeps or drops a face by its lowest corner, whole.
+        low_y: face.points.iter().map(|p| p[1]).min().unwrap_or(i32::MAX),
+        pieces,
     }
 }
 
-/// Whether `face` lies wholly at or above the cutaway plane the editor
-/// publishes (see `psxed_ui::GridPreviewView`), and so is not drawn.
-fn above_cut(face: &GridFace, view: &GridPreviewView) -> bool {
-    view.cutaway
-        .is_some_and(|cut| face.points.iter().all(|p| p[1] >= cut))
+/// Fill in the faces of a box the camera has just shown for the first time.
+fn prepare_box(
+    project: &ProjectDocument,
+    textures: &EditorTextures,
+    world: &GridWorld,
+    defaults: &ProjectUvDefaults,
+    room_index: usize,
+    source: BoxSource,
+    lights: &[psxed_project::grid::light::GridLight],
+) -> Vec<PreparedFace> {
+    let room = &world.rooms[room_index];
+    let mut faces = Vec::new();
+    match source {
+        BoxSource::Cell(x, z) => {
+            cell_faces_with(world, defaults, room_index, x, z, &mut faces);
+        }
+        BoxSource::Plane(index) => {
+            plane_faces_with(world, defaults, room_index, index, &mut faces);
+        }
+        BoxSource::Mesh(index) => {
+            mesh_faces_with(world, defaults, room_index, index, &mut faces);
+        }
+    }
+    faces
+        .iter()
+        .map(|face| {
+            prepare_face(
+                project,
+                textures,
+                world.scale,
+                face,
+                room.ambient,
+                lights,
+                world.shading,
+            )
+        })
+        .collect()
+}
+
+/// The boxes of a room the camera can pick from: every cell that has
+/// geometry, every enabled plane, every placed mesh, each with the bounds the
+/// view culls it by. Their faces come later, on first sight.
+pub(super) fn prepare_room(world: &GridWorld, room_index: usize) -> PreparedRoom {
+    let room = &world.rooms[room_index];
+    let mut prepared = PreparedRoom::default();
+    for [x, z] in room.face_cells() {
+        if let Some(bounds) = cell_bounds(world, room, x, z) {
+            prepared
+                .cells
+                .push(LazyBox::new(bounds, BoxSource::Cell(x, z)));
+        }
+    }
+    for (index, plane) in room.planes.iter().enumerate() {
+        if plane.enabled {
+            prepared.planes.push(LazyBox::new(
+                plane_bounds(world, room, plane),
+                BoxSource::Plane(index),
+            ));
+        }
+    }
+    for index in 0..room.meshes.len() {
+        let Some(placed) = placed_mesh(world, room_index, index) else {
+            continue;
+        };
+        let Some((lo, hi)) = placed.mesh.bounds(&placed.built) else {
+            continue;
+        };
+        let scale = world.scale;
+        let y = |v: i32| f64::from(scale.to_editor(room.y_offset + v));
+        let bounds = PreviewCellBounds {
+            min: [
+                f64::from(scale.to_editor(lo[0])),
+                y(lo[1]),
+                f64::from(scale.to_editor(lo[2])),
+            ],
+            max: [
+                f64::from(scale.to_editor(hi[0])),
+                y(hi[1]),
+                f64::from(scale.to_editor(hi[2])),
+            ],
+        };
+        prepared
+            .meshes
+            .push(LazyBox::new(bounds, BoxSource::Mesh(index)));
+    }
+    prepared
 }
 
 /// Draw the active scene's grid world, if it has one.
+///
+/// Everything about a face that does not depend on the camera is prepared
+/// once and kept (see [`super::grid_cache`]); a frame culls the boxes
+/// against the camera, drops what the cutaway hides and emits what is left.
 pub(super) fn walk_grid(
     project: &ProjectDocument,
     textures: &EditorTextures,
     camera: psx_engine::WorldCamera,
     view: &GridPreviewView,
+    geometry: &mut GridGeometry,
     scratch: &mut PreviewScratch,
 ) {
     let Some(world) = project.active_scene().world.grid() else {
         return;
     };
-    let lights = collect_grid_bake_lights(project);
     let defaults = ProjectUvDefaults(project);
-    let mut faces = Vec::new();
-    for (room_index, room) in world.rooms.iter().enumerate() {
+    let (rooms, lights) = geometry.rooms_and_lights();
+    for (room_index, slot) in rooms.iter_mut().enumerate() {
         // Rooms the author hid in the Rooms panel are not drawn.
         if view.hides_room(room_index) {
             continue;
         }
-        for [x, z] in room.face_cells() {
-            let Some(bounds) = cell_bounds(world, room, x, z) else {
-                continue;
-            };
-            // The storey cutaway: nothing at or above its plane is drawn.
-            if !preview_cell_bounds_visible(camera, bounds) || view.cuts(bounds.min[1]) {
-                continue;
-            }
-            if scratch.geometry_full() {
-                // A visible sector that no longer fits: count it, keep
-                // counting so the report says how much is missing.
-                scratch.dropped = scratch.dropped.saturating_add(1);
-                continue;
-            }
-            faces.clear();
-            cell_faces_with(world, &defaults, room_index, x, z, &mut faces);
-            for face in faces.iter().filter(|face| !above_cut(face, view)) {
-                emit_cut_face(
-                    project,
-                    textures,
-                    camera,
-                    world.scale,
-                    face,
-                    room.ambient,
-                    &lights,
-                    world.shading,
-                    scratch,
-                );
-            }
-        }
-        // Free planes, culled by their own boxes.
-        for (index, plane) in room.planes.iter().enumerate() {
-            if !plane.enabled
-                || !preview_cell_bounds_visible(camera, plane_bounds(world, room, plane))
-            {
-                continue;
-            }
-            if scratch.geometry_full() {
-                scratch.dropped = scratch.dropped.saturating_add(1);
-                continue;
-            }
-            faces.clear();
-            plane_faces_with(world, &defaults, room_index, index, &mut faces);
-            for face in faces.iter().filter(|face| !above_cut(face, view)) {
-                emit_cut_face(
-                    project,
-                    textures,
-                    camera,
-                    world.scale,
-                    face,
-                    room.ambient,
-                    &lights,
-                    world.shading,
-                    scratch,
-                );
-            }
-        }
-        // Placed static meshes, culled by their own boxes, drawn with the
-        // faces (and so the bake) the cook uses.
-        for index in 0..room.meshes.len() {
-            let Some(placed) = placed_mesh(world, room_index, index) else {
-                continue;
-            };
-            let Some((lo, hi)) = placed.mesh.bounds(&placed.built) else {
-                continue;
-            };
-            let scale = world.scale;
-            let y = |v: i32| f64::from(scale.to_editor(room.y_offset + v));
-            let bounds = PreviewCellBounds {
-                min: [
-                    f64::from(scale.to_editor(lo[0])),
-                    y(lo[1]),
-                    f64::from(scale.to_editor(lo[2])),
-                ],
-                max: [
-                    f64::from(scale.to_editor(hi[0])),
-                    y(hi[1]),
-                    f64::from(scale.to_editor(hi[2])),
-                ],
-            };
-            if !preview_cell_bounds_visible(camera, bounds) {
-                continue;
-            }
-            if scratch.geometry_full() {
-                scratch.dropped = scratch.dropped.saturating_add(1);
-                continue;
-            }
-            faces.clear();
-            mesh_faces_with(world, &defaults, room_index, index, &mut faces);
-            for face in faces.iter().filter(|face| !above_cut(face, view)) {
-                emit_cut_face(
-                    project,
-                    textures,
-                    camera,
-                    world.scale,
-                    face,
-                    room.ambient,
-                    &lights,
-                    world.shading,
-                    scratch,
-                );
+        let prepared = slot
+            .prepared
+            .get_or_insert_with(|| prepare_room(world, room_index));
+        for boxes in [
+            &mut prepared.cells,
+            &mut prepared.planes,
+            &mut prepared.meshes,
+        ] {
+            for lazy in boxes.iter_mut() {
+                // The storey cutaway: nothing at or above its plane is drawn.
+                if !preview_cell_bounds_visible(camera, lazy.bounds)
+                    || (lazy.is_cell() && view.cuts(lazy.bounds.min[1]))
+                {
+                    continue;
+                }
+                if scratch.geometry_full() {
+                    // A visible box that no longer fits: count it, keep
+                    // counting so the report says how much is missing.
+                    scratch.dropped = scratch.dropped.saturating_add(1);
+                    continue;
+                }
+                let faces = lazy.faces.get_or_insert_with(|| {
+                    prepare_box(
+                        project,
+                        textures,
+                        world,
+                        &defaults,
+                        room_index,
+                        lazy.source,
+                        lights,
+                    )
+                });
+                for face in faces
+                    .iter()
+                    .filter(|face| !view.cutaway.is_some_and(|cut| face.low_y >= cut))
+                {
+                    for piece in &face.pieces {
+                        emit_uv_polygon(
+                            scratch,
+                            camera,
+                            piece.shade,
+                            &piece.verts,
+                            &piece.uvs,
+                            Some(&piece.colors),
+                        );
+                    }
+                }
             }
         }
     }

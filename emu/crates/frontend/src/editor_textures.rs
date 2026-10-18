@@ -24,7 +24,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::time::UNIX_EPOCH;
+use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use psx_asset::Texture;
 use psx_gpu::material::TextureWindow;
@@ -152,7 +152,20 @@ pub struct EditorTextures {
     next_model_clut_x: u16,
     /// Y-coord of the next free model CLUT row in the framebuffer tail.
     next_model_clut_y: u16,
+    /// Bumped whenever a refresh changed what a material or model resolves
+    /// to (a slot, an atlas, the scene sky), so anything derived from them
+    /// can tell it is stale without comparing the tables.
+    generation: u64,
+    /// The document generation and time of the last refresh that looked at
+    /// the project and the disk. A refresh that finds the document unchanged
+    /// and was last at most `REFRESH_INTERVAL` ago has nothing to find.
+    checked: Option<(u64, Instant)>,
+    checked_models: Option<(u64, Instant)>,
 }
+
+/// How long an unchanged document is trusted before the material files are
+/// stat'ed again (the hot-reload latency of an image saved from elsewhere).
+const REFRESH_INTERVAL: Duration = Duration::from_millis(500);
 
 /// Model atlas cache entry keyed by the Model resource id and signed by
 /// the atlas path so editing `texture_path` triggers a re-upload on the
@@ -223,10 +236,18 @@ impl EditorTextures {
             next_model_tpage_x: 0,
             next_model_clut_x: 0,
             next_model_clut_y: MODEL_CLUT_FIRST_Y,
+            generation: 0,
+            checked: None,
+            checked_models: None,
         };
         textures.upload_shadow_texture();
         textures.upload_particle_texture();
         textures
+    }
+
+    /// Changes whenever a refresh changed a material, model atlas or sky slot.
+    pub fn generation(&self) -> u64 {
+        self.generation
     }
 
     /// Borrow the VRAM array for `HwRenderer::render_frame`.
@@ -290,6 +311,13 @@ impl EditorTextures {
     /// so authored scene materials and far-vista panels must get slots
     /// before unused resource-library entries.
     pub fn refresh(&mut self, project: &ProjectDocument, project_root: &Path) {
+        let document = crate::editor_preview::document_generation(project);
+        if let Some((seen, at)) = self.checked {
+            if seen == document && at.elapsed() < REFRESH_INTERVAL {
+                return;
+            }
+        }
+        self.checked = Some((document, Instant::now()));
         let scene_sky = scene_sky_upload(project, project_root);
         let scene_sky_signature = scene_sky.as_ref().map(|sky| sky.signature.clone());
         let plan = preview_texture_upload_plan(project, project_root);
@@ -310,6 +338,7 @@ impl EditorTextures {
             return;
         }
 
+        self.generation = self.generation.wrapping_add(1);
         self.clear_room_materials();
         self.room_signature = room_signature;
         self.scene_sky_signature = scene_sky_signature;
@@ -779,6 +808,13 @@ impl EditorTextures {
     /// Models without `texture_path` get an empty cache entry so
     /// the walk doesn't repeatedly try to resolve them.
     pub fn refresh_models(&mut self, project: &ProjectDocument, project_root: &Path) {
+        let document = crate::editor_preview::document_generation(project);
+        if let Some((seen, at)) = self.checked_models {
+            if seen == document && at.elapsed() < REFRESH_INTERVAL {
+                return;
+            }
+        }
+        self.checked_models = Some((document, Instant::now()));
         for resource in &project.resources {
             let ResourceData::Model(model) = &resource.data else {
                 continue;
@@ -791,6 +827,7 @@ impl EditorTextures {
             {
                 continue;
             }
+            self.generation = self.generation.wrapping_add(1);
             if signature.is_empty() {
                 // No atlas to upload; record an empty signature
                 // so subsequent refreshes skip cleanly.

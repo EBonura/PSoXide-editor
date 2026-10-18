@@ -42,6 +42,7 @@ pub(crate) fn push_particle_emitter_preview(
     {
         return;
     }
+    scratch.clock_used = true;
     let lifetime = settings.lifetime_frames as u32;
     let steady_count = ((settings.spawn_rate_q8 as u32)
         .saturating_mul(lifetime)

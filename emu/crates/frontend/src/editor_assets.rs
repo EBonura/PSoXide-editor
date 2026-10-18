@@ -122,7 +122,16 @@ impl Slot {
 pub struct EditorAssets {
     meshes: HashMap<ResourceId, Slot>,
     animations: HashMap<AnimKey, Slot>,
+    /// Bumped whenever a refresh loaded, replaced or dropped an entry.
+    generation: u64,
+    /// Document generation and time of the last refresh that walked the
+    /// models and stat'ed their files.
+    checked: Option<(u64, std::time::Instant)>,
 }
+
+/// How long an unchanged document is trusted before the model files are
+/// stat'ed again.
+const REFRESH_INTERVAL: std::time::Duration = std::time::Duration::from_millis(500);
 
 impl EditorAssets {
     pub fn new() -> Self {
@@ -137,6 +146,13 @@ impl EditorAssets {
     /// current metadata -- same authored path + same length +
     /// same mtime → skip.
     pub fn refresh(&mut self, project: &ProjectDocument, project_root: &Path) {
+        let document = crate::editor_preview::document_generation(project);
+        if let Some((seen, at)) = self.checked {
+            if seen == document && at.elapsed() < REFRESH_INTERVAL {
+                return;
+            }
+        }
+        self.checked = Some((document, std::time::Instant::now()));
         let mut alive_meshes: Vec<ResourceId> = Vec::new();
         let mut alive_anims: Vec<AnimKey> = Vec::new();
 
@@ -159,6 +175,7 @@ impl EditorAssets {
                 .unwrap_or(true);
             if needs_refresh {
                 self.meshes.insert(resource.id, load_or_fail(&abs, desired));
+                self.generation = self.generation.wrapping_add(1);
             }
 
             // Clips. Each clip is independently keyed +
@@ -186,6 +203,7 @@ impl EditorAssets {
                     .unwrap_or(true);
                 if needs_refresh {
                     self.animations.insert(key, load_or_fail(&abs, desired));
+                    self.generation = self.generation.wrapping_add(1);
                 }
             }
         }
@@ -195,8 +213,17 @@ impl EditorAssets {
         // delete + re-add cycles. Both Loaded and Failed rows
         // are dropped -- the failure cache only matters while
         // *some* resource still references the path.
+        let before = self.meshes.len() + self.animations.len();
         self.meshes.retain(|id, _| alive_meshes.contains(id));
         self.animations.retain(|k, _| alive_anims.contains(k));
+        if self.meshes.len() + self.animations.len() != before {
+            self.generation = self.generation.wrapping_add(1);
+        }
+    }
+
+    /// Changes whenever a refresh loaded, replaced or dropped an entry.
+    pub fn generation(&self) -> u64 {
+        self.generation
     }
 
     /// Mesh bytes for `model`, or `None` when the cache hasn't

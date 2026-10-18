@@ -208,6 +208,10 @@ impl EditorWorkspace {
                         hidden: &self.grid_hidden_rooms,
                         active: self.grid_active_room,
                         level: self.grid.level.y,
+                        walls: Some(crate::grid_view::WallLineSource::new(
+                            &self.top_wall_lines,
+                            self.grid.rev,
+                        )),
                     },
                 );
             }

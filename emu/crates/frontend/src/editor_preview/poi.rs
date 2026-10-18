@@ -66,6 +66,7 @@ pub(super) fn walk_point_of_interest_beacons(
         });
         let incomplete = pages.is_empty() || pages.iter().any(|page| page.trim().is_empty());
         let style = poi_preview_style(enabled, incomplete, selected, hovered).tinted(item);
+        scratch.clock_used = true;
         push_point_of_interest_beacon(bounds, tick, style, scratch);
     }
 }

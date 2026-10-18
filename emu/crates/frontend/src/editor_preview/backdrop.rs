@@ -58,6 +58,10 @@ pub(crate) fn push_projected_scene_sky(
     let Some(slot) = textures.scene_sky_slot().filter(|slot| slot.mode == mode) else {
         return;
     };
+    // Only the layered sky scrolls with the clock; the cube is still.
+    if mode == SkyMode::QuakeLayered {
+        scratch.clock_used = true;
+    }
     let word_capacity = match mode {
         SkyMode::QuakeLayered => psx_engine::sky::VIEW_RAY_SKY_PACKET_WORDS,
         SkyMode::Cube => psx_engine::sky::VIEW_RAY_CUBE_SKY_PACKET_WORDS,

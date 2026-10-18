@@ -25,6 +25,7 @@ mod grid_ux;
 mod grid_verbs;
 mod grid_walk;
 mod grid_world;
+mod perf;
 mod project_workspace;
 mod scene_tree_selection;
 mod ui_layout;

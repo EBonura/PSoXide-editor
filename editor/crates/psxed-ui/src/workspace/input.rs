@@ -1112,9 +1112,6 @@ impl EditorWorkspace {
         let mut focus_budget_target = None;
         let current_boot = self.project.boot;
         let boot_label = self.boot_target_label();
-        let budget = self.last_playtest_budget.clone().unwrap_or_else(|| {
-            psxed_project::playtest::estimate_playtest_budgets(&self.project, &self.project_dir)
-        });
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 0.0;
             if ui
@@ -1129,6 +1126,8 @@ impl EditorWorkspace {
                 self.request_play_or_rebuild(playtest_status);
             }
             ui.menu_button(icons::text(icons::CHEVRON_DOWN, 12.0), |ui| {
+                // Only an open menu pays for the estimate.
+                let budget = self.playtest_budget_for_menu();
                 ui.label(RichText::new("Boot at").color(STUDIO_TEXT_WEAK).small());
                 if ui
                     .selectable_label(current_boot == BootTarget::Gameplay, "Gameplay")

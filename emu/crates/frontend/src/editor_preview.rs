@@ -40,12 +40,14 @@ mod backdrop;
 mod camera;
 mod depth;
 mod grid;
+mod grid_cache;
 mod overlays;
 mod particles;
 mod poi;
 mod primitives;
 mod props;
 mod shading;
+mod state;
 
 use backdrop::*;
 use camera::*;
@@ -57,6 +59,8 @@ use poi::*;
 use primitives::*;
 use props::*;
 use shading::*;
+pub(crate) use state::document_generation;
+use state::*;
 
 /// Most triangles of each kind the preview submits in one frame. A grid
 /// world can put its whole face budget (16,383 faces, two triangles each at
@@ -178,6 +182,8 @@ struct PreviewScratch {
     tex_used: usize,
     model_tex_used: usize,
     particle_used: usize,
+    /// Something in the frame was drawn from the animation clock.
+    clock_used: bool,
     /// Host-drawn overlay lines for editor affordances. These stay
     /// outside the GP0 command log so the UI can draw fractional,
     /// overlaid strokes that are not limited by PSX integer pixels.
@@ -269,6 +275,7 @@ fn new_preview_scratch() -> Box<PreviewScratch> {
         std::ptr::addr_of_mut!((*ptr).tex_used).write(0);
         std::ptr::addr_of_mut!((*ptr).model_tex_used).write(0);
         std::ptr::addr_of_mut!((*ptr).particle_used).write(0);
+        std::ptr::addr_of_mut!((*ptr).clock_used).write(false);
         std::ptr::addr_of_mut!((*ptr).overlay_lines).write(Vec::new());
         std::ptr::addr_of_mut!((*ptr).clear_packet).write([0; 4]);
         scratch.assume_init()
@@ -284,6 +291,9 @@ impl PreviewScratch {
 /// Render data for one editable 3D preview frame.
 #[derive(Default)]
 pub struct EditorPreviewFrame {
+    /// Stamp of the build this frame came from (0: none), so a memo knows the
+    /// frame it describes is the one it is asked about.
+    serial: u64,
     /// PSX-style command log for the scene itself.
     pub cmd_log: Vec<GpuCmdLogEntry>,
     /// Host UI overlay lines for editor-only affordances.
@@ -376,6 +386,34 @@ pub fn build_phase1_frame_reusing(
     let mut scratch = preview_scratch()
         .lock()
         .expect("editor preview scratch mutex");
+    let mut state = preview_state()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let document = state.observe(project);
+    let key = FrameKey::new(
+        document,
+        camera,
+        preview_bounds,
+        show_lights,
+        hidden_scene_nodes,
+        selected,
+        character_motion,
+        selected_bounds,
+        entity_bounds,
+        hovered_entity_node,
+        textures,
+        assets,
+    );
+    if state.memo_hit(&key, &output) {
+        // Nothing the frame is made from has changed, and nothing in it moves
+        // with the clock: the frame already in `output` is the frame.
+        psxed_ui::report_preview_overflow(state.memo_dropped());
+        return output;
+    }
+    state
+        .geometry
+        .sync(project, document, textures.generation());
+    scratch.clock_used = false;
     scratch.used = 0;
     scratch.dropped = 0;
     scratch.sky_used = 0;
@@ -387,8 +425,9 @@ pub fn build_phase1_frame_reusing(
     scratch.ot.clear();
 
     let world_camera = setup_gte_for_camera(camera);
+    let grid_bounds = state.grid_bounds(project);
     scratch.depth_range =
-        preview_scene_depth_range(project, world_camera, hidden_scene_nodes, entity_bounds);
+        preview_scene_depth_range(grid_bounds, world_camera, hidden_scene_nodes, entity_bounds);
     scratch.gte_depth_shift = view_anchor().1;
     let resolved_sky = project
         .active_scene()
@@ -433,7 +472,8 @@ pub fn build_phase1_frame_reusing(
             project,
             textures,
             world_camera,
-            &psxed_ui::grid_preview_view(),
+            &key.grid_view,
+            &mut state.geometry,
             &mut scratch,
         );
     }
@@ -514,6 +554,8 @@ pub fn build_phase1_frame_reusing(
         .overlay_lines
         .extend_from_slice(&scratch.overlay_lines);
     psxed_ui::report_preview_overflow(scratch.dropped);
+    let (clock_used, dropped) = (scratch.clock_used, scratch.dropped);
+    state.remember(key, clock_used, dropped, &mut output);
     output
 }
 
@@ -768,7 +810,19 @@ fn preview_projected_from_engine(
 /// frames", not real-time. Good enough for inspector preview.
 static PREVIEW_START: OnceLock<Instant> = OnceLock::new();
 
+/// Tests that compare frames pin the animation clock here (a negative value
+/// leaves the wall clock in charge).
+#[cfg(test)]
+pub(crate) static TEST_TICK: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(-1);
+
 fn preview_elapsed_vblanks() -> u32 {
+    #[cfg(test)]
+    {
+        let pinned = TEST_TICK.load(std::sync::atomic::Ordering::Relaxed);
+        if pinned >= 0 {
+            return pinned as u32;
+        }
+    }
     const VBLANKS_PER_SECOND: u128 = 60;
     let start = PREVIEW_START.get_or_init(Instant::now);
     let ticks = start
@@ -1377,6 +1431,10 @@ fn draw_preview_model_instances(
     let mut world = psx_engine::WorldRenderPass::new_deferred_sorted(&mut ot, &mut model_commands);
 
     for instance in instances {
+        // An autoplaying clip advances with the clock; a parked pose does not.
+        if instance.autoplay {
+            scratch.clock_used = true;
+        }
         if submit_preview_model_instance(
             &mut world,
             &mut triangles,
@@ -2112,3 +2170,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod perf;

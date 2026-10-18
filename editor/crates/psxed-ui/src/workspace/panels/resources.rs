@@ -857,6 +857,15 @@ impl EditorWorkspace {
     /// signature; rebuilds when the path moves or the file is newly
     /// readable.
     pub(crate) fn refresh_texture_thumbs(&mut self, ctx: &egui::Context) {
+        let now = ctx.input(|input| input.time);
+        match self.texture_thumb_scan {
+            Some((rev, at))
+                if rev == self.grid.rev && (now - at).abs() < TEXTURE_THUMB_RESCAN_SECS =>
+            {
+                return;
+            }
+            _ => self.texture_thumb_scan = Some((self.grid.rev, now)),
+        }
         // Snapshot resource id + path first so cache mutation below
         // cannot fight the immutable project-resource walk.
         let project_root = self.project_dir.clone();
@@ -1282,6 +1291,10 @@ impl EditorWorkspace {
         true
     }
 }
+
+/// How long a scan with no document change is trusted before the thumbnails
+/// look at the disk again.
+const TEXTURE_THUMB_RESCAN_SECS: f64 = 2.0;
 
 fn material_thumbnail_signature(project: &ProjectDocument, id: ResourceId) -> String {
     fn append(

@@ -52,7 +52,7 @@ pub enum EntityBoundKind {
 /// Nodes live in raw world units, so the bound sits at the node translation
 /// lifted by its half extent and lines up with rendered models, markers, and
 /// lights.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct EntityBounds {
     /// Owning scene-tree node id.
     pub node: NodeId,

@@ -155,7 +155,12 @@ pub(crate) fn wall_in_slice(
     wall: &psxed_project::grid::DerivedWall,
     level: Option<i32>,
 ) -> bool {
-    let Some(sector) = room.local(wall.host).and_then(|[x, z]| room.sector(x, z)) else {
+    span_in_slice(room, wall.host, wall.span, level)
+}
+
+/// [`wall_in_slice`] for a wall known only by its host sector and span.
+fn span_in_slice(room: &GridRoom, host: [i32; 2], span: u8, level: Option<i32>) -> bool {
+    let Some(sector) = room.local(host).and_then(|[x, z]| room.sector(x, z)) else {
         return true;
     };
     if sector.is_single_span() {
@@ -163,7 +168,7 @@ pub(crate) fn wall_in_slice(
     }
     matches!(
         slice_of(sector, level.map(|y| y - room.y_offset)),
-        Slice::Active(i) if i == usize::from(wall.span)
+        Slice::Active(i) if i == usize::from(span)
     )
 }
 
@@ -239,13 +244,149 @@ fn draw_walls(painter: &egui::Painter, corners: [Pos2; 4], sector: &GridSector, 
     }
 }
 
-/// Draw the walls a derived room computes for `cell`, on the edges that
+/// How the Top view strokes one derived wall.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum WallClass {
+    Hidden,
+    Passable,
+    Derived,
+}
+
+impl WallClass {
+    fn color(self) -> Color32 {
+        match self {
+            WallClass::Hidden => WALL_HIDDEN,
+            WallClass::Passable => WALL_PASSABLE,
+            WallClass::Derived => WALL_DERIVED,
+        }
+    }
+}
+
+/// Edge, class and span of every derived wall hosted by `cell`.
+fn derived_wall_lines(room: &GridRoom, cell: [i32; 2]) -> Vec<(WallEdge, WallClass, u8)> {
+    psxed_project::grid::derive::cell_walls(room, cell)
+        .into_iter()
+        .map(|wall| {
+            let class = if wall.hidden {
+                WallClass::Hidden
+            } else if wall.kind == psxed_project::grid::DerivedKind::Closure && !wall.blocks() {
+                WallClass::Passable
+            } else {
+                WallClass::Derived
+            };
+            (wall.edge, class, wall.span)
+        })
+        .collect()
+}
+
+/// Endpoints (grid units) and class of every segment a room with leaves of
+/// several sizes derives for `cell`.
+fn leaf_wall_lines(room: &GridRoom, cell: [i32; 2]) -> Vec<([i32; 2], [i32; 2], WallClass)> {
+    psxed_project::grid::leaf_derive::cell_wall_segments(room, cell)
+        .into_iter()
+        .map(|seg| {
+            let class = if seg.hidden {
+                WallClass::Hidden
+            } else if seg.kind == psxed_project::grid::DerivedKind::Closure && !seg.blocks {
+                WallClass::Passable
+            } else {
+                WallClass::Derived
+            };
+            (seg.a, seg.b, class)
+        })
+        .collect()
+}
+
+type LeafWallLines = std::rc::Rc<[([i32; 2], [i32; 2], WallClass)]>;
+type CellWallLines = std::rc::Rc<[(WallEdge, WallClass, u8)]>;
+
+/// The derived wall strokes of a world, per room and cell, kept for one
+/// document revision. Deriving a cell's walls walks its neighbours, so doing
+/// it for every visible cell on every frame was the Top view's whole cost on
+/// a tall level; the strokes only change when the document does.
+#[derive(Default)]
+pub(crate) struct DerivedWallLines {
+    rev: std::cell::Cell<Option<u64>>,
+    cells: std::cell::RefCell<HashMap<(usize, [i32; 2]), CellWallLines>>,
+    leaves: std::cell::RefCell<HashMap<(usize, [i32; 2]), LeafWallLines>>,
+}
+
+impl DerivedWallLines {
+    fn sync(&self, rev: u64) {
+        if self.rev.get() != Some(rev) {
+            self.cells.borrow_mut().clear();
+            self.leaves.borrow_mut().clear();
+            self.rev.set(Some(rev));
+        }
+    }
+}
+
+/// Where the Top view finds derived wall strokes: a revision-keyed cache, or
+/// (tests, one-off draws) nowhere, in which case they are derived on the spot.
+#[derive(Clone, Copy)]
+pub(crate) struct WallLineSource<'a> {
+    cache: &'a DerivedWallLines,
+    rev: u64,
+}
+
+impl<'a> WallLineSource<'a> {
+    pub(crate) fn new(cache: &'a DerivedWallLines, rev: u64) -> Self {
+        cache.sync(rev);
+        Self { cache, rev }
+    }
+}
+
+fn cached_cell_lines(
+    source: Option<WallLineSource>,
+    room_index: usize,
+    room: &GridRoom,
+    cell: [i32; 2],
+) -> CellWallLines {
+    let Some(source) = source else {
+        return derived_wall_lines(room, cell).into();
+    };
+    debug_assert_eq!(source.cache.rev.get(), Some(source.rev));
+    if let Some(hit) = source.cache.cells.borrow().get(&(room_index, cell)) {
+        return hit.clone();
+    }
+    let lines: CellWallLines = derived_wall_lines(room, cell).into();
+    source
+        .cache
+        .cells
+        .borrow_mut()
+        .insert((room_index, cell), lines.clone());
+    lines
+}
+
+fn cached_leaf_lines(
+    source: Option<WallLineSource>,
+    room_index: usize,
+    room: &GridRoom,
+    cell: [i32; 2],
+) -> LeafWallLines {
+    let Some(source) = source else {
+        return leaf_wall_lines(room, cell).into();
+    };
+    if let Some(hit) = source.cache.leaves.borrow().get(&(room_index, cell)) {
+        return hit.clone();
+    }
+    let lines: LeafWallLines = leaf_wall_lines(room, cell).into();
+    source
+        .cache
+        .leaves
+        .borrow_mut()
+        .insert((room_index, cell), lines.clone());
+    lines
+}
+
+/// Draw the walls a derived room computes for a cell, on the edges that
 /// host them.
 fn draw_derived_walls(
     painter: &egui::Painter,
     corners: [Pos2; 4],
     room: &GridRoom,
     cell: [i32; 2],
+    lines: &[(WallEdge, WallClass, u8)],
     thickness: f32,
     level: Option<i32>,
 ) {
@@ -255,32 +396,24 @@ fn draw_derived_walls(
         [1, 1] => corners[2],
         _ => corners[3],
     };
-    for wall in psxed_project::grid::derive::cell_walls(room, cell) {
-        if !wall_in_slice(room, &wall, level) {
+    for (edge, class, span) in lines {
+        if !span_in_slice(room, cell, *span, level) {
             continue;
         }
-        let (a, b) = wall.edge.endpoints();
-        let color = if wall.hidden {
-            WALL_HIDDEN
-        } else if wall.kind == psxed_project::grid::DerivedKind::Closure && !wall.blocks() {
-            WALL_PASSABLE
-        } else {
-            WALL_DERIVED
-        };
+        let (a, b) = edge.endpoints();
         painter.line_segment(
             [point(a), point(b)],
-            egui::Stroke::new(thickness * 0.8, color),
+            egui::Stroke::new(thickness * 0.8, class.color()),
         );
     }
 }
 
-/// Draw the walls a room with leaves of several sizes derives for `cell`.
+/// Draw the walls a room with leaves of several sizes derives for a cell.
 fn draw_leaf_walls(
     painter: &egui::Painter,
     transform: ViewportTransform,
     world: &GridWorld,
-    room: &GridRoom,
-    cell: [i32; 2],
+    lines: &[([i32; 2], [i32; 2], WallClass)],
     thickness: f32,
 ) {
     let at = |p: [i32; 2]| {
@@ -289,15 +422,11 @@ fn draw_leaf_walls(
             world.scale.to_editor(p[1]) as f32,
         ])
     };
-    for seg in psxed_project::grid::leaf_derive::cell_wall_segments(room, cell) {
-        let color = if seg.hidden {
-            WALL_HIDDEN
-        } else if seg.kind == psxed_project::grid::DerivedKind::Closure && !seg.blocks {
-            WALL_PASSABLE
-        } else {
-            WALL_DERIVED
-        };
-        painter.line_segment([at(seg.a), at(seg.b)], egui::Stroke::new(thickness, color));
+    for (a, b, class) in lines {
+        painter.line_segment(
+            [at(*a), at(*b)],
+            egui::Stroke::new(thickness, class.color()),
+        );
     }
 }
 
@@ -314,6 +443,9 @@ pub(crate) struct GridRoomView<'a> {
     /// column holds several floors, the view draws the span open at it, the
     /// storey below as a dim ghost and what is overhead as an outline.
     pub(crate) level: Option<i32>,
+    /// Derived wall strokes kept per document revision, or `None` to derive
+    /// them on the spot.
+    pub(crate) walls: Option<WallLineSource<'a>>,
 }
 
 impl GridRoomView<'_> {
@@ -455,7 +587,16 @@ pub(crate) fn draw_grid_world(
             let size = rect.width().min(rect.height());
             let thickness = (size * 0.1).clamp(2.0, 4.5);
             if derived && !mixed {
-                draw_derived_walls(painter, corners, room, key.cell(), thickness, view.level);
+                let lines = cached_cell_lines(view.walls, room_index, room, key.cell());
+                draw_derived_walls(
+                    painter,
+                    corners,
+                    room,
+                    key.cell(),
+                    &lines,
+                    thickness,
+                    view.level,
+                );
             }
             draw_walls(painter, corners, sector, thickness);
         }
@@ -466,14 +607,8 @@ pub(crate) fn draw_grid_world(
                     continue;
                 }
                 let thickness = (rect.width().min(rect.height()) * 0.05).clamp(1.5, 4.0);
-                draw_leaf_walls(
-                    painter,
-                    transform,
-                    world,
-                    room,
-                    room.world_cell(x, z),
-                    thickness,
-                );
+                let lines = cached_leaf_lines(view.walls, room_index, room, room.world_cell(x, z));
+                draw_leaf_walls(painter, transform, world, &lines, thickness);
             }
         }
     }
@@ -553,6 +688,7 @@ mod tests {
             hidden: &hidden,
             active: None,
             level: None,
+            walls: None,
         };
         let output = ctx.run(
             egui::RawInput {
