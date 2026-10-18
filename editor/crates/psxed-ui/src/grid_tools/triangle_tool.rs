@@ -207,7 +207,7 @@ pub(super) fn void_click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
         return;
     };
     let now_void = face.surface(world).is_some_and(|s| s.is_void(tri.into()));
-    if !set_void(world, face.room, face.cell, kind, which, !now_void) {
+    if !set_void(world, face.room, face.cell(), kind, which, !now_void) {
         return;
     }
     ws.history.record(before);

@@ -839,8 +839,10 @@ fn snap_entity_to_floor_moves_the_complete_entity_and_is_undoable() {
 fn snap_entities_to_floor_keeps_the_exact_floor_height_and_deduplicates_components() {
     let mut project = super::grid_rig::flat_project(1, 1, false);
     if let Some(grid) = project.active_scene_mut().world.grid_mut() {
-        grid.rooms[0].sector_or_insert(0, 0).unwrap().floor =
-            Some(psxed_project::grid::GridSurface::flat(64, None));
+        grid.rooms[0]
+            .sector_or_insert(0, 0)
+            .unwrap()
+            .set_floor(Some(psxed_project::grid::GridSurface::flat(64, None)));
     }
     let entity = project
         .active_scene_mut()

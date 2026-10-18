@@ -259,20 +259,25 @@ impl EditorWorkspace {
         ui.label(
             RichText::new(match primary.target {
                 FaceTarget::Surface(k) => {
-                    format!("{} at {},{}", k.label(), primary.cell[0], primary.cell[1])
+                    format!(
+                        "{} at {},{}",
+                        k.label(),
+                        primary.cell()[0],
+                        primary.cell()[1]
+                    )
                 }
                 FaceTarget::Wall { edge, index } => format!(
                     "{} wall {index} at {},{}",
                     edge.label(),
-                    primary.cell[0],
-                    primary.cell[1]
+                    primary.cell()[0],
+                    primary.cell()[1]
                 ),
                 FaceTarget::Derived { edge, kind } => format!(
                     "{} {} (derived) at {},{}",
                     edge.label(),
                     kind.label(),
-                    primary.cell[0],
-                    primary.cell[1]
+                    primary.cell()[0],
+                    primary.cell()[1]
                 ),
             })
             .strong(),

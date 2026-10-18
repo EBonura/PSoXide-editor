@@ -209,7 +209,7 @@ fn a_marquee_in_3d_selects_the_facing_faces_inside_it() {
         let GridElement::Face(f) = element else {
             panic!("faces expected, got {element:?}");
         };
-        let c = f.cell;
+        let c = f.cell();
         let centre = rig.screen_of([(c[0] as f32 + 0.5) * S, 0.0, (c[1] as f32 + 0.5) * S]);
         assert!(boxed.contains(centre), "{f:?} outside the box");
     }
@@ -234,13 +234,7 @@ fn paint_in_3d_paints_the_face_under_the_pointer() {
     let painted = |cell: [i32; 2]| {
         let r = rig.room(0);
         let [x, z] = r.local(cell).unwrap();
-        r.sector(x, z)
-            .unwrap()
-            .floor
-            .as_ref()
-            .unwrap()
-            .tri_a
-            .material
+        r.sector(x, z).unwrap().floor().unwrap().tri_a.material
     };
     assert_eq!(painted([2, 2]), Some(id));
     assert_eq!(painted([1, 2]), None);
@@ -279,12 +273,11 @@ fn in_a_grid_world_wasd_only_flies_the_free_camera_while_looking() {
 #[test]
 fn pointing_at_an_existing_floor_makes_the_next_rectangle_continue_at_its_height() {
     let mut project = flat_project(3, 3, false);
-    for sector in project.active_scene_mut().world.grid_mut().unwrap().rooms[0]
-        .sectors
+    for (_, sector) in project.active_scene_mut().world.grid_mut().unwrap().rooms[0]
+        .leaves
         .iter_mut()
-        .flatten()
     {
-        sector.floor = Some(psxed_project::grid::GridSurface::flat(512, None));
+        sector.set_floor(Some(psxed_project::grid::GridSurface::flat(512, None)));
     }
     let mut rig = GridRig::persp("persp-continue-height", project);
     rig.tool(GridTool::Floor);

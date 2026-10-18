@@ -1897,10 +1897,10 @@ mod tests {
             for z in 0..2 {
                 let sector = room.sector_or_insert(x, z).unwrap();
                 if floor {
-                    sector.floor = Some(GridSurface::flat(0, None));
+                    sector.set_floor(Some(GridSurface::flat(0, None)));
                 }
                 if ceiling {
-                    sector.ceiling = Some(GridSurface::flat(1024, None));
+                    sector.set_ceiling(Some(GridSurface::flat(1024, None)));
                 }
             }
         }

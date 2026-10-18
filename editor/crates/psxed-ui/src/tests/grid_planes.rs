@@ -274,8 +274,7 @@ fn the_paint_tool_and_the_palette_apply_materials_to_planes() {
         .room(0)
         .sector(0, 0)
         .unwrap()
-        .floor
-        .as_ref()
+        .floor()
         .unwrap()
         .tri_a
         .material

@@ -539,14 +539,7 @@ mod tests {
         )
         .unwrap();
         assert!(out.contains("2 x 2 on this face"), "{out}");
-        let uv = w.rooms[0]
-            .sector(1, 1)
-            .unwrap()
-            .floor
-            .as_ref()
-            .unwrap()
-            .tri(0)
-            .uv;
+        let uv = w.rooms[0].sector(1, 1).unwrap().floor().unwrap().tri(0).uv;
         assert_eq!(uv.turns, 1);
         assert!(uv.flip[0] && !uv.flip[1]);
         assert!(matches!(

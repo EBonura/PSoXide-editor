@@ -63,9 +63,13 @@ fn tri_corners(world: &GridWorld, face: FaceRef, tri: u8) -> Option<[[f32; 3]; 3
     Some(ids.map(|i| {
         let o = offsets[i];
         [
-            world.scale.to_editor((face.cell[0] + o[0]) * SECTOR_UNITS) as f32,
+            world
+                .scale
+                .to_editor((face.cell()[0] + o[0]) * SECTOR_UNITS) as f32,
             editor_y(world, room.y_offset, heights[i]),
-            world.scale.to_editor((face.cell[1] + o[1]) * SECTOR_UNITS) as f32,
+            world
+                .scale
+                .to_editor((face.cell()[1] + o[1]) * SECTOR_UNITS) as f32,
         ]
     }))
 }
@@ -175,12 +179,12 @@ impl EditorWorkspace {
                 }
                 GridElement::Face(f) => match f.target {
                     FaceTarget::Surface(_) => {
-                        let r = cell_rect(f.cell);
+                        let r = cell_rect(f.cell());
                         painter.rect_filled(r, 0.0, fill(SELECT, 70));
                         painter.rect_stroke(r, 0.0, Stroke::new(2.0, SELECT), StrokeKind::Inside);
                     }
                     FaceTarget::Wall { edge, .. } | FaceTarget::Derived { edge, .. } => {
-                        wall_line(f.room, f.cell, edge, SELECT, 4.0)
+                        wall_line(f.room, f.cell(), edge, SELECT, 4.0)
                     }
                 },
                 GridElement::Edge(e) => {
@@ -232,14 +236,14 @@ impl EditorWorkspace {
                         GridElement::Face(f) => match f.target {
                             FaceTarget::Surface(_) => {
                                 painter.rect_stroke(
-                                    cell_rect(f.cell),
+                                    cell_rect(f.cell()),
                                     0.0,
                                     Stroke::new(2.0, HOVER),
                                     StrokeKind::Inside,
                                 );
                             }
                             FaceTarget::Wall { edge, .. } | FaceTarget::Derived { edge, .. } => {
-                                wall_line(f.room, f.cell, edge, HOVER, 4.0)
+                                wall_line(f.room, f.cell(), edge, HOVER, 4.0)
                             }
                         },
                         GridElement::Edge(e) => {
@@ -268,13 +272,13 @@ impl EditorWorkspace {
                     ));
                 }
                 painter.rect_stroke(
-                    cell_rect(face.cell),
+                    cell_rect(face.cell()),
                     0.0,
                     Stroke::new(2.0, HOVER),
                     StrokeKind::Inside,
                 );
                 if let Some(s) = face.surface(world) {
-                    let c = cell_corners_xz(world, face.cell);
+                    let c = cell_corners_xz(world, face.cell());
                     let (a, b) = match s.split {
                         psxed_project::grid::GridSplit::NwSe => (c[0], c[2]),
                         psxed_project::grid::GridSplit::NeSw => (c[1], c[3]),
@@ -447,9 +451,15 @@ impl EditorWorkspace {
                     let o = [[0, 0], [1, 0], [1, 1], [0, 1]][i];
                     let h = surface.heights[i];
                     [
-                        world.scale.to_editor((face.cell[0] + o[0]) * SECTOR_UNITS) as f32,
+                        world
+                            .scale
+                            .to_editor((face.cell()[0] + o[0]) * SECTOR_UNITS)
+                            as f32,
                         editor_y(world, room.y_offset, h),
-                        world.scale.to_editor((face.cell[1] + o[1]) * SECTOR_UNITS) as f32,
+                        world
+                            .scale
+                            .to_editor((face.cell()[1] + o[1]) * SECTOR_UNITS)
+                            as f32,
                     ]
                 };
                 let (a, b) = match surface.split {

@@ -13,8 +13,8 @@ use psxed_project::grid::{GridSplit, GridWorld, SECTOR_UNITS};
 pub(super) fn tri_at(world: &GridWorld, face: FaceRef, x: f32, z: f32) -> Option<u8> {
     let surface = face.surface(world)?;
     let size = world.scale.sector_editor_units() as f32;
-    let u = (x - world.scale.to_editor(face.cell[0] * SECTOR_UNITS) as f32) / size;
-    let v = (z - world.scale.to_editor(face.cell[1] * SECTOR_UNITS) as f32) / size;
+    let u = (x - world.scale.to_editor(face.cell()[0] * SECTOR_UNITS) as f32) / size;
+    let v = (z - world.scale.to_editor(face.cell()[1] * SECTOR_UNITS) as f32) / size;
     let first = match surface.split {
         GridSplit::NwSe => u >= v,
         GridSplit::NeSw => u + v <= 1.0,
@@ -62,8 +62,8 @@ pub(super) fn face_under(
                 super::cycle::TopChoice::Layer(layer) => layer,
                 super::cycle::TopChoice::Plane(_) => 0,
             };
-            let face = if layer == 1 && sector.ceiling.is_some() || sector.floor.is_none() {
-                sector.ceiling.as_ref()?;
+            let face = if layer == 1 && sector.ceiling().is_some() || sector.floor().is_none() {
+                sector.ceiling()?;
                 FaceRef::ceiling(room, cell)
             } else {
                 FaceRef::floor(room, cell)

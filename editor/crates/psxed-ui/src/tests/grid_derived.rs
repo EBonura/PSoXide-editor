@@ -104,7 +104,9 @@ fn a_raised_platform_shows_its_risers_and_hiding_one_survives_undo() {
             .grid_mut()
             .unwrap()
             .rooms[0];
-        room.sector_or_insert(2, 2).unwrap().floor = Some(GridSurface::flat(512, None));
+        room.sector_or_insert(2, 2)
+            .unwrap()
+            .set_floor(Some(GridSurface::flat(512, None)));
     }
     rig.ws.grid_changed();
     assert_eq!(all_faces(rig.world()).len(), before + 4);

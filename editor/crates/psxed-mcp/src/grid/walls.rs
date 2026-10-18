@@ -76,7 +76,8 @@ pub fn place_wall(
         if let Some(wall) = first.wall_of(world) {
             out.push_str(&format!(
                 "\nfirst wall at {:?}: heights [bottom-a, bottom-b, top-b, top-a] {:?}",
-                first.cell, wall.heights
+                first.cell(),
+                wall.heights
             ));
         }
     }
@@ -305,7 +306,7 @@ pub fn wall_override(
     Ok(format!(
         "room {} {:?} {}: {}",
         face.room,
-        face.cell,
+        face.cell(),
         face_label(&face),
         notes.join(", ")
     ))

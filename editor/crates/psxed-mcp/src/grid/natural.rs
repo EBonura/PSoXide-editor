@@ -90,11 +90,11 @@ pub fn crack(world: &mut GridWorld, req: &CrackReq) -> Result<String, String> {
         _ => {}
     }
     for cell in rect.cells() {
-        let face = FaceRef {
+        let face = FaceRef::new(
             room,
-            cell,
-            target: psxed_project::grid::edit::FaceTarget::Surface(kind),
-        };
+            psxed_project::grid::LeafKey::sector(cell),
+            psxed_project::grid::edit::FaceTarget::Surface(kind),
+        );
         if !face.exists(world) {
             missing += 1;
             continue;
@@ -259,11 +259,11 @@ pub fn set_wall(world: &mut GridWorld, req: &SetWallReq) -> Result<String, Strin
             if req.heights.is_none() && req.top_delta.is_none() && req.bottom_delta.is_none() {
                 return Err("give heights, top_delta or bottom_delta".to_string());
             }
-            natural::set_wall_heights(world, face.room, face.cell, edge, index, heights);
+            natural::set_wall_heights(world, face.room, face.cell(), edge, index, heights);
             Ok(format!(
                 "room {} {:?} {} wall {index}: heights [bottom a, bottom b, top b, top a] {:?} -> {:?}",
                 face.room,
-                face.cell,
+                face.cell(),
                 edge.label(),
                 current,
                 heights
@@ -290,7 +290,7 @@ pub fn set_wall(world: &mut GridWorld, req: &SetWallReq) -> Result<String, Strin
             Ok(format!(
                 "room {} {:?} {}: top offset {:?} at the two ends of the segment",
                 face.room,
-                face.cell,
+                face.cell(),
                 edge.label(),
                 delta
             ))

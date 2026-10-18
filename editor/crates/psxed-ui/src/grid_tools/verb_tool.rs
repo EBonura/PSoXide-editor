@@ -35,7 +35,7 @@ pub(super) fn cell_under(ws: &EditorWorkspace, ptr: &GridPointer) -> Option<(usi
         }
         GridView::Persp(rect) => {
             if let Some(hit) = ws.pick_face_3d(rect, ptr.pos) {
-                return Some((hit.face.room, hit.face.cell));
+                return Some((hit.face.room, hit.face.cell()));
             }
             let room = ws.grid_target_room();
             let y_offset = world.rooms.get(room).map_or(0, |r| r.y_offset);
@@ -76,7 +76,7 @@ pub(super) fn on_tool_changed(ws: &mut EditorWorkspace) {
                     && world.rooms.get(room).is_some_and(|ro| {
                         ro.local(*cell)
                             .and_then(|[x, z]| ro.sector(x, z))
-                            .is_some_and(|s| s.floor.is_some())
+                            .is_some_and(|s| s.floor().is_some())
                     })
             })
             .map(|(_, cell)| *cell),

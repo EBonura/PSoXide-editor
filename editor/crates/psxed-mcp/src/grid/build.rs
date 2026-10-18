@@ -442,14 +442,8 @@ mod tests {
         .unwrap();
         assert!(out.contains("snapped to 512"), "{out}");
         let r = &w.rooms[0];
-        assert_eq!(
-            r.sector(2, 2).unwrap().floor.as_ref().unwrap().heights,
-            [512; 4]
-        );
-        assert_eq!(
-            r.sector(1, 2).unwrap().floor.as_ref().unwrap().heights,
-            [0; 4]
-        );
+        assert_eq!(r.sector(2, 2).unwrap().floor().unwrap().heights, [512; 4]);
+        assert_eq!(r.sector(1, 2).unwrap().floor().unwrap().heights, [0; 4]);
         // The risers come from the height difference alone.
         let walls = psxed_project::grid::derive::cell_walls(r, [1, 2]);
         assert!(!walls.is_empty());
@@ -475,15 +469,7 @@ mod tests {
             link: Some(link),
             layer: None,
         };
-        let h = |w: &GridWorld, x, z| {
-            w.rooms[0]
-                .sector(x, z)
-                .unwrap()
-                .floor
-                .as_ref()
-                .unwrap()
-                .heights
-        };
+        let h = |w: &GridWorld, x, z| w.rooms[0].sector(x, z).unwrap().floor().unwrap().heights;
         // Unlinked: only the named corner moves, the neighbour's stays.
         set_heights(&mut w, &req(false)).unwrap();
         assert_eq!(h(&w, 2, 2)[2], 256);
@@ -523,13 +509,7 @@ mod tests {
         .unwrap();
         assert!(out.contains("raised by 256"), "{out}");
         assert!(out.contains("4 corner height(s) changed"), "{out}");
-        let heights = w.rooms[0]
-            .sector(1, 1)
-            .unwrap()
-            .floor
-            .as_ref()
-            .unwrap()
-            .heights;
+        let heights = w.rooms[0].sector(1, 1).unwrap().floor().unwrap().heights;
         assert_eq!(heights, [256, 256, 0, 0], "only the north edge rose");
         assert!(set_heights(
             &mut w,

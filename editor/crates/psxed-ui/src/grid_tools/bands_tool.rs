@@ -237,11 +237,11 @@ fn pointer_on_wall(
         [
             world
                 .scale
-                .to_editor((face.cell[0] + e[0]) * psxed_project::grid::SECTOR_UNITS)
+                .to_editor((face.cell()[0] + e[0]) * psxed_project::grid::SECTOR_UNITS)
                 as f32,
             world
                 .scale
-                .to_editor((face.cell[1] + e[1]) * psxed_project::grid::SECTOR_UNITS)
+                .to_editor((face.cell()[1] + e[1]) * psxed_project::grid::SECTOR_UNITS)
                 as f32,
         ]
     };
@@ -485,19 +485,18 @@ impl EditorWorkspace {
                 continue;
             };
             let (ea, eb) = edge.endpoints();
-            let ground = |e: [i32; 2], y: i32| {
-                [
-                    world
-                        .scale
-                        .to_editor((member.cell[0] + e[0]) * psxed_project::grid::SECTOR_UNITS)
-                        as f32,
-                    view::editor_y(world, room.y_offset, y),
-                    world
-                        .scale
-                        .to_editor((member.cell[1] + e[1]) * psxed_project::grid::SECTOR_UNITS)
-                        as f32,
-                ]
-            };
+            let ground =
+                |e: [i32; 2], y: i32| {
+                    [
+                        world.scale.to_editor(
+                            (member.cell()[0] + e[0]) * psxed_project::grid::SECTOR_UNITS,
+                        ) as f32,
+                        view::editor_y(world, room.y_offset, y),
+                        world.scale.to_editor(
+                            (member.cell()[1] + e[1]) * psxed_project::grid::SECTOR_UNITS,
+                        ) as f32,
+                    ]
+                };
             // The run's outline: the wall's own bottom and top.
             if let Some((span, _)) = wall_spans(world, member) {
                 let (bottom, top) = (span.bottom, span.top);
@@ -515,7 +514,8 @@ impl EditorWorkspace {
                 );
             }
             for (index, ends) in line_ends(world, member).iter().enumerate() {
-                let (color, width) = if selected_line == Some(index) && member.cell == face.cell {
+                let (color, width) = if selected_line == Some(index) && member.cell() == face.cell()
+                {
                     (Color32::WHITE, 4.0)
                 } else if hover_line == Some(index) {
                     (super::overlay::HOVER, 3.5)

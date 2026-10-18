@@ -92,7 +92,9 @@ impl EditorWorkspace {
                 let room = world.rooms.get(self.top_room_at(cell)?)?;
                 let [x, z] = room.local(cell)?;
                 let sector = room.sector(x, z)?;
-                Some(usize::from(sector.floor.is_some()) + usize::from(sector.ceiling.is_some()))
+                Some(
+                    usize::from(sector.floor().is_some()) + usize::from(sector.ceiling().is_some()),
+                )
             })
             .unwrap_or(0);
         (planes, layers)

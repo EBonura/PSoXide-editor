@@ -94,8 +94,10 @@ fn near_the_bottom_a_line_follows_the_floor_and_near_the_top_the_ceiling() {
         let world = project.active_scene_mut().world.grid_mut().unwrap();
         for z in 0..5 {
             for x in 0..5 {
-                world.rooms[0].sector_or_insert(x, z).unwrap().ceiling =
-                    Some(psxed_project::grid::GridSurface::flat(1536, None));
+                world.rooms[0]
+                    .sector_or_insert(x, z)
+                    .unwrap()
+                    .set_ceiling(Some(psxed_project::grid::GridSurface::flat(1536, None)));
             }
         }
     }

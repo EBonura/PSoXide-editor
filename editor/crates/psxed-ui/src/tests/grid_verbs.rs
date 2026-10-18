@@ -19,7 +19,7 @@ fn floor_at(rig: &GridRig, cell: [i32; 2]) -> [i32; 4] {
 fn ceiling_at(rig: &GridRig, cell: [i32; 2]) -> [i32; 4] {
     let r = rig.room(0);
     let [x, z] = r.local(cell).unwrap();
-    r.sector(x, z).unwrap().ceiling.as_ref().unwrap().heights
+    r.sector(x, z).unwrap().ceiling().unwrap().heights
 }
 
 /// Pixels the Top view spends on one click of height.
@@ -112,8 +112,7 @@ fn tab_switches_to_level_mode_mid_drag() {
         world.rooms[0]
             .sector_mut(2, 2)
             .unwrap()
-            .floor
-            .as_mut()
+            .floor_mut()
             .unwrap()
             .heights = [0, 0, 256, 256];
     }

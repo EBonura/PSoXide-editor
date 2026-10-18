@@ -73,7 +73,7 @@ fn floor_range(world: &GridWorld) -> (i32, i32) {
     let mut range = (i32::MAX, i32::MIN);
     for room in &world.rooms {
         for (_, _, sector) in room.iter() {
-            if let Some(floor) = &sector.floor {
+            if let Some(floor) = sector.floor() {
                 let (low, high) = floor.height_range();
                 range = (
                     range.0.min(room.y_offset + low),
@@ -90,14 +90,14 @@ fn floor_range(world: &GridWorld) -> (i32, i32) {
 }
 
 fn mean_floor(room: &GridRoom, sector: &GridSector) -> Option<f32> {
-    let floor = sector.floor.as_ref()?;
+    let floor = sector.floor()?;
     let total: i32 = floor.heights.iter().sum();
     Some((room.y_offset as f32) + total as f32 / 4.0)
 }
 
 /// Whether the floor's diagonal changes what is drawn and is worth marking.
 fn split_matters(sector: &GridSector) -> bool {
-    sector.floor.as_ref().is_some_and(|floor| {
+    sector.floor().is_some_and(|floor| {
         !floor.is_planar() || floor.heights_b.is_some() || floor.tri_b.is_some() || floor.void != 0
     })
 }
@@ -105,7 +105,7 @@ fn split_matters(sector: &GridSector) -> bool {
 /// Darken and hatch the void triangles of a sector's floor (its ceiling when
 /// it has none): the half that is not there.
 fn draw_voids(painter: &egui::Painter, corners: [Pos2; 4], sector: &GridSector, hatch: bool) {
-    let Some(surface) = sector.floor.as_ref().or(sector.ceiling.as_ref()) else {
+    let Some(surface) = sector.floor().or(sector.ceiling()) else {
         return;
     };
     if surface.void == 0 {
@@ -264,7 +264,7 @@ pub(crate) fn draw_grid_world(
             }
             let fill = match mean_floor(room, sector) {
                 Some(mean) => height_color((mean - low as f32) / span),
-                None if sector.ceiling.is_some() => CEILING_ONLY,
+                None if sector.ceiling().is_some() => CEILING_ONLY,
                 None => WALLS_ONLY,
             };
             painter.rect_filled(rect, 0.0, fill.gamma_multiply(fade));
@@ -277,7 +277,7 @@ pub(crate) fn draw_grid_world(
                     egui::StrokeKind::Inside,
                 );
             }
-            if let Some(floor) = &sector.floor {
+            if let Some(floor) = sector.floor() {
                 if split_matters(sector) && size >= MIN_OUTLINE_PIXELS {
                     let (a, b) = match floor.split {
                         GridSplit::NwSe => (corners[0], corners[2]),
@@ -450,7 +450,9 @@ mod tests {
         let mut world = GridWorld::new();
         let mut room = GridRoom::new("r", 1, 1);
         room.y_offset = 512;
-        room.sector_or_insert(0, 0).unwrap().floor = Some(GridSurface::flat(256, None));
+        room.sector_or_insert(0, 0)
+            .unwrap()
+            .set_floor(Some(GridSurface::flat(256, None)));
         world.rooms.push(room);
         assert_eq!(floor_range(&world), (768, 768));
         assert_eq!(floor_range(&GridWorld::new()), (0, 0));
@@ -458,12 +460,9 @@ mod tests {
 
     #[test]
     fn only_bent_or_split_level_floors_mark_their_diagonal() {
-        let mut sector = GridSector {
-            floor: Some(GridSurface::flat(0, None)),
-            ..GridSector::default()
-        };
+        let mut sector = GridSector::with_surfaces(Some(GridSurface::flat(0, None)), None);
         assert!(!split_matters(&sector));
-        sector.floor.as_mut().unwrap().heights = [0, 0, 256, 0];
+        sector.floor_mut().unwrap().heights = [0, 0, 256, 0];
         assert!(split_matters(&sector));
     }
 
@@ -502,10 +501,12 @@ mod tests {
         room.wall_mode = psxed_project::grid::WallMode::Derived;
         for z in 0..3 {
             for x in 0..3 {
-                room.sector_or_insert(x, z).unwrap().floor = Some(GridSurface::flat(0, None));
+                room.sector_or_insert(x, z)
+                    .unwrap()
+                    .set_floor(Some(GridSurface::flat(0, None)));
             }
         }
-        let cell = room.sector_or_insert(1, 1).unwrap().floor.as_mut().unwrap();
+        let cell = room.sector_or_insert(1, 1).unwrap().floor_mut().unwrap();
         cell.heights_b = Some([512; 4]);
         cell.split = GridSplit::NwSe;
         world.rooms.push(room);
@@ -537,8 +538,7 @@ mod tests {
         let surface = world.rooms[0]
             .sector_mut(1, 1)
             .unwrap()
-            .floor
-            .as_mut()
+            .floor_mut()
             .unwrap();
         surface.heights_b = None;
         surface.void = psxed_project::grid::surface::VOID_B;

@@ -28,31 +28,20 @@ fn fixture() -> ProjectDocument {
     // Steep: 85 runtime units of rise over a sector is 1088 grid units at
     // the default scale, but this world is 1:1, where 16 grid units are one
     // runtime unit: 80 units a sector is 1280.
-    room.sector_mut(1, 1)
-        .unwrap()
-        .floor
-        .as_mut()
-        .unwrap()
-        .heights = [0, 0, 1360, 1360];
+    room.sector_mut(1, 1).unwrap().floor_mut().unwrap().heights = [0, 0, 1360, 1360];
     // Low headroom: a 600 unit ceiling is 37 runtime units.
     room.sector_mut(3, 1)
         .unwrap()
-        .ceiling
-        .as_mut()
+        .ceiling_mut()
         .unwrap()
         .heights = [600; 4];
     // A tall step: 1024 grid units is 64 runtime units.
     for z in 2..4 {
-        room.sector_mut(4, z)
-            .unwrap()
-            .floor
-            .as_mut()
-            .unwrap()
-            .heights = [1024; 4];
+        room.sector_mut(4, z).unwrap().floor_mut().unwrap().heights = [1024; 4];
     }
     // Remove a column to make an island of sector (5, 0).
-    room.sector_mut(4, 0).unwrap().floor = None;
-    room.sector_mut(4, 1).unwrap().floor = None;
+    room.sector_mut(4, 0).unwrap().set_floor(None);
+    room.sector_mut(4, 1).unwrap().set_floor(None);
     project
 }
 
@@ -103,8 +92,7 @@ fn the_analysis_is_kept_per_revision_and_dropped_when_the_document_changes() {
         world.rooms[0]
             .sector_mut(1, 1)
             .unwrap()
-            .floor
-            .as_mut()
+            .floor_mut()
             .unwrap()
             .heights = [0; 4];
     }

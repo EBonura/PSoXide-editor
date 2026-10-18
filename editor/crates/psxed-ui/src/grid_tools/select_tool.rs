@@ -43,7 +43,7 @@ fn all_surface_cells(selection: &[GridElement], kind_of: FaceTarget) -> Vec<[i32
     selection
         .iter()
         .filter_map(|e| match e {
-            GridElement::Face(f) if f.target == kind_of => Some(f.cell),
+            GridElement::Face(f) if f.target == kind_of => Some(f.cell()),
             _ => None,
         })
         .collect()
@@ -63,8 +63,8 @@ fn extend_range(
             match (a.target, b.target) {
                 (FaceTarget::Surface(ka), FaceTarget::Surface(kb)) if ka == kb => {
                     let mut cells = all_surface_cells(selected, a.target);
-                    cells.push(a.cell);
-                    range_surfaces(world, a.room, ka, &cells, b.cell)
+                    cells.push(a.cell());
+                    range_surfaces(world, a.room, ka, &cells, b.cell())
                         .into_iter()
                         .map(GridElement::Face)
                         .collect()

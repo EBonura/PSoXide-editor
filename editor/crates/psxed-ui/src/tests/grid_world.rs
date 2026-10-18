@@ -7,8 +7,9 @@ fn grid_project() -> ProjectDocument {
     let mut room = GridRoom::new("hall", 3, 2);
     for x in 0..3 {
         for z in 0..2 {
-            room.sector_or_insert(x, z).unwrap().floor =
-                Some(GridSurface::flat(256 * x as i32, None));
+            room.sector_or_insert(x, z)
+                .unwrap()
+                .set_floor(Some(GridSurface::flat(256 * x as i32, None)));
         }
     }
     room.sector_or_insert(1, 1)
@@ -34,8 +35,7 @@ fn raise(workspace: &mut EditorWorkspace, x: usize, z: usize, height: i32) {
     world.rooms[0]
         .sector_mut(x, z)
         .unwrap()
-        .floor
-        .as_mut()
+        .floor_mut()
         .unwrap()
         .heights = [height; 4];
     workspace.mark_dirty();
@@ -45,8 +45,7 @@ fn floor_height(workspace: &EditorWorkspace, x: usize, z: usize) -> i32 {
     workspace.project.active_scene().world.grid().unwrap().rooms[0]
         .sector(x, z)
         .unwrap()
-        .floor
-        .as_ref()
+        .floor()
         .unwrap()
         .heights[0]
 }
@@ -94,7 +93,9 @@ fn growing_a_room_is_one_undo_step() {
         .unwrap()
         .rooms[0];
     room.grow_to_include(-2, 4);
-    room.sector_or_insert(0, 0).unwrap().floor = Some(GridSurface::flat(0, None));
+    room.sector_or_insert(0, 0)
+        .unwrap()
+        .set_floor(Some(GridSurface::flat(0, None)));
     workspace.mark_dirty();
     let grown = &workspace.project.active_scene().world.grid().unwrap().rooms[0];
     assert_eq!((grown.width, grown.depth, grown.origin), (5, 5, [-2, 0]));

@@ -130,7 +130,7 @@ pub fn rooms(world: &GridWorld, mats: &Materials<'_>) -> String {
 fn floor_span(room: &GridRoom) -> Option<(i32, i32)> {
     let mut span: Option<(i32, i32)> = None;
     for (_, _, sector) in room.iter() {
-        if let Some(floor) = &sector.floor {
+        if let Some(floor) = sector.floor() {
             let (lo, hi) = floor.height_range();
             span = Some(span.map_or((lo, hi), |(a, b)| (a.min(lo), b.max(hi))));
         }
@@ -165,13 +165,13 @@ pub fn sector(
         out.push_str("empty: no floor, no ceiling, no walls\n");
         return Ok(out);
     };
-    match &sector.floor {
+    match sector.floor() {
         Some(s) => {
             let _ = writeln!(out, "floor: {}", surface_line(s, &mats));
         }
         None => out.push_str("floor: none (a pit or void)\n"),
     }
-    match &sector.ceiling {
+    match sector.ceiling() {
         Some(s) => {
             let _ = writeln!(out, "ceiling: {}", surface_line(s, &mats));
         }
@@ -214,7 +214,7 @@ pub fn sector(
     let _ = writeln!(
         out,
         "wall material of this sector (for the derived walls it owns): {}",
-        mats.label(sector.wall_material)
+        mats.label(sector.wall_material())
     );
     Ok(out)
 }
@@ -258,10 +258,10 @@ fn cell_text(
     };
     let text = match (show, sector) {
         (_, None) => ".".to_string(),
-        (MapShow::Floor, Some(s)) => pick(s.floor.as_ref()),
-        (MapShow::Ceiling, Some(s)) => pick(s.ceiling.as_ref()),
+        (MapShow::Floor, Some(s)) => pick(s.floor()),
+        (MapShow::Ceiling, Some(s)) => pick(s.ceiling()),
         (MapShow::Both, Some(s)) => {
-            format!("{}|{}", pick(s.floor.as_ref()), pick(s.ceiling.as_ref()))
+            format!("{}|{}", pick(s.floor()), pick(s.ceiling()))
         }
     };
     format!("{text:>width$}")
@@ -330,8 +330,8 @@ pub fn height_map(
                     continue;
                 };
                 let surface = match show {
-                    MapShow::Ceiling => sector.ceiling.as_ref(),
-                    _ => sector.floor.as_ref(),
+                    MapShow::Ceiling => sector.ceiling(),
+                    _ => sector.floor(),
                 };
                 let Some(surface) = surface else { continue };
                 covered += 1;
@@ -399,8 +399,8 @@ pub fn height_at(world: &GridWorld, point: [i32; 2], grid_units: bool) -> Result
             "room {index}: floor {} editor units ({} grid), floor corners {:?}, ceiling corners {:?}, y_offset {}",
             floor.map_or_else(|| "none".to_string(), |v| v.to_string()),
             floor.map_or_else(|| "none".to_string(), |v| scale.to_grid(v).to_string()),
-            sector.floor.as_ref().map(|s| s.heights),
-            sector.ceiling.as_ref().map(|s| s.heights),
+            sector.floor().map(|s| s.heights),
+            sector.ceiling().map(|s| s.heights),
             room.y_offset
         );
     }

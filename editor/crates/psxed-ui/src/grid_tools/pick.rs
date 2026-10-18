@@ -15,7 +15,7 @@ use psxed_project::grid::edit::{
     faces_of_cell, CornerRef, EdgeRef, FaceRef, FaceTarget, GridElement, SurfaceKind,
 };
 use psxed_project::grid::faces::{all_faces, GridFaceKind};
-use psxed_project::grid::{GridWorld, WallEdge, WallMode};
+use psxed_project::grid::{GridWorld, LeafKey, WallEdge, WallMode};
 
 /// A face, as the picker sees it.
 pub(crate) struct PickFace {
@@ -67,11 +67,7 @@ fn build_cache(world: &GridWorld, rev: u64) -> PickCache {
             GridFaceKind::Plane { .. } | GridFaceKind::Mesh { .. } => continue,
         };
         faces.push(PickFace {
-            face: FaceRef {
-                room: face.room,
-                cell: face.cell,
-                target,
-            },
+            face: FaceRef::new(face.room, LeafKey::sector(face.cell), target),
             tri,
             points: face.points.iter().copied().map(to_f32).collect(),
             normal: face.normal.map(|v| v as f32),
