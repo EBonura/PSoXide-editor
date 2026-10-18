@@ -121,9 +121,9 @@ A cell can hold several **spans**, each an open volume with its own floor and ce
 
 Heights are grid units relative to the room, as everywhere; replies print clicks (256 grid units). Rectangles are four world sector numbers `[x0, z0, x1, z1]`, inclusive. The storey verbs act on whole-sector cells: a room with fine cells refuses them.
 
-**Surface verbs on a multi-span cell refuse.** `grid_add_surface`, `grid_remove_surface`, `grid_set_heights`, `grid_raise` and `grid_ramp` edit the ground span only. On a cell with more than one span they refuse, naming the cell, rather than guess which floor you mean. Read it with `grid_column` and use the storey verbs. A `y` parameter that picks a span for these verbs is not built yet, and `grid_stairs` and the paint and wall tools do not check for spans yet.
+**Aiming the surface verbs.** `grid_add_surface`, `grid_remove_surface`, `grid_set_heights`, `grid_raise` and `grid_ramp` take an optional `y` (grid units relative to the room) or `storey` (an ordinal of `grid_storeys`, its floor height): the span open at that height, its floor at or below and its ceiling above, is the one edited, in every sector of the rectangle. With neither, a sector of one span is edited as always and a sector of several refuses, naming the cell and telling you to pass `y` or `storey`: the verbs never guess which floor you mean. A sector with no span open at the height refuses the call and nothing changes. An edit that would push a floor through the span above or below it is refused too, and so is one that would add or remove a span (use the storey verbs for that). `grid_stairs` and the paint and wall tools do not check for spans yet.
 
-Not built in this phase: the `storey` name parameter (named storeys and their marks), editing a span other than the ground span with the surface verbs, moving nodes with `grid_shift_above`, and spans in rooms with fine cells (they refuse at the cook).
+Not built in this phase: named storeys and their marks, moving nodes with `grid_shift_above`, and spans in rooms with fine cells (they refuse at the cook).
 
 ## Natural terrain: caves, canyons, rock
 

@@ -38,7 +38,7 @@ Lists the materials the world already uses, the images imported with a level (`l
 
 ## Tools
 
-The strip has seventeen tools in three groups (PICK, DRAW, BUILD). Wrapped to a second line when the window is narrow. Keys work in the 3D and Top views.
+The strip has eighteen tools in three groups (PICK, DRAW, BUILD). Wrapped to a second line when the window is narrow. Keys work in the 3D and Top views.
 
 | Tool | Key | Gesture |
 | --- | --- | --- |
@@ -60,8 +60,9 @@ The strip has seventeen tools in three groups (PICK, DRAW, BUILD). Wrapped to a 
 | Break | X | Pick a region, press on it and drag up for the intensity (0 to 100). Tab changes the target, Shift+X re-rolls the seed, Enter commits, Esc cancels. See Natural terrain below. |
 | Rough | M | Pick a region, press on it and drag up for the rock level (0 to 3). See Natural terrain below. |
 | Cells | Q | Paint over the plan to subdivide the cell under the pointer into four finer ones, Alt+paint to merge them back. See Cells of several sizes below. |
+| Slab | Shift+Q | Pick a region. Insert: press on it and drag up for a floor at that height over the level; Cut and Fill are clicks on it. Cut takes the first slab above the level out, Fill closes the opening up to the next level; Tab changes the mode. See Storeys below. |
 
-Letters kept free for the level verbs that come next: S Sculpt, B Room, K Corridor, I Opening, Y Stamps, G Vault (N is the Plane tool and Shift+N the Mesh tool, E the Bands tool, U Raise, A Ramp, T Stairs, X Break, M Rough). L toggles Link and R turns, so no plain letter was left for Mesh. Alt+W is the walkability overlay and Alt+P the performance heatmap (below).
+Letters kept free for the level verbs that come next: S Sculpt, B Room, K Corridor, I Opening, Y Stamps, J Vault (G goes to a level and Z switches the cutaway, below; N is the Plane tool and Shift+N the Mesh tool, E the Bands tool, U Raise, A Ramp, T Stairs, X Break, M Rough, Q Cells, Shift+Q Slab). L toggles Link and R turns, so no plain letter was left for Mesh. Alt+W is the walkability overlay and Alt+P the performance heatmap (below).
 
 Also: Ctrl/Cmd+C copies the selected faces, Ctrl/Cmd+V shows a ghost (click stamps, Shift keeps stamping, H and V flip, R turns), Esc cancels a drag, a ghost or the selection, Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z undo and redo, `.` frames the selection, Ctrl/Cmd+S saves.
 
@@ -96,6 +97,15 @@ Raise (U) and Height (H) work on cells of any size: Raise moves every cell insid
 **Cell size (the option row).** Floor, Ceiling, Wall, Raise, Ramp, Stairs, Break and Rough take a cell size: Sector (the default), 1/2 or 1/4. At 1/2 or 1/4 the rectangle, brush, path or wall run counts cells of that size, larger cells under it are split to fit, and the verb runs on exactly those cells, as the MCP's `size` does. The hover ghosts and the region outline snap to that size. Changing the size drops the region in progress. Not yet at a fine size: the lasso, Cut corners, diagonal walls, the Ramp and Stairs ghosts (the drag, its readout and the result work, but the sector-sized picture is not drawn), the Convert command, derived-wall painting, and a split-level or void triangle (a sector holding one cannot be split, and a merge never makes one).
 
 **Play.** Collision and portals are built per whole sector until the leaf format (phase T10): a bigger cell is expanded to its sectors exactly, fine cells that merge back exactly are collided exactly, and any other sector is stood on through the heights at its four corners (the cook warns, one line per sector). What you see is the real fine geometry.
+
+## Storeys
+
+A column of the world can hold several floors, one above another (`docs/grid/multi-storey.md`). Nothing has to be planned: build a tall hall and cut it into storeys afterwards. A **storey** is a floor height that eight or more sectors share, found from the document, never declared.
+
+* **The level cursor.** Alt+Up and Alt+Down move the cursor to the next storey up or down (the first press with no cursor lands on the lowest). **G**, then a click, sets it to the surface under the pointer: the face hit in the 3D view, the topmost floor of the column in the Top view; Esc cancels the pick. The **Level chip** at the top centre of the viewport names the level, its height in clicks and runtime units, and the cutaway. The cursor is a view setting: it is not saved with the project and no tool edits through it unless it says so.
+* **The cutaway.** With a cursor on a storey that has another above it, the 3D view and picking hide every face whose lowest point is at or above the next storey's floor, so you see into the storey you work on and a click goes through the floor above. **Z** turns it off and on. A face that straddles the plane is kept whole. With no cursor, or on the top storey, nothing is hidden.
+* **The Slab tool (Shift+Q).** Pick sectors as for the other level verbs (the cell size must be Sector). *Insert* (the default): press on the region and drag up; the slab's walking surface goes that high over the level cursor (over the floor under the region when there is no cursor), one click thick, in the palette material. The span it passes through is split in two; a lower part with under three clicks of headroom is a sliver and its floor rises instead. Sectors with nothing open at that height, a sloped surface across it, or too little headroom are skipped, and the status line counts them. *Cut*: click the region and the first slab above the level comes out, merging the spans around it (a stairwell). *Fill*: click the region and it is closed up to the next storey above the level. **Tab** cycles Insert, Cut, Fill. Each gesture is one undo step and Esc puts the document back exactly. The option row also takes a typed height and Apply.
+* **What the other tools do.** The surface and level tools (Floor, Raise, Ramp and the rest) still edit the ground span of a column, the lowest floor; they do not follow the cursor yet. Use the MCP's `y` or `storey` parameters (`mcp-guide.md`) to shape another span.
 
 ## Walkability overlay
 
