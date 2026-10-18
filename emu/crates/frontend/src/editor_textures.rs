@@ -2293,7 +2293,9 @@ mod tests {
             )
         };
         let mut room = psxed_project::grid::GridRoom::new("hall", 1, 1);
-        room.sector_or_insert(0, 0).unwrap().set_ground_floor(Some(psxed_project::grid::GridSurface::flat(0, Some(floor_id))));
+        room.sector_or_insert(0, 0).unwrap().set_ground_floor(Some(
+            psxed_project::grid::GridSurface::flat(0, Some(floor_id)),
+        ));
         project.active_scene_mut().world =
             psxed_project::grid::SceneWorld::Grid(psxed_project::grid::GridWorld {
                 rooms: vec![room],
