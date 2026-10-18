@@ -27,8 +27,7 @@ impl EditorWorkspace {
         play_panel: Option<&mut dyn FnMut(&mut egui::Ui)>,
     ) {
         self.poll_project_watch(false);
-        self.publish_grid_room_visibility();
-        self.publish_grid_cutaway();
+        self.publish_grid_view();
         apply_studio_visuals(ctx);
         if self.character_motion_preview().is_some() {
             ctx.request_repaint_after(std::time::Duration::from_millis(16));

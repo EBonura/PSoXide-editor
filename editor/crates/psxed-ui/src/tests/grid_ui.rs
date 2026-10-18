@@ -241,14 +241,14 @@ fn the_rooms_panel_lists_rooms_and_hiding_one_reaches_the_preview() {
     assert!(text.contains("Rooms"), "{text}");
     assert!(text.contains("hall"), "{text}");
     assert!(text.contains("Room 1"), "{text}");
-    assert!(crate::grid_preview_hidden_rooms().is_empty());
+    assert!(crate::grid_preview_view().hidden_rooms.is_empty());
     ws.grid_hidden_rooms.insert(1);
     draw_editor(&mut ws, &ctx, false);
-    assert_eq!(crate::grid_preview_hidden_rooms(), vec![1]);
+    assert_eq!(crate::grid_preview_view().hidden_rooms, vec![1]);
     // A brush world publishes nothing hidden.
     ws.project.active_scene_mut().world = psxed_project::grid::SceneWorld::Empty;
     draw_editor(&mut ws, &ctx, false);
-    assert!(crate::grid_preview_hidden_rooms().is_empty());
+    assert!(crate::grid_preview_view().hidden_rooms.is_empty());
 }
 
 #[test]

@@ -62,7 +62,18 @@ pub(super) fn begin(
     room: usize,
     cell: [i32; 2],
 ) -> bool {
-    let Some(drag) = drag_for(ws) else {
+    let Some(region) = ws.grid.verb.region.clone() else {
+        ws.status = "Click the waypoints of the flight with Path, then press Enter".to_string();
+        return false;
+    };
+    let focus = match super::verb_tool::region_focus(ws, &region) {
+        Ok(focus) => focus,
+        Err(why) => {
+            ws.status = why;
+            return false;
+        }
+    };
+    let Some(drag) = ws.with_focused_world(&focus, |ws| drag_for(ws)) else {
         ws.status = "Click the waypoints of the flight with Path, then press Enter".to_string();
         return false;
     };
@@ -74,6 +85,7 @@ pub(super) fn begin(
         amount: 0,
         before: Some(Box::new(ws.project.clone())),
         max_rise: None,
+        focus,
     }));
     true
 }

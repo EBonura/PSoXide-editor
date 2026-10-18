@@ -144,6 +144,10 @@ impl EditorWorkspace {
         if pressed_shift(ctx, egui::Key::Q) {
             self.set_grid_tool(GridTool::Slab);
         }
+        // Shift+T is the Spiral tool, beside the Stairs tool's T.
+        if pressed_shift(ctx, egui::Key::T) {
+            self.set_grid_tool(GridTool::Spiral);
+        }
         // Shift+X draws the next Break seed (before the tool keys, which
         // would take the X whatever Shift says).
         if pressed_shift(ctx, egui::Key::X) {
@@ -223,6 +227,9 @@ impl EditorWorkspace {
                 if self.grid.tool == GridTool::Stairs {
                     super::stairs_tool::keep_path(self);
                 }
+                if self.grid.tool == GridTool::Spiral {
+                    super::spiral_tool::keep_ring(self);
+                }
                 verb_tool::finish_path(self);
             }
             for (key, delta) in [(egui::Key::CloseBracket, 1), (egui::Key::OpenBracket, -1)] {
@@ -273,6 +280,7 @@ mod tests {
             (GridTool::Rough, egui::Key::M),
             (GridTool::Cells, egui::Key::Q),
             (GridTool::Slab, egui::Key::Q),
+            (GridTool::Spiral, egui::Key::T),
         ] {
             assert_eq!(tool.key(), key, "{}", tool.label());
             assert!(!RESERVED_VERB_KEYS.contains(&key));

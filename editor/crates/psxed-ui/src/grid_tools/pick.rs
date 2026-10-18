@@ -57,10 +57,20 @@ fn build_cache(world: &GridWorld, rev: u64) -> PickCache {
     let mut faces = Vec::new();
     for face in all_faces(world) {
         let (target, tri) = match face.kind {
-            GridFaceKind::Floor { triangle } => (FaceTarget::Surface(SurfaceKind::Floor), triangle),
-            GridFaceKind::Ceiling { triangle } => {
-                (FaceTarget::Surface(SurfaceKind::Ceiling), triangle)
-            }
+            GridFaceKind::Floor { triangle } => (
+                FaceTarget::Surface {
+                    kind: SurfaceKind::Floor,
+                    span: face.span,
+                },
+                triangle,
+            ),
+            GridFaceKind::Ceiling { triangle } => (
+                FaceTarget::Surface {
+                    kind: SurfaceKind::Ceiling,
+                    span: face.span,
+                },
+                triangle,
+            ),
             GridFaceKind::Wall { edge, index } => (FaceTarget::Wall { edge, index }, None),
             GridFaceKind::Derived { edge, kind } => {
                 // A cell next to smaller ones has several faces of one rule on

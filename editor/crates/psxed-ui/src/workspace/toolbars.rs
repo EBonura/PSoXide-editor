@@ -192,6 +192,7 @@ impl EditorWorkspace {
                                     &crate::grid_view::GridRoomView {
                                         hidden: &self.grid_hidden_rooms,
                                         active: self.grid_active_room,
+                                        level: self.grid.level.y,
                                     },
                                 );
                             }

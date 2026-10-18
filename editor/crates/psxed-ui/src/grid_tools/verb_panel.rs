@@ -45,6 +45,7 @@ impl EditorWorkspace {
             GridTool::Raise => self.draw_raise_options(ui),
             GridTool::Ramp => self.draw_ramp_options(ui),
             GridTool::Stairs => self.draw_stairs_options(ui),
+            GridTool::Spiral => self.draw_spiral_options(ui),
             GridTool::Break => return self.draw_break_options(ui),
             GridTool::Rough => return self.draw_rough_options(ui),
             GridTool::Slab => return self.draw_slab_options(ui),
@@ -213,6 +214,27 @@ impl EditorWorkspace {
             .clicked()
         {
             super::verb_tool::apply_typed(self);
+        }
+    }
+
+    fn draw_spiral_options(&mut self, ui: &mut egui::Ui) {
+        use psxed_project::grid::edit::verbs::stairs::RiserOption;
+        ui.label(RichText::new("Storeys").color(STUDIO_TEXT_WEAK).size(11.0));
+        ui.add(
+            egui::DragValue::new(&mut self.grid.verb.spiral.storeys)
+                .speed(0.1)
+                .range(1..=8),
+        )
+        .on_hover_text("How many storeys the stairs climb, a drag of the climb of one");
+        ui.label(RichText::new("Riser").color(STUDIO_TEXT_WEAK).size(11.0));
+        let current = self.grid.verb.stairs.riser;
+        for option in [RiserOption::Click, RiserOption::Max] {
+            if ui
+                .selectable_label(current == option, super::stairs_tool::riser_label(option))
+                .clicked()
+            {
+                self.grid.verb.stairs.riser = option;
+            }
         }
     }
 

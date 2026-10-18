@@ -48,7 +48,12 @@ pub(super) fn spot(ws: &EditorWorkspace, ptr: &GridPointer) -> Option<[f32; 3]> 
     };
     // The floor under the point, not above what the pointer touched.
     let limit = if point[1] == f32::MAX {
-        i32::MAX / 2
+        // In the plan view the storey cursor says which floor, a body's
+        // height above it.
+        ws.grid
+            .level
+            .y
+            .map_or(i32::MAX / 2, |y| world.scale.to_editor(y) + 96)
     } else {
         point[1].round() as i32 + 96
     };

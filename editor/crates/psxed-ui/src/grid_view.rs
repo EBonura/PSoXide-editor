@@ -110,10 +110,39 @@ fn floor_range(world: &GridWorld) -> (i32, i32) {
     }
 }
 
-fn mean_floor(room: &GridRoom, sector: &GridSector) -> Option<f32> {
-    let floor = sector.ground_floor()?;
+fn mean_floor(room: &GridRoom, sector: &GridSector, span: usize) -> Option<f32> {
+    let floor = sector.spans().get(span)?.floor.as_ref()?;
     let total: i32 = floor.heights.iter().sum();
     Some((room.y_offset as f32) + total as f32 / 4.0)
+}
+
+/// What the Top view shows of a column at the storey cursor
+/// (`docs/grid/multi-storey.md`, 5.2).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Slice {
+    /// The span open at the cursor, drawn at full strength.
+    Active(usize),
+    /// Nothing open at the cursor and a span below it: a dim ghost of the
+    /// storey underneath.
+    Below(usize),
+    /// Nothing open and nothing below: spans only overhead.
+    Above,
+}
+
+/// Which span of `sector` the slice at `level` (room-relative grid units)
+/// shows. A column of one span, or no cursor, is its ground span.
+pub(crate) fn slice_of(sector: &GridSector, level: Option<i32>) -> Slice {
+    let Some(y) = level.filter(|_| !sector.is_single_span()) else {
+        return Slice::Active(0);
+    };
+    if let Some(open) = sector.span_at(y, 0) {
+        return Slice::Active(open);
+    }
+    let below = sector
+        .spans()
+        .iter()
+        .rposition(|s| s.floor.as_ref().is_some_and(|f| f.height_range().0 <= y));
+    below.map_or(Slice::Above, Slice::Below)
 }
 
 /// Whether the floor's diagonal changes what is drawn and is worth marking.
@@ -255,6 +284,10 @@ fn draw_leaf_walls(
 pub(crate) struct GridRoomView<'a> {
     pub(crate) hidden: &'a HashSet<usize>,
     pub(crate) active: Option<usize>,
+    /// The storey cursor in grid units, room offsets included: where a
+    /// column holds several floors, the view draws the span open at it, the
+    /// storey below as a dim ghost and what is overhead as an outline.
+    pub(crate) level: Option<i32>,
 }
 
 impl GridRoomView<'_> {
@@ -313,12 +346,38 @@ pub(crate) fn draw_grid_world(
             if !visible.intersects(rect) {
                 continue;
             }
-            let fill = match mean_floor(room, sector) {
+            let slice = slice_of(sector, view.level.map(|y| y - room.y_offset));
+            let shown = match slice {
+                Slice::Active(i) | Slice::Below(i) => i,
+                Slice::Above => 0,
+            };
+            let fill = match mean_floor(room, sector, shown) {
                 Some(mean) => height_color((mean - low as f32) / span),
                 None if sector.ground_ceiling().is_some() => CEILING_ONLY,
                 None => WALLS_ONLY,
             };
-            painter.rect_filled(rect, 0.0, fill.gamma_multiply(fade));
+            match slice {
+                Slice::Active(_) => {
+                    painter.rect_filled(rect, 0.0, fill.gamma_multiply(fade));
+                }
+                Slice::Below(_) => {
+                    painter.rect_filled(rect, 0.0, fill.gamma_multiply(fade * 0.3));
+                }
+                // A slab overhead: an outline, so a stairwell reads as a gap.
+                Slice::Above => {
+                    painter.rect_stroke(
+                        rect,
+                        0.0,
+                        egui::Stroke::new(1.0, SECTOR_LINE),
+                        egui::StrokeKind::Inside,
+                    );
+                    painter.line_segment(
+                        [rect.left_bottom(), rect.right_top()],
+                        egui::Stroke::new(1.0, SECTOR_LINE),
+                    );
+                    continue;
+                }
+            }
             let size = rect.width().min(rect.height());
             if size >= MIN_OUTLINE_PIXELS {
                 painter.rect_stroke(
@@ -328,7 +387,7 @@ pub(crate) fn draw_grid_world(
                     egui::StrokeKind::Inside,
                 );
             }
-            if let Some(floor) = sector.ground_floor() {
+            if let Some(floor) = sector.ground_floor().filter(|_| shown == 0) {
                 if split_matters(sector) && size >= MIN_OUTLINE_PIXELS {
                     let (a, b) = match floor.split {
                         GridSplit::NwSe => (corners[0], corners[2]),
@@ -337,9 +396,11 @@ pub(crate) fn draw_grid_world(
                     painter.line_segment([a, b], egui::Stroke::new(1.0, SPLIT_LINE));
                 }
             }
-            draw_voids(painter, corners, sector, size >= MIN_OUTLINE_PIXELS);
-            if show_labels && size >= MIN_LABEL_PIXELS {
-                if let Some(mean) = mean_floor(room, sector) {
+            if shown == 0 {
+                draw_voids(painter, corners, sector, size >= MIN_OUTLINE_PIXELS);
+            }
+            if show_labels && size >= MIN_LABEL_PIXELS && matches!(slice, Slice::Active(_)) {
+                if let Some(mean) = mean_floor(room, sector, shown) {
                     let clicks = (mean / CLICK_UNITS as f32).round() as i32;
                     painter.text(
                         rect.center(),
@@ -542,6 +603,7 @@ mod tests {
         let view = GridRoomView {
             hidden: &hidden,
             active: None,
+            level: None,
         };
         let output = ctx.run(
             egui::RawInput {

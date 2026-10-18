@@ -9,6 +9,7 @@
 use super::cell_size::{cell_at, cell_units};
 use super::*;
 
+use psxed_project::grid::edit::focus::Focus;
 use psxed_project::grid::edit::verbs::fine::{FineDrag, FineReport, FineVerb};
 use psxed_project::grid::edit::verbs::raise::{
     default_mode, height_under, RaiseDrag, RaiseMode, RaiseParams,
@@ -143,7 +144,7 @@ pub(super) fn on_tool_changed(ws: &mut EditorWorkspace) {
     ws.grid.verb.lasso.clear();
     ws.grid.verb.lasso_cursor = None;
     ws.grid.verb.preview.clear();
-    if ws.grid.tool == GridTool::Stairs {
+    if matches!(ws.grid.tool, GridTool::Stairs | GridTool::Spiral) {
         // A flight is a path: the other sources make no order of treads.
         ws.grid.verb.source = RegionSource::Path;
     }
@@ -204,8 +205,13 @@ pub(super) fn press(ws: &mut EditorWorkspace, ptr: &GridPointer) {
             .region
             .as_ref()
             .is_some_and(|r| r.room == room && r.contains(cell));
-    if inside && !ptr.shift() && begin_amount(ws, ptr, room, cell) {
-        return;
+    if inside && !ptr.shift() {
+        match begin_amount(ws, ptr, room, cell) {
+            // The verb began, or said why it cannot: either way the press is
+            // its own, and a refusal must not be overwritten by a new region.
+            Begin::Started | Begin::Refused => return,
+            Begin::NotApplicable => {}
+        }
     }
     let add = ptr.shift();
     match ws.grid.verb.source {
@@ -451,16 +457,36 @@ fn describe_region(ws: &mut EditorWorkspace, region: &Region) {
     };
 }
 
+/// What a press on the region came to.
+enum Begin {
+    /// The amount drag is under way.
+    Started,
+    /// The verb could not begin and has put the reason in the status line.
+    Refused,
+    /// The tool has no amount drag: the press picks a region.
+    NotApplicable,
+}
+
 /// Press on the region: start the amount drag of the active verb.
-fn begin_amount(ws: &mut EditorWorkspace, ptr: &GridPointer, room: usize, cell: [i32; 2]) -> bool {
-    match ws.grid.tool {
+fn begin_amount(ws: &mut EditorWorkspace, ptr: &GridPointer, room: usize, cell: [i32; 2]) -> Begin {
+    let started = match ws.grid.tool {
         GridTool::Raise => begin_raise(ws, ptr, room, cell),
         GridTool::Ramp => super::ramp_tool::begin(ws, ptr, room, cell),
         GridTool::Stairs => super::stairs_tool::begin(ws, ptr, room, cell),
+        GridTool::Spiral => super::spiral_tool::begin(ws, ptr, room, cell),
         GridTool::Break => super::break_tool::begin(ws, ptr, room, cell),
         GridTool::Rough => super::rough_tool::begin(ws, ptr, room, cell),
+        // Cut and Fill are clicks on the region: a press starts a new one.
+        GridTool::Slab if ws.grid.verb.slab.mode != super::slab_tool::SlabMode::Insert => {
+            return Begin::NotApplicable
+        }
         GridTool::Slab => super::slab_tool::begin(ws, ptr, room, cell),
-        _ => false,
+        _ => return Begin::NotApplicable,
+    };
+    if started {
+        Begin::Started
+    } else {
+        Begin::Refused
     }
 }
 
@@ -486,6 +512,16 @@ pub(super) fn drag_rate(
     ws.grid_pixels_per_unit(&ptr.at_press(), grab)
 }
 
+/// The aim of a verb over its region: the span of each column the storey
+/// cursor names, or the status line that says why the verb cannot go ahead.
+/// Cells smaller than a sector have no spans to aim at.
+pub(super) fn region_focus(ws: &EditorWorkspace, region: &Region) -> Result<Focus, String> {
+    if region.level() != 2 {
+        return Ok(Focus::none(region.room));
+    }
+    ws.capture_focus(region.room, region.cells())
+}
+
 /// A sector Raise drag on `region` with the current options, and the Level
 /// reference it measures from (the height of `cell`).
 fn raise_drag(ws: &EditorWorkspace, region: &Region, cell: [i32; 2]) -> Option<(RaiseDrag, i32)> {
@@ -509,7 +545,15 @@ fn begin_raise(ws: &mut EditorWorkspace, ptr: &GridPointer, room: usize, cell: [
     let Some(region) = ws.grid.verb.region.clone() else {
         return false;
     };
-    let Some((drag, _)) = verb_drag_over(ws, &region, cell) else {
+    let focus = match region_focus(ws, &region) {
+        Ok(focus) => focus,
+        Err(why) => {
+            ws.status = why;
+            return false;
+        }
+    };
+    let Some((drag, _)) = ws.with_focused_world(&focus, |ws| verb_drag_over(ws, &region, cell))
+    else {
         ws.status = "Nothing to raise: no sector of the region has a floor".to_string();
         return false;
     };
@@ -521,6 +565,7 @@ fn begin_raise(ws: &mut EditorWorkspace, ptr: &GridPointer, room: usize, cell: [
         amount: 0,
         before: Some(Box::new(ws.project.clone())),
         max_rise: None,
+        focus,
     }));
     true
 }
@@ -534,14 +579,25 @@ pub(crate) fn pose_drag(ws: &mut EditorWorkspace, amount: i32) -> Result<(), Str
         .clone()
         .ok_or("no region: use region=x0,z0:x1,z1 first")?;
     let first = region.cells().next().unwrap_or([0, 0]);
-    let (drag, max_rise) = match ws.grid.tool {
+    let (focus, drag, max_rise) = match ws.grid.tool {
         GridTool::Raise | GridTool::Ramp => {
-            verb_drag_over(ws, &region, first).ok_or("nothing to raise or ramp")?
+            let focus = region_focus(ws, &region)?;
+            let (drag, max) = ws
+                .with_focused_world(&focus, |ws| verb_drag_over(ws, &region, first))
+                .ok_or("nothing to raise or ramp")?;
+            (focus, drag, max)
         }
-        GridTool::Stairs => (
-            super::stairs_tool::drag_for(ws).ok_or("no path: use stairs-path=")?,
-            None,
-        ),
+        GridTool::Stairs => {
+            let focus = region_focus(ws, &region)?;
+            let drag = ws
+                .with_focused_world(&focus, |ws| super::stairs_tool::drag_for(ws))
+                .ok_or("no path: use stairs-path=")?;
+            (focus, drag, None)
+        }
+        GridTool::Spiral => {
+            let (drag, focus) = super::spiral_tool::start(ws)?;
+            (focus, drag, None)
+        }
         GridTool::Slab => return super::slab_tool::pose_drag(ws, amount),
         other => return Err(format!("the {} tool has no drag to pose", other.label())),
     };
@@ -552,6 +608,7 @@ pub(crate) fn pose_drag(ws: &mut EditorWorkspace, amount: i32) -> Result<(), Str
         amount,
         before: Some(Box::new(ws.project.clone())),
         max_rise,
+        focus,
     };
     apply_amount(ws, &mut gesture);
     ws.grid.gesture = Gesture::Verb(Box::new(gesture));
@@ -586,7 +643,9 @@ fn update_amount(ws: &mut EditorWorkspace, ptr: &GridPointer) {
 }
 
 /// Apply the gesture's amount to the live document, recording the undo step
-/// at the first change.
+/// at the first change. The drag runs with the span each column was aimed at
+/// standing in as its ground span (`Focus`); a drag that would break a column
+/// is refused and the document stays as the last good amount left it.
 pub(super) fn apply_amount(ws: &mut EditorWorkspace, g: &mut VerbGesture) {
     if let Some(before) = g.before.take() {
         ws.history.record(*before);
@@ -605,83 +664,109 @@ pub(super) fn apply_amount(ws: &mut EditorWorkspace, g: &mut VerbGesture) {
         g.amount = super::ramp_tool::clamp(ws, g.amount, g.max_rise);
     }
     let size = ws.grid.cell_size.label();
+    let focus = g.focus.clone();
+    let amount = g.amount;
+    let max_rise = g.max_rise;
+    let mut last_raise = None;
+    let mut detail = None;
     let Some(world) = ws.project.active_scene_mut().world.grid_mut() else {
         return;
     };
-    let line = match &mut g.drag {
+    let result = focus.run(world, |world| match &mut g.drag {
         VerbDrag::Raise(drag) => {
-            let applied = drag.apply(world, g.amount);
-            if g.amount != 0 {
-                ws.grid.verb.last_raise = g.amount.abs();
+            let applied = drag.apply(world, amount);
+            if amount != 0 {
+                last_raise = Some(amount.abs());
             }
             let mode = drag.params().mode.label();
             format!(
                 "{} {}{}",
-                if g.amount < 0 { "Lower" } else { "Raise" },
-                amount_text(world, g.amount),
+                if amount < 0 { "Lower" } else { "Raise" },
+                amount_text(world, amount),
                 counts_text(&applied, mode)
             )
         }
         VerbDrag::Ramp(drag) => {
-            let max = g.max_rise.unwrap_or(0);
-            let applied = drag.apply(world, g.amount);
-            let mut line = super::ramp_tool::readout(world, drag, g.amount, max);
+            let max = max_rise.unwrap_or(0);
+            let applied = drag.apply(world, amount);
+            let mut line = super::ramp_tool::readout(world, drag, amount, max);
             if applied.skipped > 0 {
                 line += &format!(", {} without a floor skipped", applied.skipped);
             }
             line
         }
         VerbDrag::Stairs(drag) => {
-            let flight = drag.apply(world, g.amount);
-            super::stairs_tool::readout(world, &flight, g.amount)
+            let flight = drag.apply(world, amount);
+            super::stairs_tool::readout(world, &flight, amount)
+        }
+        VerbDrag::Spiral(drag) => {
+            let report = drag.apply(world, amount);
+            super::spiral_tool::readout(world, &report, amount)
         }
         VerbDrag::Fine(drag) => {
-            let report = drag.apply(world, g.amount);
+            let report = drag.apply(world, amount);
             match (drag.verb(), report) {
                 (FineVerb::Raise(params), FineReport::Applied(applied)) => {
-                    if g.amount != 0 {
-                        ws.grid.verb.last_raise = g.amount.abs();
+                    if amount != 0 {
+                        last_raise = Some(amount.abs());
                     }
                     format!(
                         "{} {}{}",
-                        if g.amount < 0 { "Lower" } else { "Raise" },
-                        amount_text(world, g.amount),
+                        if amount < 0 { "Lower" } else { "Raise" },
+                        amount_text(world, amount),
                         counts_text(&applied, params.mode.label())
                     )
                 }
                 (FineVerb::Ramp(params), FineReport::Applied(applied)) => {
-                    let walk = if g.amount.abs() <= g.max_rise.unwrap_or(0) {
+                    let walk = if amount.abs() <= max_rise.unwrap_or(0) {
                         "walkable"
                     } else {
                         "too steep to stand on"
                     };
                     format!(
                         "Ramp {} from the {} edge over {} {size} cell(s), {walk}",
-                        amount_text(world, g.amount),
+                        amount_text(world, amount),
                         params.from.label(),
                         applied.moved,
                     )
                 }
                 (FineVerb::Stairs { .. }, FineReport::Flight(flight)) => {
-                    super::stairs_tool::readout(world, &flight, g.amount)
+                    super::stairs_tool::readout(world, &flight, amount)
                 }
                 (_, FineReport::Refused(why)) => why,
                 _ => "Nothing to change there".to_string(),
             }
         }
         VerbDrag::Break(live) => {
-            let (line, detail) = super::break_tool::apply(world, live, g.amount);
-            ws.grid.verb.readout = detail;
-            ws.status = line;
-            ws.grid_changed();
+            let (line, longer) = super::break_tool::apply(world, live, amount);
+            detail = Some(longer);
+            line
+        }
+        VerbDrag::Rough(live) => super::rough_tool::apply(world, live, amount),
+        VerbDrag::Slab(live) => super::slab_tool::apply(world, live, amount),
+    });
+    let aimed = match result {
+        Ok(aimed) => aimed,
+        Err(refusal) => {
+            ws.status = ws.describe_refusal(refusal);
             return;
         }
-        VerbDrag::Rough(live) => super::rough_tool::apply(world, live, g.amount),
-        VerbDrag::Slab(live) => super::slab_tool::apply(world, live, g.amount),
     };
-    ws.grid.verb.readout = line.clone();
+    let mut line = aimed.value;
+    if aimed.slivers > 0 {
+        line += &format!(
+            "; {} span(s) too thin to stand in filled solid",
+            aimed.slivers
+        );
+    }
+    if let Some(last) = last_raise {
+        ws.grid.verb.last_raise = last;
+    }
+    ws.grid.verb.readout = detail.unwrap_or_else(|| line.clone());
     ws.status = line;
     ws.grid_changed();
+    // The cursor follows the floor the verb moved.
+    ws.follow_edit(focus.room(), aimed.floor);
 }
 
 /// Whether a drag slopes a region (the sector Ramp or a fine one).
@@ -836,10 +921,28 @@ pub(crate) fn apply_typed(ws: &mut EditorWorkspace) {
         return;
     };
     let first = region.cells().next().unwrap_or([0, 0]);
-    let drag = match ws.grid.tool {
-        GridTool::Raise | GridTool::Ramp => verb_drag_over(ws, &region, first),
-        GridTool::Stairs => super::stairs_tool::drag_for(ws).map(|d| (d, None)),
-        _ => None,
+    let (focus, drag) = if ws.grid.tool == GridTool::Spiral {
+        match super::spiral_tool::start(ws) {
+            Ok((drag, focus)) => (focus, Some((drag, None))),
+            Err(why) => {
+                ws.status = why;
+                return;
+            }
+        }
+    } else {
+        let focus = match region_focus(ws, &region) {
+            Ok(focus) => focus,
+            Err(why) => {
+                ws.status = why;
+                return;
+            }
+        };
+        let drag = ws.with_focused_world(&focus, |ws| match ws.grid.tool {
+            GridTool::Raise | GridTool::Ramp => verb_drag_over(ws, &region, first),
+            GridTool::Stairs => super::stairs_tool::drag_for(ws).map(|d| (d, None)),
+            _ => None,
+        });
+        (focus, drag)
     };
     let Some((drag, max_rise)) = drag else {
         ws.status = "Nothing to apply there: no sector of the region has a floor".to_string();
@@ -852,6 +955,7 @@ pub(crate) fn apply_typed(ws: &mut EditorWorkspace) {
         amount,
         before: Some(Box::new(ws.project.clone())),
         max_rise,
+        focus,
     };
     apply_amount(ws, &mut gesture);
 }

@@ -191,7 +191,7 @@ impl EditorWorkspace {
                     painter.rect_stroke(r, 0.0, Stroke::new(2.0, SELECT), StrokeKind::Inside);
                 }
                 GridElement::Face(f) => match f.target {
-                    FaceTarget::Surface(_) => {
+                    FaceTarget::Surface { .. } => {
                         let r = leaf_rect(f.leaf);
                         painter.rect_filled(r, 0.0, fill(SELECT, 70));
                         painter.rect_stroke(r, 0.0, Stroke::new(2.0, SELECT), StrokeKind::Inside);
@@ -258,7 +258,7 @@ impl EditorWorkspace {
                             );
                         }
                         GridElement::Face(f) => match f.target {
-                            FaceTarget::Surface(_) => {
+                            FaceTarget::Surface { .. } => {
                                 painter.rect_stroke(
                                     leaf_rect(f.leaf),
                                     0.0,

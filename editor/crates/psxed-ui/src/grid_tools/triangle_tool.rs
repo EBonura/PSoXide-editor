@@ -52,7 +52,10 @@ impl TriangleGrab {
     pub(crate) fn label(&self) -> String {
         let name = if self.tri == 0 { "A" } else { "B" };
         let kind = match self.face.target {
-            FaceTarget::Surface(psxed_project::grid::edit::SurfaceKind::Ceiling) => "ceiling",
+            FaceTarget::Surface {
+                kind: psxed_project::grid::edit::SurfaceKind::Ceiling,
+                ..
+            } => "ceiling",
             _ => "floor",
         };
         format!("Triangle {name} of the {kind}")
@@ -191,12 +194,12 @@ pub(super) fn void_click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     };
     let Some(face) = faces
         .into_iter()
-        .find(|f| matches!(f.target, FaceTarget::Surface(_)))
+        .find(|f| matches!(f.target, FaceTarget::Surface { .. }))
     else {
         ws.status = "Void works on floors and ceilings".to_string();
         return;
     };
-    let (Some(tri), FaceTarget::Surface(kind)) = (tri, face.target) else {
+    let (Some(tri), FaceTarget::Surface { kind, .. }) = (tri, face.target) else {
         ws.status = "Point at one triangle of the face".to_string();
         return;
     };

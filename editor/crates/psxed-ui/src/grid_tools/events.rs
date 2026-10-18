@@ -54,6 +54,22 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
         }
         return;
     }
+    // A press on a surface in the 3D view aims the tools that edit surfaces
+    // at the floor under the pointer.
+    if matches!(ev, Ev::Press | Ev::Click)
+        && matches!(
+            ws.grid.tool,
+            GridTool::Floor
+                | GridTool::Ceiling
+                | GridTool::Raise
+                | GridTool::Ramp
+                | GridTool::Stairs
+                | GridTool::Spiral
+                | GridTool::Break
+        )
+    {
+        ws.cursor_follows_pick(&ptr);
+    }
     let taken = match ev {
         Ev::Hover => plane_tool::hover(ws, &ptr),
         Ev::Press => plane_tool::press(ws, &ptr),
@@ -142,6 +158,7 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
             GridTool::Raise
             | GridTool::Ramp
             | GridTool::Stairs
+            | GridTool::Spiral
             | GridTool::Break
             | GridTool::Rough
             | GridTool::Slab,
@@ -151,6 +168,7 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
             GridTool::Raise
             | GridTool::Ramp
             | GridTool::Stairs
+            | GridTool::Spiral
             | GridTool::Break
             | GridTool::Rough
             | GridTool::Slab,
@@ -160,6 +178,7 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
             GridTool::Raise
             | GridTool::Ramp
             | GridTool::Stairs
+            | GridTool::Spiral
             | GridTool::Break
             | GridTool::Rough
             | GridTool::Slab,
@@ -169,6 +188,7 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
             GridTool::Raise
             | GridTool::Ramp
             | GridTool::Stairs
+            | GridTool::Spiral
             | GridTool::Break
             | GridTool::Rough
             | GridTool::Slab,
@@ -178,6 +198,7 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
             GridTool::Raise
             | GridTool::Ramp
             | GridTool::Stairs
+            | GridTool::Spiral
             | GridTool::Break
             | GridTool::Rough
             | GridTool::Slab,

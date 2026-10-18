@@ -104,10 +104,18 @@ pub(super) fn target_at(ws: &EditorWorkspace, ptr: &GridPointer) -> Option<WallT
         WallDirection::Auto => nearest_edge(world, cell, level, point[0], point[2]),
         WallDirection::Edge(e) => e,
     };
-    let pick_y = (!ptr.is_top()).then(|| {
+    let pick_y = if ptr.is_top() {
+        // The storey cursor picks the gap in a column of several floors.
+        let several = world.rooms.get(room).is_some_and(|r| {
+            r.local(cell)
+                .and_then(|[x, z]| r.sector(x, z))
+                .is_some_and(|s| !s.is_single_span())
+        });
+        several.then(|| ws.aim_height(room)).flatten()
+    } else {
         let y_offset = world.rooms.get(room).map_or(0, |r| r.y_offset);
-        world.scale.to_grid(point[1].round() as i32) - y_offset
-    });
+        Some(world.scale.to_grid(point[1].round() as i32) - y_offset)
+    };
     Some(WallTarget {
         room,
         cell,

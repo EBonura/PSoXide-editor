@@ -140,6 +140,7 @@ fn drag_chip(ws: &EditorWorkspace, world: &GridWorld) -> Option<String> {
             format!("Ramp from {}  {amount}   {fits}", d.params().from.label())
         }
         VerbDrag::Stairs(d) => super::stairs_tool::chip(world, d, g.amount),
+        VerbDrag::Spiral(d) => super::spiral_tool::chip(d, g.amount),
         VerbDrag::Fine(d) => match d.verb() {
             FineVerb::Raise(p) => format!("{}  {amount}", p.mode.label()),
             FineVerb::Ramp(p) => format!("Ramp from {}  {amount}", p.from.label()),
@@ -198,6 +199,7 @@ impl EditorWorkspace {
         self.draw_lasso_2d(painter, transform, world);
         self.draw_ramp_overlay_2d(painter, transform, world);
         self.draw_stairs_overlay_2d(painter, transform, world);
+        self.draw_spiral_overlay_2d(painter, transform, world);
         if let (Some(b), Some(text)) = (bounds, drag_chip(self, world)) {
             label_chip(
                 painter,
@@ -806,6 +808,63 @@ impl EditorWorkspace {
                         );
                     }
                 }
+            }
+        }
+    }
+}
+
+impl EditorWorkspace {
+    /// The ring of a spiral over the Top view, and while it is dragged each
+    /// visit tinted (treads warm, landings blue) with the climb at it in
+    /// clicks; a sector the stairs pass twice shows its first and last.
+    fn draw_spiral_overlay_2d(
+        &self,
+        painter: &egui::Painter,
+        transform: ViewportTransform,
+        world: &GridWorld,
+    ) {
+        if self.grid.tool != GridTool::Spiral {
+            return;
+        }
+        let screen = |p: [f32; 2]| transform.world_to_screen(p);
+        let centre = |cell: [i32; 2]| {
+            let c = plan_corners(world, cell);
+            screen([(c[0][0] + c[2][0]) * 0.5, (c[0][1] + c[2][1]) * 0.5])
+        };
+        let ring = &self.grid.verb.stairs_path;
+        for (i, cell) in ring.iter().enumerate() {
+            let next = ring[(i + 1) % ring.len()];
+            painter.line_segment([centre(*cell), centre(next)], Stroke::new(2.0, CREATE));
+        }
+        let Gesture::Verb(g) = &self.grid.gesture else {
+            return;
+        };
+        let VerbDrag::Spiral(d) = &g.drag else {
+            return;
+        };
+        let steps = d.steps(g.amount);
+        let treads = steps.iter().filter(|s| !s.landing).count();
+        let mut tread_no = 0usize;
+        for step in &steps {
+            if !step.landing {
+                tread_no += 1;
+            }
+            let c = plan_corners(world, step.cell);
+            let r = Rect::from_two_pos(screen(c[0]), screen(c[2]));
+            painter.rect_filled(
+                r,
+                0.0,
+                fill(stair_color(tread_no, treads, step.landing, false), 110),
+            );
+            painter.rect_stroke(r, 0.0, Stroke::new(1.0, Color32::BLACK), StrokeKind::Inside);
+            if r.width() > 26.0 {
+                painter.text(
+                    r.center(),
+                    Align2::CENTER_CENTER,
+                    format!("{}", step.rise / psxed_project::grid::CLICK_UNITS),
+                    FontId::proportional(12.0),
+                    Color32::WHITE,
+                );
             }
         }
     }

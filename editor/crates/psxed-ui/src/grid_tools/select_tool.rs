@@ -61,10 +61,13 @@ fn extend_range(
     match (anchor, picked) {
         (GridElement::Face(a), GridElement::Face(b)) if a.room == b.room => {
             match (a.target, b.target) {
-                (FaceTarget::Surface(ka), FaceTarget::Surface(kb)) if ka == kb => {
+                (
+                    FaceTarget::Surface { kind: ka, span: sa },
+                    FaceTarget::Surface { kind: kb, span: sb },
+                ) if ka == kb && sa == sb => {
                     let mut cells = all_surface_cells(selected, a.target);
                     cells.push(a.cell());
-                    range_surfaces(world, a.room, ka, &cells, b.cell())
+                    range_surfaces(world, a.room, ka, sa, &cells, b.cell())
                         .into_iter()
                         .map(GridElement::Face)
                         .collect()

@@ -5,7 +5,7 @@
 
 mod gizmo;
 mod grid_tools;
-pub use grid_tools::{grid_preview_cutaway, grid_preview_hidden_rooms};
+pub use grid_tools::{grid_preview_view, GridPreviewView};
 mod preview_overflow;
 pub use preview_overflow::report_preview_overflow;
 mod grid_view;

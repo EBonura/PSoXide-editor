@@ -10,6 +10,7 @@ use super::cell_size::{cell_at, cell_origin_units};
 use super::view::editor_y;
 use super::*;
 
+use psxed_project::grid::edit::focus::Focus;
 use psxed_project::grid::edit::{
     create_surfaces, create_surfaces_cells, delete_surfaces, delete_surfaces_cells, CellRect,
     RectRefusal,
@@ -63,9 +64,11 @@ fn height_under(
         return None;
     };
     let hit = ws.pick_face_3d(rect, ptr.pos)?;
-    if hit.face.room != room
-        || hit.face.target != psxed_project::grid::edit::FaceTarget::Surface(kind)
-    {
+    let on_kind = matches!(
+        hit.face.target,
+        psxed_project::grid::edit::FaceTarget::Surface { kind: k, .. } if k == kind
+    );
+    if hit.face.room != room || !on_kind {
         return None;
     }
     let world = ws.project.active_scene().world.grid()?;
@@ -198,6 +201,19 @@ fn apply(
     level: u8,
 ) {
     let material = ws.grid_new_material(room, false);
+    // The span of each column the cursor names; cells below a sector have no
+    // spans to aim at.
+    let focus = if level == 2 {
+        match ws.capture_focus(room, rect.cells()) {
+            Ok(focus) => focus,
+            Err(why) => {
+                ws.status = why;
+                return;
+            }
+        }
+    } else {
+        Focus::none(room)
+    };
     let before = ws.project.clone();
     let Some(world) = ws.project.active_scene_mut().world.grid_mut() else {
         return;
@@ -218,14 +234,26 @@ fn apply(
         world.rooms.push(first);
         room = 0;
     }
-    let outcome = match (level, erase) {
-        (2, true) => delete_surfaces(world, room, kind, rect),
-        (2, false) => create_surfaces(world, room, kind, rect, height, material),
-        (_, true) => delete_surfaces_cells(world, room, kind, level, rect.min, rect.max),
-        (_, false) => create_surfaces_cells(
-            world, room, kind, level, rect.min, rect.max, height, material,
-        ),
+    let aimed = match (level, erase) {
+        (2, true) => focus.run(world, |w| delete_surfaces(w, room, kind, rect)),
+        (2, false) => focus.run(world, |w| {
+            create_surfaces(w, room, kind, rect, height, material)
+        }),
+        (_, true) => focus.run(world, |w| {
+            delete_surfaces_cells(w, room, kind, level, rect.min, rect.max)
+        }),
+        (_, false) => focus.run(world, |w| {
+            create_surfaces_cells(w, room, kind, level, rect.min, rect.max, height, material)
+        }),
     };
+    let aimed = match aimed {
+        Ok(aimed) => aimed,
+        Err(refusal) => {
+            ws.status = ws.describe_refusal(refusal);
+            return;
+        }
+    };
+    let outcome = aimed.value;
     if let Some(refusal) = outcome.refused {
         ws.status = match refusal {
             RectRefusal::RoomTooLarge { needed } => format!(
@@ -254,6 +282,16 @@ fn apply(
             kind.label()
         ),
     };
+    if aimed.slivers > 0 {
+        ws.status += &format!(
+            ", {} span(s) too thin to stand in filled solid",
+            aimed.slivers
+        );
+    }
     ws.history.record(before);
     ws.grid_changed();
+    // The cursor follows a floor made: the next verb acts on its storey.
+    if kind == SurfaceKind::Floor && !erase {
+        ws.follow_edit(room, Some(height));
+    }
 }

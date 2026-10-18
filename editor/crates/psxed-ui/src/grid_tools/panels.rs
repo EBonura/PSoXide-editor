@@ -205,10 +205,11 @@ impl EditorWorkspace {
                 let (mut floors, mut ceilings, mut walls) = (0, 0, 0);
                 for f in &faces {
                     match f.target {
-                        FaceTarget::Surface(psxed_project::grid::edit::SurfaceKind::Floor) => {
-                            floors += 1
-                        }
-                        FaceTarget::Surface(_) => ceilings += 1,
+                        FaceTarget::Surface {
+                            kind: psxed_project::grid::edit::SurfaceKind::Floor,
+                            ..
+                        } => floors += 1,
+                        FaceTarget::Surface { .. } => ceilings += 1,
                         FaceTarget::Wall { .. } | FaceTarget::Derived { .. } => walls += 1,
                     }
                 }
@@ -244,7 +245,7 @@ impl EditorWorkspace {
                 .unwrap_or("none")
                 .to_string()
         };
-        let is_surface = matches!(primary.target, FaceTarget::Surface(_));
+        let is_surface = matches!(primary.target, FaceTarget::Surface { .. });
         let split = primary.surface(world).map(|s| {
             (
                 s.split,
@@ -258,7 +259,7 @@ impl EditorWorkspace {
         ui.separator();
         ui.label(
             RichText::new(match primary.target {
-                FaceTarget::Surface(k) => {
+                FaceTarget::Surface { kind: k, .. } => {
                     format!(
                         "{} at {},{}",
                         k.label(),
@@ -345,7 +346,7 @@ impl EditorWorkspace {
             ops.extend(super::tiling_panel::draw_tiling(ui, uv, report, None));
             let surfaces = faces
                 .iter()
-                .filter(|f| matches!(f.target, FaceTarget::Surface(_)))
+                .filter(|f| matches!(f.target, FaceTarget::Surface { .. }))
                 .count();
             fit_across = super::tiling_panel::draw_fit_across(ui, surfaces);
         }
@@ -382,7 +383,7 @@ impl EditorWorkspace {
                     }
                 }
             }
-            FaceTarget::Surface(_) => {
+            FaceTarget::Surface { .. } => {
                 if let Some(s) = primary.surface(world) {
                     let mut walkable = s.walkable;
                     if ui.checkbox(&mut walkable, "Walkable").changed() {

@@ -15,28 +15,13 @@
 //! no storey above it, nothing is hidden, so a level with one storey looks as
 //! it always did.
 
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 
 use super::*;
 
 use psxed_project::grid::storeys::{storey_above, storey_at, storey_below, storeys, Storey};
 use psxed_project::grid::units::snap_to;
 use psxed_project::grid::CLICK_UNITS;
-
-thread_local! {
-    /// The cutaway plane the 3D preview must honour, editor units. The preview
-    /// is rendered by the frontend from the project alone, and the cursor is a
-    /// view setting that is not part of the project, so the workspace
-    /// publishes the plane here every frame (the way it publishes hidden
-    /// rooms). The editor draws and previews on one thread.
-    static PREVIEW_CUT: Cell<Option<i32>> = const { Cell::new(None) };
-}
-
-/// The editor-unit height from which the 3D preview should not draw: faces
-/// whose lowest point is at or above it are skipped. `None` draws everything.
-pub fn grid_preview_cutaway() -> Option<i32> {
-    PREVIEW_CUT.with(Cell::get)
-}
 
 /// How the 3D view treats geometry above the storey cursor.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -107,16 +92,27 @@ impl EditorWorkspace {
         Some(world.scale.to_editor(above))
     }
 
-    /// Publish this frame's cutaway plane to the 3D preview. A scene that is
-    /// not a grid world publishes none.
-    pub(crate) fn publish_grid_cutaway(&self) {
-        let plane = self.is_grid_world().then(|| self.cutaway_plane()).flatten();
-        PREVIEW_CUT.with(|slot| slot.set(plane));
+    /// Put the cursor at `y` (grid units, room offsets included), and the
+    /// Floor tool's height with it: floors are made at the level.
+    pub(crate) fn set_level_quiet(&mut self, y: i32) {
+        self.grid.level.y = Some(y);
+        let room = self.grid_target_room();
+        let offset = self
+            .project
+            .active_scene()
+            .world
+            .grid()
+            .and_then(|w| w.rooms.get(room))
+            .map(|r| r.y_offset);
+        if let Some(offset) = offset {
+            self.grid.floor_height = y - offset;
+        }
     }
 
-    /// Put the cursor at `y` (grid units, room offsets included).
+    /// [`set_level_quiet`](Self::set_level_quiet), and the chip's text in
+    /// the status line.
     pub(crate) fn set_level(&mut self, y: i32) {
-        self.grid.level.y = Some(y);
+        self.set_level_quiet(y);
         self.status = self.level_text().unwrap_or_default();
     }
 

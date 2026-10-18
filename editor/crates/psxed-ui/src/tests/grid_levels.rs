@@ -10,7 +10,7 @@ use crate::grid_tools::GridTool;
 use psxed_project::grid::storeys::storeys;
 
 /// Pixels the Top view spends on one click of height.
-const CLICK_PX: f32 = crate::grid_tools::view::TOP_PIXELS_PER_CLICK;
+pub(super) const CLICK_PX: f32 = crate::grid_tools::view::TOP_PIXELS_PER_CLICK;
 
 /// A derived hall, 8 by 8 sectors at scale 1:1, floor at 0, ceiling at 3072
 /// (twelve clicks): tall enough to hold two storeys.
@@ -18,14 +18,14 @@ fn hall() -> ProjectDocument {
     derived_project_for_tiling(8, 8)
 }
 
-fn spans_at(rig: &GridRig, cell: [i32; 2]) -> usize {
+pub(super) fn spans_at(rig: &GridRig, cell: [i32; 2]) -> usize {
     let room = rig.room(0);
     let [x, z] = room.local(cell).unwrap();
     room.sector(x, z).unwrap().span_count()
 }
 
 /// The floor and ceiling heights of every span of a column.
-fn column(rig: &GridRig, cell: [i32; 2]) -> Vec<(Option<i32>, Option<i32>)> {
+pub(super) fn column(rig: &GridRig, cell: [i32; 2]) -> Vec<(Option<i32>, Option<i32>)> {
     let room = rig.room(0);
     let [x, z] = room.local(cell).unwrap();
     room.sector(x, z)
@@ -62,11 +62,11 @@ fn insert_slab(rig: &mut GridRig, clicks: f32) {
     rig.drag(from, from - Vec2::new(0.0, clicks * CLICK_PX));
 }
 
-fn alt_up(rig: &mut GridRig) {
+pub(super) fn alt_up(rig: &mut GridRig) {
     rig.key_with(egui::Key::ArrowUp, egui::Modifiers::ALT);
 }
 
-fn alt_down(rig: &mut GridRig) {
+pub(super) fn alt_down(rig: &mut GridRig) {
     rig.key_with(egui::Key::ArrowDown, egui::Modifiers::ALT);
 }
 

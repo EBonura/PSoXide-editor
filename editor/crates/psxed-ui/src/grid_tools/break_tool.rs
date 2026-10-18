@@ -11,10 +11,12 @@
 use super::verb_state::{VerbDrag, VerbGesture};
 use super::*;
 
+use psxed_project::grid::edit::focus::Focus;
 use psxed_project::grid::edit::verbs::break_verb::{
     BreakDrag, BreakParams, BreakReport, BreakSnap, BreakStyle, BreakTargets, DEFAULT_INTENSITY,
 };
 use psxed_project::grid::edit::verbs::fine::{FineDrag, FineReport, FineVerb};
+use psxed_project::grid::edit::Region;
 use psxed_project::grid::faces::face_count;
 use psxed_project::grid::walk::{self, WalkLimits};
 use psxed_project::grid::GridWorld;
@@ -199,9 +201,25 @@ fn params(ws: &EditorWorkspace, world: &GridWorld) -> BreakParams {
     }
 }
 
-/// A break on the region with the current options, not yet applied.
-fn start(ws: &EditorWorkspace) -> Option<BreakLive> {
-    let region = ws.grid.verb.region.clone()?;
+/// Why there is nothing to break.
+const NOTHING: &str = "Nothing to break: no sector of the region has a floor or ceiling";
+
+/// A break on the region with the current options, not yet applied, and the
+/// span of each column it is aimed at.
+fn start(ws: &mut EditorWorkspace) -> Result<(BreakLive, Focus), String> {
+    let region = ws.grid.verb.region.clone().ok_or(NOTHING)?;
+    let focus = super::verb_tool::region_focus(ws, &region)?;
+    let mut live = ws
+        .with_focused_world(&focus, |ws| build(ws, &region))
+        .ok_or(NOTHING)?;
+    // The exact cancel puts back the document as it is, not as the aim sees it.
+    live.start = Box::new(ws.project.clone());
+    Ok((live, focus))
+}
+
+/// The break over `region` as the (possibly focused) world has it.
+fn build(ws: &EditorWorkspace, region: &Region) -> Option<BreakLive> {
+    let region = region.clone();
     let world = ws.project.active_scene().world.grid()?;
     let drag = if super::verb_tool::through_lens(ws, &region) {
         let cells: Vec<[i32; 2]> = region.cells().collect();
@@ -236,9 +254,12 @@ pub(super) fn begin(
     _room: usize,
     _cell: [i32; 2],
 ) -> bool {
-    let Some(live) = start(ws) else {
-        ws.status = "Nothing to break: no sector of the region has a floor or ceiling".to_string();
-        return false;
+    let (live, focus) = match start(ws) {
+        Ok(started) => started,
+        Err(why) => {
+            ws.status = why;
+            return false;
+        }
     };
     ws.status = format!(
         "Break seed {}: drag up for the intensity, Tab changes the target, Shift+X re-rolls",
@@ -251,6 +272,7 @@ pub(super) fn begin(
         amount: 0,
         before: None,
         max_rise: None,
+        focus,
     }));
     true
 }
@@ -269,7 +291,7 @@ pub(crate) fn pose_drag(
     if let Some(seed) = seed {
         ws.grid.verb.brk.seed = seed;
     }
-    let mut live = start(ws).ok_or("no region with a floor: use region=x0,z0:x1,z1 first")?;
+    let (mut live, focus) = start(ws)?;
     live.seed = ws.grid.verb.brk.seed;
     let mut gesture = VerbGesture {
         drag: VerbDrag::Break(Box::new(live)),
@@ -278,6 +300,7 @@ pub(crate) fn pose_drag(
         amount: intensity.clamp(0, 100),
         before: None,
         max_rise: None,
+        focus,
     };
     super::verb_tool::apply_amount(ws, &mut gesture);
     ws.grid.gesture = Gesture::Verb(Box::new(gesture));
@@ -413,9 +436,12 @@ pub(super) fn apply_typed(ws: &mut EditorWorkspace) {
         return;
     }
     let intensity = ws.grid.verb.brk.typed_intensity.min(100) as i32;
-    let Some(live) = start(ws) else {
-        ws.status = "Nothing to break: no sector of the region has a floor or ceiling".to_string();
-        return;
+    let (live, focus) = match start(ws) {
+        Ok(started) => started,
+        Err(why) => {
+            ws.status = why;
+            return;
+        }
     };
     let mut gesture = VerbGesture {
         drag: VerbDrag::Break(Box::new(live)),
@@ -424,6 +450,7 @@ pub(super) fn apply_typed(ws: &mut EditorWorkspace) {
         amount: intensity,
         before: None,
         max_rise: None,
+        focus,
     };
     super::verb_tool::apply_amount(ws, &mut gesture);
 }

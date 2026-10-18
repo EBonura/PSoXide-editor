@@ -162,6 +162,7 @@ impl EditorWorkspace {
             GridTool::Raise
             | GridTool::Ramp
             | GridTool::Stairs
+            | GridTool::Spiral
             | GridTool::Break
             | GridTool::Rough
             | GridTool::Slab => self.draw_verb_options(ui),
@@ -280,6 +281,7 @@ impl EditorWorkspace {
             GridTool::Raise => "Pick sectors | Press on them, drag up/down | Tab Offset/Level | Alt fine | Shift add | Esc cancel",
             GridTool::Ramp => "Pick sectors | Press near the side to keep, drag up/down | R turn the side | Tab hold to walkable | Esc cancel",
             GridTool::Stairs => "Click waypoints, Enter | Press on the path, drag up/down | [ ] width | Tab steps/ramp | Esc cancel",
+            GridTool::Spiral => "Click the corners of a ring, Enter closes it | Press on it, drag up for the climb of a storey | Storeys in the option row | Alt+Up/Down level | Esc cancel",
             GridTool::Break => "Pick sectors | Press on them, drag up for intensity | Tab target | Shift+X re-roll | Enter commit | Esc cancel",
             GridTool::Rough => "Pick sectors | Press on them, drag up for the level 0-3 | Enter commit | Esc cancel",
             GridTool::Slab => "Pick sectors | Insert: press on them and drag up for the height | Cut, Fill: click them | Tab mode | Alt+Up/Down level | G go to level | Z cutaway | Esc cancel",

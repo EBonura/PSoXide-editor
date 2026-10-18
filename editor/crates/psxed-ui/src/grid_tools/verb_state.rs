@@ -3,9 +3,11 @@
 //!
 //! Nothing here is saved with the project.
 
+use psxed_project::grid::edit::focus::Focus;
 use psxed_project::grid::edit::verbs::fine::FineDrag;
 use psxed_project::grid::edit::verbs::raise::{RaiseDrag, RaiseMode};
 use psxed_project::grid::edit::verbs::ramp::{RampDir, RampDrag};
+use psxed_project::grid::edit::verbs::spiral::SpiralDrag;
 use psxed_project::grid::edit::verbs::stairs::{StairsDrag, StairsParams};
 use psxed_project::grid::edit::Region;
 
@@ -68,6 +70,8 @@ pub(crate) enum VerbDrag {
     Raise(RaiseDrag),
     Ramp(RampDrag),
     Stairs(StairsDrag),
+    /// Spiral stairs round a ring of sectors.
+    Spiral(SpiralDrag),
     /// Raise, Ramp or Stairs on cells smaller than a sector, or in a room
     /// with leaves of several sizes: the library's fine verbs through the
     /// lens (what the MCP's `size` runs).
@@ -92,6 +96,10 @@ pub(crate) struct VerbGesture {
     pub before: Option<Box<ProjectDocument>>,
     /// The largest rise the motor can walk, for a Ramp.
     pub max_rise: Option<i32>,
+    /// The span of each column the verb was aimed at when the gesture began.
+    /// Fixed for the whole gesture, so a floor that moves out from under the
+    /// cursor is still the one being dragged.
+    pub focus: Focus,
 }
 
 /// Options and region of the level verbs.
@@ -141,6 +149,8 @@ pub(crate) struct VerbState {
     pub stairs: StairsParams,
     /// Stairs: the waypoints of the finished path.
     pub stairs_path: Vec<[i32; 2]>,
+    /// Spiral: the storeys to climb.
+    pub spiral: super::spiral_tool::SpiralOptions,
     /// Break: its options and the seed of the next break.
     pub brk: super::break_tool::BreakOptions,
     /// Rough: its options.
@@ -174,6 +184,7 @@ impl Default for VerbState {
             ramp_hover: None,
             stairs: StairsParams::default(),
             stairs_path: Vec::new(),
+            spiral: super::spiral_tool::SpiralOptions::default(),
             brk: super::break_tool::BreakOptions::default(),
             rough: super::rough_tool::RoughOptions::default(),
             slab: super::slab_tool::SlabOptions::default(),

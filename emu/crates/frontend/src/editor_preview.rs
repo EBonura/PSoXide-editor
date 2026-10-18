@@ -428,7 +428,14 @@ pub fn build_phase1_frame_reusing(
     // The grid world renders once, against the camera GTE state installed
     // above.
     if grid_world {
-        walk_grid(project, textures, world_camera, &mut scratch);
+        // The editor's view settings, read once here and passed down.
+        walk_grid(
+            project,
+            textures,
+            world_camera,
+            &psxed_ui::grid_preview_view(),
+            &mut scratch,
+        );
     }
     // Box, Cylinder and Image props, from the geometry the cook emits.
     walk_props(

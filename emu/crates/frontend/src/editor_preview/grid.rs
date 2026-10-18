@@ -18,6 +18,7 @@ use psxed_project::grid::mesh_faces::{mesh_faces_with, placed as placed_mesh};
 use psxed_project::grid::plane_faces::plane_faces_with;
 use psxed_project::grid::uv::ProjectUvDefaults;
 use psxed_project::grid::uv_split;
+use psxed_ui::GridPreviewView;
 use psxed_project::grid::{GridRoom, GridWorld, SECTOR_UNITS};
 
 /// Editor-space bounds of one sector, from its lowest to highest geometry.
@@ -153,9 +154,10 @@ fn emit_cut_face(
 }
 
 /// Whether `face` lies wholly at or above the cutaway plane the editor
-/// publishes (see `psxed_ui::grid_preview_cutaway`), and so is not drawn.
-fn above_cut(face: &GridFace, cut: Option<i32>) -> bool {
-    cut.is_some_and(|cut| face.points.iter().all(|p| p[1] >= cut))
+/// publishes (see `psxed_ui::GridPreviewView`), and so is not drawn.
+fn above_cut(face: &GridFace, view: &GridPreviewView) -> bool {
+    view.cutaway
+        .is_some_and(|cut| face.points.iter().all(|p| p[1] >= cut))
 }
 
 /// Draw the active scene's grid world, if it has one.
@@ -163,6 +165,7 @@ pub(super) fn walk_grid(
     project: &ProjectDocument,
     textures: &EditorTextures,
     camera: psx_engine::WorldCamera,
+    view: &GridPreviewView,
     scratch: &mut PreviewScratch,
 ) {
     let Some(world) = project.active_scene().world.grid() else {
@@ -170,23 +173,18 @@ pub(super) fn walk_grid(
     };
     let lights = collect_grid_bake_lights(project);
     let defaults = ProjectUvDefaults(project);
-    // Rooms the author hid in the Rooms panel; a view setting the workspace
-    // publishes, since the preview only sees the project.
-    let hidden = psxed_ui::grid_preview_hidden_rooms();
-    // The storey cutaway: nothing at or above this height is drawn.
-    let cut = psxed_ui::grid_preview_cutaway();
     let mut faces = Vec::new();
     for (room_index, room) in world.rooms.iter().enumerate() {
-        if hidden.contains(&room_index) {
+        // Rooms the author hid in the Rooms panel are not drawn.
+        if view.hides_room(room_index) {
             continue;
         }
         for [x, z] in room.face_cells() {
             let Some(bounds) = cell_bounds(world, room, x, z) else {
                 continue;
             };
-            if !preview_cell_bounds_visible(camera, bounds)
-                || cut.is_some_and(|cut| bounds.min[1] >= f64::from(cut))
-            {
+            // The storey cutaway: nothing at or above its plane is drawn.
+            if !preview_cell_bounds_visible(camera, bounds) || view.cuts(bounds.min[1]) {
                 continue;
             }
             if scratch.geometry_full() {
@@ -197,7 +195,7 @@ pub(super) fn walk_grid(
             }
             faces.clear();
             cell_faces_with(world, &defaults, room_index, x, z, &mut faces);
-            for face in faces.iter().filter(|face| !above_cut(face, cut)) {
+            for face in faces.iter().filter(|face| !above_cut(face, view)) {
                 emit_cut_face(
                     project,
                     textures,
@@ -224,7 +222,7 @@ pub(super) fn walk_grid(
             }
             faces.clear();
             plane_faces_with(world, &defaults, room_index, index, &mut faces);
-            for face in faces.iter().filter(|face| !above_cut(face, cut)) {
+            for face in faces.iter().filter(|face| !above_cut(face, view)) {
                 emit_cut_face(
                     project,
                     textures,
@@ -270,7 +268,7 @@ pub(super) fn walk_grid(
             }
             faces.clear();
             mesh_faces_with(world, &defaults, room_index, index, &mut faces);
-            for face in faces.iter().filter(|face| !above_cut(face, cut)) {
+            for face in faces.iter().filter(|face| !above_cut(face, view)) {
                 emit_cut_face(
                     project,
                     textures,

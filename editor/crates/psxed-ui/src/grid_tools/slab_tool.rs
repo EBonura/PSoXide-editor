@@ -16,6 +16,7 @@
 
 use super::verb_state::{VerbDrag, VerbGesture};
 use super::*;
+use psxed_project::grid::edit::focus::Focus;
 
 use psxed_project::grid::edit::spans::{cut_hole, insert_slab, CutScope, SpanOutcome};
 use psxed_project::grid::edit::verbs::Snapshot;
@@ -161,6 +162,7 @@ pub(super) fn begin(
         amount: 0,
         before: Some(Box::new(ws.project.clone())),
         max_rise: None,
+        focus: Focus::none(0),
     }));
     true
 }
@@ -187,6 +189,7 @@ pub(super) fn click(ws: &mut EditorWorkspace, room: usize, cell: [i32; 2]) -> bo
                 amount: 0,
                 before: Some(Box::new(ws.project.clone())),
                 max_rise: None,
+                focus: Focus::none(0),
             };
             super::verb_tool::apply_amount(ws, &mut gesture);
         }
@@ -295,6 +298,7 @@ pub(super) fn apply_typed(ws: &mut EditorWorkspace) {
         amount,
         before: Some(Box::new(ws.project.clone())),
         max_rise: None,
+        focus: Focus::none(0),
     };
     super::verb_tool::apply_amount(ws, &mut gesture);
 }
@@ -309,6 +313,7 @@ pub(crate) fn pose_drag(ws: &mut EditorWorkspace, amount: i32) -> Result<(), Str
         amount,
         before: Some(Box::new(ws.project.clone())),
         max_rise: None,
+        focus: Focus::none(0),
     };
     super::verb_tool::apply_amount(ws, &mut gesture);
     ws.grid.gesture = Gesture::Verb(Box::new(gesture));

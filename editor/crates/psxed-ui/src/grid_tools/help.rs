@@ -255,6 +255,24 @@ const ROUGH: Rows = &[
         "Jitters the corners of the faces of rough sectors in the render only; collision stays on the grid",
     ),
 ];
+const SPIRAL: Rows = &[
+    (
+        "Click the corners, Enter",
+        "Click the corners of a ring of sectors; Enter closes it (the last corner joins the first)",
+    ),
+    (
+        "Press on it, drag up or down",
+        "The climb of one storey. A straight run of the ring is treads, a turn is a landing; the ghost numbers the climb at each visit",
+    ),
+    (
+        "Storeys (option row)",
+        "How many storeys the stairs climb: the walk goes round the ring as often as it needs. Each tread is a slab, so a sector the stairs pass twice holds two treads a storey apart",
+    ),
+    (
+        "Alt+Up, Alt+Down",
+        "The climb starts from the floor at the level where the ring's first sector has several",
+    ),
+];
 const SLAB: Rows = &[
     (
         "Alt+Up, Alt+Down",
@@ -396,7 +414,7 @@ impl EditorWorkspace {
             return;
         }
         let mut open = true;
-        let sections: [(&str, Rows); 19] = [
+        let sections: [(&str, Rows); 20] = [
             ("Select (V)", SELECT),
             ("Floor (F) and Ceiling (C)", FLOOR),
             ("Wall (W)", WALL),
@@ -408,6 +426,7 @@ impl EditorWorkspace {
             ("Raise (U)", RAISE),
             ("Ramp (A)", RAMP),
             ("Stairs (T)", STAIRS),
+            ("Spiral (Shift+T)", SPIRAL),
             ("Break (X)", BREAK),
             ("Rough (M)", ROUGH),
             ("Cells (Q)", CELLS),
@@ -426,7 +445,7 @@ impl EditorWorkspace {
             .show(ctx, |ui| {
                 ui.set_width(1500.0_f32.min(ctx.screen_rect().width() - 60.0));
                 ui.label(
-                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, Shift+N Mesh, P Paint, D Split, O Place, E Bands | U Raise, A Ramp, T Stairs, X Break, M Rough, Q Cells, Shift+Q Slab | Alt+Up/Down level, G go to level, Z cutaway")
+                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, Shift+N Mesh, P Paint, D Split, O Place, E Bands | U Raise, A Ramp, T Stairs, Shift+T Spiral, X Break, M Rough, Q Cells, Shift+Q Slab | Alt+Up/Down level, G go to level, Z cutaway")
                         .color(STUDIO_TEXT_WEAK),
                 );
                 ui.label(

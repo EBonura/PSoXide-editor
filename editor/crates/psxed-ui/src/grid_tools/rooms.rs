@@ -5,49 +5,13 @@
 
 use super::*;
 
-use std::cell::RefCell;
-
 use psxed_project::grid::units::snap_to;
 use psxed_project::grid::{CLICK_UNITS, FINE_UNITS};
-
-thread_local! {
-    /// Rooms the 3D preview must skip. The preview is rendered by the
-    /// frontend from the project alone, and visibility is a view setting that
-    /// is not part of the project, so the workspace publishes it here every
-    /// frame. The editor draws and previews on one thread.
-    static PREVIEW_HIDDEN_ROOMS: RefCell<Vec<usize>> = const { RefCell::new(Vec::new()) };
-}
-
-/// Room indices the 3D preview should not draw.
-pub fn grid_preview_hidden_rooms() -> Vec<usize> {
-    PREVIEW_HIDDEN_ROOMS.with(|rooms| rooms.borrow().clone())
-}
-
-fn publish_hidden(hidden: &HashSet<usize>) {
-    let mut rooms: Vec<usize> = hidden.iter().copied().collect();
-    rooms.sort_unstable();
-    PREVIEW_HIDDEN_ROOMS.with(|slot| {
-        let mut slot = slot.borrow_mut();
-        if *slot != rooms {
-            *slot = rooms;
-        }
-    });
-}
 
 /// Maximum height of the room list before it scrolls.
 const LIST_MAX_HEIGHT: f32 = 150.0;
 
 impl EditorWorkspace {
-    /// Publish this frame's room visibility to the 3D preview. A scene that
-    /// is not a grid world publishes nothing hidden.
-    pub(crate) fn publish_grid_room_visibility(&self) {
-        if self.is_grid_world() {
-            publish_hidden(&self.grid_hidden_rooms);
-        } else {
-            publish_hidden(&HashSet::new());
-        }
-    }
-
     /// The Rooms panel. Does nothing without a grid world.
     pub(crate) fn draw_grid_rooms_panel(&mut self, ui: &mut egui::Ui) {
         let Some(world) = self.project.active_scene().world.grid() else {

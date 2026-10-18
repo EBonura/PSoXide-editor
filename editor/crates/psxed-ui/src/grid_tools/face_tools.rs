@@ -71,13 +71,14 @@ pub(super) fn face_under(
                 super::cycle::TopChoice::Layer(layer) => layer,
                 super::cycle::TopChoice::Plane(_) => 0,
             };
-            let face = if layer == 1 && sector.ground_ceiling().is_some()
-                || sector.ground_floor().is_none()
-            {
-                sector.ground_ceiling()?;
-                FaceRef::new(room, leaf, FaceTarget::Surface(SurfaceKind::Ceiling))
+            // The floor open at the storey cursor in a column of several.
+            let span = ws.span_at_cursor(room, cell);
+            let open = sector.spans().get(usize::from(span))?;
+            let face = if layer == 1 && open.ceiling.is_some() || open.floor.is_none() {
+                open.ceiling.as_ref()?;
+                FaceRef::new(room, leaf, FaceTarget::ceiling(span))
             } else {
-                FaceRef::new(room, leaf, FaceTarget::Surface(SurfaceKind::Floor))
+                FaceRef::new(room, leaf, FaceTarget::floor(span))
             };
             let tri = face.surface(world).and_then(|s| {
                 let split =
@@ -268,7 +269,7 @@ pub(super) fn split_click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     };
     let Some(face) = faces
         .into_iter()
-        .find(|f| matches!(f.target, FaceTarget::Surface(_)))
+        .find(|f| matches!(f.target, FaceTarget::Surface { .. }))
     else {
         ws.status = "Split works on floors and ceilings".to_string();
         return;

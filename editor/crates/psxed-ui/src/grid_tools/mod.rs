@@ -23,6 +23,7 @@ use psxed_project::grid::edit::{
 };
 use psxed_project::grid::{GridPlane, PlaneCollision, WallEdge};
 
+mod aim;
 mod analysis;
 mod band_panel;
 mod bands_tool;
@@ -53,6 +54,7 @@ mod plane_panel;
 mod plane_pick;
 mod plane_tool;
 mod pose;
+mod preview_view;
 mod ramp_tool;
 mod rect_tool;
 mod rooms;
@@ -63,6 +65,7 @@ mod rules_panel;
 mod select_tool;
 mod shading_panel;
 pub(crate) mod slab_tool;
+mod spiral_tool;
 mod stairs_tool;
 mod strip;
 mod tiling_panel;
@@ -82,9 +85,8 @@ pub(crate) use events::{grid_tool_2d, grid_tool_3d};
 pub(crate) fn cells_target_quarter() -> cells_tool::CellsTarget {
     cells_tool::CellsTarget::Quarter
 }
-pub use level::grid_preview_cutaway;
 use pick::PickCache;
-pub use rooms::grid_preview_hidden_rooms;
+pub use preview_view::{grid_preview_view, GridPreviewView};
 use view::{GridPointer, GridView};
 
 /// The grid tools, in strip order.
@@ -118,6 +120,8 @@ pub(crate) enum GridTool {
     Ramp,
     /// Lay a flight of steps along a path.
     Stairs,
+    /// Wind stairs round a ring of sectors, a storey per turn.
+    Spiral,
     /// Break the walls, floors and ceilings of a region into natural detail.
     Break,
     /// Give a region the rock look: render-only jitter of its faces.
@@ -152,7 +156,7 @@ impl ToolGroup {
 
 impl GridTool {
     /// Every tool, in strip order (grouped).
-    pub(crate) const ALL: [Self; 18] = [
+    pub(crate) const ALL: [Self; 19] = [
         Self::Select,
         Self::Height,
         Self::Floor,
@@ -167,6 +171,7 @@ impl GridTool {
         Self::Raise,
         Self::Ramp,
         Self::Stairs,
+        Self::Spiral,
         Self::Break,
         Self::Rough,
         Self::Cells,
@@ -180,6 +185,7 @@ impl GridTool {
             Self::Raise
             | Self::Ramp
             | Self::Stairs
+            | Self::Spiral
             | Self::Break
             | Self::Rough
             | Self::Cells
@@ -193,7 +199,13 @@ impl GridTool {
     pub(crate) const fn is_verb(self) -> bool {
         matches!(
             self,
-            Self::Raise | Self::Ramp | Self::Stairs | Self::Break | Self::Rough | Self::Slab
+            Self::Raise
+                | Self::Ramp
+                | Self::Stairs
+                | Self::Spiral
+                | Self::Break
+                | Self::Rough
+                | Self::Slab
         )
     }
 
@@ -213,6 +225,7 @@ impl GridTool {
             Self::Raise => "Raise",
             Self::Ramp => "Ramp",
             Self::Stairs => "Stairs",
+            Self::Spiral => "Spiral",
             Self::Break => "Break",
             Self::Rough => "Rough",
             Self::Cells => "Cells",
@@ -234,7 +247,7 @@ impl GridTool {
             Self::Bands => egui::Key::E,
             Self::Raise => egui::Key::U,
             Self::Ramp => egui::Key::A,
-            Self::Stairs => egui::Key::T,
+            Self::Stairs | Self::Spiral => egui::Key::T,
             Self::Break => egui::Key::X,
             Self::Rough => egui::Key::M,
             Self::Cells | Self::Slab => egui::Key::Q,
@@ -245,7 +258,7 @@ impl GridTool {
     /// the solid sibling of the Plane tool's N, and the Slab tool Shift+Q,
     /// beside the Cells tool's Q: every plain letter is taken).
     pub(crate) const fn shift(self) -> bool {
-        matches!(self, Self::Mesh | Self::Slab)
+        matches!(self, Self::Mesh | Self::Slab | Self::Spiral)
     }
 
     pub(crate) const fn key_label(self) -> &'static str {
@@ -264,6 +277,7 @@ impl GridTool {
             Self::Raise => "U",
             Self::Ramp => "A",
             Self::Stairs => "T",
+            Self::Spiral => "Shift+T",
             Self::Break => "X",
             Self::Rough => "M",
             Self::Cells => "Q",
@@ -287,6 +301,7 @@ impl GridTool {
             Self::Raise => icons::ARROW_UP_FROM_LINE,
             Self::Ramp => icons::TRENDING_UP,
             Self::Stairs => icons::STAIRS,
+            Self::Spiral => icons::ROTATE_CCW,
             Self::Break => icons::HAMMER,
             Self::Rough => icons::MOUNTAIN,
             Self::Cells => icons::GRID,
@@ -331,6 +346,9 @@ impl GridTool {
             }
             Self::Stairs => {
                 "Click the waypoints of a flight, Enter finishes, then press on it and drag up or down for the total rise. Each sector is a tread, a turn is a landing. Tab switches steps and ramp."
+            }
+            Self::Spiral => {
+                "Click the corners of a ring of sectors, Enter closes it, then press on it and drag up for the climb of one storey. The stairs wind round the ring: a straight run is treads, a turn is a landing, and each tread is a slab, so one sector can hold a tread per storey. Set the storeys in the option row."
             }
             Self::Break => {
                 "Pick sectors, then press on them and drag up for the intensity: lips crumble, edges bite, tiles crack. Tab changes the target, Shift+X re-rolls the seed, Enter commits, Esc cancels."
@@ -791,6 +809,7 @@ impl EditorWorkspace {
             GridTool::Raise
             | GridTool::Ramp
             | GridTool::Stairs
+            | GridTool::Spiral
             | GridTool::Break
             | GridTool::Rough
             | GridTool::Slab
@@ -802,6 +821,7 @@ impl EditorWorkspace {
             | GridTool::Raise
             | GridTool::Ramp
             | GridTool::Stairs
+            | GridTool::Spiral
             | GridTool::Break
             | GridTool::Rough
             | GridTool::Cells

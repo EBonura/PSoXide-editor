@@ -9,6 +9,7 @@
 
 use super::verb_state::{VerbDrag, VerbGesture};
 use super::*;
+use psxed_project::grid::edit::focus::Focus;
 
 use psxed_project::grid::edit::rough::{set_level, set_level_cells};
 use psxed_project::grid::edit::verbs::Snapshot;
@@ -138,6 +139,7 @@ pub(super) fn begin(
         amount: i32::from(base),
         before: None,
         max_rise: None,
+        focus: Focus::none(0),
     }));
     true
 }
@@ -209,6 +211,7 @@ pub(crate) fn pose_drag(ws: &mut EditorWorkspace, level: i32) -> Result<(), Stri
         amount: level.clamp(0, i32::from(MAX_LEVEL)),
         before: None,
         max_rise: None,
+        focus: Focus::none(0),
     };
     super::verb_tool::apply_amount(ws, &mut gesture);
     ws.grid.gesture = Gesture::Verb(Box::new(gesture));
@@ -232,6 +235,7 @@ pub(super) fn apply_typed(ws: &mut EditorWorkspace) {
         amount: i32::from(ws.grid.verb.rough.typed_level.min(MAX_LEVEL)),
         before: None,
         max_rise: None,
+        focus: Focus::none(0),
     };
     super::verb_tool::apply_amount(ws, &mut gesture);
 }

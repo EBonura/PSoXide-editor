@@ -83,7 +83,16 @@ pub(super) fn begin(
         return false;
     };
     let from = params_at(ws, &region, cell).from;
-    let Some((drag, max)) = super::verb_tool::verb_drag_over(ws, &region, cell) else {
+    let focus = match super::verb_tool::region_focus(ws, &region) {
+        Ok(focus) => focus,
+        Err(why) => {
+            ws.status = why;
+            return false;
+        }
+    };
+    let Some((drag, max)) = ws.with_focused_world(&focus, |ws| {
+        super::verb_tool::verb_drag_over(ws, &region, cell)
+    }) else {
         ws.status = "Nothing to ramp: no sector of the region has a floor".to_string();
         return false;
     };
@@ -102,6 +111,7 @@ pub(super) fn begin(
         amount: 0,
         before: Some(Box::new(ws.project.clone())),
         max_rise: max,
+        focus,
     }));
     true
 }

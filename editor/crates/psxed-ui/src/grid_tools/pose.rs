@@ -8,7 +8,7 @@
 //!
 //! Commands (cells are world sectors, `x,z`):
 //!
-//! * `tool=select|floor|ceiling|wall|height|paint|split|place|bands|raise|ramp|stairs|break|rough|cells|slab`
+//! * `tool=select|floor|ceiling|wall|height|paint|split|place|bands|raise|ramp|stairs|spiral|break|rough|cells|slab`
 //!   (the tool labels, any case)
 //! * `room=N` the active room; `hide=N` hides room N
 //! * `level=N` puts the storey cursor on storey `N` of the derived list
@@ -37,7 +37,8 @@
 //!   sector `i,j` has its centre at `i+0.5,j+0.5`); the overlay shows the
 //!   shape and the sectors it would take, Enter-closing is not posed
 //! * `stairs-path=x,z:x,z:...` the Stairs tool's finished path (waypoints),
-//!   and the region it covers
+//!   and the region it covers; for the Spiral tool the corners of the ring,
+//!   closed as Enter closes it; `storeys=N` the storeys the Spiral climbs
 //! * `ramp-from=north|east|south|west` the A edge a Ramp keeps; `ramp-clamp`
 //!   holds Ramp to the steepest walkable slope
 //! * `verb-drag=clicks` a level verb's amount drag in flight at `clicks`
@@ -63,7 +64,7 @@
 
 use super::*;
 
-use super::{break_tool, rough_tool, triangle_tool};
+use super::{break_tool, rough_tool, spiral_tool, triangle_tool};
 use psxed_project::grid::edit::verbs::ramp::RampDir;
 use psxed_project::grid::edit::{
     faces_of_cell, wall_gap, CellRect, CornerRef, EdgeRef, FaceRef, FaceTarget, GridClipboard,
@@ -122,8 +123,7 @@ impl EditorWorkspace {
         }
         // The 3D preview reads the view settings the workspace publishes each
         // frame; a capture renders it before the first frame, so publish now.
-        self.publish_grid_room_visibility();
-        self.publish_grid_cutaway();
+        self.publish_grid_view();
         Ok(())
     }
 
@@ -198,12 +198,22 @@ impl EditorWorkspace {
                     .iter()
                     .map(|p| cell(p))
                     .collect::<Result<Vec<_>, _>>()?;
-                self.grid.verb.region = Some(psxed_project::grid::edit::Region::from_path(
-                    room,
-                    &waypoints,
-                    self.grid.verb.path_width,
-                ));
-                self.grid.verb.stairs_path = waypoints;
+                if self.grid.tool == GridTool::Spiral {
+                    self.grid.verb.path = waypoints;
+                    spiral_tool::keep_ring(self);
+                    self.grid.verb.path.clear();
+                } else {
+                    self.grid.verb.region = Some(psxed_project::grid::edit::Region::from_path(
+                        room,
+                        &waypoints,
+                        self.grid.verb.path_width,
+                    ));
+                    self.grid.verb.stairs_path = waypoints;
+                }
+            }
+            "storeys" => {
+                self.grid.verb.spiral.storeys =
+                    value.parse::<usize>().map_err(|e| e.to_string())?;
             }
             "overlay" => match value {
                 "walk" => self.grid.overlays.walk = true,
@@ -578,12 +588,19 @@ impl EditorWorkspace {
                                     .filter(|f| {
                                         matches!(
                                             (kind, f.target),
-                                            ("floors", FaceTarget::Surface(SurfaceKind::Floor))
-                                                | (
-                                                    "ceilings",
-                                                    FaceTarget::Surface(SurfaceKind::Ceiling)
-                                                )
-                                                | ("walls", FaceTarget::Wall { .. })
+                                            (
+                                                "floors",
+                                                FaceTarget::Surface {
+                                                    kind: SurfaceKind::Floor,
+                                                    ..
+                                                }
+                                            ) | (
+                                                "ceilings",
+                                                FaceTarget::Surface {
+                                                    kind: SurfaceKind::Ceiling,
+                                                    ..
+                                                }
+                                            ) | ("walls", FaceTarget::Wall { .. })
                                         )
                                     })
                                     .map(GridElement::Face),

@@ -49,10 +49,13 @@ pub(super) fn top_element(
     let surface_of = |cell: [i32; 2]| {
         let r = &world.rooms[room];
         let sector = r.local(cell).and_then(|[x, z]| r.sector(x, z))?;
-        if sector.ground_floor().is_some() {
-            Some(FaceRef::floor(room, cell))
-        } else if sector.ground_ceiling().is_some() {
-            Some(FaceRef::ceiling(room, cell))
+        // The floor open at the storey cursor in a column of several.
+        let span = ws.span_at_cursor(room, cell);
+        let open = sector.spans().get(usize::from(span))?;
+        if open.floor.is_some() {
+            Some(FaceRef::floor_in(room, cell, span))
+        } else if open.ceiling.is_some() {
+            Some(FaceRef::ceiling_in(room, cell, span))
         } else {
             None
         }
@@ -121,7 +124,7 @@ fn top_leaf_element(
     let face = FaceRef::new(
         room,
         key,
-        psxed_project::grid::edit::FaceTarget::Surface(kind),
+        psxed_project::grid::edit::FaceTarget::ground(kind),
     );
     let ([x0, z0], size) = view::leaf_square(world.scale, key);
     let screen = |dx: f32, dz: f32| transform.world_to_screen([x0 + dx * size, z0 + dz * size]);

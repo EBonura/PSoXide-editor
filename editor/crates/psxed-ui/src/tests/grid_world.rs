@@ -133,6 +133,7 @@ fn the_top_view_draws_every_sector_and_wall_of_a_grid_world() {
                 &crate::grid_view::GridRoomView {
                     hidden: &hidden,
                     active: None,
+                    level: None,
                 },
             );
             drawn = world.sector_count();
@@ -181,6 +182,7 @@ fn stacked_rooms_draw_bottom_up_with_the_active_room_last_and_hidden_ones_skippe
     let view = GridRoomView {
         hidden: &none,
         active: None,
+        level: None,
     };
     assert_eq!(view.draw_order(&world), vec![1, 2, 0]);
     // Rooms above the lowest are translucent so the ones beneath show.
@@ -191,6 +193,7 @@ fn stacked_rooms_draw_bottom_up_with_the_active_room_last_and_hidden_ones_skippe
     let view = GridRoomView {
         hidden: &hidden,
         active: Some(1),
+        level: None,
     };
     assert_eq!(view.draw_order(&world), vec![0, 1]);
     assert_eq!(view.fade(&world, 1), 1.0);
