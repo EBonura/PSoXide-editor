@@ -168,6 +168,11 @@ opt-level = 3
 # to remain interactive on production-sized levels.
 [profile.dev.package.frontend]
 opt-level = 2
+
+# The cook encodes every Music node WAV to XA on each Play: two songs are about
+# 130 s of stereo audio through a resampler and a trellis encoder.
+[profile.dev.package.psx-audio-cook]
+opt-level = 3
 [profile.dev.package.psxed-ui]
 opt-level = 2
 [profile.dev.package.psxed-project]

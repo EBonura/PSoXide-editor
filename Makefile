@@ -313,6 +313,11 @@ ENGINE_EXAMPLE_CARGO_ENV := CARGO_TARGET_DIR="$(EXAMPLE_TARGET_DIR)" RUSTFLAGS="
 # owns its own RUSTFLAGS and target dir so the artifact is reproducible from
 # any checkout path.
 EDITOR_PLAYTEST_GENERATED_FROM_MKISOPSX := ../../engine/examples/editor-playtest/generated
+# One `--xa-file` per cooked XA music file. `cook-playtest` writes xa_music.txt
+# (path, tab, sector per file); the files go after UI.PAK, where the cooked
+# MUSIC_TRACKS table expects them, so mkisopsx prints the sector each lands on.
+# Expanded by the recipe's shell, after the cook has run. Empty without music.
+XA_MUSIC_FLAGS = $$(awk -F'\t' '$$1 !~ /^\#/ && NF { print "--xa-file " $$1 }' $(EDITOR_PLAYTEST_GENERATED_FROM_MKISOPSX)/xa_music.txt 2>/dev/null)
 CDDA_DEMO_TRACK ?= assets/audio/cdda/GONCHAROV.track02.cdda
 # Reconstructed from the CD-DA track on demand rather than tracked: the .cdda
 # already holds the identical PCM, so committing both cost 39 MB for one song.
@@ -1055,7 +1060,7 @@ profile-demo3-disc-stream:
 		--world-pack-order-file ../../engine/examples/editor-playtest/generated/world_pack_order.txt \
 		--ui-pack-dir ../../engine/examples/editor-playtest/generated/ui_stream_chunks \
 		--ui-pack-order-file ../../engine/examples/editor-playtest/generated/ui_pack_order.txt \
-		--cdda-track-list $(EDITOR_PLAYTEST_GENERATED_FROM_MKISOPSX)/cdda_tracks.txt
+		$(XA_MUSIC_FLAGS)
 	cd emu && cargo run -p frontend --release -- launch \
 		--path ../$(EXAMPLE_OUT)/editor-playtest.cue \
 		--embedded-playtest \
@@ -1078,7 +1083,7 @@ profile-demo3-disc-stream-forward:
 		--world-pack-order-file ../../engine/examples/editor-playtest/generated/world_pack_order.txt \
 		--ui-pack-dir ../../engine/examples/editor-playtest/generated/ui_stream_chunks \
 		--ui-pack-order-file ../../engine/examples/editor-playtest/generated/ui_pack_order.txt \
-		--cdda-track-list $(EDITOR_PLAYTEST_GENERATED_FROM_MKISOPSX)/cdda_tracks.txt
+		$(XA_MUSIC_FLAGS)
 	cd emu && cargo run -p frontend --release -- launch \
 		--path ../$(EXAMPLE_OUT)/editor-playtest.cue \
 		--embedded-playtest \
@@ -1102,7 +1107,7 @@ profile-demo7-camera-sweep:
 		--world-pack-order-file ../../engine/examples/editor-playtest/generated/world_pack_order.txt \
 		--ui-pack-dir ../../engine/examples/editor-playtest/generated/ui_stream_chunks \
 		--ui-pack-order-file ../../engine/examples/editor-playtest/generated/ui_pack_order.txt \
-		--cdda-track-list $(EDITOR_PLAYTEST_GENERATED_FROM_MKISOPSX)/cdda_tracks.txt
+		$(XA_MUSIC_FLAGS)
 	cd emu && cargo run -p frontend --release -- launch \
 		--path ../$(EXAMPLE_OUT)/editor-playtest.cue \
 		--embedded-playtest \
@@ -1130,7 +1135,7 @@ probe-warp:
 		--world-pack-order-file ../../engine/examples/editor-playtest/generated/world_pack_order.txt \
 		--ui-pack-dir ../../engine/examples/editor-playtest/generated/ui_stream_chunks \
 		--ui-pack-order-file ../../engine/examples/editor-playtest/generated/ui_pack_order.txt \
-		--cdda-track-list $(EDITOR_PLAYTEST_GENERATED_FROM_MKISOPSX)/cdda_tracks.txt
+		$(XA_MUSIC_FLAGS)
 	cd emu && cargo run -p frontend --release -- launch \
 		--path ../$(EXAMPLE_OUT)/editor-playtest.cue \
 		--embedded-playtest \
@@ -1372,7 +1377,7 @@ cortex-anim-disc:
 		--world-pack-order-file $(EDITOR_PLAYTEST_GENERATED_FROM_MKISOPSX)/world_pack_order.txt \
 		--ui-pack-dir $(EDITOR_PLAYTEST_GENERATED_FROM_MKISOPSX)/ui_stream_chunks \
 		--ui-pack-order-file $(EDITOR_PLAYTEST_GENERATED_FROM_MKISOPSX)/ui_pack_order.txt \
-		--cdda-track-list $(EDITOR_PLAYTEST_GENERATED_FROM_MKISOPSX)/cdda_tracks.txt
+		$(XA_MUSIC_FLAGS)
 
 cortex-anim-shots: cortex-anim-disc
 	rm -rf $(CORTEX_ANIM_SHOT_DIR) && mkdir -p $(CORTEX_ANIM_SHOT_DIR)

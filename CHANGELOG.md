@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Music nodes now play XA-ADPCM from the disc instead of CD-DA tracks. The cook
+  encodes each Music WAV to 37.8 kHz stereo XA, four songs to a file
+  (`MUSIC1.XA`, ...), and writes a song table the engine plays by track number,
+  so existing Music nodes keep their meaning. Discs carry one data track and no
+  audio tracks. A looping song restarts by seeking, so each loop has a short
+  gap. Fades are unchanged; a data read still stops the song, which restarts
+  when its scene is entered.
+
 - The emulator now walks GPU linked lists through the GPU's command FIFO and
   charges drawing at costs fitted to console captures (hardware tests v1.23
   and v1.24), so headless frame rates sit closer to a console. Save states

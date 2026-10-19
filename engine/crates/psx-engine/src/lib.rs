@@ -67,6 +67,7 @@ pub mod game_app;
 pub mod lighting;
 pub mod microgame;
 pub mod movement;
+mod music;
 mod present_queue;
 pub mod projection;
 pub mod render;
@@ -85,6 +86,7 @@ mod transitions;
 pub mod ui;
 pub mod world;
 pub mod world_render;
+mod xa_drive;
 
 /// Compare two `usize` values without exposing an R3000A load-delay hazard.
 ///

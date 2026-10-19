@@ -364,6 +364,10 @@ pub struct Config {
     /// loading screen. With an authored scene the loading screen also
     /// holds a short minimum duration so fast loads do not flash.
     pub loading_ui_scene: u16,
+    /// The XA songs the cook wrote, indexed by Music node track number
+    /// ([`psx_level::MUSIC_FIRST_TRACK`] is entry 0). Empty for a game
+    /// without music.
+    pub music_tracks: &'static [psx_level::LevelMusicTrack],
 }
 
 /// Engine-level visual render cadence.
@@ -399,6 +403,7 @@ impl Default for Config {
             visual_pacing: VisualPacing::EveryVBlank,
             scheduler: SchedulerConfig::new(),
             loading_ui_scene: psx_level::UI_SCENE_NONE,
+            music_tracks: &[],
         }
     }
 }
@@ -572,6 +577,8 @@ impl App {
             config.loading_ui_scene,
             scene,
         );
+
+        app.set_music_tracks(config.music_tracks);
 
         boot_trace("psx-engine: scene init");
         boot_visual_checkpoint(&mut ctx, (180, 180, 0), "03 APP INIT BEGIN");

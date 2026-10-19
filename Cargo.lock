@@ -3338,6 +3338,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "psx-audio-cook"
+version = "0.1.0"
+dependencies = [
+ "psx-hw",
+ "psxed-format",
+]
+
+[[package]]
 name = "psx-bsp"
 version = "0.1.0"
 dependencies = [
@@ -3601,9 +3609,11 @@ dependencies = [
  "flate2",
  "image",
  "psx-asset",
+ "psx-audio-cook",
  "psx-bsp",
  "psx-engine",
  "psx-font",
+ "psx-hw",
  "psx-iso",
  "psx-level",
  "psx-render-contract",
