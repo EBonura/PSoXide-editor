@@ -609,6 +609,9 @@ pub struct EditorWorkspace {
     left_dock_open: bool,
     inspector_open: bool,
     resources_open: bool,
+    /// The Tools menu asked for a debug snapshot; the action bar, which has
+    /// the play metrics, takes it.
+    debug_snapshot_requested: bool,
     content_browser_view: ContentBrowserView,
     viewport_zoom: f32,
     last_viewport_size: Vec2,
@@ -2277,6 +2280,7 @@ impl EditorWorkspace {
             // A grid project keeps its assets in a drawer that opens when a
             // tool needs them; every other project shows the dock.
             resources_open: !grid_project,
+            debug_snapshot_requested: false,
             content_browser_view: ContentBrowserView::Resources,
             viewport_zoom: DEFAULT_VIEWPORT_ZOOM,
             last_viewport_size: Vec2::new(1280.0, 720.0),

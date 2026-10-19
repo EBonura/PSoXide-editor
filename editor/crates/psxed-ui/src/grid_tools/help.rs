@@ -453,6 +453,50 @@ impl EditorWorkspace {
                         .color(STUDIO_TEXT_WEAK),
                 );
                 ui.add_space(4.0);
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.grid.help_search)
+                        .hint_text("Search keys")
+                        .desired_width(320.0),
+                );
+                let query = self.grid.help_search.trim().to_ascii_lowercase();
+                if !query.is_empty() {
+                    // The sections with a match, and in each only the rows
+                    // that match (all of them when the title does).
+                    let mut any = false;
+                    for (title, rows) in sections.iter() {
+                        let whole = title.to_ascii_lowercase().contains(&query);
+                        let hits: Vec<&(&str, &str)> = rows
+                            .iter()
+                            .filter(|(gesture, what)| {
+                                whole
+                                    || gesture.to_ascii_lowercase().contains(&query)
+                                    || what.to_ascii_lowercase().contains(&query)
+                            })
+                            .collect();
+                        if hits.is_empty() {
+                            continue;
+                        }
+                        any = true;
+                        ui.add_space(4.0);
+                        ui.label(RichText::new(*title).strong().color(STUDIO_TEXT));
+                        egui::Grid::new(format!("grid_help_found_{title}"))
+                            .num_columns(2)
+                            .spacing([12.0, 2.0])
+                            .show(ui, |ui| {
+                                for (gesture, what) in hits {
+                                    ui.label(
+                                        RichText::new(*gesture).monospace().color(STUDIO_ACCENT),
+                                    );
+                                    ui.label(*what);
+                                    ui.end_row();
+                                }
+                            });
+                    }
+                    if !any {
+                        ui.label(RichText::new("No key matches").color(STUDIO_TEXT_WEAK));
+                    }
+                    return;
+                }
                 // Three columns of sections, split where the rows balance
                 // (long descriptions count double, they wrap).
                 let weight = |rows: Rows| -> usize {

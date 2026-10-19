@@ -1062,6 +1062,15 @@ impl EditorWorkspace {
                     ui.close_menu();
                 }
             }
+            ui.separator();
+            if ui
+                .button("Debug snapshot")
+                .on_hover_text("Append editor camera, runtime player, camera, and scheduler diagnostics to logs/editor_debug.log.")
+                .clicked()
+            {
+                self.debug_snapshot_requested = true;
+                ui.close_menu();
+            }
         });
         ui.menu_button("Help", |ui| {
             ui.label(RichText::new("PSoXide Editor").strong());
@@ -1266,11 +1275,9 @@ impl EditorWorkspace {
             self.pending_playtest_request = Some(EditorPlaytestRequest::Stop);
         }
 
-        if ui
-            .button(icons::label(icons::FOCUS, "Debug"))
-            .on_hover_text("Append editor camera, runtime player, camera, and scheduler diagnostics to logs/editor_debug.log.")
-            .clicked()
-        {
+        // The Debug snapshot is in the Tools menu; the menu has no play
+        // metrics, so it leaves the request here.
+        if std::mem::take(&mut self.debug_snapshot_requested) {
             self.capture_debug_snapshot(play_metrics);
         }
     }

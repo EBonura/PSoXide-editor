@@ -394,26 +394,31 @@ impl EditorWorkspace {
         }
         self.draw_grid_overlay_controls(ui);
         ui.separator();
-        toolbar_group_menu_icon_only(
+        // Right to left: Show (visibility), Camera and Frame, each with a
+        // word, then the view switch.
+        toolbar_group_menu(
             ui,
             7,
             self.shortcut_group_glow(ShortcutGroup::Visibility),
             self.visibility_group_icon(),
             "Visibility",
-            self.visibility_group_label(),
+            "Show",
             |ui| self.draw_visibility_menu_contents(ui),
         );
-        toolbar_group_menu_icon_only(
+        toolbar_group_menu(
             ui,
             8,
             self.shortcut_group_glow(ShortcutGroup::Camera),
             self.camera_rig.mode.icon(),
             "Camera",
-            self.viewport_camera_mode_label(),
+            "Camera",
             |ui| self.draw_camera_group_menu(ui),
         );
         if ui
-            .add(egui::Button::new(icons::text(icons::FOCUS, 14.0)).min_size(Vec2::new(28.0, 23.0)))
+            .add(
+                egui::Button::new(icons::label(icons::FOCUS, "Frame"))
+                    .min_size(Vec2::new(28.0, 23.0)),
+            )
             .on_hover_text("Frame selection (.)")
             .clicked()
         {

@@ -19,14 +19,18 @@ pub(super) fn text_of(output: &egui::FullOutput) -> String {
         .join("\n")
 }
 
+/// What the editor says at 1920 x 1080 after a frame to settle (egui draws a
+/// new window from its second frame).
 pub(super) fn screen(ws: &mut EditorWorkspace) -> String {
+    screen_sized(ws, Vec2::new(1920.0, 1080.0))
+}
+
+/// [`screen`] on a taller or wider screen (the key page needs height: rows
+/// below the screen are not drawn).
+pub(super) fn screen_sized(ws: &mut EditorWorkspace, size: Vec2) -> String {
     let ctx = full_context();
-    text_of(&draw_editor_sized(
-        ws,
-        &ctx,
-        false,
-        Vec2::new(1920.0, 1080.0),
-    ))
+    let _ = draw_editor_sized(ws, &ctx, false, size);
+    text_of(&draw_editor_sized(ws, &ctx, false, size))
 }
 
 #[test]
@@ -308,4 +312,113 @@ fn the_tools_sit_in_four_labelled_groups_on_two_rows() {
         }
     }
     assert_eq!(seen, ["PICK", "DRAW", "FINISH", "BUILD"]);
+}
+
+fn font_size_of(output: &egui::FullOutput, needle: &str) -> Option<f32> {
+    output.shapes.iter().find_map(|s| match &s.shape {
+        egui::Shape::Text(t) if t.galley.text().contains(needle) => t
+            .galley
+            .job
+            .sections
+            .first()
+            .map(|sec| sec.format.font_id.size),
+        _ => None,
+    })
+}
+
+#[test]
+fn the_status_bar_separates_the_message_the_hints_and_the_budget() {
+    let mut ws =
+        EditorWorkspace::with_project(test_temp_dir("layout-status"), flat_project(4, 4, true));
+    ws.status = "Placed a spawn".to_string();
+    let ctx = full_context();
+    let output = draw_editor_sized(&mut ws, &ctx, false, Vec2::new(1920.0, 1080.0));
+    let text = text_of(&output);
+    // Three parts, each in its own label and readable.
+    assert!(text.contains("Placed a spawn"));
+    assert!(text.contains("Shift range"), "hints");
+    assert!(text.contains("Room hall"), "{text}");
+    assert!(text.contains("16 sectors"), "{text}");
+    assert!(text.contains("32 / 16383 faces"), "{text}");
+    for needle in [
+        "Placed a spawn",
+        "Shift range",
+        "Room hall",
+        "32 / 16383 faces",
+    ] {
+        let size = font_size_of(&output, needle).expect(needle);
+        assert!(size >= 12.0, "{needle} is {size} px");
+    }
+    // The old run-together budget line is gone.
+    assert!(!text.contains("busiest room"), "{text}");
+}
+
+#[test]
+fn frame_camera_and_visibility_are_labelled_and_debug_is_not_in_the_main_bar() {
+    let mut ws =
+        EditorWorkspace::with_project(test_temp_dir("layout-labels"), flat_project(4, 4, true));
+    let text = screen(&mut ws);
+    for label in ["  Frame", "  Camera", "  Show"] {
+        assert!(text.contains(label), "{label:?} is a button label:\n{text}");
+    }
+    // Debug moved into the Tools menu.
+    assert!(
+        !text.contains("  Debug"),
+        "Debug is still in the main bar:\n{text}"
+    );
+}
+
+#[test]
+fn link_move_and_global_show_only_when_they_have_something_to_act_on() {
+    let mut ws =
+        EditorWorkspace::with_project(test_temp_dir("layout-link"), flat_project(4, 4, true));
+    ws.set_grid_tool(GridTool::Select);
+    let text = screen(&mut ws);
+    for label in ["Link", "  Move", "  Global"] {
+        assert!(
+            !text.contains(label),
+            "{label:?} with nothing selected:\n{text}"
+        );
+    }
+    // A corner selected: Link has something to do.
+    ws.apply_grid_pose("select=vertex:1,1,0").unwrap();
+    let text = screen(&mut ws);
+    assert!(text.contains("Link"), "{text}");
+    assert!(!text.contains("  Move"), "{text}");
+    // The Height tool always has corners to weld.
+    ws.apply_grid_pose("select=cells:0,0:0,0").unwrap();
+    ws.grid.selection.clear();
+    ws.set_grid_tool(GridTool::Height);
+    assert!(screen(&mut ws).contains("Link"));
+    // A node selected: the gizmo controls.
+    ws.set_grid_tool(GridTool::Select);
+    ws.place_kind = PlaceKind::SpawnMarker;
+    ws.place_at_world_hit([1.5 * S, 0.0, 1.5 * S]);
+    let text = screen(&mut ws);
+    assert!(
+        text.contains("  Move") && text.contains("  Global"),
+        "{text}"
+    );
+}
+
+#[test]
+fn the_keys_page_is_searchable() {
+    let mut ws =
+        EditorWorkspace::with_project(test_temp_dir("layout-keys"), flat_project(4, 4, true));
+    ws.grid.help_open = true;
+    let text = screen_sized(&mut ws, Vec2::new(1920.0, 1800.0));
+    assert!(text.contains("Search keys"), "{text}");
+    assert!(text.contains("Spiral (Shift+T)") && text.contains("Slab (Shift+Q) and levels"));
+    // A query keeps the sections with a row that matches, and only those rows.
+    ws.grid.help_search = "cutaway".to_string();
+    let text = screen_sized(&mut ws, Vec2::new(1920.0, 1800.0));
+    assert!(text.contains("Slab (Shift+Q) and levels"), "{text}");
+    assert!(!text.contains("Spiral (Shift+T)"), "{text}");
+    assert!(!text.contains("Wall (W)"), "{text}");
+    // A section whose title matches shows all its rows.
+    ws.grid.help_search = "spiral".to_string();
+    let text = screen_sized(&mut ws, Vec2::new(1920.0, 1800.0));
+    assert!(text.contains("Spiral (Shift+T)"), "{text}");
+    ws.grid.help_search = "zzzz".to_string();
+    assert!(screen_sized(&mut ws, Vec2::new(1920.0, 1800.0)).contains("No key matches"));
 }

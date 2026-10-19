@@ -143,9 +143,21 @@ impl EditorWorkspace {
                 );
             }
             GridTool::Select | GridTool::Height => {
-                ui.toggle_value(&mut self.grid.link, "Link")
-                    .on_hover_text("L: coincident corners move together");
-                if self.grid.tool == GridTool::Select {
+                // Link welds the corners being lifted: Height always has
+                // some, Select once something is picked. Move and Global are
+                // the gizmo of a selected node.
+                let picked = !self.grid.selection.is_empty();
+                if self.grid.tool == GridTool::Height || picked {
+                    ui.toggle_value(&mut self.grid.link, "Link")
+                        .on_hover_text("L: coincident corners move together");
+                }
+                let node_selected = self.selection.selected_node != NodeId::ROOT
+                    || self
+                        .selection
+                        .selected_nodes
+                        .iter()
+                        .any(|n| *n != NodeId::ROOT);
+                if self.grid.tool == GridTool::Select && node_selected {
                     self.draw_transform_gizmo_toolbar_controls(ui);
                 }
             }
@@ -384,47 +396,85 @@ impl EditorWorkspace {
         };
         let percent = budget.faces_percent();
         let hot = percent >= 85;
+        let chip_colour = if hot {
+            Color32::from_rgb(240, 150, 90)
+        } else {
+            STUDIO_TEXT
+        };
         egui::TopBottomPanel::bottom("psxed_grid_status_bar")
-            .exact_height(24.0)
+            .exact_height(30.0)
             .frame(
                 egui::Frame::new()
                     .fill(STUDIO_PANEL_HEADER)
-                    .inner_margin(egui::Margin::symmetric(10, 4)),
+                    .inner_margin(egui::Margin::symmetric(10, 5)),
             )
             .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(
-                        RichText::new(&self.status)
-                            .color(Color32::from_rgb(120, 220, 140))
-                            .monospace()
-                            .size(11.0),
-                    );
+                ui.horizontal_centered(|ui| {
+                    // The right end first: the budget chips, so the message
+                    // and the hints share what is left.
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let view_text = in_view.map_or(String::new(), |n| format!("   in view: {n} faces"))
-                            + &worst.clone().unwrap_or_default();
-                        let budget_text = format!(
-                            "room {room}{}: {room_sectors} {}   world: {} rooms, {} faces, busiest room {} / {MAX_ROOM_FACES} ({percent}%){view_text}",
-                            if room_name.is_empty() { String::new() } else { format!(" {room_name}") },
-                            budget
-                                .levels_text()
-                                .map_or("sectors".to_string(), |t| format!("cells ({t})")),
-                            room_count,
-                            budget.faces,
-                            budget.largest_room_faces,
-                        );
+                        let view_text = in_view.map(|n| format!("{n} in view"));
+                        if let Some(text) = view_text {
+                            ui.label(RichText::new(text).color(STUDIO_TEXT_WEAK).size(12.0));
+                            ui.separator();
+                        }
+                        if let Some(text) = &worst {
+                            ui.label(
+                                RichText::new(text.trim())
+                                    .color(STUDIO_TEXT_WEAK)
+                                    .size(12.0),
+                            );
+                            ui.separator();
+                        }
                         ui.label(
-                            RichText::new(budget_text)
-                                .color(if hot { Color32::from_rgb(240, 150, 90) } else { STUDIO_TEXT_WEAK })
-                                .monospace()
-                                .size(11.0),
-                        );
-                        ui.label(RichText::new("|").color(STUDIO_TEXT_WEAK).size(11.0));
+                            RichText::new(format!(
+                                "{} / {MAX_ROOM_FACES} faces ({percent}%)",
+                                budget.largest_room_faces
+                            ))
+                            .color(chip_colour)
+                            .size(12.0),
+                        )
+                        .on_hover_text(format!(
+                            "The busiest room's faces against the cap; the world has {} rooms and {} faces",
+                            room_count, budget.faces
+                        ));
+                        ui.separator();
                         ui.label(
-                            RichText::new(self.grid_key_hints())
-                                .color(STUDIO_TEXT_WEAK)
-                                .monospace()
-                                .size(11.0),
+                            RichText::new(format!(
+                                "{}: {room_sectors} {}",
+                                if room_name.is_empty() {
+                                    format!("Room {room}")
+                                } else {
+                                    format!("Room {room_name}")
+                                },
+                                budget
+                                    .levels_text()
+                                    .map_or("sectors".to_string(), |t| format!("cells ({t})")),
+                            ))
+                            .color(STUDIO_TEXT)
+                            .size(12.0),
                         );
+                        ui.separator();
+                        // What is left: the message, then the hints.
+                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                            ui.add(
+                                egui::Label::new(
+                                    RichText::new(&self.status)
+                                        .color(Color32::from_rgb(120, 220, 140))
+                                        .size(13.0),
+                                )
+                                .truncate(),
+                            );
+                            ui.separator();
+                            ui.add(
+                                egui::Label::new(
+                                    RichText::new(self.grid_key_hints())
+                                        .color(STUDIO_TEXT_WEAK)
+                                        .size(12.0),
+                                )
+                                .truncate(),
+                            );
+                        });
                     });
                 });
             });

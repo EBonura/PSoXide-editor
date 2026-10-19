@@ -677,6 +677,8 @@ pub(crate) struct GridEditState {
     pub hover_pinned: bool,
     /// The key and gesture help overlay (`?`) is open.
     pub help_open: bool,
+    /// The search box of the key help page.
+    pub help_search: String,
     /// The palette lists every project material, not only world surfaces.
     pub palette_all: bool,
     /// The Rooms panel's settings section is open (closed to give the scene
@@ -741,6 +743,7 @@ impl Default for GridEditState {
             view_rect: std::cell::Cell::new(None),
             hover_pinned: false,
             help_open: false,
+            help_search: String::new(),
             palette_all: false,
             split: false,
             room_settings_open: false,
