@@ -142,6 +142,8 @@ pub(crate) enum ToolGroup {
     Pick,
     /// Drawing by hand.
     Draw,
+    /// Dressing what is drawn: paint, diagonals, wall bands, nodes.
+    Finish,
     /// The level verbs: region, then verb, then amount.
     Build,
 }
@@ -151,6 +153,7 @@ impl ToolGroup {
         match self {
             Self::Pick => "PICK",
             Self::Draw => "DRAW",
+            Self::Finish => "FINISH",
             Self::Build => "BUILD",
         }
     }
@@ -168,8 +171,8 @@ impl GridTool {
         Self::Mesh,
         Self::Paint,
         Self::Split,
-        Self::Place,
         Self::Bands,
+        Self::Place,
         Self::Raise,
         Self::Ramp,
         Self::Stairs,
@@ -192,6 +195,7 @@ impl GridTool {
             | Self::Rough
             | Self::Cells
             | Self::Slab => ToolGroup::Build,
+            Self::Paint | Self::Split | Self::Bands | Self::Place => ToolGroup::Finish,
             _ => ToolGroup::Draw,
         }
     }

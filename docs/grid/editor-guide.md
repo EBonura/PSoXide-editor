@@ -42,7 +42,7 @@ Grouped by name: the part before ` / ` (`Graybox / Brick` is in Graybox) or the 
 
 ## Tools
 
-The strip has eighteen tools in three groups (PICK, DRAW, BUILD). Wrapped to a second line when the window is narrow. Keys work in the 3D and Top views.
+The strip has nineteen tools in four labelled groups on two rows: PICK (Select, Height), DRAW (Floor, Ceiling, Wall, Plane, Mesh), FINISH (Paint, Diagonal, Bands, Place) and BUILD (the level verbs, on the second row). A row wraps when the window is narrow. Keys work in the 3D and Top views.
 
 | Tool | Key | Gesture |
 | --- | --- | --- |

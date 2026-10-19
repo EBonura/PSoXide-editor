@@ -6,10 +6,24 @@ use psxed_project::grid::limits::MAX_ROOM_FACES;
 use psxed_project::grid::{GridBudget, CLICK_UNITS, FINE_UNITS};
 
 impl EditorWorkspace {
-    /// The eight tool buttons.
+    /// The tools on two rows: Pick, Draw and Finish, then Build.
+    pub(crate) fn draw_grid_tool_rows(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal_wrapped(|ui| {
+            self.draw_tool_groups(ui, |g| g != ToolGroup::Build);
+        });
+        ui.horizontal_wrapped(|ui| {
+            self.draw_tool_groups(ui, |g| g == ToolGroup::Build);
+        });
+    }
+
+    /// Every tool button, in one run.
     pub(crate) fn draw_grid_tool_strip(&mut self, ui: &mut egui::Ui) {
+        self.draw_tool_groups(ui, |_| true);
+    }
+
+    fn draw_tool_groups(&mut self, ui: &mut egui::Ui, take: impl Fn(ToolGroup) -> bool) {
         let mut group = None;
-        for tool in GridTool::ALL {
+        for tool in GridTool::ALL.into_iter().filter(|t| take(t.group())) {
             if group != Some(tool.group()) {
                 if group.is_some() {
                     ui.separator();

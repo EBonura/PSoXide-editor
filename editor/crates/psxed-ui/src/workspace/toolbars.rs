@@ -374,7 +374,7 @@ impl EditorWorkspace {
                         self.handle_animation_viewer_action(action);
                     }
                 } else if grid_room {
-                    ui.horizontal_wrapped(|ui| self.draw_grid_tool_strip(ui));
+                    self.draw_grid_tool_rows(ui);
                     ui.horizontal_wrapped(|ui| self.draw_grid_context_controls(ui));
                 } else if self.is_grid_world() {
                     ui.horizontal_wrapped(|ui| self.draw_viewport_toolbar(ui));
