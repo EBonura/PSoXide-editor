@@ -32,6 +32,10 @@ Play and Build shell out to `make build-editor-playtest`, which runs `make boots
 
 One row per room: the eye shows or hides it (hidden rooms leave the 3D preview, the Top view and picking), click a name to make it the room new geometry goes into, double-click to rename, the bin deletes it (the last room stays), `+` adds an empty room one storey above the highest. Under the list: Raise (the whole room's height offset in clicks) and Ambient (RGB, 128 shows textures unmodified), then the room's walls: whether they are *derived from heights* or *authored (legacy)*. A legacy room offers **Convert to derived** (the look and the play stay exactly as they were) and **Convert and fill** (also shows the walls the room never had). A derived room offers its wall material (Use palette / Clear), the Open wall height for a floor with no ceiling, and Clean up for overrides whose wall no longer exists. **Paint rules** (flat, slope and steep floors, verb walls, trim, and the two height rules) and **Rough** (seed, three amplitudes, tint) are collapsed sections below. Rooms may overlap in plan; that is how floors stack.
 
+### Material tab
+
+A grid project's Material tab opens on the palette's paint material and what you pick there becomes the paint material (one current material). Its Inspector is about that material: name, size, how many faces of the world use it, and Paint with it (back to the World tab with the Paint tool). The settings form is the tab's own.
+
 ### Materials palette
 
 Lists the materials the world already uses, the images imported with a level (`level_textures/`) and the Graybox set. HUD, menu, button prompt, kit, sky and character images are left out; tick "Show all project materials" to see them. Click a swatch to make it the current material (the Paint tool and new surfaces use it) and to apply it to the selected faces.

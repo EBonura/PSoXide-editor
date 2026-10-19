@@ -38,6 +38,12 @@ impl EditorWorkspace {
         self.material_lab.focused_material = Some(material_id);
         self.replace_resource_selection(material_id);
         self.material_lab.preview_signature.clear();
+        // In a grid project the Material tab edits the palette's material:
+        // what is focused here is what the Paint tool paints with.
+        if self.is_grid_world() {
+            self.grid.material = Some(material_id);
+            self.grid.palette_scroll_to = Some(material_id);
+        }
         true
     }
 
@@ -52,7 +58,7 @@ impl EditorWorkspace {
             .collect()
     }
 
-    fn sync_material_lab_focus(&mut self, material_options: &[(ResourceId, String)]) {
+    pub(crate) fn sync_material_lab_focus(&mut self, material_options: &[(ResourceId, String)]) {
         if let Some(selected) = self.selection.selected_resource {
             if self
                 .project
@@ -60,6 +66,15 @@ impl EditorWorkspace {
                 .is_some_and(|resource| matches!(&resource.data, ResourceData::Material(_)))
             {
                 self.material_lab.focused_material = Some(selected);
+            }
+        }
+        // A grid project's Material tab opens on the palette's paint material.
+        if self.is_grid_world() {
+            self.ensure_paint_material();
+            if let Some(paint) = self.grid.material {
+                if material_options.iter().any(|(id, _)| *id == paint) {
+                    self.material_lab.focused_material = Some(paint);
+                }
             }
         }
         if !self.material_lab.focused_material.is_some_and(|id| {

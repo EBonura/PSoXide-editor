@@ -17,6 +17,20 @@ use psxed_project::grid::edit::material_of;
 const SWATCH: f32 = 44.0;
 
 impl EditorWorkspace {
+    /// A project opens with a paint material (the first of the palette), so
+    /// the first Paint click paints and the Material tab has something to
+    /// open on. A material the user chose stays.
+    pub(crate) fn ensure_paint_material(&mut self) {
+        if self.grid.material.is_none() {
+            self.grid.material = psxed_project::grid::palette::palette_materials(
+                &self.project,
+                self.grid.palette_all,
+            )
+            .first()
+            .map(|(id, _)| *id);
+        }
+    }
+
     /// The palette, its search box and the New and Import buttons.
     pub(super) fn draw_grid_palette(&mut self, ui: &mut egui::Ui) {
         self.refresh_texture_thumbs(ui.ctx());
@@ -24,11 +38,7 @@ impl EditorWorkspace {
         let materials =
             psxed_project::grid::palette::palette_materials(&self.project, self.grid.palette_all);
         let total = materials.len();
-        // A project opens with a paint material, so the first Paint click
-        // paints (a material the user chose stays).
-        if self.grid.material.is_none() {
-            self.grid.material = materials.first().map(|(id, _)| *id);
-        }
+        self.ensure_paint_material();
         let query = self.grid.palette_search.to_ascii_lowercase();
         let shown: Vec<(ResourceId, String)> = materials
             .into_iter()
@@ -161,6 +171,74 @@ impl EditorWorkspace {
         if edit {
             self.open_paint_material_in_lab();
         }
+    }
+
+    /// The Inspector of the Material tab in a grid project: the material
+    /// being edited, where the world uses it, and the way back to painting.
+    /// (The settings themselves are the tab's own form.)
+    pub(crate) fn draw_grid_material_inspector(&mut self, ui: &mut egui::Ui) {
+        self.refresh_texture_thumbs(ui.ctx());
+        let options = self.material_lab_options();
+        self.sync_material_lab_focus(&options);
+        let Some(id) = self.material_lab.focused_material else {
+            ui.label(RichText::new("No material").color(STUDIO_TEXT_WEAK));
+            return;
+        };
+        let name = self
+            .project
+            .resource_name(id)
+            .unwrap_or("material")
+            .to_string();
+        let used = self.project.active_scene().world.grid().map_or(0, |world| {
+            psxed_project::grid::faces::all_faces(world)
+                .iter()
+                .filter(|f| f.material == Some(id))
+                .count()
+        });
+        ui.horizontal(|ui| {
+            if let Some(entry) = self.texture_thumbs.get(&id) {
+                let (rect, _) = ui.allocate_exact_size(Vec2::splat(56.0), egui::Sense::hover());
+                ui.painter().image(
+                    entry.handle.id(),
+                    rect,
+                    Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+                    Color32::WHITE,
+                );
+            }
+            ui.vertical(|ui| {
+                ui.label(RichText::new(&name).strong().size(14.0));
+                if let Some(entry) = self.texture_thumbs.get(&id) {
+                    ui.label(
+                        RichText::new(format!(
+                            "{} x {} texels",
+                            entry.stats.width, entry.stats.height
+                        ))
+                        .size(11.0)
+                        .color(STUDIO_TEXT_WEAK),
+                    );
+                }
+            });
+        });
+        ui.add_space(4.0);
+        ui.label(format!(
+            "Used on {used} {} of this world",
+            if used == 1 { "face" } else { "faces" }
+        ));
+        ui.add_space(4.0);
+        if ui
+            .button(icons::label(icons::PALETTE, "Paint with it"))
+            .on_hover_text("Back to the World tab with the Paint tool and this material")
+            .clicked()
+        {
+            self.grid.material = Some(id);
+            self.active_workspace = WorkspaceView::Room;
+            self.set_grid_tool(GridTool::Paint);
+        }
+        ui.label(
+            RichText::new("The settings are in the form beside this column.")
+                .size(11.0)
+                .color(STUDIO_TEXT_WEAK),
+        );
     }
 
     /// The material of the first selected face, for the palette to mark.

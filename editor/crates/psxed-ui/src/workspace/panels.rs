@@ -1874,6 +1874,15 @@ impl EditorWorkspace {
                                     return;
                                 }
 
+                                // The Material tab of a grid project: the
+                                // material being edited, not the World form.
+                                if self.active_workspace == WorkspaceView::Material
+                                    && self.is_grid_world()
+                                {
+                                    self.draw_grid_material_inspector(ui);
+                                    return;
+                                }
+
                                 if let Some(resource_id) = self.selection.selected_resource {
                                     self.draw_resource_inspector(ui, resource_id);
                                     return;
