@@ -24,7 +24,7 @@ Play and Build shell out to `make build-editor-playtest`, which runs `make boots
 
 * Centre: the 3D view (the emulator's software GPU, so it is the PS1 picture), the Plan (the Top orthographic view) or both side by side (Split). The switch is in the tab row; Ctrl/Cmd+9 cycles it. Each half frames the world when the view opens.
 * Left dock: Levels (the storeys), Rooms (below), then the Scene Graph. A grid project has no file tree in any tab.
-* Right dock: the Materials palette (search, `+`, import, pencil to edit the paint material), then the Inspector for the selected faces or node.
+* Right dock: the Materials palette (search, `+`, import, pencil to edit the paint material), then Properties, whose header names what it edits (Face, 4 faces, Triangle B, a node's name, a region, World). With nothing selected it shows a hint and a World settings button; the World form opens from that button or the World row of the Scene Graph, not under every empty click.
 * Bottom: the Resources dock (models, animations, characters, weapons; materials are in the palette) and the Console. The bottom bar shows the last message, the keys of the active tool, the room's sector count and the world's face budget (`faces / 16383`, orange from 85%).
 * `?` opens a page with every key and gesture.
 

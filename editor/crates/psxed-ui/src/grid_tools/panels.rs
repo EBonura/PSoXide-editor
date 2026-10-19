@@ -27,6 +27,8 @@ impl EditorWorkspace {
             .is_some_and(|w| !self.grid.selection.faces(w).is_empty());
         let node_selected = self.selection.selected_node != NodeId::ROOT
             || !self.selection.selected_nodes.is_empty();
+        let what = self.properties_subject(picked_faces, node_selected);
+        self.draw_properties_header(ui, &what);
         let owns = if self.plane_primary().is_some() {
             self.draw_plane_inspector(ui);
             true
@@ -36,15 +38,86 @@ impl EditorWorkspace {
         } else if self.grid.tool.is_verb() {
             self.draw_verb_inspector(ui);
             true
-        } else if picked_faces || !node_selected {
+        } else if picked_faces {
             self.draw_grid_face_inspector(ui);
-            picked_faces
+            true
+        } else if !node_selected {
+            // Nothing picked: a hint, and the way to the World settings (the
+            // World row of the Scene Graph is the other).
+            self.draw_nothing_selected(ui);
+            true
         } else {
             false
         };
         ui.add_space(8.0);
         ui.separator();
         owns
+    }
+
+    /// What the Properties section edits, in a few words.
+    fn properties_subject(&self, picked_faces: bool, node_selected: bool) -> String {
+        if let Some(id) = self.plane_primary() {
+            let _ = id;
+            return "Plane".to_string();
+        }
+        if self.grid.tool == GridTool::Mesh || self.mesh_primary().is_some() {
+            return "Mesh".to_string();
+        }
+        if self.grid.tool.is_verb() {
+            return format!("{} region", self.grid.tool.label());
+        }
+        if picked_faces {
+            let Some(world) = self.project.active_scene().world.grid() else {
+                return "Faces".to_string();
+            };
+            let triangles = self.grid.selection.triangles(world);
+            let whole = self.grid.selection.whole_faces(world);
+            return match (triangles.as_slice(), whole.len()) {
+                ([(_, tri)], 0) => format!("Triangle {}", if *tri == 0 { "A" } else { "B" }),
+                (_, 1) => "Face".to_string(),
+                _ => format!("{} faces", self.grid.selection.faces(world).len()),
+            };
+        }
+        if node_selected {
+            let id = self.selection.selected_node;
+            if id == NodeId::ROOT {
+                return "World".to_string();
+            }
+            return self
+                .project
+                .active_scene()
+                .node(id)
+                .map_or_else(|| "Node".to_string(), |n| n.name.clone());
+        }
+        "Nothing selected".to_string()
+    }
+
+    /// The header of the Properties section: the name, then what it is about.
+    fn draw_properties_header(&self, ui: &mut egui::Ui, what: &str) {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Properties").strong().size(12.5));
+            ui.label(RichText::new(what).color(STUDIO_ACCENT).size(12.0));
+        });
+        ui.separator();
+    }
+
+    /// Nothing is picked: say how to pick, and open the World settings on
+    /// request rather than showing their form under every empty click.
+    fn draw_nothing_selected(&mut self, ui: &mut egui::Ui) {
+        ui.label(
+            RichText::new(
+                "Nothing selected. Click a face, a light or an actor with the Select tool.",
+            )
+            .color(STUDIO_TEXT_WEAK),
+        );
+        ui.add_space(4.0);
+        if ui
+            .button(icons::label(icons::HOUSE, "World settings"))
+            .on_hover_text("Sky, physics and far vista (the World row of the Scene Graph)")
+            .clicked()
+        {
+            self.replace_node_selection(NodeId::ROOT);
+        }
     }
 
     /// Apply the palette material to every selected face.

@@ -144,3 +144,30 @@ fn searching_opens_the_groups_with_a_match() {
     assert!(text.contains("DP 77 (1)"), "{text}");
     assert!(!text.contains("DP 5 (6)"), "other groups are filtered out");
 }
+
+#[test]
+fn properties_names_what_is_edited_and_nothing_selected_is_a_hint() {
+    let mut ws =
+        EditorWorkspace::with_project(test_temp_dir("layout-properties"), flat_project(4, 4, true));
+    // Nothing selected: a hint and a way to the World settings, not the form.
+    let text = screen(&mut ws);
+    assert!(text.contains("Properties"), "{text}");
+    assert!(text.contains("Nothing selected"), "{text}");
+    assert!(text.contains("World settings"), "{text}");
+    for form in ["Physics", "Far Vista", "Sky Texture"] {
+        assert!(!text.contains(form), "the World form is drawn: {form}");
+    }
+    // The World row of the Scene Graph (or the button) opens the form.
+    ws.replace_node_selection(NodeId::ROOT);
+    let text = screen(&mut ws);
+    assert!(text.contains("Physics"), "{text}");
+    assert!(!text.contains("Nothing selected"), "{text}");
+    // Faces name themselves.
+    ws.clear_node_selection_state();
+    ws.apply_grid_pose("tool=select;select=floors:0,0:1,1")
+        .unwrap();
+    let text = screen(&mut ws);
+    assert!(text.contains("4 faces"), "{text}");
+    assert!(!text.contains("Physics"), "{text}");
+    assert!(!text.contains("Nothing selected"), "{text}");
+}
