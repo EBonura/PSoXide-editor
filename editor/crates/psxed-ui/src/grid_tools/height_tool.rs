@@ -184,7 +184,11 @@ pub(super) fn begin(ws: &mut EditorWorkspace, ptr: &GridPointer) -> bool {
     let Some(element) = element_at(ws, &press) else {
         return false;
     };
-    if !ws.grid.selection.contains(&element) {
+    // A press on a face whose triangle is selected keeps the triangle.
+    let triangle_of_face = matches!(element, GridElement::Face(f)
+        if ws.grid.selection.items().iter().any(
+            |e| matches!(e, GridElement::Triangle { face, .. } if *face == f)));
+    if !triangle_of_face && !ws.grid.selection.contains(&element) {
         ws.grid.selection.replace(element);
     }
     ws.after_grid_selection_changed();

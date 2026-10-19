@@ -94,6 +94,9 @@ fn a_vertex_hidden_behind_a_wall_is_not_picked_but_the_wall_is() {
         .unwrap()
         .north
         .push(psxed_project::grid::GridWall::span(0, 3072, None));
+    // An edit through the editor bumps the document revision the pick cache
+    // goes by; the overlay builds the cache every frame in the Select tool.
+    rig.ws.grid_changed();
     rig.tool(GridTool::Select);
     // The floor vertex at (2, 2) is behind the wall at z = 3 as seen from
     // the camera far to the south, but only if the wall covers it on

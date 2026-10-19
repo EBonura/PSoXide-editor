@@ -28,12 +28,22 @@ pub(super) fn face_under(
     ws: &EditorWorkspace,
     ptr: &GridPointer,
 ) -> Option<(Vec<FaceRef>, Option<u8>)> {
+    face_under_with(ws, ptr, ptr.shift())
+}
+
+/// [`face_under`] with `name_triangle` saying whether a triangle is named on
+/// a plain quad (a split surface always names one).
+pub(super) fn face_under_with(
+    ws: &EditorWorkspace,
+    ptr: &GridPointer,
+    name_triangle: bool,
+) -> Option<(Vec<FaceRef>, Option<u8>)> {
     match ptr.view {
         GridView::Persp(rect) => {
             let hit = ws.pick_face_3d(rect, ptr.pos)?;
             let world = ws.project.active_scene().world.grid()?;
             let tri = hit.tri.or_else(|| {
-                ptr.shift()
+                name_triangle
                     .then(|| tri_at(world, hit.face, hit.point[0], hit.point[2]))
                     .flatten()
             });
@@ -83,7 +93,7 @@ pub(super) fn face_under(
             let tri = face.surface(world).and_then(|s| {
                 let split =
                     !s.is_planar() || s.heights_b.is_some() || s.tri_b.is_some() || s.void != 0;
-                (split || ptr.shift())
+                (split || name_triangle)
                     .then(|| tri_at(world, face, wx, wz))
                     .flatten()
             });

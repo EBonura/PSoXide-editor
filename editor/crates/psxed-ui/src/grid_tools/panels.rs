@@ -79,8 +79,9 @@ impl EditorWorkspace {
         let Some(world) = self.project.active_scene().world.grid() else {
             return 0;
         };
-        let faces = self.grid.selection.faces(world);
-        if faces.is_empty() {
+        let faces = self.grid.selection.whole_faces(world);
+        let triangles = self.grid.selection.triangles(world);
+        if faces.is_empty() && triangles.is_empty() {
             return 0;
         }
         let before = self.project.clone();
@@ -90,6 +91,10 @@ impl EditorWorkspace {
         let mut changed = 0;
         for face in &faces {
             changed += usize::from(set_material(world, *face, None, Some(material)));
+        }
+        // A selected triangle takes the material on its own.
+        for (face, tri) in &triangles {
+            changed += usize::from(set_material(world, *face, Some(*tri), Some(material)));
         }
         if changed > 0 {
             self.history.record(before);
@@ -103,6 +108,13 @@ impl EditorWorkspace {
             return;
         };
         let faces = self.grid.selection.faces(world);
+        let triangles = self.grid.selection.triangles(world);
+        let only_triangle = match triangles.as_slice() {
+            [(face, tri)] if self.grid.selection.whole_faces(world).is_empty() => {
+                Some((*face, *tri))
+            }
+            _ => None,
+        };
         egui::CollapsingHeader::new(RichText::new("Selection").strong())
             .default_open(true)
             .show(ui, |ui| {
@@ -137,8 +149,86 @@ impl EditorWorkspace {
                     plural(ceilings, "ceiling"),
                     plural(walls, "wall"),
                 ));
+                // One triangle selected on its own: the panel is that triangle's.
+                if let Some((face, tri)) = only_triangle {
+                    self.draw_triangle_controls(ui, face, tri);
+                }
                 self.draw_primary_face_controls(ui, primary, &faces);
             });
+    }
+
+    /// The head of the panel when one triangle of a floor or ceiling is
+    /// selected: which half, its heights, and Void or Restore.
+    fn draw_triangle_controls(&mut self, ui: &mut egui::Ui, face: FaceRef, tri: u8) {
+        let Some(world) = self.project.active_scene().world.grid() else {
+            return;
+        };
+        let Some(surface) = face.surface(world) else {
+            return;
+        };
+        let name = if tri == 0 { "A" } else { "B" };
+        let void = surface.is_void(usize::from(tri));
+        let heights = surface.heights_for(usize::from(tri));
+        let corners = surface.split.triangle(usize::from(tri));
+        let psxed_project::grid::edit::FaceTarget::Surface { kind, .. } = face.target else {
+            return;
+        };
+        ui.separator();
+        ui.label(
+            RichText::new(format!(
+                "Triangle {name} of {} at {},{}",
+                kind.label(),
+                face.cell()[0],
+                face.cell()[1]
+            ))
+            .strong(),
+        );
+        ui.label(
+            RichText::new(format!(
+                "heights {} {} {} (corners {})",
+                heights[corners[0]],
+                heights[corners[1]],
+                heights[corners[2]],
+                corners
+                    .iter()
+                    .map(|c| ["NW", "NE", "SE", "SW"][*c])
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            ))
+            .size(11.5)
+            .color(STUDIO_TEXT_WEAK),
+        );
+        let label = if void {
+            "Restore triangle"
+        } else {
+            "Void triangle"
+        };
+        if ui
+            .button(label)
+            .on_hover_text(
+                "A void triangle is not drawn and the sector closes itself along the diagonal",
+            )
+            .clicked()
+        {
+            let before = self.project.clone();
+            if let Some(world) = self.project.active_scene_mut().world.grid_mut() {
+                let which = if tri == 0 {
+                    psxed_project::grid::edit::natural::Triangles::A
+                } else {
+                    psxed_project::grid::edit::natural::Triangles::B
+                };
+                if psxed_project::grid::edit::natural::set_void_leaf(
+                    world, face.room, face.leaf, kind, which, !void,
+                ) {
+                    self.history.record(before);
+                    self.grid_changed();
+                    self.status = format!(
+                        "Triangle {name} {}",
+                        if void { "restored" } else { "voided" }
+                    );
+                }
+            }
+        }
     }
 
     fn draw_primary_face_controls(
@@ -162,7 +252,12 @@ impl EditorWorkspace {
                 s.tri_b.is_some() || s.heights_b.is_some() || !s.is_planar(),
             )
         });
-        let mat_a = material_of(world, primary, Some(0));
+        // With one triangle selected the material row is that triangle's.
+        let shown_tri = match self.grid.selection.triangles(world).as_slice() {
+            [(_, tri)] if self.grid.selection.whole_faces(world).is_empty() => *tri,
+            _ => 0,
+        };
+        let mat_a = material_of(world, primary, Some(shown_tri));
         let mat_b = material_of(world, primary, Some(1));
         let uv = uv_of(world, primary, None);
         let heights = primary.heights(world, 0);

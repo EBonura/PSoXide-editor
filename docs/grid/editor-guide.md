@@ -42,7 +42,7 @@ The strip has eighteen tools in three groups (PICK, DRAW, BUILD). Wrapped to a s
 
 | Tool | Key | Gesture |
 | --- | --- | --- |
-| Select | V | Click picks the vertex, edge or face under the pointer. Shift+click extends a range, Ctrl/Cmd+click toggles, drag draws a box. Shift+drag raises or lowers the selected corners. Delete removes the selected faces. Ctrl/Cmd+A selects the room. |
+| Select | V | Click picks the vertex, edge or face under the pointer. Shift+click extends a range, Ctrl/Cmd+click toggles, drag draws a box. Shift+drag raises or lowers the selected corners. Delete removes the selected faces. Ctrl/Cmd+A selects the room. **A cracked, voided or two-material floor or ceiling is picked one triangle at a time** (in the plan and in 3D; Alt+click names the triangle of a plain quad too): the Inspector says "Triangle A" or "B", a material click paints that triangle only, Shift+drag lifts its three corners, and Delete voids it (Restore triangle in the Inspector brings it back; void triangles are outlined in 3D while Select is active). |
 | Floor | F | Drag a rectangle; the room grows to fit. Shift while dragging sets the height. Ctrl/Cmd+drag deletes floor. |
 | Ceiling | C | Same as Floor, for ceilings. |
 | Wall | W | Drag along an edge to place a run of walls; they fill the gap up to the ceiling or the next wall. R turns the direction (auto, N, E, S, W, two diagonals). Ctrl/Cmd+drag removes. |

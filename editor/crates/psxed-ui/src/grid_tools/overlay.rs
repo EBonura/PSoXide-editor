@@ -49,7 +49,8 @@ fn element_faces(world: &GridWorld, element: &GridElement) -> Vec<FaceRef> {
             psxed_project::grid::edit::faces_of_cell(world, *room, *cell)
         }
         GridElement::Face(f) => vec![*f],
-        GridElement::Edge(_) | GridElement::Vertex(_) => Vec::new(),
+        // Drawn as the triangle, not as the whole face.
+        GridElement::Triangle { .. } | GridElement::Edge(_) | GridElement::Vertex(_) => Vec::new(),
     }
 }
 
@@ -200,6 +201,17 @@ impl EditorWorkspace {
                         leaf_wall_line(f.leaf, edge, SELECT, 4.0)
                     }
                 },
+                GridElement::Triangle { face, tri } => {
+                    if let Some(points) = tri_corners(world, *face, *tri) {
+                        let points: Vec<Pos2> =
+                            points.iter().map(|p| screen([p[0], p[2]])).collect();
+                        painter.add(egui::Shape::convex_polygon(
+                            points,
+                            fill(SELECT, 110),
+                            Stroke::new(2.5, SELECT),
+                        ));
+                    }
+                }
                 GridElement::Edge(e) => {
                     if let Some((a, b)) = edge_ends(world, e) {
                         line([a[0], a[2]], [b[0], b[2]], SELECT, 4.0);
@@ -270,6 +282,15 @@ impl EditorWorkspace {
                                 leaf_wall_line(f.leaf, edge, HOVER, 4.0)
                             }
                         },
+                        GridElement::Triangle { face, tri } => {
+                            if let Some(points) = tri_corners(world, *face, *tri) {
+                                painter.add(egui::Shape::convex_polygon(
+                                    points.iter().map(|p| screen([p[0], p[2]])).collect(),
+                                    fill(HOVER, 70),
+                                    Stroke::new(2.0, HOVER),
+                                ));
+                            }
+                        }
                         GridElement::Edge(e) => {
                             if let Some((a, b)) = edge_ends(world, e) {
                                 line([a[0], a[2]], [b[0], b[2]], HOVER, 4.0);
@@ -477,6 +498,17 @@ impl EditorWorkspace {
                 }
             });
         }
+        // A void triangle has no face; while a tool that can pick it is
+        // active, show where it is.
+        if matches!(self.grid.tool, GridTool::Select | GridTool::Split) {
+            self.with_pick_cache(|cache| {
+                for pf in cache.faces.iter().filter(|pf| pf.void) {
+                    if !selected.contains(&pf.face) {
+                        polygon(&pf.points, Color32::from_rgb(190, 150, 255), 26, 1.5);
+                    }
+                }
+            });
+        }
         if let GridHover::Face { face, tri } = &self.grid.hover {
             if let Some(points) = tri.and_then(|t| tri_corners(world, *face, t)) {
                 polygon(&points, HOVER, 120, 2.5);
@@ -502,6 +534,11 @@ impl EditorWorkspace {
         }
         // Edges and vertices.
         let mark = |element: &GridElement, color: Color32| match element {
+            GridElement::Triangle { face, tri } => {
+                if let Some(points) = tri_corners(world, *face, *tri) {
+                    polygon(&points, color, 100, 2.5);
+                }
+            }
             GridElement::Edge(e) => {
                 if let Some((a, b)) = edge_ends(world, e) {
                     segment(a, b, color, 4.0);

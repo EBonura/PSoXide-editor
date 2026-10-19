@@ -17,6 +17,7 @@
 //! * `help` opens the key help overlay; `view=3d|plan|split` the view switch,
 //!   `resources=off|on` the bottom Resources dock
 //! * `select=cells:x0,z0:x1,z1`, `select=floors:...`, `select=ceilings:...`,
+//!   `select=triangle:x,z,tri` (one triangle of the floor of sector x,z, 0 or 1),
 //!   `select=walls:...`, `select=derived:...` (the derived walls hosted by
 //!   those sectors), `select=vertex:x,z,corner`, `select=edge:x,z,edge`,
 //!   `select=plane:i[,j...]` planes of the active room by index
@@ -533,6 +534,18 @@ impl EditorWorkspace {
                     })
                     .collect();
             self.select_planes(ids);
+            return Ok(());
+        }
+        if kind == "triangle" {
+            let v = ints(parts.get(1).ok_or("missing x,z,tri")?)?;
+            let [x, z, tri] = v[..] else {
+                return Err("expected x,z,tri (0 or 1)".to_string());
+            };
+            self.grid.selection.replace(GridElement::Triangle {
+                face: FaceRef::floor(room, [x, z]),
+                tri: u8::try_from(tri.clamp(0, 1)).unwrap_or(0),
+            });
+            self.after_grid_selection_changed();
             return Ok(());
         }
         let world = self

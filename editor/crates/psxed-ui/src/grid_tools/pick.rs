@@ -25,6 +25,8 @@ pub(crate) struct PickFace {
     pub points: Vec<[f32; 3]>,
     pub normal: [f32; 3],
     pub double_sided: bool,
+    /// A void triangle: pickable, but nothing is drawn there.
+    pub void: bool,
 }
 
 /// One corner of a face in editor space.
@@ -111,7 +113,60 @@ fn build_cache(world: &GridWorld, rev: u64) -> PickCache {
             points: face.points.iter().copied().map(to_f32).collect(),
             normal: face.normal.map(|v| v as f32),
             double_sided: face.double_sided,
+            void: false,
         });
+    }
+    // A void triangle draws no face, but it can still be picked (and
+    // restored), so it joins the pick cache as an invisible one.
+    for (room_index, room) in world.rooms.iter().enumerate() {
+        for (key, sector) in room.leaves() {
+            for (index, span) in sector.spans().iter().enumerate() {
+                let span_index = u8::try_from(index).unwrap_or(u8::MAX);
+                for (kind, surface) in [
+                    (SurfaceKind::Floor, span.floor.as_ref()),
+                    (SurfaceKind::Ceiling, span.ceiling.as_ref()),
+                ] {
+                    let Some(surface) = surface.filter(|s| s.void != 0) else {
+                        continue;
+                    };
+                    let face = FaceRef::new(
+                        room_index,
+                        key,
+                        FaceTarget::Surface {
+                            kind,
+                            span: span_index,
+                        },
+                    );
+                    for tri in 0..2u8 {
+                        if !surface.is_void(usize::from(tri)) {
+                            continue;
+                        }
+                        let points: Vec<[f32; 3]> = face
+                            .triangle_corners(world, tri)
+                            .iter()
+                            .filter_map(|c| c.grid_pos(world))
+                            .map(|g| {
+                                [
+                                    world.scale.to_editor(g[0]) as f32,
+                                    world.scale.to_editor(g[1]) as f32,
+                                    world.scale.to_editor(g[2]) as f32,
+                                ]
+                            })
+                            .collect();
+                        if points.len() == 3 {
+                            faces.push(PickFace {
+                                face,
+                                tri: Some(tri),
+                                points,
+                                normal: [0.0, 1.0, 0.0],
+                                double_sided: true,
+                                void: true,
+                            });
+                        }
+                    }
+                }
+            }
+        }
     }
     let mut corners = Vec::new();
     let mut edges = Vec::new();
@@ -498,6 +553,18 @@ impl EditorWorkspace {
                 let [wx, wz] = transform.screen_to_world(ptr.pos);
                 let cell = super::view::cell_at_editor(world.scale, wx, wz);
                 let room = self.top_room_at(cell)?;
+                // A cracked, voided or flipped surface is picked a triangle at
+                // a time (Alt names the triangle of a plain quad too).
+                if let Some((faces, Some(tri))) =
+                    super::face_tools::face_under_with(self, ptr, ptr.alt())
+                {
+                    if let Some(face) = faces
+                        .first()
+                        .filter(|f| matches!(f.target, FaceTarget::Surface { .. }))
+                    {
+                        return Some(vec![GridElement::Triangle { face: *face, tri }]);
+                    }
+                }
                 // A divided sector, or a cell of several sectors, is picked
                 // one leaf at a time: the leaf under the pointer and all of
                 // its faces.
@@ -517,9 +584,32 @@ impl EditorWorkspace {
                 }
                 Some(vec![GridElement::Cell { room, cell }])
             }
-            super::view::GridView::Persp(rect) => self
-                .pick_element_3d(rect, ptr.pos, level)
-                .map(|(element, _)| vec![element]),
+            super::view::GridView::Persp(rect) => {
+                let (element, hit) = self.pick_element_3d(rect, ptr.pos, level)?;
+                // A face that is cut into triangles is picked one triangle at
+                // a time; Alt names the triangle of a plain quad too.
+                if let (GridElement::Face(face), Some(hit)) = (element, hit) {
+                    if matches!(face.target, FaceTarget::Surface { .. }) {
+                        let world = self.project.active_scene().world.grid()?;
+                        let tri = hit.tri.or_else(|| {
+                            ptr.alt()
+                                .then(|| {
+                                    super::face_tools::tri_at(
+                                        world,
+                                        face,
+                                        hit.point[0],
+                                        hit.point[2],
+                                    )
+                                })
+                                .flatten()
+                        });
+                        if let Some(tri) = tri {
+                            return Some(vec![GridElement::Triangle { face, tri }]);
+                        }
+                    }
+                }
+                Some(vec![element])
+            }
         }
     }
 }

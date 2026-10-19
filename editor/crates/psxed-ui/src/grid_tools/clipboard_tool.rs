@@ -131,17 +131,40 @@ pub(super) fn delete_selection(ws: &mut EditorWorkspace) -> bool {
             _ => None,
         })
         .collect();
-    let faces = ws.grid.selection.faces(world);
+    let faces = ws.grid.selection.whole_faces(world);
+    let triangles = ws.grid.selection.triangles(world);
     let before = ws.project.clone();
     let Some(world) = ws.project.active_scene_mut().world.grid_mut() else {
         return false;
     };
     let mut removed = delete_faces(world, &faces);
     removed += usize::from(clear_cells(world, &cells) > 0);
+    // A triangle is not deleted from the surface: it is voided (the sector
+    // closes itself along the diagonal), and the Diagonal tool or the
+    // Inspector brings it back.
+    let mut voided = 0;
+    for (face, tri) in &triangles {
+        let psxed_project::grid::edit::FaceTarget::Surface { kind, .. } = face.target else {
+            continue;
+        };
+        let which = if *tri == 0 {
+            psxed_project::grid::edit::natural::Triangles::A
+        } else {
+            psxed_project::grid::edit::natural::Triangles::B
+        };
+        voided += usize::from(psxed_project::grid::edit::natural::set_void_leaf(
+            world, face.room, face.leaf, kind, which, true,
+        ));
+    }
+    removed += voided;
     ws.grid.selection.clear();
     if removed > 0 {
         ws.history.record(before);
-        ws.status = format!("Deleted {} faces", faces.len());
+        ws.status = if voided > 0 && faces.is_empty() {
+            format!("Voided {voided} triangles: the sector closes along the diagonal")
+        } else {
+            format!("Deleted {} faces", faces.len() + voided)
+        };
         ws.grid_changed();
     }
     true
