@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- The shared chain loader hands the CD drive to the payload quiet. The last
+  stop of a load is now `Reader::stop_proved` (the SDK's `SectorReader::stop_proved`:
+  wait for the Pause's second response, 1.2 to 3.9 million clocks after the first
+  on the console, settle by status if it never comes), and the loader acknowledges
+  every controller flag, drops the data request and closes `I_MASK` before the
+  jump. Before, the payload could receive that second response (a stray INT2) in
+  its first moments. Intermediate chunk stops are unchanged, and a stop that
+  cannot be proved fails the payload stage and retries like any other. The editor
+  pins SDK 3cf22179.
+
 - The shared chain loader can animate its loading screen. `Observer::tick` and
   `Presentation::tick` (both default to nothing) are called after every payload
   sector, once per spin of a seek wait and every 4 KiB of the checksum pass, and
