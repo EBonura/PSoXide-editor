@@ -2,6 +2,8 @@
 
 Status: design only. Nothing was built, run or edited to write this, except this file. Written against `grid/main` c581c6c7 (worktree `PSoXide-editor-wt/grid-editor`), the SDK pinned by that tree (`components.lock.json`, sdk 629a222f, which already holds `psx-cdstream`, `psx-residency` and `psx-residency-sim`), the SDK repo `main` 84a220abc, hk-psx at `feat/fsm-v2-phase1-2026-10-15` (the streaming files are identical to `main` dd8958f0, `git diff --stat` empty), and old PSoXide-editor history read with `git show <sha>:<path>`.
 
+**Update 2026-10-19:** the first phase is built (level core, records and rooms on the disc, rooms streamed by walk distance, no level data in the executable). What landed, what it cost and what is open: `streaming-runtime.md`.
+
 This is the spec that `level-tools-design.md` section 13 reserves as phase T16 ("Streaming units ... its own spec once T15 lands"). It extends section 7.3 of `level-format-and-runtime.md`, which only sketches streaming. The goal Manny gave: the world is going to be huge, it has to be seamless, it does not fit in memory, and the work being built now must not make streaming impossible later.
 
 Labels on every number: **[M]** measured (source named), **[D]** derived by arithmetic from [M] values or struct sizes (shown), **[E]** estimate or tunable default I propose, **[?]** unknown, needs a measurement. Where a number comes from a memory note and not from a file I could open, it says "memory".
