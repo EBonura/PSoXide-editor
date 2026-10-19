@@ -37,9 +37,7 @@ fn the_corridor_is_built_with_the_tools_and_cooks() {
     let tmp = std::env::temp_dir().join(format!("psxed-mcp-corridor-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&tmp);
     let out = std::env::var_os("PSXED_CORRIDOR_OUT").map(PathBuf::from);
-    let project = out
-        .clone()
-        .unwrap_or_else(|| tmp.join("projects/corridor"));
+    let project = out.clone().unwrap_or_else(|| tmp.join("projects/corridor"));
     std::fs::create_dir_all(project.parent().unwrap()).unwrap();
     if out.is_none() {
         for name in ["default", "graybox-reach"] {
@@ -101,10 +99,7 @@ fn the_corridor_is_built_with_the_tools_and_cooks() {
     for room in 0..ROOMS - 1 {
         let east = room * LENGTH + LENGTH - 1;
         for z in 0..WIDTH {
-            for (r, cell, edge) in [
-                (room, [east, z], "east"),
-                (room + 1, [east + 1, z], "west"),
-            ] {
+            for (r, cell, edge) in [(room, [east, z], "east"), (room + 1, [east + 1, z], "west")] {
                 c.ok(
                     "grid_wall_override",
                     json!({"room": r, "cell": cell, "edge": edge, "kind": "closure", "hidden": true, "solid": false}),
