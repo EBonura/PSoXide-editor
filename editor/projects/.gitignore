@@ -42,6 +42,11 @@
 # by ghosted openings, the last with a one click step, the player in the first.
 !grid-gate/
 !grid-gate/**
+# The streaming corridor (editor/crates/psxed-mcp/tests/grid_corridor.rs): sixteen
+# halls in a row with a short draw distance, so the room pool holds a third of
+# the level and every step east reads a room ahead and gives one back.
+!grid-corridor/
+!grid-corridor/**
 # The New Project template: the starter room File > New Grid Project makes.
 !grid-starter/
 !grid-starter/**
