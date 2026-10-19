@@ -232,3 +232,76 @@ fn both_halves_of_the_split_view_select() {
     assert_eq!(rig.ws.grid.selection.len(), 1, "3D half");
     assert_eq!(rig.ws.grid.selection.primary().unwrap().cell(), [3, 3]);
 }
+
+#[test]
+fn delete_raise_and_a_range_reach_the_pieces_of_a_divided_sector() {
+    // Delete takes the picked half cell's faces and nothing else.
+    let mut rig = divided_plan();
+    rig.tool(GridTool::Select);
+    let faces_before = psxed_project::grid::faces::all_faces(rig.world()).len();
+    rig.click(rig.top_at(2.75 * S, 2.25 * S));
+    rig.key(egui::Key::Delete);
+    let gone = rig
+        .room(0)
+        .leaf(psxed_project::grid::LeafKey {
+            level: 3,
+            x: 10,
+            z: 8,
+        })
+        .is_none_or(|s| s.ground_floor().is_none());
+    assert!(
+        gone,
+        "the picked half cell kept its floor: {}",
+        rig.ws.status
+    );
+    assert!(
+        rig.room(0)
+            .leaf(psxed_project::grid::LeafKey {
+                level: 3,
+                x: 8,
+                z: 8
+            })
+            .is_some_and(|s| s.ground_floor().is_some()),
+        "the north-west half cell is still there"
+    );
+    rig.ws.do_undo();
+    assert_eq!(
+        psxed_project::grid::faces::all_faces(rig.world()).len(),
+        faces_before
+    );
+    // Shift range from one half cell to a whole sector on its right.
+    rig.click(rig.top_at(2.25 * S, 2.25 * S));
+    rig.click_with(rig.cell_centre(4, 2), egui::Modifiers::SHIFT);
+    assert!(
+        rig.ws.grid.selection.faces(rig.world()).len() >= 2,
+        "{}",
+        describe(&rig)
+    );
+}
+
+#[test]
+fn raise_in_the_plan_lifts_a_half_cell_region() {
+    let mut rig = divided_plan();
+    rig.tool(GridTool::Raise);
+    let from = rig.top_at(2.75 * S, 2.25 * S);
+    // Pick the region (a click), then press on it and drag up.
+    rig.click(from);
+    rig.drag(from, from + Vec2::new(0.0, -2.0 * CLICK_PX_PLAN));
+    let leaf = psxed_project::grid::LeafKey {
+        level: 3,
+        x: 10,
+        z: 8,
+    };
+    let raised = rig
+        .room(0)
+        .leaf(leaf)
+        .and_then(|s| s.ground_floor())
+        .map(|f| f.heights);
+    assert!(
+        raised.is_some_and(|h| h.iter().any(|v| *v > 0)),
+        "{raised:?} {}",
+        rig.ws.status
+    );
+}
+
+const CLICK_PX_PLAN: f32 = crate::grid_tools::view::TOP_PIXELS_PER_CLICK;
