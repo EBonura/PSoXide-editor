@@ -140,3 +140,31 @@ Failing before, passing after (host tests, `psxed-ui --lib`):
 * `grid_audit::the_split_view_frames_the_world_in_the_plan_half`: failed with `the room spans [615.5 497.0] to [787047.5 786929.0] but the plan half is [[294.0 191.0] - [937.0 803.0]]`.
 
 The exploratory probes that printed what a designer would see (paint with no material, Place twice, delete and undo, 653-material frame cost: 1.2 ms a frame in a debug build, so not a perf problem) were run once and are not kept.
+
+## Status after the layout rework (2026-10-19)
+
+Landed on `grid/main`, each with host interaction tests (`psxed-ui/src/tests/grid_audit.rs`, `grid_triangles.rs`, `grid_material_tab.rs`, `grid_layout.rs`):
+
+| # | Finding | State |
+|---|---|---|
+| 1 | Divided sector cannot be picked in the plan | fixed |
+| 2 | Split view unframed | fixed |
+| 3 | FileSystem panel in the other tabs | removed for grid projects |
+| 4 | Material tab: second browser, World form in the Inspector | opens on the paint material, picking there is the paint material, the Inspector is about the material |
+| 5 | Resources dock listing materials | fixed on the tip (UX pass) |
+| 6 | No per-triangle selection | `GridElement::Triangle`: pick in plan and 3D, void triangles pickable, material, Delete (void), Shift-drag |
+| 7 | Two buttons named Split | the tool is Diagonal, the view switch reads 3D, Plan, Both |
+| 8 | Palette at 650 scale | grouped by name prefix, closed groups on a big world, Recent row, taller window |
+| 9 | Nothing selected shows the World form | Properties header and a hint; World settings button or the World row |
+| 10 | Resources dock takes a quarter of the height | Assets drawer, closed bar by default, Place (model, character) and model import open it |
+| 11 | Place returns to Select and loses its message | message kept, Shift+click keeps the tool |
+| 12 | Flat Scene Graph of lights | three or more sibling lights are one `Lights (n)` row |
+| 13 | Paint material none at open | the first palette material |
+| 14 | Tool strip wraps to three rows | PICK, DRAW, FINISH, BUILD on two rows |
+| 15 | Link, Move, Global with nothing to act on | Link with Height or a pick, Move and Global with a selected node |
+| 16 | Unlabelled icons | Frame, Camera, Show |
+| 17 | 9 px status bar | message, hints and budget chips at 12 to 13 px |
+| 18 | Debug in the main bar | Tools menu |
+| 19 | Keys page | search box |
+
+The Structure panel (Levels and Rooms under one header) and the Properties header are the layout proposal's left and right docks. Open: the Material tab's left dock still shows the Scene Graph (the palette is not repeated there), the Plan's stairs ghost label clips at the pane edge, and the Properties header does not yet name a selected light by kind.
