@@ -35,7 +35,7 @@ impl EditorWorkspace {
         let mut toggle = None;
         let mut rename_start = None;
         let mut rename_to: Option<(usize, String)> = None;
-        tool_panel_header(ui, icons::HOUSE, "Rooms", |ui| {
+        super::levels_panel::structure_section_header(ui, icons::HOUSE, "Rooms", |ui| {
             add = ui
                 .button(icons::text(icons::PLUS, 14.0))
                 .on_hover_text("Add an empty room one storey above the highest")

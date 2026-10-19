@@ -48,7 +48,7 @@ impl EditorWorkspace {
         let mut rename_commit = false;
         let mut add = false;
         let mut cutaway = self.grid.level.cutaway;
-        tool_panel_header(ui, icons::LAYERS, "Levels", |ui| {
+        structure_section_header(ui, icons::LAYERS, "Levels", |ui| {
             add = ui
                 .button(icons::text(icons::PLUS, 14.0))
                 .on_hover_text(format!(
@@ -208,6 +208,8 @@ impl EditorWorkspace {
 impl EditorWorkspace {
     /// The left dock of a grid world: Levels and Rooms (scrolling when the
     /// room settings are open), then the scene graph for the rest.
+    /// The left dock of a grid world: Structure (the levels and the rooms),
+    /// then the Scene Graph.
     pub(crate) fn draw_grid_left_dock(&mut self, ui: &mut egui::Ui) {
         let content_width = ui.available_width().max(1.0);
         let total = ui.available_height().max(1.0);
@@ -222,6 +224,7 @@ impl EditorWorkspace {
                     .auto_shrink([false, true])
                     .max_height(top)
                     .show(ui, |ui| {
+                        tool_panel_header(ui, icons::LAYERS_2, "Structure", |_| {});
                         self.draw_grid_levels_panel(ui);
                         self.draw_grid_rooms_panel(ui);
                     });
@@ -238,4 +241,23 @@ impl EditorWorkspace {
             },
         );
     }
+}
+
+/// The head of a section inside the Structure panel: the panel's own header
+/// is the heavy one, so a section is a quiet line with its buttons at the
+/// right.
+pub(crate) fn structure_section_header(
+    ui: &mut egui::Ui,
+    icon: char,
+    label: &str,
+    add_actions: impl FnOnce(&mut egui::Ui),
+) {
+    ui.add_space(2.0);
+    ui.horizontal(|ui| {
+        ui.label(icons::text(icon, 13.0).color(STUDIO_TEXT_WEAK));
+        ui.label(RichText::new(label).strong().size(11.5).color(STUDIO_TEXT));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            add_actions(ui);
+        });
+    });
 }

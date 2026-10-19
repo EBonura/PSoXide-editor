@@ -1339,3 +1339,98 @@ pub(crate) const fn component_slot(kind: &NodeKind) -> Option<&'static str> {
         _ => None,
     }
 }
+
+/// What the Scene Graph lists: a node, or a run of lights as one row.
+pub(crate) enum SceneEntry<'a> {
+    Row(&'a NodeRow),
+    Lights {
+        /// The first light of the run (the group's key).
+        first: NodeId,
+        count: usize,
+        depth: usize,
+        open: bool,
+    },
+}
+
+/// Runs of at least this many sibling lights become one row.
+const LIGHT_GROUP_MIN: usize = 3;
+
+/// `rows` with every run of [`LIGHT_GROUP_MIN`] or more sibling point lights
+/// folded into a `Lights (n)` row: followed by the lights when the group is
+/// open (listed, or holding the selection), else by nothing.
+pub(crate) fn group_light_runs<'a>(
+    rows: &[&'a NodeRow],
+    opened: &HashSet<NodeId>,
+    selected_nodes: &HashSet<NodeId>,
+    selected_node: NodeId,
+) -> Vec<SceneEntry<'a>> {
+    let is_light = |row: &NodeRow| row.kind == "Point Light" && row.child_count == 0;
+    let mut out = Vec::with_capacity(rows.len());
+    let mut i = 0;
+    while i < rows.len() {
+        let mut j = i;
+        while j < rows.len()
+            && is_light(rows[j])
+            && rows[j].depth == rows[i].depth
+            && rows[j].parent == rows[i].parent
+        {
+            j += 1;
+        }
+        let run = &rows[i..j];
+        if run.len() >= LIGHT_GROUP_MIN {
+            let first = run[0].id;
+            let holds_selection = run
+                .iter()
+                .any(|r| selected_nodes.contains(&r.id) || selected_node == r.id);
+            let open = opened.contains(&first) || holds_selection;
+            out.push(SceneEntry::Lights {
+                first,
+                count: run.len(),
+                depth: run[0].depth,
+                open,
+            });
+            if open {
+                out.extend(run.iter().map(|r| SceneEntry::Row(r)));
+            }
+            i = j;
+        } else {
+            out.push(SceneEntry::Row(rows[i]));
+            i += 1;
+        }
+    }
+    out
+}
+
+/// The `Lights (n)` row. Returns whether it was clicked.
+pub(crate) fn draw_light_group_row(
+    ui: &mut egui::Ui,
+    count: usize,
+    depth: usize,
+    open: bool,
+) -> bool {
+    let (rect, response) =
+        ui.allocate_exact_size(Vec2::new(ui.available_width(), 24.0), Sense::click());
+    let painter = ui.painter_at(rect);
+    paint_list_row(&painter, rect, false, response.hovered());
+    let left = rect.left() + 4.0 + depth as f32 * 16.0;
+    painter.text(
+        Pos2::new(left + 6.0, rect.center().y),
+        Align2::CENTER_CENTER,
+        if open {
+            icons::CHEVRON_DOWN
+        } else {
+            icons::CHEVRON_RIGHT
+        }
+        .to_string(),
+        icons::font(12.0),
+        STUDIO_TEXT_WEAK,
+    );
+    painter.text(
+        Pos2::new(left + 22.0, rect.center().y),
+        Align2::LEFT_CENTER,
+        format!("Lights ({count})"),
+        FontId::proportional(13.0),
+        STUDIO_TEXT,
+    );
+    response.on_hover_text("Click to list the lights").clicked()
+}

@@ -550,6 +550,9 @@ pub struct EditorWorkspace {
     /// two-step delete-confirm pattern used by the resource browser.
     ui_scene_delete_confirm: Option<usize>,
     collapsed_scene_nodes: HashSet<NodeId>,
+    /// First light of each run of lights the Scene Graph shows open (a run of
+    /// three or more is one `Lights (n)` row, closed unless listed here).
+    opened_light_groups: HashSet<NodeId>,
     collapsed_file_folders: HashSet<String>,
     hidden_scene_nodes: HashSet<NodeId>,
     hidden_ui_nodes: HashSet<(UiSceneId, UiNodeId)>,
@@ -2234,6 +2237,7 @@ impl EditorWorkspace {
             ui_scene_rename_focus_pending: false,
             ui_scene_delete_confirm: None,
             collapsed_scene_nodes: HashSet::new(),
+            opened_light_groups: HashSet::new(),
             collapsed_file_folders: HashSet::new(),
             hidden_scene_nodes: HashSet::new(),
             hidden_ui_nodes: HashSet::new(),

@@ -257,7 +257,26 @@ impl EditorWorkspace {
         let rows = self.project.active_scene().hierarchy_rows();
         let filter = self.scene_filter.to_ascii_lowercase();
         let display_rows = scene_tree_display_rows(&rows, &filter, &self.collapsed_scene_nodes);
-        let visible_node_order: Vec<NodeId> = display_rows.iter().map(|row| row.id).collect();
+        // A grid world's lights are many: three or more in a row are one
+        // `Lights (n)` row that opens on a click (or when one is selected).
+        let entries = if self.is_grid_world() && filter.is_empty() {
+            group_light_runs(
+                &display_rows,
+                &self.opened_light_groups,
+                &self.selection.selected_nodes,
+                self.selection.selected_node,
+            )
+        } else {
+            display_rows.iter().map(|r| SceneEntry::Row(r)).collect()
+        };
+        let visible_node_order: Vec<NodeId> = entries
+            .iter()
+            .filter_map(|e| match e {
+                SceneEntry::Row(row) => Some(row.id),
+                SceneEntry::Lights { .. } => None,
+            })
+            .collect();
+        let mut toggle_lights: Option<NodeId> = None;
         let mut actions: Vec<TreeAction> = Vec::new();
         let selected_node = self.selection.selected_node;
         let selected_nodes = self.selection.selected_nodes.clone();
@@ -272,7 +291,21 @@ impl EditorWorkspace {
             .auto_shrink([false, false])
             .max_height(tree_scroll_height)
             .show(ui, |ui| {
-                for row in display_rows {
+                for entry in entries {
+                    let row = match entry {
+                        SceneEntry::Row(row) => row,
+                        SceneEntry::Lights {
+                            first,
+                            count,
+                            depth,
+                            open,
+                        } => {
+                            if draw_light_group_row(ui, count, depth, open) {
+                                toggle_lights = Some(first);
+                            }
+                            continue;
+                        }
+                    };
                     draw_scene_node_row(
                         ui,
                         row,
@@ -290,6 +323,11 @@ impl EditorWorkspace {
                 autoscroll_tree_drag::<NodeId>(ui);
             });
 
+        if let Some(first) = toggle_lights {
+            if !self.opened_light_groups.remove(&first) {
+                self.opened_light_groups.insert(first);
+            }
+        }
         for action in actions {
             self.apply_tree_action(action, &visible_node_order);
         }
