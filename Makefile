@@ -32,7 +32,7 @@
         showcase-lights showcase-lights-disc run-showcase-lights \
 	showcase-fog showcase-fog-disc run-showcase-fog \
 	showcase-particles showcase-particles-disc run-showcase-particles \
-	hardware-tests hardware-tests-disc run-hardware-tests \
+	hardware-tests hardware-tests-disc hwtest-radius-disc run-hardware-tests \
 	hwtest-run hwtest-diff hwtest-baseline hwtest-compare hwtest-verify-code \
 	hello-engine hello-engine-disc run-hello-engine \
 	cook-playtest build-editor-playtest editor-blank-playtest-check editor-bsp-liquid-check editor-souls-bsp-check profile-demo3 profile-demo3-forward \
@@ -553,8 +553,10 @@ showcase-fog: assets
 showcase-particles:
 	cd engine/examples/showcase-particles && $(ENGINE_EXAMPLE_CARGO_ENV) cargo build --release $(PSX_BUILD_FLAGS)
 
+# Cargo features of the guest, e.g. HWTEST_FEATURES=console-diag.
+HWTEST_FEATURES ?=
 hardware-tests:
-	cd engine/examples/hardware-tests && $(ENGINE_EXAMPLE_CARGO_ENV) cargo build --release $(PSX_BUILD_FLAGS)
+	cd engine/examples/hardware-tests && $(ENGINE_EXAMPLE_CARGO_ENV) cargo build --release $(PSX_BUILD_FLAGS) $(if $(HWTEST_FEATURES),--features "$(HWTEST_FEATURES)")
 	cargo run -q --release --locked -p psoxide-hazard --bin hazard-scan -- $(EXAMPLE_OUT)/hardware-tests.exe
 
 # --- hardware-test pipeline ----------------------------------------------
@@ -685,6 +687,40 @@ hardware-tests-disc: hardware-tests $(HWTEST_CDDA) $(HWTEST_XA) $(HWTEST_XA_CLOC
 		--xa-file ../../$(HWTEST_XA) \
 		--xa-file ../../$(HWTEST_XA_CLOCK) \
 		--cdda-track ../../$(HWTEST_CDDA)
+
+# --- radius disc (v2.8) ---------------------------------------------------
+# The plain hardware-test image padded with RADIUS.DAT, deterministic filler
+# (psoxide-hwtest radius-fill) that carries the data track out to about 78
+# minutes, as full as the demo disc, so the CD RADIUS SWEEP step has outer
+# radius to read. It is built with the SDK stop panel (console-diag), which
+# moves CDTEST.BIN to 400 sectors (see CDTEST_SECTORS in main.rs). The filler
+# goes last on the data track, after the XA files, so everything else keeps its
+# place; the CD-DA track follows it, so on this disc it sits at the outer edge.
+# 16,660 sectors of image plus the filler stay under the 359,844 blocks of an
+# 80-minute CD-R; the recipe checks it.
+HWTEST_RADIUS_DIR := build/hwtest-radius
+HWTEST_RADIUS_FILL := $(HWTEST_RADIUS_DIR)/RADIUS.DAT
+HWTEST_RADIUS_SECTORS ?= 334300
+HWTEST_RADIUS_BLOCKS_MAX := 359844
+
+$(HWTEST_RADIUS_FILL):
+	@mkdir -p $(dir $@)
+	$(PSOXIDE_HWTEST) radius-fill $@ $(HWTEST_RADIUS_SECTORS)
+
+hwtest-radius-disc: HWTEST_FEATURES = console-diag
+hwtest-radius-disc: hardware-tests $(HWTEST_CDDA) $(HWTEST_XA) $(HWTEST_XA_CLOCK) $(HWTEST_RADIUS_FILL)
+	cd tools/mkisopsx && cargo run --release -- \
+		--exe ../../$(EXAMPLE_OUT)/hardware-tests.exe \
+		--out ../../$(HWTEST_RADIUS_DIR)/hardware-tests-radius.bin \
+		--volume PSOXIDE \
+		--cdtest-sectors 400 \
+		--xa-file ../../$(HWTEST_XA) \
+		--xa-file ../../$(HWTEST_XA_CLOCK) \
+		--xa-file ../../$(HWTEST_RADIUS_FILL) \
+		--cdda-track ../../$(HWTEST_CDDA)
+	@sectors=$$(( $$(stat -f %z $(HWTEST_RADIUS_DIR)/hardware-tests-radius.bin) / 2352 )); \
+		echo "radius disc: $$sectors sectors ($$(( sectors / 4500 )) min $$(( sectors % 4500 / 75 )) s), limit $(HWTEST_RADIUS_BLOCKS_MAX)"; \
+		[ $$sectors -le $(HWTEST_RADIUS_BLOCKS_MAX) ] || { echo "radius disc does not fit an 80-minute CD-R" >&2; exit 2; }
 
 $(foreach example,$(DATA_DISC_EXAMPLES),$(eval $(call build_data_disc,$(example))))
 
