@@ -680,6 +680,8 @@ impl EditorWorkspace {
     }
 
     pub(crate) fn open_model_import_dialog(&mut self) {
+        // The imported model lands in the Assets drawer.
+        self.resources_open = true;
         self.model_import_dialog.open = true;
         self.model_import_dialog.status = None;
         self.retire_model_import_preview();

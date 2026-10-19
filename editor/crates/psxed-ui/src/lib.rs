@@ -2173,6 +2173,7 @@ impl EditorWorkspace {
     /// by `open_directory` and `create_and_open_project`; not part
     /// of the public API.
     fn with_project(project_dir: PathBuf, project: ProjectDocument) -> Self {
+        let grid_project = project.active_scene().world.grid().is_some();
         let saved_project_name = project.name.clone();
         let editor_camera = project.editor_camera;
         let editor_visibility = project.editor_visibility;
@@ -2269,7 +2270,9 @@ impl EditorWorkspace {
             active_workspace: WorkspaceView::from_project(editor_workspace.active),
             left_dock_open: true,
             inspector_open: true,
-            resources_open: true,
+            // A grid project keeps its assets in a drawer that opens when a
+            // tool needs them; every other project shows the dock.
+            resources_open: !grid_project,
             content_browser_view: ContentBrowserView::Resources,
             viewport_zoom: DEFAULT_VIEWPORT_ZOOM,
             last_viewport_size: Vec2::new(1280.0, 720.0),

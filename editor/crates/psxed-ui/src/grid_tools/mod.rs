@@ -387,7 +387,7 @@ impl GridViewMode {
         match self {
             Self::Persp => "3D",
             Self::Plan => "Plan",
-            Self::Split => "Split",
+            Self::Split => "Both",
         }
     }
 
@@ -403,7 +403,7 @@ impl GridViewMode {
         match self {
             Self::Persp => "The 3D view: the PS1 picture of the level",
             Self::Plan => "The plan: the world from above, every room and level",
-            Self::Split => "The plan and the 3D view side by side; a tool works in either",
+            Self::Split => "The plan and the 3D view side by side (Both); a tool works in either",
         }
     }
 
@@ -795,6 +795,16 @@ impl EditorWorkspace {
             _ => ViewTool::Select,
         };
         verb_tool::on_tool_changed(self);
+        // A prop that needs a model or a character opens the Assets drawer to
+        // choose one from.
+        if tool == GridTool::Place
+            && matches!(
+                self.place_kind,
+                PlaceKind::ModelInstance | PlaceKind::Character
+            )
+        {
+            self.resources_open = true;
+        }
         self.status = format!("Tool: {} ({})", tool.label(), tool.key_label());
         self.mark_shortcut_group_changed(ShortcutGroup::Tool);
     }

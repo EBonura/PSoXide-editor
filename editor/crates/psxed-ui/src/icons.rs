@@ -16,6 +16,7 @@ pub const BRICK_WALL: char = '\u{e581}';
 pub const CHEVRON_DOWN: char = '\u{e06d}';
 pub const CHEVRON_LEFT: char = '\u{e06e}';
 pub const CHEVRON_RIGHT: char = '\u{e06f}';
+pub const CHEVRON_UP: char = '\u{e070}';
 pub const CIRCLE_DOT: char = '\u{e345}';
 pub const COPY: char = '\u{e09e}';
 pub const COLUMNS: char = '\u{e098}';

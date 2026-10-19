@@ -173,8 +173,8 @@ fn a_grid_project_draws_no_file_tree_in_any_workspace() {
         for stale in ["FileSystem", "main.map", "res://"] {
             assert!(!text.contains(stale), "{view:?} still draws {stale:?}");
         }
-        // The Resources dock stays the one list of assets.
-        assert!(text.contains("Resources"), "{view:?}");
+        // The Assets drawer stays the one list of assets.
+        assert!(text.contains("Assets"), "{view:?}");
     }
 }
 

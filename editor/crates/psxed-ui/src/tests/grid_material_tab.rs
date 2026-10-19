@@ -72,7 +72,7 @@ fn the_material_tab_inspector_is_about_the_material_and_not_the_world() {
     let mut ws = EditorWorkspace::with_project(test_temp_dir("mat-tab-inspector"), project);
     ws.grid.material = Some(b);
     let text = draw_material_tab(&mut ws);
-    for world in ["Physics", "Far Vista", "World Message", "Sky"] {
+    for world in ["Physics", "Far Vista", "World Message", "Sky Texture"] {
         assert!(!text.contains(world), "the World form is drawn: {world}");
     }
     assert!(text.contains("Used on"), "{text}");

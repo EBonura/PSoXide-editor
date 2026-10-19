@@ -91,6 +91,10 @@ fn locate_unique_label(
     viewport: &EditorViewport3dPresentation,
     label: &str,
 ) -> Pos2 {
+    // One frame to settle: egui lays a window out on its first frame and draws
+    // it from the second (which one a window needs depends on the panels
+    // around it), and the editor draws frames all the time.
+    let _ = real_egui_workspace_frame(ctx, workspace, viewport, 0.0, vec![]);
     let frame = real_egui_workspace_frame(ctx, workspace, viewport, 0.0, vec![]);
     let found = text_shape_centers(&frame.shapes, label);
     assert_eq!(

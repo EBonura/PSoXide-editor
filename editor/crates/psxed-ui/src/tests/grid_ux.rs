@@ -122,7 +122,7 @@ fn the_view_switch_shows_3d_the_plan_or_both_and_both_draw() {
             mode == GridViewMode::Plan,
             Vec2::new(1600.0, 1000.0),
         ));
-        for label in ["3D", "Plan", "Split"] {
+        for label in ["3D", "Plan", "Both"] {
             assert!(text.contains(label), "{mode:?}: {label} missing\n{text}");
         }
     }

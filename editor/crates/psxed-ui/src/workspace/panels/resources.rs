@@ -467,6 +467,10 @@ impl EditorWorkspace {
 
     pub(crate) fn draw_content_browser(&mut self, ctx: &egui::Context) {
         if !self.resources_open {
+            // A grid project keeps a thin drawer bar where the dock was.
+            if self.is_grid_world() {
+                self.draw_assets_drawer_bar(ctx);
+            }
             return;
         }
         // Refresh PSXT thumbnail handles up-front so the resource
@@ -502,7 +506,43 @@ impl EditorWorkspace {
             });
     }
 
+    /// The closed Assets drawer: one line with the two tabs that open it.
+    fn draw_assets_drawer_bar(&mut self, ctx: &egui::Context) {
+        egui::TopBottomPanel::bottom("psxed_assets_drawer_bar")
+            .resizable(false)
+            .exact_height(30.0)
+            .frame(dock_frame())
+            .show(ctx, |ui| {
+                ui.horizontal_centered(|ui| {
+                    ui.label(icons::text(icons::LAYERS, 15.0).color(STUDIO_ACCENT));
+                    for (label, view) in [
+                        ("Assets", ContentBrowserView::Resources),
+                        ("Console", ContentBrowserView::Debug),
+                    ] {
+                        if ui
+                            .button(icons::label(icons::CHEVRON_UP, label))
+                            .on_hover_text("Open the drawer")
+                            .clicked()
+                        {
+                            self.content_browser_view = view;
+                            self.resources_open = true;
+                        }
+                    }
+                    ui.label(
+                        RichText::new("models, animations, characters, weapons and the build log")
+                            .size(11.0)
+                            .color(STUDIO_TEXT_WEAK),
+                    );
+                });
+            });
+    }
+
     pub(crate) fn draw_resource_panel_header(&mut self, ui: &mut egui::Ui) {
+        let resources_label = if self.is_grid_world() {
+            "Assets"
+        } else {
+            "Resources"
+        };
         egui::Frame::new()
             .fill(STUDIO_PANEL_HEADER)
             .inner_margin(panel_header_margin())
@@ -522,20 +562,30 @@ impl EditorWorkspace {
                     ui.selectable_value(
                         &mut self.content_browser_view,
                         ContentBrowserView::Resources,
-                        "Resources",
+                        resources_label,
                     );
                     ui.selectable_value(
                         &mut self.content_browser_view,
                         ContentBrowserView::Debug,
                         "Console",
                     );
-                    ui.with_layout(
-                        egui::Layout::right_to_left(egui::Align::Center),
-                        |ui| match self.content_browser_view {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if self.is_grid_world()
+                            && ui
+                                .add(
+                                    egui::Button::new(icons::text(icons::CHEVRON_DOWN, 14.0))
+                                        .min_size(Vec2::new(28.0, 24.0)),
+                                )
+                                .on_hover_text("Close the drawer")
+                                .clicked()
+                        {
+                            self.resources_open = false;
+                        }
+                        match self.content_browser_view {
                             ContentBrowserView::Resources => self.draw_resource_panel_actions(ui),
                             ContentBrowserView::Debug => self.draw_debug_terminal_actions(ui),
-                        },
-                    );
+                        }
+                    });
                 });
             });
     }
