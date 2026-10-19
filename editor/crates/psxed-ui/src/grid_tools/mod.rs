@@ -42,7 +42,7 @@ mod lasso;
 mod leaf_overlay;
 mod level;
 pub(crate) mod levels_panel;
-mod materials_panel;
+pub(crate) mod materials_panel;
 mod mesh_overlay;
 mod mesh_panel;
 mod mesh_tool;
@@ -682,6 +682,9 @@ pub(crate) struct GridEditState {
     pub split: bool,
     /// The search box of the Materials panel.
     pub palette_search: String,
+    /// The materials painted with or applied last, newest first (the
+    /// palette's Recent row; not saved).
+    pub palette_recent: Vec<ResourceId>,
     /// The material ids that existed when the palette opened the Import
     /// dialog: what is new when it closes joins the palette.
     pub palette_import_watch: Option<Vec<ResourceId>>,
@@ -738,6 +741,7 @@ impl Default for GridEditState {
             split: false,
             room_settings_open: false,
             palette_search: String::new(),
+            palette_recent: Vec::new(),
             palette_import_watch: None,
             renaming_room: None,
         }

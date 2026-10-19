@@ -16,6 +16,40 @@ use psxed_project::grid::edit::material_of;
 
 const SWATCH: f32 = 44.0;
 
+/// How many materials the Recent row keeps.
+const RECENT_MATERIALS: usize = 8;
+
+/// A palette of this many materials or fewer starts with every group open.
+const GROUPS_OPEN_BELOW: usize = 40;
+
+/// The palette group of a material name: the part before " / " (`Graybox /
+/// Brick` is in Graybox), else the name without a trailing `.n` (`DP 13.4`
+/// is in DP 13), else Other.
+pub(crate) fn group_of(name: &str) -> String {
+    if let Some((group, _)) = name.split_once(" / ") {
+        return group.trim().to_string();
+    }
+    if let Some((group, tail)) = name.rsplit_once('.') {
+        if !group.is_empty() && !tail.is_empty() && tail.bytes().all(|b| b.is_ascii_digit()) {
+            return group.trim().to_string();
+        }
+    }
+    "Other".to_string()
+}
+
+/// `materials` split into groups, in the order each group first appears.
+fn group_materials(materials: &[(ResourceId, String)]) -> Vec<(String, Vec<(ResourceId, String)>)> {
+    let mut groups: Vec<(String, Vec<(ResourceId, String)>)> = Vec::new();
+    for (id, name) in materials {
+        let group = group_of(name);
+        match groups.iter_mut().find(|(g, _)| *g == group) {
+            Some((_, members)) => members.push((*id, name.clone())),
+            None => groups.push((group, vec![(*id, name.clone())])),
+        }
+    }
+    groups
+}
+
 impl EditorWorkspace {
     /// A project opens with a paint material (the first of the palette), so
     /// the first Paint click paints and the Material tab has something to
@@ -107,31 +141,61 @@ impl EditorWorkspace {
             ui.label(RichText::new(text).color(STUDIO_TEXT_WEAK));
         } else {
             let scroll_to = self.grid.palette_scroll_to.take();
+            // The window grows with the dock: a world of 650 tiles needs more
+            // than a few rows.
+            let window = (ui.available_height() * 0.5).clamp(236.0, 520.0);
             egui::ScrollArea::vertical()
                 .id_salt("grid_palette_scroll")
-                .max_height(236.0)
+                .max_height(window)
                 .auto_shrink([false, true])
                 .show(ui, |ui| {
-                    ui.horizontal_wrapped(|ui| {
-                        ui.spacing_mut().item_spacing = Vec2::splat(4.0);
-                        for (id, name) in &shown {
-                            let paint = self.grid.material == Some(*id);
-                            let response =
-                                self.draw_swatch(ui, *id, name, paint, on_face == Some(*id));
-                            if scroll_to == Some(*id) {
-                                response.scroll_to_me(Some(egui::Align::Center));
-                            }
-                            if response.clicked() {
-                                self.grid.material = Some(*id);
-                                let applied = self.apply_grid_material_to_selection(*id);
-                                self.status = if applied > 0 {
-                                    format!("Applied {name} to {applied} faces")
-                                } else {
-                                    format!("Material: {name}")
-                                };
-                            }
-                        }
-                    });
+                    // Recent: what was used last, one click away.
+                    let recent: Vec<(ResourceId, String)> = self
+                        .grid
+                        .palette_recent
+                        .iter()
+                        .filter_map(|id| {
+                            self.project
+                                .resource_name(*id)
+                                .map(|n| (*id, n.to_string()))
+                        })
+                        .collect();
+                    if !recent.is_empty() && query.is_empty() {
+                        ui.label(RichText::new("Recent").size(11.0).color(STUDIO_TEXT_WEAK));
+                        self.draw_swatch_row(ui, "recent", &recent, on_face, None);
+                        ui.add_space(2.0);
+                    }
+                    let groups = group_materials(&shown);
+                    let current_group = self
+                        .grid
+                        .material
+                        .and_then(|id| shown.iter().find(|(m, _)| *m == id))
+                        .map(|(_, name)| group_of(name));
+                    // A world of a few materials shows them all; a big one
+                    // starts with its groups closed, except the one holding
+                    // the paint material.
+                    let few = shown.len() <= GROUPS_OPEN_BELOW;
+                    for (group, members) in &groups {
+                        let open = !query.is_empty()
+                            || few
+                            || current_group.as_deref() == Some(group.as_str())
+                            || scroll_to.is_some_and(|id| members.iter().any(|(m, _)| *m == id));
+                        let header = egui::CollapsingHeader::new(
+                            RichText::new(format!("{group} ({})", members.len())).size(12.0),
+                        )
+                        .id_salt(("grid_palette_group", group))
+                        .default_open(open);
+                        let holds_target =
+                            scroll_to.is_some_and(|id| members.iter().any(|(m, _)| *m == id));
+                        let header = if !query.is_empty() || holds_target {
+                            header.open(Some(true))
+                        } else {
+                            header
+                        };
+                        header.show(ui, |ui| {
+                            self.draw_swatch_row(ui, group, members, on_face, scroll_to);
+                        });
+                    }
                 });
         }
         let name = self
@@ -171,6 +235,56 @@ impl EditorWorkspace {
         if edit {
             self.open_paint_material_in_lab();
         }
+    }
+
+    /// One wrapped row of swatches; a click chooses the material.
+    fn draw_swatch_row(
+        &mut self,
+        ui: &mut egui::Ui,
+        salt: &str,
+        materials: &[(ResourceId, String)],
+        on_face: Option<ResourceId>,
+        scroll_to: Option<ResourceId>,
+    ) {
+        let mut chosen = None;
+        ui.push_id(salt, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing = Vec2::splat(4.0);
+                for (id, name) in materials {
+                    let paint = self.grid.material == Some(*id);
+                    let response = self.draw_swatch(ui, *id, name, paint, on_face == Some(*id));
+                    if scroll_to == Some(*id) {
+                        response.scroll_to_me(Some(egui::Align::Center));
+                    }
+                    if response.clicked() {
+                        chosen = Some(*id);
+                    }
+                }
+            });
+        });
+        if let Some(id) = chosen {
+            self.choose_palette_material(id);
+        }
+    }
+
+    /// A swatch was clicked: it is the paint material, it goes on the
+    /// selected faces, and it is the newest of the recent ones.
+    pub(crate) fn choose_palette_material(&mut self, id: ResourceId) {
+        let name = self
+            .project
+            .resource_name(id)
+            .unwrap_or("material")
+            .to_string();
+        self.grid.material = Some(id);
+        self.grid.palette_recent.retain(|r| *r != id);
+        self.grid.palette_recent.insert(0, id);
+        self.grid.palette_recent.truncate(RECENT_MATERIALS);
+        let applied = self.apply_grid_material_to_selection(id);
+        self.status = if applied > 0 {
+            format!("Applied {name} to {applied} faces")
+        } else {
+            format!("Material: {name}")
+        };
     }
 
     /// The Inspector of the Material tab in a grid project: the material

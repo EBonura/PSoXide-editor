@@ -38,7 +38,7 @@ A grid project's Material tab opens on the palette's paint material and what you
 
 ### Materials palette
 
-Lists the materials the world already uses, the images imported with a level (`level_textures/`) and the Graybox set. HUD, menu, button prompt, kit, sky and character images are left out; tick "Show all project materials" to see them. Click a swatch to make it the current material (the Paint tool and new surfaces use it) and to apply it to the selected faces.
+Grouped by name: the part before ` / ` (`Graybox / Brick` is in Graybox) or the name without a trailing `.n` (`DP 13.4` is in DP 13), each group a collapsible header with its count; a big world starts with its groups closed except the one holding the paint material, and a search opens the groups it matches. A Recent row keeps the last eight materials used; the scroll window grows with the dock. Lists the materials the world already uses, the images imported with a level (`level_textures/`) and the Graybox set. HUD, menu, button prompt, kit, sky and character images are left out; tick "Show all project materials" to see them. Click a swatch to make it the current material (the Paint tool and new surfaces use it) and to apply it to the selected faces.
 
 ## Tools
 
