@@ -15,7 +15,9 @@
 use std::fs;
 
 const CROSS: u16 = 1 << 14;
-const TOTAL: usize = 3000;
+/// Polls the tape holds unless `MKTAPE_POLLS` says otherwise (a route through a
+/// long level needs more than the 3000 the Cathedral-style routes use).
+const DEFAULT_TOTAL: usize = 3000;
 
 fn num(text: &str) -> u16 {
     match text.strip_prefix("0x") {
@@ -27,8 +29,12 @@ fn num(text: &str) -> u16 {
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let out = args.get(1).expect("usage: mktape OUT SEGMENT...");
+    let total: usize = std::env::var("MKTAPE_POLLS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_TOTAL);
     // (buttons, right x, right y, left x, left y)
-    let mut s = vec![(0u16, 128u8, 128u8, 128u8, 128u8); TOTAL];
+    let mut s = vec![(0u16, 128u8, 128u8, 128u8, 128u8); total];
     for (start, hold) in [(200, 20), (400, 20), (600, 20), (800, 20), (900, 240)] {
         for p in start..start + hold {
             s[p].0 |= CROSS;
@@ -37,7 +43,7 @@ fn main() {
     for seg in &args[2..] {
         let f: Vec<&str> = seg.split(':').collect();
         let (from, to) = (num(f[1]) as usize, num(f[2]) as usize);
-        let to = to.min(TOTAL);
+        let to = to.min(total);
         for p in from..to {
             match f[0] {
                 "L" => (s[p].3, s[p].4) = (num(f[3]) as u8, num(f[4]) as u8),
@@ -49,7 +55,7 @@ fn main() {
     }
     let mut b = Vec::new();
     b.extend_from_slice(b"PXITAPE2");
-    b.extend_from_slice(&(TOTAL as u32).to_le_bytes());
+    b.extend_from_slice(&(total as u32).to_le_bytes());
     b.extend_from_slice(&0u32.to_le_bytes());
     for (btn, rx, ry, lx, ly) in s {
         b.extend_from_slice(&btn.to_le_bytes());
