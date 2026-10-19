@@ -24,6 +24,11 @@ impl EditorWorkspace {
         let materials =
             psxed_project::grid::palette::palette_materials(&self.project, self.grid.palette_all);
         let total = materials.len();
+        // A project opens with a paint material, so the first Paint click
+        // paints (a material the user chose stays).
+        if self.grid.material.is_none() {
+            self.grid.material = materials.first().map(|(id, _)| *id);
+        }
         let query = self.grid.palette_search.to_ascii_lowercase();
         let shown: Vec<(ResourceId, String)> = materials
             .into_iter()

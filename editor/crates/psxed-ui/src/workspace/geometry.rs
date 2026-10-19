@@ -1009,9 +1009,18 @@ impl EditorWorkspace {
             } else {
                 self.status = "Nothing to frame".to_string();
             }
+            // The split layout shows the plan beside the 3D view: frame both.
+            if self.is_grid_world() && self.grid.split {
+                self.frame_plan();
+            }
             return;
         }
+        self.frame_plan();
+    }
 
+    /// Fit the plan (the orthographic view) to what is selected, or to the
+    /// whole world.
+    fn frame_plan(&mut self) {
         let Some((center, half)) = self.current_frame_bounds_2d() else {
             self.orthographic_focus = [0.0; 3];
             self.viewport_zoom = DEFAULT_VIEWPORT_ZOOM;

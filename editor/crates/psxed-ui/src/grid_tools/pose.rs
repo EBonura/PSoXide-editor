@@ -14,7 +14,8 @@
 //! * `level=N` puts the storey cursor on storey `N` of the derived list
 //!   (0 is the lowest), `level=y:CLICKS` at a height in clicks;
 //!   `cutaway=cut|off` the 3D cutaway
-//! * `help` opens the key help overlay
+//! * `help` opens the key help overlay; `view=3d|plan|split` the view switch,
+//!   `resources=off|on` the bottom Resources dock
 //! * `select=cells:x0,z0:x1,z1`, `select=floors:...`, `select=ceilings:...`,
 //!   `select=walls:...`, `select=derived:...` (the derived walls hosted by
 //!   those sectors), `select=vertex:x,z,corner`, `select=edge:x,z,edge`,
@@ -148,6 +149,13 @@ impl EditorWorkspace {
                 self.grid_hidden_rooms.insert(index);
             }
             "help" => self.grid.help_open = true,
+            "resources" => self.resources_open = value != "off",
+            "view" => self.set_grid_view_mode(match value {
+                "3d" => GridViewMode::Persp,
+                "plan" | "top" => GridViewMode::Plan,
+                "split" => GridViewMode::Split,
+                other => return Err(format!("view 3d, plan or split, not {other:?}")),
+            }),
             "level" => match value.strip_prefix("y:") {
                 Some(clicks) => {
                     let clicks = clicks.parse::<f32>().map_err(|e| e.to_string())?;

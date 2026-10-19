@@ -612,6 +612,8 @@ pub struct EditorWorkspace {
     #[cfg(test)]
     last_orthographic_viewport_rect: Rect,
     #[cfg(test)]
+    last_persp_viewport_rect: Rect,
+    #[cfg(test)]
     last_orthographic_response: Option<(egui::Id, bool, bool, bool)>,
     /// 3D viewport camera rig (orbit + free-fly params, mode, and all the
     /// camera math). Orbit preserves the original target/radius camera; Free
@@ -2273,6 +2275,8 @@ impl EditorWorkspace {
             last_viewport_size: Vec2::new(1280.0, 720.0),
             #[cfg(test)]
             last_orthographic_viewport_rect: Rect::NOTHING,
+            #[cfg(test)]
+            last_persp_viewport_rect: Rect::NOTHING,
             #[cfg(test)]
             last_orthographic_response: None,
             camera_rig: CameraRig {

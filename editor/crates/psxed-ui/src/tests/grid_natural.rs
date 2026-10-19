@@ -568,7 +568,7 @@ fn the_help_page_names_the_natural_terrain_keys() {
         "Rough (M)",
         "Shift+X",
         "Tab",
-        "Split: Shift+click",
+        "Diagonal: Shift+click",
         "Alt+drag a floor or ceiling face",
         "Lasso: click corners, Enter",
         "Cut corners",

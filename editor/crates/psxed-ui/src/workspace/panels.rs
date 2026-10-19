@@ -132,6 +132,26 @@ impl EditorWorkspace {
         }
         let content_width = ui.available_width().max(1.0);
         let total_height = ui.available_height().max(1.0);
+        // The same holds in the other tabs: a grid world's resources are in
+        // the Resources dock and its materials in the palette, so the file
+        // tree (a third list of both, with a `main.map` that is not there) is
+        // not drawn and the tree above it takes the dock.
+        if self.is_grid_world() {
+            ui.allocate_ui_with_layout(
+                Vec2::new(content_width, total_height),
+                egui::Layout::top_down(egui::Align::Min),
+                |ui| {
+                    ui.set_min_size(Vec2::new(content_width, total_height));
+                    ui.set_max_width(content_width);
+                    if self.active_workspace == WorkspaceView::Ui {
+                        self.draw_ui_tree_panel(ui);
+                    } else {
+                        self.draw_scene_tree_panel(ui);
+                    }
+                },
+            );
+            return;
+        }
         let splitter_height = LEFT_DOCK_SPLITTER_HEIGHT.min(total_height);
         let panel_height = (total_height - splitter_height).max(1.0);
         let min_panel = LEFT_DOCK_MIN_SPLIT_PANEL_HEIGHT.min(panel_height * 0.5);

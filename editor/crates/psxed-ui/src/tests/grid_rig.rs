@@ -17,6 +17,8 @@ pub(crate) const RIG_VIEWPORT: Rect = Rect {
 pub(crate) enum RigView {
     Top,
     Persp,
+    /// The plan on the left and the 3D view on the right (the Split view).
+    Split,
 }
 
 pub(crate) struct GridRig {
@@ -71,6 +73,7 @@ impl GridRig {
         // Tests place the view themselves.
         ws.grid.fit_pending = false;
         ws.view_2d = view == RigView::Top;
+        ws.grid.split = view == RigView::Split;
         ws.orthographic_view = OrthographicView::Top;
         ws.last_viewport_size = Vec2::new(1280.0, 720.0);
         ws.orthographic_focus = [3.0 * S, 0.0, 3.0 * S];
@@ -117,6 +120,10 @@ impl GridRig {
         Self::new(label, project, RigView::Persp)
     }
 
+    pub(crate) fn split(label: &str, project: ProjectDocument) -> Self {
+        Self::new(label, project, RigView::Split)
+    }
+
     pub(crate) fn pump(&mut self, events: Vec<egui::Event>, modifiers: egui::Modifiers) {
         self.time += 1.0 / 60.0;
         let input = egui::RawInput {
@@ -124,6 +131,8 @@ impl GridRig {
                 Pos2::ZERO,
                 if self.view == RigView::Top {
                     Vec2::new(1280.0, 800.0)
+                } else if self.view == RigView::Split {
+                    Vec2::new(1600.0, 800.0)
                 } else {
                     Vec2::new(800.0, 600.0)
                 },
@@ -145,6 +154,11 @@ impl GridRig {
                 RigView::Persp => {
                     egui::CentralPanel::default().show(ctx, |ui| {
                         ws.draw_viewport_3d_body(ui, viewport.clone());
+                    });
+                }
+                RigView::Split => {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        ws.draw_viewport_split_body(ui, viewport.clone());
                     });
                 }
             }
@@ -178,7 +192,11 @@ impl GridRig {
 
     /// The rectangle the 3D view allocates on the rig screen.
     pub(crate) fn persp_rect(&self) -> Rect {
-        RIG_VIEWPORT
+        if self.view == RigView::Split {
+            self.ws.last_persp_viewport_rect
+        } else {
+            RIG_VIEWPORT
+        }
     }
 
     pub(crate) fn move_to(&mut self, pos: Pos2, mods: egui::Modifiers) {

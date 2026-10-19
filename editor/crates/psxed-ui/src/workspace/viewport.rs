@@ -56,6 +56,10 @@ impl EditorWorkspace {
     ) {
         let (rect, response) =
             allocate_centered_preview_rect(ui, "viewport_3d_canvas", egui::Sense::click_and_drag());
+        #[cfg(test)]
+        {
+            self.last_persp_viewport_rect = rect;
+        }
         surrender_stale_focus_on_viewport_pointer(ui.ctx(), &response);
         let dnd_active = egui::DragAndDrop::has_any_payload(ui.ctx());
         let resource_drop_hovered = response.dnd_hover_payload::<ResourceId>().is_some();

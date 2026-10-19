@@ -81,7 +81,13 @@ pub(super) fn click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
         position[1] + ws.place_height_offset(),
         position[2],
     ]) {
-        ws.return_to_select_after_place();
-        ws.set_grid_tool(GridTool::Select);
+        // Shift keeps the tool, as it keeps a paste ghost, for a row of lights.
+        if !ptr.shift() {
+            let placed = std::mem::take(&mut ws.status);
+            ws.return_to_select_after_place();
+            ws.set_grid_tool(GridTool::Select);
+            // The tool change must not hide what was placed.
+            ws.status = placed;
+        }
     }
 }

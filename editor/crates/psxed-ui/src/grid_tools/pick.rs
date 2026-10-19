@@ -12,7 +12,7 @@ use super::view::{ray_triangle, GridPointer};
 use super::*;
 
 use psxed_project::grid::edit::{
-    faces_of_cell, CornerRef, EdgeRef, FaceRef, FaceTarget, GridElement, SurfaceKind,
+    faces_of_cell, faces_of_leaf, CornerRef, EdgeRef, FaceRef, FaceTarget, GridElement, SurfaceKind,
 };
 use psxed_project::grid::faces::{all_faces, GridFaceKind};
 use psxed_project::grid::{GridWorld, WallEdge, WallMode};
@@ -387,11 +387,15 @@ impl EditorWorkspace {
     /// geometry there, else the highest visible room that does.
     pub(crate) fn top_room_at(&self, cell: [i32; 2]) -> Option<usize> {
         let world = self.project.active_scene().world.grid()?;
+        // A sector the Cells tool divided (or a cell of several sectors) has
+        // no level-2 leaf of its own, so ask for every leaf that touches it.
         let has = |room: usize| {
             world.rooms.get(room).is_some_and(|r| {
-                r.local(cell)
-                    .and_then(|[x, z]| r.sector(x, z))
-                    .is_some_and(|s| !s.is_empty())
+                r.local(cell).is_some()
+                    && r.leaves
+                        .in_sector(cell)
+                        .iter()
+                        .any(|(_, sector)| !sector.is_empty())
             })
         };
         if let Some(active) = self.grid_active_room {
@@ -494,6 +498,23 @@ impl EditorWorkspace {
                 let [wx, wz] = transform.screen_to_world(ptr.pos);
                 let cell = super::view::cell_at_editor(world.scale, wx, wz);
                 let room = self.top_room_at(cell)?;
+                // A divided sector, or a cell of several sectors, is picked
+                // one leaf at a time: the leaf under the pointer and all of
+                // its faces.
+                if let Some(r) = world
+                    .rooms
+                    .get(room)
+                    .filter(|r| !r.leaves.is_sectors_only())
+                {
+                    if let Some((key, _)) = super::view::leaf_at_editor(world.scale, r, wx, wz) {
+                        if key != psxed_project::grid::LeafKey::sector(cell) {
+                            let faces = faces_of_leaf(world, room, key);
+                            if !faces.is_empty() {
+                                return Some(faces.into_iter().map(GridElement::Face).collect());
+                            }
+                        }
+                    }
+                }
                 Some(vec![GridElement::Cell { room, cell }])
             }
             super::view::GridView::Persp(rect) => self

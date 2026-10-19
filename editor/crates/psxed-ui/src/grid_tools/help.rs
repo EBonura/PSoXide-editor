@@ -13,7 +13,7 @@ const SELECT: Rows = &[
     ("Click", "Pick the vertex, edge or face under the pointer"),
     (
         "Click again, same spot (Top view)",
-        "Take the next thing under it: plane, then the sector (Paint and Split go on to the ceiling)",
+        "Take the next thing under it: plane, then the sector (Paint and Diagonal go on to the ceiling)",
     ),
     ("Shift+click", "Extend to a range"),
     ("Ctrl/Cmd+click", "Toggle one element in the selection"),
@@ -343,9 +343,9 @@ const OVERLAYS: Rows = &[
     ),
 ];
 const OTHER: Rows = &[
-    ("Split (D)", "Click a floor or ceiling to flip its diagonal"),
+    ("Diagonal (D)", "Click a floor or ceiling to flip its diagonal"),
     (
-        "Split: Shift+click",
+        "Diagonal: Shift+click",
         "Void or restore the triangle under the pointer: the other half closes itself with a diagonal wall",
     ),
     (
@@ -445,7 +445,7 @@ impl EditorWorkspace {
             .show(ctx, |ui| {
                 ui.set_width(1500.0_f32.min(ctx.screen_rect().width() - 60.0));
                 ui.label(
-                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, Shift+N Mesh, P Paint, D Split, O Place, E Bands | U Raise, A Ramp, T Stairs, Shift+T Spiral, X Break, M Rough, Q Cells, Shift+Q Slab | Alt+Up/Down level, G go to level, Z cutaway")
+                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, Shift+N Mesh, P Paint, D Diagonal, O Place, E Bands | U Raise, A Ramp, T Stairs, Shift+T Spiral, X Break, M Rough, Q Cells, Shift+Q Slab | Alt+Up/Down level, G go to level, Z cutaway")
                         .color(STUDIO_TEXT_WEAK),
                 );
                 ui.label(

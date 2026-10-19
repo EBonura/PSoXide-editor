@@ -221,7 +221,7 @@ impl GridTool {
             Self::Mesh => "Mesh",
             Self::Height => "Height",
             Self::Paint => "Paint",
-            Self::Split => "Split",
+            Self::Split => "Diagonal",
             Self::Place => "Place",
             Self::Bands => "Bands",
             Self::Raise => "Raise",

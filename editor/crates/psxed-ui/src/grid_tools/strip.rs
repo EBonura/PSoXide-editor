@@ -292,7 +292,7 @@ impl EditorWorkspace {
             GridTool::Rough => "Pick sectors | Press on them, drag up for the level 0-3 | Enter commit | Esc cancel",
             GridTool::Slab => "Pick sectors | Insert: press on them and drag up for the height | Cut, Fill: click them | Tab mode | Alt+Up/Down level | G go to level | Z cutaway | Esc cancel",
             GridTool::Cells => "Paint to subdivide | Alt+paint merges | [ ] brush | Enter / Shift+Enter subdivide / merge the selection | Alt+L cell sizes",
-            GridTool::Place => "Click to place at the sector centre | Alt 64 | Shift+Alt free",
+            GridTool::Place => "Click to place at the sector centre | Shift+click keeps placing | Alt 64 | Shift+Alt free",
         }
     }
 

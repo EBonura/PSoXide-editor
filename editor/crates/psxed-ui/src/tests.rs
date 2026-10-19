@@ -6,6 +6,7 @@ mod egui_driver;
 mod entity_resources;
 mod geometry_resources;
 mod grid_aim;
+mod grid_audit;
 mod grid_bands;
 mod grid_cells;
 mod grid_cycle;
