@@ -384,8 +384,10 @@ pub(crate) fn music_head() -> Option<SongOffset> {
         with_player(|player| {
             player.is_streaming().then(|| {
                 // The player counts from the first sector it was given.
-                let sectors = (u64::from(player.elapsed_millis()) * u64::from(SECTORS_PER_SECOND))
-                    .div_ceil(1000) as u32;
+                // ceil(millis * rate / 1000) in 32 bits: split at whole seconds.
+                let millis = player.elapsed_millis();
+                let sectors = (millis / 1000) * SECTORS_PER_SECOND
+                    + ((millis % 1000) * SECTORS_PER_SECOND).div_ceil(1000);
                 offset.saturating_add(sectors)
             })
         })

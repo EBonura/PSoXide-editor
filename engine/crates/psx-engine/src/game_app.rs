@@ -1079,6 +1079,7 @@ impl<'a, S: Scene> GameApp<'a, S> {
     /// state then `on_enter_state` on the incoming one, but skips both when the
     /// two states share a resource key (so a resource shared across states is
     /// acquired once and never thrashed). Idempotent for same-set transitions.
+    #[cfg_attr(target_arch = "mips", optimize(size))]
     fn switch_resources(&mut self, next_index: u16, ctx: &mut Ctx) {
         let next = self.state_ref_at(next_index);
         let next_key = self.gameplay.state_resource_key(next);

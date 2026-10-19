@@ -26,6 +26,7 @@
 //! `include_bytes!` data. Heap-free by construction.
 
 #![no_std]
+#![cfg_attr(target_arch = "mips", feature(optimize_attribute))]
 #![warn(missing_docs)]
 
 extern crate alloc;

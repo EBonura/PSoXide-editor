@@ -152,7 +152,7 @@ impl StreamWindow {
         }
         self.touched.clear();
         // Need rooms first, nearest first inside each group.
-        out.sort_by_key(|w| (w.want == Want::Lead, w.distance, w.room));
+        sort_wanted(out);
     }
 
     fn note(
@@ -185,6 +185,29 @@ impl StreamWindow {
         self.draw.invalidate();
         self.active.invalidate();
         self.lead.invalidate();
+    }
+}
+
+/// Order of a wanted list: need rooms first, nearest first inside each group,
+/// the room index breaking a tie so the order is total.
+fn wanted_key(w: &WantedRoom) -> (bool, i32, u16) {
+    (w.want == Want::Lead, w.distance, w.room)
+}
+
+/// Sort `out` by [`wanted_key`]. An insertion sort: the lists are short (the
+/// rooms inside one lead ring) and the key is total, so the result is the one
+/// a stable sort gives, and the executable does not carry the standard
+/// library's four sorting routines for one call (about 8 KB).
+fn sort_wanted(out: &mut [WantedRoom]) {
+    for i in 1..out.len() {
+        let item = out[i];
+        let key = wanted_key(&item);
+        let mut j = i;
+        while j > 0 && wanted_key(&out[j - 1]) > key {
+            out[j] = out[j - 1];
+            j -= 1;
+        }
+        out[j] = item;
     }
 }
 

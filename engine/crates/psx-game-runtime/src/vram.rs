@@ -1209,6 +1209,7 @@ impl<
 
     /// Upload the scene's one sky texture through its specialized inner
     /// layout while keeping residency and lifetime under one owner.
+    #[cfg_attr(target_arch = "mips", optimize(size))]
     pub fn ensure_sky_texture_uploaded(
         &mut self,
         layout: VramLayout,
@@ -1389,6 +1390,7 @@ impl<
         slot
     }
 
+    #[cfg_attr(target_arch = "mips", optimize(size))]
     fn ensure_large_ui_texture_uploaded_with_clut_mode(
         &mut self,
         layout: VramLayout,
@@ -1745,6 +1747,7 @@ impl<
     /// Upload the streamed sky panorama (two 4bpp pages + one CLUT per
     /// band) synchronously from `asset_bytes`. Reuses the resident slot on
     /// re-entry.
+    #[cfg_attr(target_arch = "mips", optimize(size))]
     pub fn ensure_sky_panorama_uploaded(
         &mut self,
         asset_id: AssetId,
@@ -2301,6 +2304,7 @@ impl<
     /// upload queue re-resolves job bytes through `resolve` per step (phase
     /// 1.5) instead of retaining `&'static` slices across frames.
     #[cfg(feature = "cd-stream-bench")]
+    #[cfg_attr(target_arch = "mips", optimize(size))]
     pub fn load_ui_images_for_scene<const STAGE_WORDS: usize, const SLOTS: usize>(
         &mut self,
         layout: VramLayout,

@@ -157,6 +157,7 @@ impl GridRuntime {
     /// scene calls it ([`Playtest::on_enter_state`]): the front end's resource
     /// sets (the sky among them) run before the scene's own `init` and read
     /// those tables.
+    #[cfg_attr(target_arch = "mips", optimize(size))]
     pub(super) fn read_level(cd: &mut CdController) -> Result<(), GridRuntimeInitError> {
         if crate::level_data::core_kept() {
             return Ok(());
@@ -184,6 +185,7 @@ impl GridRuntime {
     /// A runtime over the level core [`Self::read_level`] kept, with no room
     /// resident yet: [`Self::stream`] reads the ones around the player, and the
     /// loading screen waits for them ([`Self::rooms_ready`]).
+    #[cfg_attr(target_arch = "mips", optimize(size))]
     pub(super) fn load_manifest() -> Result<Self, GridRuntimeInitError> {
         crate::game_trace("editor-playtest: grid manifest begin");
         let (core, base_lba) =
@@ -193,6 +195,7 @@ impl GridRuntime {
 
     /// Read one chunk of `WORLD.PAK` whole into memory that lives for the run,
     /// word aligned.
+    #[cfg_attr(target_arch = "mips", optimize(size))]
     fn read_chunk(
         cd: &mut CdController,
         info: WorldChunkInfo,
@@ -209,6 +212,7 @@ impl GridRuntime {
 
     /// A runtime over the level core `core` (word aligned), with room records
     /// read from `base_lba + pack_sector`.
+    #[cfg_attr(target_arch = "mips", optimize(size))]
     fn from_core(core: &'static [u8], base_lba: u32) -> Result<Self, GridRuntimeInitError> {
         let level = LevelView::parse(core).map_err(GridRuntimeInitError::Level)?;
         level.validate_full().map_err(GridRuntimeInitError::Level)?;
@@ -315,6 +319,15 @@ impl GridRuntime {
     }
 
     fn stream_inner(&mut self, player: [i32; 3], camera: Option<[i32; 3]>, demand_only: bool) {
+        // A level whose every room is in memory has nothing to stream: the
+        // pool holds the whole level, so nothing is ever evicted, and the
+        // wanted set is a subset of what is resident. The walks, the wanted
+        // list and the residency step would only confirm it every tick.
+        if self.resident.len() == self.level.rooms.len() {
+            self.need_missing = 0;
+            self.streamed_once = true;
+            return;
+        }
         let player_room = room_at(&self.level, self.stream_hint, player);
         if let Some(room) = player_room {
             self.stream_hint = room;

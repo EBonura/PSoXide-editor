@@ -13,6 +13,7 @@ use psx_level::LevelTransitionKind;
 
 use crate::game_app::FlowTransition;
 
+#[cfg_attr(target_arch = "mips", optimize(size))]
 pub(crate) fn render_transition_overlay(gpu: &mut Gpu, transition: FlowTransition) {
     match transition.spec.kind {
         LevelTransitionKind::None => {}

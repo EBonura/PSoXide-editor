@@ -447,6 +447,7 @@ impl RuntimeModelAsset {
     /// atlas. All data needed after loading is copied into the supplied pools,
     /// so `mesh_bytes` may be reused as soon as this function returns.
     #[allow(clippy::too_many_arguments)]
+    #[cfg_attr(target_arch = "mips", optimize(size))]
     pub fn from_record_bytes(
         index: ModelIndex,
         record: &LevelModelRecord,

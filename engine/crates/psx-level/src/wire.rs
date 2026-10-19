@@ -17,10 +17,17 @@
 //!
 //! The chunk begins with `PXLR` and a version, so a chunk and a runtime that
 //! disagree are refused instead of misread.
+//!
+//! Decoding is sticky-failure: [`Wire::read`] always returns a value, and a
+//! [`Reader`] that ran out of bytes or met a bad tag remembers it
+//! ([`Reader::failed`]). One check at the end replaces a check per field, and
+//! every field is one call into a shared primitive reader, so a record's
+//! decoder is a short run of calls instead of an inlined bounds check per
+//! field. (The executable carries a decoder per record type; with a check per
+//! field they were 53 KB.)
 
 use alloc::boxed::Box;
 use alloc::vec::Vec;
-use core::mem::MaybeUninit;
 
 use crate::*;
 
@@ -35,12 +42,17 @@ pub const VERSION: u16 = 1;
 pub struct Reader {
     bytes: &'static [u8],
     pos: usize,
+    failed: bool,
 }
 
 impl Reader {
     /// A reader at the start of `bytes`.
     pub const fn new(bytes: &'static [u8]) -> Self {
-        Self { bytes, pos: 0 }
+        Self {
+            bytes,
+            pos: 0,
+            failed: false,
+        }
     }
 
     /// Bytes not yet read.
@@ -48,11 +60,55 @@ impl Reader {
         self.bytes.len() - self.pos
     }
 
+    /// Whether any read ran out of bytes or met a value that is not one. A
+    /// failed reader keeps returning zeros, so the value read since is
+    /// meaningless.
+    pub const fn failed(&self) -> bool {
+        self.failed
+    }
+
+    /// Mark the reader failed (a tag that names no variant).
+    pub fn fail(&mut self) {
+        self.failed = true;
+    }
+
+    /// The next `count` bytes, or the end of the chunk and `None` (failed).
     fn take(&mut self, count: usize) -> Option<&'static [u8]> {
         let end = self.pos.checked_add(count)?;
         let slice = self.bytes.get(self.pos..end)?;
         self.pos = end;
         Some(slice)
+    }
+
+    /// A little-endian unsigned integer of `width` bytes (1 to 4), zero once
+    /// failed. The one place every integer field is read, so it is not
+    /// inlined into the callers.
+    #[inline(never)]
+    fn le(&mut self, width: usize) -> u32 {
+        match self.take(width) {
+            Some(bytes) => bytes
+                .iter()
+                .rev()
+                .fold(0u32, |acc, &byte| (acc << 8) | u32::from(byte)),
+            None => {
+                self.failed = true;
+                self.pos = self.bytes.len();
+                0
+            }
+        }
+    }
+
+    /// A string of `len` bytes decoded in place, empty and failed when the
+    /// bytes run out or are not UTF-8.
+    #[inline(never)]
+    fn text(&mut self, len: usize) -> &'static str {
+        match self.take(len).and_then(|bytes| core::str::from_utf8(bytes).ok()) {
+            Some(text) => text,
+            None => {
+                self.failed = true;
+                ""
+            }
+        }
     }
 }
 
@@ -60,31 +116,37 @@ impl Reader {
 pub trait Wire: Sized {
     /// Append the value's bytes.
     fn put(&self, out: &mut Vec<u8>);
+    /// Read a value. When the bytes run out or are not a value the reader is
+    /// marked failed ([`Reader::failed`]) and the value returned is
+    /// meaningless.
+    fn read(r: &mut Reader) -> Self;
     /// Read a value, or `None` when the bytes run out or are not a value.
-    fn get(r: &mut Reader) -> Option<Self>;
+    fn get(r: &mut Reader) -> Option<Self> {
+        let value = Self::read(r);
+        (!r.failed).then_some(value)
+    }
 }
 
 macro_rules! wire_int {
-    ($($t:ty),*) => {$(
+    ($($t:ty => $width:expr),*) => {$(
         impl Wire for $t {
             fn put(&self, out: &mut Vec<u8>) {
                 out.extend_from_slice(&self.to_le_bytes());
             }
-            fn get(r: &mut Reader) -> Option<Self> {
-                let bytes = r.take(core::mem::size_of::<$t>())?;
-                Some(<$t>::from_le_bytes(bytes.try_into().ok()?))
+            fn read(r: &mut Reader) -> Self {
+                r.le($width) as $t
             }
         }
     )*};
 }
-wire_int!(u8, u16, i16, u32, i32);
+wire_int!(u8 => 1, u16 => 2, i16 => 2, u32 => 4, i32 => 4);
 
 impl Wire for bool {
     fn put(&self, out: &mut Vec<u8>) {
         out.push(u8::from(*self));
     }
-    fn get(r: &mut Reader) -> Option<Self> {
-        Some(u8::get(r)? != 0)
+    fn read(r: &mut Reader) -> Self {
+        r.le(1) != 0
     }
 }
 
@@ -94,26 +156,8 @@ impl<T: Wire, const N: usize> Wire for [T; N] {
             item.put(out);
         }
     }
-    fn get(r: &mut Reader) -> Option<Self> {
-        let mut out: [MaybeUninit<T>; N] = [const { MaybeUninit::uninit() }; N];
-        for slot in 0..N {
-            match T::get(r) {
-                Some(value) => {
-                    out[slot].write(value);
-                }
-                None => {
-                    // Drop what was built; the records are plain data, so this
-                    // only matters to keep the function honest.
-                    for built in &mut out[..slot] {
-                        // SAFETY: the first `slot` entries were written.
-                        unsafe { built.assume_init_drop() };
-                    }
-                    return None;
-                }
-            }
-        }
-        // SAFETY: every entry was written above.
-        Some(out.map(|value| unsafe { value.assume_init() }))
+    fn read(r: &mut Reader) -> Self {
+        core::array::from_fn(|_| T::read(r))
     }
 }
 
@@ -125,8 +169,8 @@ macro_rules! wire_tuple {
                 let ($($name,)+) = self;
                 $($name.put(out);)+
             }
-            fn get(r: &mut Reader) -> Option<Self> {
-                Some(($($name::get(r)?,)+))
+            fn read(r: &mut Reader) -> Self {
+                ($($name::read(r),)+)
             }
         }
     )*};
@@ -143,10 +187,10 @@ impl<T: Wire> Wire for Option<T> {
             }
         }
     }
-    fn get(r: &mut Reader) -> Option<Self> {
-        match u8::get(r)? {
-            0 => Some(None),
-            _ => Some(Some(T::get(r)?)),
+    fn read(r: &mut Reader) -> Self {
+        match r.le(1) {
+            0 => None,
+            _ => Some(T::read(r)),
         }
     }
 }
@@ -156,9 +200,9 @@ impl Wire for &'static str {
         (self.len() as u32).put(out);
         out.extend_from_slice(self.as_bytes());
     }
-    fn get(r: &mut Reader) -> Option<Self> {
-        let len = u32::get(r)? as usize;
-        core::str::from_utf8(r.take(len)?).ok()
+    fn read(r: &mut Reader) -> Self {
+        let len = r.le(4) as usize;
+        r.text(len)
     }
 }
 
@@ -169,25 +213,33 @@ impl<T: Wire + 'static> Wire for &'static [T] {
             item.put(out);
         }
     }
-    fn get(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut Reader) -> Self {
         decode_slice(r)
     }
 }
 
 /// A table: a count, then the records, decoded into an allocation that lives
-/// for the rest of the run.
-pub fn decode_slice<T: Wire>(r: &mut Reader) -> Option<&'static [T]> {
-    let count = u32::get(r)? as usize;
+/// for the rest of the run. Empty (and the reader failed) when the bytes
+/// cannot hold it.
+#[cfg_attr(target_arch = "mips", optimize(size))]
+pub fn decode_slice<T: Wire>(r: &mut Reader) -> &'static [T] {
+    let count = r.le(4) as usize;
     // Every element takes at least one byte; a count the bytes cannot hold is
     // damage, not a reason to allocate.
-    if count > r.remaining() {
-        return None;
+    if count == 0 || count > r.remaining() {
+        if count != 0 {
+            r.fail();
+        }
+        return &[];
     }
     let mut items = Vec::with_capacity(count);
     for _ in 0..count {
-        items.push(T::get(r)?);
+        items.push(T::read(r));
     }
-    Some(Box::leak(items.into_boxed_slice()))
+    if r.failed {
+        return &[];
+    }
+    Box::leak(items.into_boxed_slice())
 }
 
 /// Append a table: its count, then the records.
@@ -204,8 +256,9 @@ macro_rules! wire_newtype {
             fn put(&self, out: &mut Vec<u8>) {
                 self.0.put(out);
             }
-            fn get(r: &mut Reader) -> Option<Self> {
-                Some($t(<$inner>::get(r)?))
+            #[cfg_attr(target_arch = "mips", optimize(size))]
+            fn read(r: &mut Reader) -> Self {
+                $t(<$inner>::read(r))
             }
         }
     )*};
@@ -228,8 +281,9 @@ macro_rules! wire_struct {
                 let $t { $($f,)* } = self;
                 $($f.put(out);)*
             }
-            fn get(r: &mut Reader) -> Option<Self> {
-                Some($t { $($f: Wire::get(r)?,)* })
+            #[cfg_attr(target_arch = "mips", optimize(size))]
+            fn read(r: &mut Reader) -> Self {
+                $t { $($f: Wire::read(r),)* }
             }
         }
     )*};
@@ -243,12 +297,16 @@ impl Wire for EntityKind {
             EntityKind::StaticMesh => 2,
         });
     }
-    fn get(r: &mut Reader) -> Option<Self> {
-        match u8::get(r)? {
-            0 => Some(EntityKind::HookPoint),
-            1 => Some(EntityKind::Marker),
-            2 => Some(EntityKind::StaticMesh),
-            _ => None,
+    #[cfg_attr(target_arch = "mips", optimize(size))]
+    fn read(r: &mut Reader) -> Self {
+        match r.le(1) {
+            0 => EntityKind::HookPoint,
+            1 => EntityKind::Marker,
+            2 => EntityKind::StaticMesh,
+            _ => {
+                r.fail();
+                EntityKind::HookPoint
+            }
         }
     }
 }
@@ -261,12 +319,16 @@ impl Wire for InteractableKind {
             InteractableKind::PointOfInterest => 2,
         });
     }
-    fn get(r: &mut Reader) -> Option<Self> {
-        match u8::get(r)? {
-            0 => Some(InteractableKind::Message),
-            1 => Some(InteractableKind::Checkpoint),
-            2 => Some(InteractableKind::PointOfInterest),
-            _ => None,
+    #[cfg_attr(target_arch = "mips", optimize(size))]
+    fn read(r: &mut Reader) -> Self {
+        match r.le(1) {
+            0 => InteractableKind::Message,
+            1 => InteractableKind::Checkpoint,
+            2 => InteractableKind::PointOfInterest,
+            _ => {
+                r.fail();
+                InteractableKind::Message
+            }
         }
     }
 }
@@ -401,16 +463,17 @@ macro_rules! level_tables {
         impl LevelRecords<'static> {
             /// Decode a chunk. `None` for a chunk of another version, a
             /// truncated one, or one with bytes left over.
+            #[cfg_attr(target_arch = "mips", optimize(size))]
             pub fn decode(bytes: &'static [u8]) -> Option<Self> {
                 let mut r = Reader::new(bytes);
-                if r.take(4)? != MAGIC || u16::get(&mut r)? != VERSION {
+                if r.take(4)? != MAGIC || u16::read(&mut r) != VERSION {
                     return None;
                 }
                 let records = Self {
-                    $($tf: decode_slice(&mut r)?,)*
-                    $($of: Wire::get(&mut r)?,)*
+                    $($tf: decode_slice(&mut r),)*
+                    $($of: Wire::read(&mut r),)*
                 };
-                (r.remaining() == 0).then_some(records)
+                (!r.failed() && r.remaining() == 0).then_some(records)
             }
         }
     };

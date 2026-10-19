@@ -1040,6 +1040,7 @@ fn activation_echo_layer(frame: u16, delay: u16, ring: u16) -> Option<(u8, u8)> 
 /// highlight reads regardless of the control's own colours. The
 /// scene's [`LevelUiFocusStyle`] selects the animation; everything
 /// is integer-only flat quads, no allocation.
+#[cfg_attr(target_arch = "mips", optimize(size))]
 fn draw_focus_ring(
     gpu: &mut Gpu,
     node: UiResolvedNode,
