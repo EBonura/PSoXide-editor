@@ -18,7 +18,7 @@ use super::{
 /// 7.12) will take, kept free of other meanings now: S Sculpt, B Room,
 /// K Corridor, I Opening, Y Stamps, J Vault. U Raise, A Ramp and T Stairs are
 /// tools now, and so are X Break and M Rough; E is the Bands tool and N the
-/// Plane tool, Q the Cells tool and Shift+Q the Slab tool; G goes to a level
+/// Plane tool, Q the Cells tool and Shift+Q the Upper floor tool; G goes to a level
 /// and Z switches the cutaway. Alt+W, Alt+P and Alt+L are the overlays.
 #[cfg(test)]
 pub(crate) const RESERVED_VERB_KEYS: [egui::Key; 6] = [
@@ -153,7 +153,7 @@ impl EditorWorkspace {
         if pressed_shift(ctx, egui::Key::N) && may_choose {
             self.set_grid_tool(GridTool::Mesh);
         }
-        // Shift+Q is the Slab tool, beside the Cells tool's Q.
+        // Shift+Q is the Upper floor tool, beside the Cells tool's Q.
         if pressed_shift(ctx, egui::Key::Q) && may_choose {
             self.set_grid_tool(GridTool::Slab);
         }
@@ -206,6 +206,10 @@ impl EditorWorkspace {
                 self.status = format!("Wall direction: {}", self.grid.wall_dir.label());
             } else if self.grid.tool == GridTool::Ramp {
                 super::ramp_tool::turn(self);
+            } else if self.grid.tool == GridTool::Stairs
+                && self.grid.verb.source != super::verb_state::RegionSource::Path
+            {
+                super::stairs_tool::turn(self);
             } else if self.grid.tool == GridTool::Mesh {
                 mesh_tool::turn(self, 90);
             }

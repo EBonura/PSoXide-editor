@@ -72,6 +72,8 @@ fn the_stairs_chip_stays_inside_the_pane_it_is_drawn_in() {
     let chips: Vec<_> = text_rects(&out)
         .into_iter()
         .filter(|(t, _)| t.contains("steps, riser") && t.contains("limit"))
+        // The options bar leads with the same text above the panes.
+        .filter(|(_, r)| plan.contains(r.center()) || persp.contains(r.center()))
         .collect();
     assert!(
         !chips.is_empty(),

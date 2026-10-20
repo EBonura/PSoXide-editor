@@ -50,6 +50,18 @@ impl RegionSource {
     }
 }
 
+/// A Stairs flight the options bar refused to lay, kept until the next try so
+/// the bar can say why and offer a ramp in its place.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct StairsRefusal {
+    /// The riser the flight would need, grid units.
+    pub riser: i32,
+    /// The tallest riser the character steps up, grid units.
+    pub limit: i32,
+    /// The rise that was asked for, grid units.
+    pub amount: i32,
+}
+
 /// A region being made by the pointer.
 #[derive(Clone, Debug)]
 pub(crate) enum RegionGesture {
@@ -137,8 +149,8 @@ pub(crate) struct VerbState {
     /// The size of the last Raise or Lower, grid units (what Cut corners
     /// drops a corner by; a click when there has been none).
     pub last_raise: i32,
-    /// Ramp: the side that keeps its height, once R has set it; `None`
-    /// follows the pointer.
+    /// Ramp and Stairs: the side that keeps its height (a flight's bottom),
+    /// once R has set it; `None` follows the pointer.
     pub ramp_from: Option<RampDir>,
     /// Ramp: hold the rise to the steepest slope the motor stands on.
     pub ramp_clamp: bool,
@@ -147,8 +159,15 @@ pub(crate) struct VerbState {
     /// Stairs: the riser option and ramp switch (width, ceilings and the
     /// wall material come from the shared options).
     pub stairs: StairsParams,
-    /// Stairs: the waypoints of the finished path.
+    /// Stairs: the waypoints of the finished path (the Path source).
     pub stairs_path: Vec<[i32; 2]>,
+    /// Stairs: how the flight is placed, a rectangle (the default) or a path.
+    pub stairs_source: RegionSource,
+    /// Stairs: the sector the last press or typed apply was on, which picks
+    /// the bottom side of a rectangle when R has not.
+    pub stairs_press: [i32; 2],
+    /// Stairs: the last flight that was too steep for treads.
+    pub stairs_refusal: Option<StairsRefusal>,
     /// Spiral: the storeys to climb.
     pub spiral: super::spiral_tool::SpiralOptions,
     /// Break: its options and the seed of the next break.
@@ -184,6 +203,9 @@ impl Default for VerbState {
             ramp_hover: None,
             stairs: StairsParams::default(),
             stairs_path: Vec::new(),
+            stairs_source: RegionSource::Marquee,
+            stairs_press: [0, 0],
+            stairs_refusal: None,
             spiral: super::spiral_tool::SpiralOptions::default(),
             brk: super::break_tool::BreakOptions::default(),
             rough: super::rough_tool::RoughOptions::default(),
@@ -204,6 +226,7 @@ impl VerbState {
         self.ramp_hover = None;
         self.ramp_from = None;
         self.stairs_path.clear();
+        self.stairs_refusal = None;
         self.readout.clear();
     }
 }

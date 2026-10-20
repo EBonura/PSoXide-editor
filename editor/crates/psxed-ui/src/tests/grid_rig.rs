@@ -312,3 +312,10 @@ pub(crate) fn walls_on(
         .map(|s| s.walls(edge).clone())
         .unwrap_or_default()
 }
+
+/// Stairs placed by clicking waypoints: the Path source (a rectangle is the
+/// tool's default).
+pub(crate) fn use_the_path_source(rig: &mut GridRig) {
+    rig.ws.grid.verb.source = crate::grid_tools::verb_state::RegionSource::Path;
+    rig.ws.grid.verb.stairs_source = crate::grid_tools::verb_state::RegionSource::Path;
+}

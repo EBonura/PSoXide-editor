@@ -128,7 +128,7 @@ pub(super) fn verb_drag_over(
             let max = drag.max_walkable_rise();
             (VerbDrag::Ramp(drag), Some(max), None)
         }
-        GridTool::Stairs => (super::stairs_tool::drag_for(ws)?, None, None),
+        GridTool::Stairs => (super::stairs_tool::drag_for(ws, cell)?, None, None),
         _ => return None,
     };
     if let Some(reference) = reference {
@@ -144,9 +144,12 @@ pub(super) fn on_tool_changed(ws: &mut EditorWorkspace) {
     ws.grid.verb.lasso.clear();
     ws.grid.verb.lasso_cursor = None;
     ws.grid.verb.preview.clear();
-    if matches!(ws.grid.tool, GridTool::Stairs | GridTool::Spiral) {
-        // A flight is a path: the other sources make no order of treads.
-        ws.grid.verb.source = RegionSource::Path;
+    match ws.grid.tool {
+        // A ring is a path; a flight is a rectangle or a path: the other
+        // sources make no order of treads.
+        GridTool::Spiral => ws.grid.verb.source = RegionSource::Path,
+        GridTool::Stairs => ws.grid.verb.source = ws.grid.verb.stairs_source,
+        _ => {}
     }
     // The selection is sectors: it only becomes a region at sector size.
     if !ws.grid.tool.is_verb() || ws.grid.verb.region.is_some() || ws.grid.cell_size.level() != 2 {
@@ -192,6 +195,7 @@ pub(super) fn hover(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     };
     super::lasso::hover(ws, ptr);
     super::ramp_tool::hover(ws, cell);
+    super::stairs_tool::hover(ws, cell);
 }
 
 pub(super) fn press(ws: &mut EditorWorkspace, ptr: &GridPointer) {
@@ -286,10 +290,12 @@ pub(super) fn release(ws: &mut EditorWorkspace) {
             ));
             describe_region(ws, &region);
             ws.grid.verb.region = Some(region);
+            ws.grid.verb.stairs_refusal = None;
         }
         Gesture::Region(RegionGesture::Brush { cells, .. }) => {
             describe_region(ws, &cells);
             ws.grid.verb.region = Some(cells);
+            ws.grid.verb.stairs_refusal = None;
         }
         Gesture::Verb(g) => {
             // The amount stays in the status line; the region stays too.
@@ -345,6 +351,7 @@ pub(super) fn click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
             region.extend(&Region::brush(room, cell, radius));
             describe_region(ws, &region);
             ws.grid.verb.region = Some(region);
+            ws.grid.verb.stairs_refusal = None;
         }
     }
 }
@@ -389,6 +396,7 @@ pub(super) fn finish_path(ws: &mut EditorWorkspace) -> bool {
 pub(super) fn cancel(ws: &mut EditorWorkspace) -> bool {
     match std::mem::take(&mut ws.grid.gesture) {
         Gesture::Verb(g) => {
+            ws.grid.verb.stairs_refusal = None;
             match g.drag {
                 // These keep the document they began from: put it back
                 // as it was, byte for byte.
@@ -585,8 +593,9 @@ pub(crate) fn pose_drag(ws: &mut EditorWorkspace, amount: i32) -> Result<(), Str
         GridTool::Stairs => {
             let focus = region_focus(ws, &region)?;
             let drag = ws
-                .with_focused_world(&focus, |ws| super::stairs_tool::drag_for(ws))
-                .ok_or("no path: use stairs-path=")?;
+                .with_focused_world(&focus, |ws| super::stairs_tool::drag_for(ws, first))
+                .ok_or("no flight: use region= (two sectors deep) or stairs-path=")?;
+            ws.grid.verb.stairs_press = first;
             (focus, drag, None)
         }
         GridTool::Spiral => {
@@ -664,6 +673,8 @@ pub(super) fn apply_amount(ws: &mut EditorWorkspace, g: &mut VerbGesture) {
     let max_rise = g.max_rise;
     let mut last_raise = None;
     let mut detail = None;
+    let mut flight_seen: Option<psxed_project::grid::edit::verbs::stairs::Flight> = None;
+    let flight_region = ws.grid.verb.region.clone();
     let Some(world) = ws.project.active_scene_mut().world.grid_mut() else {
         return;
     };
@@ -692,7 +703,16 @@ pub(super) fn apply_amount(ws: &mut EditorWorkspace, g: &mut VerbGesture) {
         }
         VerbDrag::Stairs(drag) => {
             let flight = drag.apply(world, amount);
-            super::stairs_tool::readout(world, &flight, amount)
+            // A ramp flight is walkable only if no tread is too steep.
+            let steep = match (&flight_region, drag.params().ramp) {
+                (Some(region), true) if flight.refusal.is_none() => {
+                    super::verb_overlay::steep_sectors(world, region)
+                }
+                _ => 0,
+            };
+            let line = super::stairs_tool::readout(world, &flight, amount, steep);
+            flight_seen = Some(flight);
+            line
         }
         VerbDrag::Spiral(drag) => {
             let report = drag.apply(world, amount);
@@ -726,7 +746,9 @@ pub(super) fn apply_amount(ws: &mut EditorWorkspace, g: &mut VerbGesture) {
                     )
                 }
                 (FineVerb::Stairs { .. }, FineReport::Flight(flight)) => {
-                    super::stairs_tool::readout(world, &flight, amount)
+                    let line = super::stairs_tool::readout(world, &flight, amount, 0);
+                    flight_seen = Some(flight);
+                    line
                 }
                 (_, FineReport::Refused(why)) => why,
                 _ => "Nothing to change there".to_string(),
@@ -747,6 +769,17 @@ pub(super) fn apply_amount(ws: &mut EditorWorkspace, g: &mut VerbGesture) {
             return;
         }
     };
+    if let Some(flight) = flight_seen {
+        use psxed_project::grid::edit::verbs::stairs::Refusal;
+        ws.grid.verb.stairs_refusal = match flight.refusal {
+            Some(Refusal::TooSteep { riser, limit }) => Some(super::verb_state::StairsRefusal {
+                riser: riser.abs(),
+                limit,
+                amount,
+            }),
+            _ => None,
+        };
+    }
     let mut line = aimed.value;
     if aimed.slivers > 0 {
         line += &format!(
@@ -934,7 +967,7 @@ pub(crate) fn apply_typed(ws: &mut EditorWorkspace) {
         };
         let drag = ws.with_focused_world(&focus, |ws| match ws.grid.tool {
             GridTool::Raise | GridTool::Ramp => verb_drag_over(ws, &region, first),
-            GridTool::Stairs => super::stairs_tool::drag_for(ws).map(|d| (d, None)),
+            GridTool::Stairs => super::stairs_tool::drag_for(ws, first).map(|d| (d, None)),
             _ => None,
         });
         (focus, drag)

@@ -83,7 +83,7 @@ fn toolbar_captures() {
 // Helpers
 
 /// Every text the last frame drew, with its bounds.
-fn texts(rig: &WindowRig) -> Vec<(String, Rect)> {
+pub(super) fn texts(rig: &WindowRig) -> Vec<(String, Rect)> {
     rig.out
         .shapes
         .iter()
@@ -97,7 +97,7 @@ fn texts(rig: &WindowRig) -> Vec<(String, Rect)> {
 }
 
 /// The first text `label` (icon prefix ignored) inside `band`.
-fn text_in(rig: &WindowRig, band: Rect, label: &str) -> Option<Rect> {
+pub(super) fn text_in(rig: &WindowRig, band: Rect, label: &str) -> Option<Rect> {
     texts(rig)
         .into_iter()
         .find(|(t, r)| {
@@ -116,7 +116,7 @@ fn in_bar(rig: &WindowRig, label: &str) -> Rect {
     text_in(rig, bar(rig), label).unwrap_or_else(|| panic!("no `{label}` in the top bar"))
 }
 
-fn frames(rig: &mut WindowRig, n: usize) {
+pub(super) fn frames(rig: &mut WindowRig, n: usize) {
     for _ in 0..n {
         rig.frame(vec![]);
     }
@@ -417,7 +417,7 @@ fn open_arrow(rig: &mut WindowRig, label: &str) {
 }
 
 /// A key press with the frames a real key takes.
-fn press_key(rig: &mut WindowRig, key: egui::Key, shift: bool) {
+pub(super) fn press_key(rig: &mut WindowRig, key: egui::Key, shift: bool) {
     let modifiers = if shift {
         egui::Modifiers::SHIFT
     } else {
@@ -581,7 +581,7 @@ const SHAPES: [(&str, GridTool); 9] = [
     ("Break", GridTool::Break),
     ("Rough", GridTool::Rough),
     ("Cells", GridTool::Cells),
-    ("Slab", GridTool::Slab),
+    ("Upper floor", GridTool::Slab),
     ("Diagonal", GridTool::Split),
 ];
 
@@ -902,7 +902,7 @@ fn the_current_view_and_a_lit_toggle_are_marked() {
 // none, with Snap at its right end. Switching tools never shifts a thing.
 
 /// The Snap text of the options bar, wherever it is.
-fn snap_text(rig: &WindowRig) -> Rect {
+pub(super) fn snap_text(rig: &WindowRig) -> Rect {
     texts(rig)
         .into_iter()
         .find(|(t, r)| {
@@ -915,7 +915,7 @@ fn snap_text(rig: &WindowRig) -> Rect {
 }
 
 /// Everything the options bar shows besides Snap: texts left of it, on its row.
-fn options_texts(rig: &WindowRig) -> Vec<(String, Rect)> {
+pub(super) fn options_texts(rig: &WindowRig) -> Vec<(String, Rect)> {
     let snap = snap_text(rig);
     // The viewport column ends where the Inspector begins.
     let pane_right = text_in(
@@ -1041,6 +1041,7 @@ fn snap_is_at_the_right_end_of_the_bar_for_every_tool() {
 #[test]
 fn a_tool_with_no_options_shows_its_key_hints_and_one_with_options_shows_them() {
     let mut rig = WindowRig::new();
+    rig.ws.grid.walls_prompt_dismissed.insert(0);
     // Diagonal has no options: its hints fill the bar.
     rig.ws.set_grid_tool(GridTool::Split);
     frames(&mut rig, 3);
@@ -1100,6 +1101,9 @@ fn options_wider_than_the_bar_scroll_with_arrows_instead_of_growing_it() {
 #[test]
 fn the_arrow_scrolls_to_the_options_that_did_not_fit() {
     let mut rig = WindowRig::new();
+    // The starter room has hand-placed walls: the convert prompt would take
+    // the bar, so it is answered ("Not now") first.
+    rig.ws.grid.walls_prompt_dismissed.insert(0);
     rig.ws.apply_grid_pose("view=3d").unwrap();
     rig.ws.set_grid_tool(GridTool::Raise);
     frames(&mut rig, 3);

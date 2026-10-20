@@ -327,19 +327,19 @@ fn the_keys_page_is_searchable() {
     let mut ws =
         EditorWorkspace::with_project(test_temp_dir("layout-keys"), flat_project(4, 4, true));
     ws.grid.help_open = true;
-    let text = screen_sized(&mut ws, Vec2::new(1920.0, 1800.0));
+    let text = screen_sized(&mut ws, Vec2::new(1920.0, 2100.0));
     assert!(text.contains("Search keys"), "{text}");
-    assert!(text.contains("Spiral (Shift+T)") && text.contains("Slab (Shift+Q) and levels"));
+    assert!(text.contains("Spiral (Shift+T)") && text.contains("Upper floor (Shift+Q) and levels"));
     // A query keeps the sections with a row that matches, and only those rows.
     ws.grid.help_search = "cutaway".to_string();
-    let text = screen_sized(&mut ws, Vec2::new(1920.0, 1800.0));
-    assert!(text.contains("Slab (Shift+Q) and levels"), "{text}");
+    let text = screen_sized(&mut ws, Vec2::new(1920.0, 2100.0));
+    assert!(text.contains("Upper floor (Shift+Q) and levels"), "{text}");
     assert!(!text.contains("Spiral (Shift+T)"), "{text}");
     assert!(!text.contains("Wall (W)"), "{text}");
     // A section whose title matches shows all its rows.
     ws.grid.help_search = "spiral".to_string();
-    let text = screen_sized(&mut ws, Vec2::new(1920.0, 1800.0));
+    let text = screen_sized(&mut ws, Vec2::new(1920.0, 2100.0));
     assert!(text.contains("Spiral (Shift+T)"), "{text}");
     ws.grid.help_search = "zzzz".to_string();
-    assert!(screen_sized(&mut ws, Vec2::new(1920.0, 1800.0)).contains("No key matches"));
+    assert!(screen_sized(&mut ws, Vec2::new(1920.0, 2100.0)).contains("No key matches"));
 }

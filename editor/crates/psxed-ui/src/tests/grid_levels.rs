@@ -325,10 +325,10 @@ fn the_slab_options_and_help_draw_and_a_pose_shows_the_cutaway() {
     ws.apply_grid_pose("level=0").unwrap();
     for view_2d in [true, false] {
         let text = text_of(&draw_editor(&mut ws, &ctx, view_2d));
-        assert!(text.contains("Insert"), "{text}");
+        assert!(text.contains("Add floor above"), "{text}");
         assert!(text.contains("Level 0"), "{text}");
         assert!(
-            text.contains("Slab at +6.00 clicks over the level"),
+            text.contains("Upper floor at +6.00 clicks over the level"),
             "{text}"
         );
     }

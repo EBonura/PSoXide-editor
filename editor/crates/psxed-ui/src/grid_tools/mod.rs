@@ -75,6 +75,7 @@ mod strip;
 mod tiling_panel;
 mod tool_row;
 mod triangle_tool;
+mod verb_guide;
 mod verb_overlay;
 mod verb_panel;
 pub(crate) mod verb_state;
@@ -260,7 +261,7 @@ impl GridTool {
             Self::Break => "Break",
             Self::Rough => "Rough",
             Self::Cells => "Cells",
-            Self::Slab => "Slab",
+            Self::Slab => "Upper floor",
         }
     }
 
@@ -286,7 +287,7 @@ impl GridTool {
     }
 
     /// Whether the tool's key is pressed with Shift (the Mesh tool is Shift+N,
-    /// the solid sibling of the Plane tool's N, and the Slab tool Shift+Q,
+    /// the solid sibling of the Plane tool's N, and the Upper floor tool Shift+Q,
     /// beside the Cells tool's Q: every plain letter is taken).
     pub(crate) const fn shift(self) -> bool {
         matches!(self, Self::Mesh | Self::Slab | Self::Spiral)
@@ -352,7 +353,7 @@ impl GridTool {
                 "Pick sectors, then press near the side that keeps its height and drag up or down: the opposite side rises. R turns the side, Tab holds the slope to what the character can walk."
             }
             Self::Stairs => {
-                "Click the waypoints of a flight, Enter finishes, then press on it and drag up or down for the total rise. Each sector is a tread, a turn is a landing. Tab switches steps and ramp."
+                "Drag a rectangle where the stairs go, then press on it and drag up for the height. The side nearest the pointer is the bottom (R turns it) and the treads run from there across the rectangle, a sector each. The Path option makes a winding flight from clicked waypoints. Tab switches steps and ramp, and makes a ramp of a flight that is too steep."
             }
             Self::Spiral => {
                 "Click the corners of a ring of sectors, Enter closes it, then press on it and drag up for the climb of one storey. The stairs wind round the ring: a straight run is treads, a turn is a landing, and each tread is a slab, so one sector can hold a tread per storey. Set the storeys in the option row."
@@ -367,7 +368,7 @@ impl GridTool {
                 "Paint over the plan to subdivide cells into four finer ones; Alt merges them back. Enter and Shift+Enter subdivide and merge the Select tool's cells. [ and ] change the brush."
             }
             Self::Slab => {
-                "Pick sectors, then press on them. Insert drags up for a floor at that height over the level; Cut and Fill are clicks on the region: Cut takes the first slab above the level out, Fill closes the opening up to the next level. Tab changes the mode."
+                "Adds a floor above this one, with open space underneath (needs a ceiling or open sky above). Drag a rectangle, then press on it and drag up for the height. Remove upper floor and Fill opening are clicks on the region. Tab changes the mode."
             }
         }
     }
@@ -698,6 +699,9 @@ pub(crate) struct GridEditState {
     pub unseen_edit: Option<([f32; 3], [f32; 3])>,
     /// The Paint tool's brush orientation and what the pointer is over.
     pub paint: paint::PaintState,
+    /// Rooms whose hand-placed walls the user chose to leave alone this
+    /// session ("Not now" on the convert prompt), by room index.
+    pub walls_prompt_dismissed: std::collections::BTreeSet<usize>,
 }
 
 impl Default for GridEditState {
@@ -757,6 +761,7 @@ impl Default for GridEditState {
             renaming_room: None,
             unseen_edit: None,
             paint: paint::PaintState::default(),
+            walls_prompt_dismissed: std::collections::BTreeSet::new(),
         }
     }
 }

@@ -1,14 +1,15 @@
-//! The Slab verb in the editor: pick a region, then press on it
-//! (`docs/grid/multi-storey.md`, 5.6). A slab is a floor inserted into the
-//! open volume of a column, so a tall hall becomes two storeys without
-//! having been planned as two.
+//! The Upper floor tool in the editor (the Slab verb of `docs/grid/multi-storey.md`,
+//! 5.6): pick a region, then press on it. An upper floor is a slab inserted
+//! into the open volume of a column, with open space left underneath, so a
+//! tall hall becomes two storeys without having been planned as two. It is not
+//! Raise: Raise moves the floor itself up and leaves solid ground beneath.
 //!
-//! * **Insert** (default): drag up for the slab's height above the storey
+//! * **Add floor above** (Insert, the default): drag up for the slab's height above the storey
 //!   cursor (a click of 256 units, Alt for 64). Cells with no span open at
 //!   that height are skipped and counted.
-//! * **Cut**: a click on the region takes the first slab above the cursor out
+//! * **Remove upper floor** (Cut): a click on the region takes the first slab above the cursor out
 //!   of every column of it, merging the spans around it (a stairwell).
-//! * **Fill**: a click on the region closes it up to the next storey above
+//! * **Fill opening** (Fill): a click on the region closes it up to the next storey above
 //!   the cursor, the inverse of Cut.
 //!
 //! Tab cycles the mode. Every gesture is one undo step, and Esc puts the
@@ -21,7 +22,7 @@ use psxed_project::grid::edit::focus::Focus;
 use psxed_project::grid::edit::spans::{cut_hole, insert_slab, CutScope, SpanOutcome};
 use psxed_project::grid::edit::verbs::Snapshot;
 use psxed_project::grid::edit::CellRect;
-use psxed_project::grid::storeys::{storey_above, SLAB_THICKNESS};
+use psxed_project::grid::storeys::{storey_above, MIN_HEADROOM, SLAB_THICKNESS};
 use psxed_project::grid::{GridWorld, CLICK_UNITS, FINE_UNITS};
 
 /// What a press on the region does.
@@ -41,17 +42,19 @@ impl SlabMode {
 
     pub(crate) const fn label(self) -> &'static str {
         match self {
-            Self::Insert => "Insert",
-            Self::Cut => "Cut",
-            Self::Fill => "Fill",
+            Self::Insert => "Add floor above",
+            Self::Cut => "Remove upper floor",
+            Self::Fill => "Fill opening",
         }
     }
 
     pub(crate) const fn hint(self) -> &'static str {
         match self {
-            Self::Insert => "Press on the region and drag up: a floor at that height",
-            Self::Cut => "Click the region: the first slab above the level is cut out",
-            Self::Fill => "Click the region: it is closed up to the next level",
+            Self::Insert => {
+                "Press on the region and drag up: a floor at that height, open space underneath"
+            }
+            Self::Cut => "Click the region: the first upper floor above the level is removed",
+            Self::Fill => "Click the region: the opening is closed up to the next level",
         }
     }
 
@@ -102,7 +105,7 @@ pub(crate) struct SlabLive {
 fn start(ws: &EditorWorkspace) -> Result<SlabLive, String> {
     let region = ws.grid.verb.region.clone().ok_or("Pick a region first")?;
     if region.level() != 2 {
-        return Err("The Slab verb works on whole sectors: pick Sector for it".to_string());
+        return Err("The Upper floor tool works on whole sectors: pick Sector for it".to_string());
     }
     let world = ws
         .project
@@ -154,7 +157,7 @@ pub(super) fn begin(
         }
     };
     let pixels_per_unit = super::verb_tool::drag_rate(ws, ptr, room, cell, live.base);
-    ws.status = "Slab: drag up for its height".to_string();
+    ws.status = "Upper floor: drag up for its height".to_string();
     ws.grid.gesture = Gesture::Verb(Box::new(VerbGesture {
         drag: VerbDrag::Slab(Box::new(live)),
         press_y: ptr.at_press().pos.y,
@@ -216,19 +219,21 @@ fn over_cells(
 pub(super) fn apply(world: &mut GridWorld, live: &SlabLive, amount: i32) -> String {
     live.snapshot.restore(world);
     let (verb, height, outcome) = match live.mode {
-        SlabMode::Insert if amount == 0 => return "Slab: drag up for its height".to_string(),
+        SlabMode::Insert if amount == 0 => {
+            return "Upper floor: drag up for its height".to_string()
+        }
         SlabMode::Insert => {
             let y = live.base + amount;
             let outcome = over_cells(world, live, |w, rect| {
                 insert_slab(w, live.room, rect, y, SLAB_THICKNESS, live.material)
             });
-            ("Slab inserted", y, outcome)
+            ("Upper floor added", y, outcome)
         }
         SlabMode::Cut => {
             let outcome = over_cells(world, live, |w, rect| {
                 cut_hole(w, live.room, rect, live.base, CutScope::Next)
             });
-            ("Slab cut", live.base, outcome)
+            ("Upper floor removed", live.base, outcome)
         }
         SlabMode::Fill => {
             let Some(y) = live.fill_to else {
@@ -243,11 +248,11 @@ pub(super) fn apply(world: &mut GridWorld, live: &SlabLive, amount: i32) -> Stri
     describe(verb, height, &outcome)
 }
 
-/// "Slab inserted at +6.00 clicks: 12 sector(s); skipped: 4 with no span at
-/// that height".
+/// "Upper floor added at +6.00 clicks: 12 sector(s); skipped: 4 with no span
+/// at that height".
 fn describe(verb: &str, height: i32, outcome: &SpanOutcome) -> String {
     if let Some(reason) = outcome.refused {
-        return format!("Slab refused: {}", reason.describe());
+        return format!("Upper floor refused: {}", reason.describe());
     }
     let mut line = format!(
         "{verb} at {:+.2} clicks: {} sector(s)",
@@ -260,14 +265,37 @@ fn describe(verb: &str, height: i32, outcome: &SpanOutcome) -> String {
     line
 }
 
-/// The text over a slab drag.
+/// Clicks of open space an Insert at `amount` leaves under the new floor, or
+/// `None` when there is too little for a gap and the floor simply rises (the
+/// sliver rule: the same as Raise).
+pub(super) fn open_space_clicks(amount: i32) -> Option<f32> {
+    let gap = amount - SLAB_THICKNESS;
+    (gap >= MIN_HEADROOM).then(|| gap as f32 / CLICK_UNITS as f32)
+}
+
+/// The room-relative bottom and top of the open space an Insert at `amount`
+/// leaves under the new floor: from the floor under the region up to the
+/// slab's underside. `None` while there is no gap (see [`open_space_clicks`]).
+pub(super) fn gap_span(live: &SlabLive, amount: i32) -> Option<(i32, i32)> {
+    open_space_clicks(amount)?;
+    Some((live.base, live.base + amount - SLAB_THICKNESS))
+}
+
+/// The text over an upper floor drag.
 pub(super) fn chip(live: &SlabLive, amount: i32) -> String {
     match live.mode {
-        SlabMode::Insert => format!(
-            "Slab at {:+.2} clicks over the level",
-            amount as f32 / CLICK_UNITS as f32
-        ),
-        mode => format!("Slab {}", mode.label()),
+        SlabMode::Insert => {
+            let at = amount as f32 / CLICK_UNITS as f32;
+            match open_space_clicks(amount) {
+                Some(gap) => format!(
+                    "Upper floor at {at:+.2} clicks over the level, {gap:.2} clicks of open space under it"
+                ),
+                None => format!(
+                    "Upper floor at {at:+.2} clicks: no room for open space under it (3 clicks needed), so the floor just rises like Raise"
+                ),
+            }
+        }
+        mode => mode.label().to_string(),
     }
 }
 
@@ -275,7 +303,7 @@ pub(super) fn chip(live: &SlabLive, amount: i32) -> String {
 pub(super) fn cycle_mode(ws: &mut EditorWorkspace) {
     let next = ws.grid.verb.slab.mode.next();
     ws.grid.verb.slab.mode = next;
-    ws.status = format!("Slab {}: {}", next.label(), next.hint());
+    ws.status = format!("{}: {}", next.label(), next.hint());
 }
 
 /// The option row's typed height, applied as one undo step.

@@ -138,6 +138,24 @@ impl WindowRig {
         Self::with_world(ws, guard, size)
     }
 
+    /// The project in directory `source` (copied to a scratch directory) in
+    /// a window.
+    pub(super) fn from_dir(source: &Path, size: Vec2) -> Self {
+        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let dir = std::env::temp_dir().join(format!(
+            "psxed-ui-live-dir-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ));
+        let guard = ScratchProjectDir::new(dir.clone());
+        crate::starter_catalogue::copy_dir_recursive(source, &dir).unwrap();
+        let mut ws = EditorWorkspace::open_directory(&dir).unwrap();
+        ws.active_workspace = WorkspaceView::Room;
+        ws.frame_current_view();
+        ws.status = String::new();
+        Self::with_world(ws, guard, size)
+    }
+
     /// The tracked starter project in a window.
     pub(super) fn starter(size: Vec2) -> Self {
         static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);

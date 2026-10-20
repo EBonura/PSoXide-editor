@@ -52,7 +52,7 @@ impl EditorWorkspace {
             add = ui
                 .button(icons::text(icons::PLUS, 14.0))
                 .on_hover_text(format!(
-                    "New level: the Slab tool, set to one storey ({} clicks) above the level. Pick the sectors, then press on them and drag up.",
+                    "New level: the Upper floor tool, set to one storey ({} clicks) above the level. Pick the sectors, then press on them and drag up.",
                     STOREY_PITCH / CLICK_UNITS
                 ))
                 .clicked();
@@ -192,7 +192,7 @@ impl EditorWorkspace {
         }
     }
 
-    /// The panel's `+`: the Slab tool in Insert mode, set to one storey
+    /// The panel's `+`: the Upper floor tool in Add floor above mode, set to one storey
     /// above the level, with a status that says what to do next.
     fn add_level(&mut self) {
         self.set_grid_tool(GridTool::Slab);

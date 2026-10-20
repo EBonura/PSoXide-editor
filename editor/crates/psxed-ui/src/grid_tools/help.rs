@@ -206,21 +206,26 @@ const RAMP: Rows = &[
 ];
 const STAIRS: Rows = &[
     (
-        "Click, Enter",
-        "Click the waypoints of the flight, Enter finishes the path",
+        "Drag a rectangle",
+        "Where the stairs go: the side nearest the pointer is the bottom, the treads run from there across the rectangle's depth, a sector each, and its breadth is the width",
     ),
     (
         "Press on it, drag up or down",
-        "The total rise; each sector is a tread, a turn is a landing, the ghost numbers the steps",
+        "The total height; the bar shows the steps, the riser and whether it can be walked, the ghost numbers the steps",
     ),
-    ("[ and ]", "Width of the flight in sectors"),
+    ("R", "Turn the bottom side a quarter turn and hold it"),
+    (
+        "Path (option row)",
+        "A winding flight: click the waypoints, Enter finishes the path, then press on it and drag; each sector is a tread, a turn is a landing",
+    ),
+    ("[ and ]", "Width of a Path flight in sectors"),
     (
         "Riser (option row)",
         "1 click, Max (what the character steps up) or a typed riser; steps follow from the rise",
     ),
     (
         "Tab, Ramp",
-        "Slope every tread instead of stepping; also the answer to a refused, too steep flight",
+        "Slope every tread instead of stepping. A flight too steep for treads is refused, the bar says why, and Make it a ramp (Tab) lays it as a ramp in place",
     ),
 ];
 const BREAK: Rows = &[
@@ -294,7 +299,7 @@ const SLAB: Rows = &[
     ),
     (
         "Insert: pick a region, press on it, drag up",
-        "A floor at that height over the level, one click thick; the hall above and below keep their walls. Sectors with nothing open at that height are skipped and counted",
+        "Adds a floor at that height over the level, one click thick, with open space underneath (it needs a ceiling or open sky above); the hall above and below keep their walls. The ghost shows the open space under the new floor. Sectors with nothing open at that height are skipped and counted. This is not Raise: Raise moves the ground itself up and leaves nothing underneath",
     ),
     (
         "Cut: pick a region, click it",
@@ -304,7 +309,7 @@ const SLAB: Rows = &[
         "Fill: pick a region, click it",
         "Closes the region up to the next storey above the level",
     ),
-    ("Tab", "Insert, Cut, Fill"),
+    ("Tab", "Add floor above, Remove upper floor, Fill opening"),
     ("Esc", "Put the document back exactly"),
 ];
 const CELLS: Rows = &[
@@ -436,7 +441,7 @@ impl EditorWorkspace {
             ("Break (X)", BREAK),
             ("Rough (M)", ROUGH),
             ("Cells (Q)", CELLS),
-            ("Slab (Shift+Q) and levels", SLAB),
+            ("Upper floor (Shift+Q) and levels", SLAB),
             ("Overlays", OVERLAYS),
             ("More", OTHER),
             ("Snapping and reserved keys", SNAP),
@@ -451,7 +456,7 @@ impl EditorWorkspace {
             .show(ctx, |ui| {
                 ui.set_width(1500.0_f32.min(ctx.screen_rect().width() - 60.0));
                 ui.label(
-                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, Shift+N Mesh, P Paint, D Diagonal, O Place, E Bands | U Raise, A Ramp, T Stairs, Shift+T Spiral, X Break, M Rough, Q Cells, Shift+Q Slab | Alt+Up/Down level, G go to level, Z cutaway")
+                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, Shift+N Mesh, P Paint, D Diagonal, O Place, E Bands | U Raise, A Ramp, T Stairs, Shift+T Spiral, X Break, M Rough, Q Cells, Shift+Q Upper floor | Alt+Up/Down level, G go to level, Z cutaway")
                         .color(STUDIO_TEXT_WEAK),
                 );
                 ui.label(

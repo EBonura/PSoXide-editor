@@ -4,7 +4,7 @@
 use super::cell_size::cell_units;
 use super::overlay::{fill, label_chip, PolygonFn, CREATE, HOVER};
 use super::pick::Cam;
-use super::verb_state::{RegionGesture, VerbDrag};
+use super::verb_state::{RegionGesture, RegionSource, VerbDrag};
 use super::view::{editor_xz, editor_y};
 use super::*;
 use psxed_project::grid::edit::verbs::fine::FineVerb;
@@ -13,6 +13,9 @@ use psxed_project::grid::edit::verbs::ramp::RampDir;
 use psxed_project::grid::edit::{CellRect, Region};
 use psxed_project::grid::leaf::edge_clicks;
 use psxed_project::grid::{GridWorld, SECTOR_UNITS};
+
+/// The open space under an upper floor: cool, against the region's warmth.
+const OPEN_SPACE: Color32 = Color32::from_rgb(90, 210, 230);
 
 /// The region's colour: warm, so it reads against the selection yellow and
 /// the hover blue.
@@ -410,6 +413,7 @@ impl EditorWorkspace {
         }
         self.draw_lasso_3d(painter, rect, world);
         self.draw_level_ghost_3d(&polygon, world);
+        self.draw_open_space_ghost_3d(&polygon, world);
         self.draw_ramp_overlay_3d(painter, &cam, &polygon, world);
         self.draw_stairs_overlay_3d(painter, &cam, &polygon, world);
         if centre_sum.1 > 0 {
@@ -460,13 +464,75 @@ impl EditorWorkspace {
         polygon(&quad, Color32::from_rgb(120, 200, 255), 34, 2.0);
     }
 
+    /// An upper floor being dragged: the open space left under it, as a
+    /// translucent box from the floor beneath up to the new floor's underside
+    /// with its own colour, so it cannot be mistaken for Raise (which fills
+    /// that space with ground). Nothing is drawn while the floor is too low
+    /// to leave a gap.
+    fn draw_open_space_ghost_3d(&self, polygon: &PolygonFn, world: &GridWorld) {
+        let Gesture::Verb(g) = &self.grid.gesture else {
+            return;
+        };
+        let VerbDrag::Slab(live) = &g.drag else {
+            return;
+        };
+        let Some((low, high)) = super::slab_tool::gap_span(live, g.amount) else {
+            return;
+        };
+        let Some(region) = &self.grid.verb.region else {
+            return;
+        };
+        let Some(b) = region.bounds() else { return };
+        let y_offset = world.rooms.get(region.room).map_or(0, |r| r.y_offset);
+        let (y0, y1) = (
+            editor_y(world, y_offset, low),
+            editor_y(world, y_offset, high),
+        );
+        let s = world.scale;
+        let at = |x: i32, z: i32, y: f32| {
+            [
+                s.to_editor(x * SECTOR_UNITS) as f32,
+                y,
+                s.to_editor(z * SECTOR_UNITS) as f32,
+            ]
+        };
+        let (x0, z0, x1_, z1) = (b.min[0], b.min[1], b.max[0] + 1, b.max[1] + 1);
+        let colour = OPEN_SPACE;
+        for (a, c) in [
+            ((x0, z0), (x1_, z0)),
+            ((x1_, z0), (x1_, z1)),
+            ((x1_, z1), (x0, z1)),
+            ((x0, z1), (x0, z0)),
+        ] {
+            polygon(
+                &[
+                    at(a.0, a.1, y0),
+                    at(c.0, c.1, y0),
+                    at(c.0, c.1, y1),
+                    at(a.0, a.1, y1),
+                ],
+                colour,
+                46,
+                1.5,
+            );
+        }
+    }
+
     /// The A side of the Ramp being made or about to be, and whether a drag
     /// is in flight.
     fn ramp_sides(&self) -> Option<(Region, RampDir, bool)> {
-        if self.grid.tool != GridTool::Ramp {
+        let stairs = self.stairs_rectangle();
+        if self.grid.tool != GridTool::Ramp && !stairs {
             return None;
         }
         let region = self.grid.verb.region.clone()?;
+        if stairs {
+            // A flight over a rectangle starts from the side R or the
+            // pointer chose; while it is dragged that side is what the press
+            // took.
+            let from = self.grid.verb.ramp_from.or(self.grid.verb.ramp_hover)?;
+            return Some((region, from, matches!(self.grid.gesture, Gesture::Verb(_))));
+        }
         if let Gesture::Verb(g) = &self.grid.gesture {
             if let VerbDrag::Ramp(d) = &g.drag {
                 return Some((region, d.params().from, true));
@@ -474,6 +540,20 @@ impl EditorWorkspace {
         }
         let from = self.grid.verb.ramp_from.or(self.grid.verb.ramp_hover)?;
         Some((region, from, false))
+    }
+
+    /// Whether the Stairs tool is placing a flight over a rectangle.
+    fn stairs_rectangle(&self) -> bool {
+        self.grid.tool == GridTool::Stairs && self.grid.verb.source != RegionSource::Path
+    }
+
+    /// The names of the two ends of the Ramp or flight being placed.
+    fn side_names(&self) -> (&'static str, &'static str) {
+        if self.stairs_rectangle() {
+            ("Bottom step", "Top")
+        } else {
+            ("A keeps its height", "B rises")
+        }
     }
 
     /// The A and B edges and an arrow over the Top view, with the slope
@@ -497,7 +577,7 @@ impl EditorWorkspace {
             return;
         };
         let screen = |p: [f32; 2]| transform.world_to_screen(p);
-        if dragging {
+        if dragging && !self.stairs_rectangle() {
             for (cell, class) in ramp_classes(world, &region) {
                 let c = plan_corners(world, cell);
                 let r = Rect::from_two_pos(screen(c[0]), screen(c[2]));
@@ -513,13 +593,12 @@ impl EditorWorkspace {
             mids[i] = sa + (sb - sa) * 0.5;
         }
         painter.arrow(mids[0], mids[1] - mids[0], Stroke::new(2.5, Color32::WHITE));
-        label_chip(
-            painter,
-            mids[0],
-            Align2::CENTER_CENTER,
-            "A keeps its height",
-        );
-        label_chip(painter, mids[1], Align2::CENTER_CENTER, "B rises");
+        // A flight being dragged numbers its treads instead.
+        if !(dragging && self.stairs_rectangle()) {
+            let (low, high) = self.side_names();
+            label_chip(painter, mids[0], Align2::CENTER_CENTER, low);
+            label_chip(painter, mids[1], Align2::CENTER_CENTER, high);
+        }
     }
 
     /// The same over the 3D view, following the floor corners.
@@ -542,7 +621,7 @@ impl EditorWorkspace {
         let Some((region, from, dragging)) = self.ramp_sides() else {
             return;
         };
-        if dragging {
+        if dragging && !self.stairs_rectangle() {
             for (cell, class) in ramp_classes(world, &region) {
                 polygon(
                     &floor_points(world, region.room, cell),
@@ -577,9 +656,9 @@ impl EditorWorkspace {
                         s,
                         Align2::CENTER_CENTER,
                         if i == 0 {
-                            "A keeps its height"
+                            self.side_names().0
                         } else {
-                            "B rises"
+                            self.side_names().1
                         },
                     );
                 }
@@ -630,6 +709,14 @@ fn side_line(world: &GridWorld, region: &Region, dir: RampDir) -> ([f32; 2], [f3
         RampDir::West => (p(b.min[0], b.min[1]), p(b.min[0], b.max[1] + 1)),
         RampDir::East => (p(b.max[0] + 1, b.min[1]), p(b.max[0] + 1, b.max[1] + 1)),
     }
+}
+
+/// How many sectors of `region` have a floor too steep to stand on.
+pub(super) fn steep_sectors(world: &GridWorld, region: &Region) -> usize {
+    ramp_classes(world, region)
+        .into_iter()
+        .filter(|(_, class)| *class == psxed_project::grid::SlopeClass::Steep)
+        .count()
 }
 
 /// The slope class of each region sector's floor, for the tint of a Ramp.
@@ -711,13 +798,16 @@ impl EditorWorkspace {
             let c = plan_corners(world, cell);
             screen([(c[0][0] + c[2][0]) * 0.5, (c[0][1] + c[2][1]) * 0.5])
         };
-        let way: Vec<Pos2> = self
-            .grid
-            .verb
-            .stairs_path
-            .iter()
-            .map(|c| centre(*c))
-            .collect();
+        let way: Vec<Pos2> = if self.grid.verb.source == RegionSource::Path {
+            self.grid
+                .verb
+                .stairs_path
+                .iter()
+                .map(|c| centre(*c))
+                .collect()
+        } else {
+            Vec::new()
+        };
         for pair in way.windows(2) {
             painter.line_segment([pair[0], pair[1]], Stroke::new(2.0, CREATE));
         }

@@ -297,7 +297,7 @@ impl EditorWorkspace {
             arrow_menu(
                 ui,
                 active,
-                "Shape tools: Raise, Ramp, Stairs, Spiral, Break, Rough, Cells, Slab, Diagonal",
+                "Shape tools: Raise, Ramp, Stairs, Spiral, Break, Rough, Cells, Upper floor, Diagonal",
                 Corners::Left,
                 |ui| {
                     for tool in GridTool::SHAPES {

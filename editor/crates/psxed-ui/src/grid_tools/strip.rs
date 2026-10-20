@@ -192,10 +192,73 @@ impl EditorWorkspace {
         // What is left: the options, or the hints. A tool with more options
         // than the pane has room for scrolls them sideways (the arrows at the
         // ends say so) instead of wrapping, which would grow the bar.
-        let rest = Rect::from_min_max(
+        let mut rest = Rect::from_min_max(
             bar.min + Vec2::new(8.0, 0.0),
             Pos2::new(snap_left - 10.0, bar.max.y),
         );
+        // A notice that needs an answer takes the whole bar: the buttons at
+        // its right end, the text in what is left.
+        if let Some(notice) = self.bar_notice() {
+            let mut buttons = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(rest)
+                    .layout(egui::Layout::right_to_left(egui::Align::Center)),
+            );
+            buttons.set_clip_rect(rest.intersect(ui.clip_rect()));
+            buttons.spacing_mut().item_spacing = Vec2::new(6.0, 0.0);
+            let mut chosen = None;
+            for (label, action) in notice.buttons.iter().rev() {
+                if buttons
+                    .add(egui::Button::new(RichText::new(*label).size(12.0)))
+                    .clicked()
+                {
+                    chosen = Some(*action);
+                }
+            }
+            let text_rect = Rect::from_min_max(
+                rest.min,
+                Pos2::new(buttons.min_rect().min.x - 10.0, rest.max.y),
+            );
+            ui.put(
+                text_rect,
+                egui::Label::new(
+                    RichText::new(&notice.text)
+                        .color(Color32::from_rgb(240, 180, 90))
+                        .size(12.0),
+                )
+                .truncate(),
+            )
+            .on_hover_text(&notice.text);
+            if let Some(action) = chosen {
+                self.run_bar_action(action);
+            }
+            return;
+        }
+        // The level verbs lead with the next step, pinned at the left; the
+        // options scroll in what is left.
+        if let Some(step) = self.verb_step_text() {
+            let galley = ui.painter().layout_no_wrap(
+                step.clone(),
+                egui::FontId::proportional(12.0),
+                STUDIO_ACCENT,
+            );
+            let width = galley.size().x.min(rest.width() * 0.56);
+            let lead = Rect::from_min_size(rest.min, Vec2::new(width, bar.height()));
+            ui.put(
+                lead,
+                egui::Label::new(RichText::new(&step).color(STUDIO_ACCENT).size(12.0)).truncate(),
+            )
+            .on_hover_text(step);
+            let divider = lead.max.x + 6.0;
+            ui.painter().line_segment(
+                [
+                    Pos2::new(divider, bar.min.y + 6.0),
+                    Pos2::new(divider, bar.max.y - 6.0),
+                ],
+                Stroke::new(1.0, STUDIO_TEXT_WEAK.gamma_multiply(0.4)),
+            );
+            rest.min.x = divider + 8.0;
+        }
         if self.grid.options_scroll_tool != self.grid.tool {
             self.grid.options_scroll_tool = self.grid.tool;
             self.grid.options_scroll = 0.0;
@@ -291,11 +354,11 @@ impl EditorWorkspace {
             GridTool::Bands => "Hover a wall, click to cut | Drag a line | Del removes it | Shift+click picks a band | Esc cancel",
             GridTool::Raise => "Pick sectors | Press on them, drag up/down | Tab Offset/Level | Alt fine | Shift add | Esc cancel",
             GridTool::Ramp => "Pick sectors | Press near the side to keep, drag up/down | R turn the side | Tab hold to walkable | Esc cancel",
-            GridTool::Stairs => "Click waypoints, Enter | Press on the path, drag up/down | [ ] width | Tab steps/ramp | Esc cancel",
+            GridTool::Stairs => "Drag a rectangle | Press on it, drag up | R turn the bottom side | Path: click waypoints, Enter, [ ] width | Tab steps/ramp | Esc cancel",
             GridTool::Spiral => "Click the corners of a ring, Enter closes it | Press on it, drag up for the climb of a storey | Storeys in the option row | Alt+Up/Down level | Esc cancel",
             GridTool::Break => "Pick sectors | Press on them, drag up for intensity | Tab target | Shift+X re-roll | Enter commit | Esc cancel",
             GridTool::Rough => "Pick sectors | Press on them, drag up for the level 0-3 | Enter commit | Esc cancel",
-            GridTool::Slab => "Pick sectors | Insert: press on them and drag up for the height | Cut, Fill: click them | Tab mode | Alt+Up/Down level | G go to level | Z cutaway | Esc cancel",
+            GridTool::Slab => "Pick sectors | Add floor above: press on them and drag up for the height | Remove upper floor, Fill opening: click them | Tab mode | Alt+Up/Down level | G go to level | Z cutaway | Esc cancel",
             GridTool::Cells => "Paint to subdivide | Alt+paint merges | [ ] brush | Enter / Shift+Enter subdivide / merge the selection | Alt+L cell sizes",
             GridTool::Place => "Click to place at the sector centre | Shift+click keeps placing | Alt 64 | Shift+Alt free",
         }

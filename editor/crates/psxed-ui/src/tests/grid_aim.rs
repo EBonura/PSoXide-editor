@@ -182,6 +182,7 @@ fn ramp_and_stairs_work_on_the_floor_at_the_level() {
     let mut rig = GridRig::top("aim-stairs", two_floors());
     upper_level(&mut rig);
     rig.tool(GridTool::Stairs);
+    use_the_path_source(&mut rig);
     rig.click(rig.cell_centre(2, 3));
     rig.click(rig.cell_centre(5, 3));
     rig.key(egui::Key::Enter);

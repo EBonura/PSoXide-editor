@@ -10,15 +10,39 @@ impl EditorWorkspace {
     /// Options of the active verb, in the strip's option row.
     pub(super) fn draw_verb_options(&mut self, ui: &mut egui::Ui) {
         ui.label(RichText::new("Region").color(STUDIO_TEXT_WEAK).size(11.0));
-        for source in RegionSource::ALL {
+        // A flight is a rectangle or a path; the other sources make no order
+        // of treads.
+        let stairs = self.grid.tool == GridTool::Stairs;
+        let sources: &[RegionSource] = if stairs {
+            &[RegionSource::Marquee, RegionSource::Path]
+        } else {
+            &RegionSource::ALL
+        };
+        for &source in sources {
             let on = self.grid.verb.source == source;
-            if ui
-                .selectable_label(on, source.label())
-                .on_hover_text(source.hint())
-                .clicked()
-            {
+            let (label, hint) = if stairs && source == RegionSource::Marquee {
+                (
+                    "Rectangle",
+                    "Drag a rectangle: the treads run from its bottom side across its depth",
+                )
+            } else if stairs {
+                (
+                    "Path",
+                    "Click the waypoints of a winding flight, Enter finishes; [ and ] change the width",
+                )
+            } else {
+                (source.label(), source.hint())
+            };
+            if ui.selectable_label(on, label).on_hover_text(hint).clicked() {
                 self.grid.verb.source = source;
                 self.grid.verb.path.clear();
+                if stairs {
+                    self.grid.verb.stairs_source = source;
+                    // The other way of making a flight starts afresh.
+                    self.grid.verb.region = None;
+                    self.grid.verb.stairs_path.clear();
+                    self.grid.verb.stairs_refusal = None;
+                }
             }
         }
         match self.grid.verb.source {
@@ -70,10 +94,14 @@ impl EditorWorkspace {
         }
     }
 
-    /// Slab: the mode and a typed height over the level.
+    /// Upper floor: the mode and a typed height over the level.
     fn draw_slab_options(&mut self, ui: &mut egui::Ui) {
         use super::slab_tool::SlabMode;
-        ui.label(RichText::new("Slab").color(STUDIO_TEXT_WEAK).size(11.0));
+        ui.label(
+            RichText::new("Upper floor")
+                .color(STUDIO_TEXT_WEAK)
+                .size(11.0),
+        );
         for mode in SlabMode::ALL {
             if ui
                 .selectable_label(self.grid.verb.slab.mode == mode, mode.label())
@@ -364,10 +392,16 @@ impl EditorWorkspace {
                         .color(STUDIO_ACCENT),
                 );
                 let Some(region) = &self.grid.verb.region else {
-                    ui.label(
-                        RichText::new("Drag a marquee (or use the brush or a path) to pick the sectors, then press on them and drag up or down")
-                            .color(STUDIO_TEXT_WEAK),
-                    );
+                    let hint = match self.grid.tool {
+                        GridTool::Stairs => {
+                            "Drag a rectangle where the stairs go, then press on it and drag up for the height"
+                        }
+                        GridTool::Slab => {
+                            "Adds a floor above this one, with open space underneath (needs a ceiling or open sky above). Drag a rectangle, then press on it and drag up"
+                        }
+                        _ => "Drag a marquee (or use the brush or a path) to pick the sectors, then press on them and drag up or down",
+                    };
+                    ui.label(RichText::new(hint).color(STUDIO_TEXT_WEAK));
                     return;
                 };
                 let (with_floor, skipped) = region.with_floors(world);
@@ -392,11 +426,21 @@ impl EditorWorkspace {
                     );
                 }
                 if self.grid.tool == GridTool::Stairs {
-                    ui.label(format!(
-                        "Path: {} waypoints, width {}",
-                        self.grid.verb.stairs_path.len(),
-                        self.grid.verb.path_width
-                    ));
+                    if self.grid.verb.source == RegionSource::Path {
+                        ui.label(format!(
+                            "Path: {} waypoints, width {}",
+                            self.grid.verb.stairs_path.len(),
+                            self.grid.verb.path_width
+                        ));
+                    } else {
+                        ui.label(format!(
+                            "Bottom: {}",
+                            self.grid
+                                .verb
+                                .ramp_from
+                                .map_or("the side nearest the press", |d| d.label())
+                        ));
+                    }
                     ui.label(format!(
                         "Riser: {}{}",
                         super::stairs_tool::riser_label(self.grid.verb.stairs.riser),

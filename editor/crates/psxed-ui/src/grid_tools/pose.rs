@@ -8,7 +8,7 @@
 //!
 //! Commands (cells are world sectors, `x,z`):
 //!
-//! * `tool=select|floor|ceiling|wall|height|paint|split|place|bands|raise|ramp|stairs|spiral|break|rough|cells|slab`
+//! * `tool=select|floor|ceiling|wall|height|paint|split|place|bands|raise|ramp|stairs|spiral|break|rough|cells|slab` (or `upper floor`)
 //!   (the tool labels, any case)
 //! * `room=N` the active room; `hide=N` hides room N
 //! * `level=N` puts the storey cursor on storey `N` of the derived list
@@ -111,6 +111,12 @@ fn parse_edge(name: &str) -> Result<WallEdge, String> {
 }
 
 fn parse_tool(name: &str) -> Result<GridTool, String> {
+    // The Upper floor tool was called Slab and the pose still takes that.
+    let name = if name.eq_ignore_ascii_case("slab") {
+        "upper floor"
+    } else {
+        name
+    };
     GridTool::ALL
         .into_iter()
         .find(|t| t.label().eq_ignore_ascii_case(name))
@@ -223,6 +229,9 @@ impl EditorWorkspace {
                         self.grid.verb.path_width,
                     ));
                     self.grid.verb.stairs_path = waypoints;
+                    // A path is the Path source's flight.
+                    self.grid.verb.source = super::verb_state::RegionSource::Path;
+                    self.grid.verb.stairs_source = super::verb_state::RegionSource::Path;
                 }
             }
             "storeys" => {

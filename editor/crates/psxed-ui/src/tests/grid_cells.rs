@@ -192,6 +192,7 @@ fn stairs_on_quarter_cells_lay_quarter_treads() {
     let mut rig = GridRig::top("cells-stairs-quarter", flat_project(4, 4, false));
     rig.ws.grid.cell_size = CellSize::Quarter;
     rig.tool(GridTool::Stairs);
+    use_the_path_source(&mut rig);
     // Waypoints one quarter cell apart along Z, then Enter.
     rig.click(cell_centre_per(&rig, 4, 4, 4));
     rig.click(cell_centre_per(&rig, 4, 4, 5));

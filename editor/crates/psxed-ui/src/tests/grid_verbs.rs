@@ -362,6 +362,7 @@ fn the_ramp_pose_and_typed_amount_work_without_a_pointer() {
 
 fn lay_path(rig: &mut GridRig) {
     rig.tool(GridTool::Stairs);
+    use_the_path_source(rig);
     rig.click(rig.cell_centre(1, 2));
     rig.click(rig.cell_centre(6, 2));
     rig.key(egui::Key::Enter);
