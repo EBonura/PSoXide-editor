@@ -242,7 +242,7 @@ impl EditorWorkspace {
                 egui::FontId::proportional(12.0),
                 STUDIO_ACCENT,
             );
-            let width = galley.size().x.min(rest.width() * 0.56);
+            let width = galley.size().x.min(rest.width() * 0.8);
             let lead = Rect::from_min_size(rest.min, Vec2::new(width, bar.height()));
             ui.put(
                 lead,

@@ -411,6 +411,13 @@ fn the_slab_tool_is_called_upper_floor_and_says_what_it_does() {
         ),
         "{bar}"
     );
+    // The whole line is on screen at the coordinator's window size, not cut
+    // short with an ellipsis.
+    let line = options_texts(&rig)
+        .into_iter()
+        .find(|(t, _)| t.starts_with("Adds a floor above"))
+        .expect("the line");
+    assert!(line.1.width() > 440.0, "{:?}", line.1);
 }
 
 #[test]
