@@ -30,6 +30,8 @@ pub(super) struct FrameKey {
     hovered_entity_node: Option<NodeId>,
     textures_generation: u64,
     assets_generation: u64,
+    /// Moves when a global light solve lands.
+    global_light_generation: u64,
     pub(super) grid_view: psxed_ui::GridPreviewView,
 }
 
@@ -123,6 +125,7 @@ impl FrameKey {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         document: u64,
+        global_light_generation: u64,
         camera: ViewportCameraState,
         preview_bounds: bool,
         show_lights: bool,
@@ -148,6 +151,7 @@ impl FrameKey {
             hovered_entity_node,
             textures_generation: textures.generation(),
             assets_generation: assets.generation(),
+            global_light_generation,
             grid_view: psxed_ui::grid_preview_view(),
         }
     }

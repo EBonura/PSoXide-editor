@@ -22,7 +22,9 @@
 use super::*;
 
 use psxed_project::grid::light::{FacingShade, GridLight};
-use psxed_project::grid::lighting::LightScene;
+use psxed_project::grid::lighting::{GiField, GlobalLight, LightScene};
+
+use super::grid_light::GlobalLightState;
 use psxed_project::grid::mesh::MeshAsset;
 use psxed_project::grid::{GridRoom, GridScale, GridWorld};
 use psxed_project::Resource;
@@ -92,6 +94,7 @@ pub(super) struct RoomSlot {
 pub(super) struct GeometryContext {
     scale: GridScale,
     shading: FacingShade,
+    global_light: GlobalLight,
     mesh_assets: Vec<MeshAsset>,
     /// The lights baked into the corners, runtime units.
     lights: Vec<GridLight>,
@@ -112,6 +115,7 @@ impl GeometryContext {
         Self {
             scale: world.scale,
             shading: world.shading,
+            global_light: world.global_light,
             mesh_assets: world.mesh_assets.clone(),
             lights,
             materials: Self::materials_of(project).cloned().collect(),
@@ -138,6 +142,7 @@ impl GeometryContext {
     ) -> bool {
         self.scale == world.scale
             && self.shading == world.shading
+            && self.global_light == world.global_light
             && self.textures_generation == textures_generation
             && self.mesh_assets == world.mesh_assets
             && self.lights == lights
@@ -168,6 +173,11 @@ pub(super) struct GridGeometry {
     /// the first bake after the world changed. `Err` holds why it could not
     /// be built, so a broken world does not retry every frame.
     scene: Option<Result<LightScene, String>>,
+    /// The ambient occlusion, sky and bounce of a world that gathers its
+    /// light, solved on a worker.
+    gi: GlobalLightState,
+    /// The project directory the textures came from, for the bounce colours.
+    project_root: Option<std::path::PathBuf>,
     /// `(document generation, textures generation)` the rooms were last
     /// checked against.
     synced: Option<(u64, u64)>,
@@ -191,6 +201,7 @@ impl GridGeometry {
         let Some(world) = project.active_scene().world.grid() else {
             self.context = None;
             self.rooms.clear();
+            self.gi.clear();
             return;
         };
         let lights = collect_grid_bake_lights(project);
@@ -217,6 +228,7 @@ impl GridGeometry {
                 textures_generation,
             ));
         }
+        let mut gi_dirty = !unchanged || self.rooms.len() != world.rooms.len();
         if self.rooms.len() > world.rooms.len() {
             self.scene = None;
         }
@@ -228,6 +240,7 @@ impl GridGeometry {
                     slot.source = room.clone();
                     slot.prepared = None;
                     self.scene = None;
+                    gi_dirty = true;
                 }
                 None => {
                     self.rooms.push(RoomSlot {
@@ -235,8 +248,18 @@ impl GridGeometry {
                         prepared: None,
                     });
                     self.scene = None;
+                    gi_dirty = true;
                 }
             }
+        }
+        // A world that gathers its light solves it off this thread; anything
+        // the solution is made from changing starts another solve.
+        if !world.global_light.enabled {
+            self.gi.clear();
+        } else if gi_dirty || (self.gi.field().is_none() && !self.gi.pending()) {
+            let lights = self.context.as_ref().map_or_else(Vec::new, |c| c.lights.clone());
+            self.gi
+                .restart(project, world, lights, self.project_root.clone());
         }
     }
 
@@ -249,6 +272,7 @@ impl GridGeometry {
         &mut [RoomSlot],
         &[GridLight],
         Option<&LightScene>,
+        Option<&GiField>,
         Option<&mut GhostRoom>,
     ) {
         let scene = self.scene.get_or_insert_with(|| LightScene::new(world));
@@ -257,8 +281,52 @@ impl GridGeometry {
             &mut self.rooms,
             lights,
             scene.as_ref().ok(),
+            self.gi.field(),
             self.ghost.as_mut(),
         )
+    }
+
+    /// Tell the geometry where the project's texture files are, for the
+    /// bounce colours of the global light.
+    pub(super) fn set_project_root(&mut self, root: Option<&std::path::Path>) {
+        if self.project_root.as_deref() != root {
+            self.project_root = root.map(std::path::Path::to_path_buf);
+        }
+    }
+
+    /// Take a finished global light solve, if one has landed, and drop the
+    /// faces baked without it. True when the field changed.
+    pub(super) fn poll_global_light(&mut self) -> bool {
+        let changed = self.gi.poll();
+        if changed {
+            self.discard_prepared_faces();
+        }
+        changed
+    }
+
+    /// Wait for the global light solve in flight: for a one-shot frame.
+    pub(super) fn finish_global_light(&mut self) {
+        // The world may have changed since the last frame, so look first.
+        if self.gi.wait() {
+            self.discard_prepared_faces();
+        }
+    }
+
+    fn discard_prepared_faces(&mut self) {
+        for slot in &mut self.rooms {
+            slot.prepared = None;
+        }
+        self.ghost = None;
+    }
+
+    /// Moves whenever the solved global light changes.
+    pub(super) fn global_light_generation(&self) -> u64 {
+        self.gi.generation()
+    }
+
+    /// Whether a global light solve is still running.
+    pub(super) fn global_light_pending(&self) -> bool {
+        self.gi.pending()
     }
 
     /// Show `paint` (or nothing): rebuild the preview room when the paint is

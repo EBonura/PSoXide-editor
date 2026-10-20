@@ -16,7 +16,7 @@ use super::grid_cache::{
     BoxSource, GridGeometry, LazyBox, PreparedFace, PreparedPiece, PreparedRoom,
 };
 use psxed_project::grid::faces::{cell_faces_with, GridFace};
-use psxed_project::grid::lighting::{BakeRig, LightScene};
+use psxed_project::grid::lighting::{BakeRig, Gather, GiField, LightScene};
 use psxed_project::grid::mesh_faces::{mesh_faces_with, placed as placed_mesh};
 use psxed_project::grid::plane_faces::plane_faces_with;
 use psxed_project::grid::uv::ProjectUvDefaults;
@@ -82,6 +82,7 @@ fn prepare_piece(
     project: &ProjectDocument,
     textures: &EditorTextures,
     face: &GridFace,
+    parent: &GridFace,
     ambient: [u8; 3],
     rig: &BakeRig<'_>,
     out: &mut Vec<PreparedPiece>,
@@ -111,7 +112,7 @@ fn prepare_piece(
         FaceShade::Textured { tint, .. } => [tint.0, tint.1, tint.2],
     };
     let colors: Vec<(u8, u8, u8)> = rig
-        .corners(face, tint, ambient)
+        .corners(face, Some(parent), tint, ambient)
         .into_iter()
         .map(|c| (c[0], c[1], c[2]))
         .collect();
@@ -153,6 +154,7 @@ fn prepare_face(
                 project,
                 textures,
                 &piece,
+                face,
                 ambient,
                 rig,
                 &mut pieces,
@@ -162,6 +164,7 @@ fn prepare_face(
         prepare_piece(
             project,
             textures,
+            face,
             face,
             ambient,
             rig,
@@ -183,8 +186,7 @@ fn prepare_box(
     defaults: &ProjectUvDefaults,
     room_index: usize,
     source: BoxSource,
-    lights: &[psxed_project::grid::light::GridLight],
-    scene: Option<&LightScene>,
+    rig: &BakeRig<'_>,
 ) -> Vec<PreparedFace> {
     let room = &world.rooms[room_index];
     let mut faces = Vec::new();
@@ -199,27 +201,45 @@ fn prepare_box(
             mesh_faces_with(world, defaults, room_index, index, &mut faces);
         }
     }
-    let bake = |rig: &BakeRig<'_>| -> Vec<PreparedFace> {
-        faces
-            .iter()
-            .map(|face| prepare_face(project, textures, world.scale, face, room.ambient, rig))
-            .collect()
-    };
-    // The same rig a Play build bakes with, shadows included. A world whose
-    // collision cannot be built is shown unshadowed.
-    if let Some(baked) = scene.and_then(|scene| scene.with_rig(lights, world.shading, bake).ok())
-    {
-        return baked;
+    faces
+        .iter()
+        .map(|face| prepare_face(project, textures, world.scale, face, room.ambient, rig))
+        .collect()
+}
+
+/// Run `f` with the rig a Play build bakes with: the world's collision for
+/// shadows, the point lights, the facing shade and, for a world that gathers
+/// its light, the solved field. A world whose collision cannot be built is
+/// shown unshadowed.
+fn with_bake_rig<R>(
+    world: &GridWorld,
+    scene: Option<&LightScene>,
+    lights: &[psxed_project::grid::light::GridLight],
+    field: Option<&GiField>,
+    f: impl FnOnce(&BakeRig<'_>) -> R,
+) -> R {
+    let gather = world
+        .global_light
+        .enabled
+        .then_some(Gather { field });
+    match scene {
+        // The scene parsed when it was built, so a rig over it cannot fail.
+        Some(scene) => scene
+            .with_rig(lights, world.shading, gather, f)
+            .expect("a built scene parses"),
+        None => {
+            let units = psxed_project::grid::cook::RuntimeUnits::new(world.scale)
+                .or_else(|_| psxed_project::grid::cook::RuntimeUnits::new(Default::default()))
+                .expect("the default scale is valid");
+            f(&BakeRig {
+                units,
+                lights,
+                shade: world.shading,
+                occluded: &|_, _| false,
+                gather,
+            })
+        }
     }
-    let units = psxed_project::grid::cook::RuntimeUnits::new(world.scale)
-        .or_else(|_| psxed_project::grid::cook::RuntimeUnits::new(Default::default()))
-        .expect("the default scale is valid");
-    bake(&BakeRig {
-        units,
-        lights,
-        shade: world.shading,
-        occluded: &|_, _| false,
-    })
 }
 
 /// The boxes of a room the camera can pick from: every cell that has
@@ -289,7 +309,8 @@ pub(super) fn walk_grid(
     };
     let defaults = ProjectUvDefaults(project);
     geometry.set_ghost(world, view.paint.as_ref());
-    let (rooms, lights, scene, mut ghost) = geometry.rooms_lights_ghost(world);
+    let (rooms, lights, scene, field, mut ghost) = geometry.rooms_lights_ghost(world);
+    with_bake_rig(world, scene, lights, field, |rig| {
     for (room_index, slot) in rooms.iter_mut().enumerate() {
         // Rooms the author hid in the Rooms panel are not drawn.
         if view.hides_room(room_index) {
@@ -331,8 +352,7 @@ pub(super) fn walk_grid(
                         &defaults,
                         room_index,
                         lazy.source,
-                        lights,
-                        scene,
+                        rig,
                     )
                 });
                 for face in faces
@@ -353,6 +373,7 @@ pub(super) fn walk_grid(
             }
         }
     }
+    });
 }
 
 /// Editor-space box around a free plane, for the same cull the cells get.

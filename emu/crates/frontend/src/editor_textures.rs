@@ -161,6 +161,8 @@ pub struct EditorTextures {
     /// and was last at most `REFRESH_INTERVAL` ago has nothing to find.
     checked: Option<(u64, Instant)>,
     checked_models: Option<(u64, Instant)>,
+    /// The project directory the last refresh read its texture files from.
+    project_root: Option<std::path::PathBuf>,
 }
 
 /// How long an unchanged document is trusted before the material files are
@@ -239,6 +241,7 @@ impl EditorTextures {
             generation: 0,
             checked: None,
             checked_models: None,
+            project_root: None,
         };
         textures.upload_shadow_texture();
         textures.upload_particle_texture();
@@ -248,6 +251,12 @@ impl EditorTextures {
     /// Changes whenever a refresh changed a material, model atlas or sky slot.
     pub fn generation(&self) -> u64 {
         self.generation
+    }
+
+    /// The project directory the textures were last refreshed from, which the
+    /// light bake reads the same texture files from for its bounce colours.
+    pub fn project_root(&self) -> Option<&std::path::Path> {
+        self.project_root.as_deref()
     }
 
     /// Borrow the VRAM array for `HwRenderer::render_frame`.
@@ -311,6 +320,9 @@ impl EditorTextures {
     /// so authored scene materials and far-vista panels must get slots
     /// before unused resource-library entries.
     pub fn refresh(&mut self, project: &ProjectDocument, project_root: &Path) {
+        if self.project_root.as_deref() != Some(project_root) {
+            self.project_root = Some(project_root.to_path_buf());
+        }
         let document = crate::editor_preview::document_generation(project);
         if let Some((seen, at)) = self.checked {
             if seen == document && at.elapsed() < REFRESH_INTERVAL {

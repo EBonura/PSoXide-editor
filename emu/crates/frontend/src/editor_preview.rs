@@ -41,6 +41,7 @@ mod camera;
 mod depth;
 mod grid;
 mod grid_cache;
+mod grid_light;
 mod overlays;
 mod particles;
 mod poi;
@@ -430,8 +431,13 @@ fn build_frame(
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     let document = state.observe(project);
+    // A global light solve that finished since the last frame replaces the
+    // flat ambient the faces were baked with.
+    state.geometry.set_project_root(textures.project_root());
+    state.geometry.poll_global_light();
     let key = FrameKey::new(
         document,
+        state.geometry.global_light_generation(),
         camera,
         preview_bounds,
         show_lights,
@@ -454,7 +460,13 @@ fn build_frame(
     state
         .geometry
         .sync(project, document, textures.generation());
-    scratch.clock_used = false;
+    if !live {
+        // A one-shot frame has no later frame to refine in.
+        state.geometry.finish_global_light();
+    }
+    // The gather refines in the background: keep the editor redrawing until
+    // it lands.
+    scratch.clock_used = state.geometry.global_light_pending();
     scratch.used = 0;
     scratch.dropped = 0;
     scratch.sky_used = 0;
