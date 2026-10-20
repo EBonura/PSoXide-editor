@@ -82,7 +82,7 @@ impl EditorWorkspace {
                     if self.active_workspace == WorkspaceView::Ui {
                         self.draw_ui_tree_panel(ui);
                     } else {
-                        self.draw_scene_tree_panel(ui);
+                        self.draw_objects_panel(ui);
                     }
                 },
             );
@@ -112,7 +112,7 @@ impl EditorWorkspace {
                     if self.is_grid_world() && self.active_workspace == WorkspaceView::Room {
                         self.draw_grid_rooms_panel(ui);
                     }
-                    self.draw_scene_tree_panel(ui);
+                    self.draw_objects_panel(ui);
                 }
             },
         );
@@ -159,129 +159,6 @@ impl EditorWorkspace {
             ],
             Stroke::new(1.0, color),
         );
-    }
-
-    pub(crate) fn draw_scene_tree_panel(&mut self, ui: &mut egui::Ui) {
-        tool_panel_frame().show(ui, |ui| {
-            ui.set_min_height(ui.available_height());
-            tool_panel_header(ui, icons::LAYERS, "Scene Graph", |ui| {
-                ui.menu_button(icons::text(icons::PLUS, 14.0), |ui| {
-                    for (label, kind) in scene_graph_addable_kinds() {
-                        if ui.button(label).clicked() {
-                            self.add_child(kind, label);
-                            ui.close_menu();
-                        }
-                    }
-                })
-                .response
-                .on_hover_text(
-                    "Add structural scene nodes. Place runtime objects from the toolbar Add menu.",
-                );
-            });
-            tool_panel_body(ui, |ui| self.draw_scene_tree_panel_body(ui));
-        });
-    }
-
-    pub(crate) fn draw_scene_tree_panel_body(&mut self, ui: &mut egui::Ui) {
-        ui.add(
-            egui::TextEdit::singleline(&mut self.scene_filter)
-                .hint_text("Filter scene graph")
-                .desired_width(f32::INFINITY),
-        );
-        ui.separator();
-
-        let rows = self.project.active_scene().hierarchy_rows();
-        let filter = self.scene_filter.to_ascii_lowercase();
-        let display_rows = scene_tree_display_rows(&rows, &filter, &self.collapsed_scene_nodes);
-        // A grid world's lights are many: three or more in a row are one
-        // `Lights (n)` row that opens on a click (or when one is selected).
-        let entries = if self.is_grid_world() && filter.is_empty() {
-            group_light_runs(
-                &display_rows,
-                &self.opened_light_groups,
-                &self.selection.selected_nodes,
-                self.selection.selected_node,
-            )
-        } else {
-            display_rows.iter().map(|r| SceneEntry::Row(r)).collect()
-        };
-        let visible_node_order: Vec<NodeId> = entries
-            .iter()
-            .filter_map(|e| match e {
-                SceneEntry::Row(row) => Some(row.id),
-                SceneEntry::Lights { .. } => None,
-            })
-            .collect();
-        let mut toggle_lights: Option<NodeId> = None;
-        let mut actions: Vec<TreeAction> = Vec::new();
-        let selected_node = self.selection.selected_node;
-        let selected_nodes = self.selection.selected_nodes.clone();
-        let collapsed_scene_nodes = self.collapsed_scene_nodes.clone();
-        let hidden_scene_nodes = self.hidden_scene_nodes.clone();
-        let scene = self.project.active_scene();
-        let renaming = &mut self.renaming;
-        let pending_focus = &mut self.pending_rename_focus;
-        let tree_scroll_height = (ui.available_height() - 30.0).max(24.0);
-        egui::ScrollArea::vertical()
-            .id_salt("psxed_scene_tree")
-            .auto_shrink([false, false])
-            .max_height(tree_scroll_height)
-            .show(ui, |ui| {
-                for entry in entries {
-                    let row = match entry {
-                        SceneEntry::Row(row) => row,
-                        SceneEntry::Lights {
-                            first,
-                            count,
-                            depth,
-                            open,
-                        } => {
-                            if draw_light_group_row(ui, count, depth, open) {
-                                toggle_lights = Some(first);
-                            }
-                            continue;
-                        }
-                    };
-                    draw_scene_node_row(
-                        ui,
-                        row,
-                        selected_nodes.contains(&row.id)
-                            || (selected_nodes.is_empty() && selected_node == row.id),
-                        collapsed_scene_nodes.contains(&row.id),
-                        hidden_scene_nodes.contains(&row.id),
-                        scene_node_hidden(scene, &hidden_scene_nodes, row.id),
-                        owning_entity_id(scene, row.id).is_some(),
-                        renaming,
-                        pending_focus,
-                        &mut actions,
-                    );
-                }
-                autoscroll_tree_drag::<NodeId>(ui);
-            });
-
-        if let Some(first) = toggle_lights {
-            if !self.opened_light_groups.remove(&first) {
-                self.opened_light_groups.insert(first);
-            }
-        }
-        for action in actions {
-            self.apply_tree_action(action, &visible_node_order);
-        }
-        ui.horizontal(|ui| {
-            if ui.button(icons::label(icons::COPY, "Duplicate")).clicked() {
-                self.duplicate_selected();
-            }
-            let can_delete = self.selection.selected_node != NodeId::ROOT;
-            if ui
-                .add_enabled(
-                    can_delete,
-                    egui::Button::new(icons::label(icons::TRASH, "Delete")),
-                )
-                .clicked()
-            {
-                self.delete_selected();
-            }
-        });
     }
 
     pub(crate) fn draw_ui_tree_panel(&mut self, ui: &mut egui::Ui) {

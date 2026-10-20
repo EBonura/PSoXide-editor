@@ -902,7 +902,7 @@ impl EditorWorkspace {
                     return;
                 }
                 (
-                    "Point Light".to_string(),
+                    next_light_name(self.project.active_scene()),
                     NodeKind::PointLight {
                         color: [255, 240, 200],
                         intensity: 1.0,

@@ -63,6 +63,23 @@ pub const TRENDING_UP: char = '\u{e191}';
 pub const TRASH: char = '\u{e18d}';
 pub const WAYPOINT: char = '\u{e546}';
 
+pub const ANCHOR: char = '\u{e03f}';
+pub const CAMERA: char = '\u{e064}';
+pub const CUBOID: char = '\u{e524}';
+pub const CYLINDER: char = '\u{e525}';
+pub const FLAG: char = '\u{e0d1}';
+pub const IMAGE: char = '\u{e0f6}';
+pub const LIGHTBULB: char = '\u{e1c2}';
+pub const MESSAGE_SQUARE: char = '\u{e117}';
+pub const PACKAGE: char = '\u{e129}';
+pub const PERSON_STANDING: char = '\u{e21e}';
+pub const SHIELD: char = '\u{e158}';
+pub const SPARKLES: char = '\u{e412}';
+pub const TARGET: char = '\u{e180}';
+pub const TRIANGLE: char = '\u{e192}';
+pub const USER: char = '\u{e19f}';
+pub const ZAP: char = '\u{e1b4}';
+
 pub fn font(size: f32) -> FontId {
     FontId::new(size, FontFamily::Name("lucide".into()))
 }

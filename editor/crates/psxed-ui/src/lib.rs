@@ -39,6 +39,8 @@ mod inspector_character_ui;
 use inspector_character_ui::*;
 mod play_overlay;
 use play_overlay::*;
+mod objects;
+use objects::*;
 mod scene_tree;
 use scene_tree::*;
 mod resource_browser;
@@ -83,7 +85,7 @@ use psxed_project::{
     CharacterControllerSettings, ColliderShape, EditorCameraMode, EditorCameraState,
     EditorVisibilityState, EditorWorkspaceState, EditorWorkspaceView, FarVistaSettings,
     GeneratedMaterialTexture, InteractableKind, MaterialAnimationMode, MaterialFaceSidedness,
-    MaterialResource, MaterialTextureMode, NodeId, NodeKind, NodeRow, OptionId, OptionKind,
+    MaterialResource, MaterialTextureMode, NodeId, NodeKind, OptionId, OptionKind,
     ParticleEmitterSettings, PhysicsBodySettings, ProjectDocument, PsxBlendMode, Resource,
     ResourceData, ResourceId, Scene, SceneNode, SceneStateId, SceneWorldLayer, SkyMode,
     SkySettings, SkyVisibility, TransitionMaskShape, TransitionMaterialTexture, UiAction, UiAnchor,
@@ -557,9 +559,15 @@ pub struct EditorWorkspace {
     /// two-step delete-confirm pattern used by the resource browser.
     ui_scene_delete_confirm: Option<usize>,
     collapsed_scene_nodes: HashSet<NodeId>,
-    /// First light of each run of lights the Scene Graph shows open (a run of
-    /// three or more is one `Lights (n)` row, closed unless listed here).
-    opened_light_groups: HashSet<NodeId>,
+    /// Whether the Objects panel lists by kind (true) or as a tree.
+    objects_by_kind: bool,
+    /// Groups of the Objects panel the author folded.
+    collapsed_object_groups: HashSet<ObjectGroup>,
+    /// The object whose row the panel last showed selected, so a selection
+    /// made anywhere else is noticed and scrolled into view.
+    objects_last_subject: Option<NodeId>,
+    /// A row to scroll into view on the next draw.
+    objects_reveal: Option<NodeId>,
     collapsed_file_folders: HashSet<String>,
     hidden_scene_nodes: HashSet<NodeId>,
     hidden_ui_nodes: HashSet<(UiSceneId, UiNodeId)>,
@@ -2248,7 +2256,10 @@ impl EditorWorkspace {
             ui_scene_rename_focus_pending: false,
             ui_scene_delete_confirm: None,
             collapsed_scene_nodes: HashSet::new(),
-            opened_light_groups: HashSet::new(),
+            objects_by_kind: true,
+            collapsed_object_groups: HashSet::new(),
+            objects_last_subject: None,
+            objects_reveal: None,
             collapsed_file_folders: HashSet::new(),
             hidden_scene_nodes: HashSet::new(),
             hidden_ui_nodes: HashSet::new(),

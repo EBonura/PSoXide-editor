@@ -187,70 +187,8 @@ fn levels_and_rooms_live_in_one_structure_panel() {
     };
     assert!(at("Structure") < at("Levels"), "Structure heads the panel");
     assert!(at("Levels") < at("Rooms"));
-    assert!(at("Rooms") < at("Scene Graph"));
+    assert!(at("Rooms") < at("Objects"));
     assert_eq!(text.matches("Structure").count(), 1, "{text}");
-}
-
-#[test]
-fn many_lights_are_one_group_in_the_scene_graph() {
-    use crate::scene_tree::{group_light_runs, SceneEntry};
-    let mut ws =
-        EditorWorkspace::with_project(test_temp_dir("layout-lights"), flat_project(6, 6, true));
-    ws.place_kind = PlaceKind::PointLightMarker;
-    for x in 0..5 {
-        ws.place_at_world_hit([(x as f32 + 0.5) * S, 0.0, 2.5 * S]);
-    }
-    ws.clear_node_selection_state();
-    let rows = ws.project.active_scene().hierarchy_rows();
-    let refs: Vec<&psxed_project::NodeRow> = rows.iter().collect();
-    let lights: Vec<NodeId> = rows
-        .iter()
-        .filter(|r| r.kind == "Point Light")
-        .map(|r| r.id)
-        .collect();
-    assert_eq!(lights.len(), 5);
-    let count = |entries: &[SceneEntry<'_>]| {
-        entries
-            .iter()
-            .filter(|e| matches!(e, SceneEntry::Row(r) if r.kind == "Point Light"))
-            .count()
-    };
-    let none = HashSet::new();
-    // Closed: one Lights row and no light rows.
-    let closed = group_light_runs(&refs, &none, &none, NodeId::ROOT);
-    assert_eq!(count(&closed), 0);
-    assert!(closed.iter().any(|e| matches!(
-        e,
-        SceneEntry::Lights {
-            count: 5,
-            open: false,
-            ..
-        }
-    )));
-    let text = screen(&mut ws);
-    assert!(text.contains("Lights (5)"), "{text}");
-    // Open by listing the group.
-    let opened: HashSet<NodeId> = lights.iter().copied().collect();
-    assert_eq!(
-        count(&group_light_runs(&refs, &opened, &none, NodeId::ROOT)),
-        5
-    );
-    // A selected light opens its group by itself.
-    let selected: HashSet<NodeId> = [lights[2]].into_iter().collect();
-    assert_eq!(
-        count(&group_light_runs(&refs, &none, &selected, lights[2])),
-        5
-    );
-    // Two lights are not worth a group.
-    assert_eq!(
-        count(&group_light_runs(
-            &refs[..refs.len() - 3],
-            &none,
-            &none,
-            NodeId::ROOT
-        )),
-        2
-    );
 }
 
 #[test]

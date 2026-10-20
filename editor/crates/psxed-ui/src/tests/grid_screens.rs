@@ -190,7 +190,7 @@ impl World {
     fn light(&self) -> &'static str {
         match self {
             World::Starter => "Starter Light",
-            World::DpLike => "Point Light",
+            World::DpLike => "Light 1",
         }
     }
 }

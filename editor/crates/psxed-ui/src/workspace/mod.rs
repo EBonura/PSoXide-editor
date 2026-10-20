@@ -4,6 +4,7 @@ mod dialogs;
 mod editing;
 mod geometry;
 mod input;
+mod objects_panel;
 mod painting;
 mod panels;
 mod selection;

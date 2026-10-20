@@ -237,7 +237,7 @@ impl EditorWorkspace {
             |ui| {
                 ui.set_min_size(Vec2::new(content_width, rest));
                 ui.set_max_width(content_width);
-                self.draw_scene_tree_panel(ui);
+                self.draw_objects_panel(ui);
             },
         );
     }

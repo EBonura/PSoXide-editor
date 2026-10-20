@@ -600,43 +600,23 @@ fn character_motion_preview_moves_without_mutating_authored_transform_and_tracks
 #[test]
 fn scene_graph_add_menu_is_structure_only() {
     let addable = scene_graph_addable_kinds();
-    assert_eq!(addable.len(), 3);
-    assert!(!addable.iter().any(|(label, _)| matches!(
-        *label,
-        "Section" | "Room" | "Map" | "Water Volume" | "Portal"
-    )));
+    assert_eq!(addable.len(), 2);
     assert!(addable
         .iter()
-        .any(|(label, kind)| *label == "Entity" && matches!(kind, NodeKind::Entity)));
+        .any(|(label, kind)| *label == "Actor" && matches!(kind, NodeKind::Entity)));
     assert!(addable
         .iter()
-        .any(|(label, kind)| *label == "Group" && matches!(kind, NodeKind::Group)));
-    assert!(addable
-        .iter()
-        .any(|(label, kind)| *label == "Folder" && matches!(kind, NodeKind::Node)));
+        .any(|(label, kind)| *label == "Folder" && matches!(kind, NodeKind::Group)));
     assert!(addable.iter().all(|(_, kind)| !kind.is_component()));
-    assert!(addable
-        .iter()
-        .all(|(label, _)| !matches!(*label, "Trigger" | "Audio Source")));
-    assert!(!addable
-        .iter()
-        .any(|(_, kind)| matches!(kind, NodeKind::MeshInstance { .. })));
 }
 
 #[test]
-fn entity_add_child_menu_includes_camera_component() {
-    let addable = scene_graph_addable_kinds_for_host_label(NodeKind::Entity.label());
-    assert!(addable
+fn an_actors_parts_are_templates_of_the_entity_host() {
+    let parts = component_templates_for_host(&NodeKind::Entity);
+    assert!(parts
         .iter()
         .any(|(label, kind)| *label == "Camera" && matches!(kind, NodeKind::Camera { .. })));
-    assert!(addable
-        .iter()
-        .any(|(label, kind)| *label == "Entity" && matches!(kind, NodeKind::Entity)));
-
-    let folder_addable = scene_graph_addable_kinds_for_host_label(NodeKind::Node.label());
-    assert!(!folder_addable
-        .iter()
-        .any(|(_, kind)| matches!(kind, NodeKind::Camera { .. })));
+    assert!(component_templates_for_host(&NodeKind::Group).is_empty());
 }
 
 #[test]

@@ -422,8 +422,8 @@ fn scene_tree_toggle_expanded_hides_descendants_from_display_rows() {
 
     workspace.apply_tree_action(TreeAction::ToggleExpanded(parent), &[]);
 
-    let rows = workspace.project.active_scene().hierarchy_rows();
-    let visible = scene_tree_display_rows(&rows, "", &workspace.collapsed_scene_nodes)
+    let rows = object_rows(workspace.project.active_scene());
+    let visible = tree_display_rows(&rows, &workspace.collapsed_scene_nodes)
         .into_iter()
         .map(|row| row.id)
         .collect::<Vec<_>>();
@@ -432,8 +432,8 @@ fn scene_tree_toggle_expanded_hides_descendants_from_display_rows() {
     assert!(!visible.contains(&grandchild));
 
     workspace.apply_tree_action(TreeAction::ToggleExpanded(parent), &[]);
-    let rows = workspace.project.active_scene().hierarchy_rows();
-    let visible = scene_tree_display_rows(&rows, "", &workspace.collapsed_scene_nodes)
+    let rows = object_rows(workspace.project.active_scene());
+    let visible = tree_display_rows(&rows, &workspace.collapsed_scene_nodes)
         .into_iter()
         .map(|row| row.id)
         .collect::<Vec<_>>();

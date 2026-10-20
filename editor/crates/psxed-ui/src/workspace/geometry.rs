@@ -340,11 +340,16 @@ impl EditorWorkspace {
                 continue;
             }
             let parent = source.parent.unwrap_or(NodeId::ROOT);
-            let id = self.project.active_scene_mut().add_node(
-                parent,
-                format!("{} Copy", source.name),
-                source.kind,
-            );
+            // A light is "Light 4", not "Point Light Copy Copy".
+            let name = if matches!(source.kind, NodeKind::PointLight { .. }) {
+                next_light_name(self.project.active_scene())
+            } else {
+                format!("{} Copy", source.name)
+            };
+            let id = self
+                .project
+                .active_scene_mut()
+                .add_node(parent, name, source.kind);
             if let Some(node) = self.project.active_scene_mut().node_mut(id) {
                 node.transform = source.transform;
             }
