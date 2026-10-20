@@ -164,16 +164,111 @@ impl EditorWorkspace {
                 }
             }
         }
-        ui.separator();
-        let snap_text = if matches!(self.grid.tool, GridTool::Plane | GridTool::Select)
+    }
+
+    /// The Snap rule at the right end of the options bar.
+    fn grid_snap_text(&self) -> String {
+        if matches!(self.grid.tool, GridTool::Plane | GridTool::Select)
             && !self.grid.plane_sel.is_empty()
             || matches!(self.grid.tool, GridTool::Plane | GridTool::Mesh)
         {
             format!("Snap {CLICK_UNITS} (Alt {FINE_UNITS}, Shift+Alt free)")
         } else {
             format!("Snap {CLICK_UNITS} (Alt {FINE_UNITS})")
-        };
-        ui.label(RichText::new(snap_text).color(STUDIO_TEXT_WEAK).size(11.0));
+        }
+    }
+
+    /// The options bar: a bar of one fixed height under the viewport header,
+    /// whatever the tool. It shows the active tool's options, or its key
+    /// hints when it has none, and Snap at its right end. Nothing in it can
+    /// grow the bar, so switching tools never moves the viewport.
+    pub(crate) fn draw_grid_options_bar(&mut self, ui: &mut egui::Ui) {
+        let (bar, _) = ui.allocate_exact_size(
+            Vec2::new(ui.available_width(), OPTIONS_BAR_HEIGHT),
+            Sense::hover(),
+        );
+        ui.painter()
+            .rect_filled(bar, egui::CornerRadius::same(CONTROL_RADIUS), STUDIO_INPUT);
+        // The right end first: Snap.
+        let snap = ui.painter().layout_no_wrap(
+            self.grid_snap_text(),
+            egui::FontId::proportional(11.0),
+            STUDIO_TEXT_WEAK,
+        );
+        let snap_pos = Pos2::new(
+            bar.max.x - 10.0 - snap.size().x,
+            bar.center().y - snap.size().y / 2.0,
+        );
+        let snap_left = snap_pos.x;
+        ui.painter().galley(snap_pos, snap, STUDIO_TEXT_WEAK);
+        // What is left: the options, or the hints. A tool with more options
+        // than the pane has room for scrolls them sideways (the arrows at the
+        // ends say so) instead of wrapping, which would grow the bar.
+        let rest = Rect::from_min_max(
+            bar.min + Vec2::new(8.0, 0.0),
+            Pos2::new(snap_left - 10.0, bar.max.y),
+        );
+        if self.grid.options_scroll_tool != self.grid.tool {
+            self.grid.options_scroll_tool = self.grid.tool;
+            self.grid.options_scroll = 0.0;
+        }
+        let mut inner = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(rest)
+                .layout(egui::Layout::left_to_right(egui::Align::Center)),
+        );
+        inner.set_clip_rect(rest.intersect(ui.clip_rect()));
+        inner.spacing_mut().item_spacing = Vec2::new(6.0, 0.0);
+        let view_width = rest.width();
+        let area = egui::ScrollArea::horizontal()
+            .id_salt("grid_options_scroll")
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
+            .horizontal_scroll_offset(self.grid.options_scroll)
+            .auto_shrink([false, false])
+            .show(&mut inner, |ui| {
+                let options = ui.scope(|ui| self.draw_grid_context_controls(ui));
+                if options.response.rect.width() < 1.0 {
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new(self.grid_key_hints())
+                                .color(STUDIO_TEXT_WEAK)
+                                .size(12.0),
+                        )
+                        .truncate(),
+                    );
+                }
+            });
+        self.grid.options_scroll = area.state.offset.x;
+        let overflow = area.content_size.x - view_width;
+        if overflow > 1.0 {
+            let mut step = 0.0;
+            if self.grid.options_scroll > 0.5 {
+                let rect = Rect::from_min_size(rest.min, Vec2::new(18.0, bar.height()));
+                if scroll_arrow(ui, rect, icons::CHEVRON_LEFT, "More options to the left") {
+                    step = -160.0;
+                }
+            }
+            if self.grid.options_scroll < overflow - 0.5 {
+                let rect = Rect::from_min_size(
+                    Pos2::new(rest.max.x - 18.0, rest.min.y),
+                    Vec2::new(18.0, bar.height()),
+                );
+                if scroll_arrow(ui, rect, icons::CHEVRON_RIGHT, "More options to the right") {
+                    step = 160.0;
+                }
+            }
+            if step != 0.0 {
+                self.grid.options_scroll = (self.grid.options_scroll + step).clamp(0.0, overflow);
+            }
+            // The wheel over the bar scrolls it sideways too.
+            if ui.rect_contains_pointer(bar) {
+                let wheel = ui.input(|i| i.raw_scroll_delta.y);
+                if wheel != 0.0 {
+                    self.grid.options_scroll =
+                        (self.grid.options_scroll - wheel).clamp(0.0, overflow);
+                }
+            }
+        }
     }
 
     /// Key hints for the active tool.
@@ -375,4 +470,26 @@ impl EditorWorkspace {
                 });
             });
     }
+}
+
+/// A small arrow button on the edge of the options bar that scrolls it.
+fn scroll_arrow(ui: &mut egui::Ui, rect: Rect, icon: char, hover: &str) -> bool {
+    let response = ui
+        .interact(rect, ui.id().with(("options_arrow", icon)), Sense::click())
+        .on_hover_text(hover);
+    let fill = if response.hovered() {
+        STUDIO_HOVER
+    } else {
+        STUDIO_PANEL_HEADER
+    };
+    ui.painter()
+        .rect_filled(rect, egui::CornerRadius::same(CONTROL_RADIUS), fill);
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        icon.to_string(),
+        icons::font(12.0),
+        STUDIO_TEXT,
+    );
+    response.clicked()
 }

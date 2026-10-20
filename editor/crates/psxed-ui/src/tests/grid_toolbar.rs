@@ -48,6 +48,14 @@ fn toolbar_captures() {
         open_arrow(&mut rig, arrow_of);
         rig.capture(&dir.join(format!("menu-{name}-1456x819-{label}.png")));
     }
+    // The options bar for a tool with a short and one with a long list.
+    for (tool, name) in [(GridTool::Floor, "floor"), (GridTool::Raise, "raise")] {
+        let mut rig = WindowRig::new();
+        rig.ws.apply_grid_pose("view=3d").unwrap();
+        rig.ws.set_grid_tool(tool);
+        frames(&mut rig, 4);
+        rig.capture(&dir.join(format!("options-{name}-1456x819-{label}.png")));
+    }
     let mut rig = WindowRig::new();
     rig.ws.apply_grid_pose("view=3d;tool=select").unwrap();
     frames(&mut rig, 4);
@@ -870,4 +878,242 @@ fn the_current_view_and_a_lit_toggle_are_marked() {
     assert!(!lit(&rig, "Walk"));
     header_click(&mut rig, "Walk");
     assert!(lit(&rig, "Walk"), "Walk is on");
+}
+
+// ---------------------------------------------------------------------
+// Step 4: the options bar. A fixed-height bar under the viewport header,
+// always there: the active tool's options, or its key hints when it has
+// none, with Snap at its right end. Switching tools never shifts a thing.
+
+/// The Snap text of the options bar, wherever it is.
+fn snap_text(rig: &WindowRig) -> Rect {
+    texts(rig)
+        .into_iter()
+        .find(|(t, r)| {
+            t.starts_with("Snap ")
+                && r.min.y > ACTION_BAR_COMPACT_HEIGHT + TOOL_ROW_HEIGHT
+                && r.max.y < 240.0
+        })
+        .map(|(_, r)| r)
+        .expect("a Snap text in the options bar")
+}
+
+/// Everything the options bar shows besides Snap: texts left of it, on its row.
+fn options_texts(rig: &WindowRig) -> Vec<(String, Rect)> {
+    let snap = snap_text(rig);
+    // The viewport column ends where the Inspector begins.
+    let pane_right = text_in(
+        rig,
+        Rect::from_min_max(
+            Pos2::new(rig.size.x - 330.0, 0.0),
+            Pos2::new(rig.size.x, 200.0),
+        ),
+        "Inspector",
+    )
+    .unwrap()
+    .min
+    .x;
+    texts(rig)
+        .into_iter()
+        .filter(|(t, r)| {
+            (r.center().y - snap.center().y).abs() < 8.0
+                && r.min.x > 290.0
+                && r.min.x < pane_right - 20.0
+                && r.min.x < snap.max.x
+                && !t.starts_with("Snap ")
+        })
+        .collect()
+}
+
+/// The persp and plan viewport rectangles of the last frame.
+fn viewport_rects(rig: &WindowRig) -> [Rect; 2] {
+    [
+        rig.ws.last_persp_viewport_rect,
+        rig.ws.last_orthographic_viewport_rect,
+    ]
+}
+
+/// A workspace state to try each tool in: nothing picked, a face picked, a
+/// node picked and a plane picked, because their options differ.
+fn tool_states() -> [(&'static str, &'static str); 4] {
+    [
+        ("nothing picked", ""),
+        ("a floor picked", "select=floors:1,1:2,2"),
+        ("a light picked", "select=node:Starter Light"),
+        ("a corner picked", "select=vertex:1,1,0"),
+    ]
+}
+
+#[test]
+fn the_viewport_is_the_same_rectangle_for_every_tool() {
+    for view in ["view=3d", "view=plan", "view=split"] {
+        for (state, pose) in tool_states() {
+            let mut rig = WindowRig::starter(Vec2::new(1456.0, 819.0));
+            rig.ws
+                .apply_grid_pose(&format!("{view};tool=select;{pose}"))
+                .unwrap();
+            frames(&mut rig, 4);
+            let baseline = viewport_rects(&rig);
+            let snap = snap_text(&rig);
+            for tool in GridTool::ALL {
+                rig.ws.set_grid_tool(tool);
+                frames(&mut rig, 3);
+                assert_eq!(
+                    viewport_rects(&rig),
+                    baseline,
+                    "{view}, {state}: {} moved the viewport",
+                    tool.label()
+                );
+                assert_eq!(
+                    snap_text(&rig).center().y,
+                    snap.center().y,
+                    "{view}, {state}: {} moved the options bar",
+                    tool.label()
+                );
+            }
+            // The Place kinds bring pickers of their own.
+            rig.ws.set_grid_tool(GridTool::Place);
+            for kind in PlaceKind::ALL {
+                rig.ws.place_kind = kind;
+                frames(&mut rig, 3);
+                assert_eq!(
+                    viewport_rects(&rig),
+                    baseline,
+                    "{view}, {state}: Place {} moved the viewport",
+                    kind.label()
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn snap_is_at_the_right_end_of_the_bar_for_every_tool() {
+    let mut rig = WindowRig::new();
+    rig.ws.apply_grid_pose("view=3d").unwrap();
+    frames(&mut rig, 3);
+    let pane_right = text_in(
+        &rig,
+        Rect::from_min_max(
+            Pos2::new(rig.size.x - 330.0, 0.0),
+            Pos2::new(rig.size.x, 200.0),
+        ),
+        "Inspector",
+    )
+    .unwrap()
+    .min
+    .x;
+    let mut right_edges = Vec::new();
+    for tool in GridTool::ALL {
+        rig.ws.set_grid_tool(tool);
+        frames(&mut rig, 3);
+        let snap = snap_text(&rig);
+        assert!(
+            snap.max.x < pane_right && snap.max.x > pane_right - 60.0,
+            "{}: Snap {snap:?} is not at the right end",
+            tool.label()
+        );
+        right_edges.push(snap.max.x);
+    }
+    // The text changes for planes, but it ends at the same place.
+    assert!(
+        right_edges.windows(2).all(|w| (w[0] - w[1]).abs() < 1.0),
+        "{right_edges:?}"
+    );
+}
+
+#[test]
+fn a_tool_with_no_options_shows_its_key_hints_and_one_with_options_shows_them() {
+    let mut rig = WindowRig::new();
+    // Diagonal has no options: its hints fill the bar.
+    rig.ws.set_grid_tool(GridTool::Split);
+    frames(&mut rig, 3);
+    let shown: Vec<String> = options_texts(&rig).into_iter().map(|(t, _)| t).collect();
+    assert!(
+        shown.iter().any(|t| t.contains("flips its diagonal")),
+        "{shown:?}"
+    );
+    // Floor has a height: the option, no hints.
+    rig.ws.set_grid_tool(GridTool::Floor);
+    frames(&mut rig, 3);
+    let shown: Vec<String> = options_texts(&rig).into_iter().map(|(t, _)| t).collect();
+    assert!(shown.iter().any(|t| t == "Height"), "{shown:?}");
+    assert!(
+        !shown.iter().any(|t| t.contains("Drag rectangle")),
+        "{shown:?}"
+    );
+    // Select with nothing picked has none: hints.
+    rig.ws.set_grid_tool(GridTool::Select);
+    frames(&mut rig, 3);
+    let shown: Vec<String> = options_texts(&rig).into_iter().map(|(t, _)| t).collect();
+    assert!(shown.iter().any(|t| t.contains("Click pick")), "{shown:?}");
+}
+
+#[test]
+fn options_wider_than_the_bar_scroll_with_arrows_instead_of_growing_it() {
+    let right = icons::CHEVRON_RIGHT.to_string();
+    let mut scrolled = 0;
+    for width in [1280.0, 1456.0, 1920.0] {
+        let mut rig = WindowRig::with_size(Vec2::new(width, 819.0));
+        rig.ws.apply_grid_pose("view=3d").unwrap();
+        for tool in GridTool::ALL {
+            rig.ws.set_grid_tool(tool);
+            if tool == GridTool::Place {
+                rig.ws.place_kind = PlaceKind::ModelInstance;
+            }
+            frames(&mut rig, 3);
+            let snap = snap_text(&rig);
+            let all = texts(&rig);
+            let arrow = all
+                .iter()
+                .any(|(t, r)| *t == right && (r.center().y - snap.center().y).abs() < 8.0);
+            let runs_over = options_texts(&rig)
+                .into_iter()
+                .any(|(_, r)| r.max.x > snap.min.x - 4.0);
+            assert!(
+                !runs_over || arrow,
+                "{width}, {}: options run into Snap with no arrow",
+                tool.label()
+            );
+            scrolled += usize::from(arrow);
+        }
+    }
+    assert!(scrolled > 0, "the level verbs overflow a laptop pane");
+}
+
+#[test]
+fn the_arrow_scrolls_to_the_options_that_did_not_fit() {
+    let mut rig = WindowRig::new();
+    rig.ws.apply_grid_pose("view=3d").unwrap();
+    rig.ws.set_grid_tool(GridTool::Raise);
+    frames(&mut rig, 3);
+    let apply = |rig: &WindowRig| {
+        options_texts(rig)
+            .into_iter()
+            .find(|(t, _)| t == "Apply")
+            .map(|(_, r)| r)
+    };
+    let snap = snap_text(&rig);
+    let before = apply(&rig);
+    assert!(
+        before.is_none_or(|r| r.max.x > snap.min.x - 4.0),
+        "Apply is hidden at the start: {before:?}"
+    );
+    let right = icons::CHEVRON_RIGHT.to_string();
+    for _ in 0..8 {
+        let Some((_, arrow)) = texts(&rig)
+            .into_iter()
+            .find(|(t, r)| *t == right && (r.center().y - snap.center().y).abs() < 8.0)
+        else {
+            break;
+        };
+        rig.click(arrow.center());
+        frames(&mut rig, 2);
+    }
+    let after = apply(&rig).expect("Apply is shown after scrolling");
+    assert!(after.max.x <= snap.min.x - 4.0, "{after:?}");
+    // Back to the first tool: the scroll starts over.
+    rig.ws.set_grid_tool(GridTool::Floor);
+    frames(&mut rig, 3);
+    assert_eq!(rig.ws.grid.options_scroll, 0.0);
 }

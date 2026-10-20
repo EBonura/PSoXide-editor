@@ -602,6 +602,10 @@ pub(crate) struct GridEditState {
     /// The last SHAPE tool used: what the row's split button shows and what
     /// a click on its face picks.
     pub last_shape: GridTool,
+    /// How far the options bar is scrolled sideways, and for which tool (the
+    /// scroll starts over when the tool changes).
+    pub options_scroll: f32,
+    pub options_scroll_tool: GridTool,
     pub selection: GridSelection,
     pub hover: GridHover,
     pub gesture: Gesture,
@@ -700,6 +704,8 @@ impl Default for GridEditState {
         Self {
             tool: GridTool::Select,
             last_shape: GridTool::Raise,
+            options_scroll: 0.0,
+            options_scroll_tool: GridTool::Select,
             selection: GridSelection::new(),
             hover: GridHover::None,
             gesture: Gesture::Idle,
