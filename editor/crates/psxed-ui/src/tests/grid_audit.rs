@@ -181,7 +181,7 @@ fn a_grid_project_draws_no_file_tree_in_any_workspace() {
 #[test]
 fn placing_keeps_its_message_and_shift_keeps_the_tool() {
     let mut rig = GridRig::top("audit-place", flat_project(6, 6, true));
-    rig.ws.place_kind = PlaceKind::SpawnMarker;
+    rig.ws.place_kind = PlaceKind::PointLightMarker;
     rig.tool(GridTool::Place);
     rig.click(rig.cell_centre(3, 3));
     assert!(rig.ws.status.starts_with("Placed"), "{}", rig.ws.status);

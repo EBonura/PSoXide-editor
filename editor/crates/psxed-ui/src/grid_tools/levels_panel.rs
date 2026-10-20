@@ -206,10 +206,8 @@ impl EditorWorkspace {
 }
 
 impl EditorWorkspace {
-    /// The left dock of a grid world: Levels and Rooms (scrolling when the
-    /// room settings are open), then the scene graph for the rest.
-    /// The left dock of a grid world: Structure (the levels and the rooms),
-    /// then the Scene Graph.
+    /// The left dock of a grid world: Structure (the World, the storeys and
+    /// the rooms), then Objects.
     pub(crate) fn draw_grid_left_dock(&mut self, ui: &mut egui::Ui) {
         let content_width = ui.available_width().max(1.0);
         let total = ui.available_height().max(1.0);

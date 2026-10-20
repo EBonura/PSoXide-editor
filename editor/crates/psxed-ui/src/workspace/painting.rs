@@ -36,23 +36,6 @@ fn default_model_visual_defaults(project: &ProjectDocument, model_id: ResourceId
 }
 
 impl EditorWorkspace {
-    /// Character explicitly authored for the player role when there is one
-    /// unambiguous choice. Enemy profiles never participate in this fallback,
-    /// so adding the light/heavy catalogue cannot make a new player spawn
-    /// ambiguous.
-    pub(crate) fn default_player_character_resource(&self) -> Option<ResourceId> {
-        let mut players = self.project.resources.iter().filter_map(|resource| {
-            matches!(
-                &resource.data,
-                ResourceData::Character(character)
-                    if character.spawn_role == psxed_project::CharacterSpawnRole::Player
-            )
-            .then_some(resource.id)
-        });
-        let player = players.next()?;
-        players.next().is_none().then_some(player)
-    }
-
     /// The scene root is the parent of authored point entities: the cook
     /// consumes their transforms directly in world units.
     pub(crate) fn authoring_root(&self) -> NodeId {
@@ -570,23 +553,6 @@ impl EditorWorkspace {
         })
     }
 
-    pub(crate) fn find_duplicate_spawn_marker(
-        &self,
-        room_id: NodeId,
-        player: bool,
-        translation: [f32; 3],
-    ) -> Option<NodeId> {
-        self.find_duplicate_room_child(room_id, translation, |_, node| {
-            matches!(
-                node.kind,
-                NodeKind::SpawnPoint {
-                    player: node_player,
-                    character: None,
-                } if node_player == player
-            )
-        })
-    }
-
     pub(crate) fn find_duplicate_point_light(
         &self,
         room_id: NodeId,
@@ -654,15 +620,8 @@ impl EditorWorkspace {
     /// Place the active entity kind at a world-space hit.
     pub(crate) fn place_node_at_world_hit(&mut self, room_id: NodeId, hit_world: [f32; 3]) {
         let sector_size_i = DEFAULT_WORLD_SECTOR_SIZE;
-        let arch_tile_size = self.project.world_sector_size_for_node(room_id);
         let translation = self.placement_hit_translation(room_id, hit_world);
         let kind = self.place_kind;
-        if matches!(kind, PlaceKind::PlayerSpawn) && self.has_player_source() {
-            self.status =
-                    "Only one player source is allowed per world. Delete or demote the existing player first."
-                        .to_string();
-            return;
-        }
         if matches!(kind, PlaceKind::PointOfInterest) {
             let translation = self.snap_placed_translation(&NodeKind::Entity, translation);
             self.push_undo();
@@ -697,28 +656,6 @@ impl EditorWorkspace {
             return;
         }
         let (default_name, node_kind): (String, NodeKind) = match kind {
-            PlaceKind::PlayerSpawn => (
-                "Player Spawn".to_string(),
-                NodeKind::SpawnPoint {
-                    player: true,
-                    character: self.default_player_character_resource(),
-                },
-            ),
-            PlaceKind::SpawnMarker => {
-                if let Some(existing) =
-                    self.find_duplicate_spawn_marker(room_id, false, translation)
-                {
-                    self.reject_duplicate_placement(existing, "Spawn");
-                    return;
-                }
-                (
-                    "Spawn".to_string(),
-                    NodeKind::SpawnPoint {
-                        player: false,
-                        character: None,
-                    },
-                )
-            }
             PlaceKind::ModelInstance => {
                 // Resolve which Model resource to bind. Order:
                 // (a) user has a Model selected in the resource
@@ -879,23 +816,6 @@ impl EditorWorkspace {
                     },
                 )
             }
-            PlaceKind::ArchProp => {
-                let material = self.resolve_place_box_prop_material();
-                let material_id = material.as_ref().map(|(id, _)| *id);
-                let name = material
-                    .as_ref()
-                    .map(|(_, name)| format!("{name} Arch"))
-                    .unwrap_or_else(|| "Arch Prop".to_string());
-                (
-                    name,
-                    NodeKind::ArchProp {
-                        materials: [material_id; psxed_project::ARCH_PROP_MATERIAL_COUNT],
-                        uvs: [UvTransform::IDENTITY; psxed_project::ARCH_PROP_MATERIAL_COUNT],
-                        geometry: psxed_project::ArchPropGeometry::default(),
-                        collision_enabled: false,
-                    },
-                )
-            }
             PlaceKind::PointLightMarker => {
                 if let Some(existing) = self.find_duplicate_point_light(room_id, translation) {
                     self.reject_duplicate_placement(existing, "Point Light");
@@ -973,17 +893,6 @@ impl EditorWorkspace {
             .add_node(room_id, default_name, node_kind);
         if let Some(node) = self.project.active_scene_mut().node_mut(id) {
             node.transform.translation = translation;
-            let arch_geometry = match &node.kind {
-                NodeKind::ArchProp { geometry, .. } => Some(*geometry),
-                _ => None,
-            };
-            if let Some(geometry) = arch_geometry {
-                crate::inspector_transform_node::snap_arch_prop_transform(
-                    &mut node.transform,
-                    geometry,
-                    arch_tile_size,
-                );
-            }
         }
         self.replace_node_selection(id);
         self.clear_resource_selection_state();

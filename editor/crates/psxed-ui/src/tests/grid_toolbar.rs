@@ -658,18 +658,17 @@ fn changing_the_shape_tool_does_not_move_the_rest_of_the_row() {
 }
 
 #[test]
-fn the_place_menu_lists_light_spawn_prop_and_entity() {
+fn the_place_menu_lists_light_prop_and_actor() {
     let mut rig = WindowRig::new();
     for (label, kind) in [
         ("Light", PlaceKind::PointLightMarker),
-        ("Spawn", PlaceKind::SpawnMarker),
         ("Prop", PlaceKind::ModelInstance),
-        ("Entity", PlaceKind::Character),
+        ("Actor", PlaceKind::Character),
     ] {
         rig.ws.set_grid_tool(GridTool::Select);
         frames(&mut rig, 2);
         open_arrow(&mut rig, "Place");
-        for name in ["Light", "Spawn", "Prop", "Entity"] {
+        for name in ["Light", "Prop", "Actor"] {
             assert!(
                 menu_item(&rig, name).is_some(),
                 "{name} is in the Place menu"

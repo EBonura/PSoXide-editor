@@ -127,7 +127,14 @@ impl EditorWorkspace {
         if count > 1 {
             self.status = format!("Selected {count} nodes");
         } else if let Some(n) = scene.node(self.selection.selected_node) {
-            self.status = format!("Selected {} '{}'", n.kind.label(), n.name);
+            let what = match (&n.kind, classify(scene, n)) {
+                (NodeKind::Entity, ObjectKind::ModelActor) => "Prop",
+                (NodeKind::Entity, ObjectKind::Interaction) => "Interaction",
+                (NodeKind::Entity, _) => "Actor",
+                (NodeKind::PointLight { .. }, _) => "Light",
+                (kind, _) => kind.label(),
+            };
+            self.status = format!("Selected {what} '{}'", n.name);
         } else {
             self.status = "Cleared node selection".to_string();
         }

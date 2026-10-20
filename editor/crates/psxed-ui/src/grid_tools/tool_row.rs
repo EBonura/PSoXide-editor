@@ -3,8 +3,8 @@
 //! Select and Height first (no label), then CREATE (Floor, Wall, Ceiling and
 //! a menu with Plane and Mesh), SHAPE (a split button: its face is the last
 //! shape tool used, its arrow lists all nine), SURFACE (Paint, Bands) and
-//! OBJECTS (a Place split button whose menu lists Light, Spawn, Prop and
-//! Entity). Every tool shows its key beside its name.
+//! OBJECTS (a Place split button whose menu lists Light, Prop and
+//! Actor). Every tool shows its key beside its name.
 
 use super::*;
 
@@ -14,11 +14,10 @@ const BUTTON_HEIGHT: f32 = 26.0;
 const ARROW_WIDTH: f32 = 18.0;
 
 /// The kinds of the OBJECTS menu: the word on the menu, the node it places.
-const OBJECT_KINDS: [(&str, PlaceKind); 4] = [
+const OBJECT_KINDS: [(&str, PlaceKind); 3] = [
     ("Light", PlaceKind::PointLightMarker),
-    ("Spawn", PlaceKind::SpawnMarker),
     ("Prop", PlaceKind::ModelInstance),
-    ("Entity", PlaceKind::Character),
+    ("Actor", PlaceKind::Character),
 ];
 
 /// Which corners of a painted button are round: a split button's face is

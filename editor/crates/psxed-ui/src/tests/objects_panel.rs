@@ -913,3 +913,99 @@ fn levels_are_storeys() {
     assert!(!has_text(&texts, "Levels"), "{texts:?}");
     assert!(texts.iter().any(|t| t.starts_with("Storey 0")), "{texts:?}");
 }
+
+// ---------------------------------------------------------------------
+// Menus.
+
+#[test]
+fn spawn_points_and_arch_props_are_not_placeable_but_existing_ones_still_list() {
+    let labels: Vec<&str> = PlaceKind::ALL.iter().map(|k| k.label()).collect();
+    for gone in ["Spawn", "Player Spawn", "Arch Prop"] {
+        assert!(!labels.contains(&gone), "{gone} is in Place: {labels:?}");
+    }
+    for kept in [
+        "Prop",
+        "Character",
+        "Image Prop",
+        "Box Prop",
+        "Cylinder Prop",
+        "Point Light",
+    ] {
+        assert!(labels.contains(&kept), "{kept} left Place: {labels:?}");
+    }
+    // Old projects still carry them: they load, list and cook as before.
+    let mut rig = WindowRig::starter(Vec2::new(1456.0, 819.0));
+    let spawn = rig.ws.project.active_scene_mut().add_node(
+        NodeId::ROOT,
+        "Start",
+        NodeKind::SpawnPoint {
+            player: false,
+            character: None,
+        },
+    );
+    let arch = rig.ws.project.active_scene_mut().add_node(
+        NodeId::ROOT,
+        "Old arch",
+        NodeKind::ArchProp {
+            materials: [None; psxed_project::ARCH_PROP_MATERIAL_COUNT],
+            uvs: [UvTransform::IDENTITY; psxed_project::ARCH_PROP_MATERIAL_COUNT],
+            geometry: psxed_project::ArchPropGeometry::default(),
+            collision_enabled: false,
+        },
+    );
+    let rows = object_rows(rig.ws.project.active_scene());
+    assert_eq!(
+        rows.iter().find(|r| r.id == spawn).unwrap().kind,
+        ObjectKind::SpawnPoint
+    );
+    assert_eq!(
+        rows.iter().find(|r| r.id == arch).unwrap().kind,
+        ObjectKind::ArchProp
+    );
+}
+
+#[test]
+fn collider_node3d_and_mesh_instance_are_in_no_menu() {
+    for (label, kind) in scene_graph_addable_kinds() {
+        assert!(
+            !matches!(
+                kind,
+                NodeKind::Collider { .. }
+                    | NodeKind::Node3D
+                    | NodeKind::MeshInstance { .. }
+                    | NodeKind::Node
+            ),
+            "{label} is offered"
+        );
+    }
+    let (rig, named) = populated();
+    for (shown, node_label, _) in
+        crate::workspace::actor_inspector::addable_parts(rig.ws.project.active_scene(), named[0].1)
+    {
+        assert_ne!(node_label, "Collider", "{shown}");
+        assert_ne!(node_label, "Interactable", "{shown}");
+    }
+}
+
+#[test]
+fn the_objects_menu_says_actor_where_it_said_entity() {
+    let mut rig = WindowRig::new();
+    frames(&mut rig, 3);
+    let place = rig.at("Place");
+    let arrow = Pos2::new(place.x + 40.0, place.y);
+    rig.click(arrow);
+    frames(&mut rig, 3);
+    let texts: Vec<String> = texts_in(
+        &rig,
+        Rect::from_min_max(Pos2::new(700.0, 60.0), Pos2::new(1100.0, 200.0)),
+    )
+    .into_iter()
+    .map(|t| t.0)
+    .collect();
+    for item in ["Light", "Prop", "Actor"] {
+        assert!(texts.iter().any(|t| t == item), "{item}: {texts:?}");
+    }
+    for gone in ["Entity", "Spawn"] {
+        assert!(!texts.iter().any(|t| t == gone), "{gone}: {texts:?}");
+    }
+}

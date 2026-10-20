@@ -1804,12 +1804,6 @@ enum ViewTool {
 /// `NodeKind` produced by a Place click.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PlaceKind {
-    /// `SpawnPoint { player: true }` -- the editor enforces
-    /// player-source uniqueness by refusing a second player source
-    /// at place time.
-    PlayerSpawn,
-    /// `SpawnPoint { player: false }`. Multiple OK.
-    SpawnMarker,
     /// Prop entity: `Entity + ModelRenderer + Animator` referencing a
     /// [`ResourceData::Model`]. Place flow picks the selected Model
     /// resource if set, auto-picks the only Model resource if exactly
@@ -1825,8 +1819,6 @@ enum PlaceKind {
     BoxProp,
     /// Low-poly procedural radial prop.
     CylinderProp,
-    /// Tile-snapped procedural arch or half-arch.
-    ArchProp,
     /// `PointLight` with default color / intensity / radius.
     PointLightMarker,
     /// Fixed-budget point-projected sprite particle emitter.
@@ -1845,15 +1837,12 @@ enum PlaceKind {
 }
 
 impl PlaceKind {
-    const ALL: [Self; 15] = [
-        Self::PlayerSpawn,
-        Self::SpawnMarker,
+    const ALL: [Self; 12] = [
         Self::ModelInstance,
         Self::Character,
         Self::ImageProp,
         Self::BoxProp,
         Self::CylinderProp,
-        Self::ArchProp,
         Self::PointLightMarker,
         Self::ParticleEmitter,
         Self::Logic,
@@ -1865,14 +1854,11 @@ impl PlaceKind {
 
     const fn label(self) -> &'static str {
         match self {
-            Self::PlayerSpawn => "Player Spawn",
-            Self::SpawnMarker => "Spawn",
             Self::ModelInstance => "Prop",
             Self::Character => "Character",
             Self::ImageProp => "Image Prop",
             Self::BoxProp => "Box Prop",
             Self::CylinderProp => "Cylinder Prop",
-            Self::ArchProp => "Arch Prop",
             Self::PointLightMarker => "Point Light",
             Self::ParticleEmitter => "Particle Emitter",
             Self::Logic => "Logic",
@@ -1885,13 +1871,11 @@ impl PlaceKind {
 
     const fn icon(self) -> char {
         match self {
-            Self::PlayerSpawn | Self::SpawnMarker => icons::MAP_PIN,
             Self::ModelInstance => icons::BOX,
             Self::Character => icons::CIRCLE_DOT,
             Self::ImageProp => icons::PALETTE,
             Self::BoxProp => icons::BOX,
             Self::CylinderProp => icons::CIRCLE_DOT,
-            Self::ArchProp => icons::WAYPOINT,
             Self::PointLightMarker => icons::SUN,
             Self::ParticleEmitter => icons::FOCUS,
             Self::Logic => icons::BLEND,
@@ -2282,7 +2266,7 @@ impl EditorWorkspace {
             resource_renaming: None,
             resource_delete_confirm: None,
             active_tool: ViewTool::Select,
-            place_kind: PlaceKind::PlayerSpawn,
+            place_kind: PlaceKind::PointLightMarker,
             place_resource: None,
             node_drag_2d: None,
             snap_units: 16,

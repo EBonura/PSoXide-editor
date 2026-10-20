@@ -702,8 +702,10 @@ fn no_pointer_gesture_changes_the_tool_unless_it_clicks_a_tool_button() {
                 2 => rig.click_one_frame(a),
                 _ => rig.drag_one_frame(a, b),
             }
+            // A placement that lands returns to Select, by design.
+            let placed = before == GridTool::Place && rig.ws.status.starts_with("Placed");
             assert!(
-                rig.tool() == before || on_strip,
+                rig.tool() == before || on_strip || placed,
                 "round {round} step {step}: {before:?} became {:?} from a gesture at {a:?} / {b:?} ({})",
                 rig.tool(),
                 rig.ws.status

@@ -4391,24 +4391,34 @@ pub(crate) fn node_lucide_icon(kind: &str, root: bool) -> char {
         return icons::HOUSE;
     }
 
+    // The same icon as the Objects panel gives the kind, and none is the
+    // generic dot.
     match kind {
-        "Node3D" => icons::CIRCLE_DOT,
-        "Entity" => icons::BOX,
+        "Node3D" => icons::MOVE,
+        "Node" | "Group" => icons::FOLDER,
+        "Entity" => icons::USER,
         "World" => icons::HOUSE,
-        "Mesh Instance" | "MeshInstance" => icons::BOX,
-        "Image Prop" | "ImageProp" => icons::PALETTE,
+        "Hook Point" | "HookPoint" => icons::ANCHOR,
+        "Mesh Instance" | "MeshInstance" => icons::CUBOID,
+        "Image Prop" | "ImageProp" => icons::IMAGE,
         "Box Prop" | "BoxProp" => icons::BOX,
+        "Cylinder Prop" | "CylinderProp" => icons::CYLINDER,
+        "Arch Prop" | "ArchProp" => icons::TRIANGLE,
         "Model Renderer" | "ModelRenderer" => icons::BOX,
         "Animator" => icons::PLAY,
         "Collider" => icons::SCALE_3D,
-        "Character Controller" | "CharacterController" => icons::MAP_PIN,
-        "Equipment" => icons::WAYPOINT,
-        "Light" => icons::SUN,
-        "Point Light" | "PointLight" => icons::SUN,
-        "Particle Emitter" | "ParticleEmitter" => icons::FOCUS,
-        "Point of Interest" | "PointOfInterest" => icons::FOCUS,
-        "Spawn Point" | "SpawnPoint" => icons::MAP_PIN,
-        _ => icons::CIRCLE_DOT,
+        "Character Controller" | "CharacterController" => icons::PERSON_STANDING,
+        "Camera" => icons::CAMERA,
+        "Equipment" => icons::HAMMER,
+        "Physics Body" | "PhysicsBody" => icons::SCALE_3D,
+        "Interactable" | "Point of Interest" | "PointOfInterest" => icons::MESSAGE_SQUARE,
+        "Vitality Circle" | "VitalityCircle" => icons::TARGET,
+        "Logic" => icons::ZAP,
+        "Destructible" => icons::SHIELD,
+        "Light" | "Point Light" | "PointLight" => icons::LIGHTBULB,
+        "Particle Emitter" | "ParticleEmitter" => icons::SPARKLES,
+        "Spawn Point" | "SpawnPoint" => icons::FLAG,
+        _ => icons::LAYERS,
     }
 }
 

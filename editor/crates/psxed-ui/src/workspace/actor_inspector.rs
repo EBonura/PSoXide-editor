@@ -119,7 +119,10 @@ fn part_rank(kind: &NodeKind) -> u8 {
 /// The parts "Add part" offers: the part templates by the word the author
 /// sees, minus the ones the actor has. Interactable and Point of Interest are
 /// one Interaction.
-fn addable_parts(scene: &Scene, actor: NodeId) -> Vec<(&'static str, &'static str, NodeKind)> {
+pub(crate) fn addable_parts(
+    scene: &Scene,
+    actor: NodeId,
+) -> Vec<(&'static str, &'static str, NodeKind)> {
     let existing: Vec<&NodeKind> = actor_parts(scene, actor)
         .into_iter()
         .filter_map(|id| scene.node(id))

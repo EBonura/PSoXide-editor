@@ -1,6 +1,6 @@
 use super::*;
 
-mod actor_inspector;
+pub(crate) mod actor_inspector;
 mod dialogs;
 mod editing;
 mod geometry;

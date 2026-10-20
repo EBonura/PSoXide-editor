@@ -312,7 +312,7 @@ fn link_move_and_global_show_only_when_they_have_something_to_act_on() {
     assert!(screen(&mut ws).contains("Link"));
     // A node selected: the gizmo controls.
     ws.set_grid_tool(GridTool::Select);
-    ws.place_kind = PlaceKind::SpawnMarker;
+    ws.place_kind = PlaceKind::PointLightMarker;
     ws.place_at_world_hit([1.5 * S, 0.0, 1.5 * S]);
     let text = screen(&mut ws);
     assert!(
