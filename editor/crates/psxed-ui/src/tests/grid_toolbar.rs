@@ -56,6 +56,17 @@ fn toolbar_captures() {
         frames(&mut rig, 4);
         rig.capture(&dir.join(format!("options-{name}-1456x819-{label}.png")));
     }
+    // The other workspaces under the same top bar.
+    for (view, name) in [
+        (WorkspaceView::Ui, "hud"),
+        (WorkspaceView::Animation, "animation"),
+        (WorkspaceView::Material, "material"),
+    ] {
+        let mut rig = WindowRig::new();
+        rig.ws.active_workspace = view;
+        frames(&mut rig, 4);
+        rig.capture(&dir.join(format!("workspace-{name}-1456x819-{label}.png")));
+    }
     let mut rig = WindowRig::new();
     rig.ws.apply_grid_pose("view=3d;tool=select").unwrap();
     frames(&mut rig, 4);
@@ -1116,4 +1127,49 @@ fn the_arrow_scrolls_to_the_options_that_did_not_fit() {
     rig.ws.set_grid_tool(GridTool::Floor);
     frames(&mut rig, 3);
     assert_eq!(rig.ws.grid.options_scroll, 0.0);
+}
+
+// ---------------------------------------------------------------------
+// Step 5: Keys lives in the Help menu, and the ? key opens the page.
+
+#[test]
+fn the_help_menu_opens_the_keys_page() {
+    let mut rig = WindowRig::new();
+    assert!(!rig.ws.grid.help_open);
+    let help = in_bar(&rig, "Help").center();
+    rig.click(help);
+    frames(&mut rig, 2);
+    let item = rig
+        .find("Keys and gestures")
+        .expect("Keys and gestures is in the Help menu");
+    assert!(
+        texts(&rig).iter().any(|(t, _)| t == "?"),
+        "the menu says the key is ?"
+    );
+    rig.click(item);
+    frames(&mut rig, 3);
+    assert!(rig.ws.grid.help_open, "the page is open");
+}
+
+#[test]
+fn the_question_mark_key_opens_and_closes_the_keys_page() {
+    let mut rig = WindowRig::new();
+    for expect in [true, false] {
+        for pressed in [true, false] {
+            rig.frame(vec![egui::Event::Key {
+                key: egui::Key::Slash,
+                physical_key: Some(egui::Key::Slash),
+                pressed,
+                repeat: false,
+                modifiers: egui::Modifiers::SHIFT,
+            }]);
+        }
+        frames(&mut rig, 2);
+        assert_eq!(rig.ws.grid.help_open, expect);
+    }
+    // Escape closes it as well.
+    rig.ws.grid.help_open = true;
+    frames(&mut rig, 2);
+    press_key(&mut rig, egui::Key::Escape, false);
+    assert!(!rig.ws.grid.help_open);
 }

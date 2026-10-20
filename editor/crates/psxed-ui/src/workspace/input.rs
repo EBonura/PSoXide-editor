@@ -987,11 +987,17 @@ impl EditorWorkspace {
             if self.is_grid_world() {
                 ui.separator();
                 if ui
-                    .button(icons::label(icons::KEYBOARD, "Keys and gestures (?)"))
-                    .on_hover_text("Every tool key and gesture of the grid tools")
+                    .add(
+                        egui::Button::new(icons::label(icons::KEYBOARD, "Keys and gestures"))
+                            .shortcut_text(RichText::new("?").color(STUDIO_TEXT_WEAK))
+                            .selected(self.grid.help_open),
+                    )
+                    .on_hover_text(
+                        "Every tool key and gesture of the grid tools (? toggles the page)",
+                    )
                     .clicked()
                 {
-                    self.grid.help_open = true;
+                    self.grid.help_open = !self.grid.help_open;
                     ui.close_menu();
                 }
             }

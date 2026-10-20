@@ -1,6 +1,6 @@
 //! The `?` help overlay: every grid tool key and gesture on one page.
 //!
-//! Toggled with `?` (or the `?` button in the toolbar) and closed with `?`
+//! Toggled with `?` (or Help > Keys and gestures) and closed with `?`
 //! or Escape. The text is written here once; the tool tooltips and the
 //! status bar hints say the same things in fewer words.
 
@@ -330,7 +330,7 @@ const CELLS: Rows = &[
 ];
 const OVERLAYS: Rows = &[
     (
-        "Alt+L, Cells button",
+        "Alt+L, Overlays > Sizes",
         "Cell sizes: each cell outlined and labelled with its size in sectors (violet 4, blue 2, grey 1, amber 1/2, red 1/4)",
     ),
     (
@@ -338,7 +338,7 @@ const OVERLAYS: Rows = &[
         "Walkability: orange too steep, blue headroom under the body, red step taller than it climbs, yellow dashed drop, hatched floors no spawn reaches",
     ),
     (
-        "Alt+P, Perf button",
+        "Alt+P, Overlays > Perf",
         "Performance heatmap: a model of the world render cost at every spot, green under 60% of the budget, amber to 90%, red above (the Reserve field edits what the player and sky take)",
     ),
 ];
