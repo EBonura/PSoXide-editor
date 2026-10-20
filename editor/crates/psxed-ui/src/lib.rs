@@ -568,6 +568,9 @@ pub struct EditorWorkspace {
     objects_last_subject: Option<NodeId>,
     /// A row to scroll into view on the next draw.
     objects_reveal: Option<NodeId>,
+    /// The part node the actor Inspector last opened the section of, so a
+    /// part selected from elsewhere opens once and the author can fold it.
+    inspector_focused_part: Option<NodeId>,
     collapsed_file_folders: HashSet<String>,
     hidden_scene_nodes: HashSet<NodeId>,
     hidden_ui_nodes: HashSet<(UiSceneId, UiNodeId)>,
@@ -2265,6 +2268,7 @@ impl EditorWorkspace {
             collapsed_object_groups: HashSet::new(),
             objects_last_subject: None,
             objects_reveal: None,
+            inspector_focused_part: None,
             collapsed_file_folders: HashSet::new(),
             hidden_scene_nodes: HashSet::new(),
             hidden_ui_nodes: HashSet::new(),

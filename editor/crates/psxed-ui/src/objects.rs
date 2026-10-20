@@ -301,6 +301,131 @@ fn detail_of(scene: &Scene, node: &SceneNode, kind: ObjectKind) -> Option<String
     }
 }
 
+/// The user-facing kinds of an Interaction. The document has two nodes for
+/// them (Interactable for a message or a checkpoint, Point of Interest for a
+/// beacon); the author sees one thing with a kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum InteractionKind {
+    PointOfInterest,
+    Message,
+    Checkpoint,
+}
+
+impl InteractionKind {
+    pub(crate) const ALL: [Self; 3] = [Self::PointOfInterest, Self::Message, Self::Checkpoint];
+
+    pub(crate) const fn label(self) -> &'static str {
+        match self {
+            Self::PointOfInterest => "Point of interest",
+            Self::Message => "Message",
+            Self::Checkpoint => "Checkpoint",
+        }
+    }
+}
+
+/// The Interaction part of the actor `entity`, if it has one.
+pub(crate) fn interaction_part(scene: &Scene, entity: NodeId) -> Option<NodeId> {
+    actor_parts(scene, entity).into_iter().find(|id| {
+        scene.node(*id).is_some_and(|part| {
+            matches!(
+                part.kind,
+                NodeKind::PointOfInterest { .. } | NodeKind::Interactable { .. }
+            )
+        })
+    })
+}
+
+pub(crate) fn interaction_kind_of(scene: &Scene, entity: NodeId) -> Option<InteractionKind> {
+    let part = scene.node(interaction_part(scene, entity)?)?;
+    Some(match &part.kind {
+        NodeKind::PointOfInterest { .. } => InteractionKind::PointOfInterest,
+        NodeKind::Interactable { kind, .. } => match kind {
+            InteractableKind::Message { .. } => InteractionKind::Message,
+            InteractableKind::Checkpoint { .. } => InteractionKind::Checkpoint,
+        },
+        _ => return None,
+    })
+}
+
+/// `kind` as another Interaction kind, keeping the prompt, the radius and
+/// whether it is enabled; `None` when it is not an Interaction or already is
+/// that kind. The two nodes behind an Interaction are an Interactable (a
+/// message or a checkpoint) and a Point of Interest (a readable beacon).
+pub(crate) fn convert_interaction(kind: &NodeKind, to: InteractionKind) -> Option<NodeKind> {
+    let (prompt, radius, enabled) = match kind {
+        NodeKind::PointOfInterest {
+            prompt,
+            radius,
+            enabled,
+            ..
+        }
+        | NodeKind::Interactable {
+            prompt,
+            radius,
+            enabled,
+            ..
+        } => (prompt.clone(), *radius, *enabled),
+        _ => return None,
+    };
+    let current = match kind {
+        NodeKind::PointOfInterest { .. } => InteractionKind::PointOfInterest,
+        NodeKind::Interactable {
+            kind: InteractableKind::Message { .. },
+            ..
+        } => InteractionKind::Message,
+        _ => InteractionKind::Checkpoint,
+    };
+    if current == to {
+        return None;
+    }
+    // Between the two Interactable kinds the stock prompt follows the kind.
+    let prompt = match (current, to) {
+        (InteractionKind::Message, InteractionKind::Checkpoint)
+            if prompt.trim().is_empty() || prompt == "READ ECHO" =>
+        {
+            "SYNCHRONIZE".to_string()
+        }
+        (InteractionKind::Checkpoint, InteractionKind::Message)
+            if prompt.trim().is_empty() || prompt == "SYNCHRONIZE" =>
+        {
+            "READ ECHO".to_string()
+        }
+        _ => prompt,
+    };
+    Some(match to {
+        InteractionKind::PointOfInterest => NodeKind::PointOfInterest {
+            pages: psxed_project::default_point_of_interest_pages(),
+            pages_it: Vec::new(),
+            prompt,
+            radius,
+            marker_height: psxed_project::default_point_of_interest_marker_height(),
+            repeatable: true,
+            persistence_id: String::new(),
+            reward: None,
+            enabled,
+        },
+        InteractionKind::Message => NodeKind::Interactable {
+            kind: InteractableKind::Message {
+                title: "ECHO REMNANT".to_string(),
+                body: String::new(),
+            },
+            prompt,
+            radius,
+            enabled,
+        },
+        InteractionKind::Checkpoint => NodeKind::Interactable {
+            kind: InteractableKind::Checkpoint {
+                checkpoint_id: String::new(),
+                title: "SYNC RELAY".to_string(),
+                body: "Relay synchronized.".to_string(),
+            },
+            prompt,
+            radius,
+            enabled,
+        },
+    })
+}
+
 /// Every object of the scene, in document order: the nodes under the World
 /// root, minus the part nodes of actors.
 pub(crate) fn object_rows(scene: &Scene) -> Vec<ObjectRow> {

@@ -656,3 +656,165 @@ fn the_pin_still_says_where_new_geometry_goes_and_a_row_click_no_longer_pins() {
     rig.ws.toggle_room_pin(1);
     assert_eq!(rig.ws.grid_active_room, Some(1));
 }
+
+// ---------------------------------------------------------------------
+// The Inspector of an actor.
+
+fn has_text(texts: &[String], label: &str) -> bool {
+    texts.iter().any(|t| t == label)
+}
+
+#[test]
+fn an_actors_parts_are_sections_of_its_inspector_not_child_rows() {
+    let (mut rig, named) = populated();
+    rig.ws.replace_node_selection(named[0].1);
+    frames(&mut rig, 4);
+    let shown = inspector_texts(&rig);
+    for section in ["Character", "Model", "Animation", "Camera", "Equipment"] {
+        assert!(
+            has_text(&shown, section),
+            "{section} is not a section: {shown:?}"
+        );
+    }
+    assert!(!has_text(&shown, "Components"), "{shown:?}");
+    assert!(
+        shown.iter().any(|t| t.contains("Add part")),
+        "no way to add a part: {shown:?}"
+    );
+    // The dock still has the one row.
+    assert!(!dock_texts(&rig).iter().any(|t| t == "Model Renderer"));
+}
+
+#[test]
+fn selecting_a_part_shows_its_actor_with_that_part_open() {
+    let (mut rig, named) = populated();
+    let actor = named[0].1;
+    let animator = actor_parts(rig.ws.project.active_scene(), actor)
+        .into_iter()
+        .find(|id| {
+            matches!(
+                rig.ws.project.active_scene().node(*id).unwrap().kind,
+                NodeKind::Animator { .. }
+            )
+        })
+        .unwrap();
+    rig.ws.replace_node_selection(animator);
+    frames(&mut rig, 5);
+    let shown = inspector_texts(&rig);
+    assert!(has_text(&shown, "Aletha (Player)"), "{shown:?}");
+    // The Animator's own fields are in view: its section is open.
+    assert!(shown.iter().any(|t| t.contains("Autoplay")), "{shown:?}");
+}
+
+#[test]
+fn add_part_puts_a_new_section_in_the_actors_inspector() {
+    let (mut rig, _) = populated();
+    let actor = rig
+        .ws
+        .project
+        .active_scene()
+        .nodes()
+        .iter()
+        .find(|n| n.name == "Intake Custodian 1")
+        .unwrap()
+        .id;
+    rig.ws.replace_node_selection(actor);
+    frames(&mut rig, 4);
+    assert!(!has_text(&inspector_texts(&rig), "Camera"));
+    let add = rig
+        .out
+        .shapes
+        .iter()
+        .find_map(|s| match &s.shape {
+            egui::epaint::Shape::Text(t) if t.galley.text().contains("Add part") => {
+                Some(t.visual_bounding_rect().center())
+            }
+            _ => None,
+        })
+        .expect("an Add part button");
+    rig.click(add);
+    frames(&mut rig, 3);
+    // The menu opens under the button; the viewport header has a Camera too.
+    let below = Rect::from_min_max(Pos2::new(add.x - 150.0, add.y), Pos2::new(1456.0, 819.0));
+    let camera = texts_in(&rig, below)
+        .into_iter()
+        .find(|t| t.0 == "Camera")
+        .expect("a Camera item in the Add part menu")
+        .1
+        .center();
+    rig.click(camera);
+    frames(&mut rig, 4);
+    let scene = rig.ws.project.active_scene();
+    assert!(
+        actor_parts(scene, actor)
+            .iter()
+            .any(|id| matches!(scene.node(*id).unwrap().kind, NodeKind::Camera { .. })),
+        "{}",
+        rig.ws.status
+    );
+    assert!(has_text(&inspector_texts(&rig), "Camera"));
+}
+
+#[test]
+fn an_interaction_is_one_section_with_a_kind_and_switching_keeps_what_they_share() {
+    let (mut rig, _) = populated();
+    let beacon = rig
+        .ws
+        .project
+        .active_scene()
+        .nodes()
+        .iter()
+        .find(|n| n.name == "Point of Interest")
+        .unwrap()
+        .id;
+    rig.ws.replace_node_selection(beacon);
+    frames(&mut rig, 4);
+    let shown = inspector_texts(&rig);
+    assert!(has_text(&shown, "Interaction"), "{shown:?}");
+    assert!(
+        has_text(&shown, "Point of interest"),
+        "the kind combo: {shown:?}"
+    );
+    // The conversion is a pure function of the part.
+    let part = interaction_part(rig.ws.project.active_scene(), beacon).unwrap();
+    let mut kind = rig
+        .ws
+        .project
+        .active_scene()
+        .node(part)
+        .unwrap()
+        .kind
+        .clone();
+    let NodeKind::PointOfInterest {
+        prompt,
+        radius,
+        enabled,
+        ..
+    } = &mut kind
+    else {
+        panic!("a beacon holds a Point of Interest");
+    };
+    *prompt = "TALK".to_string();
+    *radius = 700;
+    *enabled = false;
+    let message = convert_interaction(&kind, InteractionKind::Message).unwrap();
+    assert!(matches!(
+        &message,
+        NodeKind::Interactable { prompt, radius: 700, enabled: false, kind: InteractableKind::Message { .. } } if prompt == "TALK"
+    ));
+    let back = convert_interaction(&message, InteractionKind::PointOfInterest).unwrap();
+    assert!(matches!(
+        &back,
+        NodeKind::PointOfInterest { prompt, radius: 700, enabled: false, .. } if prompt == "TALK"
+    ));
+    let checkpoint = convert_interaction(&message, InteractionKind::Checkpoint).unwrap();
+    assert!(matches!(
+        &checkpoint,
+        NodeKind::Interactable { prompt, radius: 700, enabled: false, kind: InteractableKind::Checkpoint { .. } } if prompt == "TALK"
+    ));
+    assert_eq!(
+        convert_interaction(&kind, InteractionKind::PointOfInterest),
+        None,
+        "already that kind"
+    );
+}

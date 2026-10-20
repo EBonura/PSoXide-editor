@@ -2211,6 +2211,14 @@ pub(crate) fn draw_node_kind_editor(
         camera_preview,
     } = ctx;
     let mut changed = false;
+    // An Interactable and a Point of Interest are one Interaction to the
+    // author: the kind is chosen here, and the node becomes the other one.
+    if matches!(
+        kind,
+        NodeKind::Interactable { .. } | NodeKind::PointOfInterest { .. }
+    ) {
+        changed |= draw_interaction_kind_picker(ui, kind);
+    }
     match kind {
         NodeKind::HookPoint => {
             ui.weak("Place at the centre of an elevated, clear landing. In Zenith, hold L2 and aim at the hook; R2 traverses to it using the dash effect.");
@@ -3493,44 +3501,6 @@ pub(crate) fn draw_node_kind_editor(
             ui.weak("Component: lets the player press CROSS near this Entity to read a message or synchronize a checkpoint.");
             changed |= ui.checkbox(enabled, "Enabled").changed();
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Kind").color(STUDIO_TEXT_WEAK));
-                let current = match interactable_kind {
-                    InteractableKind::Message { .. } => "Message",
-                    InteractableKind::Checkpoint { .. } => "Checkpoint",
-                };
-                egui::ComboBox::from_id_salt("interactable-kind")
-                    .selected_text(current)
-                    .show_ui(ui, |ui| {
-                        let is_message =
-                            matches!(interactable_kind, InteractableKind::Message { .. });
-                        if ui.selectable_label(is_message, "Message").clicked() && !is_message {
-                            *interactable_kind = InteractableKind::Message {
-                                title: "ECHO REMNANT".to_string(),
-                                body: String::new(),
-                            };
-                            if prompt.trim().is_empty() || prompt == "SYNCHRONIZE" {
-                                *prompt = "READ ECHO".to_string();
-                            }
-                            changed = true;
-                        }
-                        let is_checkpoint =
-                            matches!(interactable_kind, InteractableKind::Checkpoint { .. });
-                        if ui.selectable_label(is_checkpoint, "Checkpoint").clicked()
-                            && !is_checkpoint
-                        {
-                            *interactable_kind = InteractableKind::Checkpoint {
-                                checkpoint_id: String::new(),
-                                title: "SYNC RELAY".to_string(),
-                                body: "Relay synchronized.".to_string(),
-                            };
-                            if prompt.trim().is_empty() || prompt == "READ ECHO" {
-                                *prompt = "SYNCHRONIZE".to_string();
-                            }
-                            changed = true;
-                        }
-                    });
-            });
-            ui.horizontal(|ui| {
                 ui.label(RichText::new("Prompt").color(STUDIO_TEXT_WEAK));
                 changed |= ui.text_edit_singleline(prompt).changed();
             });
@@ -4703,6 +4673,42 @@ pub(crate) fn viewport_camera_mode_label(mode: ViewportCameraMode) -> &'static s
         ViewportCameraMode::Orbit => "Orbit",
         ViewportCameraMode::Free => "Free",
     }
+}
+
+/// The Interaction's kind as a combo: Point of interest, Message or
+/// Checkpoint. Choosing another turns `kind` into the matching node, keeping
+/// the prompt, the radius and whether it is enabled.
+pub(crate) fn draw_interaction_kind_picker(ui: &mut egui::Ui, kind: &mut NodeKind) -> bool {
+    let current = match kind {
+        NodeKind::PointOfInterest { .. } => InteractionKind::PointOfInterest,
+        NodeKind::Interactable {
+            kind: InteractableKind::Message { .. },
+            ..
+        } => InteractionKind::Message,
+        _ => InteractionKind::Checkpoint,
+    };
+    let mut chosen = None;
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Kind").color(STUDIO_TEXT_WEAK));
+        egui::ComboBox::from_id_salt("interaction-kind")
+            .selected_text(current.label())
+            .show_ui(ui, |ui| {
+                for option in InteractionKind::ALL {
+                    if ui
+                        .selectable_label(option == current, option.label())
+                        .clicked()
+                        && option != current
+                    {
+                        chosen = Some(option);
+                    }
+                }
+            });
+    });
+    if let Some(next) = chosen.and_then(|to| convert_interaction(kind, to)) {
+        *kind = next;
+        return true;
+    }
+    false
 }
 
 #[cfg(test)]

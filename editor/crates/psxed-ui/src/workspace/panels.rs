@@ -1739,6 +1739,13 @@ impl EditorWorkspace {
                                     return;
                                 }
 
+                                // An actor: its parts are sections of its own
+                                // Inspector.
+                                if let Some(actor) = self.actor_for_inspector() {
+                                    self.draw_actor_inspector(ui, actor, camera_preview);
+                                    return;
+                                }
+
                                 let material_options = self.project.material_options();
                                 let material_texture_dimensions: Vec<(ResourceId, [u16; 2])> = self
                                     .texture_thumbs

@@ -126,13 +126,19 @@ impl EditorWorkspace {
             if id == NodeId::ROOT {
                 return "World".to_string();
             }
-            // "Light: Torch", "Spawn Point: Start": what it is, then its name.
-            return self.project.active_scene().node(id).map_or_else(
+            // "Light: Torch", "Actor: Aletha": what it is, then its name. A
+            // part of an actor is the actor.
+            let scene = self.project.active_scene();
+            let id = owner_object(scene, id);
+            return scene.node(id).map_or_else(
                 || "Node".to_string(),
                 |n| {
-                    let kind = match n.kind.label() {
-                        "Point Light" => "Light",
-                        other => other,
+                    let kind = match (n.kind.label(), classify(scene, n)) {
+                        ("Point Light", _) => "Light",
+                        ("Entity", ObjectKind::ModelActor) => "Prop",
+                        ("Entity", ObjectKind::Interaction) => "Interaction",
+                        ("Entity", _) => "Actor",
+                        (other, _) => other,
                     };
                     format!("{kind}: {}", n.name)
                 },
