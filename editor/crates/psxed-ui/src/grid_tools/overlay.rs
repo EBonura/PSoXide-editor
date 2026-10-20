@@ -50,7 +50,10 @@ fn element_faces(world: &GridWorld, element: &GridElement) -> Vec<FaceRef> {
         }
         GridElement::Face(f) => vec![*f],
         // Drawn as the triangle, not as the whole face.
-        GridElement::Triangle { .. } | GridElement::Edge(_) | GridElement::Vertex(_) => Vec::new(),
+        GridElement::Triangle { .. }
+        | GridElement::Band { .. }
+        | GridElement::Edge(_)
+        | GridElement::Vertex(_) => Vec::new(),
     }
 }
 
@@ -216,6 +219,15 @@ impl EditorWorkspace {
                         leaf_wall_line(f.leaf, edge, SELECT, 4.0)
                     }
                 },
+                // The plan cannot tell the bands of a wall apart (it sees the
+                // wall edge-on): a band shows as its wall.
+                GridElement::Band { face, .. } => {
+                    if let FaceTarget::Wall { edge, .. } | FaceTarget::Derived { edge, .. } =
+                        face.target
+                    {
+                        leaf_wall_line(face.leaf, edge, SELECT, 4.0)
+                    }
+                }
                 GridElement::Triangle { face, tri } => {
                     if let Some(points) = tri_corners(world, *face, *tri) {
                         let points: Vec<Pos2> =
@@ -298,6 +310,13 @@ impl EditorWorkspace {
                                 leaf_wall_line(f.leaf, edge, HOVER, 4.0)
                             }
                         },
+                        GridElement::Band { face, .. } => {
+                            if let FaceTarget::Wall { edge, .. }
+                            | FaceTarget::Derived { edge, .. } = face.target
+                            {
+                                leaf_wall_line(face.leaf, edge, HOVER, 4.0)
+                            }
+                        }
                         GridElement::Triangle { face, tri } => {
                             if let Some(points) = tri_corners(world, *face, *tri) {
                                 painter.add(egui::Shape::convex_polygon(
@@ -472,26 +491,57 @@ impl EditorWorkspace {
 
         // Faces of the selection and of the hover, from the pick cache.
         let mut selected: BTreeSet<FaceRef> = BTreeSet::new();
+        // A band is a piece of its wall: its faces carry the band's index.
+        let mut selected_bands: BTreeSet<(FaceRef, u8)> = BTreeSet::new();
         for element in self.grid.selection.items() {
             selected.extend(element_faces(world, element));
+            if let GridElement::Band { face, band } = element {
+                selected_bands.insert((*face, *band));
+            }
         }
         let mut hovered: BTreeSet<FaceRef> = BTreeSet::new();
+        let mut hovered_bands: BTreeSet<(FaceRef, u8)> = BTreeSet::new();
         match &self.grid.hover {
             GridHover::Elements(list) => {
                 for element in list {
                     hovered.extend(element_faces(world, element));
+                    if let GridElement::Band { face, band } = element {
+                        hovered_bands.insert((*face, *band));
+                    }
                 }
             }
             GridHover::Face { face, .. } => {
-                hovered.insert(*face);
+                // The Paint tool paints the band under the pointer: that is
+                // what lights up, not the whole wall.
+                match self.grid.paint.band {
+                    Some((wall, band))
+                        if self.grid.tool == GridTool::Paint
+                            && wall == *face
+                            && u8::try_from(band).is_ok() =>
+                    {
+                        hovered_bands.insert((wall, band as u8));
+                    }
+                    _ => {
+                        hovered.insert(*face);
+                    }
+                }
             }
             _ => {}
         }
-        if !selected.is_empty() || !hovered.is_empty() {
+        if !selected.is_empty()
+            || !hovered.is_empty()
+            || !selected_bands.is_empty()
+            || !hovered_bands.is_empty()
+        {
             self.with_pick_cache(|cache| {
                 for pf in &cache.faces {
-                    let (is_sel, is_hover) =
-                        (selected.contains(&pf.face), hovered.contains(&pf.face));
+                    let piece = pf.band.map(|b| (pf.face, b));
+                    let (is_sel, is_hover) = (
+                        selected.contains(&pf.face)
+                            || piece.is_some_and(|p| selected_bands.contains(&p)),
+                        hovered.contains(&pf.face)
+                            || piece.is_some_and(|p| hovered_bands.contains(&p)),
+                    );
                     if !is_sel && !is_hover {
                         continue;
                     }

@@ -819,6 +819,13 @@ impl EditorWorkspace {
             self.grid.abandon();
             // A room chosen for the Inspector gives way to the new tool's.
             self.selection.selected_room = None;
+            // Paint works on what the pointer is over, never on a
+            // selection carried in from Select.
+            if tool == GridTool::Paint {
+                self.grid.selection.clear();
+                self.grid.plane_sel.clear();
+                self.grid.mesh_sel = None;
+            }
         }
         self.grid.tool = tool;
         if tool.group() == ToolGroup::Shape {

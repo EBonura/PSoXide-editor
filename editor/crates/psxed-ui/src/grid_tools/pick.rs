@@ -27,6 +27,25 @@ pub(crate) struct PickFace {
     pub double_sided: bool,
     /// A void triangle: pickable, but nothing is drawn there.
     pub void: bool,
+    /// The band of its wall this face is a piece of, for a banded wall.
+    pub band: Option<u8>,
+}
+
+impl PickFace {
+    /// Whether the camera at `eye` sees this face's front (or the face is
+    /// drawn from both sides). The renderer culls by the side of the face's
+    /// plane the eye is on.
+    pub fn faces(&self, eye: [f32; 3]) -> bool {
+        if self.double_sided {
+            return true;
+        }
+        let n = self.points.len().max(1) as f32;
+        let centre = self.points.iter().fold([0.0; 3], |acc, p| {
+            [acc[0] + p[0] / n, acc[1] + p[1] / n, acc[2] + p[2] / n]
+        });
+        let to_eye = [eye[0] - centre[0], eye[1] - centre[1], eye[2] - centre[2]];
+        self.normal[0] * to_eye[0] + self.normal[1] * to_eye[1] + self.normal[2] * to_eye[2] > 0.0
+    }
 }
 
 /// One corner of a face in editor space.
@@ -114,6 +133,7 @@ fn build_cache(world: &GridWorld, rev: u64) -> PickCache {
             normal: face.normal.map(|v| v as f32),
             double_sided: face.double_sided,
             void: false,
+            band: face.band,
         });
     }
     // A void triangle draws no face, but it can still be picked (and
@@ -161,6 +181,7 @@ fn build_cache(world: &GridWorld, rev: u64) -> PickCache {
                                 normal: [0.0, 1.0, 0.0],
                                 double_sided: true,
                                 void: true,
+                                band: None,
                             });
                         }
                     }
@@ -277,6 +298,8 @@ pub(crate) struct FaceHit {
     pub depth: f32,
     /// Unit normal of the face, on the side the ray came from.
     pub normal: [f32; 3],
+    /// The band of a banded wall under the pointer.
+    pub band: Option<u8>,
 }
 
 /// The finest thing a tool wants to pick.
@@ -345,6 +368,7 @@ impl EditorWorkspace {
                     best = Some(FaceHit {
                         face: pf.face,
                         tri: pf.tri,
+                        band: pf.band,
                         normal: pf.normal.map(|v| v * flip),
                         point: [
                             origin[0] + dir[0] * depth,
@@ -376,13 +400,29 @@ impl EditorWorkspace {
         // tolerance covers the difference and neighbouring geometry.
         let visible = |depth: f32| limit.is_none_or(|l| depth <= l * 1.02 + 24.0);
         let cut = self.cutaway_plane().map(|y| y as f32);
+        let eye = self.viewport_3d_camera().position_f32();
         let found = self
             .with_pick_cache(|cache| {
+                // A face the camera does not draw (a ceiling seen from above,
+                // the back of a one-sided wall) offers no corner or edge.
+                // Faces the cache does not know are left alone.
+                let mut known = std::collections::HashSet::new();
+                let mut drawn = std::collections::HashSet::new();
+                if level != PickLevel::Face {
+                    for pf in cache.faces.iter().filter(|pf| !pf.void) {
+                        known.insert(pf.face);
+                        if pf.faces(eye) {
+                            drawn.insert(pf.face);
+                        }
+                    }
+                }
+                let culled = |face: &FaceRef| known.contains(face) && !drawn.contains(face);
                 if level == PickLevel::Vertex {
                     let mut best: Option<(f32, f32, CornerRef)> = None;
                     for c in &cache.corners {
                         if self.grid_hidden_rooms.contains(&c.corner.face.room)
                             || cut.is_some_and(|cut| c.pos[1] >= cut)
+                            || culled(&c.corner.face)
                         {
                             continue;
                         }
@@ -409,6 +449,7 @@ impl EditorWorkspace {
                     for e in &cache.edges {
                         if self.grid_hidden_rooms.contains(&e.edge.face.room)
                             || cut.is_some_and(|cut| e.a[1].min(e.b[1]) >= cut)
+                            || culled(&e.edge.face)
                         {
                             continue;
                         }
@@ -586,6 +627,16 @@ impl EditorWorkspace {
             }
             super::view::GridView::Persp(rect) => {
                 let (element, hit) = self.pick_element_3d(rect, ptr.pos, level)?;
+                // One band of a banded wall is picked on its own.
+                if let (
+                    GridElement::Face(face),
+                    Some(FaceHit {
+                        band: Some(band), ..
+                    }),
+                ) = (element, hit)
+                {
+                    return Some(vec![GridElement::Band { face, band }]);
+                }
                 // A face that is cut into triangles is picked one triangle at
                 // a time; Alt names the triangle of a plain quad too.
                 if let (GridElement::Face(face), Some(hit)) = (element, hit) {

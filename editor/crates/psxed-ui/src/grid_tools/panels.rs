@@ -202,9 +202,11 @@ impl EditorWorkspace {
         };
         let faces = self.grid.selection.whole_faces(world);
         let triangles = self.grid.selection.triangles(world);
-        if faces.is_empty() && triangles.is_empty() {
+        let bands = self.grid.selection.bands(world);
+        if faces.is_empty() && triangles.is_empty() && bands.is_empty() {
             return 0;
         }
+        let scope = self.grid.band_scope;
         let before = self.project.clone();
         let Some(world) = self.project.active_scene_mut().world.grid_mut() else {
             return 0;
@@ -216,6 +218,17 @@ impl EditorWorkspace {
         // A selected triangle takes the material on its own.
         for (face, tri) in &triangles {
             changed += usize::from(set_material(world, *face, Some(*tri), Some(material)));
+        }
+        // So does a selected band: the material goes into the wall's band
+        // set, on that band only.
+        for (face, band) in &bands {
+            changed += usize::from(psxed_project::grid::edit::bands::paint_band(
+                world,
+                *face,
+                *band,
+                Some(material),
+                scope,
+            ));
         }
         if changed > 0 {
             self.history.record(before);

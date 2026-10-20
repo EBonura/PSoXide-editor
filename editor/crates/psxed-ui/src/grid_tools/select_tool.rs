@@ -186,25 +186,25 @@ pub(super) fn marquee_elements(
             ws.with_pick_cache(|cache| {
                 let mut seen = std::collections::BTreeSet::new();
                 for pf in &cache.faces {
-                    if ws.grid_hidden_rooms.contains(&pf.face.room) {
+                    // Hidden rooms, and faces the camera does not draw, are
+                    // not reached.
+                    if ws.grid_hidden_rooms.contains(&pf.face.room) || !pf.faces(eye) {
                         continue;
                     }
                     let n = pf.points.len() as f32;
                     let centre = pf.points.iter().fold([0.0; 3], |acc, p| {
                         [acc[0] + p[0] / n, acc[1] + p[1] / n, acc[2] + p[2] / n]
                     });
-                    let to_eye = [eye[0] - centre[0], eye[1] - centre[1], eye[2] - centre[2]];
-                    let facing = pf.normal[0] * to_eye[0]
-                        + pf.normal[1] * to_eye[1]
-                        + pf.normal[2] * to_eye[2];
-                    if facing <= 0.0 && !pf.double_sided {
-                        continue;
-                    }
                     if cam.project(centre).is_some_and(|(p, _)| rect.contains(p)) {
-                        seen.insert(pf.face);
+                        seen.insert((pf.face, pf.band));
                     }
                 }
-                seen.into_iter().map(GridElement::Face).collect()
+                seen.into_iter()
+                    .map(|(face, band)| match band {
+                        Some(band) => GridElement::Band { face, band },
+                        None => GridElement::Face(face),
+                    })
+                    .collect()
             })
             .unwrap_or_default()
         }

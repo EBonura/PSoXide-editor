@@ -326,7 +326,7 @@ fn selected_leaves(ws: &EditorWorkspace) -> Vec<(usize, LeafKey)> {
             GridElement::Face(f) => {
                 out.insert((f.room, f.leaf));
             }
-            GridElement::Triangle { face, .. } => {
+            GridElement::Triangle { face, .. } | GridElement::Band { face, .. } => {
                 out.insert((face.room, face.leaf));
             }
             GridElement::Edge(e) => {

@@ -355,7 +355,8 @@ impl EditorWorkspace {
     }
 
     /// A swatch was clicked: it is the paint material, it goes on the
-    /// selected faces, and it is the newest of the recent ones.
+    /// selected faces (not in Paint, where it is the brush only), and it is
+    /// the newest of the recent ones.
     pub(crate) fn choose_palette_material(&mut self, id: ResourceId) {
         let name = self
             .project
@@ -367,8 +368,11 @@ impl EditorWorkspace {
         self.grid.palette_recent.insert(0, id);
         self.grid.palette_recent.truncate(RECENT_MATERIALS);
         // In the Material tab the palette is a list to edit from: choosing
-        // there must not repaint whatever faces are still selected.
-        let applied = if self.active_workspace == WorkspaceView::Material {
+        // there must not repaint whatever faces are still selected. In
+        // Paint the choice is the brush and nothing else.
+        let applied = if self.active_workspace == WorkspaceView::Material
+            || self.grid.tool == GridTool::Paint
+        {
             0
         } else {
             self.apply_grid_material_to_selection(id)
