@@ -11,7 +11,8 @@ use psxed_project::grid::edit::Transform;
 use psxed_project::grid::{CLICK_UNITS, FINE_UNITS};
 
 use super::{
-    bands_tool, clipboard_tool, height_tool, mesh_tool, plane_tool, select_tool, verb_tool,
+    bands_tool, clipboard_tool, dup_tool, height_tool, mesh_tool, plane_tool, select_tool,
+    verb_tool,
 };
 
 /// Keys the level verbs still to come (design: `docs/grid/level-tools-design.md`,
@@ -70,6 +71,30 @@ impl EditorWorkspace {
         }
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::ALT, egui::Key::ArrowDown)) {
             self.step_level(false);
+        }
+        // Cmd+D duplicates the selection and carries the copy on the pointer.
+        if self.grid.grab.is_none() && consume_command_shortcut(ctx, egui::Key::D) {
+            dup_tool::begin(self);
+            return;
+        }
+        if self.grid.grab.is_some() {
+            if pressed(ctx, egui::Key::Escape) {
+                dup_tool::cancel(self);
+            }
+            for (key, sign) in [
+                (egui::Key::ArrowUp, 1),
+                (egui::Key::PageUp, 1),
+                (egui::Key::ArrowDown, -1),
+                (egui::Key::PageDown, -1),
+            ] {
+                if pressed(ctx, key) {
+                    dup_tool::lift(self, sign, false);
+                }
+                if ctx.input_mut(|i| i.consume_key(egui::Modifiers::ALT, key)) {
+                    dup_tool::lift(self, sign, true);
+                }
+            }
+            return;
         }
         let modifiers = ctx.input(|i| i.modifiers);
         if modifiers.command || modifiers.ctrl || modifiers.alt {

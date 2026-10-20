@@ -13,8 +13,8 @@ use crate::workspace::tools2d::{ToolFrame2d, ViewportTool2d};
 use crate::workspace::tools3d::{SelectTool, ToolFrame3d, ViewportTool3d};
 
 use super::{
-    bands_tool, cells_tool, clipboard_tool, face_tools, height_tool, mesh_tool, place_tool,
-    plane_tool, rect_tool, select_tool, triangle_tool, verb_tool, wall_tool,
+    bands_tool, cells_tool, clipboard_tool, dup_tool, face_tools, height_tool, mesh_tool,
+    place_tool, plane_tool, rect_tool, select_tool, triangle_tool, verb_tool, wall_tool,
 };
 
 /// A pointer event.
@@ -30,6 +30,14 @@ pub(crate) enum Ev {
 /// Send one event to the active tool.
 pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
     ptr.cycle = ws.cycle_for(ev, &ptr);
+    if ws.grid.grab.is_some() {
+        match ev {
+            Ev::Hover | Ev::Drag => dup_tool::hover(ws, &ptr),
+            Ev::Click => dup_tool::click(ws, &ptr),
+            Ev::Press | Ev::Release => {}
+        }
+        return;
+    }
     if ws.grid.paste.is_some() {
         match ev {
             Ev::Hover | Ev::Drag => clipboard_tool::hover(ws, &ptr),
@@ -276,7 +284,7 @@ impl ViewportTool2d for GridTool2d {
         let Some(pos) = f.press_origin.or(f.pointer_interact) else {
             return;
         };
-        if ws.grid.tool == GridTool::Select && ws.grid.paste.is_none() {
+        if ws.grid.tool == GridTool::Select && ws.grid.paste.is_none() && ws.grid.grab.is_none() {
             let world = f.transform.screen_to_world(pos);
             let on_selected_node = f
                 .hits
@@ -324,7 +332,11 @@ impl ViewportTool2d for GridTool2d {
         };
         let world = f.transform.screen_to_world(pos);
         let node_under = f.hits.iter().any(|h| h.contains(world));
-        if ws.grid.tool == GridTool::Select && ws.grid.paste.is_none() && node_under {
+        if ws.grid.tool == GridTool::Select
+            && ws.grid.paste.is_none()
+            && ws.grid.grab.is_none()
+            && node_under
+        {
             // A node under the pointer: the ordinary node click.
             ws.grid.selection.clear();
             ws.handle_viewport_click(world, f.hits, f.modifiers);
@@ -363,6 +375,7 @@ impl GridTool3d {
     fn node_target(ws: &EditorWorkspace, f: &ToolFrame3d) -> bool {
         ws.grid.tool == GridTool::Select
             && ws.grid.paste.is_none()
+            && ws.grid.grab.is_none()
             && matches!(
                 f.pointer_target,
                 Some(Viewport3dPointerTarget::NodeGizmo(_) | Viewport3dPointerTarget::Entity(_))

@@ -324,6 +324,9 @@ impl EditorWorkspace {
 
     /// Key hints for the active tool.
     fn grid_key_hints(&self) -> &'static str {
+        if self.grid.grab.is_some() {
+            return "Click drops the copy | Up/Down lift a click, Alt fine | Esc cancels";
+        }
         if self.grid.paste.is_some() {
             return "Click place | Shift keep stamping | H/V flip | R turn | Esc cancel";
         }

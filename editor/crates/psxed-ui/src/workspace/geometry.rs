@@ -262,42 +262,53 @@ impl EditorWorkspace {
         self.mark_dirty();
     }
 
-    pub(crate) fn duplicate_selected(&mut self) {
-        let selected = {
-            let scene = self.project.active_scene();
-            let mut roots = Vec::new();
-            for id in self.selected_node_ids_in_hierarchy() {
-                // A POI component has no transform or beacon of its own: its
-                // Entity parent is the authored object. Placement initially
-                // selects the component, so duplicating that row must copy the
-                // complete host instead of adding a second component to the
-                // original host.
-                let root = scene
-                    .node(id)
-                    .and_then(|node| {
-                        matches!(node.kind, NodeKind::PointOfInterest { .. })
-                            .then_some(node.parent)
-                            .flatten()
-                    })
-                    .unwrap_or(id);
-                if roots
-                    .iter()
-                    .any(|ancestor| scene.is_descendant_of(root, *ancestor))
-                {
-                    continue;
-                }
-                roots.push(root);
+    /// The roots a duplicate copies: the selected nodes, a POI component
+    /// standing for its host, and no node whose ancestor is copied too.
+    pub(crate) fn duplicate_roots(&self) -> Vec<NodeId> {
+        let scene = self.project.active_scene();
+        let mut roots = Vec::new();
+        for id in self.selected_node_ids_in_hierarchy() {
+            // A POI component has no transform or beacon of its own: its
+            // Entity parent is the authored object. Placement initially
+            // selects the component, so duplicating that row must copy the
+            // complete host instead of adding a second component to the
+            // original host.
+            let root = scene
+                .node(id)
+                .and_then(|node| {
+                    matches!(node.kind, NodeKind::PointOfInterest { .. })
+                        .then_some(node.parent)
+                        .flatten()
+                })
+                .unwrap_or(id);
+            if roots
+                .iter()
+                .any(|ancestor| scene.is_descendant_of(root, *ancestor))
+            {
+                continue;
             }
-            roots
-        };
-        if selected.is_empty() {
-            return;
+            roots.push(root);
         }
-        self.push_undo();
+        roots
+    }
+
+    /// Copy `roots` (and their subtrees) beside the originals, no history,
+    /// no selection. With `clean_names` a copy is "Crate 2", not "Crate
+    /// Copy"; a light is always "Light 4". Returns the copies' roots.
+    pub(crate) fn copy_nodes(&mut self, roots: Vec<NodeId>, clean_names: bool) -> Vec<NodeId> {
         let mut duplicated = Vec::new();
-        for selected in selected {
+        for selected in roots {
             let Some(source) = self.project.active_scene().node(selected).cloned() else {
                 continue;
+            };
+            let name_of_copy = |scene: &Scene, name: &str, kind: &NodeKind| {
+                if matches!(kind, NodeKind::PointLight { .. }) {
+                    next_light_name(scene)
+                } else if clean_names {
+                    next_copy_name(scene, name)
+                } else {
+                    format!("{name} Copy")
+                }
             };
             if matches!(source.kind, NodeKind::Group) || !source.children.is_empty() {
                 let scene = self.project.active_scene();
@@ -317,7 +328,7 @@ impl EditorWorkspace {
                             .unwrap_or(source.parent.unwrap_or(NodeId::ROOT))
                     };
                     let name = if node.id == selected {
-                        format!("{} Copy", node.name)
+                        name_of_copy(self.project.active_scene(), &node.name, &node.kind)
                     } else {
                         node.name.clone()
                     };
@@ -340,12 +351,7 @@ impl EditorWorkspace {
                 continue;
             }
             let parent = source.parent.unwrap_or(NodeId::ROOT);
-            // A light is "Light 4", not "Point Light Copy Copy".
-            let name = if matches!(source.kind, NodeKind::PointLight { .. }) {
-                next_light_name(self.project.active_scene())
-            } else {
-                format!("{} Copy", source.name)
-            };
+            let name = name_of_copy(self.project.active_scene(), &source.name, &source.kind);
             let id = self
                 .project
                 .active_scene_mut()
@@ -355,13 +361,29 @@ impl EditorWorkspace {
             }
             duplicated.push(id);
         }
+        duplicated
+    }
+
+    /// Make `ids` the node selection.
+    pub(crate) fn select_nodes(&mut self, ids: &[NodeId]) {
+        self.selection.selected_room = None;
+        self.selection.selected_nodes = ids.iter().copied().collect();
+        self.selection.selected_node = ids.first().copied().unwrap_or(NodeId::ROOT);
+        self.selection.node_selection_anchor = ids.last().copied();
+        self.clear_resource_selection_state();
+    }
+
+    pub(crate) fn duplicate_selected(&mut self) {
+        let selected = self.duplicate_roots();
+        if selected.is_empty() {
+            return;
+        }
+        self.push_undo();
+        let duplicated = self.copy_nodes(selected, false);
         if duplicated.is_empty() {
             return;
         }
-        self.selection.selected_nodes = duplicated.iter().copied().collect();
-        self.selection.selected_node = duplicated[0];
-        self.selection.node_selection_anchor = duplicated.last().copied();
-        self.clear_resource_selection_state();
+        self.select_nodes(&duplicated);
         self.status = if duplicated.len() == 1 {
             "Duplicated node".to_string()
         } else {
@@ -975,6 +997,7 @@ impl EditorWorkspace {
     fn abandon_gestures_for_document_swap(&mut self) {
         self.interaction = Interaction::Idle;
         self.node_drag_2d = None;
+        self.cancel_duplicate();
         self.grid.abandon();
     }
 

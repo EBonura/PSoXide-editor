@@ -520,3 +520,32 @@ pub(crate) fn next_light_name(scene: &Scene) -> String {
         n += 1;
     }
 }
+
+/// The name of a copy of the node called `name`: "Crate" and "Crate 2" both
+/// give the next free "Crate N" (a trailing " Copy" and number are the
+/// copy's own mark, not part of the name).
+pub(crate) fn next_copy_name(scene: &Scene, name: &str) -> String {
+    let mut base = name.trim_end();
+    loop {
+        if let Some(rest) = base.strip_suffix(" Copy") {
+            base = rest.trim_end();
+            continue;
+        }
+        if let Some((rest, digits)) = base.rsplit_once(' ') {
+            if !rest.is_empty() && !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
+            {
+                base = rest.trim_end();
+                continue;
+            }
+        }
+        break;
+    }
+    let mut n = 2;
+    loop {
+        let candidate = format!("{base} {n}");
+        if !scene.nodes().iter().any(|node| node.name == candidate) {
+            return candidate;
+        }
+        n += 1;
+    }
+}

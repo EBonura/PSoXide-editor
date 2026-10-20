@@ -33,6 +33,7 @@ pub(crate) mod cell_size;
 mod cells_tool;
 mod clipboard_tool;
 mod cycle;
+mod dup_tool;
 pub(crate) mod events;
 mod face_tools;
 mod heat_overlay;
@@ -630,6 +631,8 @@ pub(crate) struct GridEditState {
     pub plane_sel: Vec<PlaneId>,
     pub plane_clip: Option<PlaneClipboard>,
     pub plane_paste: Option<PlanePaste>,
+    /// A Cmd+D duplicate being carried on the pointer.
+    pub grab: Option<dup_tool::DupGrab>,
     /// Collision and sidedness of the next placed plane.
     pub new_plane: NewPlane,
     /// The selected mesh instance, by stable id.
@@ -730,6 +733,7 @@ impl Default for GridEditState {
             plane_sel: Vec::new(),
             plane_clip: None,
             plane_paste: None,
+            grab: None,
             new_plane: NewPlane {
                 collision: PlaneCollision::Decor,
                 double_sided: false,
@@ -780,6 +784,7 @@ impl GridEditState {
         self.gesture = Gesture::Idle;
         self.paste = None;
         self.plane_paste = None;
+        self.grab = None;
         self.plane_press = false;
         self.cycle.reset();
         self.band_line = None;
@@ -816,6 +821,8 @@ impl EditorWorkspace {
     /// state the node tools read in step.
     pub(crate) fn set_grid_tool(&mut self, tool: GridTool) {
         if self.grid.tool != tool {
+            // A duplicate in flight is cancelled, not left half done.
+            self.cancel_duplicate();
             self.grid.abandon();
             // A room chosen for the Inspector gives way to the new tool's.
             self.selection.selected_room = None;
@@ -895,7 +902,8 @@ impl EditorWorkspace {
     /// The mouse cursor the active tool wants over the viewport.
     pub(crate) fn grid_cursor(&self) -> egui::CursorIcon {
         use egui::CursorIcon as C;
-        if self.grid.paste.is_some() || self.grid.plane_paste.is_some() {
+        if self.grid.paste.is_some() || self.grid.plane_paste.is_some() || self.grid.grab.is_some()
+        {
             return C::Move;
         }
         if matches!(self.grid.hover, GridHover::Grip(..)) {

@@ -24,6 +24,10 @@ const SELECT: Rows = &[
     ),
     ("Delete", "Delete the selected faces"),
     ("Ctrl/Cmd+A", "Select everything in the room"),
+    (
+        "Ctrl/Cmd+D",
+        "Duplicate the selection and carry the copy on the pointer: a light, actor, prop, mesh, plane, or cells with their heights, walls, bands and the nodes standing on them. Click drops it, Up and Down lift it a click (Alt fine), Esc leaves nothing. One undo step",
+    ),
 ];
 const FLOOR: Rows = &[
     ("Drag", "Create a rectangle of floor; the room grows to fit"),
