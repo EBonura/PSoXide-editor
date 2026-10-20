@@ -118,11 +118,11 @@ fn pick_captures() {
     look_from(
         &mut rig,
         [10.5 * s, 2400.0, 8.0 * s],
-        [10.5 * s, 1200.0, -1.0 * s],
+        [10.5 * s, 1200.0, -s],
     );
     rig.ws.set_grid_tool(GridTool::Select);
     settle(&mut rig);
-    let lower = rig.persp_screen([10.5 * s, 600.0, -1.0 * s]).unwrap();
+    let lower = rig.persp_screen([10.5 * s, 600.0, -s]).unwrap();
     rig.move_to(lower);
     settle(&mut rig);
     wire(&mut rig);
