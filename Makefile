@@ -12,7 +12,7 @@
 # SDK and engine examples are compiled individually with explicit PSX
 # cargo flags from this Makefile.
 
-.PHONY: help check test canaries fmt lint lint-policy-guard runtime-numeric-guard clean clean-guest-stage run run-fast run-release editor-ui-screenshot pgo web web-bundle web-stage-disc itch-web validate validate-repeat validate-bless \
+.PHONY: help check test canaries fmt lint lint-policy-guard runtime-numeric-guard clean clean-guest-stage run run-fast run-release editor-ui-screenshot ui-screens ui-bless pgo web web-bundle web-stage-disc itch-web validate validate-repeat validate-bless \
         test-sdk \
         psxed assets \
 	examples hello-tri hello-tri-disc hello-input hello-input-disc hello-ot hello-ot-disc \
@@ -160,6 +160,15 @@ editor-ui-screenshot:
 		$(if $(strip $(EDITOR_UI_RESOURCE)),--resource "$(EDITOR_UI_RESOURCE)",) \
 		$(if $(filter 1 true yes,$(EDITOR_UI_FRAME_SELECTED)),--frame-selected,) \
 		--out "$(EDITOR_UI_OUT)"
+
+# Golden screenshots of the grid editor (1920 x 1080, rasterised on the CPU).
+# They run with `cargo test --workspace` like any test; `ui-bless` rewrites
+# editor/crates/psxed-ui/golden/*.png after an intended layout change.
+ui-screens:
+	cargo test -p psxed-ui --lib grid_screens
+
+ui-bless:
+	PSXED_BLESS=1 cargo test -p psxed-ui --lib grid_screens
 
 run-release:
 	cd emu && cargo run -p frontend --features editor --release
