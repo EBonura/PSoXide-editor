@@ -81,14 +81,13 @@ pub enum PaintTarget {
     },
     /// A free plane.
     Plane(psxed_project::grid::edit::PlaneId),
-    /// One band of a banded wall.
+    /// One band of one wall segment: the rest of the wall's run keeps its
+    /// own paint.
     Band {
         /// The wall.
         face: FaceRef,
         /// Index of the band in the wall's set.
         band: usize,
-        /// How far the edit reaches.
-        scope: BandScope,
     },
 }
 
@@ -135,7 +134,7 @@ impl PaintGhost {
                 }
                 changed
             }
-            PaintTarget::Band { face, band, scope } => edit_bands(world, *face, *scope, |set| {
+            PaintTarget::Band { face, band } => edit_bands(world, *face, BandScope::Piece, |set| {
                 let mut changed = set.set_band_material(*band, material);
                 if !orient.is_identity() {
                     if let Some(band) = set.bands.get_mut(*band) {
@@ -203,11 +202,7 @@ impl EditorWorkspace {
             return None;
         }
         let target = match self.grid.paint.band {
-            Some((wall, band)) if faces.contains(&wall) => PaintTarget::Band {
-                face: wall,
-                band,
-                scope: self.grid.band_scope,
-            },
+            Some((wall, band)) if faces.contains(&wall) => PaintTarget::Band { face: wall, band },
             _ => PaintTarget::Faces {
                 tri: match &self.grid.hover {
                     GridHover::Face { tri, .. } => *tri,

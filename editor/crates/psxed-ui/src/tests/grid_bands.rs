@@ -200,9 +200,15 @@ fn painting_a_banded_wall_paints_the_band_under_the_pointer() {
     rig.tool(GridTool::Paint);
     // The lower band (below the line) gets the brick.
     rig.click(on_wall(&rig, 700.0));
-    let set = &rig.room(0).band_sets[0];
-    assert_eq!(set.bands[0].material, Some(brick), "{}", rig.ws.status);
-    assert_eq!(set.bands[1].material, None);
+    let own = effective_set(rig.world(), north()).unwrap().1.clone();
+    assert_eq!(own.bands[0].material, Some(brick), "{}", rig.ws.status);
+    assert_eq!(own.bands[1].material, None);
+    // Only this wall segment: the rest of the run keeps its band.
+    let next = FaceRef::derived(0, [3, 0], WallEdge::North, DerivedKind::Closure);
+    assert_eq!(
+        effective_set(rig.world(), next).unwrap().1.bands[0].material,
+        None
+    );
     // The wall itself got no override.
     assert!(rig
         .room(0)
@@ -210,7 +216,10 @@ fn painting_a_banded_wall_paints_the_band_under_the_pointer() {
         .iter()
         .all(|(_, o)| o.material.is_none()));
     rig.ws.do_undo();
-    assert_eq!(rig.room(0).band_sets[0].bands[0].material, None);
+    assert_eq!(
+        effective_set(rig.world(), north()).unwrap().1.bands[0].material,
+        None
+    );
 }
 
 fn text_of(output: &egui::FullOutput) -> String {

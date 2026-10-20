@@ -144,6 +144,7 @@ impl EditorWorkspace {
                                 "Edit just the selected run: it gets its own copy of a shared set"
                             }
                             BandScope::Room => "Edit the set in place, wherever the room uses it",
+                            BandScope::Piece => "Edit just one wall segment",
                         })
                         .clicked()
                     {

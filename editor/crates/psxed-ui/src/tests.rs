@@ -38,6 +38,8 @@ mod grid_ux;
 mod grid_verb_guide;
 mod grid_verbs;
 mod grid_walk;
+mod grid_wallfix;
+mod grid_wallfix_shots;
 mod grid_workflow;
 mod grid_world;
 mod objects_panel;

@@ -131,11 +131,7 @@ fn paint_target_at(ws: &EditorWorkspace, ptr: &GridPointer) -> Option<PaintTarge
     }
     // A banded wall paints the band under the pointer, not the wall.
     if let Some((face, band)) = super::bands_tool::band_under(ws, ptr) {
-        return Some(PaintTarget::Band {
-            face,
-            band,
-            scope: ws.grid.band_scope,
-        });
+        return Some(PaintTarget::Band { face, band });
     }
     let (faces, tri) = face_under(ws, ptr)?;
     Some(PaintTarget::Faces { faces, tri })

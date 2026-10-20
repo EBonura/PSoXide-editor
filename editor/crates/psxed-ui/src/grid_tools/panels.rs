@@ -206,7 +206,6 @@ impl EditorWorkspace {
         if faces.is_empty() && triangles.is_empty() && bands.is_empty() {
             return 0;
         }
-        let scope = self.grid.band_scope;
         let before = self.project.clone();
         let Some(world) = self.project.active_scene_mut().world.grid_mut() else {
             return 0;
@@ -219,15 +218,16 @@ impl EditorWorkspace {
         for (face, tri) in &triangles {
             changed += usize::from(set_material(world, *face, Some(*tri), Some(material)));
         }
-        // So does a selected band: the material goes into the wall's band
-        // set, on that band only.
+        // So does a selected band: the material goes into the band set of
+        // that wall segment, on that band only (the rest of the run keeps
+        // its own).
         for (face, band) in &bands {
             changed += usize::from(psxed_project::grid::edit::bands::paint_band(
                 world,
                 *face,
                 *band,
                 Some(material),
-                scope,
+                psxed_project::grid::edit::bands::BandScope::Piece,
             ));
         }
         if changed > 0 {

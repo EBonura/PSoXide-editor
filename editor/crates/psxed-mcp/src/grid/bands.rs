@@ -24,6 +24,9 @@ pub enum Scope {
     /// The set the wall uses, wherever the room uses it (and, for a wall
     /// with no bands yet, the room default).
     Room,
+    /// One wall segment: it gets a set of its own and the rest of the run
+    /// keeps what it had.
+    Piece,
 }
 
 impl From<Scope> for BandScope {
@@ -31,6 +34,7 @@ impl From<Scope> for BandScope {
         match scope {
             Scope::Run => Self::Run,
             Scope::Room => Self::Room,
+            Scope::Piece => Self::Piece,
         }
     }
 }

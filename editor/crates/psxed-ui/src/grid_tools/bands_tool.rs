@@ -387,6 +387,7 @@ fn insert(ws: &mut EditorWorkspace, at: &WallPoint, ptr: &GridPointer) {
         match scope {
             BandScope::Run => "this run",
             BandScope::Room => "the whole room",
+            BandScope::Piece => "this segment",
         },
         count
     );
@@ -543,5 +544,6 @@ pub(super) fn scope_label(scope: BandScope) -> &'static str {
     match scope {
         BandScope::Run => "This run",
         BandScope::Room => "Whole room",
+        BandScope::Piece => "This segment",
     }
 }

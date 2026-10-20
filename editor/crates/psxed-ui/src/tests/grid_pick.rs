@@ -46,12 +46,18 @@ fn banded() -> GridRig {
     rig
 }
 
+/// The materials of the bands of the north wall of cell (2, 0), as it draws
+/// them (a painted segment has a set of its own).
 fn band_materials(rig: &GridRig) -> Vec<Option<ResourceId>> {
-    rig.room(0).band_sets[0]
-        .bands
-        .iter()
-        .map(|b| b.material)
-        .collect()
+    let north = FaceRef::derived(
+        0,
+        [2, 0],
+        psxed_project::grid::WallEdge::North,
+        psxed_project::grid::derive::DerivedKind::Closure,
+    );
+    psxed_project::grid::edit::bands::effective_set(rig.world(), north)
+        .map(|(_, set)| set.bands.iter().map(|b| b.material).collect())
+        .unwrap_or_default()
 }
 
 // ---------------------------------------------------------------------

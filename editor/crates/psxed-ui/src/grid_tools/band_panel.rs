@@ -64,7 +64,7 @@ impl EditorWorkspace {
                 "{} wall segments in this run{}",
                 segments,
                 match scope {
-                    BandScope::Run => "",
+                    BandScope::Run | BandScope::Piece => "",
                     BandScope::Room => ", edits reach every wall that uses the set",
                 }
             ))
