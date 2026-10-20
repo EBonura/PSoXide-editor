@@ -262,15 +262,7 @@ fn a_cave_is_built_with_the_natural_terrain_tools_and_played() {
         "{walk}"
     );
 
-    // ---- rough rock and paint rules --------------------------------------------
-    let rough = c
-        .ok(
-            "grid_rough",
-            json!({"polygon": [[1.0, 9.0], [8.0, 5.0], [15.0, 4.0], [21.0, 9.0], [22.0, 15.0], [16.0, 20.0], [9.0, 20.0], [2.0, 16.0]],
-                   "level": 2, "seed": 3, "tint": 18}),
-        )
-        .text;
-    assert!(rough.contains("rough level 2"), "{rough}");
+    // ---- paint rules -----------------------------------------------------------
     c.ok(
         "grid_paint_rules",
         json!({"floor_by_height": {"at": [512], "materials": [GROUND, CLIFF]},
@@ -280,7 +272,6 @@ fn a_cave_is_built_with_the_natural_terrain_tools_and_played() {
     assert!(!budget.to_lowercase().contains("error"), "{budget}");
     let cook = c.ok("cook_check", json!({})).text;
     assert!(cook.starts_with("cook: OK"), "{cook}");
-    // Rough costs no primitive: the cook's counts are the unjittered level's.
     assert!(cook.contains("faces"), "{cook}");
 
     let verify = std::env::var("PSXED_MCP_VERIFY").ok();

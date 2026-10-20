@@ -66,8 +66,6 @@ mod ramp_tool;
 mod rect_tool;
 mod rooms;
 mod rooms_walls;
-mod rough_panel;
-mod rough_tool;
 mod rules_panel;
 mod select_tool;
 mod shading_panel;
@@ -137,8 +135,6 @@ pub(crate) enum GridTool {
     Spiral,
     /// Break the walls, floors and ceilings of a region into natural detail.
     Break,
-    /// Give a region the rock look: render-only jitter of its faces.
-    Rough,
     /// Subdivide cells into finer ones and merge them back.
     Cells,
     /// Insert a slab into a tall hall, or cut one out: a floor between
@@ -176,7 +172,7 @@ impl ToolGroup {
 
 impl GridTool {
     /// Every tool, in row order (grouped).
-    pub(crate) const ALL: [Self; 19] = [
+    pub(crate) const ALL: [Self; 18] = [
         Self::Select,
         Self::Height,
         Self::Floor,
@@ -189,7 +185,6 @@ impl GridTool {
         Self::Stairs,
         Self::Spiral,
         Self::Break,
-        Self::Rough,
         Self::Cells,
         Self::Slab,
         Self::Split,
@@ -199,13 +194,12 @@ impl GridTool {
     ];
 
     /// The tools the SHAPE split button holds, in its menu's order.
-    pub(crate) const SHAPES: [Self; 9] = [
+    pub(crate) const SHAPES: [Self; 8] = [
         Self::Extrude,
         Self::Ramp,
         Self::Stairs,
         Self::Spiral,
         Self::Break,
-        Self::Rough,
         Self::Cells,
         Self::Slab,
         Self::Split,
@@ -223,7 +217,6 @@ impl GridTool {
             | Self::Stairs
             | Self::Spiral
             | Self::Break
-            | Self::Rough
             | Self::Cells
             | Self::Slab
             | Self::Split => ToolGroup::Shape,
@@ -237,13 +230,7 @@ impl GridTool {
     pub(crate) const fn is_verb(self) -> bool {
         matches!(
             self,
-            Self::Extrude
-                | Self::Ramp
-                | Self::Stairs
-                | Self::Spiral
-                | Self::Break
-                | Self::Rough
-                | Self::Slab
+            Self::Extrude | Self::Ramp | Self::Stairs | Self::Spiral | Self::Break | Self::Slab
         )
     }
 
@@ -265,7 +252,6 @@ impl GridTool {
             Self::Stairs => "Stairs",
             Self::Spiral => "Spiral",
             Self::Break => "Break",
-            Self::Rough => "Rough",
             Self::Cells => "Cells",
             Self::Slab => "Upper floor",
         }
@@ -287,7 +273,6 @@ impl GridTool {
             Self::Ramp => egui::Key::A,
             Self::Stairs | Self::Spiral => egui::Key::T,
             Self::Break => egui::Key::X,
-            Self::Rough => egui::Key::M,
             Self::Cells | Self::Slab => egui::Key::Q,
         }
     }
@@ -317,7 +302,6 @@ impl GridTool {
             Self::Stairs => "T",
             Self::Spiral => "Shift+T",
             Self::Break => "X",
-            Self::Rough => "M",
             Self::Cells => "Q",
             Self::Slab => "Shift+Q",
         }
@@ -366,9 +350,6 @@ impl GridTool {
             }
             Self::Break => {
                 "Pick sectors, then press on them and drag up for the intensity: lips crumble, edges bite, tiles crack. Tab changes the target, Shift+X re-rolls the seed, Enter commits, Esc cancels."
-            }
-            Self::Rough => {
-                "Pick sectors, then press on them and drag up for the rock level (0 to 3). The faces jitter in the render only; collision stays on the grid."
             }
             Self::Cells => {
                 "Paint over the plan to subdivide cells into four finer ones; Alt merges them back. Enter and Shift+Enter subdivide and merge the Select tool's cells. [ and ] change the brush."
@@ -940,7 +921,6 @@ impl EditorWorkspace {
             | GridTool::Stairs
             | GridTool::Spiral
             | GridTool::Break
-            | GridTool::Rough
             | GridTool::Slab
                 if self.grid.verb.region.is_some() =>
             {
@@ -952,7 +932,6 @@ impl EditorWorkspace {
             | GridTool::Stairs
             | GridTool::Spiral
             | GridTool::Break
-            | GridTool::Rough
             | GridTool::Cells
             | GridTool::Slab
             | GridTool::Ceiling

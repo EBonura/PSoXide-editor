@@ -269,25 +269,11 @@ const BREAK: Rows = &[
     ("Esc", "Put the document back exactly"),
     (
         "Option row",
-        "Targets, Keep walkable (refuses changes that cut a route, make a step too tall, a floor too steep or headroom too low), Fine or Click steps, amplitude, Mix materials, rough level, seed, a typed intensity",
+        "Targets, Keep walkable (refuses changes that cut a route, make a step too tall, a floor too steep or headroom too low), Fine or Click steps, amplitude, Mix materials, Gaps, seed, a typed intensity",
     ),
     (
         "Alt+W",
         "Keeps working while you drag: the status line counts what the walkability mask refused",
-    ),
-];
-const ROUGH: Rows = &[
-    (
-        "Pick a region, press on it, drag up",
-        "The rock level, 0 to 3, about 24 pixels a level, from the level the region holds now; Enter or the release commits as one undo step, Esc puts it back",
-    ),
-    (
-        "Option row, Rooms panel",
-        "The room's seed, the three amplitudes in grid units (with the runtime units beside them, orange over 4) and the tint percent",
-    ),
-    (
-        "What it does",
-        "Jitters the corners of the faces of rough sectors in the render only; collision stays on the grid",
     ),
 ];
 const SPIRAL: Rows = &[
@@ -453,7 +439,7 @@ impl EditorWorkspace {
             return;
         }
         let mut open = true;
-        let sections: [(&str, Rows); 20] = [
+        let sections: [(&str, Rows); 19] = [
             ("Select (V)", SELECT),
             ("Floor (F) and Ceiling (C)", FLOOR),
             ("Wall (W)", WALL),
@@ -467,7 +453,6 @@ impl EditorWorkspace {
             ("Stairs (T)", STAIRS),
             ("Spiral (Shift+T)", SPIRAL),
             ("Break (X)", BREAK),
-            ("Rough (M)", ROUGH),
             ("Cells (Q)", CELLS),
             ("Upper floor (Shift+Q) and storeys", SLAB),
             ("Overlays", OVERLAYS),
@@ -484,11 +469,11 @@ impl EditorWorkspace {
             .show(ctx, |ui| {
                 ui.set_width(1500.0_f32.min(ctx.screen_rect().width() - 60.0));
                 ui.label(
-                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, Shift+N Mesh, P Paint, D Diagonal, O Place, E Bands | U Extrude, A Ramp, T Stairs, Shift+T Spiral, X Break, M Rough, Q Cells, Shift+Q Upper floor | Shift+M Merge (Select, Bands, Cells) | Alt+Up/Down| Alt+Up/Down storey, G go to storey, Z cutaway")
+                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, Shift+N Mesh, P Paint, D Diagonal, O Place, E Bands | U Extrude, A Ramp, T Stairs, Shift+T Spiral, X Break, Q Cells, Shift+Q Upper floor | Shift+M Merge (Select, Bands, Cells) | Alt+Up/Down| Alt+Up/Down storey, G go to storey, Z cutaway")
                         .color(STUDIO_TEXT_WEAK),
                 );
                 ui.label(
-                    RichText::new("Cell size (option row of Floor, Ceiling, Wall, Extrude, Ramp, Stairs, Break, Rough): Sector by default. 1/2 and 1/4 snap these tools to half and quarter sectors, splitting bigger cells to fit. Changing it drops the region you picked.")
+                    RichText::new("Cell size (option row of Floor, Ceiling, Wall, Extrude, Ramp, Stairs, Break): Sector by default. 1/2 and 1/4 snap these tools to half and quarter sectors, splitting bigger cells to fit. Changing it drops the region you picked.")
                         .color(STUDIO_TEXT_WEAK),
                 );
                 ui.add_space(4.0);

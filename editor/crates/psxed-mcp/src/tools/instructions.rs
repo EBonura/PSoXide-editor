@@ -20,7 +20,7 @@ ACT. In a derived room (every new one) walls come from height differences: a pla
 \n\
 STOREYS. A column of the world can hold several floors. A storey is a floor height eight or more sectors share, read from the document (grid_storeys). Surface and level tools take y or storey to edit one floor of a column; a column of several floors refuses an edit with no aim. A room with storeys stays whole sectors: its cells cannot be divided.\n\
 \n\
-NATURAL TERRAIN (caves, canyons, rock). Build the outline, shape the floor profile, break, rough, then grid_walkability, screenshot from several poses, and playtest a route.\n\
+NATURAL TERRAIN (caves, canyons, rock). Build the outline, shape the floor profile, break, then grid_walkability, screenshot from several poses, and playtest a route.\n\
 \n\
 VERIFY. screenshot renders the staged document (saved or not) from up to 8 poses: an eye position plus look_at, or an orbit around a point or node. playtest cooks a real disc and plays it headlessly; with a route (legs of stick, camera and button input) it walks a path, returns frames along it and summarises frame cost. Use grid_plan for layout and screenshot for mood and scale.\n\
 \n\

@@ -1,5 +1,5 @@
 //! The natural terrain tools through the editor: voiding and cracking a
-//! triangle, the lasso, Break and Rough, in both views, with exact cancel
+//! triangle, the lasso and Break, in both views, with exact cancel
 //! and one undo step each.
 
 use super::grid_derived::derived_project_for_tiling;
@@ -286,8 +286,6 @@ fn cut_corners_cracks_the_convex_corners_of_the_region_in_one_undo_step() {
 
 /// Pixels of upward travel for one percent of Break intensity.
 const BREAK_PX: f32 = 2.0;
-/// Pixels for one Rough level.
-const ROUGH_PX: f32 = 24.0;
 
 /// A Top rig on the hall with the Break tool and the region (1,1) to (6,6).
 fn break_rig(label: &str) -> GridRig {
@@ -504,88 +502,6 @@ fn the_break_pose_puts_a_seeded_drag_in_flight_and_the_status_names_it() {
 }
 
 #[test]
-fn rough_levels_follow_the_drag_and_one_undo_puts_everything_back() {
-    let mut rig = GridRig::top("natural-rough", hall());
-    let original = rig.ws.project.clone();
-    rig.tool(GridTool::Rough);
-    rig.drag(rig.cell_centre(2, 2), rig.cell_centre(3, 3));
-    assert_eq!(rig.ws.grid.verb.region.as_ref().map(|r| r.len()), Some(4));
-    let level = |rig: &GridRig, cell: [i32; 2]| {
-        let r = rig.room(0);
-        let [x, z] = r.local(cell).unwrap();
-        r.sector(x, z).unwrap().rough
-    };
-    let from = rig.cell_centre(2, 2);
-    // Two levels up.
-    rig.drag_hold(
-        from,
-        from - Vec2::new(0.0, 2.0 * ROUGH_PX),
-        egui::Modifiers::NONE,
-    );
-    assert_eq!(level(&rig, [2, 2]), 2, "{}", rig.ws.status);
-    assert_eq!(level(&rig, [3, 3]), 2);
-    assert_eq!(level(&rig, [4, 4]), 0);
-    // The room got default amplitudes for the first rough level.
-    assert!(rig.room(0).rough.jitters());
-    // More than the top is held to level 3.
-    rig.move_to(from - Vec2::new(0.0, 6.0 * ROUGH_PX), egui::Modifiers::NONE);
-    assert_eq!(level(&rig, [2, 2]), 3);
-    // Back to the start: nothing changed at all.
-    rig.move_to(from, egui::Modifiers::NONE);
-    assert_eq!(rig.ws.project, original);
-    rig.move_to(from - Vec2::new(0.0, ROUGH_PX), egui::Modifiers::NONE);
-    assert_eq!(level(&rig, [2, 2]), 1);
-    rig.release(from - Vec2::new(0.0, ROUGH_PX), egui::Modifiers::NONE);
-    assert!(matches!(rig.ws.grid.gesture, Gesture::Idle));
-    // One undo step, amplitudes included.
-    rig.ws.do_undo();
-    assert_eq!(rig.ws.project, original);
-    rig.ws.do_redo();
-    assert_eq!(level(&rig, [3, 2]), 1);
-    // The next drag starts from the level the region holds: down one clears.
-    rig.drag(from, from + Vec2::new(0.0, ROUGH_PX));
-    assert_eq!(level(&rig, [2, 2]), 0, "{}", rig.ws.status);
-}
-
-#[test]
-fn escape_restores_a_rough_drag_exactly_and_the_pose_shows_one() {
-    let mut rig = GridRig::top("natural-rough-esc", hall());
-    let original = rig.ws.project.clone();
-    rig.ws
-        .apply_grid_pose("region=2,2:4,4;rough-drag=3")
-        .unwrap();
-    assert_eq!(rig.ws.grid.tool, GridTool::Rough);
-    assert!(matches!(rig.ws.grid.gesture, Gesture::Verb(_)));
-    assert!(rig.room(0).rough.jitters());
-    assert!(rig.ws.status.contains("Rough level 3"), "{}", rig.ws.status);
-    rig.key(egui::Key::Escape);
-    assert_eq!(rig.ws.project, original);
-}
-
-#[test]
-fn the_rough_settings_edit_through_set_params_in_the_rooms_panel_and_the_option_row() {
-    use super::grid_ui::{draw_editor, full_context};
-    let ctx = full_context();
-    let mut ws = EditorWorkspace::with_project(test_temp_dir("natural-rough-ui"), hall());
-    ws.last_viewport_size = Vec2::new(1200.0, 700.0);
-    ws.set_grid_tool(GridTool::Rough);
-    let output = draw_editor(&mut ws, &ctx, true);
-    let text = text_of(&output);
-    assert!(text.contains("Seed"), "{text}");
-    assert!(text.contains("Tint"), "{text}");
-    assert!(text.contains("Rough"), "{text}");
-    // The settings themselves go through the edit function.
-    let world = ws.project.active_scene_mut().world.grid_mut().unwrap();
-    assert!(psxed_project::grid::edit::rough::set_params(
-        world,
-        0,
-        Some(9),
-        Some([5, 10, 60]),
-        Some(30)
-    ));
-}
-
-#[test]
 fn the_help_page_names_the_natural_terrain_keys() {
     use super::grid_ui::{draw_editor_sized, full_context};
     let ctx = full_context();
@@ -601,14 +517,13 @@ fn the_help_page_names_the_natural_terrain_keys() {
     ));
     for needle in [
         "Break (X)",
-        "Rough (M)",
         "Shift+X",
         "Tab",
         "Diagonal: Shift+click",
         "Alt+drag a floor or ceiling face",
         "Lasso: click corners, Enter",
         "Cut corners",
-        "X Break, M Rough",
+        "X Break",
         "S B K I Y G",
     ] {
         assert!(text.contains(needle), "{needle}:\n{text}");
@@ -616,24 +531,21 @@ fn the_help_page_names_the_natural_terrain_keys() {
 }
 
 #[test]
-fn the_strip_has_break_and_rough_in_the_shape_group_with_their_keys() {
+fn the_strip_has_break_in_the_shape_group_and_rough_is_gone() {
     use crate::grid_tools::ToolGroup;
     assert_eq!(GridTool::Break.label(), "Break");
-    assert_eq!(GridTool::Rough.label(), "Rough");
     assert_eq!(GridTool::Break.group(), ToolGroup::Shape);
-    assert_eq!(GridTool::Rough.group(), ToolGroup::Shape);
     assert_eq!(GridTool::Break.key(), egui::Key::X);
-    assert_eq!(GridTool::Rough.key(), egui::Key::M);
-    assert!(GridTool::Break.is_verb() && GridTool::Rough.is_verb());
-    // The keys switch tools, in the Top view rig.
+    assert!(GridTool::Break.is_verb());
+    // The keys switch tools, in the Top view rig; M (it was Rough) is free.
     let mut rig = GridRig::top("natural-keys", hall());
     rig.key(egui::Key::X);
     assert_eq!(rig.ws.grid.tool, GridTool::Break);
     rig.key(egui::Key::M);
-    assert_eq!(rig.ws.grid.tool, GridTool::Rough);
-    // The poses parse the labels.
+    assert_eq!(rig.ws.grid.tool, GridTool::Break);
+    // The poses parse the labels, and no longer know the old one.
     rig.ws.apply_grid_pose("tool=break").unwrap();
     assert_eq!(rig.ws.grid.tool, GridTool::Break);
-    rig.ws.apply_grid_pose("tool=rough").unwrap();
-    assert_eq!(rig.ws.grid.tool, GridTool::Rough);
+    assert!(rig.ws.apply_grid_pose("tool=rough").is_err());
+    assert!(GridTool::ALL.iter().all(|t| t.label() != "Rough"));
 }

@@ -1,13 +1,12 @@
-//! The rock look: Break, Rough and the paint rules.
+//! The rock look: Break and the paint rules.
 //!
 //! Wrappers over `psxed_project::grid::edit::verbs::break_verb`,
-//! `edit::rough` and `PaintRules`, the functions the editor's gestures call.
+//! and `PaintRules`, the functions the editor's gestures call.
 
 use std::fmt::Write as _;
 
 use psxed_project::grid::cook::collision as cook_collision;
 use psxed_project::grid::edit::outline::polygon_cells;
-use psxed_project::grid::edit::rough as edit_rough;
 use psxed_project::grid::edit::verbs::break_verb::{
     BreakDrag, BreakParams, BreakReport, BreakSnap, BreakStyle, BreakTargets, WalkCount,
     DEFAULT_INTENSITY,
@@ -157,8 +156,6 @@ pub struct BreakReq {
     /// Let a break at intensity 70 and up turn whole floor cells into gaps
     /// (default false: a break never opens see-through holes unasked).
     pub gaps: Option<bool>,
-    /// Give every broken sector this rough level (0 to 3, default 0).
-    pub jitter: Option<u8>,
     /// Compute and report, change nothing.
     pub dry_run: Option<bool>,
     /// Restore the checkpoint the last break took and break again with the
@@ -246,7 +243,6 @@ pub fn plan_break(
             Some(other) => return Err(format!("unknown materials {other:?}; use keep or mix")),
         },
         gaps: req.gaps.unwrap_or(false),
-        jitter: req.jitter.unwrap_or(0).min(3),
         limits: WalkLimits::DEFAULT,
     };
     Ok(BreakPlan {
@@ -396,80 +392,6 @@ fn describe(
         let _ = write!(out, "\n{note}");
     }
     out
-}
-
-/// Paint the rough level of a region and set the room's jitter.
-#[derive(Debug, Deserialize, JsonSchema)]
-pub struct RoughReq {
-    /// Scene index. Omit for the first scene with a grid world.
-    pub scene: Option<usize>,
-    /// Room index. Required when the world has several rooms.
-    pub room: Option<usize>,
-    /// The region: `from`/`to`, `brush`, `path` or `polygon`. Omit it to only
-    /// change the room's settings.
-    #[serde(flatten)]
-    pub region: RegionReq,
-    /// 0 to 3: how rough those sectors are (0 smooths them). Level 1, 2 and 3
-    /// displace the corners of every face that meets at a lattice point near
-    /// them by up to the room's amplitude for that level.
-    pub level: Option<u8>,
-    /// The room's seed for the jitter and the tint noise.
-    pub seed: Option<u16>,
-    /// The room's amplitudes at levels 1, 2 and 3 in GRID units either way
-    /// (default 1, 2 and 4 runtime units). More than a third of the
-    /// character's radius is a validation warning: collision stays on the
-    /// grid, so the rock would clip the model.
-    pub amp: Option<[u8; 3]>,
-    /// Brightness noise on rough faces, percent either way (0 to 100).
-    pub tint: Option<u8>,
-}
-
-/// Apply [`RoughReq`].
-pub fn rough(world: &mut GridWorld, req: &RoughReq) -> Result<String, String> {
-    let room = pick_room(world, req.room)?;
-    let has_region = req.region.from.is_some()
-        || req.region.brush.is_some()
-        || req.region.path.is_some()
-        || req.region.polygon.is_some();
-    if !has_region && req.level.is_some() {
-        return Err("level needs a region (from, brush, path or polygon)".to_string());
-    }
-    if !has_region && req.seed.is_none() && req.amp.is_none() && req.tint.is_none() {
-        return Err("give a region and level, or seed, amp or tint".to_string());
-    }
-    let mut out = String::new();
-    if let Some(level) = req.level {
-        let region = req.region.region(room)?;
-        let cells: Vec<[i32; 2]> = region.cells().collect();
-        let changed = if region.is_fine(world) {
-            cells
-                .iter()
-                .map(|c| edit_rough::set_level_cells(world, room, region.level(), *c, *c, level))
-                .sum()
-        } else {
-            edit_rough::set_level(world, room, &cells, level)
-        };
-        let _ = write!(
-            out,
-            "room {room}: {changed} of {} sector(s) set to rough level {}",
-            cells.len(),
-            level.min(3)
-        );
-    }
-    let set = edit_rough::set_params(world, room, req.seed, req.amp, req.tint);
-    let r = &world.rooms[room].rough;
-    if set || out.is_empty() {
-        if !out.is_empty() {
-            out.push('\n');
-        }
-        let _ = write!(
-            out,
-            "room {room} rough settings: seed {}, amplitude {:?} grid units at levels 1/2/3, tint {}%",
-            r.seed, r.amp, r.tint
-        );
-    }
-    out.push_str("\nRender only: collision is not moved, so keep amplitudes under a third of the character's radius (4 runtime units). The preview and Play show the same jitter.");
-    Ok(out)
 }
 
 /// A material per height band.

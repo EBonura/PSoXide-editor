@@ -132,7 +132,6 @@ impl EditorWorkspace {
             | GridTool::Stairs
             | GridTool::Spiral
             | GridTool::Break
-            | GridTool::Rough
             | GridTool::Slab => self.draw_verb_options(ui),
             GridTool::Cells => self.draw_cells_options(ui),
             GridTool::Bands => {
@@ -376,7 +375,6 @@ impl EditorWorkspace {
             GridTool::Stairs => "Drag a rectangle | Press on it, drag up | R turn the bottom side | Path: click waypoints, Enter, [ ] width | Tab steps/ramp | Esc cancel",
             GridTool::Spiral => "Click the corners of a ring, Enter closes it | Press on it, drag up for the climb of a storey | Storeys in the option row | Alt+Up/Down level | Esc cancel",
             GridTool::Break => "Pick sectors | Press on them, drag up for intensity | Tab target | Shift+X re-roll | Enter commit | Esc cancel",
-            GridTool::Rough => "Pick sectors | Press on them, drag up for the level 0-3 | Enter commit | Esc cancel",
             GridTool::Slab => "Pick sectors | Add floor above: press on them and drag up for the height | Remove upper floor, Fill opening: click them | Tab mode | Alt+Up/Down level | G go to level | Z cutaway | Esc cancel",
             GridTool::Cells => "Paint to subdivide | Alt+paint merges | [ ] brush | Enter / Shift+Enter subdivide / merge the selection | Alt+L cell sizes",
             GridTool::Place => "Click to place at the sector centre | Shift+click keeps placing | Alt 64 | Shift+Alt free",

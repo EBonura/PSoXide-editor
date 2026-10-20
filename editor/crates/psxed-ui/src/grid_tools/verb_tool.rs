@@ -391,12 +391,12 @@ pub(super) fn click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     }
 }
 
-/// Enter during a Break or Rough drag: commit it where it is (the release
+/// Enter during a Break drag: commit it where it is (the release
 /// that follows does nothing more). Returns whether there was one.
 fn commit_live(ws: &mut EditorWorkspace) -> bool {
     let live = matches!(
         &ws.grid.gesture,
-        Gesture::Verb(g) if matches!(g.drag, VerbDrag::Break(_) | VerbDrag::Rough(_))
+        Gesture::Verb(g) if matches!(g.drag, VerbDrag::Break(_))
     );
     if live {
         ws.grid.gesture = Gesture::Idle;
@@ -439,11 +439,7 @@ pub(super) fn cancel(ws: &mut EditorWorkspace) -> bool {
                     ws.project = *live.start;
                     ws.grid_changed();
                 }
-                VerbDrag::Rough(live) if live.recorded() => {
-                    ws.project = *live.start;
-                    ws.grid_changed();
-                }
-                VerbDrag::Break(_) | VerbDrag::Rough(_) => {}
+                VerbDrag::Break(_) => {}
                 // A slab drag records its change at once, whatever the amount.
                 VerbDrag::Slab(_) => {
                     if g.before.is_none() {
@@ -518,7 +514,6 @@ fn begin_amount(ws: &mut EditorWorkspace, ptr: &GridPointer, room: usize, cell: 
         GridTool::Stairs => super::stairs_tool::begin(ws, ptr, room, cell),
         GridTool::Spiral => super::spiral_tool::begin(ws, ptr, room, cell),
         GridTool::Break => super::break_tool::begin(ws, ptr, room, cell),
-        GridTool::Rough => super::rough_tool::begin(ws, ptr, room, cell),
         // Cut and Fill are clicks on the region: a press starts a new one.
         GridTool::Slab if ws.grid.verb.slab.mode != super::slab_tool::SlabMode::Insert => {
             Begin::NotApplicable
@@ -675,7 +670,6 @@ fn update_amount(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     };
     let mut amount = match &g.drag {
         VerbDrag::Break(_) => super::break_tool::intensity_at(&g, ptr),
-        VerbDrag::Rough(live) => super::rough_tool::level_at(&g, live, ptr),
         VerbDrag::Wall(live) => live.steps_at(ptr),
         _ => snapped_amount(&g, ptr),
     };
@@ -697,11 +691,10 @@ pub(super) fn apply_amount(ws: &mut EditorWorkspace, g: &mut VerbGesture) {
     if let Some(before) = g.before.take() {
         ws.history.record(*before);
     }
-    // Break and Rough keep the document they started from (for the exact
-    // cancel) and record it for undo at their first change.
+    // Break keeps the document it started from (for the exact cancel) and
+    // records it for undo at its first change.
     let first = match &mut g.drag {
         VerbDrag::Break(live) => live.take_record(),
-        VerbDrag::Rough(live) => live.take_record(),
         _ => None,
     };
     if let Some(document) = first {
@@ -826,7 +819,6 @@ pub(super) fn apply_amount(ws: &mut EditorWorkspace, g: &mut VerbGesture) {
             detail = Some(longer);
             line
         }
-        VerbDrag::Rough(live) => super::rough_tool::apply(world, live, amount),
         VerbDrag::Slab(live) => super::slab_tool::apply(world, live, amount),
     });
     let aimed = match result {
@@ -1003,7 +995,6 @@ pub(super) fn adjust_size(ws: &mut EditorWorkspace, delta: i32) {
 pub(crate) fn apply_typed(ws: &mut EditorWorkspace) {
     match ws.grid.tool {
         GridTool::Break => return super::break_tool::apply_typed(ws),
-        GridTool::Rough => return super::rough_tool::apply_typed(ws),
         GridTool::Slab => return super::slab_tool::apply_typed(ws),
         _ => {}
     }

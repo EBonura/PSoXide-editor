@@ -79,7 +79,6 @@ impl EditorWorkspace {
             GridTool::Stairs => self.draw_stairs_options(ui),
             GridTool::Spiral => self.draw_spiral_options(ui),
             GridTool::Break => return self.draw_break_options(ui),
-            GridTool::Rough => return self.draw_rough_options(ui),
             GridTool::Slab => return self.draw_slab_options(ui),
             _ => {}
         }
@@ -138,8 +137,8 @@ impl EditorWorkspace {
         }
     }
 
-    /// Break: targets, keep walkable, snap, amplitude, material mix, rough
-    /// level, the seed and a typed intensity.
+    /// Break: targets, keep walkable, snap, amplitude, material mix, gaps,
+    /// the seed and a typed intensity.
     fn draw_break_options(&mut self, ui: &mut egui::Ui) {
         use psxed_project::grid::edit::verbs::break_verb::BreakSnap;
         ui.label(RichText::new("Break").color(STUDIO_TEXT_WEAK).size(11.0));
@@ -186,12 +185,6 @@ impl EditorWorkspace {
         ui.checkbox(&mut brk.gaps, "Gaps").on_hover_text(
             "Let a high intensity (70 and up) turn whole floor cells into see-through holes. Off by default: a break never leaves holes unless you ask",
         );
-        ui.add(
-            egui::DragValue::new(&mut brk.jitter)
-                .range(0..=3)
-                .prefix("rough "),
-        )
-        .on_hover_text("Give the broken sectors this rough level (0 leaves them smooth)");
         ui.separator();
         ui.add(egui::DragValue::new(&mut brk.seed).speed(1).prefix("seed "))
             .on_hover_text("Same seed, same result. Shift+X draws the next one");
@@ -223,33 +216,6 @@ impl EditorWorkspace {
         if ui
             .add_enabled(has_region, egui::Button::new("Apply"))
             .on_hover_text("Break the region at the typed intensity as one undo step")
-            .clicked()
-        {
-            super::verb_tool::apply_typed(self);
-        }
-    }
-
-    /// Rough: the room's seed, amplitudes and tint, and a typed level.
-    fn draw_rough_options(&mut self, ui: &mut egui::Ui) {
-        let room = self
-            .grid
-            .verb
-            .region
-            .as_ref()
-            .map_or_else(|| self.grid_target_room(), |r| r.room);
-        ui.label(RichText::new("Room").color(STUDIO_TEXT_WEAK).size(11.0));
-        self.draw_rough_params(ui, room, true);
-        ui.separator();
-        let has_region = self.grid.verb.region.is_some();
-        ui.add(
-            egui::DragValue::new(&mut self.grid.verb.rough.typed_level)
-                .range(0..=3)
-                .prefix("level "),
-        )
-        .on_hover_text("A typed rough level, 0 to 3");
-        if ui
-            .add_enabled(has_region, egui::Button::new("Apply"))
-            .on_hover_text("Give the region the typed level as one undo step")
             .clicked()
         {
             super::verb_tool::apply_typed(self);
@@ -568,9 +534,6 @@ impl EditorWorkspace {
                             "not checked"
                         }
                     ));
-                }
-                if self.grid.tool == GridTool::Rough {
-                    ui.label("Drag up for rougher: levels 0 to 3, render only");
                 }
                 let name = self
                     .grid

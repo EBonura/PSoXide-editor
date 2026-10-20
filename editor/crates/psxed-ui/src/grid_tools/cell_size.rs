@@ -57,7 +57,6 @@ pub(crate) const fn takes_size(tool: GridTool) -> bool {
             | GridTool::Ramp
             | GridTool::Stairs
             | GridTool::Break
-            | GridTool::Rough
     )
 }
 

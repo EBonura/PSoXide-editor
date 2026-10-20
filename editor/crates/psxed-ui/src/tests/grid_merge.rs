@@ -77,7 +77,7 @@ fn shift_m_in_the_bands_tool_removes_the_selected_cut_as_one_undo_step() {
     let mut rig = cut_wall();
     let cut = rig.ws.project.clone();
     shift_m(&mut rig);
-    assert_eq!(rig.ws.grid.tool, GridTool::Bands, "M is not the Rough tool");
+    assert_eq!(rig.ws.grid.tool, GridTool::Bands, "M does not pick a tool");
     for x in 0..5 {
         assert_eq!(lines(&rig, x), Vec::<Anchor>::new(), "cell {x}");
         assert_eq!(faces_on_north(&rig, x), 1, "cell {x}");

@@ -138,7 +138,7 @@ fn verbs_walls_and_floors_work_on_cells_smaller_than_a_sector() {
         )
         .text;
     assert!(r.contains("4 step(s)"), "{r}");
-    // Raise two half cells, rough a quarter, break a few.
+    // Raise two half cells, break a few.
     let r = c
         .ok(
             "grid_raise",
@@ -146,13 +146,6 @@ fn verbs_walls_and_floors_work_on_cells_smaller_than_a_sector() {
         )
         .text;
     assert!(r.contains("cell(s) of half"), "{r}");
-    let r = c
-        .ok(
-            "grid_rough",
-            json!({"from": [30, 30], "to": [31, 31], "size": "quarter", "level": 2}),
-        )
-        .text;
-    assert!(r.contains("rough level 2"), "{r}");
     let r = c
         .ok(
             "grid_break",

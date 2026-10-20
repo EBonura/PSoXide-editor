@@ -83,8 +83,6 @@ pub(crate) struct BreakOptions {
     pub mix_materials: bool,
     /// Let a high intensity turn whole cells into gaps (off by default).
     pub gaps: bool,
-    /// The rough level (0 to 3) given to broken sectors.
-    pub jitter: u8,
     /// The seed of the next break; Shift+X draws the next one.
     pub seed: u32,
     /// The typed intensity of the option row's Apply.
@@ -100,7 +98,6 @@ impl Default for BreakOptions {
             amplitude: 4,
             mix_materials: false,
             gaps: false,
-            jitter: 0,
             seed: 1,
             typed_intensity: DEFAULT_INTENSITY,
         }
@@ -120,7 +117,6 @@ impl BreakOptions {
         self.amplitude = look.amplitude;
         self.mix_materials = look.mix_materials;
         self.gaps = look.gaps;
-        self.jitter = look.jitter;
         self.typed_intensity = style.intensity();
     }
 
@@ -201,7 +197,6 @@ fn params(ws: &EditorWorkspace, world: &GridWorld) -> BreakParams {
         spawns: walk::player_spawns(&ws.project, world),
         mix_materials: o.mix_materials,
         gaps: o.gaps,
-        jitter: o.jitter.min(3),
         limits: WalkLimits::DEFAULT,
     }
 }

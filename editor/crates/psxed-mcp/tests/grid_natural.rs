@@ -262,28 +262,8 @@ fn break_rough_and_paint_rules_work_through_the_tools_and_reroll_is_deterministi
     c.ok("restore", json!({"name": "before-break"}));
     assert_eq!(heights(&mut c), flat);
 
-    // Rough: levels over a region and the room settings.
-    let rough = c
-        .ok(
-            "grid_rough",
-            json!({"brush": {"centre": [6, 6], "radius": 2}, "level": 2, "seed": 5, "tint": 20}),
-        )
-        .text;
-    assert!(rough.contains("rough level 2"), "{rough}");
-    assert!(rough.contains("tint 20%"), "{rough}");
-    let budget = c.ok("grid_budget", json!({})).text;
-    assert!(
-        !budget.contains("rough jitter"),
-        "default amplitudes are within the cap: {budget}"
-    );
-    let big = c.ok("grid_rough", json!({"amp": [20, 40, 80]})).text;
-    assert!(big.contains("[20, 40, 80]"), "{big}");
-    let budget = c.ok("grid_budget", json!({})).text;
-    assert!(
-        budget.contains("rough jitter"),
-        "an over-large jitter warns: {budget}"
-    );
-    c.ok("grid_rough", json!({"amp": [13, 26, 51]}));
+    // The removed Rough tool is gone from the server.
+    assert!(c.call("grid_rough", json!({})).is_err());
     let cook = c.ok("cook_check", json!({})).text;
     assert!(!cook.to_lowercase().contains("error"), "{cook}");
 

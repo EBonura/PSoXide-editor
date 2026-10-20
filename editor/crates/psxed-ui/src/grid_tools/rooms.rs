@@ -183,8 +183,8 @@ impl EditorWorkspace {
         self.status = format!("Selected room {index}");
     }
 
-    /// The Inspector of a room: its name, light, fog, walls, paint rules and
-    /// roughness.
+    /// The Inspector of a room: its name, light, fog, walls, and paint
+    /// rules.
     pub(crate) fn draw_grid_room_inspector(&mut self, ui: &mut egui::Ui, room: usize) {
         let Some(r) = self
             .project
@@ -270,16 +270,6 @@ impl EditorWorkspace {
             false,
             |ui| {
                 self.draw_grid_room_rules(ui, room);
-            },
-        );
-        inspector_section(
-            ui,
-            ("room-rough", room),
-            icons::TRENDING_UP,
-            "Rough",
-            false,
-            |ui| {
-                self.draw_grid_room_rough(ui, room);
             },
         );
     }

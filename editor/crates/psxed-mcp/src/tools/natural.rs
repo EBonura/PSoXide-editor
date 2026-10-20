@@ -1,11 +1,11 @@
-//! Natural terrain: cracks, voids, wall heights, outlines, break and rough.
+//! Natural terrain: cracks, voids, wall heights, outlines and break.
 
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::CallToolResult;
 use rmcp::ErrorData;
 
 use psxed_mcp::grid::natural::{self, ChamferReq, CrackReq, PolygonReq, SetWallReq, VoidReq};
-use psxed_mcp::grid::rock::{self, BreakReq, PaintRulesReq, RoughReq, BREAK_CHECKPOINT};
+use psxed_mcp::grid::rock::{self, BreakReq, PaintRulesReq, BREAK_CHECKPOINT};
 use psxed_mcp::grid::Materials;
 
 use super::EditorServer;
@@ -134,16 +134,6 @@ impl EditorServer {
             ) + &Self::staged_note(workspace))
         })?;
         Ok(super::text_result(text))
-    }
-
-    #[rmcp::tool(
-        description = "Make rock rough: render-only jitter that turns straight walls into rock. level 0 to 3 over a region (from/to, brush, path or polygon) displaces, by up to the room's amplitude for that level, the plan position of every face corner that meets at a lattice point touching those sectors, the same way in the preview and in Play and watertight (heights are never moved, a vertical edge shifts rigidly). Collision is not moved, so amplitudes above a third of the character's radius (4 runtime units, the default top level) are a validation warning. seed changes the pattern, amp sets the amplitudes at levels 1, 2, 3 in grid units, tint adds brightness noise (percent) to rough faces. Omit the region to change only the room's settings."
-    )]
-    async fn grid_rough(
-        &self,
-        Parameters(req): Parameters<RoughReq>,
-    ) -> Result<CallToolResult, ErrorData> {
-        self.grid_edit(req.scene, "grid_rough", |world, _| rock::rough(world, &req))
     }
 
     #[rmcp::tool(

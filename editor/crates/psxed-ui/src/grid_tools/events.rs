@@ -168,7 +168,6 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
             | GridTool::Stairs
             | GridTool::Spiral
             | GridTool::Break
-            | GridTool::Rough
             | GridTool::Slab,
             Ev::Hover,
         ) => verb_tool::hover(ws, &ptr),
@@ -178,7 +177,6 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
             | GridTool::Stairs
             | GridTool::Spiral
             | GridTool::Break
-            | GridTool::Rough
             | GridTool::Slab,
             Ev::Press,
         ) => verb_tool::press(ws, &ptr),
@@ -188,7 +186,6 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
             | GridTool::Stairs
             | GridTool::Spiral
             | GridTool::Break
-            | GridTool::Rough
             | GridTool::Slab,
             Ev::Drag,
         ) => verb_tool::drag(ws, &ptr),
@@ -198,7 +195,6 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
             | GridTool::Stairs
             | GridTool::Spiral
             | GridTool::Break
-            | GridTool::Rough
             | GridTool::Slab,
             Ev::Release,
         ) => verb_tool::release(ws, &ptr),
@@ -208,7 +204,6 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
             | GridTool::Stairs
             | GridTool::Spiral
             | GridTool::Break
-            | GridTool::Rough
             | GridTool::Slab,
             Ev::Click,
         ) => verb_tool::click(ws, &ptr),

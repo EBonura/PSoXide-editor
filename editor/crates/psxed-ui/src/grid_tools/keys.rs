@@ -18,7 +18,7 @@ use super::{
 /// Keys the level verbs still to come (design: `docs/grid/level-tools-design.md`,
 /// 7.12) will take, kept free of other meanings now: S Sculpt, B Room,
 /// K Corridor, I Opening, Y Stamps, J Vault. U Raise, A Ramp and T Stairs are
-/// tools now, and so are X Break and M Rough; E is the Bands tool and N the
+/// tools now, and so is X Break; E is the Bands tool and N the
 /// Plane tool, Q the Cells tool and Shift+Q the Upper floor tool; G goes to a level
 /// and Z switches the cutaway. Alt+W, Alt+P and Alt+L are the overlays.
 #[cfg(test)]
@@ -174,7 +174,7 @@ impl EditorWorkspace {
         // drag is making.
         let may_choose = !ctx.input(|i| i.pointer.any_down());
         // Shift+M is Merge in the tools that split things (before the tool
-        // keys, which would take the M for the Rough tool whatever Shift
+        // keys, which would take the M for a tool key whatever Shift
         // says).
         if may_choose
             && matches!(
@@ -360,7 +360,6 @@ mod tests {
             (GridTool::Bands, egui::Key::E),
             (GridTool::Plane, egui::Key::N),
             (GridTool::Break, egui::Key::X),
-            (GridTool::Rough, egui::Key::M),
             (GridTool::Cells, egui::Key::Q),
             (GridTool::Slab, egui::Key::Q),
             (GridTool::Spiral, egui::Key::T),
