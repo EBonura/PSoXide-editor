@@ -221,6 +221,11 @@ impl EditorWorkspace {
             let turn = !turn_back && pressed(ctx, egui::Key::R);
             let flip_v = pressed_shift(ctx, egui::Key::F);
             let flip_h = !flip_v && pressed(ctx, egui::Key::F);
+            // `]` draws the paint bigger, `[` smaller (1/4x, 1/2x, 1x, 2x,
+            // 4x). Taken here, before the height nudge those keys have in
+            // the other tools.
+            let smaller = pressed(ctx, egui::Key::OpenBracket);
+            let bigger = pressed(ctx, egui::Key::CloseBracket);
             if may_choose {
                 if turn_back || turn {
                     self.paint_turn(turn);
@@ -228,6 +233,22 @@ impl EditorWorkspace {
                 if flip_h || flip_v {
                     self.paint_flip(usize::from(flip_v));
                 }
+                if smaller {
+                    self.paint_zoom(-1);
+                }
+                if bigger {
+                    self.paint_zoom(1);
+                }
+            }
+        }
+        // Select: `=` scales the selected faces up a step, `-` down (the
+        // keys the Mesh tool scales with; the brackets nudge the height).
+        if self.grid.tool == GridTool::Select && may_choose {
+            if pressed(ctx, egui::Key::Equals) {
+                self.zoom_selection(1);
+            }
+            if pressed(ctx, egui::Key::Minus) {
+                self.zoom_selection(-1);
             }
         }
         // With the free camera's look button held, W and D fly the camera.

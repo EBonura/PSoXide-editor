@@ -17,13 +17,15 @@ const MAX_FIT_TILES: f32 = 16.0;
 /// `report` describes the current setting on the selected face.
 ///
 /// A plane passes its legacy mapping as `plane`: its two stock mappings (Tile
-/// and Stretch, the same as World at the default density and Fit 1x1) stand
-/// in for "Default".
+/// and Stretch, the same as World at the world's density and Fit 1x1) stand
+/// in for "Default". `world_uv` is the world's own mapping, which the World
+/// button and the Default hint name.
 pub(super) fn draw_tiling(
     ui: &mut egui::Ui,
     uv: FaceUv,
     report: Option<UvReport>,
     mut plane: Option<&mut PlaneUvMode>,
+    world_uv: UvMode,
 ) -> Vec<UvOp> {
     let mut ops = Vec::new();
     ui.label(RichText::new("Tiling").color(STUDIO_TEXT_WEAK).size(11.0));
@@ -50,9 +52,13 @@ pub(super) fn draw_tiling(
                 }
             }
         }
+        let texels = match world_uv {
+            UvMode::World { texels_per_sector } => texels_per_sector[0],
+            _ => 0,
+        };
         let choices = [
             ("Default", UvMode::Inherit),
-            ("World", UvMode::LEGACY),
+            ("World", world_uv),
             ("Fit", UvMode::fit(1, 1)),
         ];
         for (label, target) in choices {
@@ -63,11 +69,11 @@ pub(super) fn draw_tiling(
             if ui
                 .selectable_label(on, label)
                 .on_hover_text(match label {
-                    "Default" => {
-                        "The material's tiling, else world aligned at 32 texels per sector"
-                    }
-                    "World" => "Texels follow the world, so neighbouring faces line up",
-                    _ => "Put a fixed number of tiles across this whole face",
+                    "Default" => format!(
+                        "The material's tiling, else world aligned at the world's {texels} texels per sector"
+                    ),
+                    "World" => "Texels follow the world, so neighbouring faces line up".to_string(),
+                    _ => "Put a fixed number of tiles across this whole face".to_string(),
                 })
                 .clicked()
                 && !on
@@ -160,6 +166,26 @@ pub(super) fn draw_tiling(
                 .clicked()
             {
                 ops.push(UvOp::ToggleFlip(axis));
+            }
+        }
+    });
+    // The quick scale picker: its own line, so the five buttons keep to one
+    // row in the Inspector's width.
+    ui.label("Quick scale")
+        .on_hover_text(super::paint::ZOOM_HINT);
+    ui.horizontal(|ui| {
+        let now = uv.zoom_q8();
+        for q8 in psxed_project::face_uv::ZOOM_STEPS_Q8 {
+            let label = zoom_label(q8);
+            if ui
+                .selectable_label(now == Some(q8), label)
+                .on_hover_text(format!(
+                    "Draw the texture at {label} on every selected face. {}",
+                    super::paint::ZOOM_HINT
+                ))
+                .clicked()
+            {
+                ops.push(UvOp::SetZoom(q8));
             }
         }
     });
@@ -277,6 +303,51 @@ pub(super) fn draw_fit_across(ui: &mut egui::Ui, surfaces: usize) -> Option<[f32
     });
     ui.data_mut(|d| d.insert_persisted(id, tiles));
     apply
+}
+
+/// The label of a scale preset: `0.25x` to `4x`.
+fn zoom_label(q8: i16) -> &'static str {
+    match q8 {
+        64 => "0.25x",
+        128 => "0.5x",
+        256 => "1x",
+        512 => "2x",
+        _ => "4x",
+    }
+}
+
+impl EditorWorkspace {
+    /// Step the scale of the selected faces (and planes) a preset up or down,
+    /// each from its own size. One undo step.
+    pub(crate) fn zoom_selection(&mut self, delta: i8) -> bool {
+        self.retain_valid_planes();
+        let Some(world) = self.project.active_scene().world.grid() else {
+            return false;
+        };
+        let faces = self.grid.selection.faces(world);
+        let planes = self.grid.plane_sel.clone();
+        if faces.is_empty() && planes.is_empty() {
+            return false;
+        }
+        let before = self.project.clone();
+        let Some(world) = self.project.active_scene_mut().world.grid_mut() else {
+            return false;
+        };
+        let op = UvOp::StepZoom(delta);
+        let mut changed = false;
+        for face in &faces {
+            changed |= psxed_project::grid::edit::edit_uv(world, *face, None, op);
+        }
+        for id in planes {
+            changed |= psxed_project::grid::edit::edit_plane_uv(world, id, op);
+        }
+        if changed {
+            self.history.record(before);
+            self.status = "Scaled the selection a step".to_string();
+            self.grid_changed();
+        }
+        true
+    }
 }
 
 /// A tile count without trailing zeros.

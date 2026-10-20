@@ -95,6 +95,16 @@ impl EditorWorkspace {
             }
         }
 
+        inspector_section(
+            ui,
+            "world-density",
+            icons::GRID,
+            "Texture density",
+            true,
+            |ui| {
+                changed |= self.draw_texel_density(ui);
+            },
+        );
         inspector_section(ui, "world-shading", icons::SUN, "Shading", true, |ui| {
             self.draw_grid_shading(ui);
         });

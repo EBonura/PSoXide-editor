@@ -289,7 +289,13 @@ impl EditorWorkspace {
                 }
             });
             let report = report_of(self, b.uv);
-            for op in super::tiling_panel::draw_tiling(ui, b.uv, report, None) {
+            let world_uv = self
+                .project
+                .active_scene()
+                .world
+                .grid()
+                .map_or(UvMode::LEGACY, |world| world.default_uv());
+            for op in super::tiling_panel::draw_tiling(ui, b.uv, report, None, world_uv) {
                 edits.push(Edit::Uv(band, op));
             }
         });

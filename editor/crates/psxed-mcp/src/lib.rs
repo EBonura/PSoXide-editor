@@ -116,12 +116,14 @@ pub fn metrics(project: Option<&ProjectDocument>) -> String {
                 Some(world) => {
                     let _ = writeln!(
                         out,
-                        "\n## This project\n\nScene {index} {:?}: grid world of {} rooms, scale {}/{}, sector {} editor units.",
+                        "\n## This project\n\nScene {index} {:?}: grid world of {} rooms, scale {}/{}, sector {} editor units, {} texels per sector (a 64x64 texture covers {} sector(s) at scale 1).",
                         scene.name,
                         world.rooms.len(),
                         world.scale.num,
                         world.scale.den,
-                        world.scale.sector_editor_units()
+                        world.scale.sector_editor_units(),
+                        world.texels_per_sector.get(),
+                        64.0 / f64::from(world.texels_per_sector.get())
                     );
                 }
                 None => {
@@ -167,11 +169,12 @@ fn grid_summary(out: &mut String, project: &ProjectDocument, world: &GridWorld) 
     let budget = limits::GridBudget::of(world);
     let _ = writeln!(
         out,
-        "grid world: {} rooms, scale {}/{} (sector = {} editor units)",
+        "grid world: {} rooms, scale {}/{} (sector = {} editor units), {} texels per sector",
         world.rooms.len(),
         world.scale.num,
         world.scale.den,
-        world.scale.sector_editor_units()
+        world.scale.sector_editor_units(),
+        world.texels_per_sector.get()
     );
     let _ = writeln!(
         out,

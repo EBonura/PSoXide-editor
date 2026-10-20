@@ -180,7 +180,7 @@ The tools above make axis-aligned rooms and slopes. These make rock. They write 
 
 A new grid project's palette (`materials` with `palette_only: true`) holds the base's three Graybox materials, which are one grid texture in three blue-grey tints (Ground, Original, Cliff), and six that read apart: `Graybox / Warm Stone 64`, `Dark Trim`, `Light Frieze`, `Wood`, `Metal` and `Moss`. They are generated materials (a base colour plus value noise baked to a 64 texel texture by the editor and the cook), so they need no image files and cost the same as any other texture. Use the blue-grey ones for graybox layout and the others when the picture has to read, in screenshots and under coloured light.
 
-The `materials` table's `grid tile` column says what one full tile of each material covers under the default mapping ("world 32 x 32 texels/sector: a tile is 2 x 2 sectors = 2560 x 2560 editor units"), follows the material's own default (`grid_material_tiling`) and reads "fit 2 x 2 tiles per face" for a Fit default. A project with no grid world keeps the brush figure (units per 64 texel tile).
+The `materials` table's `grid tile` column says what one full tile of each material covers under the default mapping ("world 64 x 64 texels/sector: a tile is 1 x 1 sectors = 1280 x 1280 editor units" in a new world, whose default is 64 texels per sector; a world made before that setting reads 32), follows the material's own default (`grid_material_tiling`) and reads "fit 2 x 2 tiles per face" for a Fit default. A project with no grid world keeps the brush figure (units per 64 texel tile).
 
 ## Staging and safety
 

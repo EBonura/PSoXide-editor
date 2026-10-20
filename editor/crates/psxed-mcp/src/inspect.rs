@@ -58,8 +58,7 @@ fn grid_tile(
     sector_editor: Option<i32>,
     world_uv: UvMode,
 ) -> String {
-    let mode =
-        psxed_project::grid::uv::resolve(UvMode::Inherit, Some(material.grid_uv), world_uv);
+    let mode = psxed_project::grid::uv::resolve(UvMode::Inherit, Some(material.grid_uv), world_uv);
     match mode {
         UvMode::World { texels_per_sector } => {
             let sectors = |texels: u16, density: u16| f64::from(texels) / f64::from(density.max(1));
@@ -211,19 +210,38 @@ mod tests {
         let table = materials(&project, Path::new("/nonexistent"));
         assert!(table.contains("grid tile (default mapping)"), "{table}");
         assert!(!table.contains("tile repeat"), "{table}");
-        // A generated material: 64 texels, 32 per sector, so 2 sectors
-        // (1280 editor units each at the new-project scale).
+        // A generated material: 64 texels, 64 per sector in a new world, so
+        // one sector (1280 editor units at the new-project scale).
         let stone = row(&table, "Graybox / Warm Stone 64");
         assert!(stone.contains("| 64x64 |"), "{stone}");
         assert!(
             stone.contains(
-                "world 32 x 32 texels/sector: a tile is 2 x 2 sectors = 2560 x 2560 editor units"
+                "world 64 x 64 texels/sector: a tile is 1 x 1 sectors = 1280 x 1280 editor units"
             ),
             "{stone}"
         );
         assert!(stone.contains("| 4bpp |"), "{stone}");
         // The brush-era 1024 figure is gone.
         assert!(!table.contains("1024x1024"), "{table}");
+    }
+
+    #[test]
+    fn a_world_made_before_the_density_setting_still_reads_32() {
+        let mut project = crate::grid::test_support::new_grid_project();
+        project
+            .active_scene_mut()
+            .world
+            .grid_mut()
+            .unwrap()
+            .texels_per_sector = psxed_project::grid::SectorTexels::LEGACY;
+        let table = materials(&project, Path::new("/nonexistent"));
+        let stone = row(&table, "Graybox / Warm Stone 64");
+        assert!(
+            stone.contains(
+                "world 32 x 32 texels/sector: a tile is 2 x 2 sectors = 2560 x 2560 editor units"
+            ),
+            "{stone}"
+        );
     }
 
     #[test]

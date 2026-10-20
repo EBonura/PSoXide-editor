@@ -7,6 +7,7 @@
 
 use super::*;
 
+use psxed_project::face_uv::ZOOM_STEPS_Q8;
 use psxed_project::grid::edit::bands::{edit_bands, BandScope};
 use psxed_project::grid::edit::{
     edit_plane_uv, edit_uv, set_material, set_plane_material, FaceRef, FaceTarget, SurfaceKind,
@@ -17,22 +18,75 @@ use psxed_project::grid::uv::{ProjectUvDefaults, TILE_TEXELS};
 use psxed_project::grid::GridWorld;
 use std::cell::RefCell;
 
-/// The turn and flip the brush gives a face: a quarter-turn count (clockwise)
-/// and a mirror on each axis, in the terms of the Inspector's Tiling section.
-/// The identity leaves a face's own turn and flip alone, so painting with a
-/// plain brush never undoes a placement the author made.
+/// The turn, flip and size the brush gives a face: a quarter-turn count
+/// (clockwise), a mirror on each axis and a zoom step, in the terms of the
+/// Inspector's Tiling section. The identity leaves a face's own turn, flip
+/// and scale alone, so painting with a plain brush never undoes a placement
+/// the author made.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PaintOrient {
     /// Quarter turns clockwise, `0..=3`.
     pub turns: u8,
     /// Mirror horizontally / vertically.
     pub flip: [bool; 2],
+    /// Steps from 1x along 1/4, 1/2, 1, 2, 4 (`-2..=2`): how big the paint
+    /// is laid, in the terms of the face's scale. 0 is 1x, which leaves a
+    /// face's own scale alone.
+    pub zoom: i8,
 }
 
+/// Most steps the brush zooms either way (1/4x to 4x).
+const MAX_ZOOM_STEP: i8 = 2;
+
+/// Widest the paint material's name gets in the options bar, so the scale
+/// buttons stay in view at 1456 wide.
+const NAME_WIDTH: f32 = 76.0;
+
+/// What a scale preset means, for the tooltips.
+pub(super) const ZOOM_HINT: &str = "1x is the tiling as it stands (a new world: one 64x64 texture per sector); 2x draws the texture twice as big, 0.5x half as big. It sets the Scale fields of the Tiling.";
+
 impl PaintOrient {
-    /// Whether the brush turns and flips nothing.
+    /// Whether the brush turns, flips and zooms nothing.
     pub fn is_identity(self) -> bool {
         self == Self::default()
+    }
+
+    /// Whether the brush turns and flips nothing (its zoom aside).
+    pub fn orientation_is_identity(self) -> bool {
+        self.turns & 3 == 0 && self.flip == [false; 2]
+    }
+
+    /// The brush's scale, Q8 (256 is 1x, 512 twice as big).
+    pub fn zoom_q8(self) -> i16 {
+        let step = self.zoom.clamp(-MAX_ZOOM_STEP, MAX_ZOOM_STEP);
+        ZOOM_STEPS_Q8[(step + MAX_ZOOM_STEP) as usize]
+    }
+
+    /// The brush at zoom `step` (clamped to the presets).
+    pub fn at_zoom(self, step: i8) -> Self {
+        Self {
+            zoom: step.clamp(-MAX_ZOOM_STEP, MAX_ZOOM_STEP),
+            ..self
+        }
+    }
+
+    /// The step of a preset scale, if `q8` is one.
+    pub fn step_of(q8: i16) -> Option<i8> {
+        ZOOM_STEPS_Q8
+            .iter()
+            .position(|&s| s == q8)
+            .map(|i| i as i8 - MAX_ZOOM_STEP)
+    }
+
+    /// The label of a zoom step: `0.25x`, `0.5x`, `1x`, `2x`, `4x`.
+    pub fn zoom_label(step: i8) -> &'static str {
+        match step {
+            ..=-2 => "0.25x",
+            -1 => "0.5x",
+            0 => "1x",
+            1 => "2x",
+            _ => "4x",
+        }
     }
 
     /// A quarter turn on, clockwise or not.
@@ -60,12 +114,21 @@ impl PaintOrient {
         u32::from(self.turns & 3) * 90
     }
 
-    /// The edit that stores this on a face's tiling.
-    pub fn op(self) -> UvOp {
-        UvOp::SetOrientation {
-            turns: self.turns,
-            flip: self.flip,
+    /// The edits that store this on a face's tiling: the turn and flip when
+    /// the brush has any, the scale when it is not 1x. A brush with neither
+    /// writes nothing.
+    pub fn ops(self) -> Vec<UvOp> {
+        let mut ops = Vec::new();
+        if !self.orientation_is_identity() {
+            ops.push(UvOp::SetOrientation {
+                turns: self.turns,
+                flip: self.flip,
+            });
         }
+        if self.zoom != 0 {
+            ops.push(UvOp::SetZoom(self.zoom_q8()));
+        }
+        ops
     }
 }
 
@@ -121,27 +184,27 @@ impl PaintGhost {
                 let mut changed = false;
                 for face in faces {
                     changed |= set_material(world, *face, *tri, material);
-                    if !orient.is_identity() {
-                        changed |= edit_uv(world, *face, *tri, orient.op());
+                    for op in orient.ops() {
+                        changed |= edit_uv(world, *face, *tri, op);
                     }
                 }
                 changed
             }
             PaintTarget::Plane(id) => {
                 let mut changed = set_plane_material(world, *id, material);
-                if !orient.is_identity() {
-                    changed |= edit_plane_uv(world, *id, orient.op());
+                for op in orient.ops() {
+                    changed |= edit_plane_uv(world, *id, op);
                 }
                 changed
             }
             PaintTarget::Band { face, band } => edit_bands(world, *face, BandScope::Piece, |set| {
                 let mut changed = set.set_band_material(*band, material);
-                if !orient.is_identity() {
-                    if let Some(band) = set.bands.get_mut(*band) {
-                        let before = band.uv;
-                        orient.op().apply(&mut band.uv);
-                        changed |= band.uv != before;
+                if let Some(band) = set.bands.get_mut(*band) {
+                    let before = band.uv;
+                    for op in orient.ops() {
+                        op.apply(&mut band.uv);
                     }
+                    changed |= band.uv != before;
                 }
                 changed
             }),
@@ -230,6 +293,20 @@ impl EditorWorkspace {
         self.say_paint_orient();
     }
 
+    /// Zoom the brush `delta` steps along 1/4x, 1/2x, 1x, 2x, 4x (positive
+    /// bigger), stopping at the ends.
+    pub(crate) fn paint_zoom(&mut self, delta: i8) {
+        let orient = self.grid.paint.orient;
+        self.set_paint_zoom(orient.zoom.saturating_add(delta));
+    }
+
+    /// Set the brush to zoom step `step` (0 is 1x).
+    pub(crate) fn set_paint_zoom(&mut self, step: i8) {
+        let zoomed = self.grid.paint.orient.at_zoom(step);
+        self.grid.paint.orient = zoomed;
+        self.status = format!("Paint scale {}", PaintOrient::zoom_label(zoomed.zoom));
+    }
+
     fn say_paint_orient(&mut self) {
         let orient = self.grid.paint.orient;
         let flips = match orient.flip {
@@ -268,6 +345,11 @@ pub(crate) fn oriented_quad(
     egui::Shape::mesh(mesh)
 }
 
+/// A divider with little air round it, for the options bar's one row.
+fn tight_separator(ui: &mut egui::Ui) {
+    ui.add(egui::Separator::default().spacing(1.0));
+}
+
 impl EditorWorkspace {
     /// The Paint tool's options: the paint material as the brush will lay
     /// it, the turn in degrees and a button (with its key) for each of the
@@ -282,6 +364,10 @@ impl EditorWorkspace {
             .and_then(|id| self.texture_thumbs.get(&id))
             .map(|entry| entry.handle.id());
         let orient = self.grid.paint.orient;
+        // The bar is one row of fixed width and the options are many: tight
+        // spacing keeps the scale buttons in view at 1456 wide.
+        ui.spacing_mut().item_spacing.x = 4.0;
+        ui.spacing_mut().button_padding = Vec2::new(5.0, 3.0);
         // The swatch: the picture the brush lays down.
         let (rect, response) = ui.allocate_exact_size(Vec2::splat(24.0), Sense::hover());
         match texture {
@@ -300,12 +386,16 @@ impl EditorWorkspace {
             StrokeKind::Inside,
         );
         response.on_hover_text("The paint, turned and flipped as it will be laid");
-        ui.label(
-            RichText::new(format!("Material: {name}"))
-                .color(STUDIO_TEXT_WEAK)
-                .size(11.0),
-        );
-        ui.separator();
+        // A long material name is cut short: the bar has one row.
+        ui.scope(|ui| {
+            ui.set_max_width(NAME_WIDTH);
+            ui.add(
+                egui::Label::new(RichText::new(&name).color(STUDIO_TEXT_WEAK).size(11.0))
+                    .truncate(),
+            )
+            .on_hover_text(format!("The paint material: {name}"));
+        });
+        tight_separator(ui);
         if ui
             .button("Turn left (Shift+R)")
             .on_hover_text("Turn the paint a quarter counter-clockwise")
@@ -321,7 +411,7 @@ impl EditorWorkspace {
             self.paint_turn(true);
         }
         ui.label(RichText::new(format!("{} deg", orient.degrees())).size(11.0));
-        ui.separator();
+        tight_separator(ui);
         for (axis, label, hint) in [
             (0usize, "Flip H (F)", "Mirror the paint left to right"),
             (1usize, "Flip V (Shift+F)", "Mirror the paint top to bottom"),
@@ -332,6 +422,19 @@ impl EditorWorkspace {
                 .clicked()
             {
                 self.paint_flip(axis);
+            }
+        }
+        tight_separator(ui);
+        for step in -MAX_ZOOM_STEP..=MAX_ZOOM_STEP {
+            let label = PaintOrient::zoom_label(step);
+            if ui
+                .selectable_label(orient.zoom == step, label)
+                .on_hover_text(format!(
+                    "Lay the paint at {label} ([ and ] step it). {ZOOM_HINT}"
+                ))
+                .clicked()
+            {
+                self.set_paint_zoom(step);
             }
         }
     }

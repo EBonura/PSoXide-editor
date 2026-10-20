@@ -33,6 +33,7 @@ pub(crate) mod cell_size;
 mod cells_tool;
 mod clipboard_tool;
 mod cycle;
+mod density_panel;
 mod dup_tool;
 pub(crate) mod events;
 pub(crate) mod extrude_tool;

@@ -41,12 +41,12 @@ fn set_floor_uv(ws: &mut EditorWorkspace, mode: UvMode) {
 }
 
 #[test]
-fn a_default_face_reports_the_legacy_tiling() {
+fn a_default_face_reports_one_tile_per_sector() {
     let mut ws = workspace("tiling-default");
     let text = inspector_text(&mut ws);
     assert!(text.contains("Tiling"), "{text}");
     assert!(
-        text.contains("effective: 0.5 x 0.5 tiles on this face"),
+        text.contains("effective: 1 x 1 tiles on this face"),
         "{text}"
     );
     for label in ["Default", "World", "Fit", "Turn", "Flip", "Offset"] {
@@ -89,9 +89,9 @@ fn a_derived_wall_reports_its_whole_run() {
     let face = FaceRef::derived(0, [2, 0], WallEdge::North, DerivedKind::Closure);
     ws.grid.selection.set(vec![GridElement::Face(face)]);
     let text = inspector_text(&mut ws);
-    // Five sectors long (2.5 tiles at half a tile per sector), three tall.
+    // Five sectors long (5 tiles at a tile per sector), three tall.
     assert!(
-        text.contains("effective: 2.5 x 1.5 tiles on this face"),
+        text.contains("effective: 5 x 3 tiles on this face"),
         "{text}"
     );
     assert!(text.contains("derived"), "{text}");
@@ -120,7 +120,7 @@ fn planes_keep_tile_and_stretch_and_report_them() {
     let text = inspector_text(&mut ws);
     assert!(text.contains("Tile") && text.contains("Stretch"), "{text}");
     assert!(
-        text.contains("effective: 1 x 0.5 tiles on this face"),
+        text.contains("effective: 2 x 1 tiles on this face"),
         "{text}"
     );
 }
@@ -224,9 +224,10 @@ fn clicking_the_tiling_buttons_edits_the_selected_face() {
     assert_eq!(floor_uv(&ws).turns, 3);
     click_label(&mut ws, "H");
     assert_eq!(floor_uv(&ws).flip, [true, false]);
-    // World: a plain click switches the mode back to the legacy density.
+    // World: a plain click switches the mode to the world's own density
+    // (64 texels per sector here, the default of a new world).
     click_label_in_row(&mut ws, "World", Some("Fit"));
-    assert_eq!(floor_uv(&ws).mode, UvMode::LEGACY);
+    assert_eq!(floor_uv(&ws).mode, UvMode::world(64));
     // Reset puts the whole placement back.
     click_label(&mut ws, "Reset");
     assert!(floor_uv(&ws).is_identity());

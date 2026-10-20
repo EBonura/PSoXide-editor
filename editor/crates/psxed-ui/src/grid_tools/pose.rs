@@ -56,8 +56,8 @@
 //!   `a` for triangle A, `1` or `b` for B
 //! * `raise=x,z,corner,clicks` raise a floor corner, like a finished drag
 //! * `material=N` the Nth material of the palette
-//! * `paint-turn=0..3` the Paint brush's quarter turns; `paint-flip=h,v|none`
-//!   its flips (with `hover=face:...` the preview shows in both views);
+//! * `paint-turn=0..3` the Paint brush's quarter turns; `paint-zoom=-2..2` its
+//!   scale step (0.25x, 0.5x, 1x, 2x, 4x); `paint-flip=h,v|none` its flips (with `hover=face:...` the preview shows in both views);
 //!   `paint-click` makes the click on the hovered face
 //! * `copy` copies the selection; `paste=x,z` shows the ghost at `x,z`
 //! * `marquee=x0,y0:x1,y1` a screen-space box
@@ -386,6 +386,10 @@ impl EditorWorkspace {
             "paint-turn" => {
                 let turns = value.parse::<u8>().map_err(|e| e.to_string())?;
                 self.grid.paint.orient.turns = turns & 3;
+            }
+            "paint-zoom" => {
+                let step = value.parse::<i8>().map_err(|e| e.to_string())?;
+                self.grid.paint.orient = self.grid.paint.orient.at_zoom(step);
             }
             "paint-click" => {
                 // The click on the hovered face: the paint lands as one undo

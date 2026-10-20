@@ -29,6 +29,10 @@ const SELECT: Rows = &[
     ),
     ("Ctrl/Cmd+A", "Select everything in the room"),
     (
+        "- and =",
+        "Scale the selected faces' texture a step down or up (0.25x to 4x); the Inspector's Tiling has a button for each",
+    ),
+    (
         "Ctrl/Cmd+D",
         "Copy the selection onto the pointer (nodes, mesh, planes, cells with what stands on them); click drops, Up/Down lift, Esc cancels",
     ),
@@ -131,6 +135,10 @@ const PAINT: Rows = &[
     ("Click, drag", "Apply the palette material to faces"),
     ("R, Shift+R", "Turn the paint a quarter clockwise, counter-clockwise"),
     ("F, Shift+F", "Flip the paint horizontally, vertically (F is Paint's while Paint is active)"),
+    (
+        "[ and ]",
+        "Lay the paint 0.25x, 0.5x, 1x, 2x or 4x (1x: one 64x64 texture per sector in a new world; 2x twice as big). The options bar has a button for each",
+    ),
     (
         "Ctrl/Cmd+click",
         "Sample a face's material into the palette",

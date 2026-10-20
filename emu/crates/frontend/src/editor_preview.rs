@@ -2131,6 +2131,7 @@ mod tests {
             orient: psxed_ui::PaintOrient {
                 turns,
                 flip: [false, false],
+                ..Default::default()
             },
         };
         publish(None);

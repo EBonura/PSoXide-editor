@@ -365,7 +365,7 @@ impl EditorWorkspace {
             GridTool::Ceiling => "Drag rectangle | Shift height | Ctrl delete | Esc cancel",
             GridTool::Wall => "Drag a run | R direction | Ctrl remove | Esc cancel",
             GridTool::Height => "Drag up/down | Alt fine | Alt+drag a face: one triangle | L link | PgUp/PgDn nudge | Esc cancel",
-            GridTool::Paint => "Click or drag paint | R / Shift+R turn | F / Shift+F flip | Ctrl sample | pick in the palette",
+            GridTool::Paint => "Click or drag paint | R / Shift+R turn | F / Shift+F flip | [ ] scale | Ctrl sample | pick in the palette",
             GridTool::Split => "Click a floor or ceiling flips its diagonal | Shift+click voids a triangle | Click again for the ceiling in Top",
             GridTool::Bands => "Hover a wall, click to cut | Drag a line | Del removes it | Shift+click picks a band | Esc cancel",
             GridTool::Extrude if self.grid.verb.surface == super::extrude_tool::ExtrudeSurface::Wall => {

@@ -33,6 +33,7 @@ mod grid_rig;
 mod grid_screens;
 mod grid_sculpt;
 mod grid_snap;
+mod grid_texscale;
 mod grid_tiling;
 mod grid_toolbar;
 mod grid_tools_persp;

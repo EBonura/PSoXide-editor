@@ -489,7 +489,10 @@ impl EditorWorkspace {
                 primary,
                 None,
             );
-            ops.extend(super::tiling_panel::draw_tiling(ui, uv, report, None));
+            let world_uv = world.default_uv();
+            ops.extend(super::tiling_panel::draw_tiling(
+                ui, uv, report, None, world_uv,
+            ));
             let surfaces = faces
                 .iter()
                 .filter(|f| matches!(f.target, FaceTarget::Surface { .. }))

@@ -417,6 +417,7 @@ fn the_options_bar_shows_the_turn_in_degrees_and_a_button_for_each_action() {
     rig.ws.grid.paint.orient = crate::PaintOrient {
         turns: 3,
         flip: [false, false],
+        ..Default::default()
     };
     frames(&mut rig, 2);
     assert!(bar_text(&rig, "270 deg").is_some(), "{:?}", bar_texts(&rig));
@@ -479,6 +480,7 @@ fn the_options_bar_draws_the_swatch_at_the_current_turn_and_flip() {
     rig.ws.grid.paint.orient = crate::PaintOrient {
         turns: 1,
         flip: [true, false],
+        ..Default::default()
     };
     frames(&mut rig, 2);
     let moved = quad(&rig).expect("a swatch");
@@ -546,6 +548,7 @@ fn the_plan_shows_the_paint_on_the_face_under_the_pointer_and_takes_it_away() {
     rig.ws.grid.paint.orient = crate::PaintOrient {
         turns: 1,
         flip: [false, false],
+        ..Default::default()
     };
     rig.move_to(centre + Vec2::new(1.0, 1.0));
     let turned = uvs(&meshes_in(&rig, cell_rect));

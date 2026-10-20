@@ -103,15 +103,16 @@ fn tiling_planes_palette_and_materials_speak_the_fixed_conventions() {
         assert!(table.contains(name), "{name} in the palette: {table}");
     }
     assert!(table.contains("grid tile (default mapping)"), "{table}");
+    // A new world spends 64 texels per sector: one tile per sector.
     assert!(
-        table.contains("a tile is 2 x 2 sectors = 2560 x 2560 editor units"),
+        table.contains("a tile is 1 x 1 sectors = 1280 x 1280 editor units"),
         "{table}"
     );
     assert!(!table.contains("1024x1024"), "no brush era figure: {table}");
     // A material default changes its row.
     c.ok(
         "grid_material_tiling",
-        json!({"material": "Graybox / Moss 64", "mode": "world", "density": [64, 64]}),
+        json!({"material": "Graybox / Moss 64", "mode": "world", "density": [32, 32]}),
     );
     let table = c.ok("materials", json!({"palette_only": true})).text;
     let moss = table
@@ -119,7 +120,7 @@ fn tiling_planes_palette_and_materials_speak_the_fixed_conventions() {
         .find(|l| l.contains("Graybox / Moss 64"))
         .unwrap();
     assert!(
-        moss.contains("a tile is 1 x 1 sectors = 1280 x 1280"),
+        moss.contains("a tile is 2 x 2 sectors = 2560 x 2560"),
         "{moss}"
     );
 

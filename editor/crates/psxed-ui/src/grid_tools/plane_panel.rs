@@ -196,6 +196,7 @@ impl EditorWorkspace {
                     uv,
                     Some(report),
                     Some(&mut mapping),
+                    world_uv,
                 ));
                 edited.uv_mode = mapping;
                 ui.separator();
