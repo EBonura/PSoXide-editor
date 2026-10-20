@@ -283,12 +283,11 @@ impl WindowRig {
 }
 
 #[test]
-fn a_corridor_drawn_beside_a_room_opens_that_rooms_walls_on_the_shared_edges() {
+fn a_corridor_drawn_beside_a_room_opens_that_rooms_authored_walls_on_the_shared_edges() {
     use psxed_project::grid::WallEdge;
     let mut rig = WindowRig::new();
     assert_eq!(rig.walls_on(0, [5, 2], WallEdge::East), 1, "the fixture");
     assert_eq!(rig.walls_on(0, [5, 3], WallEdge::East), 1);
-    let hall = rig.world().rooms[1].clone();
     rig.draw_floor([6, 2], [6, 3]);
     assert!(
         rig.has_floor(0, [6, 2]) && rig.has_floor(0, [6, 3]),
@@ -305,22 +304,77 @@ fn a_corridor_drawn_beside_a_room_opens_that_rooms_walls_on_the_shared_edges() {
     // The walls elsewhere on that side stay.
     assert_eq!(rig.walls_on(0, [5, 1], WallEdge::East), 1);
     assert_eq!(rig.walls_on(0, [5, 4], WallEdge::East), 1);
-    // The other room is left alone.
-    assert_eq!(rig.world().rooms[1], hall);
+}
+
+impl WindowRig {
+    /// Derived walls of room `room` on `edge` of `cell` that still close it:
+    /// shown, or hidden but still solid.
+    fn closing_derived_walls(
+        &self,
+        room: usize,
+        cell: [i32; 2],
+        edge: psxed_project::grid::WallEdge,
+    ) -> usize {
+        psxed_project::grid::leaf_derive::derived_walls_of(
+            &self.world().rooms[room],
+            psxed_project::grid::LeafKey::sector(cell),
+        )
+        .iter()
+        .filter(|w| w.edge == edge && (!w.hidden || w.blocks()))
+        .count()
+    }
 }
 
 #[test]
-fn the_status_says_what_was_opened_and_which_other_room_is_touched() {
+fn the_corridor_leaves_no_wall_at_either_end() {
+    use psxed_project::grid::WallEdge;
+    let mut rig = WindowRig::new();
+    // Before: the starter room's east wall closes one end, the hall's derived
+    // west wall the other.
+    assert_eq!(rig.closing_derived_walls(1, [7, 2], WallEdge::West), 1);
+    assert_eq!(rig.closing_derived_walls(1, [7, 3], WallEdge::West), 1);
+    rig.draw_floor([6, 2], [6, 3]);
+    assert_eq!(
+        rig.walls_on(0, [5, 2], WallEdge::East),
+        0,
+        "{}",
+        rig.ws.status
+    );
+    assert_eq!(rig.walls_on(0, [5, 3], WallEdge::East), 0);
+    assert_eq!(
+        rig.closing_derived_walls(1, [7, 2], WallEdge::West),
+        0,
+        "the hall still closes the corridor ({})",
+        rig.ws.status
+    );
+    assert_eq!(rig.closing_derived_walls(1, [7, 3], WallEdge::West), 0);
+    // The rest of the hall's west side stays closed.
+    for z in [1, 4] {
+        assert_eq!(rig.closing_derived_walls(1, [7, z], WallEdge::West), 1);
+    }
+}
+
+#[test]
+fn the_status_counts_the_walls_opened_in_each_room() {
     let mut rig = WindowRig::new();
     rig.draw_floor([6, 2], [6, 3]);
-    let status = rig.ws.status.clone();
-    assert!(
-        status.contains("Created 2 floors in Starter room"),
-        "{status}"
+    assert_eq!(
+        rig.ws.status,
+        "Created 2 floors in Starter room, opened 2 walls in Starter room and 2 in Machine Hall"
     );
-    assert!(status.contains("opened 2 walls"), "{status}");
-    assert!(status.contains("touches Machine Hall"), "{status}");
-    assert!(status.contains("derived"), "{status}");
+}
+
+#[test]
+fn a_floor_much_higher_than_its_neighbours_keeps_their_walls() {
+    use psxed_project::grid::WallEdge;
+    let mut rig = WindowRig::new();
+    // 2048 units up is well past what the player steps.
+    rig.ws.grid.floor_height = 2048;
+    rig.draw_floor([6, 2], [6, 3]);
+    assert!(rig.has_floor(0, [6, 2]), "{}", rig.ws.status);
+    assert_eq!(rig.walls_on(0, [5, 2], WallEdge::East), 1);
+    assert_eq!(rig.closing_derived_walls(1, [7, 2], WallEdge::West), 1);
+    assert!(rig.ws.status.contains("kept 4 walls"), "{}", rig.ws.status);
 }
 
 #[test]
@@ -333,8 +387,10 @@ fn opening_the_walls_is_one_undo_step() {
     rig.ws.do_undo();
     assert_eq!(*rig.world(), before, "one undo restores floors and walls");
     assert_eq!(rig.walls_on(0, [5, 2], WallEdge::East), 1);
+    assert_eq!(rig.closing_derived_walls(1, [7, 2], WallEdge::West), 1);
     rig.ws.do_redo();
     assert_eq!(rig.walls_on(0, [5, 2], WallEdge::East), 0);
+    assert_eq!(rig.closing_derived_walls(1, [7, 2], WallEdge::West), 0);
 }
 
 #[test]
@@ -644,5 +700,23 @@ fn live_captures() {
             rig.frame(vec![]);
         }
         rig.capture(&dir.join(format!("f1-header-{width}-{label}.png")));
+    }
+
+    // Finding 3: the open corridor in 3D, from four sides (the projects go to
+    // disk with their view file for `frontend dump-editor-ui`).
+    let mut rig = WindowRig::new();
+    rig.draw_floor([6, 2], [6, 3]);
+    let centre = rig.editor_centre([6, 2], [6, 3]);
+    rig.ws.camera_rig.mode = crate::ViewportCameraMode::Orbit;
+    rig.ws.camera_rig.target = [centre[0] as i32, 600, centre[2] as i32];
+    rig.ws.camera_rig.radius = 4200;
+    rig.ws.camera_rig.pitch = 4096 - 150;
+    rig.ws.save().expect("save");
+    for (name, yaw) in [("a", 0u16), ("b", 1024), ("c", 2048), ("d", 3072)] {
+        rig.ws.camera_rig.yaw = yaw;
+        rig.ws.save_view_state().expect("view");
+        let project = dir.join(format!("proj-f3-{name}-{label}"));
+        let _ = std::fs::remove_dir_all(&project);
+        crate::starter_catalogue::copy_dir_recursive(&rig.ws.project_dir, &project).unwrap();
     }
 }

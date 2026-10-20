@@ -255,38 +255,33 @@ fn fresh_floor_cells(project: &ProjectDocument, room: usize, rect: CellRect) -> 
 }
 
 /// What joining the new floor to its neighbours did, for the status line:
-/// the walls opened in its own room, and the other rooms it touches.
+/// the walls opened in each room, and the ones kept.
 fn join_status(ws: &EditorWorkspace, join: &JoinOutcome) -> String {
+    let wall = |n: usize| if n == 1 { "wall" } else { "walls" };
     let mut text = String::new();
-    if join.opened_edges > 0 {
-        let n = join.opened_edges;
-        text += &format!(", opened {n} wall{}", if n == 1 { "" } else { "s" });
+    let world = ws.project.active_scene().world.grid();
+    let parts: Vec<String> = join
+        .opened
+        .iter()
+        .enumerate()
+        .filter_map(|(i, &(room, n))| {
+            let name = &world?.rooms.get(room)?.name;
+            Some(if i == 0 {
+                format!("{n} {} in {name}", wall(n))
+            } else {
+                format!("{n} in {name}")
+            })
+        })
+        .collect();
+    if !parts.is_empty() {
+        text += &format!(", opened {}", parts.join(" and "));
     }
     if join.kept_edges > 0 {
         let n = join.kept_edges;
         text += &format!(
-            ", kept {n} wall{} where the floors differ in height",
-            if n == 1 { "" } else { "s" }
+            ", kept {n} {} where the floors are more than a step apart",
+            wall(n)
         );
-    }
-    let Some(world) = ws.project.active_scene().world.grid() else {
-        return text;
-    };
-    for &index in &join.touched_rooms {
-        let Some(other) = world.rooms.get(index) else {
-            continue;
-        };
-        text += &if other.wall_mode == psxed_project::grid::WallMode::Derived {
-            format!(
-                "; touches {}: its walls are derived, its wall on that edge still closes it",
-                other.name
-            )
-        } else {
-            format!(
-                "; touches {}: its authored walls stay, remove them to connect",
-                other.name
-            )
-        };
     }
     text
 }
