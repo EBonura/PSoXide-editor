@@ -36,6 +36,11 @@ fn toolbar_captures() {
             )));
         }
     }
+    // The narrowest window the tool row must fit.
+    let mut rig = WindowRig::with_size(Vec2::new(1280.0, 819.0));
+    rig.ws.apply_grid_pose("view=3d;tool=select").unwrap();
+    frames(&mut rig, 4);
+    rig.capture(&dir.join(format!("dp-world-1280x819-{label}.png")));
     // The three menus of the tool row, open.
     for (arrow_of, name) in [
         ("Ceiling", "create"),
