@@ -33,7 +33,7 @@ fn golden_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("golden")
 }
 
-fn fonts() -> egui::FontDefinitions {
+pub(super) fn fonts() -> egui::FontDefinitions {
     let mut fonts = egui::FontDefinitions::default();
     fonts.font_data.insert(
         "lucide".into(),
@@ -89,7 +89,7 @@ fn rasterise(ws: &mut EditorWorkspace) -> Frame {
     render(&primitives, &textures, W, H)
 }
 
-fn save_png(path: &Path, frame: &Frame) {
+pub(super) fn save_png(path: &Path, frame: &Frame) {
     let rgb: Vec<u8> = frame
         .rgba
         .chunks_exact(4)

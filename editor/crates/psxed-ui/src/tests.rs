@@ -15,6 +15,7 @@ mod grid_heat;
 mod grid_layout;
 mod grid_leftovers;
 mod grid_levels;
+mod grid_live;
 mod grid_material_tab;
 mod grid_meshes;
 mod grid_natural;

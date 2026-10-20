@@ -12,8 +12,8 @@ use super::*;
 
 use psxed_project::grid::edit::focus::Focus;
 use psxed_project::grid::edit::{
-    create_surfaces, create_surfaces_cells, delete_surfaces, delete_surfaces_cells, CellRect,
-    RectRefusal,
+    create_surfaces, create_surfaces_cells, delete_surfaces, delete_surfaces_cells,
+    join_fresh_floors, CellRect, JoinOutcome, RectRefusal,
 };
 use psxed_project::grid::units::snap_to;
 use psxed_project::grid::{GridRoom, CLICK_UNITS, FINE_UNITS};
@@ -205,6 +205,63 @@ pub(super) fn click(ws: &mut EditorWorkspace, ptr: &GridPointer, kind: SurfaceKi
     );
 }
 
+/// The cells of `rect` that hold no floor in `room`, before an edit.
+fn fresh_floor_cells(project: &ProjectDocument, room: usize, rect: CellRect) -> Vec<[i32; 2]> {
+    let Some(room) = project
+        .active_scene()
+        .world
+        .grid()
+        .and_then(|w| w.rooms.get(room))
+    else {
+        return Vec::new();
+    };
+    rect.cells()
+        .filter(|&cell| {
+            !room
+                .local(cell)
+                .and_then(|[x, z]| room.sector(x, z))
+                .is_some_and(|s| s.ground_floor().is_some())
+        })
+        .collect()
+}
+
+/// What joining the new floor to its neighbours did, for the status line:
+/// the walls opened in its own room, and the other rooms it touches.
+fn join_status(ws: &EditorWorkspace, join: &JoinOutcome) -> String {
+    let mut text = String::new();
+    if join.opened_edges > 0 {
+        let n = join.opened_edges;
+        text += &format!(", opened {n} wall{}", if n == 1 { "" } else { "s" });
+    }
+    if join.kept_edges > 0 {
+        let n = join.kept_edges;
+        text += &format!(
+            ", kept {n} wall{} where the floors differ in height",
+            if n == 1 { "" } else { "s" }
+        );
+    }
+    let Some(world) = ws.project.active_scene().world.grid() else {
+        return text;
+    };
+    for &index in &join.touched_rooms {
+        let Some(other) = world.rooms.get(index) else {
+            continue;
+        };
+        text += &if other.wall_mode == psxed_project::grid::WallMode::Derived {
+            format!(
+                "; touches {}: its walls are derived, its wall on that edge still closes it",
+                other.name
+            )
+        } else {
+            format!(
+                "; touches {}: its authored walls stay, remove them to connect",
+                other.name
+            )
+        };
+    }
+    text
+}
+
 /// Apply a rectangle of cells of `level` (2 sectors, 3 halves, 4 quarters):
 /// the sector tools for whole sectors, the library's cell functions below
 /// that, as the MCP's `size: half|quarter` does.
@@ -233,6 +290,12 @@ fn apply(
         Focus::none(room)
     };
     let before = ws.project.clone();
+    // The sectors that have no floor yet: where a new floor joins the room.
+    let fresh = if level == 2 && !erase && kind == SurfaceKind::Floor {
+        fresh_floor_cells(&before, room, rect)
+    } else {
+        Vec::new()
+    };
     let Some(world) = ws.project.active_scene_mut().world.grid_mut() else {
         return;
     };
@@ -291,6 +354,12 @@ fn apply(
         return;
     }
     ws.grid.last_room = room;
+    let join = match ws.project.active_scene_mut().world.grid_mut() {
+        Some(world) if !fresh.is_empty() && room < world.rooms.len() => {
+            join_fresh_floors(world, room, &fresh)
+        }
+        _ => JoinOutcome::default(),
+    };
     ws.status = match (erase, outcome.skipped) {
         (true, _) => format!("Deleted {} {}s", outcome.changed, kind.label()),
         (false, 0) => format!("Created {} {}s", outcome.changed, kind.label()),
@@ -313,6 +382,7 @@ fn apply(
             ws.status += &format!(" in {name}");
         }
     }
+    ws.status += &join_status(ws, &join);
     if aimed.slivers > 0 {
         ws.status += &format!(
             ", {} span(s) too thin to stand in filled solid",
