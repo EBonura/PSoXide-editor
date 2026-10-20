@@ -419,3 +419,57 @@ pub(super) fn apply_selection(ws: &mut EditorWorkspace, merge: bool) -> bool {
         false
     }
 }
+
+// ---- Merge: take a subdivision back ----
+
+/// Whether the selection holds cells of a split sector that join back into
+/// the bigger cell (the Merge cells button of the Select tool).
+pub(super) fn selection_can_merge(ws: &EditorWorkspace) -> bool {
+    let Some(world) = ws.project.active_scene().world.grid() else {
+        return false;
+    };
+    let top = ws.grid.cells.merge_to.level();
+    selected_leaves(ws).into_iter().any(|(room, key)| {
+        world.rooms.get(room).is_some_and(|r| {
+            key.parent()
+                .is_some_and(|p| p.level >= top && tree::can_merge(r, p).is_ok())
+        })
+    })
+}
+
+/// Join the cell under the pointer with its siblings (Shift+M in the Cells
+/// tool with nothing picked). One undo step.
+pub(super) fn merge_under_pointer(ws: &mut EditorWorkspace) -> bool {
+    let GridHover::Leaf { room, key } = ws.grid.hover.clone() else {
+        ws.status =
+            "Point at a split cell to merge it, or pick cells with the Select tool".to_string();
+        return false;
+    };
+    let top = ws.grid.cells.merge_to.level();
+    let before = ws.project.clone();
+    let Some(r) = ws
+        .project
+        .active_scene_mut()
+        .world
+        .grid_mut()
+        .and_then(|w| w.rooms.get_mut(room))
+    else {
+        return false;
+    };
+    let Some(parent) = key.parent().filter(|p| p.level >= top) else {
+        ws.status = "That cell is as big as a merge may make it".to_string();
+        return false;
+    };
+    match tree::merge(r, parent) {
+        Ok(()) => {
+            ws.history.record(before);
+            ws.status = "Merged the cell with its siblings".to_string();
+            ws.grid_changed();
+            true
+        }
+        Err(block) => {
+            ws.status = format!("Cannot merge: {}", block.describe());
+            false
+        }
+    }
+}

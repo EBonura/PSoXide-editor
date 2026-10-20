@@ -103,6 +103,9 @@ impl EditorWorkspace {
                     ui.toggle_value(&mut self.grid.link, "Link")
                         .on_hover_text("L: coincident corners move together");
                 }
+                if self.grid.tool == GridTool::Select {
+                    self.draw_merge_buttons(ui);
+                }
                 let node_selected = self.selection.selected_node != NodeId::ROOT
                     || self
                         .selection
@@ -150,6 +153,15 @@ impl EditorWorkspace {
                     {
                         self.grid.band_scope = scope;
                     }
+                }
+                ui.separator();
+                let line = self.grid.band_line.is_some();
+                if ui
+                    .add_enabled(line, egui::Button::new("Merge bands"))
+                    .on_hover_text("Shift+M: take the picked cut away; the bands either side of it join and the lower one keeps its material (click a line to pick it)")
+                    .clicked()
+                {
+                    super::bands_tool::merge_line(self);
                 }
             }
         }

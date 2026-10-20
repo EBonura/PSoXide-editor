@@ -5,7 +5,8 @@
 //! Near the bottom of the wall the line follows the bottom edge, near the top
 //! the top edge, in between it is an absolute datum (the Inspector can
 //! change the kind). Press on an existing line and drag to move it between
-//! its neighbours; Delete removes the selected line; Shift+click selects the
+//! its neighbours; Delete (or Merge, Shift+M) removes the selected line and the
+//! bands either side join, the lower band keeping its material; Shift+click selects the
 //! band under the pointer so a palette click can paint it. The scope (this
 //! run, or the whole room) is a toggle in the option row. Undo: one step per
 //! insert, per drag, per removal.
@@ -333,7 +334,10 @@ pub(super) fn click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
             if let Some(line) = grabbed_line(ws, ptr, &at) {
                 select_face(ws, at.face);
                 ws.grid.band_line = Some((at.face, line));
-                ws.status = format!("Line {} selected; drag it or press Delete", line + 1);
+                ws.status = format!(
+                    "Line {} selected; drag it, or Delete or Shift+M to merge the bands either side",
+                    line + 1
+                );
                 return;
             }
             if ptr.shift() {
@@ -546,4 +550,104 @@ pub(super) fn scope_label(scope: BandScope) -> &'static str {
         BandScope::Room => "Whole room",
         BandScope::Piece => "This segment",
     }
+}
+
+// ---- Merge: take a cut back ----
+
+/// The cut `ws` would merge: the selected line, else the line the pointer is
+/// on.
+fn merge_target(ws: &EditorWorkspace) -> Option<(FaceRef, usize)> {
+    ws.grid.band_line.or(match &ws.grid.hover {
+        GridHover::Band {
+            face,
+            line: Some(line),
+            ..
+        } => Some((*face, *line)),
+        _ => None,
+    })
+}
+
+/// Join the two bands either side of the selected cut (Bands tool: Shift+M or
+/// the Merge bands button). The lower band keeps its material and tiling, as
+/// Delete does. Returns whether anything changed.
+pub(super) fn merge_line(ws: &mut EditorWorkspace) -> bool {
+    let Some((face, line)) = merge_target(ws) else {
+        ws.status = "Pick a cut first (click a line), then merge: the bands either side of it join"
+            .to_string();
+        return false;
+    };
+    merge_pair(ws, face, line, line + 1, true)
+}
+
+/// The two neighbouring bands of one wall the Select tool has picked, as
+/// `(wall, first picked, second picked)`.
+pub(super) fn selected_pair(ws: &EditorWorkspace) -> Option<(FaceRef, usize, usize)> {
+    let world = ws.project.active_scene().world.grid()?;
+    let picked = ws.grid.selection.bands(world);
+    match picked.as_slice() {
+        [(a, first), (b, second)] if a == b && first.abs_diff(*second) == 1 => {
+            Some((*a, *first, *second))
+        }
+        _ => None,
+    }
+}
+
+/// Join the two bands the Select tool picked: the first picked keeps its
+/// material and tiling.
+pub(super) fn merge_selected_bands(ws: &mut EditorWorkspace) -> bool {
+    let Some((face, keep, other)) = selected_pair(ws) else {
+        ws.status = "Pick two neighbouring bands of a wall to merge them".to_string();
+        return false;
+    };
+    merge_pair(ws, face, keep, other, false)
+}
+
+/// Merge band `other` into band `keep` of `face`'s wall, in the scope the
+/// cut was made in, as one undo step.
+fn merge_pair(
+    ws: &mut EditorWorkspace,
+    face: FaceRef,
+    keep: usize,
+    other: usize,
+    lower_wins: bool,
+) -> bool {
+    let scope = ws.grid.band_scope;
+    let before = ws.project.clone();
+    let Some(world) = ws.project.active_scene_mut().world.grid_mut() else {
+        return false;
+    };
+    let line = keep.min(other);
+    if !psxed_project::grid::edit::bands::merge_bands(world, face, keep, other, scope) {
+        ws.status = "Those two bands cannot be merged".to_string();
+        return false;
+    }
+    let count = run_len(world, face);
+    ws.history.record(before);
+    ws.grid.band_line = None;
+    ws.grid.band_sel = None;
+    // What is left is one band, the joined one.
+    ws.grid
+        .selection
+        .set([psxed_project::grid::edit::GridElement::Band {
+            face,
+            band: u8::try_from(line).unwrap_or(0),
+        }]);
+    ws.status = format!(
+        "Merged bands {} and {} ({}); {} kept, applies to {count} wall segments",
+        line + 1,
+        line + 2,
+        match scope {
+            BandScope::Run => "this run",
+            BandScope::Room => "the whole room",
+            BandScope::Piece => "this segment",
+        },
+        if lower_wins {
+            "the lower band's material"
+        } else {
+            "the first picked band's material"
+        },
+    );
+    ws.after_grid_selection_changed();
+    ws.grid_changed();
+    true
 }

@@ -223,6 +223,24 @@ impl EditorWorkspace {
     /// Options of the Cells tool, in the strip's option row.
     pub(super) fn draw_cells_options(&mut self, ui: &mut egui::Ui) {
         use super::cells_tool::{CellsTarget, MergeTop};
+        // The actions come first: this row is wider than the pane, and what
+        // scrolls out of sight is the end of it.
+        let has_selection = !self.grid.selection.is_empty();
+        if ui
+            .add_enabled(has_selection, egui::Button::new("Subdivide selection"))
+            .on_hover_text("Enter: split the selected cells")
+            .clicked()
+        {
+            super::cells_tool::apply_selection(self, false);
+        }
+        if ui
+            .add_enabled(has_selection, egui::Button::new("Merge cells"))
+            .on_hover_text("Shift+M or Shift+Enter: join the selected cells back where that changes nothing (with nothing picked, Shift+M joins the cell under the pointer)")
+            .clicked()
+        {
+            super::cells_tool::apply_selection(self, true);
+        }
+        ui.separator();
         ui.label(
             RichText::new("Subdivide to")
                 .color(STUDIO_TEXT_WEAK)
@@ -261,22 +279,6 @@ impl EditorWorkspace {
                 .prefix("brush "),
         )
         .on_hover_text("Brush radius in quarter sectors ([ and ])");
-        ui.separator();
-        let has_selection = !self.grid.selection.is_empty();
-        if ui
-            .add_enabled(has_selection, egui::Button::new("Subdivide selection"))
-            .on_hover_text("Enter: split the selected cells")
-            .clicked()
-        {
-            super::cells_tool::apply_selection(self, false);
-        }
-        if ui
-            .add_enabled(has_selection, egui::Button::new("Merge selection"))
-            .on_hover_text("Shift+Enter: join the selected cells back where that changes nothing")
-            .clicked()
-        {
-            super::cells_tool::apply_selection(self, true);
-        }
     }
 }
 

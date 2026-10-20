@@ -18,6 +18,7 @@ mod grid_leftovers;
 mod grid_levels;
 mod grid_live;
 mod grid_material_tab;
+mod grid_merge;
 mod grid_meshes;
 mod grid_natural;
 mod grid_newuser;

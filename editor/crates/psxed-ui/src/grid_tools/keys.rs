@@ -173,6 +173,18 @@ impl EditorWorkspace {
         // landing during a drag cannot swap the tool and abandon what the
         // drag is making.
         let may_choose = !ctx.input(|i| i.pointer.any_down());
+        // Shift+M is Merge in the tools that split things (before the tool
+        // keys, which would take the M for the Rough tool whatever Shift
+        // says).
+        if may_choose
+            && matches!(
+                self.grid.tool,
+                GridTool::Bands | GridTool::Cells | GridTool::Select
+            )
+            && pressed_shift(ctx, egui::Key::M)
+        {
+            self.grid_merge();
+        }
         // Shift+N is the Mesh tool (before the tool keys, which would take
         // the N for the Plane tool whatever Shift says).
         if pressed_shift(ctx, egui::Key::N) && may_choose {

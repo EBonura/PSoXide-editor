@@ -23,6 +23,10 @@ const SELECT: Rows = &[
         "Raise or lower the selected corners (256 units, Alt for 64)",
     ),
     ("Delete", "Delete the selected faces"),
+    (
+        "Shift+M",
+        "Merge: join two neighbouring picked bands of a wall back into one (the first picked keeps its material), or the picked cells of a split sector back into the whole cell",
+    ),
     ("Ctrl/Cmd+A", "Select everything in the room"),
     (
         "Ctrl/Cmd+D",
@@ -150,12 +154,16 @@ const BANDS: Rows = &[
         "Remove it; the bands around it join",
     ),
     (
+        "Click a line, Shift+M",
+        "Merge: the same as Delete, also the Merge bands button in the option row. The lower band keeps its material, and the cut goes from the whole run (or room, as Scope says)",
+    ),
+    (
         "Shift+click",
         "Pick the band under the pointer, then click a material in the palette",
     ),
     (
         "Paint (P)",
-        "Painting a banded wall paints the band under the pointer",
+        "Painting a banded wall paints the band under the pointer, on that one wall segment only",
     ),
     ("Inspector", "Lines, bands, materials and tiling per band"),
 ];
@@ -339,6 +347,10 @@ const CELLS: Rows = &[
         "Subdivide or merge the cells the Select tool picked",
     ),
     (
+        "Shift+M, Merge cells",
+        "Merge the cells the Select tool picked, or with nothing picked the cell under the pointer, back into the bigger cell they were split from",
+    ),
+    (
         "Raise (U), Height (H)",
         "Work on cells of any size; a cell larger than a sector splits to fit the region",
     ),
@@ -460,7 +472,7 @@ impl EditorWorkspace {
             .show(ctx, |ui| {
                 ui.set_width(1500.0_f32.min(ctx.screen_rect().width() - 60.0));
                 ui.label(
-                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, Shift+N Mesh, P Paint, D Diagonal, O Place, E Bands | U Raise, A Ramp, T Stairs, Shift+T Spiral, X Break, M Rough, Q Cells, Shift+Q Upper floor | Alt+Up/Down storey, G go to storey, Z cutaway")
+                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, Shift+N Mesh, P Paint, D Diagonal, O Place, E Bands | U Raise, A Ramp, T Stairs, Shift+T Spiral, X Break, M Rough, Q Cells, Shift+Q Upper floor | Shift+M Merge (Select, Bands, Cells) | Alt+Up/Down| Alt+Up/Down storey, G go to storey, Z cutaway")
                         .color(STUDIO_TEXT_WEAK),
                 );
                 ui.label(

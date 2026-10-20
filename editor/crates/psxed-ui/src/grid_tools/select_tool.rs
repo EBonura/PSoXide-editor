@@ -20,6 +20,47 @@ use psxed_project::grid::edit::{
 use psxed_project::grid::GridWorld;
 
 impl EditorWorkspace {
+    /// Whether the Select tool has two neighbouring bands of a wall picked.
+    pub(crate) fn can_merge_bands(&self) -> bool {
+        super::bands_tool::selected_pair(self).is_some()
+    }
+
+    /// Whether the Select tool has cells picked that join back into a bigger
+    /// one.
+    pub(crate) fn can_merge_cells(&self) -> bool {
+        super::cells_tool::selection_can_merge(self)
+    }
+
+    /// Merge (Shift+M): take a split back. In the Bands tool the selected cut
+    /// goes; in the Cells tool the picked cells, or the one under the pointer,
+    /// join their siblings; in the Select tool two picked bands join, else the
+    /// picked cells.
+    pub(crate) fn grid_merge(&mut self) {
+        match self.grid.tool {
+            GridTool::Bands => {
+                super::bands_tool::merge_line(self);
+            }
+            GridTool::Cells => {
+                if self.grid.selection.is_empty() {
+                    super::cells_tool::merge_under_pointer(self);
+                } else {
+                    super::cells_tool::apply_selection(self, true);
+                }
+            }
+            _ => {
+                if self.can_merge_bands() {
+                    super::bands_tool::merge_selected_bands(self);
+                } else if self.can_merge_cells() {
+                    super::cells_tool::apply_selection(self, true);
+                } else {
+                    self.status =
+                        "Pick two neighbouring bands of a wall, or the cells of a split sector, to merge them"
+                            .to_string();
+                }
+            }
+        }
+    }
+
     /// Bookkeeping after the grid selection changed: node selection stands
     /// down, the last room follows, the palette finds the face's material.
     pub(crate) fn after_grid_selection_changed(&mut self) {
@@ -255,4 +296,32 @@ pub(super) fn select_all(ws: &mut EditorWorkspace) {
         .set(faces.into_iter().map(GridElement::Face));
     ws.after_grid_selection_changed();
     ws.status = format!("Selected all {count} faces of room {room}");
+}
+
+impl EditorWorkspace {
+    /// The Merge buttons of the Select tool's options row: Merge bands when
+    /// two neighbouring bands of a wall are picked, Merge cells when the
+    /// picked cells join back (Shift+M does either).
+    pub(crate) fn draw_merge_buttons(&mut self, ui: &mut egui::Ui) {
+        if self.can_merge_bands()
+            && ui
+                .button("Merge bands")
+                .on_hover_text(
+                    "Shift+M: join the two picked bands and take their cut away; the first picked band keeps its material",
+                )
+                .clicked()
+        {
+            super::bands_tool::merge_selected_bands(self);
+        }
+        if self.can_merge_cells()
+            && ui
+                .button("Merge cells")
+                .on_hover_text(
+                    "Shift+M: join the picked cells of a split sector back into the whole cell, where that changes nothing",
+                )
+                .clicked()
+        {
+            super::cells_tool::apply_selection(self, true);
+        }
+    }
 }
