@@ -275,7 +275,16 @@ impl GridGeometry {
         Option<&GiField>,
         Option<&mut GhostRoom>,
     ) {
-        let scene = self.scene.get_or_insert_with(|| LightScene::new(world));
+        let scene = self.scene.get_or_insert_with(|| {
+            let started = std::time::Instant::now();
+            let scene = LightScene::new(world);
+            eprintln!(
+                "[grid light] shadow scene (collision of {} rooms) built in {:.1} ms",
+                world.rooms.len(),
+                started.elapsed().as_secs_f64() * 1000.0
+            );
+            scene
+        });
         let lights = self.context.as_ref().map_or(&[][..], |c| &c.lights[..]);
         (
             &mut self.rooms,
@@ -448,5 +457,87 @@ mod tests {
         prepare_all(&mut geometry);
         geometry.sync(&project, 1, 0);
         assert_eq!(prepared_rooms(&geometry), [true, true]);
+    }
+
+    fn gathering_project() -> ProjectDocument {
+        let mut project = two_room_project();
+        project
+            .active_scene_mut()
+            .world
+            .grid_mut()
+            .unwrap()
+            .global_light = GlobalLight::NEW_WORLD;
+        project
+    }
+
+    #[test]
+    fn a_world_that_gathers_its_light_is_solved_in_the_background_and_baked_again() {
+        let project = gathering_project();
+        let mut geometry = GridGeometry::default();
+        geometry.sync(&project, 1, 0);
+        assert!(geometry.global_light_pending(), "the solve starts at once");
+        let before = geometry.global_light_generation();
+        prepare_all(&mut geometry);
+        geometry.finish_global_light();
+        assert!(!geometry.global_light_pending());
+        assert_ne!(geometry.global_light_generation(), before);
+        let (_, _, _, field, _) = geometry.rooms_lights_ghost(
+            project.active_scene().world.grid().unwrap(),
+        );
+        assert!(field.is_some_and(|f| !f.is_empty()), "a field landed");
+        // The faces baked without it are baked again.
+        assert_eq!(prepared_rooms(&geometry), [false, false]);
+    }
+
+    #[test]
+    fn an_edit_while_a_solve_runs_replaces_it_and_the_old_field_serves_until_then() {
+        let mut project = gathering_project();
+        let mut geometry = GridGeometry::default();
+        geometry.sync(&project, 1, 0);
+        geometry.finish_global_light();
+        let landed = geometry.global_light_generation();
+        project.active_scene_mut().world.grid_mut().unwrap().rooms[0]
+            .sector_mut(0, 0)
+            .and_then(|s| s.ground_floor_mut())
+            .unwrap()
+            .heights = [512; 4];
+        geometry.sync(&project, 2, 0);
+        assert!(geometry.global_light_pending());
+        // Nothing replaced the field yet: the frame still uses it.
+        assert_eq!(geometry.global_light_generation(), landed);
+        geometry.finish_global_light();
+        assert_ne!(geometry.global_light_generation(), landed);
+        // Switching it off drops the field and bumps the generation.
+        project
+            .active_scene_mut()
+            .world
+            .grid_mut()
+            .unwrap()
+            .global_light
+            .enabled = false;
+        geometry.sync(&project, 3, 0);
+        assert!(!geometry.global_light_pending());
+        let (_, _, _, field, _) = geometry.rooms_lights_ghost(
+            project.active_scene().world.grid().unwrap(),
+        );
+        assert!(field.is_none());
+    }
+
+    #[test]
+    fn moving_a_lamp_keeps_the_shadow_scene_but_resolves_the_light() {
+        let mut project = gathering_project();
+        let mut geometry = GridGeometry::default();
+        geometry.sync(&project, 1, 0);
+        geometry.finish_global_light();
+        let world = project.active_scene().world.grid().unwrap().clone();
+        let _ = geometry.rooms_lights_ghost(&world);
+        assert!(geometry.scene.as_ref().is_some_and(Result::is_ok));
+        // A document change that is not geometry: a different scene name.
+        project.active_scene_mut().name = "renamed".into();
+        geometry.sync(&project, 2, 0);
+        assert!(
+            geometry.scene.as_ref().is_some_and(Result::is_ok),
+            "the collision build is kept"
+        );
     }
 }

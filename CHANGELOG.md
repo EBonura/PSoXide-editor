@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Grid worlds can gather their light. With `global_light` on, every face corner
+  samples the hemisphere above it on the host: rays that meet a nearby wall
+  darken the ambient, rays that leave the world bring in a sky colour, and
+  rays that land on a lit wall bring that wall's colour back, scaled by the
+  average colour of its texture (two bounces by default). It is all baked into
+  the vertex colours, so the console pays nothing, and a quad's corner order is
+  turned where the other diagonal fits the light better. New projects start
+  with it on; a project saved before the setting keeps the flat ambient. The
+  editor preview now bakes the same shadows a Play build does (it used to cast
+  none), and refines the gathered light on a background thread.
+
 - Music nodes now play XA-ADPCM from the disc instead of CD-DA tracks. The cook
   encodes each Music WAV to 37.8 kHz stereo XA, four songs to a file
   (`MUSIC1.XA`, ...), and writes a song table the engine plays by track number,

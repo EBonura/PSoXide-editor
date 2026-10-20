@@ -66,8 +66,29 @@ pub fn rooms(world: &GridWorld, mats: &Materials<'_>) -> String {
     );
     let _ = writeln!(
         out,
-        "Facing shade: up {} down {} side_x {} side_z {} (Q8, 256 = unshaded)\n",
+        "Facing shade: up {} down {} side_x {} side_z {} (Q8, 256 = unshaded)",
         world.shading.up, world.shading.down, world.shading.side_x, world.shading.side_z
+    );
+    let light = world.global_light;
+    let _ = writeln!(
+        out,
+        "Global light: {}{}\n",
+        if light.enabled { "on" } else { "off" },
+        if light.enabled {
+            format!(
+                " (occlusion {}%, reach {} sectors, {} bounces at {}% gain, {} rays, sky {})",
+                light.occlusion,
+                light.reach,
+                light.bounces,
+                light.bounce_gain,
+                light.rays,
+                light
+                    .sky
+                    .map_or("the room ambient".to_string(), |c| format!("{c:?}"))
+            )
+        } else {
+            String::new()
+        }
     );
     for (index, room) in world.rooms.iter().enumerate() {
         let name = if room.name.is_empty() {

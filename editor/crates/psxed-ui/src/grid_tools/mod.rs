@@ -37,6 +37,7 @@ mod dup_tool;
 pub(crate) mod events;
 pub(crate) mod extrude_tool;
 mod face_tools;
+mod global_light_panel;
 mod heat_overlay;
 mod height_tool;
 mod help;

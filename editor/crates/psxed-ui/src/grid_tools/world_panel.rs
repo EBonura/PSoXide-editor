@@ -100,6 +100,16 @@ impl EditorWorkspace {
         });
         inspector_section(
             ui,
+            "world-global-light",
+            icons::LIGHTBULB,
+            "Global light",
+            true,
+            |ui| {
+                self.draw_grid_global_light(ui);
+            },
+        );
+        inspector_section(
+            ui,
             "world-streaming",
             icons::LAYERS,
             "Streaming",

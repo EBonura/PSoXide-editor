@@ -381,26 +381,28 @@ const GOLDEN_LEVELS: &[&str] = &[
     "grid-gate",
 ];
 
-/// Recorded from the preview as it was before the grid geometry cache.
+/// Recorded from the preview as it was before the grid geometry cache, and
+/// recorded again when the preview began to bake the shadows and the light
+/// conversion a Play build has (every level changes: its lamps now cast).
 const GOLDEN: &[(&str, &str, u64)] = &[
-    ("grid-cathedral", "overview", 0xe6ce8be0ebb8aa5b),
-    ("grid-cathedral", "interior", 0xe6a8c25330e3392b),
-    ("grid-tower", "overview", 0xae46076dd968443a),
-    ("grid-tower", "interior", 0xb565922ff97e67aa),
-    ("grid-dungeon", "overview", 0x7a02b2c41b244600),
-    ("grid-dungeon", "interior", 0x29e7e1ebef8aea94),
-    ("grid-level008", "overview", 0xf5a1bf1dc54eeb02),
-    ("grid-level008", "interior", 0xea1af84c6d2e021a),
-    ("grid-cave", "overview", 0xa4a187427f436d18),
-    ("grid-cave", "interior", 0x82b971b868486736),
-    ("grid-sewers", "overview", 0x953368311817b238),
-    ("grid-sewers", "interior", 0xaf41848564fb9b7c),
-    ("grid-west", "overview", 0xce8478ee8c3813d2),
-    ("grid-west", "interior", 0x164c585580b2cb54),
-    ("grid-starter", "overview", 0x8d6c056af966c8b1),
-    ("grid-starter", "interior", 0x7feeadbdfdc729ea),
-    ("grid-gate", "overview", 0x5caa40040f527299),
-    ("grid-gate", "interior", 0x5bf11821b7d6da3a),
+    ("grid-cathedral", "overview", 0x03cdbb881479427c),
+    ("grid-cathedral", "interior", 0x8f8a8f80af655c5f),
+    ("grid-tower", "overview", 0x1b68dbe0b60f6862),
+    ("grid-tower", "interior", 0xd4eb73c5a783f151),
+    ("grid-dungeon", "overview", 0x6e7984f7dc21af9a),
+    ("grid-dungeon", "interior", 0x39eb814ed43bcac7),
+    ("grid-level008", "overview", 0xeb6317e1c7657ad9),
+    ("grid-level008", "interior", 0xc5c3445bfd6a3301),
+    ("grid-cave", "overview", 0x1e5081ba313739bc),
+    ("grid-cave", "interior", 0xd20abdb924bebde4),
+    ("grid-sewers", "overview", 0x99069b9bd579e0dc),
+    ("grid-sewers", "interior", 0x80d8c0b46f0bf51c),
+    ("grid-west", "overview", 0x4ae5f01ae77ad593),
+    ("grid-west", "interior", 0xfd78f114e0b1afbe),
+    ("grid-starter", "overview", 0xd75fdad1b338d2f4),
+    ("grid-starter", "interior", 0xc648426e666e0642),
+    ("grid-gate", "overview", 0x82a84b446c9cf9b8),
+    ("grid-gate", "interior", 0x6a5422684e60a2f7),
 ];
 
 fn load_level(
