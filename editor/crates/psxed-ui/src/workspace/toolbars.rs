@@ -397,7 +397,6 @@ impl EditorWorkspace {
                         self.handle_animation_viewer_action(action);
                     }
                 } else if grid_room {
-                    self.draw_grid_tool_rows(ui);
                     ui.horizontal_wrapped(|ui| self.draw_grid_context_controls(ui));
                 } else if self.is_grid_world() {
                     ui.horizontal_wrapped(|ui| self.draw_viewport_toolbar(ui));
@@ -508,15 +507,11 @@ impl EditorWorkspace {
             return;
         }
 
-        if self.is_grid_world() {
-            self.draw_grid_tool_strip(ui);
-            self.draw_grid_context_controls(ui);
-        } else {
-            ui.weak("No grid world in this scene");
-            self.draw_add_menu(ui);
-            ui.separator();
-            self.draw_grid_controls(ui);
-        }
+        // A grid world's tools are the tool row under the top bar.
+        ui.weak("No grid world in this scene");
+        self.draw_add_menu(ui);
+        ui.separator();
+        self.draw_grid_controls(ui);
         ui.separator();
         toolbar_group_menu_icon_only(
             ui,

@@ -57,6 +57,9 @@ impl EditorWorkspace {
         let play_metrics = viewport_3d.play_metrics;
         let camera_preview = viewport_3d.camera_preview;
         self.draw_action_bar(ctx, playtest_status, play_metrics);
+        if self.is_grid_world() && self.active_workspace == WorkspaceView::Room {
+            self.draw_grid_tool_row(ctx);
+        }
         self.draw_left_dock(ctx);
         match play_panel {
             Some(panel) if playtest_status.is_playing() && self.show_play_debug_overlays => {

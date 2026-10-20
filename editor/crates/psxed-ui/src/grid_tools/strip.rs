@@ -1,4 +1,4 @@
-//! The grid tool strip, its option row and the status bar.
+//! The grid tool options, the overlays and the status bar.
 
 use super::*;
 
@@ -6,55 +6,7 @@ use psxed_project::grid::limits::MAX_ROOM_FACES;
 use psxed_project::grid::{GridBudget, CLICK_UNITS, FINE_UNITS};
 
 impl EditorWorkspace {
-    /// The tools on two rows: Pick, Draw and Finish, then Build.
-    pub(crate) fn draw_grid_tool_rows(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal_wrapped(|ui| {
-            self.draw_tool_groups(ui, |g| g != ToolGroup::Build);
-        });
-        ui.horizontal_wrapped(|ui| {
-            self.draw_tool_groups(ui, |g| g == ToolGroup::Build);
-        });
-    }
-
-    /// Every tool button, in one run.
-    pub(crate) fn draw_grid_tool_strip(&mut self, ui: &mut egui::Ui) {
-        self.draw_tool_groups(ui, |_| true);
-    }
-
-    fn draw_tool_groups(&mut self, ui: &mut egui::Ui, take: impl Fn(ToolGroup) -> bool) {
-        let mut group = None;
-        for tool in GridTool::ALL.into_iter().filter(|t| take(t.group())) {
-            if group != Some(tool.group()) {
-                if group.is_some() {
-                    ui.separator();
-                }
-                group = Some(tool.group());
-                ui.label(
-                    RichText::new(tool.group().label())
-                        .color(STUDIO_TEXT_WEAK)
-                        .size(9.5),
-                );
-            }
-            let selected = self.grid.tool == tool;
-            let response = ui
-                .add(
-                    egui::Button::new(icons::label(tool.icon(), tool.label()))
-                        .selected(selected)
-                        .min_size(Vec2::new(28.0, 23.0)),
-                )
-                .on_hover_text(format!(
-                    "{} ({})\n{}",
-                    tool.label(),
-                    tool.key_label(),
-                    tool.tooltip()
-                ));
-            if response.clicked() {
-                self.set_grid_tool(tool);
-            }
-        }
-    }
-
-    /// Options of the active tool, next to the strip.
+    /// Options of the active tool.
     pub(crate) fn draw_grid_context_controls(&mut self, ui: &mut egui::Ui) {
         if super::cell_size::takes_size(self.grid.tool) {
             self.draw_cell_size_selector(ui);

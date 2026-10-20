@@ -181,7 +181,10 @@ fn click_label_in_row(ws: &mut EditorWorkspace, label: &str, row_of: Option<&str
     });
     let pos = texts
         .iter()
-        .find(|(p, text)| text == label && row_y.is_none_or(|y| (p.y - y).abs() < 3.0))
+        // Below the top bar and the tool row, whose keys ("H") are labels too.
+        .find(|(p, text)| {
+            text == label && p.y > 90.0 && row_y.is_none_or(|y| (p.y - y).abs() < 3.0)
+        })
         .unwrap_or_else(|| panic!("no {label:?} on screen"))
         .0;
     let press = |pressed| egui::Event::PointerButton {

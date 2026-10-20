@@ -542,10 +542,11 @@ fn an_edit_made_in_the_3d_view_does_not_move_its_camera() {
 // the tool in the middle of a drag.
 
 impl WindowRig {
-    /// Visible text of the header rows (the tabs and the view buttons), as
-    /// `(text, bounds)`, between the menu bar and the first tool row.
+    /// Visible text of the viewport header's view buttons, as
+    /// `(text, bounds)`: the first row under the tool row.
     pub(super) fn header_texts(&self) -> Vec<(String, Rect)> {
-        let tools_y = self.at("Select").y - 8.0;
+        let top = ACTION_BAR_COMPACT_HEIGHT + TOOL_ROW_HEIGHT;
+        let tools_y = top + 36.0;
         self.out
             .shapes
             .iter()
@@ -556,7 +557,7 @@ impl WindowRig {
                 _ => None,
             })
             .filter(|(_, r)| {
-                r.min.y > 56.0
+                r.min.y > top
                     && r.max.y < tools_y
                     && r.min.x > 290.0
                     && r.max.x < self.size.x - 330.0

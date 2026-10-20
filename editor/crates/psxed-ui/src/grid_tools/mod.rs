@@ -1,8 +1,9 @@
 //! The grid world editing tools.
 //!
-//! One strip of tools in three groups (Pick, Draw, Build: Select, Height;
-//! Floor, Ceiling, Wall, Plane, Paint, Split, Place, Bands; Raise and the
-//! other level verbs), each written once and driven from both the Top view and
+//! One row of tools in five groups (Pick, Create, Shape, Surface, Objects:
+//! Select, Height; Floor, Wall, Ceiling, Plane, Mesh; Raise and the other
+//! level verbs with the diagonal; Paint, Bands; Place), each written once and
+//! driven from both the Top view and
 //! the 3D view through [`view::GridPointer`]. The document edits themselves
 //! are the pure functions in `psxed_project::grid::edit`; this module owns
 //! the gestures, the picking, the overlays and the panels around them.
@@ -71,6 +72,7 @@ mod spiral_tool;
 mod stairs_tool;
 mod strip;
 mod tiling_panel;
+mod tool_row;
 mod triangle_tool;
 mod verb_overlay;
 mod verb_panel;
@@ -135,44 +137,44 @@ pub(crate) enum GridTool {
     Slab,
 }
 
-/// The strip's groups, in order.
+/// The tool row's groups, in order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ToolGroup {
-    /// Choosing and moving what exists.
+    /// Choosing and moving what exists (no label on the row).
     Pick,
-    /// Drawing by hand.
-    Draw,
-    /// Dressing what is drawn: paint, diagonals, wall bands, nodes.
-    Finish,
-    /// The level verbs: region, then verb, then amount.
-    Build,
+    /// Making the shell: floors, walls, ceilings, planes, meshes.
+    Create,
+    /// The level verbs (region, then verb, then amount) and the diagonal:
+    /// one split button on the row, the rest in its menu.
+    Shape,
+    /// Dressing the surfaces: paint and wall bands.
+    Surface,
+    /// Nodes: lights, spawns, props, entities.
+    Objects,
 }
 
 impl ToolGroup {
     pub(crate) const fn label(self) -> &'static str {
         match self {
             Self::Pick => "PICK",
-            Self::Draw => "DRAW",
-            Self::Finish => "FINISH",
-            Self::Build => "BUILD",
+            Self::Create => "CREATE",
+            Self::Shape => "SHAPE",
+            Self::Surface => "SURFACE",
+            Self::Objects => "OBJECTS",
         }
     }
 }
 
 impl GridTool {
-    /// Every tool, in strip order (grouped).
+    /// Every tool, in row order (grouped).
     pub(crate) const ALL: [Self; 19] = [
         Self::Select,
         Self::Height,
         Self::Floor,
-        Self::Ceiling,
         Self::Wall,
+        Self::Ceiling,
         Self::Plane,
         Self::Mesh,
-        Self::Paint,
-        Self::Split,
-        Self::Bands,
-        Self::Place,
         Self::Raise,
         Self::Ramp,
         Self::Stairs,
@@ -181,12 +183,32 @@ impl GridTool {
         Self::Rough,
         Self::Cells,
         Self::Slab,
+        Self::Split,
+        Self::Paint,
+        Self::Bands,
+        Self::Place,
     ];
 
-    /// The strip group of the tool.
+    /// The tools the SHAPE split button holds, in its menu's order.
+    pub(crate) const SHAPES: [Self; 9] = [
+        Self::Raise,
+        Self::Ramp,
+        Self::Stairs,
+        Self::Spiral,
+        Self::Break,
+        Self::Rough,
+        Self::Cells,
+        Self::Slab,
+        Self::Split,
+    ];
+
+    /// The row group of the tool.
     pub(crate) const fn group(self) -> ToolGroup {
         match self {
             Self::Select | Self::Height => ToolGroup::Pick,
+            Self::Floor | Self::Wall | Self::Ceiling | Self::Plane | Self::Mesh => {
+                ToolGroup::Create
+            }
             Self::Raise
             | Self::Ramp
             | Self::Stairs
@@ -194,9 +216,10 @@ impl GridTool {
             | Self::Break
             | Self::Rough
             | Self::Cells
-            | Self::Slab => ToolGroup::Build,
-            Self::Paint | Self::Split | Self::Bands | Self::Place => ToolGroup::Finish,
-            _ => ToolGroup::Draw,
+            | Self::Slab
+            | Self::Split => ToolGroup::Shape,
+            Self::Paint | Self::Bands => ToolGroup::Surface,
+            Self::Place => ToolGroup::Objects,
         }
     }
 
@@ -288,30 +311,6 @@ impl GridTool {
             Self::Rough => "M",
             Self::Cells => "Q",
             Self::Slab => "Shift+Q",
-        }
-    }
-
-    pub(crate) const fn icon(self) -> char {
-        match self {
-            Self::Select => icons::POINTER,
-            Self::Floor => icons::SQUARE,
-            Self::Ceiling => icons::LAYERS,
-            Self::Wall => icons::BRICK_WALL,
-            Self::Plane => icons::SCALE_3D,
-            Self::Mesh => icons::BOX,
-            Self::Height => icons::MOVE,
-            Self::Paint => icons::PALETTE,
-            Self::Split => icons::SCAN,
-            Self::Place => icons::MAP_PIN,
-            Self::Bands => icons::ROWS_3,
-            Self::Raise => icons::ARROW_UP_FROM_LINE,
-            Self::Ramp => icons::TRENDING_UP,
-            Self::Stairs => icons::STAIRS,
-            Self::Spiral => icons::ROTATE_CCW,
-            Self::Break => icons::HAMMER,
-            Self::Rough => icons::MOUNTAIN,
-            Self::Cells => icons::GRID,
-            Self::Slab => icons::LAYERS_2,
         }
     }
 
@@ -608,6 +607,9 @@ pub(crate) struct NewPlane {
 /// All grid editing state of the workspace. Not saved with the project.
 pub(crate) struct GridEditState {
     pub tool: GridTool,
+    /// The last SHAPE tool used: what the row's split button shows and what
+    /// a click on its face picks.
+    pub last_shape: GridTool,
     pub selection: GridSelection,
     pub hover: GridHover,
     pub gesture: Gesture,
@@ -705,6 +707,7 @@ impl Default for GridEditState {
     fn default() -> Self {
         Self {
             tool: GridTool::Select,
+            last_shape: GridTool::Raise,
             selection: GridSelection::new(),
             hover: GridHover::None,
             gesture: Gesture::Idle,
@@ -804,6 +807,9 @@ impl EditorWorkspace {
             self.grid.abandon();
         }
         self.grid.tool = tool;
+        if tool.group() == ToolGroup::Shape {
+            self.grid.last_shape = tool;
+        }
         self.active_tool = match tool {
             GridTool::Select => ViewTool::Select,
             GridTool::Place => ViewTool::Place,

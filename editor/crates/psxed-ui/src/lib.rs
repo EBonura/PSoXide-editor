@@ -257,6 +257,8 @@ const RESOURCE_CARD_HEIGHT: f32 = 128.0;
 const VIEWPORT_PREVIEW_ASPECT: f32 = 320.0 / 240.0;
 const SHORTCUT_GROUP_FLASH_SECONDS: f32 = 0.85;
 const ACTION_BAR_COMPACT_HEIGHT: f32 = 44.0;
+/// The tool row under the top bar of a grid world's World workspace.
+const TOOL_ROW_HEIGHT: f32 = 36.0;
 const PLAY_DEBUG_TERMINAL_LINE_CAP: usize = 1_000;
 const PSOXIDE_APP_ICON_PNG: &[u8] =
     include_bytes!("../../../../assets/branding/psoxide-app-icon.png");

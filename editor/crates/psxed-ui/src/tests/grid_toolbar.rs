@@ -7,6 +7,7 @@
 
 use super::grid_live::WindowRig;
 use super::*;
+use crate::grid_tools::GridTool;
 
 /// Captures for the review pages: `PSXED_TOOLBAR_CAPTURE=<dir>
 /// PSXED_TOOLBAR_LABEL=before|after` writes the whole window of both worlds
@@ -315,4 +316,344 @@ fn a_running_build_shows_in_the_bar_without_moving_anything() {
     );
     let play = in_bar(&rig, "Rebuild & Play");
     assert!((play.max.x - play_idle.max.x).abs() < 2.0, "{play:?}");
+}
+
+// ---------------------------------------------------------------------
+// Step 2: the tool row. One line under the top bar, never wrapping:
+// Select and Height, CREATE (Floor, Wall, Ceiling and a menu with Plane and
+// Mesh), SHAPE (a split button for the last used shape tool), SURFACE
+// (Paint, Bands), OBJECTS (a Place split button with Light, Spawn, Prop,
+// Entity). Each tool shows its key next to its name.
+
+/// The strip between the top bar and the docks.
+fn tool_band(rig: &WindowRig) -> Rect {
+    Rect::from_min_max(
+        Pos2::new(0.0, ACTION_BAR_COMPACT_HEIGHT),
+        Pos2::new(rig.size.x, ACTION_BAR_COMPACT_HEIGHT + TOOL_ROW_HEIGHT),
+    )
+}
+
+fn in_row(rig: &WindowRig, label: &str) -> Rect {
+    text_in(rig, tool_band(rig), label).unwrap_or_else(|| panic!("no `{label}` in the tool row"))
+}
+
+fn row_click(rig: &mut WindowRig, label: &str) {
+    let at = in_row(rig, label).center();
+    rig.click(at);
+    frames(rig, 2);
+}
+
+/// A menu item: the text `label` just below the tool row (the scene tree and
+/// the inspector can say "Entity" or "Raise" too, lower down).
+fn menu_item(rig: &WindowRig, label: &str) -> Option<Rect> {
+    let below = Rect::from_min_max(
+        Pos2::new(0.0, tool_band(rig).max.y),
+        Pos2::new(rig.size.x, tool_band(rig).max.y + 260.0),
+    );
+    text_in(rig, below, label)
+}
+
+/// The arrow (a chevron glyph) of the split button or menu right after `label`.
+fn arrow_after(rig: &WindowRig, label: &str) -> Pos2 {
+    let name = in_row(rig, label);
+    texts(rig)
+        .into_iter()
+        .filter(|(t, r)| {
+            t.trim() == icons::CHEVRON_DOWN.to_string()
+                && tool_band(rig).contains(r.center())
+                && r.min.x > name.max.x
+        })
+        .map(|(_, r)| r)
+        .min_by(|a, b| a.min.x.total_cmp(&b.min.x))
+        .unwrap_or_else(|| panic!("no arrow after `{label}`"))
+        .center()
+}
+
+fn open_arrow(rig: &mut WindowRig, label: &str) {
+    let at = arrow_after(rig, label);
+    rig.click(at);
+    frames(rig, 2);
+}
+
+/// A key press with the frames a real key takes.
+fn press_key(rig: &mut WindowRig, key: egui::Key, shift: bool) {
+    let modifiers = if shift {
+        egui::Modifiers::SHIFT
+    } else {
+        egui::Modifiers::NONE
+    };
+    for pressed in [true, false] {
+        rig.frame(vec![egui::Event::Key {
+            key,
+            physical_key: Some(key),
+            pressed,
+            repeat: false,
+            modifiers,
+        }]);
+    }
+    frames(rig, 2);
+}
+
+const ROW_TOOLS: [(&str, GridTool); 8] = [
+    ("Select", GridTool::Select),
+    ("Height", GridTool::Height),
+    ("Floor", GridTool::Floor),
+    ("Wall", GridTool::Wall),
+    ("Ceiling", GridTool::Ceiling),
+    ("Paint", GridTool::Paint),
+    ("Bands", GridTool::Bands),
+    ("Place", GridTool::Place),
+];
+
+#[test]
+fn the_tool_row_is_one_line_at_every_window_width() {
+    for width in [1280.0, 1456.0, 1920.0] {
+        let rig = WindowRig::with_size(Vec2::new(width, 819.0));
+        let mut seen: Vec<(&str, Rect)> = Vec::new();
+        for label in [
+            "Select", "Height", "Floor", "Wall", "Ceiling", "Raise", "Paint", "Bands", "Place",
+        ] {
+            seen.push((label, in_row(&rig, label)));
+        }
+        let y = seen[0].1.center().y;
+        for (label, r) in &seen {
+            assert!(
+                (r.center().y - y).abs() < 4.0,
+                "{width}: `{label}` wrapped to another line: {r:?}"
+            );
+        }
+        for pair in seen.windows(2) {
+            assert!(
+                pair[0].1.max.x < pair[1].1.min.x,
+                "{width}: `{}` is not left of `{}`",
+                pair[0].0,
+                pair[1].0
+            );
+        }
+        // The last control still fits the window.
+        let last = arrow_after(&rig, "Place");
+        assert!(last.x < width - 6.0, "{width}: the row is cut at {last:?}");
+        // Under the bar, above every dock.
+        let structure = text_in(
+            &rig,
+            Rect::from_min_max(Pos2::ZERO, Pos2::new(300.0, rig.size.y)),
+            "Structure",
+        )
+        .unwrap();
+        assert!(structure.min.y > tool_band(&rig).max.y, "{width}");
+    }
+}
+
+#[test]
+fn the_groups_are_labelled_but_select_and_height_are_not() {
+    let rig = WindowRig::new();
+    let all: Vec<String> = texts(&rig)
+        .into_iter()
+        .filter(|(_, r)| tool_band(&rig).contains(r.center()))
+        .map(|(t, _)| t)
+        .collect();
+    for label in ["CREATE", "SHAPE", "SURFACE", "OBJECTS"] {
+        assert!(all.iter().any(|t| t == label), "no {label}: {all:?}");
+    }
+    for gone in ["PICK", "DRAW", "FINISH", "BUILD"] {
+        assert!(!all.iter().any(|t| t == gone), "{gone} is still there");
+    }
+    // Nothing sits left of Select: it opens the row.
+    let select = in_row(&rig, "Select");
+    assert!(
+        !texts(&rig)
+            .iter()
+            .any(|(_, r)| tool_band(&rig).contains(r.center()) && r.max.x < select.min.x),
+        "something precedes Select"
+    );
+    let order: Vec<f32> = ["CREATE", "SHAPE", "SURFACE", "OBJECTS"]
+        .iter()
+        .map(|l| in_row(&rig, l).min.x)
+        .collect();
+    assert!(order.windows(2).all(|w| w[0] < w[1]), "{order:?}");
+}
+
+#[test]
+fn every_visible_tool_shows_its_key_beside_its_name() {
+    let rig = WindowRig::new();
+    for (label, tool) in ROW_TOOLS {
+        let name = in_row(&rig, label);
+        let key = tool.key_label();
+        let beside = texts(&rig).into_iter().any(|(t, r)| {
+            t == key
+                && (r.center().y - name.center().y).abs() < 5.0
+                && r.min.x >= name.max.x
+                && r.min.x < name.max.x + 16.0
+        });
+        assert!(beside, "`{label}` shows no `{key}` beside it");
+    }
+    let raise = in_row(&rig, "Raise");
+    assert!(texts(&rig)
+        .iter()
+        .any(|(t, r)| t == "U" && r.min.x >= raise.max.x && r.min.x < raise.max.x + 16.0));
+}
+
+#[test]
+fn each_visible_tool_button_selects_its_tool() {
+    let mut rig = WindowRig::new();
+    for (label, tool) in ROW_TOOLS {
+        // Start from another tool each time.
+        rig.ws.set_grid_tool(if tool == GridTool::Select {
+            GridTool::Floor
+        } else {
+            GridTool::Select
+        });
+        frames(&mut rig, 2);
+        row_click(&mut rig, label);
+        assert_eq!(rig.ws.grid.tool, tool, "{label}");
+    }
+}
+
+#[test]
+fn the_create_menu_holds_plane_and_mesh() {
+    let mut rig = WindowRig::new();
+    assert!(
+        text_in(&rig, tool_band(&rig), "Plane").is_none(),
+        "Plane is behind the arrow"
+    );
+    open_arrow(&mut rig, "Ceiling");
+    for item in ["Plane", "Mesh"] {
+        assert!(menu_item(&rig, item).is_some(), "{item} is in the menu");
+    }
+    let plane = menu_item(&rig, "Plane").unwrap().center();
+    rig.click(plane);
+    frames(&mut rig, 2);
+    assert_eq!(rig.ws.grid.tool, GridTool::Plane);
+    assert!(menu_item(&rig, "Mesh").is_none(), "the menu closed");
+    open_arrow(&mut rig, "Ceiling");
+    let mesh = menu_item(&rig, "Mesh").unwrap().center();
+    rig.click(mesh);
+    frames(&mut rig, 2);
+    assert_eq!(rig.ws.grid.tool, GridTool::Mesh);
+}
+
+const SHAPES: [(&str, GridTool); 9] = [
+    ("Raise", GridTool::Raise),
+    ("Ramp", GridTool::Ramp),
+    ("Stairs", GridTool::Stairs),
+    ("Spiral", GridTool::Spiral),
+    ("Break", GridTool::Break),
+    ("Rough", GridTool::Rough),
+    ("Cells", GridTool::Cells),
+    ("Slab", GridTool::Slab),
+    ("Diagonal", GridTool::Split),
+];
+
+#[test]
+fn the_shape_button_uses_the_last_shape_tool_and_the_arrow_lists_all_nine() {
+    let mut rig = WindowRig::new();
+    // The face shows Raise to begin with; clicking it uses it.
+    row_click(&mut rig, "Raise");
+    assert_eq!(rig.ws.grid.tool, GridTool::Raise);
+    // The arrow lists every shape tool with its key.
+    open_arrow(&mut rig, "Raise");
+    for (label, tool) in SHAPES {
+        assert!(
+            menu_item(&rig, label).is_some(),
+            "no {label} in the menu, below the row"
+        );
+        assert!(
+            texts(&rig).iter().any(|(t, _)| t == tool.key_label()),
+            "no key `{}` for {label}",
+            tool.key_label()
+        );
+    }
+    // Picking one uses it, closes the menu, and the face now shows it.
+    let stairs = menu_item(&rig, "Stairs").unwrap().center();
+    rig.click(stairs);
+    frames(&mut rig, 2);
+    assert_eq!(rig.ws.grid.tool, GridTool::Stairs);
+    assert!(
+        text_in(&rig, tool_band(&rig), "Stairs").is_some(),
+        "the face shows the last used shape tool"
+    );
+    assert!(text_in(&rig, tool_band(&rig), "Raise").is_none());
+    // Another tool does not change it; clicking the face returns to it.
+    row_click(&mut rig, "Floor");
+    assert_eq!(rig.ws.grid.tool, GridTool::Floor);
+    assert!(text_in(&rig, tool_band(&rig), "Stairs").is_some());
+    row_click(&mut rig, "Stairs");
+    assert_eq!(rig.ws.grid.tool, GridTool::Stairs);
+}
+
+#[test]
+fn a_shape_key_sets_the_face_too_and_diagonal_is_a_shape() {
+    let mut rig = WindowRig::new();
+    press_key(&mut rig, egui::Key::X, false);
+    assert_eq!(rig.ws.grid.tool, GridTool::Break);
+    assert!(text_in(&rig, tool_band(&rig), "Break").is_some());
+    press_key(&mut rig, egui::Key::D, false);
+    assert_eq!(rig.ws.grid.tool, GridTool::Split);
+    assert!(
+        text_in(&rig, tool_band(&rig), "Diagonal").is_some(),
+        "Diagonal moved from FINISH to SHAPE"
+    );
+    let shape = in_row(&rig, "SHAPE");
+    let surface = in_row(&rig, "SURFACE");
+    let diagonal = in_row(&rig, "Diagonal");
+    assert!(diagonal.min.x > shape.max.x && diagonal.max.x < surface.min.x);
+}
+
+#[test]
+fn changing_the_shape_tool_does_not_move_the_rest_of_the_row() {
+    let mut rig = WindowRig::new();
+    let places = |rig: &WindowRig| -> Vec<Rect> {
+        ["SURFACE", "Paint", "Bands", "OBJECTS", "Place"]
+            .iter()
+            .map(|l| in_row(rig, l))
+            .collect()
+    };
+    let before = places(&rig);
+    for (_, tool) in SHAPES {
+        rig.ws.set_grid_tool(tool);
+        frames(&mut rig, 2);
+        assert_eq!(places(&rig), before, "{tool:?} moved the row");
+    }
+}
+
+#[test]
+fn the_place_menu_lists_light_spawn_prop_and_entity() {
+    let mut rig = WindowRig::new();
+    for (label, kind) in [
+        ("Light", PlaceKind::PointLightMarker),
+        ("Spawn", PlaceKind::SpawnMarker),
+        ("Prop", PlaceKind::ModelInstance),
+        ("Entity", PlaceKind::Character),
+    ] {
+        rig.ws.set_grid_tool(GridTool::Select);
+        frames(&mut rig, 2);
+        open_arrow(&mut rig, "Place");
+        for name in ["Light", "Spawn", "Prop", "Entity"] {
+            assert!(
+                menu_item(&rig, name).is_some(),
+                "{name} is in the Place menu"
+            );
+        }
+        let item = menu_item(&rig, label).unwrap().center();
+        rig.click(item);
+        frames(&mut rig, 2);
+        assert_eq!(rig.ws.grid.tool, GridTool::Place, "{label}");
+        assert_eq!(rig.ws.place_kind, kind, "{label}");
+    }
+}
+
+#[test]
+fn every_tool_key_still_works() {
+    let mut rig = WindowRig::new();
+    for tool in GridTool::ALL {
+        // From a tool the key does not belong to.
+        rig.ws.set_grid_tool(if tool == GridTool::Select {
+            GridTool::Floor
+        } else {
+            GridTool::Select
+        });
+        frames(&mut rig, 2);
+        press_key(&mut rig, tool.key(), tool.shift());
+        assert_eq!(rig.ws.grid.tool, tool, "{}", tool.label());
+    }
 }

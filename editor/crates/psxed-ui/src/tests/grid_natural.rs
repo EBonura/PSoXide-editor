@@ -580,12 +580,12 @@ fn the_help_page_names_the_natural_terrain_keys() {
 }
 
 #[test]
-fn the_strip_has_break_and_rough_in_the_build_group_with_their_keys() {
+fn the_strip_has_break_and_rough_in_the_shape_group_with_their_keys() {
     use crate::grid_tools::ToolGroup;
     assert_eq!(GridTool::Break.label(), "Break");
     assert_eq!(GridTool::Rough.label(), "Rough");
-    assert_eq!(GridTool::Break.group(), ToolGroup::Build);
-    assert_eq!(GridTool::Rough.group(), ToolGroup::Build);
+    assert_eq!(GridTool::Break.group(), ToolGroup::Shape);
+    assert_eq!(GridTool::Rough.group(), ToolGroup::Shape);
     assert_eq!(GridTool::Break.key(), egui::Key::X);
     assert_eq!(GridTool::Rough.key(), egui::Key::M);
     assert!(GridTool::Break.is_verb() && GridTool::Rough.is_verb());

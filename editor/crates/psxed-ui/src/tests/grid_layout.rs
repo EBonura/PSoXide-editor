@@ -254,53 +254,32 @@ fn many_lights_are_one_group_in_the_scene_graph() {
 }
 
 #[test]
-fn the_tools_sit_in_four_labelled_groups_on_two_rows() {
+fn the_tools_sit_in_labelled_groups_on_one_row() {
     let mut ws =
         EditorWorkspace::with_project(test_temp_dir("layout-tools"), flat_project(4, 4, true));
     let ctx = full_context();
     let output = draw_editor_sized(&mut ws, &ctx, false, Vec2::new(1920.0, 1080.0));
-    // A tool button's text is its icon, two spaces and the label.
     let y_of = |label: &str| {
         let mut found = Vec::new();
         for shape in &output.shapes {
             if let egui::Shape::Text(t) = &shape.shape {
-                let text = t.galley.text();
-                if text == label
-                    || (text.ends_with(&format!("  {label}"))
-                        && text.chars().count() == label.chars().count() + 3)
-                {
-                    // The strip is the top of the centre; the palette says Paint too.
-                    if t.pos.x < 1600.0 {
-                        found.push(t.pos.y);
-                    }
+                // The row is the strip under the top bar; the palette says Paint too.
+                if t.galley.text() == label && t.pos.x < 1600.0 && t.pos.y < 100.0 {
+                    found.push(t.pos.y);
                 }
             }
         }
         assert_eq!(found.len(), 1, "{label}: {found:?}");
         found[0]
     };
-    for group in ["PICK", "DRAW", "FINISH", "BUILD"] {
+    for group in ["CREATE", "SHAPE", "SURFACE", "OBJECTS"] {
         y_of(group);
     }
-    let first_row = y_of("Select");
+    let row = y_of("Select");
     for tool in [
-        "Height", "Floor", "Ceiling", "Wall", "Plane", "Mesh", "Paint", "Diagonal", "Bands",
-        "Place",
+        "Height", "Floor", "Ceiling", "Wall", "Raise", "Paint", "Bands", "Place",
     ] {
-        assert!(
-            (y_of(tool) - first_row).abs() < 4.0,
-            "{tool} is on the first row"
-        );
-    }
-    let second_row = y_of("Raise");
-    assert!(second_row > first_row + 10.0, "Build is on its own row");
-    for tool in [
-        "Ramp", "Stairs", "Spiral", "Break", "Rough", "Cells", "Slab",
-    ] {
-        assert!(
-            (y_of(tool) - second_row).abs() < 4.0,
-            "{tool} is on the second row"
-        );
+        assert!((y_of(tool) - row).abs() < 4.0, "{tool} is on the row");
     }
     // The order of GridTool::ALL is the order of the groups.
     let groups: Vec<_> = GridTool::ALL.iter().map(|t| t.group().label()).collect();
@@ -311,7 +290,7 @@ fn the_tools_sit_in_four_labelled_groups_on_two_rows() {
             seen.push(g);
         }
     }
-    assert_eq!(seen, ["PICK", "DRAW", "FINISH", "BUILD"]);
+    assert_eq!(seen, ["PICK", "CREATE", "SHAPE", "SURFACE", "OBJECTS"]);
 }
 
 fn font_size_of(output: &egui::FullOutput, needle: &str) -> Option<f32> {
