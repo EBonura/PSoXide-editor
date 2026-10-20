@@ -171,13 +171,22 @@ impl EditorWorkspace {
                         .color(STUDIO_TEXT_WEAK),
                 );
                 let uv = edited.uv;
+                let world_uv = self
+                    .project
+                    .active_scene()
+                    .world
+                    .grid()
+                    .map_or(psxed_project::face_uv::UvMode::LEGACY, |world| {
+                        world.default_uv()
+                    });
                 let shown = psxed_project::face_uv::FaceUv {
-                    mode: psxed_project::grid::plane_faces::effective_mode(&edited),
+                    mode: psxed_project::grid::plane_faces::effective_mode(&edited, world_uv),
                     ..uv
                 };
                 let report = psxed_project::grid::uv::report(
                     &shown,
                     None,
+                    world_uv,
                     [0.0, 0.0],
                     edited.size.map(f64::from),
                 );

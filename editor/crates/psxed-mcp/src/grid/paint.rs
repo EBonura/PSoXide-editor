@@ -249,7 +249,7 @@ pub struct TilingReq {
     /// rectangle: `repeats` [2, 2] over 4 x 2 cells is one 2 x 2 tiling,
     /// each cell showing its share; floors and ceilings, each its own patch;
     /// walls fit per run) or `inherit` (the material's own tiling default,
-    /// else the legacy 32 texels per sector).
+    /// else the world's own texels per sector).
     pub mode: Option<String>,
     /// For `world`: texels per sector along the frame's two axes. 32 is the
     /// legacy density (half a 64 texel tile per sector); 64 is one tile.
@@ -462,7 +462,7 @@ pub fn tiling(
 pub struct MaterialTilingReq {
     /// Material name or id.
     pub material: String,
-    /// `world`, `fit` or `inherit` (the legacy 32 texels per sector).
+    /// `world`, `fit` or `inherit` (the world's own texels per sector).
     pub mode: String,
     /// For `world`: texels per sector along the two axes.
     pub density: Option<[u16; 2]>,

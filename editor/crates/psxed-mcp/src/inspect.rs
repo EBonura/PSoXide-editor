@@ -7,6 +7,7 @@
 use std::fmt::Write as _;
 use std::path::Path;
 
+use psxed_project::face_uv::UvMode;
 use psxed_project::{ProjectDocument, ResourceData};
 
 /// Texel dimensions and depth of a cooked `.psxt`, read from its header.
@@ -47,16 +48,18 @@ fn resolve_texture(project_root: &Path, raw: &str) -> Option<std::path::PathBuf>
 /// What one tile of a material covers under the grid mapping, in words.
 ///
 /// The grid renderer lays a texture by the face's mode: `World` spends a
-/// fixed number of texels per sector (the default is 32, so a 64 texel tile
-/// spans two sectors), `Fit` puts a fixed number of tiles across each face.
-/// The material's own default (`grid_uv`) applies to faces that inherit.
+/// fixed number of texels per sector (the world's own setting, 64 for a new
+/// world so a 64 texel tile is one sector, 32 for an older one), `Fit` puts a
+/// fixed number of tiles across each face. The material's own default
+/// (`grid_uv`) applies to faces that inherit.
 fn grid_tile(
     material: &psxed_project::MaterialResource,
     texels: [u16; 2],
     sector_editor: Option<i32>,
+    world_uv: UvMode,
 ) -> String {
-    use psxed_project::face_uv::UvMode;
-    let mode = psxed_project::grid::uv::resolve(UvMode::Inherit, Some(material.grid_uv));
+    let mode =
+        psxed_project::grid::uv::resolve(UvMode::Inherit, Some(material.grid_uv), world_uv);
     match mode {
         UvMode::World { texels_per_sector } => {
             let sectors = |texels: u16, density: u16| f64::from(texels) / f64::from(density.max(1));
@@ -101,8 +104,8 @@ fn grid_tile(
 /// one tile covers under the grid mapping.
 ///
 /// Size is the point. Without it, how often a texture repeats over a surface
-/// is guesswork. A grid world lays a texture by sector (32 texels per sector
-/// unless a face or the material says otherwise), a brush world by units (16
+/// is guesswork. A grid world lays a texture by sector (the world's texels per
+/// sector, 64 for a new world, unless a face or the material says otherwise), a brush world by units (16
 /// per texel); the column follows the project's own kind of world.
 pub fn materials(project: &ProjectDocument, project_root: &Path) -> String {
     materials_filtered(project, project_root, None)
@@ -116,6 +119,7 @@ pub fn materials_filtered(
 ) -> String {
     let grid = project.active_scene().world.grid();
     let sector_editor = grid.map(|world| world.scale.sector_editor_units());
+    let world_uv = grid.map_or(UvMode::LEGACY, |world| world.default_uv());
     let mut out = String::from("# Materials\n\n");
     out.push_str(if grid.is_some() {
         "| name | id | texels | grid tile (default mapping) | depth | blend | tint |\n"
@@ -148,7 +152,7 @@ pub fn materials_filtered(
             || ("flat".to_string(), "-".to_string(), "-".to_string()),
             |(width, height, depth)| {
                 let repeat = if grid.is_some() {
-                    grid_tile(material, [width, height], sector_editor)
+                    grid_tile(material, [width, height], sector_editor, world_uv)
                 } else {
                     format!(
                         "{}x{}",
@@ -168,13 +172,15 @@ pub fn materials_filtered(
             material.tint
         );
     }
-    if grid.is_some() {
+    if let Some(world) = grid {
+        let world_texels = world.texels_per_sector.get();
         let _ = writeln!(
             out,
             "\n{listed} materials. `grid tile` is what one full texture covers with the default \
-             mapping (World, 32 texels per sector unless the material's own tiling default says \
-             otherwise): a face can override it with grid_tiling (World density, Fit N x M, or \
-             Fit across a whole rectangle), a material's default is grid_material_tiling."
+             mapping (World, {world_texels} texels per sector, the world's setting, unless the \
+             material's own tiling default says otherwise): a face can override it with \
+             grid_tiling (World density, Fit N x M, or Fit across a whole rectangle), a \
+             material's default is grid_material_tiling."
         );
     } else {
         let _ = writeln!(

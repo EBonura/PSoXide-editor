@@ -302,11 +302,17 @@ fn report_of(
     ws: &EditorWorkspace,
     uv: psxed_project::face_uv::FaceUv,
 ) -> Option<psxed_project::grid::uv::UvReport> {
-    let _ = ws;
     let default: Option<UvMode> = None;
+    let world_uv = ws
+        .project
+        .active_scene()
+        .world
+        .grid()
+        .map_or(UvMode::LEGACY, |world| world.default_uv());
     Some(psxed_project::grid::uv::report(
         &uv,
         default,
+        world_uv,
         [0.0, 0.0],
         [1024.0, 1024.0],
     ))
