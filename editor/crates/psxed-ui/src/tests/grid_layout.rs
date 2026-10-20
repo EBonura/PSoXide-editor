@@ -328,7 +328,9 @@ fn the_keys_page_is_searchable() {
     ws.grid.help_open = true;
     let text = screen_sized(&mut ws, Vec2::new(1920.0, 2100.0));
     assert!(text.contains("Search keys"), "{text}");
-    assert!(text.contains("Spiral (Shift+T)") && text.contains("Upper floor (Shift+Q) and storeys"));
+    assert!(
+        text.contains("Spiral (Shift+T)") && text.contains("Upper floor (Shift+Q) and storeys")
+    );
     // A query keeps the sections with a row that matches, and only those rows.
     ws.grid.help_search = "cutaway".to_string();
     let text = screen_sized(&mut ws, Vec2::new(1920.0, 2100.0));
