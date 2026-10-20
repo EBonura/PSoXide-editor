@@ -205,6 +205,36 @@ pub(super) fn click(ws: &mut EditorWorkspace, ptr: &GridPointer, kind: SurfaceKi
     );
 }
 
+/// Centre and half extents, editor units, of what a rectangle drew and a few
+/// sectors of context around it: what the camera frames, so the rooms the new
+/// floor joins are in view too.
+fn edit_bounds(
+    ws: &EditorWorkspace,
+    room: usize,
+    rect: CellRect,
+    height: i32,
+) -> Option<([f32; 3], [f32; 3])> {
+    /// Sectors of context on every side.
+    const CONTEXT: i32 = 3;
+    let world = ws.project.active_scene().world.grid()?;
+    let y = editor_y(world, world.rooms.get(room)?.y_offset, height);
+    let sector = world.scale.to_editor(psxed_project::grid::SECTOR_UNITS) as f32;
+    let (min, max) = (
+        [
+            (rect.min[0] - CONTEXT) as f32 * sector,
+            (rect.min[1] - CONTEXT) as f32 * sector,
+        ],
+        [
+            (rect.max[0] + 1 + CONTEXT) as f32 * sector,
+            (rect.max[1] + 1 + CONTEXT) as f32 * sector,
+        ],
+    );
+    Some((
+        [(min[0] + max[0]) * 0.5, y, (min[1] + max[1]) * 0.5],
+        [(max[0] - min[0]) * 0.5, 0.0, (max[1] - min[1]) * 0.5],
+    ))
+}
+
 /// The cells of `rect` that hold no floor in `room`, before an edit.
 fn fresh_floor_cells(project: &ProjectDocument, room: usize, rect: CellRect) -> Vec<[i32; 2]> {
     let Some(room) = project
@@ -391,6 +421,9 @@ fn apply(
     }
     ws.history.record(before);
     ws.grid_changed();
+    if !erase && !ws.grid_3d_visible() {
+        ws.grid.unseen_edit = edit_bounds(ws, room, rect, height);
+    }
     // The cursor follows a floor made: the next verb acts on its storey.
     if kind == SurfaceKind::Floor && !erase {
         ws.follow_edit(room, Some(height));

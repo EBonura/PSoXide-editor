@@ -39,13 +39,20 @@ fn dp_world() -> (EditorWorkspace, ScratchProjectDir) {
             );
         }
     }
+    // The hall's floor takes another Graybox material than the starter room's.
+    let hall_floor = ws
+        .project
+        .resources
+        .iter()
+        .find(|r| r.name == "Graybox / Wall 64")
+        .map(|r| r.id);
     let mut hall = GridRoom::new("Machine Hall", 8, 8);
     hall.origin = [7, -1];
     hall.wall_mode = WallMode::Derived;
     for z in 0..8 {
         for x in 0..8 {
             let sector = hall.sector_or_insert(x, z).unwrap();
-            sector.set_ground_floor(Some(GridSurface::flat(0, None)));
+            sector.set_ground_floor(Some(GridSurface::flat(0, hall_floor)));
             sector.set_ground_ceiling(Some(GridSurface::flat(3072, None)));
         }
     }
@@ -354,6 +361,100 @@ fn a_floor_that_touches_no_room_opens_nothing() {
     }
 }
 
+// ---------------------------------------------------------------------
+// Finding 2: the floor drawn in the plan was not in view when the 3D button
+// was pressed. (The preview itself is not stale: the frontend's
+// `a_floor_added_between_two_live_frames_shows_in_the_second` covers that.)
+
+impl WindowRig {
+    /// Editor-space centre of world cells `a`..`b` on the floor.
+    fn editor_centre(&self, a: [i32; 2], b: [i32; 2]) -> [f32; 3] {
+        let sector = self.world().scale.to_editor(1024) as f32;
+        [
+            (a[0] + b[0] + 1) as f32 * 0.5 * sector,
+            0.0,
+            (a[1] + b[1] + 1) as f32 * 0.5 * sector,
+        ]
+    }
+
+    /// Where `point` is on screen in the 3D view, when it is in front of
+    /// the camera.
+    fn persp_screen(&self, point: [f32; 3]) -> Option<Pos2> {
+        let camera = self.ws.viewport_3d_camera();
+        crate::grid_tools::view::project_point(camera, self.ws.last_persp_viewport_rect, point)
+            .map(|(p, _)| p)
+    }
+
+    fn click_3d(&mut self) {
+        let button = self.at("3D");
+        self.click(button);
+        for _ in 0..3 {
+            self.frame(vec![]);
+        }
+        assert!(!self.ws.view_2d, "the 3D button switched the view");
+    }
+}
+
+#[test]
+fn the_3d_view_after_a_plan_edit_looks_at_the_new_floor() {
+    let mut rig = WindowRig::new();
+    rig.draw_floor([6, 2], [6, 3]);
+    rig.click_3d();
+    let corridor = rig.editor_centre([6, 2], [6, 3]);
+    let rect = rig.ws.last_persp_viewport_rect;
+    let at = rig.persp_screen(corridor);
+    assert!(
+        at.is_some_and(|p| rect.shrink(rect.width() * 0.2).contains(p)),
+        "the corridor is not in the middle of the 3D view: {at:?} in {rect:?}"
+    );
+    // Seen from above, not from behind the room beside it.
+    let pitch_degrees = (4096 - u32::from(rig.ws.camera_rig.pitch)) * 360 / 4096;
+    assert!(
+        pitch_degrees >= 45,
+        "the view looks down at {pitch_degrees} degrees"
+    );
+    assert!(rig.ws.status.contains("framed"), "{}", rig.ws.status);
+}
+
+#[test]
+fn the_view_frames_an_edit_once_and_then_leaves_the_camera_alone() {
+    let mut rig = WindowRig::new();
+    rig.draw_floor([6, 2], [6, 3]);
+    rig.click_3d();
+    let framed = rig.ws.camera_rig.target;
+    // The user orbits somewhere else, goes to the plan and back with no edit.
+    rig.ws.camera_rig.target = [0, 0, 0];
+    let plan = rig.at("Plan");
+    rig.click(plan);
+    assert!(rig.ws.view_2d);
+    rig.click_3d();
+    assert_eq!(
+        rig.ws.camera_rig.target,
+        [0, 0, 0],
+        "was {framed:?} when framed"
+    );
+}
+
+#[test]
+fn an_edit_made_in_the_3d_view_does_not_move_its_camera() {
+    let mut rig = WindowRig::new();
+    rig.ws.apply_grid_pose("view=3d").unwrap();
+    for _ in 0..3 {
+        rig.frame(vec![]);
+    }
+    let floor = rig.at("Floor");
+    rig.click(floor);
+    let before = rig.ws.camera_rig.target;
+    let a = rig.persp_screen(rig.editor_centre([6, 2], [6, 2])).unwrap();
+    let b = rig.persp_screen(rig.editor_centre([6, 3], [6, 3])).unwrap();
+    rig.drag(a, b);
+    assert!(rig.ws.status.starts_with("Created"), "{}", rig.ws.status);
+    let plan = rig.at("Plan");
+    rig.click(plan);
+    rig.click_3d();
+    assert_eq!(rig.ws.camera_rig.target, before, "that edit was seen in 3D");
+}
+
 /// Captures for the review pages: `PSXED_LIVE_CAPTURE=<dir> PSXED_LIVE_LABEL=before|after`
 /// writes one PNG per finding; without the variable this does nothing.
 #[test]
@@ -371,4 +472,18 @@ fn live_captures() {
         rig.frame(vec![]);
     }
     rig.capture(&dir.join(format!("f3-corridor-plan-{label}.png")));
+
+    // Finding 2: the same edit, then the 3D button. The project and its view
+    // file go to disk so `frontend dump-editor-ui` can render the real 3D view.
+    let three_d = rig.at("3D");
+    rig.click(three_d);
+    for _ in 0..3 {
+        rig.frame(vec![]);
+    }
+    rig.capture(&dir.join(format!("f2-after-3d-click-ui-{label}.png")));
+    rig.ws.save().expect("save");
+    rig.ws.save_view_state().expect("view");
+    let project = dir.join(format!("proj-f2-{label}"));
+    let _ = std::fs::remove_dir_all(&project);
+    crate::starter_catalogue::copy_dir_recursive(&rig.ws.project_dir, &project).unwrap();
 }

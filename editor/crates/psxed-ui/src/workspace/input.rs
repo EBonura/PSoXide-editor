@@ -388,6 +388,11 @@ impl EditorWorkspace {
         }
     }
 
+    /// Whether a 3D view is on screen (alone or beside the plan).
+    pub(crate) fn grid_3d_visible(&self) -> bool {
+        self.grid_view_mode() != GridViewMode::Plan
+    }
+
     /// Show the 3D view, the plan or both.
     pub(crate) fn set_grid_view_mode(&mut self, mode: GridViewMode) {
         if self.grid_view_mode() == mode {
@@ -412,7 +417,33 @@ impl EditorWorkspace {
             }
         }
         self.status = format!("View: {}", mode.label());
+        if mode != GridViewMode::Plan {
+            self.frame_unseen_edit();
+        }
         self.mark_shortcut_group_changed(ShortcutGroup::Viewport);
+    }
+
+    /// Something was drawn in the plan while the 3D view was hidden: show it.
+    /// The camera takes the new floor as its target and looks down at it, so
+    /// the room beside it does not hide it, and the edit is forgotten, so the
+    /// next switch leaves the camera where the user put it.
+    fn frame_unseen_edit(&mut self) {
+        /// Steepest the camera may be left looking from, in 4096ths of a
+        /// turn below the horizon (70 degrees).
+        const STEEP_Q12: u16 = 796;
+        let Some((center, half)) = self.grid.unseen_edit.take() else {
+            return;
+        };
+        self.frame_3d_bounds(center, half);
+        if self.camera_rig.mode == ViewportCameraMode::Orbit
+            && 4096 - self.camera_rig.pitch < STEEP_Q12
+        {
+            self.camera_rig.pitch = 4096 - STEEP_Q12;
+        }
+        self.status = format!(
+            "View: {}, framed the new floor",
+            self.grid_view_mode().label()
+        );
     }
 
     pub(crate) fn set_orthographic_view(&mut self, view: OrthographicView) {

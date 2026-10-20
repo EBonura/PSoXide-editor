@@ -696,6 +696,9 @@ pub(crate) struct GridEditState {
     pub palette_import_watch: Option<Vec<ResourceId>>,
     /// The room whose name is being edited in the Rooms panel.
     pub renaming_room: Option<usize>,
+    /// Centre and half extents (editor units) of the floor or ceiling just
+    /// drawn while the 3D view was hidden: the next switch to 3D frames it.
+    pub unseen_edit: Option<([f32; 3], [f32; 3])>,
 }
 
 impl Default for GridEditState {
@@ -751,6 +754,7 @@ impl Default for GridEditState {
             palette_recent: Vec::new(),
             palette_import_watch: None,
             renaming_room: None,
+            unseen_edit: None,
         }
     }
 }

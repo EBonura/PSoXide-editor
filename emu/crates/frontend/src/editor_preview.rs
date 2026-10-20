@@ -2040,6 +2040,58 @@ mod tests {
         );
     }
 
+    /// The editor's own path: each frame reuses the last one's output and may
+    /// be handed back unchanged (the memo), so an edit made while the 3D view
+    /// is hidden (a floor drawn in the plan) must show in the first 3D frame.
+    #[test]
+    fn a_floor_added_between_two_live_frames_shows_in_the_second() {
+        use psxed_project::grid::GridSurface;
+        let camera = ViewportCameraState {
+            mode: psxed_ui::ViewportCameraMode::Orbit,
+            yaw_q12: 320,
+            pitch_q12: 4096 - 400,
+            radius: 4096,
+            target: [512, 256, 512],
+            position: [0; 3],
+        };
+        let live = |project: &ProjectDocument, previous: EditorPreviewFrame| {
+            build_phase1_frame_reusing(
+                project,
+                camera,
+                false,
+                false,
+                &HashSet::new(),
+                NodeId::ROOT,
+                None,
+                None,
+                &[],
+                None,
+                &EditorTextures::new(),
+                &crate::editor_assets::EditorAssets::new(),
+                previous,
+            )
+        };
+        let mut project = grid_project(true, false);
+        let first = live(&project, EditorPreviewFrame::default());
+        let before = first.cmd_log.len();
+        // A third column of floor beside the room, added to the same room.
+        let world = project.active_scene_mut().world.grid_mut().unwrap();
+        let room = &mut world.rooms[0];
+        room.width = 3;
+        for z in 0..2 {
+            room.sector_or_insert(2, z)
+                .unwrap()
+                .set_ground_floor(Some(GridSurface::flat(0, None)));
+        }
+        let second = live(&project, first);
+        assert!(
+            second.cmd_log.len() > before,
+            "the live frame after the edit drew {} commands, the one before {}",
+            second.cmd_log.len(),
+            before
+        );
+    }
+
     #[test]
     fn grid_lighting_reaches_the_preview_commands() {
         let mut project = grid_project(true, false);
