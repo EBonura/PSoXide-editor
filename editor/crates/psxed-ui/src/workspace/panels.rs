@@ -130,6 +130,15 @@ impl EditorWorkspace {
             self.draw_grid_left_dock(ui);
             return;
         }
+        // The Material tab edits one material of the palette, so its dock is
+        // the palette (the same list as the World tab's, taller).
+        if self.is_grid_world() && self.active_workspace == WorkspaceView::Material {
+            tool_panel_frame().show(ui, |ui| {
+                ui.set_min_height(ui.available_height());
+                self.draw_grid_palette_in(ui, true);
+            });
+            return;
+        }
         let content_width = ui.available_width().max(1.0);
         let total_height = ui.available_height().max(1.0);
         // The same holds in the other tabs: a grid world's resources are in

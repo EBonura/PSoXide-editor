@@ -21,6 +21,8 @@
 //!   `select=walls:...`, `select=derived:...` (the derived walls hosted by
 //!   those sectors), `select=vertex:x,z,corner`, `select=edge:x,z,edge`,
 //!   `select=plane:i[,j...]` planes of the active room by index
+//! * `select=node:NAME` a scene node (a light, the spawn, an actor) by its
+//!   name or raw id
 //! * `select=mesh:ID` a placed mesh by its stable id; `mesh-asset=N` the asset
 //!   the Mesh tool places; `mesh-turn=degrees` the heading of the next one
 //! * `hover=plane:i` a plane under the pointer; `hover=meshspot:gx,gz` where
@@ -522,6 +524,19 @@ impl EditorWorkspace {
         if kind == "mesh" {
             let id = ints(parts.get(1).ok_or("missing id")?)?[0];
             self.grid.mesh_sel = Some(u16::try_from(id).map_err(|e| e.to_string())?);
+            return Ok(());
+        }
+        if kind == "node" {
+            // A scene node by name (the first of that name), or by raw id.
+            let want = *parts.get(1).ok_or("missing node name")?;
+            let scene = self.project.active_scene();
+            let id = scene
+                .hierarchy_rows()
+                .iter()
+                .find(|r| r.name == want || r.id.raw().to_string() == want)
+                .map(|r| r.id)
+                .ok_or_else(|| format!("no node {want:?}"))?;
+            self.replace_node_selection(id);
             return Ok(());
         }
         if kind == "plane" {

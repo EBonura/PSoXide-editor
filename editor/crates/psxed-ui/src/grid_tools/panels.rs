@@ -83,11 +83,17 @@ impl EditorWorkspace {
             if id == NodeId::ROOT {
                 return "World".to_string();
             }
-            return self
-                .project
-                .active_scene()
-                .node(id)
-                .map_or_else(|| "Node".to_string(), |n| n.name.clone());
+            // "Light: Torch", "Spawn Point: Start": what it is, then its name.
+            return self.project.active_scene().node(id).map_or_else(
+                || "Node".to_string(),
+                |n| {
+                    let kind = match n.kind.label() {
+                        "Point Light" => "Light",
+                        other => other,
+                    };
+                    format!("{kind}: {}", n.name)
+                },
+            );
         }
         "Nothing selected".to_string()
     }

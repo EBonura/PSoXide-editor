@@ -122,9 +122,24 @@ fn rect_ghost(world: &GridWorld, g: &RectGesture, rect: CellRect) -> (Color32, O
 pub(super) fn label_chip(painter: &egui::Painter, at: Pos2, align: Align2, text: &str) {
     let galley =
         painter.layout_no_wrap(text.to_string(), FontId::proportional(13.0), Color32::WHITE);
-    let rect = align
+    let mut rect = align
         .anchor_size(at, galley.size())
         .expand2(Vec2::new(6.0, 3.0));
+    // Keep the chip inside the pane it is drawn in; a chip wider than the
+    // pane starts at its left edge.
+    let pane = painter.clip_rect();
+    if rect.right() > pane.right() {
+        rect = rect.translate(Vec2::new(pane.right() - rect.right(), 0.0));
+    }
+    if rect.left() < pane.left() {
+        rect = rect.translate(Vec2::new(pane.left() - rect.left(), 0.0));
+    }
+    if rect.bottom() > pane.bottom() {
+        rect = rect.translate(Vec2::new(0.0, pane.bottom() - rect.bottom()));
+    }
+    if rect.top() < pane.top() {
+        rect = rect.translate(Vec2::new(0.0, pane.top() - rect.top()));
+    }
     painter.rect_filled(rect, 3.0, Color32::from_rgba_unmultiplied(12, 16, 22, 215));
     painter.galley(rect.min + Vec2::new(6.0, 3.0), galley, Color32::WHITE);
 }

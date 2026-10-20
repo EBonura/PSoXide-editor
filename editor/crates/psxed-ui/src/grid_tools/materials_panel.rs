@@ -67,6 +67,12 @@ impl EditorWorkspace {
 
     /// The palette, its search box and the New and Import buttons.
     pub(super) fn draw_grid_palette(&mut self, ui: &mut egui::Ui) {
+        self.draw_grid_palette_in(ui, false);
+    }
+
+    /// [`Self::draw_grid_palette`]; `fill` lets the swatches take all the
+    /// height left (the Material tab's left dock), instead of a window.
+    pub(crate) fn draw_grid_palette_in(&mut self, ui: &mut egui::Ui, fill: bool) {
         self.refresh_texture_thumbs(ui.ctx());
         self.pin_imported_materials();
         let materials =
@@ -143,7 +149,12 @@ impl EditorWorkspace {
             let scroll_to = self.grid.palette_scroll_to.take();
             // The window grows with the dock: a world of 650 tiles needs more
             // than a few rows.
-            let window = (ui.available_height() * 0.5).clamp(236.0, 520.0);
+            let window = if fill {
+                // What is left, less the Paint line under the list.
+                (ui.available_height() - 34.0).max(236.0)
+            } else {
+                (ui.available_height() * 0.5).clamp(236.0, 520.0)
+            };
             egui::ScrollArea::vertical()
                 .id_salt("grid_palette_scroll")
                 .max_height(window)
@@ -279,7 +290,13 @@ impl EditorWorkspace {
         self.grid.palette_recent.retain(|r| *r != id);
         self.grid.palette_recent.insert(0, id);
         self.grid.palette_recent.truncate(RECENT_MATERIALS);
-        let applied = self.apply_grid_material_to_selection(id);
+        // In the Material tab the palette is a list to edit from: choosing
+        // there must not repaint whatever faces are still selected.
+        let applied = if self.active_workspace == WorkspaceView::Material {
+            0
+        } else {
+            self.apply_grid_material_to_selection(id)
+        };
         self.status = if applied > 0 {
             format!("Applied {name} to {applied} faces")
         } else {

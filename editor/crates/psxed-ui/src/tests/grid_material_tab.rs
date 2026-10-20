@@ -5,7 +5,7 @@ use super::grid_rig::*;
 use super::grid_ui::full_context;
 use super::*;
 
-fn two_materials() -> (ProjectDocument, ResourceId, ResourceId) {
+pub(super) fn two_materials() -> (ProjectDocument, ResourceId, ResourceId) {
     let mut project = flat_project(4, 4, false);
     let material =
         || psxed_project::ResourceData::Material(psxed_project::MaterialResource::opaque(None));
@@ -14,7 +14,7 @@ fn two_materials() -> (ProjectDocument, ResourceId, ResourceId) {
     (project, a, b)
 }
 
-fn draw_material_tab(ws: &mut EditorWorkspace) -> String {
+pub(super) fn draw_material_tab(ws: &mut EditorWorkspace) -> String {
     let ctx = full_context();
     let texture = ctx.load_texture(
         "material-tab",
