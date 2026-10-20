@@ -59,7 +59,8 @@
 //! * `raise=x,z,corner,clicks` raise a floor corner, like a finished drag
 //! * `material=N` the Nth material of the palette
 //! * `paint-turn=0..3` the Paint brush's quarter turns; `paint-flip=h,v|none`
-//!   its flips (with `hover=face:...` the preview shows in both views)
+//!   its flips (with `hover=face:...` the preview shows in both views);
+//!   `paint-click` makes the click on the hovered face
 //! * `copy` copies the selection; `paste=x,z` shows the ghost at `x,z`
 //! * `marquee=x0,y0:x1,y1` a screen-space box
 //! * `camera=yaw,pitch,radius,tx,ty,tz` an orbit camera (editor units)
@@ -382,6 +383,22 @@ impl EditorWorkspace {
             "paint-turn" => {
                 let turns = value.parse::<u8>().map_err(|e| e.to_string())?;
                 self.grid.paint.orient.turns = turns & 3;
+            }
+            "paint-click" => {
+                // The click on the hovered face: the paint lands as one undo
+                // step, the way the tool writes it.
+                let ghost = self.paint_ghost().ok_or("no paint under the hover")?;
+                let before = self.project.clone();
+                let world = self
+                    .project
+                    .active_scene_mut()
+                    .world
+                    .grid_mut()
+                    .ok_or("not a grid world")?;
+                if ghost.apply(world) {
+                    self.history.record(before);
+                    self.grid_changed();
+                }
             }
             "paint-flip" => {
                 let mut flip = [false, false];

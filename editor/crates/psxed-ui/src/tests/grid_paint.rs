@@ -572,21 +572,34 @@ fn paint_capture_project() {
     let _ = std::fs::remove_dir_all(&dir);
     let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../projects");
     crate::starter_catalogue::copy_dir_recursive(&source.join("grid-starter"), &dir).unwrap();
-    let textures = dir.join("assets/textures");
-    std::fs::create_dir_all(&textures).unwrap();
+    // The starter's `assets` is a link into another project: make it a real
+    // copy, so writing the sample never reaches the source tree.
+    if std::fs::symlink_metadata(dir.join("assets"))
+        .unwrap()
+        .file_type()
+        .is_symlink()
+    {
+        std::fs::remove_file(dir.join("assets")).unwrap();
+        crate::starter_catalogue::copy_dir_recursive(
+            &source.join("graybox-reach/assets"),
+            &dir.join("assets"),
+        )
+        .unwrap();
+    }
     std::fs::copy(
-        source.join("default/assets/textures/dp_city_kit/dp_city_platform_edge.psxt"),
-        textures.join("paint-sample.psxt"),
+        source.join("default/assets/textures").join(
+            std::env::var("PSXED_PAINT_TEXTURE")
+                .unwrap_or_else(|_| "dp_city_kit/dp_city_platform_edge.psxt".to_string()),
+        ),
+        dir.join("assets/paint-sample.psxt"),
     )
     .unwrap();
     let mut project =
         ProjectDocument::load_from_path(dir.join("project.ron")).expect("the starter loads");
-    project.add_resource(
-        "Paint sample",
-        ResourceData::Material(MaterialResource::opaque(Some(
-            "assets/textures/paint-sample.psxt".to_string(),
-        ))),
-    );
+    // One whole tile across each face, so a turn is plain to see.
+    let mut sample = MaterialResource::opaque(Some("assets/paint-sample.psxt".to_string()));
+    sample.grid_uv = psxed_project::face_uv::UvMode::fit(1, 1);
+    project.add_resource("Paint sample", ResourceData::Material(sample));
     let index = project.material_options().len() - 1;
     project.save_to_path(dir.join("project.ron")).unwrap();
     let world = project.active_scene().world.grid().unwrap();

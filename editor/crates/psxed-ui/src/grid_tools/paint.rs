@@ -288,7 +288,7 @@ impl EditorWorkspace {
             .map(|entry| entry.handle.id());
         let orient = self.grid.paint.orient;
         // The swatch: the picture the brush lays down.
-        let (rect, response) = ui.allocate_exact_size(Vec2::splat(20.0), Sense::hover());
+        let (rect, response) = ui.allocate_exact_size(Vec2::splat(24.0), Sense::hover());
         match texture {
             Some(texture) => {
                 ui.painter().add(oriented_quad(texture, rect, orient));
