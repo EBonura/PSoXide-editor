@@ -142,7 +142,7 @@ impl EditorWorkspace {
                         ("Entity", _) => "Actor",
                         (other, _) => other,
                     };
-                    format!("{kind}: {}", n.name)
+                    format!("{kind}: {}", compact_middle(&n.name, 24))
                 },
             );
         }
