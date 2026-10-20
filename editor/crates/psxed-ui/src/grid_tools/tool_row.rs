@@ -64,9 +64,23 @@ fn name_and_key_button(
             Stroke::new(1.0, STUDIO_ACCENT),
             egui::StrokeKind::Inside,
         );
-    } else if response.hovered() {
-        ui.painter()
-            .rect_filled(rect, radius(corners), STUDIO_HOVER);
+    } else {
+        // A split button's face is a boxed control, so its arrow reads as
+        // part of it; a plain tool is flat until hovered.
+        if corners == Corners::Left {
+            ui.painter()
+                .rect_filled(rect, radius(corners), STUDIO_INPUT);
+            ui.painter().rect_stroke(
+                rect,
+                radius(corners),
+                Stroke::new(1.0, STUDIO_BORDER),
+                egui::StrokeKind::Inside,
+            );
+        }
+        if response.hovered() {
+            ui.painter()
+                .rect_filled(rect, radius(corners), STUDIO_HOVER);
+        }
     }
     let name_pos = Pos2::new(
         rect.min.x + 9.0,
@@ -158,8 +172,9 @@ fn arrow_menu(
     add_contents: impl FnOnce(&mut egui::Ui),
 ) {
     ui.scope(|ui| {
-        ui.visuals_mut().widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
-        ui.visuals_mut().widgets.inactive.bg_stroke = Stroke::NONE;
+        // Boxed, so a lone arrow (CREATE) is found on the row.
+        ui.visuals_mut().widgets.inactive.weak_bg_fill = STUDIO_INPUT;
+        ui.visuals_mut().widgets.inactive.bg_stroke = Stroke::new(1.0, STUDIO_BORDER);
         let corner = match corners {
             Corners::All => egui::CornerRadius::same(CONTROL_RADIUS),
             Corners::Left => egui::CornerRadius {
@@ -169,7 +184,7 @@ fn arrow_menu(
                 se: CONTROL_RADIUS,
             },
         };
-        let button = egui::Button::new(icons::text(icons::CHEVRON_DOWN, 11.0))
+        let button = egui::Button::new(icons::text(icons::CHEVRON_DOWN, 12.0).color(STUDIO_TEXT))
             .selected(selected)
             .corner_radius(corner)
             .min_size(Vec2::new(ARROW_WIDTH, BUTTON_HEIGHT));

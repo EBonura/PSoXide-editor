@@ -36,6 +36,18 @@ fn toolbar_captures() {
             )));
         }
     }
+    // The three menus of the tool row, open.
+    for (arrow_of, name) in [
+        ("Ceiling", "create"),
+        ("Raise", "shape"),
+        ("Place", "objects"),
+    ] {
+        let mut rig = WindowRig::new();
+        rig.ws.apply_grid_pose("view=3d;tool=select").unwrap();
+        frames(&mut rig, 4);
+        open_arrow(&mut rig, arrow_of);
+        rig.capture(&dir.join(format!("menu-{name}-1456x819-{label}.png")));
+    }
 }
 
 // ---------------------------------------------------------------------
