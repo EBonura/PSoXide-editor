@@ -168,6 +168,7 @@ fn while_dragging_the_bar_shows_the_steps_the_riser_and_whether_it_can_be_walked
 #[test]
 fn a_flight_too_steep_for_treads_says_why_and_offers_a_ramp_in_place() {
     let mut rig = starter_plan();
+    rig.ws.grid.verb.follow_ceiling = true;
     let original = rig.ws.project.clone();
     press_key(&mut rig, egui::Key::T, false);
     // Four sectors deep and 30 clicks high: far over what the character climbs.

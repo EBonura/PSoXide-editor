@@ -69,6 +69,7 @@ fn a_verb_over_a_column_of_two_floors_refuses_until_a_level_is_set() {
 #[test]
 fn raise_edits_the_floor_at_the_level_and_the_cursor_follows_it() {
     let mut rig = GridRig::top("aim-raise", two_floors());
+    rig.ws.grid.verb.follow_ceiling = true;
     upper_level(&mut rig);
     rig.tool(GridTool::Raise);
     pick_slab_block(&mut rig);
@@ -94,6 +95,7 @@ fn raise_edits_the_floor_at_the_level_and_the_cursor_follows_it() {
 #[test]
 fn raise_at_the_ground_level_leaves_the_floor_above_alone() {
     let mut rig = GridRig::top("aim-ground", two_floors());
+    rig.ws.grid.verb.follow_ceiling = true;
     alt_up(&mut rig);
     assert_eq!(rig.ws.grid.level.y, Some(0));
     rig.tool(GridTool::Raise);
@@ -111,6 +113,7 @@ fn raise_at_the_ground_level_leaves_the_floor_above_alone() {
 #[test]
 fn a_raise_that_would_break_the_column_is_refused_and_a_sliver_is_filled_solid() {
     let mut rig = GridRig::top("aim-sliver", two_floors());
+    rig.ws.grid.verb.follow_ceiling = true;
     alt_up(&mut rig);
     rig.tool(GridTool::Raise);
     pick_slab_block(&mut rig);
@@ -150,6 +153,7 @@ fn a_raise_that_would_break_the_column_is_refused_and_a_sliver_is_filled_solid()
 #[test]
 fn ramp_and_stairs_work_on_the_floor_at_the_level() {
     let mut rig = GridRig::top("aim-ramp", two_floors());
+    rig.ws.grid.verb.follow_ceiling = true;
     upper_level(&mut rig);
     rig.tool(GridTool::Ramp);
     pick_slab_block(&mut rig);
@@ -180,6 +184,7 @@ fn ramp_and_stairs_work_on_the_floor_at_the_level() {
 
     // A flight along the slab: treads climb from the upper floor.
     let mut rig = GridRig::top("aim-stairs", two_floors());
+    rig.ws.grid.verb.follow_ceiling = true;
     upper_level(&mut rig);
     rig.tool(GridTool::Stairs);
     use_the_path_source(&mut rig);

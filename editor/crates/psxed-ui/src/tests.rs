@@ -21,6 +21,7 @@ mod grid_meshes;
 mod grid_natural;
 mod grid_newuser;
 mod grid_paint;
+mod grid_dupext;
 mod grid_pick;
 mod grid_pick_shots;
 mod grid_planes;

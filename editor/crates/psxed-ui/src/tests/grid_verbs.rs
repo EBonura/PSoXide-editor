@@ -28,6 +28,7 @@ const CLICK_PX: f32 = crate::grid_tools::view::TOP_PIXELS_PER_CLICK;
 #[test]
 fn a_marquee_then_a_vertical_drag_raises_the_region_with_live_sides_and_undoes_exactly() {
     let mut rig = GridRig::top("verb-raise-top", hall());
+    rig.ws.grid.verb.follow_ceiling = true;
     let original = rig.ws.project.clone();
     let faces_before = all_faces(rig.world()).len();
     rig.tool(GridTool::Raise);
@@ -204,13 +205,15 @@ fn a_typed_amount_is_one_undo_step() {
 }
 
 #[test]
-fn raising_with_a_selection_adopts_it_as_the_region() {
+fn a_selection_from_select_is_not_carried_into_raise() {
     let mut rig = GridRig::top("verb-adopt", hall());
     rig.ws
         .apply_grid_pose("tool=select;select=floors:1,1:2,1")
         .unwrap();
+    assert!(!rig.ws.grid.selection.is_empty());
     rig.tool(GridTool::Raise);
-    assert_eq!(rig.ws.grid.verb.region.as_ref().map(|r| r.len()), Some(2));
+    assert!(rig.ws.grid.selection.is_empty());
+    assert!(rig.ws.grid.verb.region.is_none());
 }
 
 /// Cost of a verb gesture on the Cathedral, printed, not asserted. Run with
@@ -315,6 +318,7 @@ fn a_ramp_keeps_the_side_nearest_the_press_and_the_other_side_rises() {
 #[test]
 fn r_turns_the_kept_side_and_a_steep_ramp_is_called_out_and_clamped_on_request() {
     let mut rig = GridRig::top("verb-ramp-turn", hall());
+    rig.ws.grid.verb.follow_ceiling = true;
     rig.tool(GridTool::Ramp);
     rig.drag(rig.cell_centre(2, 1), rig.cell_centre(2, 1));
     rig.click(rig.cell_centre(2, 1));

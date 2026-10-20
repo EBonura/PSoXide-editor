@@ -193,7 +193,7 @@ impl Default for VerbState {
             lasso_room: 0,
             lasso_add: false,
             lasso_cursor: None,
-            follow_ceiling: true,
+            follow_ceiling: false,
             raise_mode: None,
             reference: 0,
             typed_clicks: 1.0,
