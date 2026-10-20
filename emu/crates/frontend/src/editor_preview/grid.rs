@@ -13,7 +13,7 @@
 use super::*;
 
 use super::grid_cache::{
-    BoxSource, GridGeometry, LazyBox, PreparedFace, PreparedPiece, PreparedRoom,
+    BoxSource, GridGeometry, LazyBox, PreparedFace, PreparedPiece, PreparedRoom, RoomsToDraw,
 };
 use psxed_project::grid::faces::{cell_faces_with, GridFace};
 use psxed_project::grid::lighting::{BakeRig, Gather, GiField, LightScene};
@@ -309,7 +309,13 @@ pub(super) fn walk_grid(
     };
     let defaults = ProjectUvDefaults(project);
     geometry.set_ghost(world, view.paint.as_ref());
-    let (rooms, lights, scene, field, mut ghost) = geometry.rooms_lights_ghost(world);
+    let RoomsToDraw {
+        rooms,
+        lights,
+        scene,
+        field,
+        mut ghost,
+    } = geometry.rooms_lights_ghost(world);
     with_bake_rig(world, scene, lights, field, |rig| {
     for (room_index, slot) in rooms.iter_mut().enumerate() {
         // Rooms the author hid in the Rooms panel are not drawn.

@@ -162,6 +162,16 @@ pub(super) struct GhostRoom {
     pub(super) prepared: PreparedRoom,
 }
 
+/// What a frame draws a grid world from: the kept rooms, and the lights, the
+/// shadow scene and the gathered light its faces are baked with.
+pub(super) struct RoomsToDraw<'a> {
+    pub(super) rooms: &'a mut [RoomSlot],
+    pub(super) lights: &'a [GridLight],
+    pub(super) scene: Option<&'a LightScene>,
+    pub(super) field: Option<&'a GiField>,
+    pub(super) ghost: Option<&'a mut GhostRoom>,
+}
+
 /// The kept geometry of the active scene's grid world.
 #[derive(Default)]
 pub(super) struct GridGeometry {
@@ -265,16 +275,7 @@ impl GridGeometry {
 
     /// The rooms and the lights baked into them, for a frame to draw, and
     /// the paint preview that stands in for one of the rooms.
-    pub(super) fn rooms_lights_ghost(
-        &mut self,
-        world: &GridWorld,
-    ) -> (
-        &mut [RoomSlot],
-        &[GridLight],
-        Option<&LightScene>,
-        Option<&GiField>,
-        Option<&mut GhostRoom>,
-    ) {
+    pub(super) fn rooms_lights_ghost(&mut self, world: &GridWorld) -> RoomsToDraw<'_> {
         let scene = self.scene.get_or_insert_with(|| {
             let started = std::time::Instant::now();
             let scene = LightScene::new(world);
@@ -286,13 +287,13 @@ impl GridGeometry {
             scene
         });
         let lights = self.context.as_ref().map_or(&[][..], |c| &c.lights[..]);
-        (
-            &mut self.rooms,
+        RoomsToDraw {
+            rooms: &mut self.rooms,
             lights,
-            scene.as_ref().ok(),
-            self.gi.field(),
-            self.ghost.as_mut(),
-        )
+            scene: scene.as_ref().ok(),
+            field: self.gi.field(),
+            ghost: self.ghost.as_mut(),
+        }
     }
 
     /// Tell the geometry where the project's texture files are, for the
@@ -481,10 +482,8 @@ mod tests {
         geometry.finish_global_light();
         assert!(!geometry.global_light_pending());
         assert_ne!(geometry.global_light_generation(), before);
-        let (_, _, _, field, _) = geometry.rooms_lights_ghost(
-            project.active_scene().world.grid().unwrap(),
-        );
-        assert!(field.is_some_and(|f| !f.is_empty()), "a field landed");
+        let drawn = geometry.rooms_lights_ghost(project.active_scene().world.grid().unwrap());
+        assert!(drawn.field.is_some_and(|f| !f.is_empty()), "a field landed");
         // The faces baked without it are baked again.
         assert_eq!(prepared_rooms(&geometry), [false, false]);
     }
@@ -517,10 +516,8 @@ mod tests {
             .enabled = false;
         geometry.sync(&project, 3, 0);
         assert!(!geometry.global_light_pending());
-        let (_, _, _, field, _) = geometry.rooms_lights_ghost(
-            project.active_scene().world.grid().unwrap(),
-        );
-        assert!(field.is_none());
+        let drawn = geometry.rooms_lights_ghost(project.active_scene().world.grid().unwrap());
+        assert!(drawn.field.is_none());
     }
 
     #[test]
