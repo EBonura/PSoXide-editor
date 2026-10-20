@@ -92,7 +92,7 @@ pub(crate) fn cells_target_quarter() -> cells_tool::CellsTarget {
 }
 pub use paint::{PaintGhost, PaintOrient, PaintTarget};
 use pick::PickCache;
-pub use preview_view::{grid_preview_view, GridPreviewView};
+pub use preview_view::{grid_preview_view, publish_grid_preview_view_for_tests, GridPreviewView};
 use view::{GridPointer, GridView};
 
 /// The grid tools, in strip order.

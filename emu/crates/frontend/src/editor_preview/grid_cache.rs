@@ -25,6 +25,7 @@ use psxed_project::grid::light::{FacingShade, GridLight};
 use psxed_project::grid::mesh::MeshAsset;
 use psxed_project::grid::{GridRoom, GridScale, GridWorld};
 use psxed_project::Resource;
+use psxed_ui::PaintGhost;
 
 /// One drawable polygon: everything `emit_uv_polygon` needs.
 pub(super) struct PreparedPiece {
@@ -143,11 +144,25 @@ impl GeometryContext {
     }
 }
 
+/// A paint the author is about to make, shown as it will look: the room it
+/// lands in, rebuilt from a copy of the world that took the paint through
+/// the same write the click makes. The document is never touched.
+pub(super) struct GhostRoom {
+    paint: PaintGhost,
+    /// Index of the room the paint lands in.
+    pub(super) room: usize,
+    /// The world with the paint written, for the faces of `prepared`.
+    pub(super) world: GridWorld,
+    pub(super) prepared: PreparedRoom,
+}
+
 /// The kept geometry of the active scene's grid world.
 #[derive(Default)]
 pub(super) struct GridGeometry {
     context: Option<GeometryContext>,
     rooms: Vec<RoomSlot>,
+    /// The paint preview, while the Paint tool hovers a face.
+    ghost: Option<GhostRoom>,
     /// `(document generation, textures generation)` the rooms were last
     /// checked against.
     synced: Option<(u64, u64)>,
@@ -166,6 +181,8 @@ impl GridGeometry {
             return;
         }
         self.synced = Some((document_generation, textures_generation));
+        // The preview was made from a document that has changed.
+        self.ghost = None;
         let Some(world) = project.active_scene().world.grid() else {
             self.context = None;
             self.rooms.clear();
@@ -202,10 +219,41 @@ impl GridGeometry {
         }
     }
 
-    /// The rooms and the lights baked into them, for a frame to draw.
-    pub(super) fn rooms_and_lights(&mut self) -> (&mut [RoomSlot], &[GridLight]) {
+    /// The rooms and the lights baked into them, for a frame to draw, and
+    /// the paint preview that stands in for one of the rooms.
+    pub(super) fn rooms_lights_ghost(
+        &mut self,
+    ) -> (&mut [RoomSlot], &[GridLight], Option<&mut GhostRoom>) {
         let lights = self.context.as_ref().map_or(&[][..], |c| &c.lights[..]);
-        (&mut self.rooms, lights)
+        (&mut self.rooms, lights, self.ghost.as_mut())
+    }
+
+    /// Show `paint` (or nothing): rebuild the preview room when the paint is
+    /// not the one already kept. A paint that changes nothing leaves no
+    /// preview.
+    pub(super) fn set_ghost(&mut self, world: &GridWorld, paint: Option<&PaintGhost>) {
+        let Some(paint) = paint else {
+            self.ghost = None;
+            return;
+        };
+        if self.ghost.as_ref().is_some_and(|g| g.paint == *paint) {
+            return;
+        }
+        self.ghost = None;
+        let Some(room) = paint.room().filter(|room| *room < world.rooms.len()) else {
+            return;
+        };
+        let mut painted = world.clone();
+        if !paint.apply(&mut painted) {
+            return;
+        }
+        let prepared = super::grid::prepare_room(&painted, room);
+        self.ghost = Some(GhostRoom {
+            paint: paint.clone(),
+            room,
+            world: painted,
+            prepared,
+        });
     }
 }
 

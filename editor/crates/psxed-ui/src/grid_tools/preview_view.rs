@@ -71,3 +71,10 @@ impl EditorWorkspace {
         });
     }
 }
+
+/// Publish `view` as this thread's preview view, as the workspace does each
+/// frame. For tests of the 3D preview, which has no workspace to publish.
+#[doc(hidden)]
+pub fn publish_grid_preview_view_for_tests(view: GridPreviewView) {
+    PUBLISHED.with(|slot| *slot.borrow_mut() = view);
+}

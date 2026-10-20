@@ -58,6 +58,8 @@
 //!   `a` for triangle A, `1` or `b` for B
 //! * `raise=x,z,corner,clicks` raise a floor corner, like a finished drag
 //! * `material=N` the Nth material of the palette
+//! * `paint-turn=0..3` the Paint brush's quarter turns; `paint-flip=h,v|none`
+//!   its flips (with `hover=face:...` the preview shows in both views)
 //! * `copy` copies the selection; `paste=x,z` shows the ghost at `x,z`
 //! * `marquee=x0,y0:x1,y1` a screen-space box
 //! * `camera=yaw,pitch,radius,tx,ty,tz` an orbit camera (editor units)
@@ -376,6 +378,22 @@ impl EditorWorkspace {
                     .ok_or("no such material")?;
                 self.grid.material = Some(id);
                 self.grid.palette_scroll_to = Some(id);
+            }
+            "paint-turn" => {
+                let turns = value.parse::<u8>().map_err(|e| e.to_string())?;
+                self.grid.paint.orient.turns = turns & 3;
+            }
+            "paint-flip" => {
+                let mut flip = [false, false];
+                for part in value.split(',').map(str::trim) {
+                    match part {
+                        "h" => flip[0] = true,
+                        "v" => flip[1] = true,
+                        "" | "none" => {}
+                        other => return Err(format!("unknown flip {other:?}")),
+                    }
+                }
+                self.grid.paint.orient.flip = flip;
             }
             "copy" => {
                 let world = self

@@ -5,7 +5,10 @@
 
 mod gizmo;
 mod grid_tools;
-pub use grid_tools::{grid_preview_view, GridPreviewView, PaintGhost, PaintOrient, PaintTarget};
+pub use grid_tools::{
+    grid_preview_view, publish_grid_preview_view_for_tests, GridPreviewView, PaintGhost,
+    PaintOrient, PaintTarget,
+};
 mod preview_overflow;
 pub use preview_overflow::report_preview_overflow;
 mod grid_view;
@@ -2166,6 +2169,16 @@ impl EditorWorkspace {
             let status = workspace.status.clone();
             workspace.frame_viewport_if_uninitialized();
             workspace.status = status;
+        }
+        // Debug builds: `PSXED_GRID_POSE` puts a grid project in a scripted
+        // state (see `grid_tools::pose`) so a headless `dump-editor-ui`
+        // capture shows a hover, a tool or a brush a person would reach with
+        // the mouse.
+        #[cfg(debug_assertions)]
+        if let Some(pose) = std::env::var_os("PSXED_GRID_POSE") {
+            if let Err(error) = workspace.apply_grid_pose(&pose.to_string_lossy()) {
+                eprintln!("PSXED_GRID_POSE: {error}");
+            }
         }
         Ok(workspace)
     }

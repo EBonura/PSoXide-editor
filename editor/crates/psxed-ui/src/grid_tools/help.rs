@@ -116,7 +116,13 @@ const HEIGHT: Rows = &[
     ),
 ];
 const PAINT: Rows = &[
+    (
+        "Hover",
+        "The face under the pointer shows the paint as it will look; nothing is written until you click",
+    ),
     ("Click, drag", "Apply the palette material to faces"),
+    ("R, Shift+R", "Turn the paint a quarter clockwise, counter-clockwise"),
+    ("F, Shift+F", "Flip the paint horizontally, vertically (F is Paint's while Paint is active)"),
     (
         "Ctrl/Cmd+click",
         "Sample a face's material into the palette",

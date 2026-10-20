@@ -283,15 +283,23 @@ pub(super) fn walk_grid(
         return;
     };
     let defaults = ProjectUvDefaults(project);
-    let (rooms, lights) = geometry.rooms_and_lights();
+    geometry.set_ghost(world, view.paint.as_ref());
+    let (rooms, lights, mut ghost) = geometry.rooms_lights_ghost();
     for (room_index, slot) in rooms.iter_mut().enumerate() {
         // Rooms the author hid in the Rooms panel are not drawn.
         if view.hides_room(room_index) {
             continue;
         }
-        let prepared = slot
-            .prepared
-            .get_or_insert_with(|| prepare_room(world, room_index));
+        // The room a paint preview lands in is drawn from the world that has
+        // the paint written, instead of from the document's.
+        let (world, prepared) = match ghost.as_deref_mut().filter(|g| g.room == room_index) {
+            Some(ghost) => (&ghost.world, &mut ghost.prepared),
+            None => (
+                world,
+                slot.prepared
+                    .get_or_insert_with(|| prepare_room(world, room_index)),
+            ),
+        };
         for boxes in [
             &mut prepared.cells,
             &mut prepared.planes,

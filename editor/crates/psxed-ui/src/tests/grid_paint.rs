@@ -555,3 +555,44 @@ fn the_plan_shows_the_paint_on_the_face_under_the_pointer_and_takes_it_away() {
     rig.move_to(rig.cell(cx + 40, cz + 40));
     assert_eq!(meshes_in(&rig, cell_rect).len(), before);
 }
+
+// ---------------------------------------------------------------------
+// Captures for the review pages.
+
+/// `PSXED_PAINT_PROJECT=<dir>` writes a copy of the starter project with a
+/// material whose picture is not the same turned (so a turn shows), for
+/// `frontend dump-editor-ui` captures; without the variable this does
+/// nothing. Prints the material's palette index and the starter's floor.
+#[test]
+fn paint_capture_project() {
+    let Some(dir) = std::env::var_os("PSXED_PAINT_PROJECT") else {
+        return;
+    };
+    let dir = PathBuf::from(dir);
+    let _ = std::fs::remove_dir_all(&dir);
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../projects");
+    crate::starter_catalogue::copy_dir_recursive(&source.join("grid-starter"), &dir).unwrap();
+    let textures = dir.join("assets/textures");
+    std::fs::create_dir_all(&textures).unwrap();
+    std::fs::copy(
+        source.join("default/assets/textures/dp_city_kit/dp_city_platform_edge.psxt"),
+        textures.join("paint-sample.psxt"),
+    )
+    .unwrap();
+    let mut project =
+        ProjectDocument::load_from_path(dir.join("project.ron")).expect("the starter loads");
+    project.add_resource(
+        "Paint sample",
+        ResourceData::Material(MaterialResource::opaque(Some(
+            "assets/textures/paint-sample.psxt".to_string(),
+        ))),
+    );
+    let index = project.material_options().len() - 1;
+    project.save_to_path(dir.join("project.ron")).unwrap();
+    let world = project.active_scene().world.grid().unwrap();
+    let room = &world.rooms[0];
+    println!(
+        "PAINT_MATERIAL_INDEX={index} room origin {:?} size {}x{}",
+        room.origin, room.width, room.depth
+    );
+}

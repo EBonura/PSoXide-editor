@@ -2092,6 +2092,59 @@ mod tests {
         );
     }
 
+    /// The Paint tool's preview draws the face under the pointer with the
+    /// paint material, from a copy of the world, and leaves the document and
+    /// every other frame alone.
+    #[test]
+    fn a_paint_preview_changes_the_frame_and_nothing_else() {
+        use psxed_project::grid::edit::FaceRef;
+        let mut project = grid_project(true, false);
+        let mut red = psxed_project::MaterialResource::opaque(None);
+        red.tint = [220, 30, 30];
+        let moss = project.add_resource("moss", psxed_project::ResourceData::Material(red));
+        let hidden = HashSet::new();
+        let before = project.clone();
+        let publish = |paint: Option<psxed_ui::PaintGhost>| {
+            psxed_ui::publish_grid_preview_view_for_tests(psxed_ui::GridPreviewView {
+                paint,
+                ..psxed_ui::GridPreviewView::default()
+            });
+        };
+        let ghost = |turns| psxed_ui::PaintGhost {
+            target: psxed_ui::PaintTarget::Faces {
+                faces: vec![FaceRef::floor(0, [0, 0])],
+                tri: None,
+            },
+            material: moss,
+            orient: psxed_ui::PaintOrient {
+                turns,
+                flip: [false, false],
+            },
+        };
+        publish(None);
+        let plain = preview_commands(&project, &hidden);
+        publish(Some(ghost(0)));
+        let previewed = preview_commands(&project, &hidden);
+        assert!(plain != previewed, "the painted face draws differently");
+        assert_eq!(project, before, "the document is untouched");
+        // The preview goes with the paint, leaving the frame as it was.
+        publish(None);
+        assert!(preview_commands(&project, &hidden) == plain);
+        // A paint that changes nothing (the material the face already has)
+        // previews as nothing.
+        let mut painted = project.clone();
+        let world = painted.active_scene_mut().world.grid_mut().unwrap();
+        assert!(ghost(0).apply(world));
+        publish(Some(ghost(0)));
+        let with_ghost = preview_commands(&painted, &hidden);
+        publish(None);
+        assert!(
+            with_ghost == preview_commands(&painted, &hidden),
+            "repainting a face the same changes nothing"
+        );
+        publish(None);
+    }
+
     #[test]
     fn grid_lighting_reaches_the_preview_commands() {
         let mut project = grid_project(true, false);
