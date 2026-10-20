@@ -127,12 +127,20 @@ impl EditorWorkspace {
                 self.status = "Selection cleared".to_string();
             }
         }
-        if pressed(ctx, egui::Key::Delete) || pressed(ctx, egui::Key::Backspace) {
+        let delete_key =
+            ctx.input(|i| i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace));
+        if delete_key {
             // With a mesh selected in the Mesh tool, Delete removes it; with
-            // a band line selected, the line.
-            if self.grid.tool == GridTool::Mesh && mesh_tool::delete_selected(self) {
-            } else if !(self.grid.tool == GridTool::Bands && bands_tool::delete_line(self)) {
-                clipboard_tool::delete_selection(self);
+            // a band line selected, the line; otherwise the picked faces.
+            // The key is taken only when one of them did something: with
+            // nothing of the grid picked it is left for the generic handler,
+            // which deletes the picked node (a light just placed).
+            let acted = (self.grid.tool == GridTool::Mesh && mesh_tool::delete_selected(self))
+                || (self.grid.tool == GridTool::Bands && bands_tool::delete_line(self))
+                || clipboard_tool::delete_selection(self);
+            if acted {
+                pressed(ctx, egui::Key::Delete);
+                pressed(ctx, egui::Key::Backspace);
             }
         }
         // Shift+N is the Mesh tool (before the tool keys, which would take

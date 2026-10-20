@@ -168,3 +168,22 @@ Landed on `grid/main`, each with host interaction tests (`psxed-ui/src/tests/gri
 | 19 | Keys page | search box |
 
 The Structure panel (Levels and Rooms under one header) and the Properties header are the layout proposal's left and right docks. Open: the Material tab's left dock still shows the Scene Graph (the palette is not repeated there), the Plan's stairs ghost label clips at the pane edge, and the Properties header does not yet name a selected light by kind.
+
+## Second pass (2026-10-20): a new user in a dp-world copy
+
+Method: the same headless harness and captures, this time following what a first-time user tries in a copy of dp-world (a 6 x 6 starter room, 653 palette materials): draw a floor, a ceiling, place a spawn and a light, delete and undo with the keys, save. Tests: `tests/grid_newuser.rs`, `tests/grid_workflow.rs`.
+
+Fixed (no layout change):
+
+| Sev | Finding | Fix |
+|---|---|---|
+| P1 | Delete did nothing on a light just placed: the grid shortcut handler consumed the key even with no face picked, so the generic node delete never saw it, although the status bar says "Del delete" | the grid takes Delete only when it deleted something (`delete_removes_the_light_that_was_just_placed`) |
+| P2 | "No materials in this project" gave no way forward | the empty palette points at + and the import button |
+| P2 | A floor rectangle drawn away from the room silently joined it ("Created 6 floors") | the message names the room ("Created 6 floors in Starter room") |
+
+Open, all layout work (not changed):
+
+* P2: the palette lists 653 materials as 60+ collapsed `DP n (k)` groups; a new user cannot tell what any of them looks like without opening each (a thumbnail strip on the group header, or a taller dock for big palettes).
+* P2: Scene Graph rows truncate their names ("Model Rende", "Character Co") because the kind column takes the width.
+* P2: "Rooms +" adds a room one storey above the last one, not beside it; a second room on the same level has no button.
+* P3: "Cell Sector 1/2 1/4" and "Snap 256 (Alt 64)" are unexplained to a newcomer; the status bar says "Workspace: World" instead of a first hint.

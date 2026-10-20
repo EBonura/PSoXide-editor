@@ -300,6 +300,19 @@ fn apply(
             kind.label()
         ),
     };
+    if !erase {
+        // Say where it went: a rectangle far from the room still joins it.
+        let name = ws
+            .project
+            .active_scene()
+            .world
+            .grid()
+            .and_then(|w| w.rooms.get(room))
+            .map(|r| r.name.clone());
+        if let Some(name) = name {
+            ws.status += &format!(" in {name}");
+        }
+    }
     if aimed.slivers > 0 {
         ws.status += &format!(
             ", {} span(s) too thin to stand in filled solid",

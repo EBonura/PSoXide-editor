@@ -140,7 +140,7 @@ impl EditorWorkspace {
         });
         if shown.is_empty() {
             let text = if total == 0 {
-                "No materials in this project"
+                "No materials in this project yet. Use + to make a flat one, or the image button to import a picture."
             } else {
                 "No material matches"
             };
