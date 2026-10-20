@@ -1008,6 +1008,18 @@ fn preview_texture_upload_plan(
     for id in scene_material_ids {
         push_material_resource_upload(project, id, true, project_root, &mut plan);
     }
+    // Materials painted on the grid world's floors, walls and ceilings are
+    // what the preview draws most; they must get slots before the unused
+    // library entries, or a large palette starves them.
+    let grid_material_ids = project
+        .active_scene()
+        .world
+        .grid()
+        .map(|world| world.material_ids())
+        .unwrap_or_default();
+    for id in grid_material_ids {
+        push_material_resource_upload(project, id, true, project_root, &mut plan);
+    }
 
     push_image_prop_material_uploads(project, project_root, &mut plan);
     push_far_vista_texture_uploads(project, project_root, &mut plan);
