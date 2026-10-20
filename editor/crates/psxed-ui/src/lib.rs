@@ -1374,6 +1374,9 @@ struct SelectionState {
     /// Hovered entity bound under the cursor (Select tool only). Drives the
     /// entity-bounds highlight overlay and the click→select fast path.
     hovered_entity_node: Option<NodeId>,
+    /// The room whose settings the Inspector shows, chosen in the Structure
+    /// panel. Clearing it is what picking a face or an object does.
+    selected_room: Option<usize>,
 }
 
 impl SelectionState {
@@ -1401,6 +1404,7 @@ impl SelectionState {
         self.selected_resource = None;
         self.selected_resources.clear();
         self.resource_selection_anchor = None;
+        self.selected_room = None;
     }
 
     /// Resource counterpart to [`Self::apply_node_modifiers`]. Clears any node
@@ -2237,6 +2241,7 @@ impl EditorWorkspace {
                 selected_resources: HashSet::new(),
                 resource_selection_anchor: None,
                 hovered_entity_node: None,
+                selected_room: None,
             },
             interaction: Interaction::Idle,
             transform_gizmo_mode: TransformGizmoMode::Move,

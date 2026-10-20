@@ -338,7 +338,7 @@ fn draw_object_row(
         Sense::click_and_drag(),
     );
     if state.reveal {
-        ui.scroll_to_rect(rect, None);
+        ui.scroll_to_rect_animation(rect, None, egui::style::ScrollAnimation::none());
     }
     let painter = ui.painter_at(rect);
     let hovered = response.hovered();

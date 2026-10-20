@@ -117,12 +117,17 @@ fn add_light(ws: &mut EditorWorkspace, name: &str, at: [f32; 3]) -> NodeId {
     id
 }
 
+/// Editor-unit position of the centre of world cell `(cx, cz)`.
+fn cell_centre(cx: i32, cz: i32) -> [f32; 3] {
+    [(cx as f32 + 0.5) * 1280.0, 0.0, (cz as f32 + 0.5) * 1280.0]
+}
+
 /// A scene shaped like the default project's: a player and enemies, beacons,
-/// and lights in runs that an actor in between breaks up.
+/// and lights in runs that an actor in between breaks up. Everything stands
+/// in its own cell of the starter room, so a click in the plan finds one.
+/// Returns the player, the third light and the last light.
 pub(super) fn populate(ws: &mut EditorWorkspace) -> Vec<(&'static str, NodeId)> {
     let mut named = Vec::new();
-    let sector = 1280.0;
-    let at = |x: f32, z: f32| [x * sector, 0.0, z * sector];
     // The starter project already has its player.
     let aletha = match ws
         .project
@@ -136,46 +141,51 @@ pub(super) fn populate(ws: &mut EditorWorkspace) -> Vec<(&'static str, NodeId)> 
         None => add_actor(
             ws,
             "Aletha (Player)",
-            at(2.5, 2.5),
+            cell_centre(3, 3),
             vec![model(), animator(), controller(true), camera(), equipment()],
         ),
     };
     named.push(("actor", aletha));
-    for (i, x) in [3.5f32, 4.5, 5.5].into_iter().enumerate() {
+    for (i, cx) in [3, 4, 5].into_iter().enumerate() {
         add_actor(
             ws,
             &format!("Intake Custodian {}", i + 1),
-            at(x, 1.5),
+            cell_centre(cx, 4),
             vec![model(), animator(), controller(false)],
         );
     }
     add_actor(
         ws,
         "Heavy Enemy",
-        at(4.5, 3.5),
+        cell_centre(4, 5),
         vec![model(), animator(), controller(false)],
     );
     let mut name = "Point Light".to_string();
+    let mut lights = Vec::new();
+    let mut light_at = |ws: &mut EditorWorkspace, name: &str, i: i32| {
+        let id = add_light(ws, name, cell_centre(i % 6, 1 + i / 6));
+        lights.push(id);
+        id
+    };
     for i in 0..6 {
-        let light = add_light(ws, &name, at(1.5 + i as f32 * 0.7, 4.5));
-        if i == 2 {
-            named.push(("light", light));
-        }
+        light_at(ws, &name, i);
         name.push_str(" Copy");
     }
-    add_actor(ws, "Point of Interest", at(1.5, 1.5), vec![beacon()]);
-    for i in 0..4 {
-        add_light(ws, &name, at(1.0 + i as f32 * 0.9, 0.5));
+    add_actor(ws, "Point of Interest", cell_centre(4, 0), vec![beacon()]);
+    for i in 6..10 {
+        light_at(ws, &name, i);
         name.push_str(" Copy");
     }
-    add_actor(ws, "Point of Interest", at(5.5, 4.5), vec![beacon()]);
+    add_actor(ws, "Point of Interest", cell_centre(5, 0), vec![beacon()]);
     ws.project
         .active_scene_mut()
         .add_node(NodeId::ROOT, "GroupS", NodeKind::Group);
-    for i in 0..5 {
-        add_light(ws, &name, at(0.5 + i as f32 * 1.1, 5.0));
+    for i in 10..15 {
+        light_at(ws, &name, i);
         name.push_str(" Copy");
     }
+    named.push(("light", lights[2]));
+    named.push(("last light", *lights.last().unwrap()));
     named
 }
 
@@ -197,7 +207,7 @@ fn objects_captures() {
         };
         let named = populate(&mut rig.ws);
         let actor = named[0].1;
-        let light = named[1].1;
+        let light = named[2].1;
         rig.ws.apply_grid_pose("view=3d;tool=select").unwrap();
         rig.ws.clear_node_selection_state();
         frames(&mut rig, 4);
@@ -205,9 +215,6 @@ fn objects_captures() {
         rig.ws.replace_node_selection(actor);
         frames(&mut rig, 4);
         rig.capture(&dir.join(format!("{tag}-actor-selected-{label}.png")));
-        rig.ws.replace_node_selection(light);
-        frames(&mut rig, 4);
-        rig.capture(&dir.join(format!("{tag}-light-selected-{label}.png")));
         rig.ws.clear_node_selection_state();
         select_room_for_capture(&mut rig.ws);
         frames(&mut rig, 4);
@@ -215,17 +222,18 @@ fn objects_captures() {
         open_world_for_capture(&mut rig.ws);
         frames(&mut rig, 4);
         rig.capture(&dir.join(format!("{tag}-world-settings-{label}.png")));
+        rig.ws.replace_node_selection(light);
+        frames(&mut rig, 4);
+        rig.capture(&dir.join(format!("{tag}-light-selected-{label}.png")));
     }
 }
 
 fn select_room_for_capture(ws: &mut EditorWorkspace) {
-    // BEFORE: rooms are not selectable; their settings open in the dock.
-    ws.grid.room_settings_open = true;
+    ws.select_room(0);
 }
 
 fn open_world_for_capture(ws: &mut EditorWorkspace) {
     // BEFORE: the World row of the Scene Graph.
-    ws.grid.room_settings_open = false;
     ws.replace_node_selection(NodeId::ROOT);
 }
 
@@ -421,4 +429,230 @@ fn the_tree_view_keeps_a_folders_contents_and_the_kind_view_lists_them_by_kind()
     assert!(!tree_display_rows(&rows, &collapsed)
         .iter()
         .any(|r| r.id == light));
+}
+
+// ---------------------------------------------------------------------
+// Selection sync.
+
+/// The Inspector column of the 1456 x 819 window.
+const INSPECTOR: fn() -> Rect =
+    || Rect::from_min_max(Pos2::new(1140.0, 80.0), Pos2::new(1456.0, 819.0));
+
+fn inspector_texts(rig: &WindowRig) -> Vec<String> {
+    texts_in(rig, INSPECTOR())
+        .into_iter()
+        .map(|t| t.0)
+        .collect()
+}
+
+/// Whether the row drawn with `label` in the dock is the highlighted one.
+fn row_is_highlighted(rig: &WindowRig, label: &str) -> bool {
+    let Some((_, bounds, _)) = texts_in(rig, DOCK()).into_iter().find(|t| t.0 == label) else {
+        return false;
+    };
+    rig.out.shapes.iter().any(|s| match &s.shape {
+        egui::epaint::Shape::Rect(r) => {
+            (r.fill == STUDIO_SELECTION || r.fill == STUDIO_SELECTION_HOVER)
+                && r.rect.width() > 60.0
+                && r.rect.contains(bounds.center())
+        }
+        _ => false,
+    })
+}
+
+/// A row of the dock is on screen: drawn, and inside the dock's list.
+fn row_is_visible(rig: &WindowRig, label: &str) -> bool {
+    texts_in(rig, DOCK())
+        .iter()
+        .any(|t| t.0 == label && t.1.top() >= 395.0 && t.1.bottom() <= 780.0)
+}
+
+fn plan_rig() -> (WindowRig, Vec<(&'static str, NodeId)>) {
+    let (mut rig, named) = populated();
+    // The starter project hides its lights in the viewport.
+    rig.ws.show_lights = true;
+    rig.ws.apply_grid_pose("view=plan;tool=select").unwrap();
+    frames(&mut rig, 4);
+    (rig, named)
+}
+
+fn node_name(rig: &WindowRig, id: NodeId) -> String {
+    rig.ws.project.active_scene().node(id).unwrap().name.clone()
+}
+
+#[test]
+fn clicking_an_object_in_the_plan_selects_its_row_and_scrolls_it_into_view() {
+    let (mut rig, named) = plan_rig();
+    let far = named[2].1;
+    let name = node_name(&rig, far);
+    // Down the list, out of the Objects panel's first screen.
+    assert!(
+        !row_is_visible(&rig, &name),
+        "the fixture is too short to scroll"
+    );
+    // Light 15 stands in cell (2, 3).
+    rig.click(rig.cell(2, 3));
+    frames(&mut rig, 4);
+    assert_eq!(rig.ws.selection.selected_node, far, "{}", rig.ws.status);
+    assert!(
+        row_is_visible(&rig, &name),
+        "{name} is not on screen: {:?}",
+        dock_texts(&rig)
+    );
+    assert!(row_is_highlighted(&rig, &name));
+    assert!(
+        inspector_texts(&rig)
+            .iter()
+            .any(|t| t.starts_with("Light:")),
+        "{:?}",
+        inspector_texts(&rig)
+    );
+}
+
+#[test]
+fn a_selection_made_in_the_3d_view_reveals_the_row_in_a_folded_group() {
+    let (mut rig, named) = populated();
+    let light = named[2].1;
+    let name = node_name(&rig, light);
+    // The author folded Lights; the 3D click goes through here.
+    rig.ws.collapsed_object_groups.insert(ObjectGroup::Lights);
+    frames(&mut rig, 3);
+    assert!(!dock_texts(&rig).contains(&name));
+    rig.ws
+        .select_node_with_modifiers(light, egui::Modifiers::NONE);
+    frames(&mut rig, 4);
+    assert!(!rig
+        .ws
+        .collapsed_object_groups
+        .contains(&ObjectGroup::Lights));
+    assert!(row_is_visible(&rig, &name), "{:?}", dock_texts(&rig));
+    assert!(row_is_highlighted(&rig, &name));
+}
+
+#[test]
+fn selecting_an_actors_part_highlights_the_actors_row() {
+    let (mut rig, named) = populated();
+    let actor = named[0].1;
+    let part = actor_parts(rig.ws.project.active_scene(), actor)[0];
+    rig.ws.replace_node_selection(part);
+    frames(&mut rig, 4);
+    assert!(row_is_highlighted(&rig, "Aletha (Player)"));
+}
+
+#[test]
+fn clicking_a_row_selects_it_and_highlights_it_in_the_viewport() {
+    let (mut rig, named) = plan_rig();
+    let actor_cell = rig.cell(3, 3);
+    let _ = (named, actor_cell);
+    // A light in the first screen of the list.
+    let name = {
+        let rows = object_rows(rig.ws.project.active_scene());
+        rows.iter()
+            .find(|r| r.kind == ObjectKind::Light)
+            .unwrap()
+            .name
+            .clone()
+    };
+    let at = rig.at(&name);
+    rig.click(at);
+    frames(&mut rig, 3);
+    let id = rig.ws.selection.selected_node;
+    assert_eq!(node_name(&rig, id), name);
+    // The plan draws the selected marker with the selection outline.
+    let node = rig.ws.project.active_scene().node(id).unwrap();
+    let t = node.transform.translation;
+    let centre = ViewportTransform::from_focus(
+        rig.ws.last_orthographic_viewport_rect,
+        OrthographicView::Top,
+        [rig.ws.orthographic_focus[0], rig.ws.orthographic_focus[2]],
+        rig.ws.viewport_zoom,
+    )
+    .world_to_screen([t[0], t[2]]);
+    let outline = selected_stroke(true).color;
+    let outlined = rig.out.shapes.iter().any(|s| match &s.shape {
+        egui::epaint::Shape::Circle(c) => {
+            c.stroke.color == outline && c.center.distance(centre) < 14.0
+        }
+        _ => false,
+    });
+    assert!(outlined, "the light is not outlined in the plan");
+}
+
+// ---------------------------------------------------------------------
+// Rooms.
+
+/// A click on the face of room `room`'s cell `(cx, cz)` in the plan.
+fn click_face(rig: &mut WindowRig, cx: i32, cz: i32) {
+    rig.ws.apply_grid_pose("view=plan;tool=select").unwrap();
+    frames(rig, 3);
+    rig.click(rig.cell(cx, cz));
+    frames(rig, 3);
+}
+
+/// Machine Hall is the second room: cells 7..14 by -1..6.
+const HALL_CELL: (i32, i32) = (10, 2);
+
+#[test]
+fn clicking_a_face_selects_the_face_and_highlights_its_room_in_structure() {
+    let mut rig = WindowRig::new();
+    frames(&mut rig, 3);
+    click_face(&mut rig, HALL_CELL.0, HALL_CELL.1);
+    assert!(!rig.ws.grid.selection.is_empty(), "{}", rig.ws.status);
+    let shown = inspector_texts(&rig);
+    assert!(shown.iter().any(|t| t.contains("face")), "{shown:?}");
+    assert!(
+        row_is_highlighted(&rig, "Machine Hall  (64)"),
+        "{:?}",
+        dock_texts(&rig)
+    );
+    assert!(!row_is_highlighted(&rig, "Starter room  (36)"));
+    // A face in the other room moves the highlight.
+    rig.click(rig.cell(2, 2));
+    frames(&mut rig, 3);
+    assert!(row_is_highlighted(&rig, "Starter room  (36)"));
+    assert!(!row_is_highlighted(&rig, "Machine Hall  (64)"));
+}
+
+#[test]
+fn choosing_a_room_in_structure_shows_the_rooms_inspector() {
+    let mut rig = WindowRig::new();
+    rig.ws.apply_grid_pose("view=3d;tool=select").unwrap();
+    frames(&mut rig, 3);
+    let hall = rig.at("Machine Hall  (64)");
+    rig.click(hall);
+    frames(&mut rig, 3);
+    assert_eq!(rig.ws.selection.selected_room, Some(1));
+    assert!(row_is_highlighted(&rig, "Machine Hall  (64)"));
+    let shown = inspector_texts(&rig);
+    assert!(shown.iter().any(|t| t == "Room: Machine Hall"), "{shown:?}");
+    for field in ["Raise", "Ambient", "Fog"] {
+        assert!(
+            shown.iter().any(|t| t == field),
+            "{field} missing: {shown:?}"
+        );
+    }
+    // The settings are no longer a section of the dock.
+    assert!(
+        !dock_texts(&rig)
+            .iter()
+            .any(|t| t.starts_with("Settings of")),
+        "{:?}",
+        dock_texts(&rig)
+    );
+    // Picking a face leaves the room.
+    click_face(&mut rig, 2, 2);
+    assert_eq!(rig.ws.selection.selected_room, None);
+    assert!(inspector_texts(&rig).iter().any(|t| t.contains("face")));
+}
+
+#[test]
+fn the_pin_still_says_where_new_geometry_goes_and_a_row_click_no_longer_pins() {
+    let mut rig = WindowRig::new();
+    frames(&mut rig, 3);
+    let hall = rig.at("Machine Hall  (64)");
+    rig.click(hall);
+    frames(&mut rig, 2);
+    assert_eq!(rig.ws.grid_active_room, None, "choosing is not pinning");
+    rig.ws.toggle_room_pin(1);
+    assert_eq!(rig.ws.grid_active_room, Some(1));
 }

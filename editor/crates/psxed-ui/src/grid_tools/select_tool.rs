@@ -32,6 +32,7 @@ impl EditorWorkspace {
             psxed_project::grid::edit::material_of(world, face, None)
         });
         self.grid.last_room = primary.room();
+        self.selection.selected_room = None;
         self.clear_node_selection_state();
         if scroll_to.is_some() {
             self.grid.palette_scroll_to = scroll_to;

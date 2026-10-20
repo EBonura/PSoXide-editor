@@ -17,8 +17,6 @@ impl EditorWorkspace {
     /// follow it. With nothing picked the node and World inspectors come
     /// after the palette, as before.
     pub(crate) fn draw_grid_panels(&mut self, ui: &mut egui::Ui) -> bool {
-        self.draw_grid_palette(ui);
-        ui.add_space(6.0);
         let picked_faces = self
             .project
             .active_scene()
@@ -27,9 +25,23 @@ impl EditorWorkspace {
             .is_some_and(|w| !self.grid.selection.faces(w).is_empty());
         let node_selected = self.selection.selected_node != NodeId::ROOT
             || !self.selection.selected_nodes.is_empty();
+        // A face or an object picked after a room stands the room down.
+        if picked_faces || node_selected {
+            self.selection.selected_room = None;
+        }
+        let room = self.selection.selected_room;
+        // The palette is for painting: it stays out of the way of a room, an
+        // actor or a light.
+        if room.is_none() && !self.palette_is_irrelevant(node_selected, picked_faces) {
+            self.draw_grid_palette(ui);
+            ui.add_space(6.0);
+        }
         let what = self.properties_subject(picked_faces, node_selected);
         self.draw_properties_header(ui, &what);
-        let owns = if self.plane_primary().is_some() {
+        let owns = if let Some(room) = room {
+            self.draw_grid_room_inspector(ui, room);
+            true
+        } else if self.plane_primary().is_some() {
             self.draw_plane_inspector(ui);
             true
         } else if self.grid.tool == GridTool::Mesh || self.mesh_primary().is_some() {
@@ -43,7 +55,7 @@ impl EditorWorkspace {
             true
         } else if !node_selected {
             // Nothing picked: a hint, and the way to the World settings (the
-            // World row of the Scene Graph is the other).
+            // World entry of the Structure panel is the other).
             self.draw_nothing_selected(ui);
             true
         } else {
@@ -54,8 +66,39 @@ impl EditorWorkspace {
         owns
     }
 
+    /// Whether the material palette has nothing to do for what is selected:
+    /// an actor, a light, a trigger. A prop or a face takes a material.
+    fn palette_is_irrelevant(&self, node_selected: bool, picked_faces: bool) -> bool {
+        if !node_selected || picked_faces || self.grid.tool.is_verb() {
+            return false;
+        }
+        let scene = self.project.active_scene();
+        let id = self.selection.selected_node;
+        scene.node(id).is_some_and(|node| {
+            !matches!(
+                node.kind,
+                NodeKind::ImageProp { .. }
+                    | NodeKind::BoxProp { .. }
+                    | NodeKind::CylinderProp { .. }
+                    | NodeKind::ArchProp { .. }
+                    | NodeKind::MeshInstance { .. }
+                    | NodeKind::ModelRenderer { .. }
+            )
+        })
+    }
+
     /// What the Properties section edits, in a few words.
     fn properties_subject(&self, picked_faces: bool, node_selected: bool) -> String {
+        if let Some(room) = self.selection.selected_room {
+            let name = self
+                .project
+                .active_scene()
+                .world
+                .grid()
+                .and_then(|w| w.rooms.get(room))
+                .map_or("?", |r| r.name.as_str());
+            return format!("Room: {name}");
+        }
         if let Some(id) = self.plane_primary() {
             let _ = id;
             return "Plane".to_string();

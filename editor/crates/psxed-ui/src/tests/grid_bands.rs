@@ -302,7 +302,7 @@ fn the_wall_run_context_adds_bands_edits_a_band_and_removes_them() {
 #[test]
 fn the_rooms_panel_lists_the_sets_and_the_room_default() {
     let mut ws = EditorWorkspace::with_project(test_temp_dir("bands-rooms"), project());
-    ws.grid.room_settings_open = true;
+    ws.select_room(0);
     // No sets yet: no row.
     assert!(!inspector_text(&mut ws).contains(" sets"));
     {

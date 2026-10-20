@@ -1,7 +1,7 @@
-//! The Rooms panel at the top of the left dock while a grid world is open:
-//! one row per room with its visibility, name and sector count, the active
-//! room (where new geometry goes), add and delete, and the selected room's
-//! name, raise and ambient light.
+//! The Rooms section of the Structure panel while a grid world is open: one
+//! row per room with its visibility, name and sector count, a pin (where new
+//! geometry goes), and delete. A click selects the room: its settings are the
+//! Inspector's (`draw_grid_room_inspector`).
 
 use super::*;
 
@@ -22,16 +22,22 @@ impl EditorWorkspace {
             .iter()
             .map(|r| (r.name.clone(), r.sector_count(), r.y_offset))
             .collect();
-        let active = self.grid_target_room();
-        // Name, raise and ambient edits coalesce into one undo step per drag
-        // or typing burst, like every other inspector.
+        let target = self.grid_target_room();
+        let pinned = self.grid_active_room;
+        let chosen = self.selection.selected_room;
+        // A picked face puts its room in the list too.
+        let of_face = self.grid.selection.primary().map(|element| element.room());
+        let highlighted = chosen.or(of_face);
+        // Name and rename edits coalesce into one undo step per typing burst,
+        // like every other inspector.
         let ctx = ui.ctx().clone();
         self.prepare_inspector_undo_frame(&ctx);
         let undo_candidate =
             inspector_has_edit_input(&ctx).then(|| (self.project.clone(), self.history.epoch()));
         let mut add = false;
         let mut delete = None;
-        let mut activate = None;
+        let mut choose = None;
+        let mut pin = None;
         let mut toggle = None;
         let mut rename_start = None;
         let mut rename_to: Option<(usize, String)> = None;
@@ -76,12 +82,12 @@ impl EditorWorkspace {
                                 format!("{name}  ({sectors}, y {y:+})")
                             };
                             let response = ui
-                                .selectable_label(active == index, label)
+                                .selectable_label(highlighted == Some(index), label)
                                 .on_hover_text(
-                                    "Click to pin this as the room new geometry goes into, click again to follow your edits. Double-click to rename.",
+                                    "Click to show this room's settings in the Inspector. Double-click to rename.",
                                 );
                             if response.clicked() {
-                                activate = Some(index);
+                                choose = Some(index);
                             }
                             if response.double_clicked() {
                                 rename_start = Some(Some(index));
@@ -99,27 +105,33 @@ impl EditorWorkspace {
                             {
                                 delete = Some(index);
                             }
+                            let is_pinned = pinned == Some(index);
+                            let is_target = target == index;
+                            let color = if is_pinned {
+                                STUDIO_ACCENT
+                            } else if is_target {
+                                STUDIO_TEXT_WEAK
+                            } else {
+                                STUDIO_BORDER
+                            };
+                            if ui
+                                .add(
+                                    egui::Button::new(icons::text(icons::MAP_PIN, 13.0).color(color))
+                                        .frame(false),
+                                )
+                                .on_hover_text(if is_pinned {
+                                    "New geometry goes into this room. Click to let it follow your edits again."
+                                } else {
+                                    "Click to pin this as the room new geometry goes into."
+                                })
+                                .clicked()
+                            {
+                                pin = Some(index);
+                            }
                         });
                     });
                 }
             });
-        let title = format!(
-            "Settings of {}",
-            rows.get(active).map_or("the room", |r| r.0.as_str())
-        );
-        let settings_open = self.grid.room_settings_open;
-        let header = egui::CollapsingHeader::new(RichText::new(title).size(12.0))
-            .id_salt("grid_room_settings")
-            .open(Some(settings_open))
-            .show(ui, |ui| {
-                self.draw_grid_room_settings(ui, active);
-                self.draw_grid_room_walls(ui, active);
-                self.draw_grid_room_rules(ui, active);
-                self.draw_grid_room_rough(ui, active);
-            });
-        if header.header_response.clicked() {
-            self.grid.room_settings_open = !settings_open;
-        }
         ui.separator();
 
         if let Some(next) = rename_start {
@@ -133,7 +145,10 @@ impl EditorWorkspace {
                 self.grid_hidden_rooms.insert(index);
             }
         }
-        if let Some(index) = activate {
+        if let Some(index) = choose {
+            self.select_room(index);
+        }
+        if let Some(index) = pin {
             self.toggle_room_pin(index);
         }
         if add {
@@ -145,6 +160,128 @@ impl EditorWorkspace {
         if let Some((before, epoch)) = undo_candidate {
             self.finish_inspector_undo_frame(before, epoch, &ctx);
         }
+    }
+
+    /// Choose room `index` in the Structure panel: the Inspector shows its
+    /// settings, and nothing else is picked.
+    pub(crate) fn select_room(&mut self, index: usize) {
+        let count = self
+            .project
+            .active_scene()
+            .world
+            .grid()
+            .map_or(0, |w| w.rooms.len());
+        if index >= count {
+            return;
+        }
+        self.grid.selection.clear();
+        self.grid.plane_sel.clear();
+        self.clear_node_selection_state();
+        self.clear_resource_selection_state();
+        self.selection.selected_room = Some(index);
+        self.grid.last_room = index;
+        self.status = format!("Selected room {index}");
+    }
+
+    /// The Inspector of a room: its name, light, fog, walls, paint rules and
+    /// roughness.
+    pub(crate) fn draw_grid_room_inspector(&mut self, ui: &mut egui::Ui, room: usize) {
+        let Some(r) = self
+            .project
+            .active_scene()
+            .world
+            .grid()
+            .and_then(|w| w.rooms.get(room))
+        else {
+            ui.weak("No such room");
+            return;
+        };
+        let mut name = r.name.clone();
+        let fog = r.fog;
+        inspector_identity_header(ui, icons::HOUSE, STUDIO_ACCENT, &name, "Room", room);
+        if inspector_property_row(ui, "Name", |ui| {
+            ui.add(egui::TextEdit::singleline(&mut name).desired_width(f32::INFINITY))
+                .changed()
+        }) {
+            self.edit_room(room, |r| r.name = name.clone());
+        }
+        inspector_section(ui, ("room-light", room), icons::SUN, "Light", true, |ui| {
+            self.draw_grid_room_settings(ui, room);
+        });
+        inspector_section(
+            ui,
+            ("room-fog", room),
+            icons::MOUNTAIN,
+            "Fog",
+            fog.enabled,
+            |ui| {
+                let mut next = fog;
+                ui.checkbox(&mut next.enabled, "Fog on")
+                    .on_hover_text("Distance fog in this room, in the preview and the cook.");
+                ui.add_enabled_ui(next.enabled, |ui| {
+                    color_editor(ui, "Color", &mut next.color);
+                    let sector = psxed_project::grid::units::SECTOR_UNITS as f32;
+                    for (label, value) in
+                        [("Start", &mut next.start), ("Falloff", &mut next.falloff)]
+                    {
+                        let mut sectors = *value as f32 / sector;
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new(label).color(STUDIO_TEXT_WEAK).size(11.0));
+                            if ui
+                                .add(
+                                    egui::DragValue::new(&mut sectors)
+                                        .speed(0.05)
+                                        .range(0.0..=64.0)
+                                        .suffix(" sectors")
+                                        .max_decimals(2),
+                                )
+                                .on_hover_text(if label == "Start" {
+                                    "Distance where the fog begins."
+                                } else {
+                                    "Distance from the start to full fog."
+                                })
+                                .changed()
+                            {
+                                *value = snap_to((sectors * sector).round() as i32, FINE_UNITS);
+                            }
+                        });
+                    }
+                });
+                if next != fog {
+                    self.edit_room(room, |r| r.fog = next);
+                }
+            },
+        );
+        inspector_section(
+            ui,
+            ("room-walls", room),
+            icons::BRICK_WALL,
+            "Walls",
+            true,
+            |ui| {
+                self.draw_grid_room_walls(ui, room);
+            },
+        );
+        inspector_section(
+            ui,
+            ("room-rules", room),
+            icons::PALETTE,
+            "Paint rules",
+            false,
+            |ui| {
+                self.draw_grid_room_rules(ui, room);
+            },
+        );
+        inspector_section(
+            ui,
+            ("room-rough", room),
+            icons::TRENDING_UP,
+            "Rough",
+            false,
+            |ui| {
+                self.draw_grid_room_rough(ui, room);
+            },
+        );
     }
 
     /// Pin room `index` as the room new geometry goes into; pinning the
@@ -161,7 +298,7 @@ impl EditorWorkspace {
     }
 
     /// Raise and ambient of the active room.
-    fn draw_grid_room_settings(&mut self, ui: &mut egui::Ui, room: usize) {
+    pub(super) fn draw_grid_room_settings(&mut self, ui: &mut egui::Ui, room: usize) {
         let Some(r) = self
             .project
             .active_scene()

@@ -681,9 +681,6 @@ pub(crate) struct GridEditState {
     pub help_search: String,
     /// The palette lists every project material, not only world surfaces.
     pub palette_all: bool,
-    /// The Rooms panel's settings section is open (closed to give the scene
-    /// graph the room).
-    pub room_settings_open: bool,
     /// The plan and the 3D view are both shown (see [`GridViewMode`]).
     pub split: bool,
     /// The search box of the Materials panel.
@@ -754,7 +751,6 @@ impl Default for GridEditState {
             help_search: String::new(),
             palette_all: false,
             split: false,
-            room_settings_open: false,
             palette_search: String::new(),
             palette_recent: Vec::new(),
             palette_import_watch: None,
@@ -808,6 +804,8 @@ impl EditorWorkspace {
     pub(crate) fn set_grid_tool(&mut self, tool: GridTool) {
         if self.grid.tool != tool {
             self.grid.abandon();
+            // A room chosen for the Inspector gives way to the new tool's.
+            self.selection.selected_room = None;
         }
         self.grid.tool = tool;
         if tool.group() == ToolGroup::Shape {

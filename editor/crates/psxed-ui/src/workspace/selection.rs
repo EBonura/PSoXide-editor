@@ -2,6 +2,7 @@ use super::*;
 
 impl EditorWorkspace {
     pub(crate) fn replace_node_selection(&mut self, id: NodeId) {
+        self.selection.selected_room = None;
         self.selection.selected_node = id;
         self.selection.selected_nodes.clear();
         self.selection.selected_nodes.insert(id);
@@ -24,6 +25,7 @@ impl EditorWorkspace {
 
     /// A click on empty space clears every selection domain.
     pub(crate) fn clear_all_selections(&mut self) {
+        self.selection.selected_room = None;
         self.clear_resource_selection_state();
         self.clear_node_selection_state();
         self.status = "Cleared selection".to_string();
