@@ -154,6 +154,9 @@ pub struct BreakReq {
     /// `keep` (default) or `mix`: a cracked triangle takes the material of
     /// the floor it now borders.
     pub materials: Option<String>,
+    /// Let a break at intensity 70 and up turn whole floor cells into gaps
+    /// (default false: a break never opens see-through holes unasked).
+    pub gaps: Option<bool>,
     /// Give every broken sector this rough level (0 to 3, default 0).
     pub jitter: Option<u8>,
     /// Compute and report, change nothing.
@@ -242,6 +245,7 @@ pub fn plan_break(
             Some("mix") => true,
             Some(other) => return Err(format!("unknown materials {other:?}; use keep or mix")),
         },
+        gaps: req.gaps.unwrap_or(false),
         jitter: req.jitter.unwrap_or(0).min(3),
         limits: WalkLimits::DEFAULT,
     };

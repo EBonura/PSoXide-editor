@@ -353,6 +353,42 @@ fn releasing_a_break_commits_one_undo_step() {
     assert_eq!(rig.ws.project, broken);
 }
 
+fn void_floors(rig: &GridRig) -> usize {
+    let room = rig.room(0);
+    (0..room.depth)
+        .flat_map(|z| (0..room.width).map(move |x| (x, z)))
+        .filter(|&(x, z)| {
+            room.sector(x, z)
+                .and_then(|s| s.ground_floor())
+                .is_some_and(|f| f.void != 0)
+        })
+        .count()
+}
+
+#[test]
+fn a_full_strength_break_leaves_no_holes_unless_gaps_is_on() {
+    for seed in 1..=6 {
+        let mut rig = break_rig("natural-break-gaps");
+        rig.ws.grid.verb.brk.seed = seed;
+        rig.ws.grid.verb.brk.keep_walkable = false;
+        assert!(!rig.ws.grid.verb.brk.gaps, "gaps are off by default");
+        let to = hold_break(&mut rig, 100.0);
+        rig.release(to, egui::Modifiers::NONE);
+        assert_eq!(void_floors(&rig), 0, "seed {seed}: {}", rig.ws.status);
+    }
+    // Asked for, the same drag may open cells.
+    let opened = (1..=24).any(|seed| {
+        let mut rig = break_rig("natural-break-gaps-on");
+        rig.ws.grid.verb.brk.seed = seed;
+        rig.ws.grid.verb.brk.keep_walkable = false;
+        rig.ws.grid.verb.brk.gaps = true;
+        let to = hold_break(&mut rig, 100.0);
+        rig.release(to, egui::Modifiers::NONE);
+        void_floors(&rig) > 0
+    });
+    assert!(opened, "gaps on never opened a cell in 24 seeds");
+}
+
 #[test]
 fn shift_x_rerolls_the_seed_and_the_same_seed_repeats() {
     let mut rig = break_rig("natural-break-seed");

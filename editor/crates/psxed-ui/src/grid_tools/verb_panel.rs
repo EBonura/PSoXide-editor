@@ -183,6 +183,9 @@ impl EditorWorkspace {
         .on_hover_text("The largest vertical change at intensity 100, in 64 unit fine steps");
         ui.checkbox(&mut brk.mix_materials, "Mix materials")
             .on_hover_text("A cracked triangle takes the material of the floor it now borders");
+        ui.checkbox(&mut brk.gaps, "Gaps").on_hover_text(
+            "Let a high intensity (70 and up) turn whole floor cells into see-through holes. Off by default: a break never leaves holes unless you ask",
+        );
         ui.add(
             egui::DragValue::new(&mut brk.jitter)
                 .range(0..=3)
