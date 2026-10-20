@@ -143,17 +143,22 @@ impl EditorWorkspace {
                 pressed(ctx, egui::Key::Backspace);
             }
         }
+        // A tool is chosen between gestures, never in the middle of one: with
+        // a pointer button down the tool keys are taken and ignored, so a key
+        // landing during a drag cannot swap the tool and abandon what the
+        // drag is making.
+        let may_choose = !ctx.input(|i| i.pointer.any_down());
         // Shift+N is the Mesh tool (before the tool keys, which would take
         // the N for the Plane tool whatever Shift says).
-        if pressed_shift(ctx, egui::Key::N) {
+        if pressed_shift(ctx, egui::Key::N) && may_choose {
             self.set_grid_tool(GridTool::Mesh);
         }
         // Shift+Q is the Slab tool, beside the Cells tool's Q.
-        if pressed_shift(ctx, egui::Key::Q) {
+        if pressed_shift(ctx, egui::Key::Q) && may_choose {
             self.set_grid_tool(GridTool::Slab);
         }
         // Shift+T is the Spiral tool, beside the Stairs tool's T.
-        if pressed_shift(ctx, egui::Key::T) {
+        if pressed_shift(ctx, egui::Key::T) && may_choose {
             self.set_grid_tool(GridTool::Spiral);
         }
         // Shift+X draws the next Break seed (before the tool keys, which
@@ -161,14 +166,14 @@ impl EditorWorkspace {
         if pressed_shift(ctx, egui::Key::X) {
             if self.grid.tool == GridTool::Break {
                 super::break_tool::reroll(self);
-            } else {
+            } else if may_choose {
                 self.set_grid_tool(GridTool::Break);
             }
         }
         // With the free camera's look button held, W and D fly the camera.
         let flying = ctx.input(|i| i.pointer.secondary_down());
         for tool in GridTool::ALL {
-            if !flying && !tool.shift() && pressed(ctx, tool.key()) {
+            if !flying && !tool.shift() && pressed(ctx, tool.key()) && may_choose {
                 self.set_grid_tool(tool);
             }
         }

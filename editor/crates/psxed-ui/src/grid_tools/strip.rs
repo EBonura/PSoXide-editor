@@ -226,11 +226,18 @@ impl EditorWorkspace {
 
     /// The overlays and the key page: Walk, Cells and Perf toggles, and the
     /// button that opens the page of every key and gesture.
-    pub(crate) fn draw_grid_overlay_controls(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn draw_grid_overlay_controls(&mut self, ui: &mut egui::Ui, compact: bool) {
+        let name = |icon: char, label: &str| -> egui::WidgetText {
+            if compact {
+                icons::text(icon, 15.0).into()
+            } else {
+                icons::label(icon, label).into()
+            }
+        };
         // The row is laid out right to left, so the rightmost button comes
         // first: Keys, Perf (and its reserve), Sizes, Walk.
         if ui
-            .selectable_label(self.grid.help_open, icons::label(icons::KEYBOARD, "Keys"))
+            .selectable_label(self.grid.help_open, name(icons::KEYBOARD, "Keys"))
             .on_hover_text("Every tool key and gesture (?)")
             .clicked()
         {
@@ -249,7 +256,7 @@ impl EditorWorkspace {
         if ui
             .selectable_label(
                 self.grid.overlays.perf,
-                icons::label(icons::FLAME, "Perf"),
+                name(icons::FLAME, "Perf"),
             )
             .on_hover_text("Performance heatmap (Alt+P): a model of the world render cost at every spot, against the 30 fps budget")
             .clicked()
@@ -257,10 +264,7 @@ impl EditorWorkspace {
             self.toggle_perf_overlay();
         }
         if ui
-            .selectable_label(
-                self.grid.overlays.leaves,
-                icons::label(icons::GRID, "Sizes"),
-            )
+            .selectable_label(self.grid.overlays.leaves, name(icons::GRID, "Sizes"))
             .on_hover_text(
                 "Cell sizes (Alt+L): every cell outlined and labelled with its size in sectors",
             )
@@ -271,7 +275,7 @@ impl EditorWorkspace {
         if ui
             .selectable_label(
                 self.grid.overlays.walk,
-                icons::label(icons::FOOTPRINTS, "Walk"),
+                name(icons::FOOTPRINTS, "Walk"),
             )
             .on_hover_text("Walkability overlay (Alt+W): too steep, low headroom, steps taller than the body climbs, drops, and floors no spawn reaches")
             .clicked()

@@ -7,7 +7,6 @@
 //! 1456 x 819 window, the size the coordinator's monitor reported, and feeds
 //! it real pointer events.
 
-use super::grid_rig::*;
 use super::grid_screens::{fonts, save_png};
 use super::raster::{render, Textures};
 use super::*;
@@ -32,7 +31,7 @@ fn dp_world() -> (EditorWorkspace, ScratchProjectDir) {
     for piece in 0..108 {
         for cell in 0..6 {
             ws.project.add_resource(
-                &format!("DP {piece}.{cell}"),
+                format!("DP {piece}.{cell}"),
                 psxed_project::ResourceData::Material(psxed_project::MaterialResource::opaque(
                     Some(format!("level_textures/{}.psxt", 10 + piece * 6 + cell)),
                 )),
@@ -74,6 +73,7 @@ struct WindowRig {
     ws: EditorWorkspace,
     ctx: egui::Context,
     viewport: EditorViewport3dPresentation,
+    size: Vec2,
     time: f64,
     out: egui::FullOutput,
     textures: Textures,
@@ -82,6 +82,10 @@ struct WindowRig {
 
 impl WindowRig {
     fn new() -> Self {
+        Self::with_size(WINDOW)
+    }
+
+    fn with_size(size: Vec2) -> Self {
         let (ws, guard) = dp_world();
         let ctx = egui::Context::default();
         ctx.set_fonts(fonts());
@@ -95,6 +99,7 @@ impl WindowRig {
             ws,
             ctx,
             viewport,
+            size,
             time: 0.0,
             out: egui::FullOutput::default(),
             textures: Textures::default(),
@@ -109,7 +114,7 @@ impl WindowRig {
     fn frame(&mut self, events: Vec<egui::Event>) {
         self.time += 1.0 / 60.0;
         let input = egui::RawInput {
-            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, WINDOW)),
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, self.size)),
             time: Some(self.time),
             focused: true,
             events,
@@ -131,8 +136,8 @@ impl WindowRig {
         let frame = render(
             &primitives,
             &self.textures,
-            WINDOW.x as usize,
-            WINDOW.y as usize,
+            self.size.x as usize,
+            self.size.y as usize,
         );
         save_png(path, &frame);
     }
@@ -156,17 +161,6 @@ impl WindowRig {
     fn at(&self, label: &str) -> Pos2 {
         self.find(label)
             .unwrap_or_else(|| panic!("no `{label}` on screen"))
-    }
-
-    fn texts(&self) -> Vec<String> {
-        self.out
-            .shapes
-            .iter()
-            .filter_map(|s| match &s.shape {
-                egui::epaint::Shape::Text(t) => Some(t.galley.text().to_string()),
-                _ => None,
-            })
-            .collect()
     }
 
     fn move_to(&mut self, p: Pos2) {
@@ -455,6 +449,161 @@ fn an_edit_made_in_the_3d_view_does_not_move_its_camera() {
     assert_eq!(rig.ws.camera_rig.target, before, "that edit was seen in 3D");
 }
 
+// ---------------------------------------------------------------------
+// Finding 1: the tool changed without being chosen.
+//
+// Not reproduced by pointer input alone (see `no_pointer_gesture_changes_the_tool`),
+// so these pin what can be pinned: the header's buttons do not sit on top of
+// each other (the view buttons overlapped the workspace tabs at the coordinator's
+// 1456-point window, so a click there was ambiguous), and a tool key cannot swap
+// the tool in the middle of a drag.
+
+impl WindowRig {
+    /// Visible text of the header rows (the tabs and the view buttons), as
+    /// `(text, bounds)`, between the menu bar and the first tool row.
+    fn header_texts(&self) -> Vec<(String, Rect)> {
+        let tools_y = self.at("Select").y - 8.0;
+        self.out
+            .shapes
+            .iter()
+            .filter_map(|s| match &s.shape {
+                egui::epaint::Shape::Text(t) => {
+                    Some((t.galley.text().to_string(), t.visual_bounding_rect()))
+                }
+                _ => None,
+            })
+            .filter(|(_, r)| {
+                r.min.y > 56.0
+                    && r.max.y < tools_y
+                    && r.min.x > 290.0
+                    && r.max.x < self.size.x - 330.0
+            })
+            .collect()
+    }
+}
+
+#[test]
+fn the_header_buttons_never_overlap_at_any_window_width() {
+    for width in [1280.0, 1456.0, 1920.0] {
+        let mut rig = WindowRig::with_size(Vec2::new(width, 819.0));
+        rig.ws.apply_grid_pose("view=plan").unwrap();
+        for _ in 0..4 {
+            rig.frame(vec![]);
+        }
+        let texts = rig.header_texts();
+        assert!(texts.len() >= 8, "{width}: {texts:?}");
+        for (i, (a, ra)) in texts.iter().enumerate() {
+            for (b, rb) in &texts[i + 1..] {
+                assert!(
+                    !ra.intersects(*rb),
+                    "at {width} points wide `{a}` {ra:?} is drawn over `{b}` {rb:?}"
+                );
+            }
+        }
+    }
+}
+
+/// Every pointer gesture the window can receive, anywhere, with one frame
+/// per event or all of them in one: the tool changes only when the press and
+/// the release land on the same tool button.
+#[test]
+fn no_pointer_gesture_changes_the_tool_unless_it_clicks_a_tool_button() {
+    let mut seed: u64 = 0x2545_f491_4f6c_dd1d;
+    let mut next = move || {
+        seed = seed
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        (seed >> 33) as u32
+    };
+    for round in 0..24 {
+        let mut rig = WindowRig::new();
+        let view = ["view=plan", "view=3d", "view=split"][round % 3];
+        rig.ws.apply_grid_pose(view).unwrap();
+        rig.ws
+            .set_grid_tool(GridTool::ALL[(round * 7) % GridTool::ALL.len()]);
+        for _ in 0..3 {
+            rig.frame(vec![]);
+        }
+        for step in 0..40 {
+            let before = rig.tool();
+            let a = Pos2::new(next() as f32 % 1456.0, next() as f32 % 819.0);
+            let b = Pos2::new(next() as f32 % 1456.0, next() as f32 % 819.0);
+            // The tool buttons' neighbourhood, from the frame before the gesture.
+            let near_a_button = |rig: &WindowRig, p: Pos2| {
+                GridTool::ALL.iter().any(|t| {
+                    [
+                        t.label(),
+                        if *t == GridTool::Split {
+                            "Diagonal"
+                        } else {
+                            ""
+                        },
+                    ]
+                    .iter()
+                    .filter(|l| !l.is_empty())
+                    .filter_map(|l| rig.find(l))
+                    .any(|c| (c.x - p.x).abs() < 60.0 && (c.y - p.y).abs() < 22.0)
+                })
+            };
+            let on_strip = near_a_button(&rig, a) || near_a_button(&rig, b);
+            match next() % 4 {
+                0 => rig.click(a),
+                1 => rig.drag(a, b),
+                2 => rig.click_one_frame(a),
+                _ => rig.drag_one_frame(a, b),
+            }
+            assert!(
+                rig.tool() == before || on_strip,
+                "round {round} step {step}: {before:?} became {:?} from a gesture at {a:?} / {b:?} ({})",
+                rig.tool(),
+                rig.ws.status
+            );
+        }
+    }
+}
+
+#[test]
+fn a_tool_key_in_the_middle_of_a_drag_does_not_swap_the_tool() {
+    let mut rig = WindowRig::new();
+    rig.ws.apply_grid_pose("view=plan").unwrap();
+    for _ in 0..3 {
+        rig.frame(vec![]);
+    }
+    let floor = rig.at("Floor");
+    rig.click(floor);
+    let (a, b) = (rig.cell(6, 2), rig.cell(6, 3));
+    rig.move_to(a);
+    let e = rig.press(a, true);
+    rig.frame(vec![e]);
+    rig.move_to(b);
+    // E is the Bands tool and O the Place tool, while the button is down.
+    for key in [egui::Key::E, egui::Key::O] {
+        rig.frame(vec![egui::Event::Key {
+            key,
+            physical_key: Some(key),
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }]);
+    }
+    assert_eq!(rig.tool(), GridTool::Floor, "{}", rig.ws.status);
+    let e = rig.press(b, false);
+    rig.frame(vec![e]);
+    assert!(
+        rig.has_floor(0, [6, 2]) && rig.has_floor(0, [6, 3]),
+        "the drag finished"
+    );
+    // With the button up the keys work again.
+    rig.frame(vec![egui::Event::Key {
+        key: egui::Key::E,
+        physical_key: Some(egui::Key::E),
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    }]);
+    assert_eq!(rig.tool(), GridTool::Bands);
+}
+
 /// Captures for the review pages: `PSXED_LIVE_CAPTURE=<dir> PSXED_LIVE_LABEL=before|after`
 /// writes one PNG per finding; without the variable this does nothing.
 #[test]
@@ -486,4 +635,14 @@ fn live_captures() {
     let project = dir.join(format!("proj-f2-{label}"));
     let _ = std::fs::remove_dir_all(&project);
     crate::starter_catalogue::copy_dir_recursive(&rig.ws.project_dir, &project).unwrap();
+
+    // Finding 1: the header at the coordinator's window and at a narrower one.
+    for width in [1456.0, 1280.0] {
+        let mut rig = WindowRig::with_size(Vec2::new(width, 819.0));
+        rig.ws.apply_grid_pose("view=plan").unwrap();
+        for _ in 0..4 {
+            rig.frame(vec![]);
+        }
+        rig.capture(&dir.join(format!("f1-header-{width}-{label}.png")));
+    }
 }

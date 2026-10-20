@@ -247,10 +247,9 @@ fn fresh_floor_cells(project: &ProjectDocument, room: usize, rect: CellRect) -> 
     };
     rect.cells()
         .filter(|&cell| {
-            !room
-                .local(cell)
+            room.local(cell)
                 .and_then(|[x, z]| room.sector(x, z))
-                .is_some_and(|s| s.ground_floor().is_some())
+                .is_none_or(|s| s.ground_floor().is_none())
         })
         .collect()
 }

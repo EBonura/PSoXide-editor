@@ -1,6 +1,30 @@
 use super::*;
 use crate::grid_tools::GridViewMode;
 
+/// Pane width the workspace tabs and the grid's view controls need to share
+/// one row (the tabs 340 points, the controls 700, with the Perf reserve box
+/// open 100 more, and room to breathe).
+const GRID_HEADER_ONE_ROW_WIDTH: f32 = 1180.0;
+
+/// A toolbar group menu with its word, or the icon alone when `compact`.
+#[allow(clippy::too_many_arguments)]
+fn grid_group_menu(
+    compact: bool,
+    ui: &mut egui::Ui,
+    number: u8,
+    glow: f32,
+    icon: char,
+    label: &str,
+    current: &str,
+    add_contents: impl FnOnce(&mut egui::Ui),
+) {
+    if compact {
+        toolbar_group_menu_icon_only(ui, number, glow, icon, label, current, add_contents);
+    } else {
+        toolbar_group_menu(ui, number, glow, icon, label, current, add_contents);
+    }
+}
+
 impl EditorWorkspace {
     pub(crate) fn draw_viewport(
         &mut self,
@@ -348,17 +372,27 @@ impl EditorWorkspace {
             .inner_margin(egui::Margin::symmetric(8, 3))
             .show(ui, |ui| {
                 ui.spacing_mut().item_spacing = Vec2::new(4.0, 3.0);
+                // The view switch and the overlays sit with the tabs, so the
+                // plan is one click away and the tool row below is tools and
+                // their options only. On a pane too narrow for both on one row
+                // (a laptop screen) they get a row of their own, instead of
+                // being drawn over the tabs.
+                let one_row = ui.available_width() >= GRID_HEADER_ONE_ROW_WIDTH;
                 ui.horizontal(|ui| {
                     self.draw_workspace_tabs(ui);
-                    if grid_room {
-                        // The view switch and the overlays sit with the tabs, so
-                        // the plan is one click away and the tool row below is
-                        // tools and their options only.
+                    if grid_room && one_row {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            self.draw_grid_view_controls(ui);
+                            self.draw_grid_view_controls(ui, false);
                         });
                     }
                 });
+                if grid_room && !one_row {
+                    ui.horizontal(|ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            self.draw_grid_view_controls(ui, true);
+                        });
+                    });
+                }
                 ui.separator();
                 if self.active_workspace == WorkspaceView::Material {
                     ui.horizontal_wrapped(|ui| self.draw_material_lab_toolbar(ui));
@@ -386,17 +420,26 @@ impl EditorWorkspace {
 
     /// The right end of the tab row in a grid world, right to left: Keys and
     /// the overlays, the camera, visibility and frame buttons, and the view
-    /// switch (3D, Plan, Split).
-    pub(crate) fn draw_grid_view_controls(&mut self, ui: &mut egui::Ui) {
+    /// switch (3D, Plan, Split). `compact` draws all but the view switch as icons
+    /// only (the tooltips carry the words), for a pane too narrow for the labels.
+    pub(crate) fn draw_grid_view_controls(&mut self, ui: &mut egui::Ui, compact: bool) {
+        let name = |icon: char, label: &str| -> egui::WidgetText {
+            if compact {
+                icons::text(icon, 15.0).into()
+            } else {
+                icons::label(icon, label).into()
+            }
+        };
         self.retain_shortcut_group_flash();
         if self.shortcut_group_flash.is_some() {
             ui.ctx().request_repaint();
         }
-        self.draw_grid_overlay_controls(ui);
+        self.draw_grid_overlay_controls(ui, compact);
         ui.separator();
         // Right to left: Show (visibility), Camera and Frame, each with a
         // word, then the view switch.
-        toolbar_group_menu(
+        grid_group_menu(
+            compact,
             ui,
             7,
             self.shortcut_group_glow(ShortcutGroup::Visibility),
@@ -405,7 +448,8 @@ impl EditorWorkspace {
             "Show",
             |ui| self.draw_visibility_menu_contents(ui),
         );
-        toolbar_group_menu(
+        grid_group_menu(
+            compact,
             ui,
             8,
             self.shortcut_group_glow(ShortcutGroup::Camera),
@@ -415,10 +459,7 @@ impl EditorWorkspace {
             |ui| self.draw_camera_group_menu(ui),
         );
         if ui
-            .add(
-                egui::Button::new(icons::label(icons::FOCUS, "Frame"))
-                    .min_size(Vec2::new(28.0, 23.0)),
-            )
+            .add(egui::Button::new(name(icons::FOCUS, "Frame")).min_size(Vec2::new(28.0, 23.0)))
             .on_hover_text("Frame selection (.)")
             .clicked()
         {
