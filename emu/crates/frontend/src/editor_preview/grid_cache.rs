@@ -22,6 +22,7 @@
 use super::*;
 
 use psxed_project::grid::light::{FacingShade, GridLight};
+use psxed_project::grid::lighting::LightScene;
 use psxed_project::grid::mesh::MeshAsset;
 use psxed_project::grid::{GridRoom, GridScale, GridWorld};
 use psxed_project::Resource;
@@ -92,7 +93,7 @@ pub(super) struct GeometryContext {
     scale: GridScale,
     shading: FacingShade,
     mesh_assets: Vec<MeshAsset>,
-    /// The lights baked into the corners.
+    /// The lights baked into the corners, runtime units.
     lights: Vec<GridLight>,
     /// Every material resource: tint, tiling, sidedness, blend and the name
     /// the fallback colour is chosen by.
@@ -163,6 +164,10 @@ pub(super) struct GridGeometry {
     rooms: Vec<RoomSlot>,
     /// The paint preview, while the Paint tool hovers a face.
     ghost: Option<GhostRoom>,
+    /// What the light bake is shot against (the world's collision), built on
+    /// the first bake after the world changed. `Err` holds why it could not
+    /// be built, so a broken world does not retry every frame.
+    scene: Option<Result<LightScene, String>>,
     /// `(document generation, textures generation)` the rooms were last
     /// checked against.
     synced: Option<(u64, u64)>,
@@ -189,6 +194,15 @@ impl GridGeometry {
             return;
         };
         let lights = collect_grid_bake_lights(project);
+        // The shadows depend on the geometry alone: a moved lamp or a repainted
+        // material leaves the scene (and its collision build) as it is.
+        if !self
+            .context
+            .as_ref()
+            .is_some_and(|c| c.scale == world.scale && c.mesh_assets == world.mesh_assets)
+        {
+            self.scene = None;
+        }
         let unchanged = self
             .context
             .as_ref()
@@ -203,6 +217,9 @@ impl GridGeometry {
                 textures_generation,
             ));
         }
+        if self.rooms.len() > world.rooms.len() {
+            self.scene = None;
+        }
         self.rooms.truncate(world.rooms.len());
         for (index, room) in world.rooms.iter().enumerate() {
             match self.rooms.get_mut(index) {
@@ -210,11 +227,15 @@ impl GridGeometry {
                 Some(slot) => {
                     slot.source = room.clone();
                     slot.prepared = None;
+                    self.scene = None;
                 }
-                None => self.rooms.push(RoomSlot {
-                    source: room.clone(),
-                    prepared: None,
-                }),
+                None => {
+                    self.rooms.push(RoomSlot {
+                        source: room.clone(),
+                        prepared: None,
+                    });
+                    self.scene = None;
+                }
             }
         }
     }
@@ -223,9 +244,21 @@ impl GridGeometry {
     /// the paint preview that stands in for one of the rooms.
     pub(super) fn rooms_lights_ghost(
         &mut self,
-    ) -> (&mut [RoomSlot], &[GridLight], Option<&mut GhostRoom>) {
+        world: &GridWorld,
+    ) -> (
+        &mut [RoomSlot],
+        &[GridLight],
+        Option<&LightScene>,
+        Option<&mut GhostRoom>,
+    ) {
+        let scene = self.scene.get_or_insert_with(|| LightScene::new(world));
         let lights = self.context.as_ref().map_or(&[][..], |c| &c.lights[..]);
-        (&mut self.rooms, lights, self.ghost.as_mut())
+        (
+            &mut self.rooms,
+            lights,
+            scene.as_ref().ok(),
+            self.ghost.as_mut(),
+        )
     }
 
     /// Show `paint` (or nothing): rebuild the preview room when the paint is

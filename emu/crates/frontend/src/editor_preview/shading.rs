@@ -130,33 +130,17 @@ impl PreviewFog {
     }
 }
 
-/// Lights the preview bakes into grid vertices. Hiding a node is editor-only
-/// (the node still ships), so a hidden light keeps lighting the preview
-/// exactly as it lights the game; only its gizmo disappears.
+/// Lights the preview bakes into grid vertices, in runtime units, exactly as
+/// the cook reads them from the scene. Hiding a node is editor-only (the node
+/// still ships), so a hidden light keeps lighting the preview exactly as it
+/// lights the game; only its gizmo disappears.
 pub(super) fn collect_grid_bake_lights(
     project: &ProjectDocument,
 ) -> Vec<psxed_project::grid::light::GridLight> {
-    let scene = project.active_scene();
-    let radius_units = scene
-        .world_sector_size_for_node(scene.root)
-        .unwrap_or(1024)
-        .max(1) as f32;
-    let mut out = Vec::new();
-    for light in preview_lights(scene, &HashSet::new()) {
-        let Some(radius) = preview_light_radius_world_units(light.radius, radius_units) else {
-            continue;
-        };
-        if !light.intensity.is_finite() || light.intensity < 0.0 {
-            continue;
-        }
-        out.push(psxed_project::grid::light::GridLight {
-            position: light.transform.translation.map(f64::from),
-            radius: f64::from(radius),
-            intensity_q8: (light.intensity * 256.0).clamp(0.0, f32::from(u16::MAX)) as u16,
-            color: light.color,
-        });
-    }
-    out
+    psxed_project::grid::lighting::scene_grid_lights(
+        project.active_scene(),
+        f64::from(psxed_project::units::WORLD_UNIT_DIVISOR),
+    )
 }
 
 /// Lights applied to preview models. Hiding a node is editor-only (the node
