@@ -16,37 +16,42 @@ impl EditorWorkspace {
         );
         if next.enabled {
             let weak = |text: &str| {
-                RichText::new(text.to_owned())
-                    .color(STUDIO_TEXT_WEAK)
-                    .size(11.0)
+                egui::Label::new(
+                    RichText::new(text.to_owned())
+                        .color(STUDIO_TEXT_WEAK)
+                        .size(11.0),
+                )
+                .extend()
             };
+            ui.spacing_mut().slider_width = 96.0;
             egui::Grid::new("grid_global_light")
                 .num_columns(2)
+                .min_col_width(78.0)
                 .spacing([8.0, 4.0])
                 .show(ui, |ui| {
-                    ui.label(weak("Occlusion"));
+                    ui.add(weak("Occlusion"));
                     ui.add(egui::Slider::new(&mut next.occlusion, 0..=100).suffix("%"))
                         .on_hover_text("How much of the ambient a blocked ray takes away.");
                     ui.end_row();
-                    ui.label(weak("Reach"));
+                    ui.add(weak("Reach"));
                     ui.add(egui::Slider::new(&mut next.reach, 1..=16).suffix(" sectors"))
                         .on_hover_text("A wall further off than this does not darken a corner.");
                     ui.end_row();
-                    ui.label(weak("Bounces"));
+                    ui.add(weak("Bounces"));
                     ui.add(egui::Slider::new(&mut next.bounces, 0..=3))
                         .on_hover_text("Passes of light bounced off lit surfaces.");
                     ui.end_row();
-                    ui.label(weak("Bounce gain"));
+                    ui.add(weak("Bounce gain"));
                     ui.add(egui::Slider::new(&mut next.bounce_gain, 0..=200).suffix("%"))
                         .on_hover_text(
                             "How much of the light a surface passes on. 100% keeps its texture's average colour.",
                         );
                     ui.end_row();
-                    ui.label(weak("Rays"));
+                    ui.add(weak("Rays"));
                     ui.add(egui::Slider::new(&mut next.rays, 8..=128))
                         .on_hover_text("Rays per corner. More is smoother and slower to bake.");
                     ui.end_row();
-                    ui.label(weak("Sky"));
+                    ui.add(weak("Sky"));
                     ui.horizontal(|ui| {
                         let mut own = next.sky.is_some();
                         if ui.checkbox(&mut own, "own colour").changed() {
