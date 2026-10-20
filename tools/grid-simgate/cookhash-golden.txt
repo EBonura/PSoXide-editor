@@ -4,7 +4,7 @@ grid-dungeon core=f4206742cbe2153c rooms=442b2358428cd7eb manifest=662c2e762e4d5
 grid-cave core=d80f65f1d87430a5 rooms=30a26b90603c3069 manifest=943dc1d949ab8746
 grid-sewers core=5a8f4da9048612aa rooms=48d8420aa0f91102 manifest=991dd9155c965ed2
 grid-west core=108e341aa40734bb rooms=fb4d0a7c5d6d908b manifest=5bd729936f080787
-grid-starter core=781d1078e7a61257 rooms=4b8eb82a3476220b manifest=2e9509f004565a80
+grid-starter core=b8e1bc14d6ccf7a1 rooms=6518f2f3f97f4e26 manifest=2e9509f004565a80
 grid-gate core=a5e3121260f53df4 rooms=7d53c3fe1561743b manifest=4e0e51c718d869e5
 grid-tower core=f1a2a64343a0c05e rooms=3ef29c37862e6ce7 manifest=cc84146308654ffb
 grid-corridor core=a7ec3f0a9149d164 rooms=f5f051e841a2cf68 manifest=a624e8ffdc2ae01a

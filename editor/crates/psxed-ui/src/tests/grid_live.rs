@@ -28,6 +28,17 @@ pub(super) fn dp_world() -> (EditorWorkspace, ScratchProjectDir) {
     let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../projects/grid-starter");
     crate::starter_catalogue::copy_dir_recursive(&source, &dir).unwrap();
     let mut ws = EditorWorkspace::open_directory(&dir).unwrap();
+    // Manny's dp-world still has the starter room as it was made before
+    // derived walls: hand-placed walls round it, so raising a floor there
+    // makes no risers. The tracked template has been converted since, so this
+    // stand-in puts the legacy room back.
+    let legacy = legacy_starter_room(&ws.project);
+    ws.project
+        .active_scene_mut()
+        .world
+        .grid_mut()
+        .unwrap()
+        .rooms[0] = legacy;
     for piece in 0..108 {
         for cell in 0..6 {
             ws.project.add_resource(
@@ -66,6 +77,43 @@ pub(super) fn dp_world() -> (EditorWorkspace, ScratchProjectDir) {
     ws.frame_current_view();
     ws.status = String::new();
     (ws, guard)
+}
+
+/// The starter room the way it was authored before derived walls: 6 x 6
+/// sectors of floor and ceiling (the starter's materials) with a hand-placed
+/// wall on every edge of the outline, `Authored` wall mode.
+pub(super) fn legacy_starter_room(project: &ProjectDocument) -> GridRoom {
+    use psxed_project::grid::WallEdge;
+    let material = |raw: u64| {
+        project
+            .resources
+            .iter()
+            .find(|r| r.id.raw() == raw)
+            .map(|r| r.id)
+    };
+    let (floor, wall, ceiling) = (material(159), material(160), material(161));
+    let mut room = GridRoom::new("Starter room", 6, 6);
+    room.ambient = [96, 96, 96];
+    for z in 0..6 {
+        for x in 0..6 {
+            let sector = room.sector_or_insert(x, z).unwrap();
+            sector.set_ground_floor(Some(GridSurface::flat(0, floor)));
+            sector.set_ground_ceiling(Some(GridSurface::flat(2048, ceiling)));
+            for (edge, outside) in [
+                (WallEdge::North, z == 0),
+                (WallEdge::South, z == 5),
+                (WallEdge::West, x == 0),
+                (WallEdge::East, x == 5),
+            ] {
+                if outside {
+                    sector
+                        .walls_mut(edge)
+                        .push(psxed_project::grid::GridWall::span(0, 2048, wall));
+                }
+            }
+        }
+    }
+    room
 }
 
 /// The whole editor in a window, driven by pointer and key events.
