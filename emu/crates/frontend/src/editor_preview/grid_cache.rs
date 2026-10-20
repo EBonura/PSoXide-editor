@@ -22,7 +22,7 @@
 use super::*;
 
 use psxed_project::grid::light::{FacingShade, GridLight};
-use psxed_project::grid::lighting::{GiField, GlobalLight, LightScene};
+use psxed_project::grid::lighting::{Gather, GiField, GlobalLight, LightScene, ProbeStore};
 
 use super::grid_light::GlobalLightState;
 use psxed_project::grid::mesh::MeshAsset;
@@ -186,6 +186,10 @@ pub(super) struct GridGeometry {
     /// The ambient occlusion, sky and bounce of a world that gathers its
     /// light, solved on a worker.
     gi: GlobalLightState,
+    /// The light probes models are lit by, baked on the first model of a frame
+    /// after the world or the gathered light changed. `Err` holds why they
+    /// could not be, so a broken world does not retry every frame.
+    probes: Option<Result<ProbeStore, String>>,
     /// The project directory the textures came from, for the bounce colours.
     project_root: Option<std::path::PathBuf>,
     /// `(document generation, textures generation)` the rooms were last
@@ -206,6 +210,7 @@ impl GridGeometry {
             return;
         }
         self.synced = Some((document_generation, textures_generation));
+        self.probes = None;
         // The preview was made from a document that has changed.
         self.ghost = None;
         let Some(world) = project.active_scene().world.grid() else {
@@ -273,6 +278,35 @@ impl GridGeometry {
         }
     }
 
+    /// The light probes of `world`, for the models of a frame to be lit by:
+    /// baked through the same scene, lamps and gathered field as the faces,
+    /// so a model stands in the light the cooked level gives it. `None` while
+    /// the world has no probes (no floor) or its collision cannot be built.
+    pub(super) fn probe_store(&mut self, world: &GridWorld) -> Option<&ProbeStore> {
+        if self.probes.is_none() {
+            let started = std::time::Instant::now();
+            let scene = self.scene.get_or_insert_with(|| LightScene::new(world));
+            let lights = self.context.as_ref().map_or(&[][..], |c| &c.lights[..]);
+            let gather = world.global_light.enabled.then(|| Gather {
+                field: self.gi.field(),
+            });
+            let built = match scene {
+                Ok(scene) => scene.bake_probes(world, lights, gather),
+                Err(error) => Err(error.clone()),
+            };
+            if let Err(error) = &built {
+                eprintln!("[grid light] light probes: {error}");
+            } else {
+                eprintln!(
+                    "[grid light] light probes baked in {:.1} ms",
+                    started.elapsed().as_secs_f64() * 1000.0
+                );
+            }
+            self.probes = Some(built);
+        }
+        self.probes.as_ref().and_then(|p| p.as_ref().ok())
+    }
+
     /// The rooms and the lights baked into them, for a frame to draw, and
     /// the paint preview that stands in for one of the rooms.
     pub(super) fn rooms_lights_ghost(&mut self, world: &GridWorld) -> RoomsToDraw<'_> {
@@ -323,6 +357,7 @@ impl GridGeometry {
     }
 
     fn discard_prepared_faces(&mut self) {
+        self.probes = None;
         for slot in &mut self.rooms {
             slot.prepared = None;
         }
@@ -536,5 +571,63 @@ mod tests {
             geometry.scene.as_ref().is_some_and(Result::is_ok),
             "the collision build is kept"
         );
+    }
+
+    /// A 4 by 1 hall with a wall across it after the second sector and a lamp
+    /// over the first: the lit end and the walled-off end of one room.
+    fn walled_hall_project() -> ProjectDocument {
+        use psxed_project::grid::sector::WallEdge;
+        use psxed_project::grid::GridWall;
+        let mut room = GridRoom::new("hall", 4, 1);
+        room.ambient = [32; 3];
+        for x in 0..4 {
+            room.sector_or_insert(x, 0)
+                .unwrap()
+                .set_ground_floor(Some(GridSurface::flat(0, None)));
+        }
+        room.sector_mut(1, 0)
+            .unwrap()
+            .walls_mut(WallEdge::East)
+            .push(GridWall::span(0, 1024, None));
+        let mut project = ProjectDocument::new("walled-hall");
+        project.active_scene_mut().world = SceneWorld::Grid(GridWorld {
+            rooms: vec![room],
+            ..GridWorld::new()
+        });
+        let root = project.active_scene().root;
+        let lamp = project.active_scene_mut().add_node(
+            root,
+            "Lamp",
+            psxed_project::NodeKind::PointLight {
+                color: [255, 255, 255],
+                intensity: 1.0,
+                radius: 4.0,
+            },
+        );
+        // Over the middle of the first sector (1344 editor units a sector at
+        // the default scale), at the height of a chest.
+        project.active_scene_mut().node_mut(lamp).unwrap().transform.translation =
+            [672.0, 640.0, 672.0];
+        project
+    }
+
+    #[test]
+    fn the_probes_the_models_are_lit_by_carry_the_lamps_shadows() {
+        let project = walled_hall_project();
+        let mut geometry = GridGeometry::default();
+        geometry.sync(&project, 1, 0);
+        let world = project.active_scene().world.grid().unwrap().clone();
+        let store = geometry.probe_store(&world).expect("the world has probes");
+        // Runtime units: 84 a sector, a chest 32 up.
+        let at = |sector: i32| store.light_at([sector * 84 + 42, 32, 42]).expect("a probe");
+        let (under, beside, behind, far) = (at(0), at(1), at(2), at(3));
+        assert!(under[0] > 200, "under the lamp: {under:?}");
+        assert!(beside[0] > behind[0] + 60, "beside {beside:?}, behind the wall {behind:?}");
+        assert_eq!(behind, far, "past the wall only the ambient reaches");
+        assert_eq!(behind, [32; 3]);
+        // The probes are kept until something changes.
+        assert!(geometry.probes.is_some());
+        geometry.sync(&project, 2, 0);
+        assert!(geometry.probes.is_none(), "an edit bakes them again");
     }
 }

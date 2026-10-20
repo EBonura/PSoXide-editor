@@ -572,6 +572,13 @@ fn build_frame(
     // World-space entity models: prime the camera GTE first, draw, then fall
     // through to the shared re-prime below for the bounds pass.
     let _ = setup_gte_for_camera(camera);
+    // The light probes of a grid world light the models by where they stand,
+    // as the cooked level does.
+    let probes = project
+        .active_scene()
+        .world
+        .grid()
+        .and_then(|world| state.geometry.probe_store(world));
     walk_model_instances(
         project,
         textures,
@@ -581,6 +588,7 @@ fn build_frame(
         hidden_scene_nodes,
         preview_tick,
         character_motion,
+        probes,
         &mut scratch,
     );
 
@@ -939,6 +947,7 @@ fn walk_model_instances(
     hidden_scene_nodes: &HashSet<NodeId>,
     tick: u32,
     character_motion: Option<psxed_ui::EditorCharacterMotionPreview>,
+    probes: Option<&psxed_project::grid::lighting::ProbeStore>,
     scratch: &mut PreviewScratch,
 ) {
     let scene = project.active_scene();
@@ -1038,6 +1047,7 @@ fn walk_model_instances(
         fog,
         &lights,
         PREVIEW_AMBIENT,
+        probes,
         tick,
         &instances_meta,
         scratch,
@@ -1057,6 +1067,7 @@ fn resolve_and_draw_model_instances(
     fog: PreviewFog,
     lights: &[psx_engine::PointLightSample],
     ambient: [u8; 3],
+    probes: Option<&psxed_project::grid::lighting::ProbeStore>,
     tick: u32,
     instances_meta: &[InstanceMeta],
     scratch: &mut PreviewScratch,
@@ -1106,6 +1117,11 @@ fn resolve_and_draw_model_instances(
             meta.model_rotation,
             meta.visual_scale_q8,
         ));
+        // Runtime parity: a grid world lights a model by the light probes
+        // around its bounding sphere's centre.
+        let probe = probes.and_then(|store| {
+            bounds_sphere.and_then(|sphere| store.light_at(probe_point(sphere.center)))
+        });
         instances.push(PreviewModelInstance {
             model,
             animation,
@@ -1120,6 +1136,7 @@ fn resolve_and_draw_model_instances(
                 fog,
                 lights,
                 ambient,
+                probe,
                 base_tint,
             ),
             blend_mode: material_override
@@ -1135,6 +1152,7 @@ fn resolve_and_draw_model_instances(
                         fog,
                         lights,
                         ambient,
+                        probe,
                         layer.tint,
                     );
                     layer
@@ -1761,23 +1779,41 @@ fn shade_model_tint(
     fog: PreviewFog,
     lights: &[psx_engine::PointLightSample],
     ambient: [u8; 3],
+    probe: Option<[u8; 3]>,
     base_tint: (u8, u8, u8),
 ) -> (u8, u8, u8) {
     let (point, receiver_radius) = match sphere {
         Some(sphere) => (sphere.center, sphere.radius.max(0)),
         None => (origin, 0),
     };
-    let lit = psx_engine::shade_material_tint_with_lights(
-        psx_engine::MaterialTint::from_tuple(base_tint),
-        [point.x, point.y, point.z],
-        psx_engine::Rgb8::from_array(ambient),
-        lights.iter().map(|light| psx_engine::PointLightSample {
-            radius: light.radius.saturating_add(receiver_radius),
-            ..*light
-        }),
-    )
-    .to_tuple();
+    let lit = match probe {
+        // The light probe holds the lamps and their shadows already; nothing
+        // is added on top of it, as in the game.
+        Some([r, g, b]) => psx_engine::modulate_material_tint(
+            psx_engine::MaterialTint::from_tuple(base_tint),
+            psx_engine::LightingRgb::new(u32::from(r), u32::from(g), u32::from(b)),
+        )
+        .to_tuple(),
+        None => psx_engine::shade_material_tint_with_lights(
+            psx_engine::MaterialTint::from_tuple(base_tint),
+            [point.x, point.y, point.z],
+            psx_engine::Rgb8::from_array(ambient),
+            lights.iter().map(|light| psx_engine::PointLightSample {
+                radius: light.radius.saturating_add(receiver_radius),
+                ..*light
+            }),
+        )
+        .to_tuple(),
+    };
     fog.apply_rgb(lit, camera.view_vertex(point).z)
+}
+
+/// A preview point (the editor's authored units) in the runtime units the
+/// light probes are baked in: the cook divides the same way, so a model stands
+/// in the same probe cell here as in the game.
+fn probe_point(point: psx_engine::WorldVertex) -> [i32; 3] {
+    let d = psxed_project::units::WORLD_UNIT_DIVISOR;
+    [point.x, point.y, point.z].map(|v| (v + d / 2).div_euclid(d))
 }
 
 /// World-space bounding sphere of one posed model instance, in the editor's
@@ -2156,6 +2192,58 @@ mod tests {
             "repainting a face the same changes nothing"
         );
         publish(None);
+    }
+
+    /// A model with a light probe is lit by it and by nothing on top, as in
+    /// the game; one outside every probe keeps the cooked lights it had.
+    #[test]
+    fn a_model_in_a_probe_takes_the_probe_light_and_nothing_on_top() {
+        let camera = psx_engine::WorldCamera::orbit_yaw(
+            psx_engine::WorldProjection::new(160, 120, 200, 40),
+            psx_engine::WorldVertex::ZERO,
+            0,
+            200,
+            psx_engine::Angle::ZERO,
+        );
+        let origin = psx_engine::WorldVertex::new(0, 0, 0);
+        let lamp = psx_engine::PointLightSample::from_color_intensity(
+            [0, 0, 0],
+            4096,
+            [255; 3],
+            psx_engine::Q8::ONE,
+        );
+        let shade = |probe| {
+            shade_model_tint(
+                origin,
+                None,
+                camera,
+                PreviewFog,
+                &[lamp],
+                [32; 3],
+                probe,
+                (128, 128, 128),
+            )
+        };
+        // The lamp is at the model and would light it fully; a probe in the
+        // lamp's shadow says otherwise, and wins.
+        assert!(shade(None).0 > 200);
+        assert_eq!(shade(Some([100, 60, 28])), (100, 60, 28));
+        // The base tint modulates it like any light.
+        let half = shade_model_tint(
+            origin,
+            None,
+            camera,
+            PreviewFog,
+            &[lamp],
+            [32; 3],
+            Some([100, 60, 28]),
+            (64, 64, 64),
+        );
+        assert_eq!(half, (50, 30, 14));
+        // And the preview puts the model in the probe cell the game would:
+        // the same division by the world unit divisor.
+        assert_eq!(probe_point(psx_engine::WorldVertex::new(1344 / 2, 512, 8)), [42, 32, 1]);
+        assert_eq!(probe_point(psx_engine::WorldVertex::new(-1, -8, -9)), [0, 0, -1]);
     }
 
     #[test]
