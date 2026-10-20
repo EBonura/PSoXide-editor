@@ -15,14 +15,16 @@ pub(crate) fn draw_transform_policy_editor(
             sky,
             far_vista,
             camera: _,
-            culling,
+            // Draw distance has no effect on a grid world's cook (checked
+            // 2026-10-20: the cooked output is byte-identical for any value),
+            // so it is not offered.
+            culling: _,
             physics,
             world_message,
         } => draw_world_settings(
             ui,
             sky,
             far_vista,
-            culling,
             physics,
             world_message,
             texture_options,
@@ -106,7 +108,6 @@ pub(crate) fn draw_world_settings(
     ui: &mut egui::Ui,
     sky: &mut SkySettings,
     far_vista: &mut FarVistaSettings,
-    culling: &mut WorldCullingSettings,
     physics: &mut WorldPhysicsSettings,
     world_message: &mut Option<psxed_project::WorldMessage>,
     texture_options: &[(ResourceId, String)],
@@ -479,21 +480,6 @@ pub(crate) fn draw_world_settings(
                     });
                 });
             }
-        });
-    egui::CollapsingHeader::new(icons::label(icons::FOCUS, "Culling"))
-        .default_open(false)
-        .show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Draw Distance").color(STUDIO_TEXT_WEAK));
-                changed |= ui
-                    .add(
-                        egui::DragValue::new(&mut culling.draw_distance)
-                            .speed(512.0)
-                            .range(MIN_WORLD_DRAW_DISTANCE..=MAX_WORLD_DRAW_DISTANCE),
-                    )
-                    .changed();
-                ui.label(RichText::new("units").color(STUDIO_TEXT_WEAK));
-            });
         });
     egui::CollapsingHeader::new(icons::label(icons::WAYPOINT, "Far Vista"))
         .default_open(true)
@@ -4750,7 +4736,6 @@ mod sky_ux_tests {
             ..SkySettings::default()
         };
         let mut far_vista = FarVistaSettings::default();
-        let mut culling = WorldCullingSettings::default();
         let mut physics = WorldPhysicsSettings::default();
         let mut world_message = None;
         let mut nav_target = None;
@@ -4770,7 +4755,6 @@ mod sky_ux_tests {
                         ui,
                         &mut sky,
                         &mut far_vista,
-                        &mut culling,
                         &mut physics,
                         &mut world_message,
                         &[(atlas, "Sunset Atlas".to_string())],

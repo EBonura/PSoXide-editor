@@ -233,8 +233,7 @@ fn select_room_for_capture(ws: &mut EditorWorkspace) {
 }
 
 fn open_world_for_capture(ws: &mut EditorWorkspace) {
-    // BEFORE: the World row of the Scene Graph.
-    ws.replace_node_selection(NodeId::ROOT);
+    ws.select_world();
 }
 
 // ---------------------------------------------------------------------
@@ -817,4 +816,100 @@ fn an_interaction_is_one_section_with_a_kind_and_switching_keeps_what_they_share
         None,
         "already that kind"
     );
+}
+
+// ---------------------------------------------------------------------
+// The World.
+
+fn dock_count(rig: &WindowRig, label: &str) -> usize {
+    dock_texts(rig).iter().filter(|t| *t == label).count()
+}
+
+#[test]
+fn the_world_has_one_entry_in_structure_and_it_opens_the_world_settings() {
+    let (mut rig, _) = populated();
+    assert_eq!(dock_count(&rig, "World"), 1, "{:?}", dock_texts(&rig));
+    // The tab of the top bar is also called World, and is not in the dock.
+    let entry = texts_in(&rig, DOCK())
+        .into_iter()
+        .find(|t| t.0 == "World")
+        .unwrap()
+        .1
+        .center();
+    rig.click(entry);
+    frames(&mut rig, 4);
+    assert!(rig.ws.selection.selected_nodes.contains(&NodeId::ROOT));
+    assert!(row_is_highlighted(&rig, "World"));
+    let shown = inspector_texts(&rig);
+    for section in ["Physics", "Sky", "Shading", "Streaming", "Default camera"] {
+        assert!(has_text(&shown, section), "{section} missing: {shown:?}");
+    }
+    // The World is not a row of the Objects list, nor is it offered twice.
+    assert_eq!(dock_count(&rig, "World"), 1);
+    assert!(!shown.iter().any(|t| t == "World settings"), "{shown:?}");
+}
+
+#[test]
+fn nothing_selected_does_not_offer_a_second_way_to_the_world() {
+    let (rig, _) = populated();
+    let shown = inspector_texts(&rig);
+    assert!(has_text(&shown, "Properties"), "{shown:?}");
+    assert!(
+        !shown.iter().any(|t| t.contains("World settings")),
+        "the Inspector button is the duplicate: {shown:?}"
+    );
+}
+
+#[test]
+fn shading_belongs_to_the_world_and_not_to_a_room() {
+    let mut rig = WindowRig::new();
+    frames(&mut rig, 3);
+    rig.ws.select_room(0);
+    frames(&mut rig, 4);
+    assert!(
+        !has_text(&inspector_texts(&rig), "Shading"),
+        "{:?}",
+        inspector_texts(&rig)
+    );
+    rig.ws.select_world();
+    frames(&mut rig, 4);
+    assert!(has_text(&inspector_texts(&rig), "Shading"));
+}
+
+#[test]
+fn the_world_settings_hold_the_stream_radii_and_the_default_camera() {
+    let mut rig = WindowRig::new();
+    rig.ws.select_world();
+    frames(&mut rig, 4);
+    // Open the two sections.
+    for section in ["Streaming", "Default camera"] {
+        let at = rig.at(section);
+        rig.click(at);
+        frames(&mut rig, 3);
+    }
+    let shown = inspector_texts(&rig);
+    for field in ["Draw far", "Active", "Lead"] {
+        assert!(has_text(&shown, field), "{field}: {shown:?}");
+    }
+    assert!(
+        shown.iter().any(|t| t.contains("no Camera part")),
+        "the camera says when it applies: {shown:?}"
+    );
+    // A radius is edited by dragging its value.
+    let before = rig.world().stream;
+    let at = rig.at("Draw far");
+    let value = at + Vec2::new(90.0, 0.0);
+    rig.drag(value, value + Vec2::new(24.0, 0.0));
+    frames(&mut rig, 3);
+    assert_ne!(rig.world().stream, before, "{}", rig.ws.status);
+}
+
+#[test]
+fn levels_are_storeys() {
+    let rig = WindowRig::new();
+    let texts = dock_texts(&rig);
+    assert!(has_text(&texts, "Storeys"), "{texts:?}");
+    assert!(has_text(&texts, "All storeys"), "{texts:?}");
+    assert!(!has_text(&texts, "Levels"), "{texts:?}");
+    assert!(texts.iter().any(|t| t.starts_with("Storey 0")), "{texts:?}");
 }

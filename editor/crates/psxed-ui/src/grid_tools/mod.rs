@@ -83,6 +83,7 @@ pub(crate) mod verb_tool;
 pub(crate) mod view;
 mod walk_overlay;
 mod wall_tool;
+mod world_panel;
 
 pub(crate) use events::{grid_tool_2d, grid_tool_3d};
 

@@ -173,7 +173,7 @@ impl EditorWorkspace {
         let name = if list.iter().any(|s| s.height == y) {
             super::levels_panel::level_name(world, &list, y)
         } else {
-            "Level -".to_string()
+            "Storey -".to_string()
         };
         let ru = psxed_project::grid::cook::RuntimeUnits::new(world.scale)
             .map(|u| format!(" ({:+} ru)", u.rt(y)))

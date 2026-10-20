@@ -75,11 +75,11 @@ impl EditorWorkspace {
     pub(crate) fn describe_refusal(&self, refusal: FocusRefusal) -> String {
         match refusal {
             FocusRefusal::SeveralSpans { cell, count } => format!(
-                "Sector [{}, {}] has {count} floors and no level is set: Alt+Up or Alt+Down picks one, or G and click a surface",
+                "Sector [{}, {}] has {count} floors and no storey is set: Alt+Up or Alt+Down picks one, or G and click a surface",
                 cell[0], cell[1]
             ),
             FocusRefusal::NoSpan { cell } => format!(
-                "Sector [{}, {}] has nothing open at the level; step the level (Alt+Up or Alt+Down) or pick a region without it",
+                "Sector [{}, {}] has nothing open at the storey; step the storey (Alt+Up or Alt+Down) or pick a region without it",
                 cell[0], cell[1]
             ),
             other => capitalised(other.describe()),

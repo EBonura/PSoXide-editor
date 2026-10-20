@@ -902,7 +902,7 @@ impl EditorWorkspace {
         });
         ui.menu_button("View", |ui| {
             if ui
-                .checkbox(&mut self.left_dock_open, "Levels, rooms and scene")
+                .checkbox(&mut self.left_dock_open, "Structure and objects")
                 .clicked()
             {
                 ui.close_menu();

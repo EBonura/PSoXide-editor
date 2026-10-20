@@ -1,5 +1,5 @@
-//! The Levels panel at the top of the left dock: the storeys the document
-//! holds, lowest first, with a name each. A click goes to a level (the storey
+//! The Storeys panel at the top of the left dock: the storeys the document
+//! holds, lowest first, with a name each. A click goes to a storey (the storey
 //! cursor), a double-click renames it.
 //!
 //! A storey is derived from the floors, never declared, so its name is kept
@@ -12,7 +12,7 @@ use super::*;
 use psxed_project::grid::storeys::{Storey, STOREY_MIN_CELLS, STOREY_PITCH};
 use psxed_project::grid::{GridWorld, CLICK_UNITS};
 
-/// Maximum height of the level list before it scrolls.
+/// Maximum height of the storey list before it scrolls.
 const LIST_MAX_HEIGHT: f32 = 150.0;
 
 /// The click index a storey's name is kept under.
@@ -20,7 +20,7 @@ pub(crate) fn name_key(height: i32) -> i32 {
     height.div_euclid(CLICK_UNITS)
 }
 
-/// The name of the storey at `height`: the author's, else `Level N` by its
+/// The name of the storey at `height`: the author's, else `Storey N` by its
 /// place in the list.
 pub(crate) fn level_name(world: &GridWorld, list: &[Storey], height: i32) -> String {
     if let Some(name) = world.level_names.get(&name_key(height)) {
@@ -28,11 +28,11 @@ pub(crate) fn level_name(world: &GridWorld, list: &[Storey], height: i32) -> Str
     }
     list.iter()
         .position(|s| s.height == height)
-        .map_or_else(|| "Level -".to_string(), |i| format!("Level {i}"))
+        .map_or_else(|| "Storey -".to_string(), |i| format!("Storey {i}"))
 }
 
 impl EditorWorkspace {
-    /// The Levels panel. Does nothing without a grid world.
+    /// The Storeys panel. Does nothing without a grid world.
     pub(crate) fn draw_grid_levels_panel(&mut self, ui: &mut egui::Ui) {
         let Some(world) = self.project.active_scene().world.grid() else {
             return;
@@ -48,11 +48,11 @@ impl EditorWorkspace {
         let mut rename_commit = false;
         let mut add = false;
         let mut cutaway = self.grid.level.cutaway;
-        structure_section_header(ui, icons::LAYERS, "Levels", |ui| {
+        structure_section_header(ui, icons::LAYERS, "Storeys", |ui| {
             add = ui
                 .button(icons::text(icons::PLUS, 14.0))
                 .on_hover_text(format!(
-                    "New level: the Upper floor tool, set to one storey ({} clicks) above the level. Pick the sectors, then press on them and drag up.",
+                    "New storey: the Upper floor tool, set to one storey ({} clicks) above this one. Pick the sectors, then press on them and drag up.",
                     STOREY_PITCH / CLICK_UNITS
                 ))
                 .clicked();
@@ -63,7 +63,7 @@ impl EditorWorkspace {
                         .selected(on)
                         .frame(on),
                 )
-                .on_hover_text("Cutaway (Z): hide what lies above the level in the 3D view")
+                .on_hover_text("Cutaway (Z): hide what lies above the storey in the 3D view")
                 .clicked()
             {
                 cutaway = if on {
@@ -76,7 +76,7 @@ impl EditorWorkspace {
         if rows.is_empty() {
             ui.label(
                 RichText::new(format!(
-                    "No levels yet: a floor height needs {STOREY_MIN_CELLS} cells"
+                    "No storeys yet: a floor height needs {STOREY_MIN_CELLS} cells"
                 ))
                 .color(STUDIO_TEXT_WEAK)
                 .size(11.0),
@@ -89,8 +89,8 @@ impl EditorWorkspace {
                 .show(ui, |ui| {
                     let all = cursor.is_none();
                     if ui
-                        .selectable_label(all, "All levels")
-                        .on_hover_text("No level: tools edit as they always did, nothing is cut away")
+                        .selectable_label(all, "All storeys")
+                        .on_hover_text("No storey: tools edit as they always did, nothing is cut away")
                         .clicked()
                     {
                         go = Some(None);
@@ -114,7 +114,7 @@ impl EditorWorkspace {
                             let response = ui
                                 .selectable_label(on, name)
                                 .on_hover_text(
-                                    "Click to work on this level. Double-click to rename. Alt+Up and Alt+Down step through the levels, G picks one from a surface.",
+                                    "Click to work on this storey. Double-click to rename. Alt+Up and Alt+Down step through the storeys, G picks one from a surface.",
                                 );
                             if response.clicked() {
                                 go = Some(Some(*height));
@@ -153,7 +153,7 @@ impl EditorWorkspace {
             Some(Some(height)) => self.set_level(height),
             Some(None) => {
                 self.grid.level.y = None;
-                self.status = "All levels".to_string();
+                self.status = "All storeys".to_string();
             }
             None => {}
         }
@@ -199,7 +199,7 @@ impl EditorWorkspace {
         self.grid.verb.slab.mode = slab_tool::SlabMode::Insert;
         self.grid.verb.slab.typed_clicks = (STOREY_PITCH / CLICK_UNITS) as f32;
         self.status = format!(
-            "New level: pick the sectors it covers, then press on them and drag up (or type {} clicks and Apply)",
+            "New storey: pick the sectors it covers, then press on them and drag up (or type {} clicks and Apply)",
             STOREY_PITCH / CLICK_UNITS
         );
     }
@@ -225,6 +225,7 @@ impl EditorWorkspace {
                     .max_height(top)
                     .show(ui, |ui| {
                         tool_panel_header(ui, icons::LAYERS_2, "Structure", |_| {});
+                        self.draw_world_entry(ui);
                         self.draw_grid_levels_panel(ui);
                         self.draw_grid_rooms_panel(ui);
                     });

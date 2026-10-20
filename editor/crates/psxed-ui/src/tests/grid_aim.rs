@@ -53,7 +53,7 @@ fn a_verb_over_a_column_of_two_floors_refuses_until_a_level_is_set() {
     rig.drag(from, from - Vec2::new(0.0, 2.0 * CLICK_PX));
     assert_eq!(rig.ws.project, original, "{}", rig.ws.status);
     assert!(
-        rig.ws.status.contains("no level is set"),
+        rig.ws.status.contains("no storey is set"),
         "the refusal names the way out: {}",
         rig.ws.status
     );

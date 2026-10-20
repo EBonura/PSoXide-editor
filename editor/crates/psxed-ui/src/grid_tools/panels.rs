@@ -54,9 +54,11 @@ impl EditorWorkspace {
             self.draw_grid_face_inspector(ui);
             true
         } else if !node_selected {
-            // Nothing picked: a hint, and the way to the World settings (the
-            // World entry of the Structure panel is the other).
+            // Nothing picked: a hint.
             self.draw_nothing_selected(ui);
+            true
+        } else if self.world_is_selected() {
+            self.draw_world_inspector(ui);
             true
         } else {
             false
@@ -156,23 +158,14 @@ impl EditorWorkspace {
         ui.separator();
     }
 
-    /// Nothing is picked: say how to pick, and open the World settings on
-    /// request rather than showing their form under every empty click.
+    /// Nothing is picked: say how to pick.
     fn draw_nothing_selected(&mut self, ui: &mut egui::Ui) {
         ui.label(
             RichText::new(
-                "Nothing selected. Click a face, a light or an actor with the Select tool.",
+                "Nothing selected. Click a face, a light or an actor with the Select tool, or choose a room or the World on the left.",
             )
             .color(STUDIO_TEXT_WEAK),
         );
-        ui.add_space(4.0);
-        if ui
-            .button(icons::label(icons::HOUSE, "World settings"))
-            .on_hover_text("Sky, physics and far vista (the World row of the Scene Graph)")
-            .clicked()
-        {
-            self.replace_node_selection(NodeId::ROOT);
-        }
     }
 
     /// Apply the palette material to every selected face.

@@ -54,9 +54,9 @@ fn the_levels_panel_lists_storeys_and_a_name_is_kept_in_the_world() {
         true,
         Vec2::new(1600.0, 1400.0),
     ));
-    assert!(text.contains("Levels"), "{text}");
+    assert!(text.contains("Storeys"), "{text}");
     assert!(
-        text.contains("Level 0") && text.contains("Level 1"),
+        text.contains("Storey 0") && text.contains("Storey 1"),
         "{text}"
     );
     // Going to a level is the storey cursor.

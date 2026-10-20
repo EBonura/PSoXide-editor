@@ -281,33 +281,33 @@ const SPIRAL: Rows = &[
     ),
     (
         "Alt+Up, Alt+Down",
-        "The climb starts from the floor at the level where the ring's first sector has several",
+        "The climb starts from the floor at the storey where the ring's first sector has several",
     ),
 ];
 const SLAB: Rows = &[
     (
         "Alt+Up, Alt+Down",
-        "Move the level cursor to the next storey up or down; the Level chip at the top of the view shows where it is. A storey is a floor height many sectors share",
+        "Move the storey cursor to the next storey up or down; the Storey chip at the top of the view shows where it is. A storey is a floor height many sectors share",
     ),
     (
         "G, then click",
-        "Set the level to the surface under the click (3D), or to the topmost floor of the column (Top). Esc cancels",
+        "Set the storey to the surface under the click (3D), or to the topmost floor of the column (Top). Esc cancels",
     ),
     (
         "Z",
-        "Cutaway on or off: the 3D view and picking hide everything from the next storey above the level up",
+        "Cutaway on or off: the 3D view and picking hide everything from the next storey above this one up",
     ),
     (
         "Insert: pick a region, press on it, drag up",
-        "Adds a floor at that height over the level, one click thick, with open space underneath (it needs a ceiling or open sky above); the hall above and below keep their walls. The ghost shows the open space under the new floor. Sectors with nothing open at that height are skipped and counted. This is not Raise: Raise moves the ground itself up and leaves nothing underneath",
+        "Adds a floor at that height over the storey, one click thick, with open space underneath (it needs a ceiling or open sky above); the hall above and below keep their walls. The ghost shows the open space under the new floor. Sectors with nothing open at that height are skipped and counted. This is not Raise: Raise moves the ground itself up and leaves nothing underneath",
     ),
     (
         "Cut: pick a region, click it",
-        "The first slab above the level comes out, so the spans around it merge (a stairwell)",
+        "The first slab above the storey comes out, so the spans around it merge (a stairwell)",
     ),
     (
         "Fill: pick a region, click it",
-        "Closes the region up to the next storey above the level",
+        "Closes the region up to the next storey above this one",
     ),
     ("Tab", "Add floor above, Remove upper floor, Fill opening"),
     ("Esc", "Put the document back exactly"),
@@ -441,7 +441,7 @@ impl EditorWorkspace {
             ("Break (X)", BREAK),
             ("Rough (M)", ROUGH),
             ("Cells (Q)", CELLS),
-            ("Upper floor (Shift+Q) and levels", SLAB),
+            ("Upper floor (Shift+Q) and storeys", SLAB),
             ("Overlays", OVERLAYS),
             ("More", OTHER),
             ("Snapping and reserved keys", SNAP),
@@ -456,7 +456,7 @@ impl EditorWorkspace {
             .show(ctx, |ui| {
                 ui.set_width(1500.0_f32.min(ctx.screen_rect().width() - 60.0));
                 ui.label(
-                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, Shift+N Mesh, P Paint, D Diagonal, O Place, E Bands | U Raise, A Ramp, T Stairs, Shift+T Spiral, X Break, M Rough, Q Cells, Shift+Q Upper floor | Alt+Up/Down level, G go to level, Z cutaway")
+                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, Shift+N Mesh, P Paint, D Diagonal, O Place, E Bands | U Raise, A Ramp, T Stairs, Shift+T Spiral, X Break, M Rough, Q Cells, Shift+Q Upper floor | Alt+Up/Down storey, G go to storey, Z cutaway")
                         .color(STUDIO_TEXT_WEAK),
                 );
                 ui.label(

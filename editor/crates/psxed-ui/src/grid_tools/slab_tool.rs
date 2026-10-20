@@ -53,8 +53,8 @@ impl SlabMode {
             Self::Insert => {
                 "Press on the region and drag up: a floor at that height, open space underneath"
             }
-            Self::Cut => "Click the region: the first upper floor above the level is removed",
-            Self::Fill => "Click the region: the opening is closed up to the next level",
+            Self::Cut => "Click the region: the first upper floor above the storey is removed",
+            Self::Fill => "Click the region: the opening is closed up to the next storey",
         }
     }
 
@@ -237,7 +237,7 @@ pub(super) fn apply(world: &mut GridWorld, live: &SlabLive, amount: i32) -> Stri
         }
         SlabMode::Fill => {
             let Some(y) = live.fill_to else {
-                return "Fill: no storey above the level to close up to".to_string();
+                return "Fill: no storey above this one to close up to".to_string();
             };
             let outcome = over_cells(world, live, |w, rect| {
                 insert_slab(w, live.room, rect, y, SLAB_THICKNESS, live.material)
@@ -288,7 +288,7 @@ pub(super) fn chip(live: &SlabLive, amount: i32) -> String {
             let at = amount as f32 / CLICK_UNITS as f32;
             match open_space_clicks(amount) {
                 Some(gap) => format!(
-                    "Upper floor at {at:+.2} clicks over the level, {gap:.2} clicks of open space under it"
+                    "Upper floor at {at:+.2} clicks over the storey, {gap:.2} clicks of open space under it"
                 ),
                 None => format!(
                     "Upper floor at {at:+.2} clicks: no room for open space under it (3 clicks needed), so the floor just rises like Raise"

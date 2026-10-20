@@ -153,16 +153,15 @@ fn searching_opens_the_groups_with_a_match() {
 fn properties_names_what_is_edited_and_nothing_selected_is_a_hint() {
     let mut ws =
         EditorWorkspace::with_project(test_temp_dir("layout-properties"), flat_project(4, 4, true));
-    // Nothing selected: a hint and a way to the World settings, not the form.
+    // Nothing selected: a hint, not the World form.
     let text = screen(&mut ws);
     assert!(text.contains("Properties"), "{text}");
     assert!(text.contains("Nothing selected"), "{text}");
-    assert!(text.contains("World settings"), "{text}");
     for form in ["Physics", "Far Vista", "Sky Texture"] {
         assert!(!text.contains(form), "the World form is drawn: {form}");
     }
-    // The World row of the Scene Graph (or the button) opens the form.
-    ws.replace_node_selection(NodeId::ROOT);
+    // The World entry of the Structure panel opens the form.
+    ws.select_world();
     let text = screen(&mut ws);
     assert!(text.contains("Physics"), "{text}");
     assert!(!text.contains("Nothing selected"), "{text}");
@@ -185,8 +184,8 @@ fn levels_and_rooms_live_in_one_structure_panel() {
         text.find(needle)
             .unwrap_or_else(|| panic!("{needle} missing:\n{text}"))
     };
-    assert!(at("Structure") < at("Levels"), "Structure heads the panel");
-    assert!(at("Levels") < at("Rooms"));
+    assert!(at("Structure") < at("Storeys"), "Structure heads the panel");
+    assert!(at("Storeys") < at("Rooms"));
     assert!(at("Rooms") < at("Objects"));
     assert_eq!(text.matches("Structure").count(), 1, "{text}");
 }
@@ -329,11 +328,11 @@ fn the_keys_page_is_searchable() {
     ws.grid.help_open = true;
     let text = screen_sized(&mut ws, Vec2::new(1920.0, 2100.0));
     assert!(text.contains("Search keys"), "{text}");
-    assert!(text.contains("Spiral (Shift+T)") && text.contains("Upper floor (Shift+Q) and levels"));
+    assert!(text.contains("Spiral (Shift+T)") && text.contains("Upper floor (Shift+Q) and storeys"));
     // A query keeps the sections with a row that matches, and only those rows.
     ws.grid.help_search = "cutaway".to_string();
     let text = screen_sized(&mut ws, Vec2::new(1920.0, 2100.0));
-    assert!(text.contains("Upper floor (Shift+Q) and levels"), "{text}");
+    assert!(text.contains("Upper floor (Shift+Q) and storeys"), "{text}");
     assert!(!text.contains("Spiral (Shift+T)"), "{text}");
     assert!(!text.contains("Wall (W)"), "{text}");
     // A section whose title matches shows all its rows.

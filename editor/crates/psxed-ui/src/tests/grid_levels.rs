@@ -171,7 +171,7 @@ fn the_storey_cursor_steps_through_the_derived_storeys_with_alt_arrows() {
     let ctx = full_context();
     for view_2d in [true, false] {
         let text = text_of(&draw_editor(&mut rig.ws, &ctx, view_2d));
-        assert!(text.contains("Level 1"), "{text}");
+        assert!(text.contains("Storey 1"), "{text}");
         assert!(text.contains("+6.00 clicks"), "{text}");
     }
 }
@@ -326,9 +326,9 @@ fn the_slab_options_and_help_draw_and_a_pose_shows_the_cutaway() {
     for view_2d in [true, false] {
         let text = text_of(&draw_editor(&mut ws, &ctx, view_2d));
         assert!(text.contains("Add floor above"), "{text}");
-        assert!(text.contains("Level 0"), "{text}");
+        assert!(text.contains("Storey 0"), "{text}");
         assert!(
-            text.contains("Upper floor at +6.00 clicks over the level"),
+            text.contains("Upper floor at +6.00 clicks over the storey"),
             "{text}"
         );
     }
