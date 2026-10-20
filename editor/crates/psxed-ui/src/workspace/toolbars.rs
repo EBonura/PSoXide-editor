@@ -1,28 +1,8 @@
 use super::*;
 use crate::grid_tools::GridViewMode;
 
-/// Pane width the grid's view controls need to show their words (about 700
-/// points, 100 more with the Perf reserve box open, and room to breathe).
-const GRID_HEADER_COMPACT_BELOW: f32 = 880.0;
-
-/// A toolbar group menu with its word, or the icon alone when `compact`.
-#[allow(clippy::too_many_arguments)]
-fn grid_group_menu(
-    compact: bool,
-    ui: &mut egui::Ui,
-    number: u8,
-    glow: f32,
-    icon: char,
-    label: &str,
-    current: &str,
-    add_contents: impl FnOnce(&mut egui::Ui),
-) {
-    if compact {
-        toolbar_group_menu_icon_only(ui, number, glow, icon, label, current, add_contents);
-    } else {
-        toolbar_group_menu(ui, number, glow, icon, label, current, add_contents);
-    }
-}
+/// Width of one segment of the 3D / Plan / Both switch.
+const VIEW_SEGMENT_WIDTH: f32 = 56.0;
 
 impl EditorWorkspace {
     pub(crate) fn draw_viewport(
@@ -371,16 +351,11 @@ impl EditorWorkspace {
             .inner_margin(egui::Margin::symmetric(8, 3))
             .show(ui, |ui| {
                 ui.spacing_mut().item_spacing = Vec2::new(4.0, 3.0);
-                // The workspaces are in the top bar. The view switch and the
-                // overlays get a row of their own; on a pane too narrow for
-                // their words (a laptop screen) they are icons.
+                // The workspaces are in the top bar and the tools under it: the
+                // header is the view switch on the left and the view controls
+                // on the right.
                 if grid_room {
-                    let compact = ui.available_width() < GRID_HEADER_COMPACT_BELOW;
-                    ui.horizontal(|ui| {
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            self.draw_grid_view_controls(ui, compact);
-                        });
-                    });
+                    ui.horizontal(|ui| self.draw_grid_view_header(ui));
                     ui.separator();
                 }
                 if self.active_workspace == WorkspaceView::Material {
@@ -406,69 +381,99 @@ impl EditorWorkspace {
             });
     }
 
-    /// The right end of the tab row in a grid world, right to left: Keys and
-    /// the overlays, the camera, visibility and frame buttons, and the view
-    /// switch (3D, Plan, Split). `compact` draws all but the view switch as icons
-    /// only (the tooltips carry the words), for a pane too narrow for the labels.
-    pub(crate) fn draw_grid_view_controls(&mut self, ui: &mut egui::Ui, compact: bool) {
-        let name = |icon: char, label: &str| -> egui::WidgetText {
-            if compact {
-                icons::text(icon, 15.0).into()
-            } else {
-                icons::label(icon, label).into()
-            }
-        };
+    /// The viewport header of a grid world: the view switch (3D, Plan, Both)
+    /// on the left; Frame, Camera, the Overlays menu and the Walk toggle on
+    /// the right.
+    pub(crate) fn draw_grid_view_header(&mut self, ui: &mut egui::Ui) {
         self.retain_shortcut_group_flash();
         if self.shortcut_group_flash.is_some() {
             ui.ctx().request_repaint();
         }
-        self.draw_grid_overlay_controls(ui, compact);
-        ui.separator();
-        // Right to left: Show (visibility), Camera and Frame, each with a
-        // word, then the view switch.
-        grid_group_menu(
-            compact,
+        let labels = GridViewMode::ALL.map(GridViewMode::label);
+        let hovers = GridViewMode::ALL
+            .map(|m| format!("{}\nCtrl/Cmd+9 cycles 3D, Plan and Both", m.tooltip()));
+        let current = GridViewMode::ALL
+            .iter()
+            .position(|m| *m == self.grid_view_mode());
+        if let Some(index) = topbar::segmented_control(
             ui,
-            7,
-            self.shortcut_group_glow(ShortcutGroup::Visibility),
-            self.visibility_group_icon(),
-            "Visibility",
-            "Show",
-            |ui| self.draw_visibility_menu_contents(ui),
-        );
-        grid_group_menu(
-            compact,
-            ui,
-            8,
-            self.shortcut_group_glow(ShortcutGroup::Camera),
-            self.camera_rig.mode.icon(),
-            "Camera",
-            "Camera",
-            |ui| self.draw_camera_group_menu(ui),
-        );
-        if ui
-            .add(egui::Button::new(name(icons::FOCUS, "Frame")).min_size(Vec2::new(28.0, 23.0)))
-            .on_hover_text("Frame selection (.)")
-            .clicked()
-        {
-            self.frame_viewport();
+            "view_switch",
+            &labels,
+            &hovers,
+            current,
+            VIEW_SEGMENT_WIDTH,
+        ) {
+            self.set_grid_view_mode(GridViewMode::ALL[index]);
         }
+        // Right to left: the last control is added first.
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let walk = self.grid.overlays.walk;
+            if ui
+                .add(egui::Button::new("Walk").selected(walk))
+                .on_hover_text("Walkability overlay (Alt+W): too steep, low headroom, steps taller than the body climbs, drops, and floors no spawn reaches")
+                .clicked()
+            {
+                self.toggle_walk_overlay();
+            }
+            toolbar_group_menu_text(
+                ui,
+                7,
+                self.shortcut_group_glow(ShortcutGroup::Visibility),
+                "Overlays",
+                true,
+                |ui| self.draw_overlays_menu(ui),
+            );
+            toolbar_group_menu_text(
+                ui,
+                8,
+                self.shortcut_group_glow(ShortcutGroup::Camera),
+                "Camera",
+                false,
+                |ui| self.draw_camera_group_menu(ui),
+            );
+            if ui
+                .add(egui::Button::new("Frame").min_size(Vec2::new(28.0, 23.0)))
+                .on_hover_text("Frame selection (.)")
+                .clicked()
+            {
+                self.frame_viewport();
+            }
+        });
+    }
+
+    /// What the Overlays menu holds: what the preview shows (lights, bounds),
+    /// the cell sizes and the performance heatmap.
+    fn draw_overlays_menu(&mut self, ui: &mut egui::Ui) {
+        ui.label(RichText::new("SHOW").small().color(STUDIO_TEXT_WEAK));
+        self.draw_visibility_menu_contents(ui);
         ui.separator();
-        // Right to left: the last mode is added first.
-        let current = self.grid_view_mode();
-        for mode in GridViewMode::ALL.into_iter().rev() {
-            let response = ui
-                .add(
-                    egui::Button::new(icons::label(mode.icon(), mode.label()))
-                        .selected(current == mode)
-                        .min_size(Vec2::new(28.0, 23.0)),
-                )
-                .on_hover_text(format!(
-                    "{}\nCtrl/Cmd+9 cycles 3D, Plan and Split",
-                    mode.tooltip()
-                ));
-            if response.clicked() {
-                self.set_grid_view_mode(mode);
+        ui.label(RichText::new("ANALYSIS").small().color(STUDIO_TEXT_WEAK));
+        let mut sizes = self.grid.overlays.leaves;
+        if ui
+            .checkbox(&mut sizes, "Sizes")
+            .on_hover_text(
+                "Cell sizes (Alt+L): every cell outlined and labelled with its size in sectors",
+            )
+            .changed()
+        {
+            self.toggle_leaf_overlay();
+        }
+        let mut perf = self.grid.overlays.perf;
+        if ui
+            .checkbox(&mut perf, "Perf")
+            .on_hover_text("Performance heatmap (Alt+P): a model of the world render cost at every spot, against the 30 fps budget")
+            .changed()
+        {
+            self.toggle_perf_overlay();
+        }
+        if self.grid.overlays.perf {
+            let mut thousands = self.grid.overlays.reserve / 1000;
+            if ui
+                .add(egui::DragValue::new(&mut thousands).range(0..=1000).suffix("k reserve"))
+                .on_hover_text("Cycles the frame spends outside the world: the player and the sky (470k + 58k measured on the Cathedral)")
+                .changed()
+            {
+                self.grid.overlays.reserve = thousands * 1000;
             }
         }
     }

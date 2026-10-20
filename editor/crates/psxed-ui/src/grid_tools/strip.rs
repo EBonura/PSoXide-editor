@@ -1,4 +1,4 @@
-//! The grid tool options, the overlays and the status bar.
+//! The grid tool options and the status bar.
 
 use super::*;
 
@@ -174,66 +174,6 @@ impl EditorWorkspace {
             format!("Snap {CLICK_UNITS} (Alt {FINE_UNITS})")
         };
         ui.label(RichText::new(snap_text).color(STUDIO_TEXT_WEAK).size(11.0));
-    }
-
-    /// The overlays and the key page: Walk, Cells and Perf toggles, and the
-    /// button that opens the page of every key and gesture.
-    pub(crate) fn draw_grid_overlay_controls(&mut self, ui: &mut egui::Ui, compact: bool) {
-        let name = |icon: char, label: &str| -> egui::WidgetText {
-            if compact {
-                icons::text(icon, 15.0).into()
-            } else {
-                icons::label(icon, label).into()
-            }
-        };
-        // The row is laid out right to left, so the rightmost button comes
-        // first: Keys, Perf (and its reserve), Sizes, Walk.
-        if ui
-            .selectable_label(self.grid.help_open, name(icons::KEYBOARD, "Keys"))
-            .on_hover_text("Every tool key and gesture (?)")
-            .clicked()
-        {
-            self.grid.help_open = !self.grid.help_open;
-        }
-        if self.grid.overlays.perf {
-            let mut thousands = self.grid.overlays.reserve / 1000;
-            if ui
-                .add(egui::DragValue::new(&mut thousands).range(0..=1000).suffix("k reserve"))
-                .on_hover_text("Cycles the frame spends outside the world: the player and the sky (470k + 58k measured on the Cathedral)")
-                .changed()
-            {
-                self.grid.overlays.reserve = thousands * 1000;
-            }
-        }
-        if ui
-            .selectable_label(
-                self.grid.overlays.perf,
-                name(icons::FLAME, "Perf"),
-            )
-            .on_hover_text("Performance heatmap (Alt+P): a model of the world render cost at every spot, against the 30 fps budget")
-            .clicked()
-        {
-            self.toggle_perf_overlay();
-        }
-        if ui
-            .selectable_label(self.grid.overlays.leaves, name(icons::GRID, "Sizes"))
-            .on_hover_text(
-                "Cell sizes (Alt+L): every cell outlined and labelled with its size in sectors",
-            )
-            .clicked()
-        {
-            self.toggle_leaf_overlay();
-        }
-        if ui
-            .selectable_label(
-                self.grid.overlays.walk,
-                name(icons::FOOTPRINTS, "Walk"),
-            )
-            .on_hover_text("Walkability overlay (Alt+W): too steep, low headroom, steps taller than the body climbs, drops, and floors no spawn reaches")
-            .clicked()
-        {
-            self.toggle_walk_overlay();
-        }
     }
 
     /// Key hints for the active tool.

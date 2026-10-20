@@ -333,12 +333,16 @@ fn the_status_bar_separates_the_message_the_hints_and_the_budget() {
 }
 
 #[test]
-fn frame_camera_and_visibility_are_labelled_and_debug_is_not_in_the_main_bar() {
+fn frame_camera_overlays_and_walk_are_labelled_and_debug_is_not_in_the_main_bar() {
     let mut ws =
         EditorWorkspace::with_project(test_temp_dir("layout-labels"), flat_project(4, 4, true));
     let text = screen(&mut ws);
-    for label in ["  Frame", "  Camera", "  Show"] {
+    for label in ["Frame", "Camera", "Overlays", "Walk"] {
         assert!(text.contains(label), "{label:?} is a button label:\n{text}");
+    }
+    // Keys, Sizes and Perf moved into Help and the Overlays menu.
+    for gone in ["Keys", "Sizes", "Perf"] {
+        assert!(!text.contains(gone), "{gone:?} is in the header:\n{text}");
     }
     // Debug moved into the Tools menu.
     assert!(

@@ -575,7 +575,7 @@ fn the_header_buttons_never_overlap_at_any_window_width() {
             rig.frame(vec![]);
         }
         let texts = rig.header_texts();
-        assert!(texts.len() >= 8, "{width}: {texts:?}");
+        assert!(texts.len() >= 7, "{width}: {texts:?}");
         for (i, (a, ra)) in texts.iter().enumerate() {
             for (b, rb) in &texts[i + 1..] {
                 assert!(

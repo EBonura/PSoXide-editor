@@ -4496,7 +4496,47 @@ pub(crate) fn toolbar_group_menu<R>(
     current: &str,
     add_contents: impl FnOnce(&mut egui::Ui) -> R,
 ) {
-    toolbar_group_menu_impl(ui, number, glow, icon, label, current, true, add_contents)
+    toolbar_group_menu_impl(
+        ui,
+        number,
+        glow,
+        icon,
+        label,
+        current,
+        GroupLook::IconAndValue,
+        add_contents,
+    )
+}
+
+/// Toolbar group button that is just its word (no icon), with a small arrow
+/// after it when `arrow` says the word opens a menu of its own.
+pub(crate) fn toolbar_group_menu_text<R>(
+    ui: &mut egui::Ui,
+    number: u8,
+    glow: f32,
+    word: &str,
+    arrow: bool,
+    add_contents: impl FnOnce(&mut egui::Ui) -> R,
+) {
+    let look = if arrow {
+        GroupLook::WordAndArrow
+    } else {
+        GroupLook::Word
+    };
+    toolbar_group_menu_impl(ui, number, glow, '\0', word, word, look, add_contents)
+}
+
+/// How a toolbar group button is drawn.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum GroupLook {
+    /// The group's icon and its current value.
+    IconAndValue,
+    /// The group's icon alone.
+    IconOnly,
+    /// The word alone.
+    Word,
+    /// The word and a small arrow.
+    WordAndArrow,
 }
 
 /// Icon-only toolbar group button for groups whose state is a set of
@@ -4511,7 +4551,16 @@ pub(crate) fn toolbar_group_menu_icon_only<R>(
     current: &str,
     add_contents: impl FnOnce(&mut egui::Ui) -> R,
 ) {
-    toolbar_group_menu_impl(ui, number, glow, icon, label, current, false, add_contents)
+    toolbar_group_menu_impl(
+        ui,
+        number,
+        glow,
+        icon,
+        label,
+        current,
+        GroupLook::IconOnly,
+        add_contents,
+    )
 }
 
 fn toolbar_group_menu_impl<R>(
@@ -4521,7 +4570,7 @@ fn toolbar_group_menu_impl<R>(
     icon: char,
     label: &str,
     current: &str,
-    show_value: bool,
+    look: GroupLook,
     add_contents: impl FnOnce(&mut egui::Ui) -> R,
 ) {
     let number_text = number.to_string();
@@ -4529,11 +4578,14 @@ fn toolbar_group_menu_impl<R>(
     let reverse_shortcut = command_shift_shortcut_text(&number_text);
     let shortcut_summary = format!("Shortcut: {shortcut} / Reverse: {reverse_shortcut}");
     let glow = glow.clamp(0.0, 1.0);
-    let mut button = if show_value {
-        egui::Button::new(icons::label(icon, current)).min_size(Vec2::new(30.0, 23.0))
-    } else {
-        egui::Button::new(icons::text(icon, 15.0)).min_size(Vec2::new(30.0, 23.0))
-    };
+    let mut button = match look {
+        GroupLook::IconAndValue => egui::Button::new(icons::label(icon, current)),
+        GroupLook::IconOnly => egui::Button::new(icons::text(icon, 15.0)),
+        GroupLook::Word => egui::Button::new(current),
+        GroupLook::WordAndArrow => egui::Button::new(current)
+            .shortcut_text(icons::text(icons::CHEVRON_DOWN, 11.0).color(STUDIO_TEXT_WEAK)),
+    }
+    .min_size(Vec2::new(30.0, 23.0));
     if glow > 0.0 {
         let fill_alpha = (34.0 + 58.0 * glow).round() as u8;
         let stroke_alpha = (120.0 + 120.0 * glow).round() as u8;

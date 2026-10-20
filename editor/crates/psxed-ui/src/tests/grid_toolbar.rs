@@ -48,6 +48,11 @@ fn toolbar_captures() {
         open_arrow(&mut rig, arrow_of);
         rig.capture(&dir.join(format!("menu-{name}-1456x819-{label}.png")));
     }
+    let mut rig = WindowRig::new();
+    rig.ws.apply_grid_pose("view=3d;tool=select").unwrap();
+    frames(&mut rig, 4);
+    header_click(&mut rig, "Overlays");
+    rig.capture(&dir.join(format!("menu-overlays-1456x819-{label}.png")));
 }
 
 // ---------------------------------------------------------------------
@@ -668,4 +673,201 @@ fn every_tool_key_still_works() {
         press_key(&mut rig, tool.key(), tool.shift());
         assert_eq!(rig.ws.grid.tool, tool, "{}", tool.label());
     }
+}
+
+// ---------------------------------------------------------------------
+// Step 3: the viewport header, inside the viewport area under the tool row.
+// Left: 3D, Plan, Both. Right: Frame, Camera, an Overlays menu (Show, Sizes,
+// Perf) and Walk as a toggle. Keys is in the Help menu.
+
+use crate::grid_tools::GridViewMode;
+
+/// Height of the viewport header: the first row of the viewport column.
+const VIEWPORT_HEADER_HEIGHT: f32 = 38.0;
+
+/// The first row of the viewport column, under the tool row.
+fn header_band(rig: &WindowRig) -> Rect {
+    let top = ACTION_BAR_COMPACT_HEIGHT + TOOL_ROW_HEIGHT;
+    Rect::from_min_max(
+        Pos2::new(290.0, top),
+        Pos2::new(rig.size.x - 300.0, top + VIEWPORT_HEADER_HEIGHT),
+    )
+}
+
+fn in_header(rig: &WindowRig, label: &str) -> Rect {
+    text_in(rig, header_band(rig), label)
+        .unwrap_or_else(|| panic!("no `{label}` in the viewport header"))
+}
+
+fn header_click(rig: &mut WindowRig, label: &str) {
+    let at = in_header(rig, label).center();
+    rig.click(at);
+    frames(rig, 2);
+}
+
+/// A menu item just below the header.
+fn header_menu_item(rig: &WindowRig, label: &str) -> Option<Rect> {
+    let band = header_band(rig);
+    let below = Rect::from_min_max(
+        Pos2::new(band.min.x, band.max.y),
+        Pos2::new(rig.size.x, band.max.y + 300.0),
+    );
+    text_in(rig, below, label)
+}
+
+#[test]
+fn the_view_switch_is_on_the_left_and_the_view_controls_on_the_right() {
+    for width in [1280.0, 1456.0, 1920.0] {
+        let rig = WindowRig::with_size(Vec2::new(width, 819.0));
+        let labels = ["3D", "Plan", "Both", "Frame", "Camera", "Overlays", "Walk"];
+        let found: Vec<(&str, Rect)> = labels.iter().map(|l| (*l, in_header(&rig, l))).collect();
+        let y = found[0].1.center().y;
+        for (label, r) in &found {
+            assert!(
+                (r.center().y - y).abs() < 4.0,
+                "{width}: `{label}` is on another row"
+            );
+        }
+        for pair in found.windows(2) {
+            assert!(
+                pair[0].1.max.x < pair[1].1.min.x,
+                "{width}: `{}` is not left of `{}`",
+                pair[0].0,
+                pair[1].0
+            );
+        }
+        // The view switch hugs the left edge of the viewport, the controls
+        // the right edge, with room between.
+        let inspector = text_in(
+            &rig,
+            Rect::from_min_max(
+                Pos2::new(rig.size.x - 330.0, 0.0),
+                Pos2::new(rig.size.x, 200.0),
+            ),
+            "Inspector",
+        )
+        .unwrap();
+        let walk = found[6].1;
+        assert!(
+            walk.max.x < inspector.min.x && walk.max.x > inspector.min.x - 90.0,
+            "{width}: Walk {walk:?} is not at the right edge"
+        );
+        assert!(found[0].1.min.x < 360.0, "{width}: 3D {:?}", found[0].1);
+        assert!(found[3].1.min.x - found[2].1.max.x > 40.0, "{width}");
+    }
+}
+
+#[test]
+fn keys_show_sizes_and_perf_are_gone_from_the_header() {
+    let rig = WindowRig::new();
+    let in_band: Vec<String> = texts(&rig)
+        .into_iter()
+        .filter(|(_, r)| header_band(&rig).contains(r.center()))
+        .map(|(t, _)| t)
+        .collect();
+    for gone in ["Keys", "Show", "Sizes", "Perf"] {
+        assert!(
+            !in_band.iter().any(|t| t.contains(gone)),
+            "{gone} is still in the header: {in_band:?}"
+        );
+    }
+}
+
+#[test]
+fn the_view_switch_changes_the_view() {
+    let mut rig = WindowRig::new();
+    for (label, mode) in [
+        ("Plan", GridViewMode::Plan),
+        ("Both", GridViewMode::Split),
+        ("3D", GridViewMode::Persp),
+    ] {
+        header_click(&mut rig, label);
+        assert_eq!(rig.ws.grid_view_mode(), mode, "{label}");
+    }
+}
+
+#[test]
+fn frame_camera_and_overlays_open_and_act() {
+    let mut rig = WindowRig::new();
+    // Frame brings the camera back to the world.
+    rig.ws.camera_rig.target = [90_000, 0, 90_000];
+    let far = rig.ws.camera_rig.target;
+    header_click(&mut rig, "Frame");
+    assert_ne!(rig.ws.camera_rig.target, far, "Frame moved the camera");
+    // Camera: the two modes.
+    header_click(&mut rig, "Camera");
+    for mode in ["Orbit", "Free"] {
+        assert!(header_menu_item(&rig, mode).is_some(), "{mode} in Camera");
+    }
+    let free = header_menu_item(&rig, "Free").unwrap().center();
+    rig.click(free);
+    frames(&mut rig, 2);
+    assert_eq!(rig.ws.camera_rig.mode, ViewportCameraMode::Free);
+}
+
+#[test]
+fn the_overlays_menu_holds_show_sizes_and_perf() {
+    let mut rig = WindowRig::new();
+    assert!(header_menu_item(&rig, "Sizes").is_none());
+    header_click(&mut rig, "Overlays");
+    for item in ["Lights", "Bounds", "Sizes", "Perf"] {
+        assert!(
+            header_menu_item(&rig, item).is_some(),
+            "`{item}` is in the Overlays menu"
+        );
+    }
+    let sizes = header_menu_item(&rig, "Sizes").unwrap().center();
+    rig.click(sizes);
+    frames(&mut rig, 2);
+    assert!(rig.ws.grid.overlays.leaves, "Sizes");
+    let perf = header_menu_item(&rig, "Perf").unwrap().center();
+    rig.click(perf);
+    frames(&mut rig, 2);
+    assert!(rig.ws.grid.overlays.perf, "Perf");
+    assert!(
+        texts(&rig).iter().any(|(t, _)| t.contains("k reserve")),
+        "the Perf reserve box shows while Perf is on"
+    );
+    // Toggling them back off.
+    let sizes = header_menu_item(&rig, "Sizes").unwrap().center();
+    rig.click(sizes);
+    frames(&mut rig, 2);
+    assert!(!rig.ws.grid.overlays.leaves);
+}
+
+#[test]
+fn walk_is_a_toggle_in_the_header_and_alt_w_still_works() {
+    let mut rig = WindowRig::new();
+    assert!(!rig.ws.grid.overlays.walk);
+    header_click(&mut rig, "Walk");
+    assert!(rig.ws.grid.overlays.walk);
+    header_click(&mut rig, "Walk");
+    assert!(!rig.ws.grid.overlays.walk);
+    for pressed in [true, false] {
+        rig.frame(vec![egui::Event::Key {
+            key: egui::Key::W,
+            physical_key: Some(egui::Key::W),
+            pressed,
+            repeat: false,
+            modifiers: egui::Modifiers::ALT,
+        }]);
+    }
+    frames(&mut rig, 2);
+    assert!(rig.ws.grid.overlays.walk, "Alt+W");
+}
+
+#[test]
+fn the_current_view_and_a_lit_toggle_are_marked() {
+    let mut rig = WindowRig::new();
+    let lit = |rig: &WindowRig, label: &str| -> bool {
+        let at = in_header(rig, label).center();
+        fills_in(rig, header_band(rig))
+            .iter()
+            .any(|(r, c)| r.contains(at) && (*c == STUDIO_SELECTION || *c == STUDIO_ACCENT_DIM))
+    };
+    assert!(lit(&rig, "3D"), "3D is the current view");
+    assert!(!lit(&rig, "Plan"));
+    assert!(!lit(&rig, "Walk"));
+    header_click(&mut rig, "Walk");
+    assert!(lit(&rig, "Walk"), "Walk is on");
 }

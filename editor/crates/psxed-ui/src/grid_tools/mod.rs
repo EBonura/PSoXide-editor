@@ -394,14 +394,6 @@ impl GridViewMode {
         }
     }
 
-    pub(crate) const fn icon(self) -> char {
-        match self {
-            Self::Persp => icons::BOX,
-            Self::Plan => icons::MAP,
-            Self::Split => icons::COLUMNS,
-        }
-    }
-
     pub(crate) const fn tooltip(self) -> &'static str {
         match self {
             Self::Persp => "The 3D view: the PS1 picture of the level",
