@@ -885,11 +885,3 @@ pub(super) fn transform_ghost(ws: &mut EditorWorkspace, key: egui::Key) {
 pub(super) fn paint_target(ws: &EditorWorkspace, ptr: &GridPointer) -> Option<PlaneId> {
     ws.plane_under(ptr)
 }
-
-/// Apply `material` to a plane, for painting. Returns whether it changed.
-pub(super) fn paint(ws: &mut EditorWorkspace, id: PlaneId, material: Option<ResourceId>) -> bool {
-    let Some(world) = ws.project.active_scene_mut().world.grid_mut() else {
-        return false;
-    };
-    psxed_project::grid::edit::set_plane_material(world, id, material)
-}

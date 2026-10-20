@@ -122,19 +122,7 @@ impl EditorWorkspace {
                 );
                 self.draw_active_place_options(ui);
             }
-            GridTool::Paint => {
-                let name = self
-                    .grid
-                    .material
-                    .and_then(|id| self.project.resource_name(id))
-                    .unwrap_or("none")
-                    .to_string();
-                ui.label(
-                    RichText::new(format!("Material: {name}"))
-                        .color(STUDIO_TEXT_WEAK)
-                        .size(11.0),
-                );
-            }
+            GridTool::Paint => self.draw_paint_options(ui),
             GridTool::Split => {}
             GridTool::Raise
             | GridTool::Ramp
@@ -298,7 +286,7 @@ impl EditorWorkspace {
             GridTool::Ceiling => "Drag rectangle | Shift height | Ctrl delete | Esc cancel",
             GridTool::Wall => "Drag a run | R direction | Ctrl remove | Esc cancel",
             GridTool::Height => "Drag up/down | Alt fine | Alt+drag a face: one triangle | L link | PgUp/PgDn nudge | Esc cancel",
-            GridTool::Paint => "Click or drag paint | Ctrl sample | pick in the palette",
+            GridTool::Paint => "Click or drag paint | R / Shift+R turn | F / Shift+F flip | Ctrl sample | pick in the palette",
             GridTool::Split => "Click a floor or ceiling flips its diagonal | Shift+click voids a triangle | Click again for the ceiling in Top",
             GridTool::Bands => "Hover a wall, click to cut | Drag a line | Del removes it | Shift+click picks a band | Esc cancel",
             GridTool::Raise => "Pick sectors | Press on them, drag up/down | Tab Offset/Level | Alt fine | Shift add | Esc cancel",

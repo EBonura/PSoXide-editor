@@ -20,6 +20,10 @@ pub struct GridPreviewView {
     /// The storey cutaway: editor-unit height from which faces whose lowest
     /// point is at or above it are not drawn. `None` draws everything.
     pub cutaway: Option<i32>,
+    /// The paint the Paint tool is about to make under the pointer: the 3D
+    /// preview draws the faces it lands on as they will look. Never part of
+    /// the document.
+    pub paint: Option<PaintGhost>,
 }
 
 impl GridPreviewView {
@@ -54,6 +58,7 @@ impl EditorWorkspace {
             GridPreviewView {
                 hidden_rooms,
                 cutaway: self.cutaway_plane(),
+                paint: self.paint_ghost(),
             }
         } else {
             GridPreviewView::default()

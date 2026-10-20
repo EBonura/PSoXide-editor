@@ -3,9 +3,8 @@
 use super::view::cell_at_editor;
 use super::*;
 
-use psxed_project::grid::edit::{
-    material_of, set_material, toggle_split, FaceRef, FaceTarget, GridElement,
-};
+use super::paint::{PaintGhost, PaintTarget};
+use psxed_project::grid::edit::{material_of, toggle_split, FaceRef, FaceTarget, GridElement};
 use psxed_project::grid::{GridSplit, GridWorld};
 
 /// Which triangle of `face` a point (editor units) is in, from where it
@@ -104,6 +103,11 @@ pub(super) fn face_under_with(
 
 pub(super) fn hover(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     if ws.grid.tool == GridTool::Paint {
+        // What the paint preview needs to know besides the face: whether a
+        // click would sample, and the band of a banded wall under the
+        // pointer (a band is painted, not the wall).
+        ws.grid.paint.sampling = ptr.command();
+        ws.grid.paint.band = super::bands_tool::band_under(ws, ptr);
         if let Some(id) = super::plane_tool::paint_target(ws, ptr) {
             ws.grid.hover = GridHover::Plane(id);
             return;
@@ -119,9 +123,27 @@ pub(super) fn hover(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     };
 }
 
-/// Apply the palette material to the faces under the pointer. Returns
-/// whether anything changed. `before` is taken on the first change of a
-/// stroke and recorded for undo.
+/// What a paint at `ptr` lands on: the plane under the pointer, else the
+/// band of a banded wall, else the face (and triangle) under it.
+fn paint_target_at(ws: &EditorWorkspace, ptr: &GridPointer) -> Option<PaintTarget> {
+    if let Some(id) = super::plane_tool::paint_target(ws, ptr) {
+        return Some(PaintTarget::Plane(id));
+    }
+    // A banded wall paints the band under the pointer, not the wall.
+    if let Some((face, band)) = super::bands_tool::band_under(ws, ptr) {
+        return Some(PaintTarget::Band {
+            face,
+            band,
+            scope: ws.grid.band_scope,
+        });
+    }
+    let (faces, tri) = face_under(ws, ptr)?;
+    Some(PaintTarget::Faces { faces, tri })
+}
+
+/// Apply the palette material, turned and flipped as the brush is, to what
+/// is under the pointer. Returns whether anything changed. `before` is taken
+/// on the first change of a stroke and recorded for undo.
 fn paint_at(
     ws: &mut EditorWorkspace,
     ptr: &GridPointer,
@@ -131,45 +153,19 @@ fn paint_at(
         ws.status = "Pick a material in the palette first".to_string();
         return false;
     };
-    if let Some(id) = super::plane_tool::paint_target(ws, ptr) {
-        let snapshot = ws.project.clone();
-        let changed = super::plane_tool::paint(ws, id, Some(material));
-        if changed {
-            if before.is_none() {
-                *before = Some(snapshot);
-            }
-            ws.grid_changed();
-        }
-        return changed;
-    }
-    // A banded wall paints the band under the pointer, not the wall.
-    if let Some((face, band)) = super::bands_tool::band_under(ws, ptr) {
-        let snapshot = ws.project.clone();
-        let scope = ws.grid.band_scope;
-        let Some(world) = ws.project.active_scene_mut().world.grid_mut() else {
-            return false;
-        };
-        let changed =
-            psxed_project::grid::edit::bands::paint_band(world, face, band, Some(material), scope);
-        if changed {
-            if before.is_none() {
-                *before = Some(snapshot);
-            }
-            ws.grid_changed();
-        }
-        return changed;
-    }
-    let Some((faces, tri)) = face_under(ws, ptr) else {
+    let Some(target) = paint_target_at(ws, ptr) else {
         return false;
+    };
+    let paint = PaintGhost {
+        target,
+        material,
+        orient: ws.grid.paint.orient,
     };
     let snapshot = ws.project.clone();
     let Some(world) = ws.project.active_scene_mut().world.grid_mut() else {
         return false;
     };
-    let mut changed = false;
-    for face in faces {
-        changed |= set_material(world, face, tri, Some(material));
-    }
+    let changed = paint.apply(world);
     if changed {
         if before.is_none() {
             *before = Some(snapshot);

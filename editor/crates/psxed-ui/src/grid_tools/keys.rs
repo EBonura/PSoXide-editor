@@ -170,6 +170,27 @@ impl EditorWorkspace {
                 self.set_grid_tool(GridTool::Break);
             }
         }
+        // Paint: R turns the brush a quarter clockwise (Shift+R the other
+        // way), F flips it horizontally (Shift+F vertically). Taken before
+        // the tool keys, because F is also the Floor tool's key; the Floor
+        // tool is a click away on the tool row while Paint is active. Like
+        // the tool keys they are taken and ignored with a pointer button
+        // down, so a key during a stroke cannot change the paint under it.
+        if self.grid.tool == GridTool::Paint {
+            // Shift first: the plain key also matches with Shift held.
+            let turn_back = pressed_shift(ctx, egui::Key::R);
+            let turn = !turn_back && pressed(ctx, egui::Key::R);
+            let flip_v = pressed_shift(ctx, egui::Key::F);
+            let flip_h = !flip_v && pressed(ctx, egui::Key::F);
+            if may_choose {
+                if turn_back || turn {
+                    self.paint_turn(turn);
+                }
+                if flip_h || flip_v {
+                    self.paint_flip(usize::from(flip_v));
+                }
+            }
+        }
         // With the free camera's look button held, W and D fly the camera.
         let flying = ctx.input(|i| i.pointer.secondary_down());
         for tool in GridTool::ALL {

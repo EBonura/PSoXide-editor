@@ -20,6 +20,7 @@ mod grid_material_tab;
 mod grid_meshes;
 mod grid_natural;
 mod grid_newuser;
+mod grid_paint;
 mod grid_planes;
 mod grid_rig;
 mod grid_screens;

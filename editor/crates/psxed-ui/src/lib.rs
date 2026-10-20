@@ -5,7 +5,7 @@
 
 mod gizmo;
 mod grid_tools;
-pub use grid_tools::{grid_preview_view, GridPreviewView};
+pub use grid_tools::{grid_preview_view, GridPreviewView, PaintGhost, PaintOrient, PaintTarget};
 mod preview_overflow;
 pub use preview_overflow::report_preview_overflow;
 mod grid_view;

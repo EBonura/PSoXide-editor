@@ -48,6 +48,7 @@ mod mesh_overlay;
 mod mesh_panel;
 mod mesh_tool;
 mod overlay;
+mod paint;
 mod panels;
 pub(crate) mod pick;
 mod place_tool;
@@ -89,6 +90,7 @@ pub(crate) use events::{grid_tool_2d, grid_tool_3d};
 pub(crate) fn cells_target_quarter() -> cells_tool::CellsTarget {
     cells_tool::CellsTarget::Quarter
 }
+pub use paint::{PaintGhost, PaintOrient, PaintTarget};
 use pick::PickCache;
 pub use preview_view::{grid_preview_view, GridPreviewView};
 use view::{GridPointer, GridView};
@@ -697,6 +699,8 @@ pub(crate) struct GridEditState {
     /// Centre and half extents (editor units) of the floor or ceiling just
     /// drawn while the 3D view was hidden: the next switch to 3D frames it.
     pub unseen_edit: Option<([f32; 3], [f32; 3])>,
+    /// The Paint tool's brush orientation and what the pointer is over.
+    pub paint: paint::PaintState,
 }
 
 impl Default for GridEditState {
@@ -756,6 +760,7 @@ impl Default for GridEditState {
             palette_import_watch: None,
             renaming_room: None,
             unseen_edit: None,
+            paint: paint::PaintState::default(),
         }
     }
 }

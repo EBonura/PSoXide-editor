@@ -241,6 +241,7 @@ impl EditorWorkspace {
         }
         // Hover and ghosts.
         let erase = Self::erase_held(painter);
+        self.draw_paint_ghost_2d(painter, transform);
         match &self.grid.hover {
             GridHover::Leaf { room, key } => {
                 let color = if painter.ctx().input(|i| i.modifiers.alt) {
