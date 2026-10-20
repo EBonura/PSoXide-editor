@@ -13,11 +13,11 @@ use super::*;
 use crate::grid_tools::GridTool;
 use psxed_project::grid::{GridRoom, GridSurface, WallMode};
 
-const WINDOW: Vec2 = Vec2::new(1456.0, 819.0);
+pub(super) const WINDOW: Vec2 = Vec2::new(1456.0, 819.0);
 
 /// Stand-in for dp-world: the starter project, 650 palette materials, and a
 /// second room "Machine Hall" (derived walls) at world sector [7, -1], 8 x 8.
-fn dp_world() -> (EditorWorkspace, ScratchProjectDir) {
+pub(super) fn dp_world() -> (EditorWorkspace, ScratchProjectDir) {
     static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let dir = std::env::temp_dir().join(format!(
         "psxed-ui-live-{}-{}",
@@ -69,24 +69,46 @@ fn dp_world() -> (EditorWorkspace, ScratchProjectDir) {
 }
 
 /// The whole editor in a window, driven by pointer and key events.
-struct WindowRig {
-    ws: EditorWorkspace,
-    ctx: egui::Context,
-    viewport: EditorViewport3dPresentation,
-    size: Vec2,
-    time: f64,
-    out: egui::FullOutput,
-    textures: Textures,
-    _guard: ScratchProjectDir,
+pub(super) struct WindowRig {
+    pub(super) ws: EditorWorkspace,
+    pub(super) ctx: egui::Context,
+    pub(super) viewport: EditorViewport3dPresentation,
+    pub(super) size: Vec2,
+    pub(super) time: f64,
+    pub(super) out: egui::FullOutput,
+    pub(super) textures: Textures,
+    pub(super) _guard: ScratchProjectDir,
 }
 
 impl WindowRig {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self::with_size(WINDOW)
     }
 
-    fn with_size(size: Vec2) -> Self {
+    pub(super) fn with_size(size: Vec2) -> Self {
         let (ws, guard) = dp_world();
+        Self::with_world(ws, guard, size)
+    }
+
+    /// The tracked starter project in a window.
+    pub(super) fn starter(size: Vec2) -> Self {
+        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let dir = std::env::temp_dir().join(format!(
+            "psxed-ui-live-starter-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ));
+        let guard = ScratchProjectDir::new(dir.clone());
+        let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../projects/grid-starter");
+        crate::starter_catalogue::copy_dir_recursive(&source, &dir).unwrap();
+        let mut ws = EditorWorkspace::open_directory(&dir).unwrap();
+        ws.active_workspace = WorkspaceView::Room;
+        ws.frame_current_view();
+        ws.status = String::new();
+        Self::with_world(ws, guard, size)
+    }
+
+    fn with_world(ws: EditorWorkspace, guard: ScratchProjectDir, size: Vec2) -> Self {
         let ctx = egui::Context::default();
         ctx.set_fonts(fonts());
         let texture = ctx.load_texture(
@@ -111,7 +133,7 @@ impl WindowRig {
         rig
     }
 
-    fn frame(&mut self, events: Vec<egui::Event>) {
+    pub(super) fn frame(&mut self, events: Vec<egui::Event>) {
         self.time += 1.0 / 60.0;
         let input = egui::RawInput {
             screen_rect: Some(Rect::from_min_size(Pos2::ZERO, self.size)),
@@ -129,7 +151,7 @@ impl WindowRig {
     }
 
     /// Rasterise the last frame to a PNG (CPU, same renderer as the goldens).
-    fn capture(&self, path: &Path) {
+    pub(super) fn capture(&self, path: &Path) {
         let primitives = self
             .ctx
             .tessellate(self.out.shapes.clone(), self.out.pixels_per_point);
@@ -143,7 +165,7 @@ impl WindowRig {
     }
 
     /// Centre of the text `label` as the last frame drew it.
-    fn find(&self, label: &str) -> Option<Pos2> {
+    pub(super) fn find(&self, label: &str) -> Option<Pos2> {
         self.out.shapes.iter().find_map(|s| match &s.shape {
             egui::epaint::Shape::Text(t)
                 if t.galley
@@ -158,16 +180,16 @@ impl WindowRig {
         })
     }
 
-    fn at(&self, label: &str) -> Pos2 {
+    pub(super) fn at(&self, label: &str) -> Pos2 {
         self.find(label)
             .unwrap_or_else(|| panic!("no `{label}` on screen"))
     }
 
-    fn move_to(&mut self, p: Pos2) {
+    pub(super) fn move_to(&mut self, p: Pos2) {
         self.frame(vec![egui::Event::PointerMoved(p)]);
     }
 
-    fn press(&mut self, p: Pos2, pressed: bool) -> egui::Event {
+    pub(super) fn press(&mut self, p: Pos2, pressed: bool) -> egui::Event {
         egui::Event::PointerButton {
             pos: p,
             button: egui::PointerButton::Primary,
@@ -177,7 +199,7 @@ impl WindowRig {
     }
 
     /// A click with a frame between each step, as a real mouse arrives.
-    fn click(&mut self, p: Pos2) {
+    pub(super) fn click(&mut self, p: Pos2) {
         self.move_to(p);
         let e = self.press(p, true);
         self.frame(vec![e]);
@@ -187,7 +209,7 @@ impl WindowRig {
     }
 
     /// A drag with a frame between the steps.
-    fn drag(&mut self, from: Pos2, to: Pos2) {
+    pub(super) fn drag(&mut self, from: Pos2, to: Pos2) {
         self.move_to(from);
         let e = self.press(from, true);
         self.frame(vec![e]);
@@ -201,7 +223,7 @@ impl WindowRig {
 
     /// The whole drag delivered in ONE frame, as a synthetic input driver
     /// does: press, move, release together.
-    fn drag_one_frame(&mut self, from: Pos2, to: Pos2) {
+    pub(super) fn drag_one_frame(&mut self, from: Pos2, to: Pos2) {
         self.move_to(from);
         let events = vec![
             egui::Event::PointerMoved(from),
@@ -214,7 +236,7 @@ impl WindowRig {
     }
 
     /// A click delivered in ONE frame.
-    fn click_one_frame(&mut self, p: Pos2) {
+    pub(super) fn click_one_frame(&mut self, p: Pos2) {
         self.move_to(p);
         let events = vec![
             egui::Event::PointerMoved(p),
@@ -226,7 +248,7 @@ impl WindowRig {
     }
 
     /// Screen centre of world cell `(cx, cz)` in the plan.
-    fn cell(&self, cx: i32, cz: i32) -> Pos2 {
+    pub(super) fn cell(&self, cx: i32, cz: i32) -> Pos2 {
         let sector = self.world().scale.to_editor(1024) as f32;
         ViewportTransform::from_focus(
             self.ws.last_orthographic_viewport_rect,
@@ -237,11 +259,11 @@ impl WindowRig {
         .world_to_screen([(cx as f32 + 0.5) * sector, (cz as f32 + 0.5) * sector])
     }
 
-    fn tool(&self) -> GridTool {
+    pub(super) fn tool(&self) -> GridTool {
         self.ws.grid.tool
     }
 
-    fn world(&self) -> &psxed_project::grid::GridWorld {
+    pub(super) fn world(&self) -> &psxed_project::grid::GridWorld {
         self.ws.project.active_scene().world.grid().unwrap()
     }
 }
@@ -252,7 +274,7 @@ impl WindowRig {
 impl WindowRig {
     /// Pick the Floor tool with its button and drag from world cell `a` to
     /// `b` in the plan, as the coordinator did.
-    fn draw_floor(&mut self, a: [i32; 2], b: [i32; 2]) {
+    pub(super) fn draw_floor(&mut self, a: [i32; 2], b: [i32; 2]) {
         self.ws.apply_grid_pose("view=plan").unwrap();
         for _ in 0..3 {
             self.frame(vec![]);
@@ -267,14 +289,19 @@ impl WindowRig {
         self.drag(from, to);
     }
 
-    fn walls_on(&self, room: usize, cell: [i32; 2], edge: psxed_project::grid::WallEdge) -> usize {
+    pub(super) fn walls_on(
+        &self,
+        room: usize,
+        cell: [i32; 2],
+        edge: psxed_project::grid::WallEdge,
+    ) -> usize {
         let room = &self.world().rooms[room];
         room.local(cell)
             .and_then(|[x, z]| room.sector(x, z))
             .map_or(0, |s| s.walls(edge).len())
     }
 
-    fn has_floor(&self, room: usize, cell: [i32; 2]) -> bool {
+    pub(super) fn has_floor(&self, room: usize, cell: [i32; 2]) -> bool {
         let room = &self.world().rooms[room];
         room.local(cell)
             .and_then(|[x, z]| room.sector(x, z))
@@ -418,7 +445,7 @@ fn a_floor_that_touches_no_room_opens_nothing() {
 
 impl WindowRig {
     /// Editor-space centre of world cells `a`..`b` on the floor.
-    fn editor_centre(&self, a: [i32; 2], b: [i32; 2]) -> [f32; 3] {
+    pub(super) fn editor_centre(&self, a: [i32; 2], b: [i32; 2]) -> [f32; 3] {
         let sector = self.world().scale.to_editor(1024) as f32;
         [
             (a[0] + b[0] + 1) as f32 * 0.5 * sector,
@@ -429,13 +456,13 @@ impl WindowRig {
 
     /// Where `point` is on screen in the 3D view, when it is in front of
     /// the camera.
-    fn persp_screen(&self, point: [f32; 3]) -> Option<Pos2> {
+    pub(super) fn persp_screen(&self, point: [f32; 3]) -> Option<Pos2> {
         let camera = self.ws.viewport_3d_camera();
         crate::grid_tools::view::project_point(camera, self.ws.last_persp_viewport_rect, point)
             .map(|(p, _)| p)
     }
 
-    fn click_3d(&mut self) {
+    pub(super) fn click_3d(&mut self) {
         let button = self.at("3D");
         self.click(button);
         for _ in 0..3 {
@@ -517,7 +544,7 @@ fn an_edit_made_in_the_3d_view_does_not_move_its_camera() {
 impl WindowRig {
     /// Visible text of the header rows (the tabs and the view buttons), as
     /// `(text, bounds)`, between the menu bar and the first tool row.
-    fn header_texts(&self) -> Vec<(String, Rect)> {
+    pub(super) fn header_texts(&self) -> Vec<(String, Rect)> {
         let tools_y = self.at("Select").y - 8.0;
         self.out
             .shapes

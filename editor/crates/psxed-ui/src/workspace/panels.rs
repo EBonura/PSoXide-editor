@@ -3,103 +3,30 @@ use super::*;
 use psxed_project::UiFocusEffect;
 
 impl EditorWorkspace {
-    pub(crate) fn draw_build_status_strip(
-        &self,
-        ui: &mut egui::Ui,
-        playtest_status: EditorPlaytestStatus,
-    ) {
-        let status = self.action_bar_status(playtest_status);
-        let strip_width = ui.available_width().max(1.0);
-        // A grid world prints its message in the status bar under the
-        // viewport; the strip keeps the state badge only.
-        let compact = strip_width < 180.0
-            || (self.is_grid_world() && self.active_workspace == WorkspaceView::Room);
-        let strip_height = ui.available_height().max(26.0);
-        let frame = egui::Frame::new()
-            .fill(STUDIO_PANEL_HEADER)
-            .corner_radius(egui::CornerRadius::same(6))
-            .inner_margin(egui::Margin::symmetric(9, 5))
-            .show(ui, |ui| {
-                ui.set_min_width((strip_width - 18.0).max(80.0));
-                ui.set_min_height((strip_height - 10.0).max(26.0));
-                ui.horizontal_top(|ui| {
-                    ui.label(icons::text(status.icon, 14.0).color(status.accent));
-                    ui.label(
-                        RichText::new(status.badge)
-                            .small()
-                            .strong()
-                            .color(status.accent),
-                    );
-                    if !compact {
-                        ui.separator();
-                        ui.add(
-                            egui::Label::new(
-                                RichText::new(status.message)
-                                    .small()
-                                    .color(STUDIO_TEXT_WEAK),
-                            )
-                            .truncate(),
-                        )
-                        .on_hover_text(status.message);
-                    }
-                });
-            });
-        let rail = Rect::from_min_max(
-            frame.response.rect.left_top() + Vec2::new(1.0, 6.0),
-            frame.response.rect.left_bottom() + Vec2::new(4.0, -6.0),
-        );
-        ui.painter()
-            .rect_filled(rail, egui::CornerRadius::same(2), status.border);
-    }
-
+    /// What the top bar says while a cook, a build or a playtest is going on.
+    /// Nothing while idle: a saved or unsaved project shows no word (the
+    /// unsaved dot follows the project name).
     pub(crate) fn action_bar_status(
         &self,
         playtest_status: EditorPlaytestStatus,
-    ) -> ActionBarStatus<'_> {
-        match playtest_status {
-            EditorPlaytestStatus::Cooking => ActionBarStatus {
-                icon: icons::BOX,
-                badge: "COOKING",
-                message: &self.status,
-                accent: STUDIO_ACCENT,
-                border: STUDIO_ACCENT_DIM,
-            },
-            EditorPlaytestStatus::Building => ActionBarStatus {
-                icon: icons::TERMINAL,
-                badge: "BUILDING",
-                message: &self.status,
-                accent: STUDIO_ACCENT,
-                border: STUDIO_ACCENT_DIM,
-            },
-            EditorPlaytestStatus::Running { input_captured } => ActionBarStatus {
-                icon: icons::PLAY,
-                badge: if input_captured { "PLAY INPUT" } else { "PLAY" },
-                message: &self.status,
-                accent: STUDIO_SUCCESS,
-                border: STUDIO_SUCCESS_DIM,
-            },
-            EditorPlaytestStatus::Failed => ActionBarStatus {
-                icon: icons::TERMINAL,
-                badge: "FAILED",
-                message: &self.status,
-                accent: STUDIO_ERROR,
-                border: STUDIO_ERROR_DIM,
-            },
-            EditorPlaytestStatus::Idle if self.dirty => ActionBarStatus {
-                icon: icons::SAVE,
-                badge: "UNSAVED",
-                message: &self.status,
-                accent: STUDIO_ACCENT,
-                border: STUDIO_ACCENT_DIM,
-            },
-            EditorPlaytestStatus::Idle => ActionBarStatus {
-                icon: icons::CIRCLE_DOT,
-                badge: "READY",
-                message: &self.status,
-                accent: STUDIO_TEXT_WEAK,
-                border: STUDIO_BORDER,
-            },
-        }
+    ) -> Option<ActionBarStatus<'_>> {
+        let (icon, badge, accent) = match playtest_status {
+            EditorPlaytestStatus::Cooking => (icons::BOX, "COOKING", STUDIO_ACCENT),
+            EditorPlaytestStatus::Building => (icons::TERMINAL, "BUILDING", STUDIO_ACCENT),
+            EditorPlaytestStatus::Running { input_captured } => (
+                icons::PLAY,
+                if input_captured { "PLAY INPUT" } else { "PLAY" },
+                STUDIO_SUCCESS,
+            ),
+            EditorPlaytestStatus::Failed => (icons::TERMINAL, "FAILED", STUDIO_ERROR),
+            EditorPlaytestStatus::Idle => return None,
+        };
+        Some(ActionBarStatus {
+            icon,
+            badge,
+            message: &self.status,
+            accent,
+        })
     }
 
     pub(crate) fn draw_left_dock(&mut self, ctx: &egui::Context) {

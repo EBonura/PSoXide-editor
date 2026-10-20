@@ -47,6 +47,9 @@ pub(crate) const STUDIO_ACCENT_HOVER: Color32 = Color32::from_rgb(112, 178, 255)
 pub(crate) const STUDIO_ACCENT_DIM: Color32 = Color32::from_rgb(28, 66, 112);
 pub(crate) const STUDIO_SUCCESS: Color32 = Color32::from_rgb(94, 201, 142);
 pub(crate) const STUDIO_SUCCESS_DIM: Color32 = Color32::from_rgb(39, 83, 57);
+/// The one filled button of the top bar: Play.
+pub(crate) const STUDIO_PLAY_FILL: Color32 = Color32::from_rgb(38, 150, 88);
+pub(crate) const STUDIO_PLAY_FILL_HOVER: Color32 = Color32::from_rgb(48, 172, 102);
 pub(crate) const STUDIO_WARNING: Color32 = Color32::from_rgb(231, 177, 85);
 pub(crate) const STUDIO_ERROR: Color32 = Color32::from_rgb(235, 107, 107);
 pub(crate) const STUDIO_ERROR_DIM: Color32 = Color32::from_rgb(98, 42, 48);

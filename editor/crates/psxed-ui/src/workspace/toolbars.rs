@@ -1,10 +1,9 @@
 use super::*;
 use crate::grid_tools::GridViewMode;
 
-/// Pane width the workspace tabs and the grid's view controls need to share
-/// one row (the tabs 340 points, the controls 700, with the Perf reserve box
-/// open 100 more, and room to breathe).
-const GRID_HEADER_ONE_ROW_WIDTH: f32 = 1180.0;
+/// Pane width the grid's view controls need to show their words (about 700
+/// points, 100 more with the Perf reserve box open, and room to breathe).
+const GRID_HEADER_COMPACT_BELOW: f32 = 880.0;
 
 /// A toolbar group menu with its word, or the icon alone when `compact`.
 #[allow(clippy::too_many_arguments)]
@@ -372,28 +371,18 @@ impl EditorWorkspace {
             .inner_margin(egui::Margin::symmetric(8, 3))
             .show(ui, |ui| {
                 ui.spacing_mut().item_spacing = Vec2::new(4.0, 3.0);
-                // The view switch and the overlays sit with the tabs, so the
-                // plan is one click away and the tool row below is tools and
-                // their options only. On a pane too narrow for both on one row
-                // (a laptop screen) they get a row of their own, instead of
-                // being drawn over the tabs.
-                let one_row = ui.available_width() >= GRID_HEADER_ONE_ROW_WIDTH;
-                ui.horizontal(|ui| {
-                    self.draw_workspace_tabs(ui);
-                    if grid_room && one_row {
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            self.draw_grid_view_controls(ui, false);
-                        });
-                    }
-                });
-                if grid_room && !one_row {
+                // The workspaces are in the top bar. The view switch and the
+                // overlays get a row of their own; on a pane too narrow for
+                // their words (a laptop screen) they are icons.
+                if grid_room {
+                    let compact = ui.available_width() < GRID_HEADER_COMPACT_BELOW;
                     ui.horizontal(|ui| {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            self.draw_grid_view_controls(ui, true);
+                            self.draw_grid_view_controls(ui, compact);
                         });
                     });
+                    ui.separator();
                 }
-                ui.separator();
                 if self.active_workspace == WorkspaceView::Material {
                     ui.horizontal_wrapped(|ui| self.draw_material_lab_toolbar(ui));
                 } else if self.active_workspace == WorkspaceView::Animation {
@@ -481,37 +470,6 @@ impl EditorWorkspace {
                 ));
             if response.clicked() {
                 self.set_grid_view_mode(mode);
-            }
-        }
-    }
-
-    /// Always-visible top-level workspaces. Their row stays separate from
-    /// each workspace's tools so every mode has the same selector -> toolbar
-    /// -> content rhythm.
-    pub(crate) fn draw_workspace_tabs(&mut self, ui: &mut egui::Ui) {
-        for view in [
-            WorkspaceView::Room,
-            WorkspaceView::Ui,
-            WorkspaceView::Animation,
-            WorkspaceView::Material,
-        ] {
-            let selected = self.active_workspace == view;
-            let response = ui
-                .add(
-                    egui::Button::new(icons::label(view.icon(), view.label()))
-                        .selected(selected)
-                        .min_size(Vec2::new(82.0, 23.0)),
-                )
-                .on_hover_text(format!("Open the {} workspace", view.label()));
-            if response.clicked() && !selected {
-                self.active_workspace = view;
-                self.status = format!("Workspace: {}", view.label());
-                self.mark_shortcut_group_changed(ShortcutGroup::Workspace);
-                if view == WorkspaceView::Material {
-                    if let Some(material) = self.selected_material_resource() {
-                        self.material_lab.focused_material = Some(material);
-                    }
-                }
             }
         }
     }

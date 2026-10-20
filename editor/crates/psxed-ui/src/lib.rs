@@ -256,7 +256,7 @@ const RESOURCE_CARD_WIDTH: f32 = 120.0;
 const RESOURCE_CARD_HEIGHT: f32 = 128.0;
 const VIEWPORT_PREVIEW_ASPECT: f32 = 320.0 / 240.0;
 const SHORTCUT_GROUP_FLASH_SECONDS: f32 = 0.85;
-const ACTION_BAR_COMPACT_HEIGHT: f32 = 50.0;
+const ACTION_BAR_COMPACT_HEIGHT: f32 = 44.0;
 const PLAY_DEBUG_TERMINAL_LINE_CAP: usize = 1_000;
 const PSOXIDE_APP_ICON_PNG: &[u8] =
     include_bytes!("../../../../assets/branding/psoxide-app-icon.png");
@@ -411,7 +411,6 @@ struct ActionBarStatus<'a> {
     badge: &'static str,
     message: &'a str,
     accent: Color32,
-    border: Color32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1919,15 +1918,6 @@ impl WorkspaceView {
             Self::Ui => "HUD",
             Self::Animation => "Animation",
             Self::Material => "Material",
-        }
-    }
-
-    const fn icon(self) -> char {
-        match self {
-            Self::Room => icons::GRID,
-            Self::Ui => icons::SQUARE,
-            Self::Animation => icons::PLAY,
-            Self::Material => icons::PALETTE,
         }
     }
 
