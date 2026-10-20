@@ -62,7 +62,7 @@ The world's scale turns grid units into **editor units**: 5/4 for a new project,
 | Surfaces | `grid_add_surface` (floor or ceiling over a rectangle at a height), `grid_remove_surface`, `grid_set_heights` (corners, one edge for a slope, absolute or relative, optional weld to neighbours), `grid_set_split` (flip, set, or `auto` to let surfaces choose their own diagonal from their heights), `grid_set_walkable` (ghost floors and ceilings) |
 | Cells | `grid_subdivide` (a rectangle of sectors or, with `unit: click`, of quarter sectors; `size` one_level, half or quarter), `grid_merge` (as far as it is exact; `up_to` sector, two or four) |
 | Level verbs | `grid_raise` (the Raise tool: offset or level, ceilings follow; `unit: click` raises the cells inside a rectangle of quarter sectors and splits a cell it cuts through), `grid_ramp` (the Ramp tool: `keep` a side, `rise` or `walkable`), `grid_stairs` (the Stairs tool: a path, riser option, ramp option) |
-| Natural terrain | `grid_polygon` (a polygon or corridor of floors, optional roof, 45 degree corner cuts), `grid_chamfer`, `grid_crack` (a triangle at its own height), `grid_void` (half a cell empty), `grid_set_wall` (an authored wall's four heights, an open top crumbled), `grid_break`, `grid_paint_rules` |
+| Natural terrain | `grid_polygon` (a polygon or corridor of floors, optional roof, 45 degree corner cuts), `grid_chamfer`, `grid_crack` (a triangle at its own height), `grid_void` (half a cell empty), `grid_set_wall` (an authored wall's four heights, an open top crumbled), `grid_break`, `grid_sculpt` (a brush path: raise, smooth, flatten, ramp, dunes; detail up to auto), `grid_paint_rules` |
 | Walls | `grid_place_wall`, `grid_remove_wall` (authored runs), `grid_wall_override` (hide, ghost, repaint a derived wall; reset) |
 | Look | `grid_paint`, `grid_paint_wall` (a wall or its whole run), `grid_tiling` (World density, Fit N x M on each face, or `fit_across` N x M over the whole selected rectangle; turns, flips, offset, scale), `grid_material_tiling` (a material's default) |
 | Bands | `grid_band_cut`, `grid_band_move`, `grid_band_delete`, `grid_band_set` (material, tiling and V per band; scope `run` or `room`) |
@@ -146,6 +146,7 @@ The tools above make axis-aligned rooms and slopes. These make rock. They write 
 
 ## Recipes
 
+* **Dunes and valleys**: `grid_add_surface` a big floor, then `grid_sculpt` with `mode: dunes` along a long path (`wavelength` in sectors, `dune_height` in grid units, `detail: auto`), dig a valley with `mode: raise, invert: true` along a curve and bank it with positive strokes beside it, `mode: smooth` to round it, then `grid_budget` (the room's faces against its cap), `grid_walkability` and `screenshot`.
 * **A cave**: `grid_polygon` an irregular outline with `floor_height` 0 and `ceiling_height` 2048, `grid_raise` or `grid_ramp` a few areas, `grid_break` on the whole thing (walls, floor, ceiling), `grid_paint_rules` for scree low and rock high, then `grid_walkability`, `screenshot` from three poses and `playtest` a route.
 * **A canyon**: the same polygon with no ceiling and `grid_set_room` `open_wall` for the rock walls (their tops are what `grid_break` ragges), raised rims, `grid_break` targets walls and floor.
 

@@ -1,6 +1,6 @@
 # Natural terrain and architecture on the grid (2026-10-17)
 
-> **N2 (Rough) was removed on 2026-10-20** (tool, `rough` data, the render jitter and tint, `grid_rough`, Break's rough level); sections that describe it are history, and projects that still carry `rough` data load and drop it on save. N1 (diagonal geometry), N4 (outlines) and N3 (Break v1) are built on `grid/natural`; what landed and the deviations are in `level-tools-design.md` section 21. The text below is the original audit and design.
+> **N2 (Rough) was removed on 2026-10-20** (tool, `rough` data, the render jitter and tint, `grid_rough`, Break's rough level); sections that describe it are history, and projects that still carry `rough` data load and drop it on save. Sculpt (the brush the design sketches in 2.3 and `level-tools-design.md` 7.4) is built too, as the Sculpt tool (S) and `grid_sculpt`. N1 (diagonal geometry), N4 (outlines) and N3 (Break v1) are built on `grid/natural`; what landed and the deviations are in `level-tools-design.md` section 21. The text below is the original audit and design.
 
 Status: audit plus design addendum to `level-tools-design.md`. Written read-only against branch `grid/main` (HEAD c581c6c7) and, for T5 to T7, against the uncommitted `grid/tools` worktree (`grid-runtime`, merge 581de480 plus staged Stairs and heatmap files). No cargo, no builds, nothing was run; every "OK" below is from reading code and the Cathedral data, not from a test I executed.
 

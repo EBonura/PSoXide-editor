@@ -133,6 +133,7 @@ impl EditorWorkspace {
             | GridTool::Spiral
             | GridTool::Break
             | GridTool::Slab => self.draw_verb_options(ui),
+            GridTool::Sculpt => self.draw_sculpt_options(ui),
             GridTool::Cells => self.draw_cells_options(ui),
             GridTool::Bands => {
                 use psxed_project::grid::edit::bands::BandScope;
@@ -376,6 +377,7 @@ impl EditorWorkspace {
             GridTool::Spiral => "Click the corners of a ring, Enter closes it | Press on it, drag up for the climb of a storey | Storeys in the option row | Alt+Up/Down level | Esc cancel",
             GridTool::Break => "Pick sectors | Press on them, drag up for intensity | Tab target | Shift+X re-roll | Enter commit | Esc cancel",
             GridTool::Slab => "Pick sectors | Add floor above: press on them and drag up for the height | Remove upper floor, Fill opening: click them | Tab mode | Alt+Up/Down level | G go to level | Z cutaway | Esc cancel",
+            GridTool::Sculpt => "Press and drag on the ground | Shift inverts | [ ] radius | Tab mode | Ramp: drag A to B | Dunes: drag across | Esc cancels the stroke",
             GridTool::Cells => "Paint to subdivide | Alt+paint merges | [ ] brush | Enter / Shift+Enter subdivide / merge the selection | Alt+L cell sizes",
             GridTool::Place => "Click to place at the sector centre | Shift+click keeps placing | Alt 64 | Shift+Alt free",
         }

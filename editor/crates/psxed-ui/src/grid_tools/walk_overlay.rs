@@ -173,13 +173,20 @@ impl EditorWorkspace {
         )
     }
 
+    /// Whether the walkability overlay is drawn: switched on (Alt+W), or the
+    /// Sculpt tool is active (shaping the ground with the body's limits in
+    /// sight).
+    pub(crate) fn walk_overlay_on(&self) -> bool {
+        self.grid.overlays.walk || self.grid.tool == GridTool::Sculpt
+    }
+
     /// The overlay over the Top view.
     pub(super) fn draw_walk_overlay_2d(
         &self,
         painter: &egui::Painter,
         transform: ViewportTransform,
     ) {
-        if !self.grid.overlays.walk {
+        if !self.walk_overlay_on() {
             return;
         }
         let (Some(world), Some(run)) = (self.project.active_scene().world.grid(), self.walk_run())
@@ -270,7 +277,7 @@ impl EditorWorkspace {
 
     /// The overlay over the 3D view.
     pub(super) fn draw_walk_overlay_3d(&self, painter: &egui::Painter, rect: Rect) {
-        if !self.grid.overlays.walk {
+        if !self.walk_overlay_on() {
             return;
         }
         let (Some(world), Some(run)) = (self.project.active_scene().world.grid(), self.walk_run())

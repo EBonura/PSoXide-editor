@@ -31,6 +31,7 @@ mod grid_pick_shots;
 mod grid_planes;
 mod grid_rig;
 mod grid_screens;
+mod grid_sculpt;
 mod grid_snap;
 mod grid_tiling;
 mod grid_toolbar;

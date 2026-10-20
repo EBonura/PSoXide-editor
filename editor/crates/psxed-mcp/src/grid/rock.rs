@@ -394,6 +394,133 @@ fn describe(
     out
 }
 
+/// Sculpt the ground along a path with the editor's Sculpt brush.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SculptReq {
+    /// Scene index. Omit for the first scene with a grid world.
+    pub scene: Option<usize>,
+    /// Room index. Required when the world has several rooms.
+    pub room: Option<usize>,
+    /// The brush path, world sector coordinates `[x, z]` as numbers (10.5 is
+    /// the middle of sector 10). One point is a press; more are a drag, with
+    /// a dab every quarter radius. Ramp reads A and B from the first and last
+    /// point, Dunes the ripple direction.
+    pub path: Vec<[f64; 2]>,
+    /// `raise` (default), `smooth`, `flatten`, `ramp` or `dunes`.
+    pub mode: Option<String>,
+    /// Shift: raise digs, a ramp's rise goes down, dunes start with a trough.
+    pub invert: Option<bool>,
+    /// Brush radius in sectors (default 1.5, 0.25 to 6).
+    pub radius: Option<f64>,
+    /// 0.05 to 1 (default 0.5): how much one dab does (raise, smooth, flatten).
+    pub strength: Option<f64>,
+    /// `smooth` (default), `linear` or `sharp`.
+    pub falloff: Option<String>,
+    /// `sector` (default), `half`, `quarter` or `auto` (divide only where the
+    /// new ground needs it; a column of storeys stays a whole sector).
+    pub detail: Option<String>,
+    /// `floor` (default) or `ceiling`.
+    pub target: Option<String>,
+    /// Dunes: crest to crest in sectors (default 3, at least 1).
+    pub wavelength: Option<f64>,
+    /// Dunes: crest height above the mean in grid units (default 256).
+    pub dune_height: Option<i32>,
+    /// Ramp: extra rise at B over the ground there, grid units (default 0).
+    pub rise: Option<i32>,
+}
+
+/// Apply [`SculptReq`].
+pub fn sculpt(world: &mut GridWorld, req: &SculptReq) -> Result<String, String> {
+    use psxed_project::grid::edit::sculpt::{
+        sculpt_path, Detail, Falloff, SculptMode, SculptParams, Target, MAX_RADIUS, MIN_RADIUS,
+        MIN_WAVELENGTH,
+    };
+    let room = pick_room(world, req.room)?;
+    if req.path.is_empty() {
+        return Err("path needs at least one point".to_string());
+    }
+    let mode = match req.mode.as_deref() {
+        None | Some("raise") => SculptMode::Raise,
+        Some("smooth") => SculptMode::Smooth,
+        Some("flatten") => SculptMode::Flatten,
+        Some("ramp") => SculptMode::Ramp,
+        Some("dunes") => SculptMode::Dunes,
+        Some(other) => {
+            return Err(format!(
+                "unknown mode {other:?}; use raise, smooth, flatten, ramp or dunes"
+            ))
+        }
+    };
+    let falloff = match req.falloff.as_deref() {
+        None | Some("smooth") => Falloff::Smooth,
+        Some("linear") => Falloff::Linear,
+        Some("sharp") => Falloff::Sharp,
+        Some(other) => {
+            return Err(format!(
+                "unknown falloff {other:?}; use smooth, linear or sharp"
+            ))
+        }
+    };
+    let detail = match req.detail.as_deref() {
+        None | Some("sector") => Detail::Sector,
+        Some("half") => Detail::Half,
+        Some("quarter") => Detail::Quarter,
+        Some("auto") => Detail::Auto,
+        Some(other) => {
+            return Err(format!(
+                "unknown detail {other:?}; use sector, half, quarter or auto"
+            ))
+        }
+    };
+    let target = match req.target.as_deref() {
+        None | Some("floor") => Target::Floor,
+        Some("ceiling") => Target::Ceiling,
+        Some(other) => return Err(format!("unknown target {other:?}; use floor or ceiling")),
+    };
+    let params = SculptParams {
+        mode,
+        radius: (req.radius.unwrap_or(1.5) * 4.0).clamp(MIN_RADIUS, MAX_RADIUS),
+        strength: req.strength.unwrap_or(0.5).clamp(0.05, 1.0),
+        falloff,
+        detail,
+        target,
+        invert: req.invert.unwrap_or(false),
+        wavelength: (req.wavelength.unwrap_or(3.0) * 4.0).max(MIN_WAVELENGTH),
+        dune_height: req.dune_height.unwrap_or(256).clamp(64, 4096) / 64 * 64,
+        rise: req.rise.unwrap_or(0) / 64 * 64,
+    };
+    let path: Vec<[f64; 2]> = req.path.iter().map(|p| [p[0] * 4.0, p[1] * 4.0]).collect();
+    let faces_before = psxed_project::grid::faces::room_face_count(world, room);
+    let report =
+        sculpt_path(world, room, &path, params).ok_or_else(|| "nothing to sculpt".to_string())?;
+    let faces = psxed_project::grid::faces::room_face_count(world, room);
+    let mut out = format!(
+        "room {room}: sculpt {}: {} corner(s) moved, peak change {} grid units, cells {} to {}, faces {faces_before} to {faces} of {}",
+        mode.label(),
+        report.moved,
+        report.peak,
+        report.leaves[0],
+        report.leaves[1],
+        psxed_project::grid::limits::MAX_ROOM_FACES
+    );
+    if report.storeys > 0 {
+        let _ = write!(out, "; {} cell(s) with storeys kept whole", report.storeys);
+    }
+    if report.clamped > 0 {
+        let _ = write!(
+            out,
+            "; {} corner(s) held a body under the ceiling (or over the floor)",
+            report.clamped
+        );
+    }
+    if report.moved == 0 {
+        out.push_str(
+            "; nothing moved: the brush is smaller than the cells, raise radius or detail",
+        );
+    }
+    Ok(out)
+}
+
 /// A material per height band.
 #[derive(Clone, Debug, Deserialize, JsonSchema)]
 pub struct HeightRuleReq {

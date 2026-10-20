@@ -573,19 +573,20 @@ fn the_create_menu_holds_plane_and_mesh() {
     assert_eq!(rig.ws.grid.tool, GridTool::Mesh);
 }
 
-const SHAPES: [(&str, GridTool); 8] = [
+const SHAPES: [(&str, GridTool); 9] = [
     ("Extrude", GridTool::Extrude),
     ("Ramp", GridTool::Ramp),
     ("Stairs", GridTool::Stairs),
     ("Spiral", GridTool::Spiral),
     ("Break", GridTool::Break),
+    ("Sculpt", GridTool::Sculpt),
     ("Cells", GridTool::Cells),
     ("Upper floor", GridTool::Slab),
     ("Diagonal", GridTool::Split),
 ];
 
 #[test]
-fn the_shape_button_uses_the_last_shape_tool_and_the_arrow_lists_all_eight() {
+fn the_shape_button_uses_the_last_shape_tool_and_the_arrow_lists_all_nine() {
     let mut rig = WindowRig::new();
     // The face shows Extrude to begin with; clicking it uses it.
     row_click(&mut rig, "Extrude");

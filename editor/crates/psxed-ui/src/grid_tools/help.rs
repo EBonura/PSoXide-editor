@@ -276,6 +276,36 @@ const BREAK: Rows = &[
         "Keeps working while you drag: the status line counts what the walkability mask refused",
     ),
 ];
+const SCULPT: Rows = &[
+    (
+        "Press and drag on the ground",
+        "A brush (the ring follows the pointer on the surface, in the Top and the 3D view) reshapes the ground live; one undo step per stroke, Esc puts it back. It moves the shared corners, so neighbouring cells stay welded and the walls follow",
+    ),
+    (
+        "Raise/Lower, Smooth, Flatten",
+        "Raise adds under the brush and Shift digs; Smooth blends toward the neighbours; Flatten levels to the height the stroke started at. Tab cycles the modes",
+    ),
+    (
+        "Ramp, Dunes",
+        "Ramp: drag from A to B for a straight slope between the two heights, plus the rise in the option row (Shift lowers it). Dunes: drag across the ground; the ripples run perpendicular to the drag, with the wavelength and height in the option row",
+    ),
+    (
+        "[ and ]",
+        "The brush radius, a click (quarter sector) at a time",
+    ),
+    (
+        "Detail",
+        "Sector, 1/2 or 1/4 sets how fine the cells under the brush become; Auto divides only where the new ground needs it. A column of storeys always stays a whole sector (the status line counts them)",
+    ),
+    (
+        "Option row",
+        "Mode, radius, strength, falloff, detail, Floor or Ceiling, and the room's face count with this stroke's change: orange from 85 percent of the room cap, red at it",
+    ),
+    (
+        "Walkability",
+        "While the tool is active the walkability overlay is on: orange floors are too steep to stand on, red edges are steps the body cannot climb",
+    ),
+];
 const SPIRAL: Rows = &[
     (
         "Click the corners, Enter",
@@ -393,8 +423,8 @@ const SNAP: Rows = &[
         "Free movement where a tool can leave the lattice (planes, Place)",
     ),
     (
-        "S B K I Y G",
-        "Reserved for the level verbs still to come: Sculpt, Room, Corridor, Opening, Stamps, Vault",
+        "B K I Y G",
+        "Reserved for the level verbs still to come: Room, Corridor, Opening, Stamps, Vault",
     ),
     (
         "Alt+W, Alt+P, Alt+L",
@@ -439,7 +469,7 @@ impl EditorWorkspace {
             return;
         }
         let mut open = true;
-        let sections: [(&str, Rows); 19] = [
+        let sections: [(&str, Rows); 20] = [
             ("Select (V)", SELECT),
             ("Floor (F) and Ceiling (C)", FLOOR),
             ("Wall (W)", WALL),
@@ -453,6 +483,7 @@ impl EditorWorkspace {
             ("Stairs (T)", STAIRS),
             ("Spiral (Shift+T)", SPIRAL),
             ("Break (X)", BREAK),
+            ("Sculpt (S)", SCULPT),
             ("Cells (Q)", CELLS),
             ("Upper floor (Shift+Q) and storeys", SLAB),
             ("Overlays", OVERLAYS),
@@ -469,7 +500,7 @@ impl EditorWorkspace {
             .show(ctx, |ui| {
                 ui.set_width(1500.0_f32.min(ctx.screen_rect().width() - 60.0));
                 ui.label(
-                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, Shift+N Mesh, P Paint, D Diagonal, O Place, E Bands | U Extrude, A Ramp, T Stairs, Shift+T Spiral, X Break, Q Cells, Shift+Q Upper floor | Shift+M Merge (Select, Bands, Cells) | Alt+Up/Down| Alt+Up/Down storey, G go to storey, Z cutaway")
+                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, Shift+N Mesh, P Paint, D Diagonal, O Place, E Bands | U Extrude, A Ramp, T Stairs, Shift+T Spiral, X Break, S Sculpt, Q Cells, Shift+Q Upper floor | Shift+M Merge (Select, Bands, Cells) | Alt+Up/Down| Alt+Up/Down storey, G go to storey, Z cutaway")
                         .color(STUDIO_TEXT_WEAK),
                 );
                 ui.label(

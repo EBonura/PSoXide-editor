@@ -254,6 +254,7 @@ impl EditorWorkspace {
         // Hover and ghosts.
         let erase = Self::erase_held(painter);
         self.draw_paint_ghost_2d(painter, transform);
+        self.draw_sculpt_ghost_2d(painter, transform);
         match &self.grid.hover {
             GridHover::Leaf { room, key } => {
                 let color = if painter.ctx().input(|i| i.modifiers.alt) {
@@ -750,6 +751,7 @@ impl EditorWorkspace {
         self.draw_heat_overlay_3d(painter, rect);
         self.draw_leaf_overlay_3d(painter, rect);
         self.draw_leaf_hover_3d(painter, rect);
+        self.draw_sculpt_ghost_3d(painter, rect);
         self.draw_level_chip(painter, rect);
     }
 

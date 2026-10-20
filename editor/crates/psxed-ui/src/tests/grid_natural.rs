@@ -524,7 +524,7 @@ fn the_help_page_names_the_natural_terrain_keys() {
         "Lasso: click corners, Enter",
         "Cut corners",
         "X Break",
-        "S B K I Y G",
+        "B K I Y G",
     ] {
         assert!(text.contains(needle), "{needle}:\n{text}");
     }

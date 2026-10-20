@@ -153,6 +153,12 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
         (GridTool::Bands, Ev::Release) => bands_tool::release(ws),
         (GridTool::Bands, Ev::Click) => bands_tool::click(ws, &ptr),
 
+        (GridTool::Sculpt, Ev::Hover) => sculpt_tool::hover(ws, &ptr),
+        (GridTool::Sculpt, Ev::Press) => sculpt_tool::press(ws, &ptr),
+        (GridTool::Sculpt, Ev::Drag) => sculpt_tool::drag(ws, &ptr),
+        (GridTool::Sculpt, Ev::Release) => sculpt_tool::release(ws),
+        (GridTool::Sculpt, Ev::Click) => {}
+
         (GridTool::Cells, Ev::Hover) => cells_tool::hover(ws, &ptr),
         (GridTool::Cells, Ev::Press) => cells_tool::press(ws, &ptr),
         (GridTool::Cells, Ev::Drag) => cells_tool::drag(ws, &ptr),

@@ -16,14 +16,13 @@ use super::{
 };
 
 /// Keys the level verbs still to come (design: `docs/grid/level-tools-design.md`,
-/// 7.12) will take, kept free of other meanings now: S Sculpt, B Room,
-/// K Corridor, I Opening, Y Stamps, J Vault. U Raise, A Ramp and T Stairs are
-/// tools now, and so is X Break; E is the Bands tool and N the
+/// 7.12) will take, kept free of other meanings now: B Room,
+/// K Corridor, I Opening, Y Stamps, J Vault. U Raise, A Ramp, T Stairs and
+/// S Sculpt are tools now, and so is X Break; E is the Bands tool and N the
 /// Plane tool, Q the Cells tool and Shift+Q the Upper floor tool; G goes to a level
 /// and Z switches the cutaway. Alt+W, Alt+P and Alt+L are the overlays.
 #[cfg(test)]
-pub(crate) const RESERVED_VERB_KEYS: [egui::Key; 6] = [
-    egui::Key::S,
+pub(crate) const RESERVED_VERB_KEYS: [egui::Key; 5] = [
     egui::Key::B,
     egui::Key::K,
     egui::Key::I,
@@ -133,7 +132,10 @@ impl EditorWorkspace {
         if pressed(ctx, egui::Key::Escape) {
             if self.cancel_level_pick() {
                 // The go-to-level click was waiting.
-            } else if plane_tool::cancel(self) || bands_tool::cancel(self) {
+            } else if plane_tool::cancel(self)
+                || bands_tool::cancel(self)
+                || super::sculpt_tool::cancel(self)
+            {
                 self.status = "Cancelled".to_string();
             } else if verb_tool::cancel(self) {
                 // A verb drag, a pick in flight or the region itself.
@@ -294,6 +296,20 @@ impl EditorWorkspace {
             }
             return;
         }
+        if self.grid.tool == GridTool::Sculpt {
+            for (key, delta) in [
+                (egui::Key::CloseBracket, 1.0),
+                (egui::Key::OpenBracket, -1.0),
+            ] {
+                if pressed(ctx, key) {
+                    super::sculpt_tool::adjust_radius(self, delta);
+                }
+            }
+            if pressed(ctx, egui::Key::Tab) {
+                super::sculpt_tool::cycle_mode(self);
+            }
+            return;
+        }
         if self.grid.tool.is_verb() {
             if self.grid.tool == GridTool::Extrude {
                 if pressed(ctx, egui::Key::Equals) || pressed(ctx, egui::Key::Plus) {
@@ -360,6 +376,7 @@ mod tests {
             (GridTool::Bands, egui::Key::E),
             (GridTool::Plane, egui::Key::N),
             (GridTool::Break, egui::Key::X),
+            (GridTool::Sculpt, egui::Key::S),
             (GridTool::Cells, egui::Key::Q),
             (GridTool::Slab, egui::Key::Q),
             (GridTool::Spiral, egui::Key::T),

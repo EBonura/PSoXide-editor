@@ -5,7 +5,7 @@ use rmcp::model::CallToolResult;
 use rmcp::ErrorData;
 
 use psxed_mcp::grid::natural::{self, ChamferReq, CrackReq, PolygonReq, SetWallReq, VoidReq};
-use psxed_mcp::grid::rock::{self, BreakReq, PaintRulesReq, BREAK_CHECKPOINT};
+use psxed_mcp::grid::rock::{self, BreakReq, PaintRulesReq, SculptReq, BREAK_CHECKPOINT};
 use psxed_mcp::grid::Materials;
 
 use super::EditorServer;
@@ -134,6 +134,18 @@ impl EditorServer {
             ) + &Self::staged_note(workspace))
         })?;
         Ok(super::text_result(text))
+    }
+
+    #[rmcp::tool(
+        description = "Sculpt the ground along a path with the editor's Sculpt brush: terraforming for dunes, valleys and hills. path is world sector coordinates as numbers (10.5 is the middle of sector 10); one point presses, more drag with a dab every quarter radius. mode: raise (default; invert digs), smooth, flatten (level to the height at the first point), ramp (a straight slope from the first point to the last, plus rise in grid units), dunes (ripples across the drag with wavelength in sectors and dune_height in grid units). radius in sectors, strength 0.05 to 1, falloff smooth, linear or sharp. detail sector (default), half, quarter or auto: how fine the cells under the brush become; auto divides only where the new ground needs it, and a column of storeys always stays a whole sector. target floor (default) or ceiling; a floor stays a body under its own ceiling. It moves shared corner heights on the 64 grid unit lattice, so neighbouring cells stay welded and derived walls follow. The reply gives the corners moved, the cells and the room's face count before and after against the per room cap (the editor turns orange from 85 percent). Then run grid_walkability and screenshot."
+    )]
+    async fn grid_sculpt(
+        &self,
+        Parameters(req): Parameters<SculptReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.grid_edit(req.scene, "grid_sculpt", |world, _| {
+            rock::sculpt(world, &req)
+        })
     }
 
     #[rmcp::tool(

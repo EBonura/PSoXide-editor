@@ -67,6 +67,7 @@ mod rect_tool;
 mod rooms;
 mod rooms_walls;
 mod rules_panel;
+pub(crate) mod sculpt_tool;
 mod select_tool;
 mod shading_panel;
 pub(crate) mod slab_tool;
@@ -135,6 +136,8 @@ pub(crate) enum GridTool {
     Spiral,
     /// Break the walls, floors and ceilings of a region into natural detail.
     Break,
+    /// Terraform the ground with a brush: raise, smooth, flatten, ramp, dunes.
+    Sculpt,
     /// Subdivide cells into finer ones and merge them back.
     Cells,
     /// Insert a slab into a tall hall, or cut one out: a floor between
@@ -172,7 +175,7 @@ impl ToolGroup {
 
 impl GridTool {
     /// Every tool, in row order (grouped).
-    pub(crate) const ALL: [Self; 18] = [
+    pub(crate) const ALL: [Self; 19] = [
         Self::Select,
         Self::Height,
         Self::Floor,
@@ -185,6 +188,7 @@ impl GridTool {
         Self::Stairs,
         Self::Spiral,
         Self::Break,
+        Self::Sculpt,
         Self::Cells,
         Self::Slab,
         Self::Split,
@@ -194,12 +198,13 @@ impl GridTool {
     ];
 
     /// The tools the SHAPE split button holds, in its menu's order.
-    pub(crate) const SHAPES: [Self; 8] = [
+    pub(crate) const SHAPES: [Self; 9] = [
         Self::Extrude,
         Self::Ramp,
         Self::Stairs,
         Self::Spiral,
         Self::Break,
+        Self::Sculpt,
         Self::Cells,
         Self::Slab,
         Self::Split,
@@ -217,6 +222,7 @@ impl GridTool {
             | Self::Stairs
             | Self::Spiral
             | Self::Break
+            | Self::Sculpt
             | Self::Cells
             | Self::Slab
             | Self::Split => ToolGroup::Shape,
@@ -252,6 +258,7 @@ impl GridTool {
             Self::Stairs => "Stairs",
             Self::Spiral => "Spiral",
             Self::Break => "Break",
+            Self::Sculpt => "Sculpt",
             Self::Cells => "Cells",
             Self::Slab => "Upper floor",
         }
@@ -273,6 +280,7 @@ impl GridTool {
             Self::Ramp => egui::Key::A,
             Self::Stairs | Self::Spiral => egui::Key::T,
             Self::Break => egui::Key::X,
+            Self::Sculpt => egui::Key::S,
             Self::Cells | Self::Slab => egui::Key::Q,
         }
     }
@@ -302,6 +310,7 @@ impl GridTool {
             Self::Stairs => "T",
             Self::Spiral => "Shift+T",
             Self::Break => "X",
+            Self::Sculpt => "S",
             Self::Cells => "Q",
             Self::Slab => "Shift+Q",
         }
@@ -350,6 +359,9 @@ impl GridTool {
             }
             Self::Break => {
                 "Pick sectors, then press on them and drag up for the intensity: lips crumble, edges bite, tiles crack. Tab changes the target, Shift+X re-rolls the seed, Enter commits, Esc cancels."
+            }
+            Self::Sculpt => {
+                "Terraform the ground with a brush: press and drag. Raise (Shift lowers), Smooth, Flatten, Ramp (drag A to B) and Dunes (drag across, ripples run perpendicular). [ and ] change the radius, Tab the mode, Esc cancels the stroke."
             }
             Self::Cells => {
                 "Paint over the plan to subdivide cells into four finer ones; Alt merges them back. Enter and Shift+Enter subdivide and merge the Select tool's cells. [ and ] change the brush."
@@ -509,6 +521,8 @@ pub(crate) enum Gesture {
     Verb(Box<verb_state::VerbGesture>),
     /// A Cells brush stroke.
     Cells(Box<cells_tool::CellsStroke>),
+    /// A Sculpt brush stroke.
+    Sculpt(Box<sculpt_tool::SculptLive>),
 }
 
 /// What the pointer is over, for hover highlights and ghosts.
@@ -642,6 +656,8 @@ pub(crate) struct GridEditState {
     pub verb: verb_state::VerbState,
     /// The Cells tool's options.
     pub cells: cells_tool::CellsOptions,
+    /// The Sculpt tool's options and brush ghost.
+    pub sculpt: sculpt_tool::SculptOptions,
     /// The cell size of the cell tools: a sector, a half or a quarter.
     pub cell_size: cell_size::CellSize,
     /// The storey cursor and the cutaway (Alt+Up/Down, G, Z).
@@ -733,6 +749,7 @@ impl Default for GridEditState {
             band_sel: None,
             verb: verb_state::VerbState::default(),
             cells: cells_tool::CellsOptions::default(),
+            sculpt: sculpt_tool::SculptOptions::default(),
             cell_size: cell_size::CellSize::default(),
             level: level::LevelState::default(),
             overlays: analysis::Overlays::default(),
@@ -903,7 +920,7 @@ impl EditorWorkspace {
             Gesture::Region(_) => return C::Crosshair,
             _ => {}
         }
-        if matches!(self.grid.gesture, Gesture::Cells(_)) {
+        if matches!(self.grid.gesture, Gesture::Cells(_) | Gesture::Sculpt(_)) {
             return C::Crosshair;
         }
         let over = !matches!(self.grid.hover, GridHover::None);
@@ -932,6 +949,7 @@ impl EditorWorkspace {
             | GridTool::Stairs
             | GridTool::Spiral
             | GridTool::Break
+            | GridTool::Sculpt
             | GridTool::Cells
             | GridTool::Slab
             | GridTool::Ceiling
