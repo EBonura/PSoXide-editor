@@ -44,7 +44,7 @@ fn toolbar_captures() {
     // The three menus of the tool row, open.
     for (arrow_of, name) in [
         ("Ceiling", "create"),
-        ("Raise", "shape"),
+        ("Extrude", "shape"),
         ("Place", "objects"),
     ] {
         let mut rig = WindowRig::new();
@@ -54,7 +54,7 @@ fn toolbar_captures() {
         rig.capture(&dir.join(format!("menu-{name}-1456x819-{label}.png")));
     }
     // The options bar for a tool with a short and one with a long list.
-    for (tool, name) in [(GridTool::Floor, "floor"), (GridTool::Raise, "raise")] {
+    for (tool, name) in [(GridTool::Floor, "floor"), (GridTool::Extrude, "raise")] {
         let mut rig = WindowRig::new();
         rig.ws.apply_grid_pose("view=3d").unwrap();
         rig.ws.set_grid_tool(tool);
@@ -452,7 +452,7 @@ fn the_tool_row_is_one_line_at_every_window_width() {
         let rig = WindowRig::with_size(Vec2::new(width, 819.0));
         let mut seen: Vec<(&str, Rect)> = Vec::new();
         for label in [
-            "Select", "Height", "Floor", "Wall", "Ceiling", "Raise", "Paint", "Bands", "Place",
+            "Select", "Height", "Floor", "Wall", "Ceiling", "Extrude", "Paint", "Bands", "Place",
         ] {
             seen.push((label, in_row(&rig, label)));
         }
@@ -528,7 +528,7 @@ fn every_visible_tool_shows_its_key_beside_its_name() {
         });
         assert!(beside, "`{label}` shows no `{key}` beside it");
     }
-    let raise = in_row(&rig, "Raise");
+    let raise = in_row(&rig, "Extrude");
     assert!(texts(&rig)
         .iter()
         .any(|(t, r)| t == "U" && r.min.x >= raise.max.x && r.min.x < raise.max.x + 16.0));
@@ -574,7 +574,7 @@ fn the_create_menu_holds_plane_and_mesh() {
 }
 
 const SHAPES: [(&str, GridTool); 9] = [
-    ("Raise", GridTool::Raise),
+    ("Extrude", GridTool::Extrude),
     ("Ramp", GridTool::Ramp),
     ("Stairs", GridTool::Stairs),
     ("Spiral", GridTool::Spiral),
@@ -588,11 +588,11 @@ const SHAPES: [(&str, GridTool); 9] = [
 #[test]
 fn the_shape_button_uses_the_last_shape_tool_and_the_arrow_lists_all_nine() {
     let mut rig = WindowRig::new();
-    // The face shows Raise to begin with; clicking it uses it.
-    row_click(&mut rig, "Raise");
-    assert_eq!(rig.ws.grid.tool, GridTool::Raise);
+    // The face shows Extrude to begin with; clicking it uses it.
+    row_click(&mut rig, "Extrude");
+    assert_eq!(rig.ws.grid.tool, GridTool::Extrude);
     // The arrow lists every shape tool with its key.
-    open_arrow(&mut rig, "Raise");
+    open_arrow(&mut rig, "Extrude");
     for (label, tool) in SHAPES {
         assert!(
             menu_item(&rig, label).is_some(),
@@ -613,7 +613,7 @@ fn the_shape_button_uses_the_last_shape_tool_and_the_arrow_lists_all_nine() {
         text_in(&rig, tool_band(&rig), "Stairs").is_some(),
         "the face shows the last used shape tool"
     );
-    assert!(text_in(&rig, tool_band(&rig), "Raise").is_none());
+    assert!(text_in(&rig, tool_band(&rig), "Extrude").is_none());
     // Another tool does not change it; clicking the face returns to it.
     row_click(&mut rig, "Floor");
     assert_eq!(rig.ws.grid.tool, GridTool::Floor);
@@ -1104,7 +1104,7 @@ fn the_arrow_scrolls_to_the_options_that_did_not_fit() {
     // the bar, so it is answered ("Not now") first.
     rig.ws.grid.walls_prompt_dismissed.insert(0);
     rig.ws.apply_grid_pose("view=3d").unwrap();
-    rig.ws.set_grid_tool(GridTool::Raise);
+    rig.ws.set_grid_tool(GridTool::Extrude);
     frames(&mut rig, 3);
     let apply = |rig: &WindowRig| {
         options_texts(rig)

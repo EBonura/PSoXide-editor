@@ -12,6 +12,8 @@ mod grid_cells;
 mod grid_cycle;
 mod grid_derived;
 mod grid_dupext;
+mod grid_dupext_shots;
+mod grid_extrude;
 mod grid_heat;
 mod grid_layout;
 mod grid_leftovers;

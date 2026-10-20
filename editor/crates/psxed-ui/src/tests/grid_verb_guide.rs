@@ -246,7 +246,7 @@ fn a_rectangle_one_sector_deep_says_it_needs_a_run() {
 fn the_tools_that_make_heights_offer_to_convert_a_room_with_hand_placed_walls() {
     let mut rig = legacy_plan();
     for (key, tool) in [
-        (egui::Key::U, GridTool::Raise),
+        (egui::Key::U, GridTool::Extrude),
         (egui::Key::A, GridTool::Ramp),
         (egui::Key::T, GridTool::Stairs),
         (egui::Key::X, GridTool::Break),
@@ -472,7 +472,7 @@ fn an_upper_floor_too_low_for_open_space_says_it_just_rises_like_raise() {
     let all: Vec<String> = texts(&rig).into_iter().map(|(t, _)| t).collect();
     assert!(
         all.iter()
-            .any(|t| t.contains("no room for open space") && t.contains("like Raise")),
+            .any(|t| t.contains("no room for open space") && t.contains("like Extrude")),
         "{all:?}"
     );
 }

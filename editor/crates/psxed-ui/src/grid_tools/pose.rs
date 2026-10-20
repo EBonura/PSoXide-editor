@@ -114,6 +114,9 @@ fn parse_tool(name: &str) -> Result<GridTool, String> {
     // The Upper floor tool was called Slab and the pose still takes that.
     let name = if name.eq_ignore_ascii_case("slab") {
         "upper floor"
+    } else if name.eq_ignore_ascii_case("raise") {
+        // Raise is Extrude on a floor.
+        "extrude"
     } else {
         name
     };

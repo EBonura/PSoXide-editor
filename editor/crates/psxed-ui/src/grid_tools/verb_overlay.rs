@@ -120,6 +120,8 @@ fn drag_chip(ws: &EditorWorkspace, world: &GridWorld) -> Option<String> {
             ))
         }
         VerbDrag::Rough(_) => return Some(super::rough_tool::chip(g.amount)),
+        VerbDrag::Wall(_) => return None,
+        VerbDrag::Ceiling(_) => format!("Ceiling  {amount}"),
         VerbDrag::Slab(live) => return Some(super::slab_tool::chip(live, g.amount)),
         VerbDrag::Raise(d) => {
             let ru = psxed_project::grid::cook::RuntimeUnits::new(world.scale)

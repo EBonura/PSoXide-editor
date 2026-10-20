@@ -184,7 +184,7 @@ fn r_and_f_collide_with_no_other_binding_while_paint_is_active() {
     rig.key(egui::Key::L);
     assert_ne!(rig.ws.grid.link, link);
     rig.key(egui::Key::U);
-    assert_eq!(rig.ws.grid.tool, GridTool::Raise);
+    assert_eq!(rig.ws.grid.tool, GridTool::Extrude);
     // Away from Paint, F is the Floor tool again and R does not touch the
     // brush.
     rig.tool(GridTool::Select);

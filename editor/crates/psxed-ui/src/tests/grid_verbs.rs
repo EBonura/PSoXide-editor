@@ -31,7 +31,7 @@ fn a_marquee_then_a_vertical_drag_raises_the_region_with_live_sides_and_undoes_e
     rig.ws.grid.verb.follow_ceiling = true;
     let original = rig.ws.project.clone();
     let faces_before = all_faces(rig.world()).len();
-    rig.tool(GridTool::Raise);
+    rig.tool(GridTool::Extrude);
     // Marquee over sectors (2,2) to (3,3).
     rig.drag(rig.cell_centre(2, 2), rig.cell_centre(3, 3));
     let region = rig.ws.grid.verb.region.clone().expect("a region");
@@ -64,7 +64,7 @@ fn a_marquee_then_a_vertical_drag_raises_the_region_with_live_sides_and_undoes_e
 #[test]
 fn dragging_down_lowers_and_alt_snaps_to_the_fine_step() {
     let mut rig = GridRig::top("verb-lower", hall());
-    rig.tool(GridTool::Raise);
+    rig.tool(GridTool::Extrude);
     // A click on a sector is a one sector region.
     rig.click(rig.cell_centre(1, 1));
     assert_eq!(rig.ws.grid.verb.region.as_ref().map(|r| r.len()), Some(1));
@@ -87,7 +87,7 @@ fn dragging_down_lowers_and_alt_snaps_to_the_fine_step() {
 fn escape_mid_drag_puts_the_document_back_exactly() {
     let mut rig = GridRig::top("verb-cancel", hall());
     let original = rig.ws.project.clone();
-    rig.tool(GridTool::Raise);
+    rig.tool(GridTool::Extrude);
     rig.drag(rig.cell_centre(2, 2), rig.cell_centre(4, 2));
     let from = rig.cell_centre(3, 2);
     rig.drag_hold(
@@ -118,7 +118,7 @@ fn tab_switches_to_level_mode_mid_drag() {
             .heights = [0, 0, 256, 256];
     }
     rig.ws.grid_changed();
-    rig.tool(GridTool::Raise);
+    rig.tool(GridTool::Extrude);
     rig.drag(rig.cell_centre(2, 2), rig.cell_centre(3, 2));
     let from = rig.cell_centre(2, 2);
     rig.drag_hold(from, from - Vec2::new(0.0, CLICK_PX), egui::Modifiers::NONE);
@@ -137,7 +137,7 @@ fn tab_switches_to_level_mode_mid_drag() {
 #[test]
 fn the_brush_and_a_path_make_regions() {
     let mut rig = GridRig::top("verb-sources", hall());
-    rig.tool(GridTool::Raise);
+    rig.tool(GridTool::Extrude);
     rig.ws.grid.verb.source = crate::grid_tools::verb_state::RegionSource::Brush;
     rig.ws.grid.verb.brush_radius = 1;
     rig.drag(rig.cell_centre(2, 2), rig.cell_centre(4, 2));
@@ -172,7 +172,7 @@ fn the_brush_and_a_path_make_regions() {
 fn the_3d_view_raises_a_region_too() {
     let mut rig = GridRig::persp("verb-raise-3d", hall());
     let original = rig.ws.project.clone();
-    rig.tool(GridTool::Raise);
+    rig.tool(GridTool::Extrude);
     let ground = |rig: &GridRig, x: f32, z: f32| rig.screen_of([x * S, 0.0, z * S]);
     rig.drag(ground(&rig, 3.5, 3.5), ground(&rig, 4.5, 4.5));
     let region = rig.ws.grid.verb.region.clone().expect("a region");
@@ -195,7 +195,7 @@ fn the_3d_view_raises_a_region_too() {
 fn a_typed_amount_is_one_undo_step() {
     let mut rig = GridRig::top("verb-typed", hall());
     let original = rig.ws.project.clone();
-    rig.tool(GridTool::Raise);
+    rig.tool(GridTool::Extrude);
     rig.drag(rig.cell_centre(0, 0), rig.cell_centre(1, 1));
     rig.ws.grid.verb.typed_clicks = 3.0;
     crate::grid_tools::verb_tool::apply_typed(&mut rig.ws);
@@ -211,7 +211,7 @@ fn a_selection_from_select_is_not_carried_into_raise() {
         .apply_grid_pose("tool=select;select=floors:1,1:2,1")
         .unwrap();
     assert!(!rig.ws.grid.selection.is_empty());
-    rig.tool(GridTool::Raise);
+    rig.tool(GridTool::Extrude);
     assert!(rig.ws.grid.selection.is_empty());
     assert!(rig.ws.grid.verb.region.is_none());
 }
@@ -263,7 +263,7 @@ fn measure_verb_gesture_cost_on_the_cathedral() {
     let all = t.elapsed().as_secs_f64() * 1e3 / n as f64;
     // A whole editor frame in the Top view with the region shown.
     let mut rig = GridRig::top("verb-measure", project);
-    rig.tool(GridTool::Raise);
+    rig.tool(GridTool::Extrude);
     rig.ws.grid.verb.region = Some(region);
     let t = Instant::now();
     for _ in 0..30 {

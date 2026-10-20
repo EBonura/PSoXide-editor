@@ -1,10 +1,11 @@
 //! What the options bar says about the level verbs: the next step to take.
 //!
 //! A verb is region, then amount, and the first time that is not obvious from
-//! the options alone. The bar therefore leads, for Raise, Ramp, Stairs and the
+//! the options alone. The bar therefore leads, for Extrude, Ramp, Stairs and the
 //! Upper floor tool, with one line that always names the next thing to do and
 //! switches to the live readout while a drag is in flight.
 
+use super::extrude_tool::ExtrudeSurface;
 use super::slab_tool::SlabMode;
 use super::verb_state::{RegionGesture, RegionSource, VerbDrag};
 use super::*;
@@ -17,11 +18,14 @@ impl EditorWorkspace {
         let tool = self.grid.tool;
         if !matches!(
             tool,
-            GridTool::Raise | GridTool::Ramp | GridTool::Stairs | GridTool::Slab
+            GridTool::Extrude | GridTool::Ramp | GridTool::Stairs | GridTool::Slab
         ) {
             return None;
         }
         let verb = &self.grid.verb;
+        if tool == GridTool::Extrude && verb.surface == ExtrudeSurface::Wall {
+            return Some(self.wall_step_text());
+        }
         match &self.grid.gesture {
             // A flight being dragged: the steps, the riser and whether it can
             // be walked, as short as the bar needs.
@@ -68,10 +72,34 @@ impl EditorWorkspace {
         Some(self.amount_step(tool))
     }
 
+    /// The Extrude tool's line while it works on walls.
+    fn wall_step_text(&self) -> String {
+        match &self.grid.gesture {
+            Gesture::Verb(_) => {
+                if self.grid.verb.readout.is_empty() {
+                    self.status.clone()
+                } else {
+                    self.grid.verb.readout.clone()
+                }
+            }
+            Gesture::Marquee { .. } => "Release to pick the wall pieces in the box".to_string(),
+            _ if self.grid.selection.is_empty() => {
+                "Point at a wall piece and drag along its normal; Shift adds, a box picks several"
+                    .to_string()
+            }
+            _ => {
+                "Drag the picked pieces along the normal, or press Out and In (= and -)".to_string()
+            }
+        }
+    }
+
     /// The first step with a rectangle: where the verb goes.
     fn first_step(&self, tool: GridTool) -> &'static str {
         match tool {
-            GridTool::Raise => "Drag a rectangle over the floor to raise",
+            GridTool::Extrude if self.grid.verb.surface == ExtrudeSurface::Ceiling => {
+                "Drag a rectangle over the ceiling to move"
+            }
+            GridTool::Extrude => "Drag a rectangle over the floor to extrude",
             GridTool::Ramp => "Drag a rectangle where the ramp goes",
             GridTool::Stairs => "Drag a rectangle where the stairs go",
             GridTool::Slab => match self.grid.verb.slab.mode {
@@ -89,8 +117,8 @@ impl EditorWorkspace {
     fn amount_step(&self, tool: GridTool) -> String {
         let verb = &self.grid.verb;
         match tool {
-            GridTool::Raise => {
-                "Press on the region and drag up to raise, down to lower".to_string()
+            GridTool::Extrude => {
+                "Press on the region and drag up to extrude, down to sink".to_string()
             }
             GridTool::Ramp => {
                 "Press near the side that stays put and drag up (R turns the side)".to_string()
@@ -135,7 +163,11 @@ impl EditorWorkspace {
     fn tool_makes_heights(&self) -> bool {
         matches!(
             self.grid.tool,
-            GridTool::Raise | GridTool::Ramp | GridTool::Stairs | GridTool::Break | GridTool::Floor
+            GridTool::Extrude
+                | GridTool::Ramp
+                | GridTool::Stairs
+                | GridTool::Break
+                | GridTool::Floor
         )
     }
 

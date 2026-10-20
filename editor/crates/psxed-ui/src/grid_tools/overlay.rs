@@ -745,6 +745,7 @@ impl EditorWorkspace {
         self.draw_mesh_overlay_3d(painter, rect);
         self.draw_band_overlay_3d(painter, rect);
         self.draw_verb_overlay_3d(painter, rect);
+        self.draw_extrude_overlay_3d(painter, rect);
         self.draw_walk_overlay_3d(painter, rect);
         self.draw_heat_overlay_3d(painter, rect);
         self.draw_leaf_overlay_3d(painter, rect);

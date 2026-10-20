@@ -123,6 +123,8 @@ pub(super) struct WindowRig {
     pub(super) viewport: EditorViewport3dPresentation,
     pub(super) size: Vec2,
     pub(super) time: f64,
+    /// Modifier keys held for the frames that follow.
+    pub(super) modifiers: egui::Modifiers,
     pub(super) out: egui::FullOutput,
     pub(super) textures: Textures,
     pub(super) _guard: ScratchProjectDir,
@@ -189,6 +191,7 @@ impl WindowRig {
             viewport,
             size,
             time: 0.0,
+            modifiers: egui::Modifiers::NONE,
             out: egui::FullOutput::default(),
             textures: Textures::default(),
             _guard: guard,
@@ -205,6 +208,7 @@ impl WindowRig {
             screen_rect: Some(Rect::from_min_size(Pos2::ZERO, self.size)),
             time: Some(self.time),
             focused: true,
+            modifiers: self.modifiers,
             events,
             ..egui::RawInput::default()
         };

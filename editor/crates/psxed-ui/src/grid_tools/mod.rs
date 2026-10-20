@@ -35,6 +35,7 @@ mod clipboard_tool;
 mod cycle;
 mod dup_tool;
 pub(crate) mod events;
+pub(crate) mod extrude_tool;
 mod face_tools;
 mod heat_overlay;
 mod height_tool;
@@ -124,8 +125,9 @@ pub(crate) enum GridTool {
     Bands,
     /// Place, move and turn static meshes (arches, columns, rubble).
     Mesh,
-    /// Raise or lower a region of sectors.
-    Raise,
+    /// Extrude: raise or lower a region of floor or ceiling, push wall
+    /// pieces out and in.
+    Extrude,
     /// Slope a region from one side to the other.
     Ramp,
     /// Lay a flight of steps along a path.
@@ -181,7 +183,7 @@ impl GridTool {
         Self::Ceiling,
         Self::Plane,
         Self::Mesh,
-        Self::Raise,
+        Self::Extrude,
         Self::Ramp,
         Self::Stairs,
         Self::Spiral,
@@ -197,7 +199,7 @@ impl GridTool {
 
     /// The tools the SHAPE split button holds, in its menu's order.
     pub(crate) const SHAPES: [Self; 9] = [
-        Self::Raise,
+        Self::Extrude,
         Self::Ramp,
         Self::Stairs,
         Self::Spiral,
@@ -215,7 +217,7 @@ impl GridTool {
             Self::Floor | Self::Wall | Self::Ceiling | Self::Plane | Self::Mesh => {
                 ToolGroup::Create
             }
-            Self::Raise
+            Self::Extrude
             | Self::Ramp
             | Self::Stairs
             | Self::Spiral
@@ -234,7 +236,7 @@ impl GridTool {
     pub(crate) const fn is_verb(self) -> bool {
         matches!(
             self,
-            Self::Raise
+            Self::Extrude
                 | Self::Ramp
                 | Self::Stairs
                 | Self::Spiral
@@ -257,7 +259,7 @@ impl GridTool {
             Self::Split => "Diagonal",
             Self::Place => "Place",
             Self::Bands => "Bands",
-            Self::Raise => "Raise",
+            Self::Extrude => "Extrude",
             Self::Ramp => "Ramp",
             Self::Stairs => "Stairs",
             Self::Spiral => "Spiral",
@@ -280,7 +282,7 @@ impl GridTool {
             Self::Split => egui::Key::D,
             Self::Place => egui::Key::O,
             Self::Bands => egui::Key::E,
-            Self::Raise => egui::Key::U,
+            Self::Extrude => egui::Key::U,
             Self::Ramp => egui::Key::A,
             Self::Stairs | Self::Spiral => egui::Key::T,
             Self::Break => egui::Key::X,
@@ -309,7 +311,7 @@ impl GridTool {
             Self::Split => "D",
             Self::Place => "O",
             Self::Bands => "E",
-            Self::Raise => "U",
+            Self::Extrude => "U",
             Self::Ramp => "A",
             Self::Stairs => "T",
             Self::Spiral => "Shift+T",
@@ -349,8 +351,8 @@ impl GridTool {
             Self::Bands => {
                 "Hover a wall, click to cut it into bands at the rule. Drag a line to move it, Delete removes it, Shift+click picks a band for the palette."
             }
-            Self::Raise => {
-                "Pick sectors (marquee, brush or path), then press on them and drag up or down. Tab switches Offset and Level, Alt snaps finer, Esc cancels."
+            Self::Extrude => {
+                "Floors and ceilings: pick sectors (marquee, brush or path), press on them and drag up or down. Walls: press a piece and drag along its normal, out makes an alcove (a band, a niche), in fills; Shift adds pieces, = and - push a step. Alt snaps finer, Esc cancels."
             }
             Self::Ramp => {
                 "Pick sectors, then press near the side that keeps its height and drag up or down: the opposite side rises. R turns the side, Tab holds the slope to what the character can walk."
@@ -717,7 +719,7 @@ impl Default for GridEditState {
     fn default() -> Self {
         Self {
             tool: GridTool::Select,
-            last_shape: GridTool::Raise,
+            last_shape: GridTool::Extrude,
             options_scroll: 0.0,
             options_scroll_tool: GridTool::Select,
             selection: GridSelection::new(),
@@ -932,7 +934,7 @@ impl EditorWorkspace {
             GridTool::Split => C::Default,
             GridTool::Bands if over => C::PointingHand,
             GridTool::Bands => C::Default,
-            GridTool::Raise
+            GridTool::Extrude
             | GridTool::Ramp
             | GridTool::Stairs
             | GridTool::Spiral
@@ -944,7 +946,7 @@ impl EditorWorkspace {
                 C::ResizeVertical
             }
             GridTool::Floor
-            | GridTool::Raise
+            | GridTool::Extrude
             | GridTool::Ramp
             | GridTool::Stairs
             | GridTool::Spiral

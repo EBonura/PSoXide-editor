@@ -282,7 +282,7 @@ fn delete_raise_and_a_range_reach_the_pieces_of_a_divided_sector() {
 #[test]
 fn raise_in_the_plan_lifts_a_half_cell_region() {
     let mut rig = divided_plan();
-    rig.tool(GridTool::Raise);
+    rig.tool(GridTool::Extrude);
     let from = rig.top_at(2.75 * S, 2.25 * S);
     // Pick the region (a click), then press on it and drag up.
     rig.click(from);

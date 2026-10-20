@@ -291,7 +291,7 @@ pub(super) fn chip(live: &SlabLive, amount: i32) -> String {
                     "Upper floor at {at:+.2} clicks over the storey, {gap:.2} clicks of open space under it"
                 ),
                 None => format!(
-                    "Upper floor at {at:+.2} clicks: no room for open space under it (3 clicks needed), so the floor just rises like Raise"
+                    "Upper floor at {at:+.2} clicks: no room for open space under it (3 clicks needed), so the floor just rises like Extrude"
                 ),
             }
         }

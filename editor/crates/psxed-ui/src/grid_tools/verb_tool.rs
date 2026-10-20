@@ -10,7 +10,10 @@ use super::cell_size::{cell_at, cell_units};
 use super::*;
 
 use psxed_project::grid::edit::focus::Focus;
+use psxed_project::grid::edit::verbs::extrude::CeilingDrag;
 use psxed_project::grid::edit::verbs::fine::{FineDrag, FineReport, FineVerb};
+
+use super::extrude_tool::ExtrudeSurface;
 use psxed_project::grid::edit::verbs::raise::{
     default_mode, height_under, RaiseDrag, RaiseMode, RaiseParams,
 };
@@ -64,7 +67,7 @@ pub(super) fn through_lens(ws: &EditorWorkspace, region: &Region) -> bool {
         return false;
     };
     match ws.grid.tool {
-        GridTool::Raise => region.level() != 2,
+        GridTool::Extrude => region.level() != 2,
         _ => region.is_fine(world),
     }
 }
@@ -101,7 +104,18 @@ pub(super) fn verb_drag_over(
     let world = ws.project.active_scene().world.grid()?;
     // (drag, largest walkable rise, Level reference to remember)
     let (drag, max, reference) = match ws.grid.tool {
-        GridTool::Raise if fine => {
+        GridTool::Extrude if ws.grid.verb.surface == ExtrudeSurface::Ceiling => {
+            if level != 2 {
+                ws.status = "Ceilings move whole sectors: set the cell size to Sector".to_string();
+                return None;
+            }
+            (
+                VerbDrag::Ceiling(CeilingDrag::begin(world, region)?),
+                None,
+                None,
+            )
+        }
+        GridTool::Extrude if fine => {
             let reference = floor_height_at(world, region.room, cell, level);
             let params = RaiseParams {
                 mode: ws.grid.verb.raise_mode.unwrap_or(RaiseMode::Offset),
@@ -112,7 +126,7 @@ pub(super) fn verb_drag_over(
             let drag = FineDrag::begin(world, region.room, level, &cells, FineVerb::Raise(params))?;
             (VerbDrag::Fine(Box::new(drag)), None, Some(reference))
         }
-        GridTool::Raise => {
+        GridTool::Extrude => {
             let (drag, reference) = raise_drag(ws, region, cell)?;
             (VerbDrag::Raise(drag), None, Some(reference))
         }
@@ -196,9 +210,15 @@ pub(super) fn hover(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     super::lasso::hover(ws, ptr);
     super::ramp_tool::hover(ws, cell);
     super::stairs_tool::hover(ws, cell);
+    if ws.grid.tool == GridTool::Extrude {
+        super::extrude_tool::hover(ws, ptr);
+    }
 }
 
 pub(super) fn press(ws: &mut EditorWorkspace, ptr: &GridPointer) {
+    if ws.grid.tool == GridTool::Extrude && super::extrude_tool::press(ws, ptr) {
+        return;
+    }
     let Some((room, cell)) = cell_under(ws, &ptr.at_press()) else {
         return;
     };
@@ -271,12 +291,22 @@ pub(super) fn drag(ws: &mut EditorWorkspace, ptr: &GridPointer) {
             }
         }
         Gesture::Verb(_) => update_amount(ws, ptr),
+        Gesture::Marquee { .. } => {
+            if let Gesture::Marquee { current, .. } = &mut ws.grid.gesture {
+                *current = ptr.pos;
+            }
+        }
         _ => {}
     }
 }
 
-pub(super) fn release(ws: &mut EditorWorkspace) {
+pub(super) fn release(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     match std::mem::take(&mut ws.grid.gesture) {
+        Gesture::Marquee {
+            start,
+            current,
+            additive,
+        } => super::extrude_tool::finish_marquee(ws, ptr, start, current, additive),
         Gesture::Region(RegionGesture::Marquee {
             room,
             anchor,
@@ -299,7 +329,9 @@ pub(super) fn release(ws: &mut EditorWorkspace) {
         }
         Gesture::Verb(g) => {
             // The amount stays in the status line; the region stays too.
-            let _ = g;
+            if let VerbDrag::Wall(live) = &g.drag {
+                super::extrude_tool::finished(ws, live, g.amount);
+            }
         }
         other => ws.grid.gesture = other,
     }
@@ -308,6 +340,9 @@ pub(super) fn release(ws: &mut EditorWorkspace) {
 /// A click without a drag: one sector (or one brush disc) as the region, or
 /// a waypoint of a path.
 pub(super) fn click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
+    if ws.grid.tool == GridTool::Extrude && super::extrude_tool::click(ws, ptr) {
+        return;
+    }
     let Some((room, cell)) = cell_under(ws, ptr) else {
         return;
     };
@@ -478,7 +513,7 @@ pub(super) enum Begin {
 /// Press on the region: start the amount drag of the active verb.
 fn begin_amount(ws: &mut EditorWorkspace, ptr: &GridPointer, room: usize, cell: [i32; 2]) -> Begin {
     match ws.grid.tool {
-        GridTool::Raise => begin_raise(ws, ptr, room, cell),
+        GridTool::Extrude => begin_raise(ws, ptr, room, cell),
         GridTool::Ramp => super::ramp_tool::begin(ws, ptr, room, cell),
         GridTool::Stairs => super::stairs_tool::begin(ws, ptr, room, cell),
         GridTool::Spiral => super::spiral_tool::begin(ws, ptr, room, cell),
@@ -557,7 +592,14 @@ fn begin_raise(ws: &mut EditorWorkspace, ptr: &GridPointer, room: usize, cell: [
     };
     let Some((drag, _)) = ws.with_focused_world(&focus, |ws| verb_drag_over(ws, &region, cell))
     else {
-        ws.status = "Nothing to raise: no sector of the region has a floor".to_string();
+        if ws.status.is_empty() || !ws.status.starts_with("Ceilings move") {
+            ws.status = match ws.grid.verb.surface {
+                ExtrudeSurface::Ceiling => {
+                    "Nothing to extrude: no sector of the region has a ceiling".to_string()
+                }
+                _ => "Nothing to extrude: no sector of the region has a floor".to_string(),
+            };
+        }
         return Begin::Refused;
     };
     let ppu = drag_rate(ws, ptr, room, cell, ws.grid.verb.reference);
@@ -583,7 +625,7 @@ pub(crate) fn pose_drag(ws: &mut EditorWorkspace, amount: i32) -> Result<(), Str
         .ok_or("no region: use region=x0,z0:x1,z1 first")?;
     let first = region.cells().next().unwrap_or([0, 0]);
     let (focus, drag, max_rise) = match ws.grid.tool {
-        GridTool::Raise | GridTool::Ramp => {
+        GridTool::Extrude | GridTool::Ramp => {
             let focus = region_focus(ws, &region)?;
             let (drag, max) = ws
                 .with_focused_world(&focus, |ws| verb_drag_over(ws, &region, first))
@@ -634,6 +676,7 @@ fn update_amount(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     let mut amount = match &g.drag {
         VerbDrag::Break(_) => super::break_tool::intensity_at(&g, ptr),
         VerbDrag::Rough(live) => super::rough_tool::level_at(&g, live, ptr),
+        VerbDrag::Wall(live) => live.steps_at(ptr),
         _ => snapped_amount(&g, ptr),
     };
     if is_ramp(&g.drag) {
@@ -687,10 +730,30 @@ pub(super) fn apply_amount(ws: &mut EditorWorkspace, g: &mut VerbGesture) {
             let mode = drag.params().mode.label();
             format!(
                 "{} {}{}",
-                if amount < 0 { "Lower" } else { "Raise" },
+                if amount < 0 {
+                    "Extrude down"
+                } else {
+                    "Extrude up"
+                },
                 amount_text(world, amount),
                 counts_text(&applied, mode)
             )
+        }
+        VerbDrag::Ceiling(drag) => {
+            let applied = drag.apply(world, amount);
+            let mut line = format!(
+                "Extrude ceiling {}, {} sectors",
+                amount_text(world, amount),
+                applied.moved
+            );
+            if applied.clamped > 0 {
+                line += &format!(", {} held a click over the floor", applied.clamped);
+            }
+            line
+        }
+        VerbDrag::Wall(live) => {
+            let result = live.drag.apply(world, amount);
+            super::extrude_tool::readout(amount, &result)
         }
         VerbDrag::Ramp(drag) => {
             let max = max_rise.unwrap_or(0);
@@ -727,7 +790,11 @@ pub(super) fn apply_amount(ws: &mut EditorWorkspace, g: &mut VerbGesture) {
                     }
                     format!(
                         "{} {}{}",
-                        if amount < 0 { "Lower" } else { "Raise" },
+                        if amount < 0 {
+                            "Extrude down"
+                        } else {
+                            "Extrude up"
+                        },
                         amount_text(world, amount),
                         counts_text(&applied, params.mode.label())
                     )
@@ -877,7 +944,7 @@ pub(super) fn toggle_mode(ws: &mut EditorWorkspace) {
         };
         return;
     }
-    if ws.grid.tool != GridTool::Raise {
+    if ws.grid.tool != GridTool::Extrude || ws.grid.verb.surface != ExtrudeSurface::Floor {
         return;
     }
     let mut live = match std::mem::take(&mut ws.grid.gesture) {
@@ -907,7 +974,7 @@ pub(super) fn toggle_mode(ws: &mut EditorWorkspace) {
     if let Some(g) = live {
         ws.grid.gesture = Gesture::Verb(g);
     }
-    ws.status = format!("Raise mode: {}", next.label());
+    ws.status = format!("Extrude mode: {}", next.label());
 }
 
 /// `[` and `]` in a verb: the brush radius or the path width.
@@ -966,7 +1033,7 @@ pub(crate) fn apply_typed(ws: &mut EditorWorkspace) {
             }
         };
         let drag = ws.with_focused_world(&focus, |ws| match ws.grid.tool {
-            GridTool::Raise | GridTool::Ramp => verb_drag_over(ws, &region, first),
+            GridTool::Extrude | GridTool::Ramp => verb_drag_over(ws, &region, first),
             GridTool::Stairs => super::stairs_tool::drag_for(ws, first).map(|d| (d, None)),
             _ => None,
         });

@@ -192,7 +192,7 @@ fn the_lasso_closes_into_the_polygon_sectors_and_shift_snaps_to_45_degrees() {
     use crate::grid_tools::verb_state::RegionSource;
     use psxed_project::grid::edit::outline::polygon_cells;
     let mut rig = GridRig::top("natural-lasso", hall());
-    rig.tool(GridTool::Raise);
+    rig.tool(GridTool::Extrude);
     rig.ws.grid.verb.source = RegionSource::Lasso;
     let at = |rig: &GridRig, x: f32, z: f32| rig.top_at(x * S, z * S);
     rig.click(at(&rig, 1.0, 1.0));
@@ -230,7 +230,7 @@ fn the_lasso_closes_into_the_polygon_sectors_and_shift_snaps_to_45_degrees() {
 fn escape_drops_a_lasso_in_progress_before_the_region() {
     use crate::grid_tools::verb_state::RegionSource;
     let mut rig = GridRig::top("natural-lasso-esc", hall());
-    rig.tool(GridTool::Raise);
+    rig.tool(GridTool::Extrude);
     rig.ws.grid.verb.source = RegionSource::Lasso;
     rig.click(rig.cell_centre(1, 1));
     rig.click(rig.cell_centre(4, 1));
@@ -257,7 +257,7 @@ fn the_lasso_pose_draws_a_half_made_shape() {
 #[test]
 fn cut_corners_cracks_the_convex_corners_of_the_region_in_one_undo_step() {
     let mut rig = GridRig::top("natural-cut-corners", hall());
-    rig.tool(GridTool::Raise);
+    rig.tool(GridTool::Extrude);
     rig.drag(rig.cell_centre(2, 2), rig.cell_centre(4, 4));
     let from = rig.cell_centre(3, 3);
     rig.drag(from, from - Vec2::new(0.0, 2.0 * CLICK_PX));

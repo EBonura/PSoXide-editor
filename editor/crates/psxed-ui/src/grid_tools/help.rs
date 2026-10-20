@@ -30,7 +30,7 @@ const SELECT: Rows = &[
     ("Ctrl/Cmd+A", "Select everything in the room"),
     (
         "Ctrl/Cmd+D",
-        "Duplicate the selection and carry the copy on the pointer: a light, actor, prop, mesh, plane, or cells with their heights, walls, bands and the nodes standing on them. Click drops it, Up and Down lift it a click (Alt fine), Esc leaves nothing. One undo step",
+        "Copy the selection onto the pointer (nodes, mesh, planes, cells with what stands on them); click drops, Up/Down lift, Esc cancels",
     ),
 ];
 const FLOOR: Rows = &[
@@ -167,7 +167,19 @@ const BANDS: Rows = &[
     ),
     ("Inspector", "Lines, bands, materials and tiling per band"),
 ];
-const RAISE: Rows = &[
+const EXTRUDE: Rows = &[
+    (
+        "Raise = Extrude on floors",
+        "Raise (U) is Extrude: it raises floors as it did, and the Moves chips pick Ceiling or Wall",
+    ),
+    (
+        "Wall: press, drag along the normal",
+        "Out opens an alcove (a niche for a band), in fills; Shift adds pieces, a box picks many; Esc cancels",
+    ),
+    (
+        "Wall: Out, In, = and -",
+        "Push the picked pieces a step; refused for hand-placed walls and other rooms",
+    ),
     (
         "Drag, click (Marquee)",
         "Pick a rectangle of sectors, or one with a click; Shift adds to the region",
@@ -181,7 +193,7 @@ const RAISE: Rows = &[
         "Enter closes the shape into the sectors whose centres lie inside it; Shift snaps each new segment to 45 degrees and whole sectors, Esc drops the shape",
     ),
     (
-        "Cut corners (Raise option row)",
+        "Cut corners (Extrude option row, floors)",
         "Crack the outer triangle of the region's convex corners down by the last raise (a click if none): a plateau with 45 degree corners, one undo step",
     ),
     (
@@ -196,7 +208,7 @@ const RAISE: Rows = &[
 const RAMP: Rows = &[
     (
         "Pick a region",
-        "Marquee, brush or path, as for Raise",
+        "Marquee, brush or path, as for Extrude",
     ),
     (
         "Hover the region",
@@ -311,7 +323,7 @@ const SLAB: Rows = &[
     ),
     (
         "Insert: pick a region, press on it, drag up",
-        "Adds a floor at that height over the storey, one click thick, with open space underneath (it needs a ceiling or open sky above); the hall above and below keep their walls. The ghost shows the open space under the new floor. Sectors with nothing open at that height are skipped and counted. This is not Raise: Raise moves the ground itself up and leaves nothing underneath",
+        "Adds a floor at that height over the storey, one click thick, with open space underneath (it needs a ceiling or open sky above); the hall above and below keep their walls. The ghost shows the open space under the new floor. Sectors with nothing open at that height are skipped and counted. This is not Extrude: Extrude moves the ground itself up and leaves nothing underneath",
     ),
     (
         "Cut: pick a region, click it",
@@ -351,7 +363,7 @@ const CELLS: Rows = &[
         "Merge the cells the Select tool picked, or with nothing picked the cell under the pointer, back into the bigger cell they were split from",
     ),
     (
-        "Raise (U), Height (H)",
+        "Extrude (U), Height (H)",
         "Work on cells of any size; a cell larger than a sector splits to fit the region",
     ),
 ];
@@ -450,7 +462,7 @@ impl EditorWorkspace {
             ("Height (H)", HEIGHT),
             ("Paint (P)", PAINT),
             ("Bands (E)", BANDS),
-            ("Raise (U)", RAISE),
+            ("Extrude (U)", EXTRUDE),
             ("Ramp (A)", RAMP),
             ("Stairs (T)", STAIRS),
             ("Spiral (Shift+T)", SPIRAL),
@@ -472,11 +484,11 @@ impl EditorWorkspace {
             .show(ctx, |ui| {
                 ui.set_width(1500.0_f32.min(ctx.screen_rect().width() - 60.0));
                 ui.label(
-                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, Shift+N Mesh, P Paint, D Diagonal, O Place, E Bands | U Raise, A Ramp, T Stairs, Shift+T Spiral, X Break, M Rough, Q Cells, Shift+Q Upper floor | Shift+M Merge (Select, Bands, Cells) | Alt+Up/Down| Alt+Up/Down storey, G go to storey, Z cutaway")
+                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, Shift+N Mesh, P Paint, D Diagonal, O Place, E Bands | U Extrude, A Ramp, T Stairs, Shift+T Spiral, X Break, M Rough, Q Cells, Shift+Q Upper floor | Shift+M Merge (Select, Bands, Cells) | Alt+Up/Down| Alt+Up/Down storey, G go to storey, Z cutaway")
                         .color(STUDIO_TEXT_WEAK),
                 );
                 ui.label(
-                    RichText::new("Cell size (option row of Floor, Ceiling, Wall, Raise, Ramp, Stairs, Break, Rough): Sector by default. 1/2 and 1/4 snap these tools to half and quarter sectors, splitting bigger cells to fit. Changing it drops the region you picked.")
+                    RichText::new("Cell size (option row of Floor, Ceiling, Wall, Extrude, Ramp, Stairs, Break, Rough): Sector by default. 1/2 and 1/4 snap these tools to half and quarter sectors, splitting bigger cells to fit. Changing it drops the region you picked.")
                         .color(STUDIO_TEXT_WEAK),
                 );
                 ui.add_space(4.0);

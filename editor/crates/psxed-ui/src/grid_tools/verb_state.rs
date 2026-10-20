@@ -80,6 +80,10 @@ pub(crate) enum RegionGesture {
 #[derive(Clone, Debug)]
 pub(crate) enum VerbDrag {
     Raise(RaiseDrag),
+    /// Extrude on a ceiling: the region's ceilings move.
+    Ceiling(psxed_project::grid::edit::verbs::extrude::CeilingDrag),
+    /// Extrude on wall pieces: the amount is sectors along the normal.
+    Wall(Box<super::extrude_tool::WallLive>),
     Ramp(RampDrag),
     Stairs(StairsDrag),
     /// Spiral stairs round a ring of sectors.
@@ -138,6 +142,10 @@ pub(crate) struct VerbState {
     pub lasso_add: bool,
     /// Where the next lasso corner would land, for the rubber band.
     pub lasso_cursor: Option<[f64; 2]>,
+    /// What the Extrude tool moves.
+    pub surface: super::extrude_tool::ExtrudeSurface,
+    /// Sectors the Out and In buttons (and `=` and `-`) push a wall.
+    pub wall_steps: i32,
     /// Ceilings move with their floors.
     pub follow_ceiling: bool,
     /// Offset or Level; `None` picks from the region (Level when it is flat).
@@ -193,6 +201,8 @@ impl Default for VerbState {
             lasso_room: 0,
             lasso_add: false,
             lasso_cursor: None,
+            surface: super::extrude_tool::ExtrudeSurface::Floor,
+            wall_steps: 1,
             follow_ceiling: false,
             raise_mode: None,
             reference: 0,

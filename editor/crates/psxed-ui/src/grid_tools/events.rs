@@ -69,7 +69,7 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
             ws.grid.tool,
             GridTool::Floor
                 | GridTool::Ceiling
-                | GridTool::Raise
+                | GridTool::Extrude
                 | GridTool::Ramp
                 | GridTool::Stairs
                 | GridTool::Spiral
@@ -163,7 +163,7 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
         }
 
         (
-            GridTool::Raise
+            GridTool::Extrude
             | GridTool::Ramp
             | GridTool::Stairs
             | GridTool::Spiral
@@ -173,7 +173,7 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
             Ev::Hover,
         ) => verb_tool::hover(ws, &ptr),
         (
-            GridTool::Raise
+            GridTool::Extrude
             | GridTool::Ramp
             | GridTool::Stairs
             | GridTool::Spiral
@@ -183,7 +183,7 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
             Ev::Press,
         ) => verb_tool::press(ws, &ptr),
         (
-            GridTool::Raise
+            GridTool::Extrude
             | GridTool::Ramp
             | GridTool::Stairs
             | GridTool::Spiral
@@ -193,7 +193,7 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
             Ev::Drag,
         ) => verb_tool::drag(ws, &ptr),
         (
-            GridTool::Raise
+            GridTool::Extrude
             | GridTool::Ramp
             | GridTool::Stairs
             | GridTool::Spiral
@@ -201,9 +201,9 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
             | GridTool::Rough
             | GridTool::Slab,
             Ev::Release,
-        ) => verb_tool::release(ws),
+        ) => verb_tool::release(ws, &ptr),
         (
-            GridTool::Raise
+            GridTool::Extrude
             | GridTool::Ramp
             | GridTool::Stairs
             | GridTool::Spiral

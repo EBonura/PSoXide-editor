@@ -98,7 +98,7 @@ fn raise_lifts_the_fine_cells_of_a_region_and_the_height_tool_drags_a_fine_corne
     rig.tool(GridTool::Cells);
     rig.click(rig.cell_centre(2, 2));
     assert_eq!(levels(&rig)[3], 4);
-    rig.tool(GridTool::Raise);
+    rig.tool(GridTool::Extrude);
     rig.drag(rig.cell_centre(2, 2), rig.cell_centre(2, 2));
     let from = rig.cell_centre(2, 2);
     rig.drag_with(from, from - Vec2::new(0.0, CLICK_PX), egui::Modifiers::NONE);
@@ -164,7 +164,7 @@ fn floor_on_half_cells_makes_half_sector_leaves() {
 fn raise_on_quarter_cells_lifts_quarter_leaves_by_a_click() {
     let mut rig = GridRig::top("cells-raise-quarter", flat_project(4, 4, false));
     rig.ws.grid.cell_size = CellSize::Quarter;
-    rig.tool(GridTool::Raise);
+    rig.tool(GridTool::Extrude);
     // Marquee two quarter cells in sector (1, 1), then press on them and
     // drag up one click.
     rig.drag(
@@ -222,7 +222,7 @@ fn stairs_on_quarter_cells_lay_quarter_treads() {
 #[test]
 fn changing_the_cell_size_drops_a_region_picked_at_another_size() {
     let mut rig = GridRig::top("cells-size-drop", flat_project(4, 4, false));
-    rig.tool(GridTool::Raise);
+    rig.tool(GridTool::Extrude);
     rig.drag(rig.cell_centre(1, 1), rig.cell_centre(2, 1));
     assert_eq!(rig.ws.grid.verb.region.as_ref().map(|r| r.level()), Some(2));
     // The strip's selector goes through the same function.

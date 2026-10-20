@@ -295,6 +295,14 @@ impl EditorWorkspace {
             return;
         }
         if self.grid.tool.is_verb() {
+            if self.grid.tool == GridTool::Extrude {
+                if pressed(ctx, egui::Key::Equals) || pressed(ctx, egui::Key::Plus) {
+                    super::extrude_tool::step_by_key(self, 1);
+                }
+                if pressed(ctx, egui::Key::Minus) {
+                    super::extrude_tool::step_by_key(self, -1);
+                }
+            }
             if pressed(ctx, egui::Key::Tab) {
                 verb_tool::toggle_mode(self);
             }
@@ -346,7 +354,7 @@ mod tests {
         }
         // The letters the planes and natural terrain tools took.
         for (tool, key) in [
-            (GridTool::Raise, egui::Key::U),
+            (GridTool::Extrude, egui::Key::U),
             (GridTool::Ramp, egui::Key::A),
             (GridTool::Stairs, egui::Key::T),
             (GridTool::Bands, egui::Key::E),

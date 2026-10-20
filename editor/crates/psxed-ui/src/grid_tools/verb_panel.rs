@@ -1,5 +1,6 @@
 //! The option row of the level verbs and the Inspector's Region context.
 
+use super::extrude_tool::ExtrudeSurface;
 use super::verb_state::RegionSource;
 use super::*;
 
@@ -9,6 +10,13 @@ use psxed_project::grid::edit::verbs::raise::RaiseMode;
 impl EditorWorkspace {
     /// Options of the active verb, in the strip's option row.
     pub(super) fn draw_verb_options(&mut self, ui: &mut egui::Ui) {
+        if self.grid.tool == GridTool::Extrude {
+            self.draw_extrude_surfaces(ui);
+            ui.separator();
+            if self.grid.verb.surface == ExtrudeSurface::Wall {
+                return self.draw_wall_options(ui);
+            }
+        }
         ui.label(RichText::new("Region").color(STUDIO_TEXT_WEAK).size(11.0));
         // A flight is a rectangle or a path; the other sources make no order
         // of treads.
@@ -66,7 +74,7 @@ impl EditorWorkspace {
         }
         ui.separator();
         match self.grid.tool {
-            GridTool::Raise => self.draw_raise_options(ui),
+            GridTool::Extrude => self.draw_raise_options(ui),
             GridTool::Ramp => self.draw_ramp_options(ui),
             GridTool::Stairs => self.draw_stairs_options(ui),
             GridTool::Spiral => self.draw_spiral_options(ui),
@@ -341,7 +349,63 @@ impl EditorWorkspace {
             .on_hover_text("Ceilings move with the floors (headroom stays)");
     }
 
+    /// Extrude: what it moves.
+    fn draw_extrude_surfaces(&mut self, ui: &mut egui::Ui) {
+        ui.label(RichText::new("Moves").color(STUDIO_TEXT_WEAK).size(11.0));
+        for surface in ExtrudeSurface::ALL {
+            if ui
+                .selectable_label(self.grid.verb.surface == surface, surface.label())
+                .on_hover_text(surface.hint())
+                .clicked()
+            {
+                self.grid.verb.surface = surface;
+                self.grid.verb.region = None;
+                self.grid.verb.path.clear();
+                self.grid.selection.clear();
+            }
+        }
+    }
+
+    /// Extrude on walls: the step and the Out and In buttons.
+    fn draw_wall_options(&mut self, ui: &mut egui::Ui) {
+        ui.label(RichText::new("Push").color(STUDIO_TEXT_WEAK).size(11.0));
+        let picked = !self.grid.selection.is_empty();
+        let steps = self.grid.verb.wall_steps.max(1);
+        if ui
+            .add_enabled(picked, egui::Button::new("Out"))
+            .on_hover_text(
+                "Push the picked pieces out: an alcove (a niche for a band) a sector deeper (=)",
+            )
+            .clicked()
+        {
+            super::extrude_tool::step(self, steps);
+        }
+        if ui
+            .add_enabled(picked, egui::Button::new("In"))
+            .on_hover_text("Push the picked pieces in: fill the sector in front of them (-)")
+            .clicked()
+        {
+            super::extrude_tool::step(self, -steps);
+        }
+        ui.add(
+            egui::DragValue::new(&mut self.grid.verb.wall_steps)
+                .range(1..=super::extrude_tool::MAX_STEPS)
+                .suffix(if steps == 1 { " sector" } else { " sectors" }),
+        )
+        .on_hover_text("Sectors a button or key pushes");
+        ui.label(
+            RichText::new(format!("{} picked", self.grid.selection.len()))
+                .color(STUDIO_TEXT_WEAK)
+                .size(11.0),
+        );
+    }
+
     fn draw_raise_options(&mut self, ui: &mut egui::Ui) {
+        if self.grid.verb.surface == ExtrudeSurface::Ceiling {
+            // A ceiling moves by the amount; Offset and Level, Follow ceiling
+            // and the corner cut belong to a floor.
+            return;
+        }
         let mode = self.grid.verb.raise_mode;
         for (label, value, hint) in [
             ("Auto", None, "Level on a flat region, Offset otherwise"),
@@ -464,7 +528,7 @@ impl EditorWorkspace {
                         }
                     ));
                 }
-                if self.grid.tool == GridTool::Raise {
+                if self.grid.tool == GridTool::Extrude {
                     let default = psxed_project::grid::edit::verbs::raise::default_mode(world, region);
                     let mode = self.grid.verb.raise_mode.unwrap_or(default);
                     ui.label(format!(

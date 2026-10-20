@@ -12,7 +12,7 @@ use psxed_project::grid::edit::bands::{edit_bands, BandScope};
 use psxed_project::grid::edit::{FaceRef, GridElement};
 use psxed_project::grid::{Anchor, WallEdge};
 
-fn key(rig: &mut WindowRig, key: egui::Key) {
+pub(super) fn key(rig: &mut WindowRig, key: egui::Key) {
     for pressed in [true, false] {
         rig.frame(vec![egui::Event::Key {
             key,
@@ -24,18 +24,18 @@ fn key(rig: &mut WindowRig, key: egui::Key) {
     }
 }
 
-fn settle(rig: &mut WindowRig) {
+pub(super) fn settle(rig: &mut WindowRig) {
     for _ in 0..4 {
         rig.frame(vec![]);
     }
 }
 
 /// The Machine Hall's sector size in editor units.
-fn sector(rig: &WindowRig) -> f32 {
+pub(super) fn sector(rig: &WindowRig) -> f32 {
     rig.world().scale.to_editor(1024) as f32
 }
 
-fn look_from(rig: &mut WindowRig, from: [f32; 3], at: [f32; 3]) {
+pub(super) fn look_from(rig: &mut WindowRig, from: [f32; 3], at: [f32; 3]) {
     let (f, a) = (from.map(|v| v as i32), at.map(|v| v as i32));
     let (yaw, pitch) = crate::editor_helpers::camera_angles_to_look_at(f, a).unwrap();
     let camera = &mut rig.ws.camera_rig;
@@ -49,7 +49,7 @@ fn look_from(rig: &mut WindowRig, from: [f32; 3], at: [f32; 3]) {
 /// Draw the world's faces as a wireframe over the 3D view of the last frame
 /// (the rig's 3D view is an empty texture): what the camera draws in grey,
 /// what it culls (a ceiling seen from above) in dim red.
-fn wire(rig: &mut WindowRig) {
+pub(super) fn wire(rig: &mut WindowRig) {
     let rect = rig.ws.last_persp_viewport_rect;
     let camera = rig.ws.viewport_3d_camera();
     let cam = crate::grid_tools::pick::Cam::new(camera, rect);
@@ -88,7 +88,7 @@ fn wire(rig: &mut WindowRig) {
     }
 }
 
-fn three_d(rig: &mut WindowRig) {
+pub(super) fn three_d(rig: &mut WindowRig) {
     let button = rig.at("3D");
     rig.click(button);
     settle(rig);

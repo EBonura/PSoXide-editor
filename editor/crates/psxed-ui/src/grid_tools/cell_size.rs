@@ -53,7 +53,7 @@ pub(crate) const fn takes_size(tool: GridTool) -> bool {
         GridTool::Floor
             | GridTool::Ceiling
             | GridTool::Wall
-            | GridTool::Raise
+            | GridTool::Extrude
             | GridTool::Ramp
             | GridTool::Stairs
             | GridTool::Break

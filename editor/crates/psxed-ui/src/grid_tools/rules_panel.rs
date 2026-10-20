@@ -177,7 +177,7 @@ impl EditorWorkspace {
             .default_open(false)
             .show(ui, |ui| {
                 ui.label(
-                    RichText::new("What Raise, Ramp, Stairs and Break paint. A face you painted by hand is never changed.")
+                    RichText::new("What Extrude, Ramp, Stairs and Break paint. A face you painted by hand is never changed.")
                         .size(10.5)
                         .color(STUDIO_TEXT_WEAK),
                 );

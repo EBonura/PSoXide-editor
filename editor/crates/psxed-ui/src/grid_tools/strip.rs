@@ -127,7 +127,7 @@ impl EditorWorkspace {
             }
             GridTool::Paint => self.draw_paint_options(ui),
             GridTool::Split => {}
-            GridTool::Raise
+            GridTool::Extrude
             | GridTool::Ramp
             | GridTool::Stairs
             | GridTool::Spiral
@@ -368,7 +368,10 @@ impl EditorWorkspace {
             GridTool::Paint => "Click or drag paint | R / Shift+R turn | F / Shift+F flip | Ctrl sample | pick in the palette",
             GridTool::Split => "Click a floor or ceiling flips its diagonal | Shift+click voids a triangle | Click again for the ceiling in Top",
             GridTool::Bands => "Hover a wall, click to cut | Drag a line | Del removes it | Shift+click picks a band | Esc cancel",
-            GridTool::Raise => "Pick sectors | Press on them, drag up/down | Tab Offset/Level | Alt fine | Shift add | Esc cancel",
+            GridTool::Extrude if self.grid.verb.surface == super::extrude_tool::ExtrudeSurface::Wall => {
+                "Point at a wall piece, drag along its normal: out alcove, in fill | Shift adds | = out, - in | Esc cancel"
+            }
+            GridTool::Extrude => "Pick sectors | Press on them, drag up/down | Tab Offset/Level | Alt fine | Shift add | Esc cancel",
             GridTool::Ramp => "Pick sectors | Press near the side to keep, drag up/down | R turn the side | Tab hold to walkable | Esc cancel",
             GridTool::Stairs => "Drag a rectangle | Press on it, drag up | R turn the bottom side | Path: click waypoints, Enter, [ ] width | Tab steps/ramp | Esc cancel",
             GridTool::Spiral => "Click the corners of a ring, Enter closes it | Press on it, drag up for the climb of a storey | Storeys in the option row | Alt+Up/Down level | Esc cancel",

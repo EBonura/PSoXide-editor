@@ -47,7 +47,7 @@ fn pick_slab_block(rig: &mut GridRig) {
 fn a_verb_over_a_column_of_two_floors_refuses_until_a_level_is_set() {
     let mut rig = GridRig::top("aim-refuse", two_floors());
     let original = rig.ws.project.clone();
-    rig.tool(GridTool::Raise);
+    rig.tool(GridTool::Extrude);
     pick_slab_block(&mut rig);
     let from = rig.cell_centre(2, 2);
     rig.drag(from, from - Vec2::new(0.0, 2.0 * CLICK_PX));
@@ -71,7 +71,7 @@ fn raise_edits_the_floor_at_the_level_and_the_cursor_follows_it() {
     let mut rig = GridRig::top("aim-raise", two_floors());
     rig.ws.grid.verb.follow_ceiling = true;
     upper_level(&mut rig);
-    rig.tool(GridTool::Raise);
+    rig.tool(GridTool::Extrude);
     pick_slab_block(&mut rig);
     let from = rig.cell_centre(2, 2);
     rig.drag(from, from - Vec2::new(0.0, 2.0 * CLICK_PX));
@@ -98,7 +98,7 @@ fn raise_at_the_ground_level_leaves_the_floor_above_alone() {
     rig.ws.grid.verb.follow_ceiling = true;
     alt_up(&mut rig);
     assert_eq!(rig.ws.grid.level.y, Some(0));
-    rig.tool(GridTool::Raise);
+    rig.tool(GridTool::Extrude);
     pick_slab_block(&mut rig);
     let from = rig.cell_centre(2, 2);
     rig.drag(from, from - Vec2::new(0.0, CLICK_PX));
@@ -115,7 +115,7 @@ fn a_raise_that_would_break_the_column_is_refused_and_a_sliver_is_filled_solid()
     let mut rig = GridRig::top("aim-sliver", two_floors());
     rig.ws.grid.verb.follow_ceiling = true;
     alt_up(&mut rig);
-    rig.tool(GridTool::Raise);
+    rig.tool(GridTool::Extrude);
     pick_slab_block(&mut rig);
     let before = rig.ws.project.clone();
     // The ground floor and its ceiling rise together toward the floor above:
@@ -297,7 +297,7 @@ fn a_press_on_an_upper_floor_in_3d_moves_the_cursor_to_it() {
     alt_up(&mut rig);
     rig.key(egui::Key::Z);
     assert_eq!(rig.ws.grid.level.y, Some(0));
-    rig.tool(GridTool::Raise);
+    rig.tool(GridTool::Extrude);
     let mid = rig.screen_of([3.5 * S, 1536.0, 3.5 * S]);
     rig.click(mid);
     assert_eq!(
