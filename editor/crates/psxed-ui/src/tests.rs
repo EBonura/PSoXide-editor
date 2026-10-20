@@ -38,6 +38,7 @@ mod grid_walk;
 mod grid_workflow;
 mod grid_world;
 mod objects_panel;
+mod palette_zoom;
 mod perf;
 mod project_workspace;
 mod raster;

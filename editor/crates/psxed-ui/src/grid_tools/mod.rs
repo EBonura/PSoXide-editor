@@ -86,6 +86,7 @@ mod wall_tool;
 mod world_panel;
 
 pub(crate) use events::{grid_tool_2d, grid_tool_3d};
+pub(crate) use materials_panel::nearest_swatch;
 
 /// The Cells tool's quarter sector target (for tests).
 #[cfg(test)]
@@ -683,6 +684,10 @@ pub(crate) struct GridEditState {
     pub help_search: String,
     /// The palette lists every project material, not only world surfaces.
     pub palette_all: bool,
+    /// Edge, in points, of a palette swatch (one of `SWATCH_SIZES`).
+    pub palette_swatch: u16,
+    /// Ctrl or Cmd wheel travel over the palette not yet worth a size step.
+    pub palette_wheel: f32,
     /// The plan and the 3D view are both shown (see [`GridViewMode`]).
     pub split: bool,
     /// The search box of the Materials panel.
@@ -755,6 +760,8 @@ impl Default for GridEditState {
             help_open: false,
             help_search: String::new(),
             palette_all: false,
+            palette_swatch: materials_panel::DEFAULT_SWATCH,
+            palette_wheel: 0.0,
             split: false,
             palette_search: String::new(),
             palette_recent: Vec::new(),

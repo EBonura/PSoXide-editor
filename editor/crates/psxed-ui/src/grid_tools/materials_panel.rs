@@ -14,7 +14,23 @@ use super::*;
 
 use psxed_project::grid::edit::material_of;
 
-const SWATCH: f32 = 44.0;
+/// The swatch edges the +/- buttons and Ctrl/Cmd+wheel step through, in
+/// points. The middle one is the size the palette always had.
+pub(crate) const SWATCH_SIZES: [u16; 5] = [24, 32, 44, 64, 96];
+
+/// The swatch edge a palette starts with.
+pub(crate) const DEFAULT_SWATCH: u16 = psxed_project::DEFAULT_PALETTE_SWATCH;
+
+/// Wheel travel (points) over the palette that makes one size step.
+const WHEEL_PER_STEP: f32 = 40.0;
+
+/// The palette size nearest `px` (a view file may hold anything).
+pub(crate) fn nearest_swatch(px: u16) -> u16 {
+    SWATCH_SIZES
+        .into_iter()
+        .min_by_key(|size| size.abs_diff(px))
+        .unwrap_or(DEFAULT_SWATCH)
+}
 
 /// How many materials the Recent row keeps.
 const RECENT_MATERIALS: usize = 8;
@@ -90,6 +106,7 @@ impl EditorWorkspace {
         let mut new_transition = false;
         let mut import = false;
         let mut edit = false;
+        let palette_top = ui.cursor().min;
         ui.horizontal(|ui| {
             ui.label(icons::text(icons::PALETTE, 14.0).color(STUDIO_ACCENT));
             ui.label(RichText::new("Materials").strong().size(12.0));
@@ -132,11 +149,38 @@ impl EditorWorkspace {
                 .hint_text("Search materials")
                 .desired_width(f32::INFINITY),
         );
+        let mut resize = 0i32;
         ui.horizontal(|ui| {
             ui.checkbox(&mut self.grid.palette_all, "All project materials")
                 .on_hover_text(
                     "Off: the wall, floor and ceiling materials. On: also HUD, menu, sky and character images.",
                 );
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let at = SWATCH_SIZES
+                    .iter()
+                    .position(|s| *s == self.grid.palette_swatch)
+                    .unwrap_or(0);
+                let bigger = ui
+                    .add_enabled(
+                        at + 1 < SWATCH_SIZES.len(),
+                        egui::Button::new(icons::text(icons::PLUS, 13.0)),
+                    )
+                    .on_hover_text("Bigger previews")
+                    .on_disabled_hover_text("Bigger previews");
+                let smaller = ui
+                    .add_enabled(
+                        at > 0,
+                        egui::Button::new(icons::text(icons::MINUS, 13.0)),
+                    )
+                    .on_hover_text("Smaller previews")
+                    .on_disabled_hover_text("Smaller previews");
+                if bigger.clicked() {
+                    resize = 1;
+                }
+                if smaller.clicked() {
+                    resize = -1;
+                }
+            });
         });
         if shown.is_empty() {
             let text = if total == 0 {
@@ -225,6 +269,27 @@ impl EditorWorkspace {
             );
         });
 
+        // Ctrl or Cmd with the wheel over the palette resizes it too.
+        let palette = Rect::from_min_max(
+            palette_top,
+            Pos2::new(ui.max_rect().right(), ui.min_rect().bottom()),
+        );
+        if ui.rect_contains_pointer(palette) {
+            let (wheel, zoom) = ui.input(|i| (i.raw_scroll_delta.y, i.modifiers.command));
+            if zoom && wheel != 0.0 {
+                // A trackpad sends many small deltas and a mouse notch one
+                // big one: either way a frame moves at most one size.
+                self.grid.palette_wheel += wheel;
+                if self.grid.palette_wheel.abs() >= WHEEL_PER_STEP {
+                    resize += self.grid.palette_wheel.signum() as i32;
+                    self.grid.palette_wheel = 0.0;
+                }
+            }
+        }
+        if resize != 0 {
+            self.step_palette_swatch(resize);
+        }
+
         if new_material {
             let id = self.add_material_resource();
             self.pin_material(id);
@@ -246,6 +311,17 @@ impl EditorWorkspace {
         if edit {
             self.open_paint_material_in_lab();
         }
+    }
+
+    /// Move the palette preview size `steps` sizes up (or down, when
+    /// negative), staying inside the smallest and the largest.
+    pub(crate) fn step_palette_swatch(&mut self, steps: i32) {
+        let at = SWATCH_SIZES
+            .iter()
+            .position(|s| *s == self.grid.palette_swatch)
+            .unwrap_or(0) as i32;
+        let to = (at + steps).clamp(0, SWATCH_SIZES.len() as i32 - 1) as usize;
+        self.grid.palette_swatch = SWATCH_SIZES[to];
     }
 
     /// One wrapped row of swatches; a click chooses the material.
@@ -431,7 +507,8 @@ impl EditorWorkspace {
         paint: bool,
         on_face: bool,
     ) -> egui::Response {
-        let (rect, response) = ui.allocate_exact_size(Vec2::splat(SWATCH), egui::Sense::click());
+        let size = f32::from(self.grid.palette_swatch);
+        let (rect, response) = ui.allocate_exact_size(Vec2::splat(size), egui::Sense::click());
         let thumb = self.texture_thumbs.get(&id);
         let painter = ui.painter_at(rect);
         match thumb {
@@ -449,7 +526,7 @@ impl EditorWorkspace {
                     rect.center(),
                     Align2::CENTER_CENTER,
                     name.chars().next().unwrap_or('?').to_string(),
-                    FontId::proportional(16.0),
+                    FontId::proportional((size * 0.36).clamp(9.0, 28.0)),
                     STUDIO_TEXT_WEAK,
                 );
             }
@@ -458,7 +535,8 @@ impl EditorWorkspace {
         if let Some(psxed_project::ResourceData::Material(m)) =
             self.project.resource(id).map(|r| &r.data)
         {
-            if !m.grid_uv.is_inherit() {
+            // The tiling badge is text: a small swatch has no room for it.
+            if !m.grid_uv.is_inherit() && size >= 40.0 {
                 let label = match m.grid_uv {
                     psxed_project::face_uv::UvMode::Fit { repeats_q4 } => format!(
                         "{}x{}",
@@ -487,15 +565,18 @@ impl EditorWorkspace {
         };
         painter.rect_stroke(rect, 2.0, stroke, StrokeKind::Inside);
         if on_face {
-            let corner = Rect::from_min_size(rect.left_top() + Vec2::splat(2.0), Vec2::splat(9.0));
+            let edge = if size >= 40.0 { 9.0 } else { 6.0 };
+            let corner = Rect::from_min_size(rect.left_top() + Vec2::splat(2.0), Vec2::splat(edge));
             painter.rect_filled(corner, 2.0, Color32::from_rgb(250, 250, 250));
-            painter.text(
-                corner.center(),
-                Align2::CENTER_CENTER,
-                "F",
-                FontId::proportional(8.0),
-                Color32::from_rgb(30, 30, 36),
-            );
+            if size >= 40.0 {
+                painter.text(
+                    corner.center(),
+                    Align2::CENTER_CENTER,
+                    "F",
+                    FontId::proportional(8.0),
+                    Color32::from_rgb(30, 30, 36),
+                );
+            }
         }
         response.on_hover_text(if on_face {
             format!("{name} (the selected face wears this)")

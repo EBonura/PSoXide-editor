@@ -2466,6 +2466,7 @@ impl EditorWorkspace {
             visibility: self.current_editor_visibility_state(),
             workspace: self.current_editor_workspace_state(),
             viewport: self.current_editor_viewport_state(),
+            palette_swatch: self.grid.palette_swatch,
         }
     }
 
@@ -2474,6 +2475,7 @@ impl EditorWorkspace {
         self.apply_editor_camera(view.camera);
         self.apply_editor_visibility(view.visibility);
         self.apply_editor_viewport(view.viewport);
+        self.grid.palette_swatch = grid_tools::nearest_swatch(view.palette_swatch);
         self.active_workspace = WorkspaceView::from_project(view.workspace.active);
     }
 

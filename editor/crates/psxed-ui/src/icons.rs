@@ -47,6 +47,7 @@ pub const IMAGE_PLUS: char = '\u{e1f7}';
 pub const KEYBOARD: char = '\u{e284}';
 pub const PEN_LINE: char = '\u{e130}';
 pub const PLAY: char = '\u{e13c}';
+pub const MINUS: char = '\u{e11c}';
 pub const PLUS: char = '\u{e13d}';
 pub const POINTER: char = '\u{e1e8}';
 pub const ROWS_3: char = '\u{e58a}';
