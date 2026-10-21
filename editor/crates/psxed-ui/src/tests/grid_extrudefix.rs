@@ -14,13 +14,13 @@ use crate::grid_tools::extrude_tool::ExtrudeSurface;
 use crate::grid_tools::{Gesture, GridTool};
 
 /// The hall's room index in the stand-in.
-const HALL: usize = 1;
+pub(super) const HALL: usize = 1;
 
 fn fresh() -> WindowRig {
     rig()
 }
 
-fn rig() -> WindowRig {
+pub(super) fn rig() -> WindowRig {
     let mut rig = WindowRig::new();
     rig.ws.apply_grid_pose("view=3d").unwrap();
     for _ in 0..3 {
@@ -33,7 +33,7 @@ fn rig() -> WindowRig {
     rig
 }
 
-fn look(rig: &mut WindowRig, from: [f32; 3], at: [f32; 3]) {
+pub(super) fn look(rig: &mut WindowRig, from: [f32; 3], at: [f32; 3]) {
     let (yaw, pitch) = crate::editor_helpers::camera_angles_to_look_at(
         from.map(|v| v as i32),
         at.map(|v| v as i32),
@@ -49,12 +49,12 @@ fn look(rig: &mut WindowRig, from: [f32; 3], at: [f32; 3]) {
     }
 }
 
-fn eu(rig: &WindowRig, grid: i32) -> f32 {
+pub(super) fn eu(rig: &WindowRig, grid: i32) -> f32 {
     rig.world().scale.to_editor(grid) as f32
 }
 
 /// Editor-space point over world cell `cell` (its middle) at `gu` grid units.
-fn over(rig: &WindowRig, cell: [i32; 2], gu: i32) -> [f32; 3] {
+pub(super) fn over(rig: &WindowRig, cell: [i32; 2], gu: i32) -> [f32; 3] {
     [
         eu(rig, cell[0] * 1024 + 512),
         eu(rig, gu),
@@ -64,7 +64,7 @@ fn over(rig: &WindowRig, cell: [i32; 2], gu: i32) -> [f32; 3] {
 
 /// The hall is world cells x 7..15, z -1..7. Seen from above and the south,
 /// its north wall and its floor are in view.
-fn look_over_the_hall(rig: &mut WindowRig) {
+pub(super) fn look_over_the_hall(rig: &mut WindowRig) {
     let mid = over(rig, [11, 3], 0);
     look(
         rig,
@@ -79,20 +79,20 @@ fn look_up_at_the_ceiling(rig: &mut WindowRig, cell: [i32; 2]) {
     look(rig, [at[0], eu(rig, 900), at[2] + eu(rig, 3 * 1024)], at);
 }
 
-fn at_floor(rig: &WindowRig, cell: [i32; 2], gu: i32) -> Pos2 {
+pub(super) fn at_floor(rig: &WindowRig, cell: [i32; 2], gu: i32) -> Pos2 {
     rig.persp_screen(over(rig, cell, gu))
         .unwrap_or_else(|| panic!("{cell:?} at {gu} is off screen"))
 }
 
 /// A point on the north wall of `cell` at `gu`.
-fn north_wall(rig: &WindowRig, cell: [i32; 2], gu: i32) -> Pos2 {
+pub(super) fn north_wall(rig: &WindowRig, cell: [i32; 2], gu: i32) -> Pos2 {
     let mut p = over(rig, cell, gu);
     p[2] = eu(rig, cell[1] * 1024);
     rig.persp_screen(p)
         .unwrap_or_else(|| panic!("north wall of {cell:?} at {gu} is off screen"))
 }
 
-fn floor(rig: &WindowRig, cell: [i32; 2]) -> Option<i32> {
+pub(super) fn floor(rig: &WindowRig, cell: [i32; 2]) -> Option<i32> {
     let room = &rig.world().rooms[HALL];
     let [x, z] = room.local(cell)?;
     room.sector(x, z)?.ground_floor().map(|f| f.heights[0])
@@ -110,15 +110,15 @@ fn with_shift(rig: &mut WindowRig, f: impl FnOnce(&mut WindowRig)) {
     rig.modifiers = egui::Modifiers::NONE;
 }
 
-fn region_len(rig: &WindowRig) -> usize {
+pub(super) fn region_len(rig: &WindowRig) -> usize {
     rig.ws.grid.verb.region.as_ref().map_or(0, |r| r.len())
 }
 
-fn idle(rig: &WindowRig) -> bool {
+pub(super) fn idle(rig: &WindowRig) -> bool {
     matches!(rig.ws.grid.gesture, Gesture::Idle)
 }
 
-fn bar(rig: &WindowRig) -> String {
+pub(super) fn bar(rig: &WindowRig) -> String {
     options_texts(rig)
         .into_iter()
         .map(|(t, _)| t)
@@ -367,32 +367,6 @@ fn the_options_bar_names_what_the_pick_will_move() {
     rig.frame(vec![]);
     assert!(bar(&rig).contains("Out"), "{}", bar(&rig));
     assert!(bar(&rig).contains("wall"), "{}", bar(&rig));
-}
-
-#[test]
-fn a_hand_placed_wall_says_so_when_it_is_clicked_and_in_the_options_bar() {
-    let mut rig = rig();
-    // The Starter room (room 0) keeps its hand-placed outline walls.
-    rig.ws.grid_active_room = Some(0);
-    let mid = over(&rig, [3, 3], 0);
-    let (from, at) = (
-        [mid[0], eu(&rig, 6000), eu(&rig, 12 * 1024)],
-        [mid[0], eu(&rig, 800), eu(&rig, 1024)],
-    );
-    look(&mut rig, from, at);
-    let before = rig.ws.project.clone();
-    rig.click(north_wall(&rig, [2, 0], 600));
-    assert_eq!(rig.ws.grid.selection.len(), 1, "{}", rig.ws.status);
-    assert!(rig.ws.status.contains("hand-placed"), "{}", rig.ws.status);
-    rig.frame(vec![]);
-    assert!(bar(&rig).contains("hand-placed"), "{}", bar(&rig));
-    // A drag says the same and changes nothing.
-    rig.drag(
-        north_wall(&rig, [2, 0], 600),
-        north_wall(&rig, [2, -1], 600),
-    );
-    assert!(rig.ws.status.contains("hand-placed"), "{}", rig.ws.status);
-    assert_eq!(rig.ws.project, before);
 }
 
 #[test]

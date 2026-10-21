@@ -190,11 +190,11 @@ const EXTRUDE: Rows = &[
     ),
     (
         "Wall: drag along the normal",
-        "Out opens an alcove (a niche for a band), in fills; a box over a wall picks many; Esc cancels",
+        "Out opens an alcove or corridor (a niche for a band), in makes a column or fills; works on hand-placed walls too; a box over a wall picks many; Esc cancels",
     ),
     (
         "Wall: Out, In, = and -",
-        "Push the picked pieces a step; refused, with the reason in the options bar, for hand-placed walls and other rooms",
+        "Push the picked pieces a step, hand-placed walls too; refused, with the reason in the options bar, where another room is in the way",
     ),
     (
         "Brush, Path, Lasso (option row)",

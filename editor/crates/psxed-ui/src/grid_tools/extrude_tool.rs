@@ -441,7 +441,18 @@ fn followers(world: &GridWorld, pieces: &[WallPiece], steps: i32) -> Vec<GridEle
         let Some(room) = world.rooms.get(piece.room) else {
             continue;
         };
-        for wall in derive::edge_walls(room, host, piece.edge) {
+        let derived = derive::edge_walls(room, host, piece.edge);
+        if derived.is_empty() {
+            // A hand-placed wall closes it where nothing can be derived.
+            let stack = room
+                .local(host)
+                .and_then(|[x, z]| room.sector(x, z))
+                .map_or(0, |s| s.walls(piece.edge).len());
+            out.extend((0..stack).map(|index| {
+                GridElement::Face(FaceRef::wall(piece.room, host, piece.edge, index))
+            }));
+        }
+        for wall in derived {
             out.push(GridElement::Face(FaceRef::of_derived(piece.room, &wall)));
         }
     }
