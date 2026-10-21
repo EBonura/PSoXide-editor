@@ -521,7 +521,7 @@ fn the_help_page_names_the_natural_terrain_keys() {
         "Tab",
         "Diagonal: Shift+click",
         "Alt+drag a floor or ceiling face",
-        "Lasso: click corners, Enter",
+        "Brush, Path, Lasso",
         "Cut corners",
         "X Break",
         "B K I Y G",

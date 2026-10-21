@@ -163,6 +163,8 @@ pub(super) fn on_tool_changed(ws: &mut EditorWorkspace) {
         // sources make no order of treads.
         GridTool::Spiral => ws.grid.verb.source = RegionSource::Path,
         GridTool::Stairs => ws.grid.verb.source = ws.grid.verb.stairs_source,
+        // Extrude picks with the box and a click: no brush, path or lasso.
+        GridTool::Extrude => ws.grid.verb.source = RegionSource::Marquee,
         _ => {}
     }
     // The selection is sectors: it only becomes a region at sector size.
@@ -291,11 +293,7 @@ pub(super) fn drag(ws: &mut EditorWorkspace, ptr: &GridPointer) {
             }
         }
         Gesture::Verb(_) => update_amount(ws, ptr),
-        Gesture::Marquee { .. } => {
-            if let Gesture::Marquee { current, .. } = &mut ws.grid.gesture {
-                *current = ptr.pos;
-            }
-        }
+        Gesture::Marquee { .. } => super::extrude_tool::box_drag(ws, ptr),
         _ => {}
     }
 }
@@ -458,6 +456,10 @@ pub(super) fn cancel(ws: &mut EditorWorkspace) -> bool {
         }
         Gesture::Region(_) => {
             ws.status = "Cancelled".to_string();
+            true
+        }
+        Gesture::Marquee { .. } => {
+            super::extrude_tool::box_cancel(ws);
             true
         }
         other => {

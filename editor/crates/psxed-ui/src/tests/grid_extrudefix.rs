@@ -74,7 +74,7 @@ pub(super) fn look_over_the_hall(rig: &mut WindowRig) {
 }
 
 /// Inside the hall, looking up at the ceiling over `cell`.
-fn look_up_at_the_ceiling(rig: &mut WindowRig, cell: [i32; 2]) {
+pub(super) fn look_up_at_the_ceiling(rig: &mut WindowRig, cell: [i32; 2]) {
     let at = over(rig, cell, 3072);
     look(rig, [at[0], eu(rig, 900), at[2] + eu(rig, 3 * 1024)], at);
 }
@@ -98,13 +98,13 @@ pub(super) fn floor(rig: &WindowRig, cell: [i32; 2]) -> Option<i32> {
     room.sector(x, z)?.ground_floor().map(|f| f.heights[0])
 }
 
-fn ceiling(rig: &WindowRig, cell: [i32; 2]) -> Option<i32> {
+pub(super) fn ceiling(rig: &WindowRig, cell: [i32; 2]) -> Option<i32> {
     let room = &rig.world().rooms[HALL];
     let [x, z] = room.local(cell)?;
     room.sector(x, z)?.ground_ceiling().map(|f| f.heights[0])
 }
 
-fn with_shift(rig: &mut WindowRig, f: impl FnOnce(&mut WindowRig)) {
+pub(super) fn with_shift(rig: &mut WindowRig, f: impl FnOnce(&mut WindowRig)) {
     rig.modifiers = egui::Modifiers::SHIFT;
     f(rig);
     rig.modifiers = egui::Modifiers::NONE;
@@ -126,7 +126,7 @@ pub(super) fn bar(rig: &WindowRig) -> String {
         .join(" | ")
 }
 
-const MIXED: &str = "only floors, only ceilings or only walls";
+pub(super) const MIXED: &str = "only floors, only ceilings or only walls";
 
 #[test]
 fn one_press_drag_on_a_floor_nobody_picked_extrudes_it() {
@@ -308,16 +308,20 @@ fn shift_adding_a_floor_to_a_wall_pick_is_refused_in_words() {
 }
 
 #[test]
-fn shift_press_drag_on_the_wrong_kind_changes_nothing_and_says_why() {
+fn a_shift_alt_drag_on_the_wrong_kind_changes_nothing_and_says_why() {
     let mut rig = rig();
     rig.click(at_floor(&rig, [9, 3], 0));
     let before = rig.ws.project.clone();
-    with_shift(&mut rig, |rig| {
-        rig.drag(
-            north_wall(rig, [10, -1], 600),
-            north_wall(rig, [10, -2], 600),
-        );
-    });
+    rig.modifiers = egui::Modifiers {
+        alt: true,
+        shift: true,
+        ..egui::Modifiers::NONE
+    };
+    rig.drag(
+        north_wall(&rig, [10, -1], 600),
+        north_wall(&rig, [10, -2], 600),
+    );
+    rig.modifiers = egui::Modifiers::NONE;
     assert_eq!(rig.ws.project, before);
     assert!(rig.ws.status.contains(MIXED), "{}", rig.ws.status);
 }
@@ -333,15 +337,6 @@ fn shift_adds_floors_and_the_set_is_dragged_together() {
     rig.drag(at_floor(&rig, [9, 3], 0), at_floor(&rig, [9, 3], 1024));
     let (a, b) = (floor(&rig, [9, 3]).unwrap(), floor(&rig, [10, 3]).unwrap());
     assert!(a > 0 && a == b, "{a} {b}: {}", rig.ws.status);
-}
-
-#[test]
-fn shift_drag_sweeps_a_rectangle_of_floors() {
-    let mut rig = rig();
-    with_shift(&mut rig, |rig| {
-        rig.drag(at_floor(rig, [9, 3], 0), at_floor(rig, [10, 4], 0));
-    });
-    assert_eq!(region_len(&rig), 4, "{}", rig.ws.status);
 }
 
 #[test]

@@ -4,11 +4,18 @@
 //! ceiling or a wall piece that is not picked yet picks it (replacing the
 //! old pick) and starts the drag in the same press; a press on something
 //! already picked drags the whole pick; a click only picks. Shift adds more
-//! of the same kind, Shift-drag sweeps a rectangle of floors, and a pick of
-//! mixed kinds is refused in words.
+//! of the same kind and a pick of mixed kinds is refused in words.
 //!
-//! * **Floor** is the region flow Raise always had: sectors, dragged up or
-//!   down.
+//! A box picks many at once. Shift-drag, or a plain drag that starts on
+//! nothing, draws a screen rectangle; the faces inside it light up as it
+//! grows and the release picks them. The box picks ONE kind, the kind of the
+//! face under the drag start (floors when it starts on nothing), and never a
+//! face the camera does not draw (the Select tool's box code). Shift+Alt (or
+//! Ctrl/Cmd) adds the box to the pick; a box of another kind is then refused.
+//! The release only picks: press a picked piece and drag, or Out and In, to
+//! extrude the set.
+//!
+//! * **Floor** is a region of sectors, dragged up or down.
 //! * **Ceiling** is the same flow moving the ceilings of the region.
 //! * **Wall** works on pieces, not sectors. The piece under the pointer (a
 //!   wall face, or one band of a banded wall) lights up; a drag along its
@@ -18,7 +25,8 @@
 //!   the picked pieces a step at a time.
 //!
 //! The plan shows no walls: its press on a sector is a floor pick, a
-//! rectangle swept by a drag, then dragged by a second press.
+//! rectangle of sectors swept by a drag (Shift adds), then dragged by a
+//! second press.
 
 use super::view::editor_y;
 use super::*;
@@ -32,7 +40,6 @@ use psxed_project::grid::{GridWorld, SECTOR_UNITS};
 
 use super::pick::FaceHit;
 use super::verb_state::{VerbDrag, VerbGesture};
-use super::verb_tool::Begin;
 use psxed_project::grid::edit::Region;
 
 /// Most sectors one gesture pushes a wall.
@@ -175,58 +182,42 @@ fn plan_adopt(ws: &mut EditorWorkspace, ptr: &GridPointer, press: bool) -> bool 
 }
 
 /// Press in the view (a drag begins). Returns whether the Extrude flow took
-/// it; `false` leaves the press to the region flow (a rectangle in the plan,
-/// Shift-drag, the brush, path and lasso sources).
+/// it; `false` leaves the press to the region flow (the plan's rectangle).
 pub(super) fn press(ws: &mut EditorWorkspace, ptr: &GridPointer) -> bool {
     if ptr.is_top() {
         return plan_adopt(ws, ptr, true);
     }
     let at = ptr.at_press();
-    let add = ptr.shift() || ptr.command();
     let hit = hit_under(ws, &at);
-    let Some(kind) = hit.as_ref().and_then(kind_of) else {
-        // Nothing to point at: a box picks wall pieces, else the region flow.
-        if ws.grid.verb.surface != ExtrudeSurface::Wall {
-            return false;
-        }
-        ws.grid.gesture = Gesture::Marquee {
-            start: at.pos,
-            current: ptr.pos,
-            additive: add,
-        };
-        return true;
-    };
-    if !adopt(ws, kind, add) {
+    let kind = hit.as_ref().and_then(kind_of);
+    // A box: Shift (or Ctrl/Cmd) held, or a press on nothing.
+    if ptr.shift() || ptr.command() || kind.is_none() {
+        begin_box(ws, ptr, kind.unwrap_or(ExtrudeSurface::Floor));
         return true;
     }
-    match (kind, hit) {
-        (ExtrudeSurface::Wall, Some(hit)) => {
-            let Some(piece) = piece_of_hit(&hit) else {
-                return true;
-            };
-            if add {
-                pick(ws, piece, true);
-                return true;
-            }
+    let (Some(kind), Some(hit)) = (kind, hit) else {
+        return true;
+    };
+    if !adopt(ws, kind, false) {
+        return true;
+    }
+    match piece_of_hit(&hit) {
+        Some(piece) => {
             if !ws.grid.selection.contains(&piece) {
                 pick(ws, piece, false);
             }
             begin_drag(ws, &at, hit.point);
-            true
         }
-        _ => press_surface(ws, ptr, add),
+        None => press_surface(ws, ptr),
     }
+    true
 }
 
 /// A press on a floor or a ceiling: what is under it is picked unless it is
-/// already, and dragged. The brush, path and lasso sources and Shift build
-/// regions instead and are left to the region flow.
-fn press_surface(ws: &mut EditorWorkspace, ptr: &GridPointer, add: bool) -> bool {
-    if add || ws.grid.verb.source != super::verb_state::RegionSource::Marquee {
-        return false;
-    }
+/// already, and dragged.
+fn press_surface(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     let Some((room, cell)) = super::verb_tool::cell_under(ws, &ptr.at_press()) else {
-        return false;
+        return;
     };
     let inside = ws
         .grid
@@ -240,10 +231,95 @@ fn press_surface(ws: &mut EditorWorkspace, ptr: &GridPointer, add: bool) -> bool
         ws.grid.verb.region = Some(region);
         ws.grid.verb.stairs_refusal = None;
     }
-    match super::verb_tool::begin_amount(ws, ptr, room, cell) {
-        Begin::Started | Begin::Refused => true,
-        Begin::NotApplicable => false,
+    super::verb_tool::begin_amount(ws, ptr, room, cell);
+}
+
+/// Whether the box being drawn adds to the pick (Shift+Alt, or Ctrl/Cmd).
+fn box_adds(ptr: &GridPointer) -> bool {
+    ptr.free() || ptr.command()
+}
+
+/// A box begins at the press. Adding a box of another kind than the pick is
+/// refused before it is drawn.
+fn begin_box(ws: &mut EditorWorkspace, ptr: &GridPointer, kind: ExtrudeSurface) {
+    let add = box_adds(ptr);
+    if add && picked(ws) && kind != ws.grid.verb.surface {
+        ws.status = MIXED.to_string();
+        return;
     }
+    ws.grid.verb.box_kind = kind;
+    ws.grid.gesture = Gesture::Marquee {
+        start: ptr.at_press().pos,
+        current: ptr.pos,
+        additive: add,
+    };
+    ws.status = format!(
+        "Drag a box over the {}: release picks them{}",
+        kind_name(kind),
+        if add { ", added to the pick" } else { "" }
+    );
+}
+
+/// The plural a box of `kind` picks.
+pub(super) fn kind_name(kind: ExtrudeSurface) -> &'static str {
+    match kind {
+        ExtrudeSurface::Floor => "floors",
+        ExtrudeSurface::Ceiling => "ceilings",
+        ExtrudeSurface::Wall => "wall pieces",
+    }
+}
+
+/// The elements of the box's kind inside `rect`, the faces the camera draws
+/// only (the Select tool's box code does the culling).
+fn box_found(
+    ws: &EditorWorkspace,
+    ptr: &GridPointer,
+    rect: Rect,
+    kind: ExtrudeSurface,
+) -> Vec<GridElement> {
+    super::select_tool::marquee_elements(ws, ptr, rect)
+        .into_iter()
+        .filter(|e| match (e, kind) {
+            (GridElement::Band { .. }, ExtrudeSurface::Wall) => true,
+            (GridElement::Face(face), _) => kind_of_face(face.target) == Some(kind),
+            _ => false,
+        })
+        .collect()
+}
+
+fn kind_of_face(target: FaceTarget) -> Option<ExtrudeSurface> {
+    Some(match target {
+        FaceTarget::Derived { .. } | FaceTarget::Wall { .. } => ExtrudeSurface::Wall,
+        FaceTarget::Surface {
+            kind: SurfaceKind::Ceiling,
+            ..
+        } => ExtrudeSurface::Ceiling,
+        FaceTarget::Surface {
+            kind: SurfaceKind::Floor,
+            ..
+        } => ExtrudeSurface::Floor,
+    })
+}
+
+/// The box grew: what it would pick lights up.
+pub(super) fn box_drag(ws: &mut EditorWorkspace, ptr: &GridPointer) {
+    let Gesture::Marquee { start, current, .. } = &mut ws.grid.gesture else {
+        return;
+    };
+    *current = ptr.pos;
+    let rect = Rect::from_two_pos(*start, *current);
+    let found = box_found(ws, ptr, rect, ws.grid.verb.box_kind);
+    ws.grid.hover = if found.is_empty() {
+        GridHover::None
+    } else {
+        GridHover::Elements(found)
+    };
+}
+
+/// Esc while a box is being drawn: the box goes, the pick stays.
+pub(super) fn box_cancel(ws: &mut EditorWorkspace) {
+    ws.grid.hover = GridHover::None;
+    ws.status = "Cancelled".to_string();
 }
 
 fn pick(ws: &mut EditorWorkspace, piece: GridElement, add: bool) {
@@ -400,7 +476,8 @@ fn begin_drag(ws: &mut EditorWorkspace, at: &GridPointer, point: [f32; 3]) {
     ws.status = "Drag along the wall's normal: out makes an alcove, in fills".to_string();
 }
 
-/// A box over the wall ended: pick the wall pieces in it.
+/// The box ended: pick what is inside it. A plain box replaces the pick, an
+/// adding box (Shift+Alt) joins it.
 pub(super) fn finish_marquee(
     ws: &mut EditorWorkspace,
     ptr: &GridPointer,
@@ -408,24 +485,104 @@ pub(super) fn finish_marquee(
     end: Pos2,
     additive: bool,
 ) {
-    let rect = Rect::from_two_pos(start, end);
-    let found: Vec<GridElement> = super::select_tool::marquee_elements(ws, ptr, rect)
-        .into_iter()
-        .filter(|e| match e {
-            GridElement::Band { .. } => true,
-            GridElement::Face(face) => matches!(
-                face.target,
-                FaceTarget::Derived { .. } | FaceTarget::Wall { .. }
-            ),
-            _ => false,
-        })
-        .collect();
-    if !additive {
-        ws.grid.selection.clear();
+    ws.grid.hover = GridHover::None;
+    let kind = ws.grid.verb.box_kind;
+    let found = box_found(ws, ptr, Rect::from_two_pos(start, end), kind);
+    if kind != ExtrudeSurface::Wall && ws.grid.cell_size.level() != 2 {
+        ws.status = format!(
+            "A box picks whole sectors: set the cell size to Sector to box {}",
+            kind_name(kind)
+        );
+        return;
     }
-    ws.grid.selection.extend(found);
-    ws.after_grid_selection_changed();
-    ws.status = pick_status(ws);
+    if additive {
+        if !adopt(ws, kind, true) {
+            return;
+        }
+    } else {
+        clear_pick(ws, kind);
+    }
+    match kind {
+        ExtrudeSurface::Wall => {
+            ws.grid.selection.extend(found);
+            ws.after_grid_selection_changed();
+            ws.status = if ws.grid.selection.is_empty() {
+                "No wall pieces in the box".to_string()
+            } else {
+                pick_status(ws)
+            };
+        }
+        _ => pick_surfaces(ws, &found, kind, additive),
+    }
+}
+
+/// A new pick of `kind` starts: whatever was picked goes.
+fn clear_pick(ws: &mut EditorWorkspace, kind: ExtrudeSurface) {
+    ws.grid.verb.surface = kind;
+    ws.grid.verb.region = None;
+    ws.grid.verb.path.clear();
+    ws.grid.selection.clear();
+}
+
+/// Floors or ceilings found by a box become the region. A region lives in
+/// one room: the pick's own when adding, else the room with most faces.
+fn pick_surfaces(
+    ws: &mut EditorWorkspace,
+    found: &[GridElement],
+    kind: ExtrudeSurface,
+    additive: bool,
+) {
+    let mut per_room: std::collections::BTreeMap<usize, Vec<[i32; 2]>> = Default::default();
+    for e in found {
+        if let GridElement::Face(face) = e {
+            per_room.entry(face.room).or_default().push(face.cell());
+        }
+    }
+    let kept = ws.grid.verb.region.clone().filter(|_| additive);
+    let room = kept.as_ref().map(|r| r.room).or_else(|| {
+        per_room
+            .iter()
+            .max_by_key(|(room, cells)| (cells.len(), std::cmp::Reverse(**room)))
+            .map(|(room, _)| *room)
+    });
+    let Some(room) = room else {
+        ws.status = format!("No {} in the box", kind_name(kind));
+        return;
+    };
+    let mut region = kept.unwrap_or_else(|| Region::new(room));
+    let others: usize = per_room
+        .iter()
+        .filter(|(r, _)| **r != room)
+        .map(|(_, cells)| cells.len())
+        .sum();
+    region.extend(&Region::from_cells(
+        room,
+        per_room.remove(&room).unwrap_or_default(),
+    ));
+    ws.grid.verb.stairs_refusal = None;
+    let n = region.len();
+    ws.status = format!(
+        "{n} {} picked: press one and drag up or down{}",
+        if n == 1 {
+            kind_singular(kind)
+        } else {
+            kind_name(kind)
+        },
+        if others > 0 {
+            format!(" ({others} in other rooms left out)")
+        } else {
+            String::new()
+        }
+    );
+    ws.grid.verb.region = Some(region);
+}
+
+fn kind_singular(kind: ExtrudeSurface) -> &'static str {
+    match kind {
+        ExtrudeSurface::Floor => "floor",
+        ExtrudeSurface::Ceiling => "ceiling",
+        ExtrudeSurface::Wall => "wall piece",
+    }
 }
 
 /// The faces to pick again once the pieces have moved `steps` sectors, so

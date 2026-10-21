@@ -181,16 +181,37 @@ fn equals_and_minus_push_a_sector_and_the_pieces_follow_the_new_wall() {
 }
 
 #[test]
-fn a_box_over_the_wall_picks_the_pieces_in_it() {
+fn a_box_that_starts_on_the_wall_picks_the_wall_pieces_in_it() {
+    let mut rig = rig();
+    // From the wall across the rest of the view with Shift held.
+    let rect = RIG_VIEWPORT;
+    let from = rig.screen_of([0.5 * S, 700.0, 0.0]);
+    rig.drag_with(from, rect.max - Vec2::new(4.0, 4.0), egui::Modifiers::SHIFT);
+    assert_eq!(rig.ws.grid.verb.surface, ExtrudeSurface::Wall);
+    assert!(rig.ws.grid.selection.len() >= 5, "{}", rig.ws.status);
+}
+
+#[test]
+fn a_box_that_starts_on_nothing_picks_floors_not_walls() {
     let mut rig = rig();
     rig.ws.grid.verb.surface = ExtrudeSurface::Wall;
-    // From a corner of the view where nothing is, across all of it.
     let rect = RIG_VIEWPORT;
     rig.drag(
         rect.min + Vec2::new(4.0, 4.0),
         rect.max - Vec2::new(4.0, 4.0),
     );
-    assert!(rig.ws.grid.selection.len() >= 5, "{}", rig.ws.status);
+    assert_eq!(rig.ws.grid.verb.surface, ExtrudeSurface::Floor);
+    assert!(rig.ws.grid.selection.is_empty());
+    assert!(
+        rig.ws
+            .grid
+            .verb
+            .region
+            .as_ref()
+            .is_some_and(|r| r.len() >= 5),
+        "{}",
+        rig.ws.status
+    );
 }
 
 #[test]

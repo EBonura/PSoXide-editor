@@ -14,62 +14,65 @@ impl EditorWorkspace {
         if self.grid.tool == GridTool::Extrude && self.grid.verb.surface == ExtrudeSurface::Wall {
             return self.draw_wall_options(ui);
         }
-        ui.label(RichText::new("Region").color(STUDIO_TEXT_WEAK).size(11.0));
-        // A flight is a rectangle or a path; the other sources make no order
-        // of treads.
-        let stairs = self.grid.tool == GridTool::Stairs;
-        let sources: &[RegionSource] = if stairs {
-            &[RegionSource::Marquee, RegionSource::Path]
-        } else {
-            &RegionSource::ALL
-        };
-        for &source in sources {
-            let on = self.grid.verb.source == source;
-            let (label, hint) = if stairs && source == RegionSource::Marquee {
-                (
-                    "Rectangle",
-                    "Drag a rectangle: the treads run from its bottom side across its depth",
-                )
-            } else if stairs {
-                (
-                    "Path",
-                    "Click the waypoints of a winding flight, Enter finishes; [ and ] change the width",
-                )
+        // Extrude picks with the box and a click: it has no Region sources.
+        if self.grid.tool != GridTool::Extrude {
+            ui.label(RichText::new("Region").color(STUDIO_TEXT_WEAK).size(11.0));
+            // A flight is a rectangle or a path; the other sources make no order
+            // of treads.
+            let stairs = self.grid.tool == GridTool::Stairs;
+            let sources: &[RegionSource] = if stairs {
+                &[RegionSource::Marquee, RegionSource::Path]
             } else {
-                (source.label(), source.hint())
+                &RegionSource::ALL
             };
-            if ui.selectable_label(on, label).on_hover_text(hint).clicked() {
-                self.grid.verb.source = source;
-                self.grid.verb.path.clear();
-                if stairs {
-                    self.grid.verb.stairs_source = source;
-                    // The other way of making a flight starts afresh.
-                    self.grid.verb.region = None;
-                    self.grid.verb.stairs_path.clear();
-                    self.grid.verb.stairs_refusal = None;
+            for &source in sources {
+                let on = self.grid.verb.source == source;
+                let (label, hint) = if stairs && source == RegionSource::Marquee {
+                    (
+                        "Rectangle",
+                        "Drag a rectangle: the treads run from its bottom side across its depth",
+                    )
+                } else if stairs {
+                    (
+                        "Path",
+                        "Click the waypoints of a winding flight, Enter finishes; [ and ] change the width",
+                    )
+                } else {
+                    (source.label(), source.hint())
+                };
+                if ui.selectable_label(on, label).on_hover_text(hint).clicked() {
+                    self.grid.verb.source = source;
+                    self.grid.verb.path.clear();
+                    if stairs {
+                        self.grid.verb.stairs_source = source;
+                        // The other way of making a flight starts afresh.
+                        self.grid.verb.region = None;
+                        self.grid.verb.stairs_path.clear();
+                        self.grid.verb.stairs_refusal = None;
+                    }
                 }
             }
-        }
-        match self.grid.verb.source {
-            RegionSource::Brush => {
-                ui.add(
-                    egui::DragValue::new(&mut self.grid.verb.brush_radius)
-                        .range(0..=6)
-                        .prefix("radius "),
-                )
-                .on_hover_text("Brush radius in sectors ([ and ])");
+            match self.grid.verb.source {
+                RegionSource::Brush => {
+                    ui.add(
+                        egui::DragValue::new(&mut self.grid.verb.brush_radius)
+                            .range(0..=6)
+                            .prefix("radius "),
+                    )
+                    .on_hover_text("Brush radius in sectors ([ and ])");
+                }
+                RegionSource::Path => {
+                    ui.add(
+                        egui::DragValue::new(&mut self.grid.verb.path_width)
+                            .range(1..=13)
+                            .prefix("width "),
+                    )
+                    .on_hover_text("Path width in sectors ([ and ])");
+                }
+                RegionSource::Marquee | RegionSource::Lasso => {}
             }
-            RegionSource::Path => {
-                ui.add(
-                    egui::DragValue::new(&mut self.grid.verb.path_width)
-                        .range(1..=13)
-                        .prefix("width "),
-                )
-                .on_hover_text("Path width in sectors ([ and ])");
-            }
-            RegionSource::Marquee | RegionSource::Lasso => {}
+            ui.separator();
         }
-        ui.separator();
         match self.grid.tool {
             GridTool::Extrude => self.draw_raise_options(ui),
             GridTool::Ramp => self.draw_ramp_options(ui),
@@ -417,7 +420,7 @@ impl EditorWorkspace {
                             "Adds a floor above this one, with open space underneath (needs a ceiling or open sky above). Drag a rectangle, then press on it and drag up"
                         }
                         GridTool::Extrude => {
-                            "Press a floor, a ceiling or a wall piece and drag: it is picked and moves in the same press. Shift adds more of the same kind"
+                            "Press a floor, a ceiling or a wall piece and drag: it is picked and moves in the same press. Shift-drag draws a box that picks many of one kind (Shift+Alt adds to the pick)"
                         }
                         _ => "Drag a marquee (or use the brush or a path) to pick the sectors, then press on them and drag up or down",
                     };

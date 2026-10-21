@@ -347,7 +347,7 @@ impl GridTool {
                 "Hover a wall, click to cut it into bands at the rule. Drag a line to move it, Delete removes it, Shift+click picks a band for the palette."
             }
             Self::Extrude => {
-                "Floors and ceilings: pick sectors (marquee, brush or path), press on them and drag up or down. Walls: press a piece and drag along its normal, out makes an alcove (a band, a niche), in fills; Shift adds pieces, = and - push a step. Alt snaps finer, Esc cancels."
+                "Floors and ceilings: press one and drag it up or down. Shift-drag draws a box that picks the faces of one kind inside it (Shift+Alt adds to the pick), then press a picked one and drag. Walls: press a piece and drag along its normal, out makes an alcove (a band, a niche), in fills; = and - push a step. Alt snaps finer, Esc cancels."
             }
             Self::Ramp => {
                 "Pick sectors, then press near the side that keeps its height and drag up or down: the opposite side rises. R turns the side, Tab holds the slope to what the character can walk."

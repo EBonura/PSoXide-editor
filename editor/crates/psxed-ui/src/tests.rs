@@ -16,6 +16,7 @@ mod grid_dupext;
 mod grid_dupext_shots;
 mod grid_extrude;
 mod grid_extrudeall;
+mod grid_extrudebox;
 mod grid_extrudefix;
 mod grid_heat;
 mod grid_layout;

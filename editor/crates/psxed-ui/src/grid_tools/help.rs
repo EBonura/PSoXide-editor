@@ -185,8 +185,12 @@ const EXTRUDE: Rows = &[
         "Only picks. Shift adds more of the same kind; mixing floors, ceilings and walls is refused",
     ),
     (
-        "Shift-drag (floors)",
-        "Sweep a rectangle of sectors and add it to the pick; then press on them and drag. The plan sweeps a rectangle with a plain drag",
+        "Shift-drag, or drag from empty space (box)",
+        "Draws a rectangle on the screen and lights up what it will pick; release picks it. A box picks ONE kind, the kind of the face under where it starts (floors when it starts on nothing), and never a face the camera does not draw. Then press a picked piece and drag, or press Out and In, to move them all. Esc drops the box",
+    ),
+    (
+        "Shift+Alt-drag (add to the pick)",
+        "Adds the box to what is picked. A box of another kind is refused: pick only floors, only ceilings or only walls. The plan sweeps a rectangle of sectors with a plain drag, Shift adds",
     ),
     (
         "Wall: drag along the normal",
@@ -195,14 +199,6 @@ const EXTRUDE: Rows = &[
     (
         "Wall: Out, In, = and -",
         "Push the picked pieces a step, hand-placed walls too; refused, with the reason in the options bar, where another room is in the way",
-    ),
-    (
-        "Brush, Path, Lasso (option row)",
-        "Paint sectors with a disc, click waypoints and press Enter, or click the corners of a shape: [ and ] change the radius or width",
-    ),
-    (
-        "Lasso: click corners, Enter",
-        "Enter closes the shape into the sectors whose centres lie inside it; Shift snaps each new segment to 45 degrees and whole sectors, Esc drops the shape",
     ),
     (
         "Cut corners (Extrude option row, floors)",
@@ -220,7 +216,11 @@ const EXTRUDE: Rows = &[
 const RAMP: Rows = &[
     (
         "Pick a region",
-        "Marquee, brush or path, as for Extrude",
+        "Drag a rectangle, paint with the brush, click a path or the corners of a lasso (option row)",
+    ),
+    (
+        "Brush, Path, Lasso",
+        "Paint sectors with a disc, click waypoints and press Enter, or click the corners of a shape and press Enter (the sectors whose centres lie inside it; Shift snaps a segment to 45 degrees, Esc drops the shape): [ and ] change the radius or width",
     ),
     (
         "Hover the region",

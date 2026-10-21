@@ -142,6 +142,8 @@ pub(crate) struct VerbState {
     pub lasso_cursor: Option<[f64; 2]>,
     /// What the Extrude tool moves.
     pub surface: super::extrude_tool::ExtrudeSurface,
+    /// The kind the Extrude box in flight picks.
+    pub box_kind: super::extrude_tool::ExtrudeSurface,
     /// Sectors the Out and In buttons (and `=` and `-`) push a wall.
     pub wall_steps: i32,
     /// Ceilings move with their floors.
@@ -198,6 +200,7 @@ impl Default for VerbState {
             lasso_add: false,
             lasso_cursor: None,
             surface: super::extrude_tool::ExtrudeSurface::Floor,
+            box_kind: super::extrude_tool::ExtrudeSurface::Floor,
             wall_steps: 1,
             follow_ceiling: false,
             raise_mode: None,
