@@ -19,8 +19,10 @@ Old `layered_sky` and `directional_sky` material fields remain parse-only. On
 load they fold into `sky_aperture` and are not written back; the World node
 holds the projection and source.
 
-Far-vista geometry is deliberately separate. It is authored world scenery, not
-another sky projection.
+The far-vista ring (a camera-centred cylinder of textured cards) was removed
+on 2026-10-21; the editor, the cook and the runtime no longer have it. Old
+project files that still hold a `far_vista` block on the World node load
+normally, ignore the block, and save without it.
 
 ## Cooked and runtime boundary
 

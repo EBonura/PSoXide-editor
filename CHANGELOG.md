@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- The far vista ring is gone. It was an old feature: a ring of textured cards
+  around the camera, set on the World node. The Far Vista section of the World
+  form, the preview ring, the cooked room field and the runtime draw are all
+  removed. Projects that still hold a `far_vista` block load as before and drop
+  it on the next save; none of the shipped projects had it switched on. The
+  room records chunk is version 2 (24 bytes smaller per room), so discs need a
+  fresh cook.
+
 - Grid worlds can gather their light. With `global_light` on, every face corner
   samples the hemisphere above it on the host: rays that meet a nearby wall
   darken the ambient, rays that leave the world bring in a sky colour, and

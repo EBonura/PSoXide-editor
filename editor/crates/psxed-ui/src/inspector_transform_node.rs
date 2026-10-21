@@ -13,7 +13,6 @@ pub(crate) fn draw_transform_policy_editor(
         NodeKind::World {
             sector_size: _,
             sky,
-            far_vista,
             camera: _,
             // Draw distance has no effect on a grid world's cook (checked
             // 2026-10-20: the cooked output is byte-identical for any value),
@@ -21,15 +20,7 @@ pub(crate) fn draw_transform_policy_editor(
             culling: _,
             physics,
             world_message,
-        } => draw_world_settings(
-            ui,
-            sky,
-            far_vista,
-            physics,
-            world_message,
-            texture_options,
-            nav_target,
-        ),
+        } => draw_world_settings(ui, sky, physics, world_message, texture_options, nav_target),
         NodeKind::ArchProp { geometry, .. } => {
             arch_prop_transform_editor(ui, &mut node.transform, world_sector_size, *geometry)
         }
@@ -107,7 +98,6 @@ pub(crate) fn node_transform_inspector(kind: &NodeKind) -> NodeTransformInspecto
 pub(crate) fn draw_world_settings(
     ui: &mut egui::Ui,
     sky: &mut SkySettings,
-    far_vista: &mut FarVistaSettings,
     physics: &mut WorldPhysicsSettings,
     world_message: &mut Option<psxed_project::WorldMessage>,
     texture_options: &[(ResourceId, String)],
@@ -480,88 +470,6 @@ pub(crate) fn draw_world_settings(
                     });
                 });
             }
-        });
-    egui::CollapsingHeader::new(icons::label(icons::WAYPOINT, "Far Vista"))
-        .default_open(true)
-        .show(ui, |ui| {
-            changed |= ui.checkbox(&mut far_vista.enabled, "Enabled").changed();
-            changed |= texture_resource_picker(
-                ui,
-                "Texture",
-                &mut far_vista.texture,
-                texture_options,
-                nav_target,
-            );
-            egui::CollapsingHeader::new("Panel Textures")
-                .default_open(false)
-                .show(ui, |ui| {
-                    ui.label(
-                        RichText::new("Filled panels override the repeated texture.")
-                            .color(STUDIO_TEXT_WEAK),
-                    );
-                    for index in 0..psxed_project::FAR_VISTA_TEXTURE_PANEL_COUNT {
-                        let label = format!("Panel {:02}", index + 1);
-                        changed |= texture_resource_picker(
-                            ui,
-                            &label,
-                            &mut far_vista.texture_panels[index],
-                            texture_options,
-                            nav_target,
-                        );
-                    }
-                });
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Radius").color(STUDIO_TEXT_WEAK));
-                changed |= ui
-                    .add(
-                        egui::DragValue::new(&mut far_vista.radius)
-                            .speed(128.0)
-                            .range(1_024..=65_535),
-                    )
-                    .changed();
-            });
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Height").color(STUDIO_TEXT_WEAK));
-                changed |= ui
-                    .add(
-                        egui::DragValue::new(&mut far_vista.height)
-                            .speed(64.0)
-                            .range(128..=32_768),
-                    )
-                    .changed();
-            });
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Y Offset").color(STUDIO_TEXT_WEAK));
-                changed |= ui
-                    .add(
-                        egui::DragValue::new(&mut far_vista.vertical_offset)
-                            .speed(64.0)
-                            .range(-32_768..=32_768),
-                    )
-                    .changed();
-            });
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Segments").color(STUDIO_TEXT_WEAK));
-                let mut segments = far_vista.segments.clamp(3, 16);
-                if ui.add(egui::Slider::new(&mut segments, 3..=16)).changed() {
-                    far_vista.segments = segments;
-                    changed = true;
-                }
-            });
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Rotation").color(STUDIO_TEXT_WEAK));
-                changed |= ui
-                    .add(
-                        egui::DragValue::new(&mut far_vista.rotation_degrees)
-                            .speed(1.0)
-                            .suffix(" deg"),
-                    )
-                    .changed();
-            });
-            changed |= color_editor(ui, "Tint", &mut far_vista.tint);
-            changed |= ui
-                .checkbox(&mut far_vista.match_room_fog, "Match world fog")
-                .changed();
         });
     changed
 }
@@ -2219,7 +2127,7 @@ pub(crate) fn draw_node_kind_editor(
             ui.weak("Entity host. Add component children for rendering, collision, interaction, lighting, or logic.");
         }
         NodeKind::World { .. } => {
-            ui.weak("World root; holds global physics, camera, sky, and far vista settings.");
+            ui.weak("World root; holds global physics, camera, and sky settings.");
         }
         NodeKind::MeshInstance {
             mesh,
@@ -4745,7 +4653,6 @@ mod sky_ux_tests {
             texture: None,
             ..SkySettings::default()
         };
-        let mut far_vista = FarVistaSettings::default();
         let mut physics = WorldPhysicsSettings::default();
         let mut world_message = None;
         let mut nav_target = None;
@@ -4764,7 +4671,6 @@ mod sky_ux_tests {
                     draw_world_settings(
                         ui,
                         &mut sky,
-                        &mut far_vista,
                         &mut physics,
                         &mut world_message,
                         &[(atlas, "Sunset Atlas".to_string())],

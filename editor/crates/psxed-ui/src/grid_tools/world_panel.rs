@@ -150,7 +150,7 @@ impl EditorWorkspace {
             },
         );
 
-        // Message, physics, sky and far vista.
+        // Message, physics and sky.
         if let Some(node) = self.project.active_scene_mut().node_mut(NodeId::ROOT) {
             changed |= draw_transform_policy_editor(
                 ui,

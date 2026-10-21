@@ -19,7 +19,6 @@ use emulator_core::gpu::GpuCmdLogEntry;
 use psx_engine::{PrimitivePacketArena, PrimitivePacketScratch, PRIMITIVE_PACKET_SLOT_WORDS};
 use psx_gpu::material::{BlendMode, TextureMaterial};
 use psx_gpu::ot::OrderingTable;
-use psx_gpu::prim::QuadFlat;
 use psx_gpu::prim::QuadGouraud;
 use psx_gpu::prim::QuadTexturedMaterial;
 use psx_gpu::prim::TriGouraud;
@@ -80,7 +79,6 @@ const PROJECTED_SKY_PACKET_WORDS: usize = if psx_engine::sky::VIEW_RAY_SKY_PACKE
 };
 const PROJECTED_SKY_PACKET_SLOTS: usize =
     PROJECTED_SKY_PACKET_WORDS.div_ceil(PRIMITIVE_PACKET_SLOT_WORDS);
-const FAR_VISTA_QUAD_CAP: usize = 16;
 /// Model scratch mirrors editor-playtest's runtime model caps so the
 /// editor preview exercises the same overflow behavior.
 const PREVIEW_MODEL_VERTEX_CAP: usize = 1024;
@@ -109,7 +107,8 @@ const OT_DEPTH: usize = 4096;
 const PREVIEW_GEOMETRY_SLOT_MIN: usize = 1;
 const PREVIEW_CLEAR_SLOT: usize = OT_DEPTH - 1;
 const PREVIEW_SKY_SLOT: usize = OT_DEPTH - 2;
-const PREVIEW_FAR_VISTA_SLOT: usize = OT_DEPTH - 3;
+// OT_DEPTH - 3 (the old far-vista ring slot) stays empty so the depth
+// quantisation of every preview frame is unchanged.
 const PREVIEW_GEOMETRY_SLOT_MAX: usize = OT_DEPTH - 4;
 const OT_ADDRESS_WINDOW_BYTES: usize = 0x0100_0000;
 const PREVIEW_SHADOW_DEPTH_BIAS: u32 = 128;
@@ -158,7 +157,6 @@ struct PreviewScratch {
     gte_depth_shift: u32,
     projected_sky_packets: PrimitivePacketScratch<PROJECTED_SKY_PACKET_SLOTS>,
     sky_quads: [QuadGouraud; SKY_QUAD_CAP],
-    far_vista_quads: [QuadFlat; FAR_VISTA_QUAD_CAP],
     tris: [TriGouraud; TRI_CAP],
     tex_tris: [TriTexturedGouraud; TRI_CAP],
     /// Engine-side model instances render through
@@ -179,7 +177,6 @@ struct PreviewScratch {
     /// full. Reported to the editor at the end of the frame.
     dropped: u32,
     sky_used: usize,
-    far_vista_used: usize,
     tex_used: usize,
     model_tex_used: usize,
     particle_used: usize,
@@ -205,7 +202,6 @@ const _: () = assert!(
 
 const EMPTY_TRI: TriGouraud =
     TriGouraud::new([(0, 0), (0, 0), (0, 0)], [(0, 0, 0), (0, 0, 0), (0, 0, 0)]);
-const EMPTY_FAR_VISTA_QUAD: QuadFlat = QuadFlat::new([(0, 0), (0, 0), (0, 0), (0, 0)], 0, 0, 0);
 const EMPTY_SKY_QUAD: QuadGouraud = QuadGouraud::new(
     [(0, 0), (0, 0), (0, 0), (0, 0)],
     [(0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0)],
@@ -252,8 +248,6 @@ fn new_preview_scratch() -> Box<PreviewScratch> {
         std::ptr::addr_of_mut!((*ptr).gte_depth_shift).write(0);
         std::ptr::addr_of_mut!((*ptr).projected_sky_packets).write(PrimitivePacketScratch::ZERO);
         std::ptr::addr_of_mut!((*ptr).sky_quads).write([EMPTY_SKY_QUAD; SKY_QUAD_CAP]);
-        std::ptr::addr_of_mut!((*ptr).far_vista_quads)
-            .write([EMPTY_FAR_VISTA_QUAD; FAR_VISTA_QUAD_CAP]);
         std::ptr::addr_of_mut!((*ptr).tris).write([EMPTY_TRI; TRI_CAP]);
         std::ptr::addr_of_mut!((*ptr).tex_tris).write([EMPTY_TEX_TRI; TRI_CAP]);
         std::ptr::addr_of_mut!((*ptr).model_tex_tris).write([EMPTY_MODEL_TEX_TRI; TRI_CAP]);
@@ -272,7 +266,6 @@ fn new_preview_scratch() -> Box<PreviewScratch> {
         std::ptr::addr_of_mut!((*ptr).used).write(0);
         std::ptr::addr_of_mut!((*ptr).dropped).write(0);
         std::ptr::addr_of_mut!((*ptr).sky_used).write(0);
-        std::ptr::addr_of_mut!((*ptr).far_vista_used).write(0);
         std::ptr::addr_of_mut!((*ptr).tex_used).write(0);
         std::ptr::addr_of_mut!((*ptr).model_tex_used).write(0);
         std::ptr::addr_of_mut!((*ptr).particle_used).write(0);
@@ -470,7 +463,6 @@ fn build_frame(
     scratch.used = 0;
     scratch.dropped = 0;
     scratch.sky_used = 0;
-    scratch.far_vista_used = 0;
     scratch.tex_used = 0;
     scratch.model_tex_used = 0;
     scratch.particle_used = 0;
@@ -505,18 +497,6 @@ fn build_frame(
             SkyMode::Off => {}
         }
     }
-    let resolved_far_vista = project
-        .active_scene()
-        .world_far_vista_for_node(preview_context_node)
-        .unwrap_or_default()
-        .resolved_for_room(false, [0; 3]);
-    push_far_vista_ring(
-        &mut scratch,
-        camera,
-        world_camera,
-        resolved_far_vista,
-        textures,
-    );
     // The grid world renders once, against the camera GTE state installed
     // above.
     if grid_world {

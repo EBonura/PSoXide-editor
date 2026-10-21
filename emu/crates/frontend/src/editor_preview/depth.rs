@@ -93,7 +93,7 @@ mod tests {
                 ((depth as usize) >> 2).clamp(1, PREVIEW_GEOMETRY_SLOT_MAX)
             );
         }
-        assert!(preview_depth_slot(range, u32::MAX) < PREVIEW_FAR_VISTA_SLOT);
+        assert!(preview_depth_slot(range, u32::MAX) < PREVIEW_SKY_SLOT);
     }
 
     #[test]

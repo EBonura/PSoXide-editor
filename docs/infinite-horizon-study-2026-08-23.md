@@ -434,6 +434,8 @@ These need your call before milestone 1.
   should be designed for now rather than retrofitted.
 - **Does the far vista ring stay?** A silhouette ring between sky and ground
   would sit naturally with this and add a lot of depth, but it's extra fill.
+  Answered 2026-10-21: the far vista ring was removed from the editor, cook and
+  runtime (`LevelFarVistaRecord` no longer exists); the study above describes it as it was.
 
 ## 11. Bottom line
 

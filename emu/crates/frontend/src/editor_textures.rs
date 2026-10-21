@@ -134,8 +134,7 @@ pub struct EditorTextures {
     scene_sky_signature: Option<SceneSkySignature>,
     /// Ordered material ids, texture paths, and fallback names used to
     /// populate the limited room-material VRAM band. Scene-used
-    /// materials and active far-vista panels are prioritized ahead
-    /// of unused library resources.
+    /// materials are prioritized ahead of unused library resources.
     room_signature: Vec<PreviewTextureSignature>,
     /// 8-texel-grid allocator for room textures inside tpages 5..15.
     room_allocator: TextureWindowAtlas<ROOM_TPAGE_COUNT>,
@@ -301,9 +300,8 @@ impl EditorTextures {
         self.scene_sky_slot
     }
 
-    /// Walk scene-used Materials first, then active far-vista panels,
-    /// then unused library Materials, and ensure as many as fit have
-    /// textures in VRAM.
+    /// Walk scene-used Materials first, then unused library Materials,
+    /// and ensure as many as fit have textures in VRAM.
     ///
     /// Resolution order per material:
     ///
@@ -317,8 +315,8 @@ impl EditorTextures {
     ///    checker) so the preview is never blank.
     ///
     /// The editor preview's room-material region is intentionally small,
-    /// so authored scene materials and far-vista panels must get slots
-    /// before unused resource-library entries.
+    /// so authored scene materials must get slots before unused
+    /// resource-library entries.
     pub fn refresh(&mut self, project: &ProjectDocument, project_root: &Path) {
         if self.project_root.as_deref() != Some(project_root) {
             self.project_root = Some(project_root.to_path_buf());
@@ -1034,7 +1032,6 @@ fn preview_texture_upload_plan(
     }
 
     push_image_prop_material_uploads(project, project_root, &mut plan);
-    push_far_vista_texture_uploads(project, project_root, &mut plan);
 
     for resource in &project.resources {
         if matches!(&resource.data, ResourceData::Material(_)) {
@@ -1222,99 +1219,6 @@ fn push_image_prop_material_uploads(
         };
         push_material_resource_upload(project, *material_id, false, project_root, plan);
     }
-}
-
-fn push_far_vista_texture_uploads(
-    project: &ProjectDocument,
-    project_root: &Path,
-    plan: &mut Vec<PreviewTextureUploadPlan>,
-) {
-    for node in project.active_scene().nodes() {
-        let NodeKind::World { far_vista, .. } = &node.kind else {
-            continue;
-        };
-        if !far_vista.enabled {
-            continue;
-        }
-        let assigned_panels = far_vista.texture_panels.iter().any(Option::is_some);
-        if assigned_panels {
-            for texture_id in far_vista.texture_panels.iter().flatten() {
-                push_texture_resource_upload(project, *texture_id, project_root, plan);
-            }
-        } else if let Some(texture_id) = far_vista.texture {
-            push_texture_resource_upload(project, texture_id, project_root, plan);
-        }
-    }
-}
-
-fn push_texture_resource_upload(
-    project: &ProjectDocument,
-    id: ResourceId,
-    project_root: &Path,
-    plan: &mut Vec<PreviewTextureUploadPlan>,
-) {
-    if plan.iter().any(|item| item.id == id) {
-        return;
-    }
-    let Some(resource) = project.resource(id) else {
-        return;
-    };
-    let (psxt_path, cache_signature, generated_bytes, transition) = match &resource.data {
-        // Direct image references (far vista, UI images, particle
-        // masks) point at textured materials since the merge.
-        ResourceData::Material(material)
-            if material.texture_mode == MaterialTextureMode::Generated =>
-        {
-            let signature = format!("@generated:{:?}", material.generated);
-            (
-                signature.clone(),
-                signature,
-                Some(generate_material_texture_psxt(material.generated)),
-                None,
-            )
-        }
-        ResourceData::Material(material)
-            if material.texture_mode == MaterialTextureMode::Transition =>
-        {
-            (
-                format!("@transition:{}", id.raw()),
-                transition_preview_signature(project, material.transition, project_root, Some(id)),
-                None,
-                Some(TransitionPreviewSource {
-                    owner: id,
-                    recipe: material.transition,
-                }),
-            )
-        }
-        ResourceData::Material(material) => match material.psxt_path.as_deref() {
-            Some(path) => (
-                path.to_string(),
-                texture_cache_signature(project_root, path),
-                None,
-                None,
-            ),
-            None => return,
-        },
-        ResourceData::Texture { psxt_path } => (
-            psxt_path.clone(),
-            texture_cache_signature(project_root, psxt_path),
-            None,
-            None,
-        ),
-        _ => return,
-    };
-    plan.push(PreviewTextureUploadPlan {
-        id,
-        name: resource.name.clone(),
-        signature: psxt_path,
-        cache_signature,
-        generated_bytes,
-        transition,
-        force_zero_opaque: false,
-        allow_procedural_fallback: false,
-        secondary: None,
-        secondary_signature: "none".to_string(),
-    });
 }
 
 fn transition_preview_signature(
@@ -1836,7 +1740,7 @@ mod tests {
     use psx_gpu::material::TextureWindow;
     use psx_gpu_render::VRAM_WIDTH;
     use psxed_project::{
-        FarVistaSettings, GeneratedMaterialTexture, MaterialResource, MaterialTextureMode,
+        GeneratedMaterialTexture, MaterialResource, MaterialTextureMode,
         ModelSecondaryLayer, NodeKind, ProjectDocument, PsxBlendMode, ResourceData,
         TransitionMaterialTexture,
     };
@@ -2228,104 +2132,6 @@ mod tests {
         assert!(textures.slot(used).is_some());
         assert!(textures.slot(unused[70]).is_some());
         assert!(textures.slot(unused[79]).is_none());
-    }
-
-    #[test]
-    fn upload_plan_includes_far_vista_panel_textures() {
-        let mut project = ProjectDocument::new("preview");
-        let panel = project.add_resource(
-            "Vista Panel",
-            ResourceData::Material(MaterialResource::opaque(Some("vista.psxt".to_string()))),
-        );
-        let mut far_vista = FarVistaSettings {
-            enabled: true,
-            ..FarVistaSettings::default()
-        };
-        far_vista.texture_panels[0] = Some(panel);
-
-        let scene = project.active_scene_mut();
-        scene.add_node(
-            scene.root,
-            "World",
-            NodeKind::World {
-                sector_size: 1024,
-                sky: Default::default(),
-                far_vista,
-                camera: Default::default(),
-                culling: Default::default(),
-                physics: Default::default(),
-                world_message: None,
-            },
-        );
-
-        let plan = preview_texture_upload_plan(&project, Path::new("."));
-        let item = plan
-            .iter()
-            .find(|item| item.id == panel)
-            .expect("far-vista panel texture is uploaded for preview");
-        assert_eq!(item.signature, "vista.psxt");
-        assert!(!item.force_zero_opaque);
-        assert!(!item.allow_procedural_fallback);
-    }
-
-    #[test]
-    fn upload_plan_prioritizes_far_vista_panels_before_unused_materials() {
-        let mut project = ProjectDocument::new("preview");
-        let used = add_material(&mut project, "Active Material");
-        let unused: Vec<_> = (0..80)
-            .map(|index| add_material(&mut project, format!("Unused {index}")))
-            .collect();
-        let panel = project.add_resource(
-            "Vista Panel",
-            ResourceData::Material(MaterialResource::opaque(Some("vista.psxt".to_string()))),
-        );
-        let scene = project.active_scene_mut();
-        scene.add_node(
-            scene.root,
-            "Banner",
-            NodeKind::ImageProp {
-                material: Some(used),
-                width: 256,
-                height: 256,
-                cylindrical_billboard: false,
-                collision_enabled: false,
-                collision_size: [256; 3],
-                destructible: None,
-            },
-        );
-        let mut far_vista = FarVistaSettings {
-            enabled: true,
-            ..FarVistaSettings::default()
-        };
-        far_vista.texture_panels[0] = Some(panel);
-
-        let scene = project.active_scene_mut();
-        scene.add_node(
-            scene.root,
-            "World",
-            NodeKind::World {
-                sector_size: 1024,
-                sky: Default::default(),
-                far_vista,
-                camera: Default::default(),
-                culling: Default::default(),
-                physics: Default::default(),
-                world_message: None,
-            },
-        );
-
-        let plan = preview_texture_upload_plan(&project, Path::new("."));
-        let panel_index = plan
-            .iter()
-            .position(|item| item.id == panel)
-            .expect("far-vista panel texture is uploaded for preview");
-        let first_unused_index = plan
-            .iter()
-            .position(|item| item.id == unused[0])
-            .expect("unused material remains in the upload plan");
-
-        assert_eq!(plan.first().map(|item| item.id), Some(used));
-        assert!(panel_index < first_unused_index);
     }
 
     /// Full-height model atlases and room palettes occupy disjoint regions.

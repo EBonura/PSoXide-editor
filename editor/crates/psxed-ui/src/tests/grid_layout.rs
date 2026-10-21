@@ -157,7 +157,7 @@ fn properties_names_what_is_edited_and_nothing_selected_is_a_hint() {
     let text = screen(&mut ws);
     assert!(text.contains("Properties"), "{text}");
     assert!(text.contains("Nothing selected"), "{text}");
-    for form in ["Physics", "Far Vista", "Sky Texture"] {
+    for form in ["Physics", "World Message", "Sky Texture"] {
         assert!(!text.contains(form), "the World form is drawn: {form}");
     }
     // The World entry of the Structure panel opens the form.

@@ -294,7 +294,7 @@ Grid-specific record families in `engine/crates/psx-level/src/lib.rs`:
 `LevelVisibilityPvsRecord` (:1093), `LevelVisibilityCellRecord` (:1126),
 `LevelRoomSurfaceCacheRecord`/`LevelCachedRoom*` (:1157-1224),
 `RoomResidencyRecord` (:1355). Everything else in the crate (assets, sky,
-far vista, camera, materials, models, logic, game entities, weapons,
+camera, materials, models, logic, game entities, weapons,
 equipment, combat capsules) is world-agnostic and consumed identically by BSP
 projects. Classification: grid families compatibility-only; keep the shared
 families untouched. `RoomIndex` itself (:72) stays until N1 lands.
