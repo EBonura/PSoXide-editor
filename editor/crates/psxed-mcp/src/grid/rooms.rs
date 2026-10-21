@@ -237,12 +237,22 @@ pub struct StreamReq {
     pub active_radius: Option<u8>,
     /// Sectors past the draw distance a streamer prefetches. Default 8.
     pub lead_radius: Option<u8>,
+    /// Stream and draw as a ring: the room the observer is in and every room
+    /// one portal away, ignoring draw_far and lead_radius. For worlds cut
+    /// into even chunks.
+    pub ring: Option<bool>,
 }
 
 /// Apply [`StreamReq`].
 pub fn set_stream(world: &mut GridWorld, req: &StreamReq) -> Result<String, String> {
-    if req.draw_far.is_none() && req.active_radius.is_none() && req.lead_radius.is_none() {
-        return Err("nothing to change: give draw_far, active_radius or lead_radius".to_string());
+    if req.draw_far.is_none()
+        && req.active_radius.is_none()
+        && req.lead_radius.is_none()
+        && req.ring.is_none()
+    {
+        return Err(
+            "nothing to change: give draw_far, active_radius, lead_radius or ring".to_string(),
+        );
     }
     let mut radii = world.stream;
     if let Some(v) = req.draw_far {
@@ -254,9 +264,12 @@ pub fn set_stream(world: &mut GridWorld, req: &StreamReq) -> Result<String, Stri
     if let Some(v) = req.lead_radius {
         radii.lead_radius = v;
     }
+    if let Some(v) = req.ring {
+        radii.ring = v;
+    }
     world.stream = radii;
     Ok(format!(
-        "stream radii: draw {} sector(s){}, active {}, lead {}",
+        "stream radii: draw {} sector(s){}, active {}, lead {}{}",
         radii.draw_far,
         if radii.draw_far == 0 {
             " (unbounded)"
@@ -264,7 +277,12 @@ pub fn set_stream(world: &mut GridWorld, req: &StreamReq) -> Result<String, Stri
             ""
         },
         radii.active_radius,
-        radii.lead_radius
+        radii.lead_radius,
+        if radii.ring {
+            " (ring: the observer's room and its neighbours)"
+        } else {
+            ""
+        }
     ))
 }
 

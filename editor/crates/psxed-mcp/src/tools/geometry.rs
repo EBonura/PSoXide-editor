@@ -76,7 +76,7 @@ impl EditorServer {
     }
 
     #[rmcp::tool(
-        description = "Set the world's streaming radii in sectors, walked over the portals: draw_far (a room farther than this from the camera is not drawn and is not needed in memory; 0 is unbounded; default 48), active_radius (entities within this walk distance of the player think; default 32) and lead_radius (sectors past draw_far a streamer prefetches; default 8). They are written into the cooked level."
+        description = "Set the world's streaming radii in sectors, walked over the portals: draw_far (a room farther than this from the camera is not drawn and is not needed in memory; 0 is unbounded; default 48), active_radius (entities within this walk distance of the player think; default 32) and lead_radius (sectors past draw_far a streamer prefetches; default 8). ring: true streams and draws the observer's room and every room one portal away instead (for worlds cut into even chunks). They are written into the cooked level."
     )]
     async fn grid_set_stream(
         &self,
