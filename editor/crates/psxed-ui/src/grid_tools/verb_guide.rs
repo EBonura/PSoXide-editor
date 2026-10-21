@@ -23,7 +23,11 @@ impl EditorWorkspace {
             return None;
         }
         let verb = &self.grid.verb;
-        if tool == GridTool::Extrude && verb.surface == ExtrudeSurface::Wall {
+        if tool == GridTool::Extrude
+            && verb.surface == ExtrudeSurface::Wall
+            && (!self.grid.selection.is_empty()
+                || matches!(self.grid.gesture, Gesture::Marquee { .. }))
+        {
             return Some(self.wall_step_text());
         }
         match &self.grid.gesture {
@@ -53,6 +57,11 @@ impl EditorWorkspace {
             _ => {}
         }
         let has_region = verb.region.is_some();
+        // Extrude with nothing picked yet: press what to move.
+        if tool == GridTool::Extrude && !has_region && verb.path.is_empty() && verb.lasso.is_empty()
+        {
+            return Some(self.first_step(tool).to_string());
+        }
         // A path or lasso still being clicked out.
         if !verb.path.is_empty() {
             return Some("Click more waypoints, Enter to finish".to_string());
@@ -83,23 +92,22 @@ impl EditorWorkspace {
                 }
             }
             Gesture::Marquee { .. } => "Release to pick the wall pieces in the box".to_string(),
-            _ if self.grid.selection.is_empty() => {
-                "Point at a wall piece and drag along its normal; Shift adds, a box picks several"
-                    .to_string()
-            }
-            _ => {
-                "Drag the picked pieces along the normal, or press Out and In (= and -)".to_string()
-            }
+            _ => match super::extrude_tool::wall_refusal(self) {
+                Some(why) => why,
+                None => {
+                    "Drag the picked wall pieces along the normal, or press Out and In (= and -)"
+                        .to_string()
+                }
+            },
         }
     }
 
     /// The first step with a rectangle: where the verb goes.
     fn first_step(&self, tool: GridTool) -> &'static str {
         match tool {
-            GridTool::Extrude if self.grid.verb.surface == ExtrudeSurface::Ceiling => {
-                "Drag a rectangle over the ceiling to move"
+            GridTool::Extrude => {
+                "Press a floor, a ceiling or a wall piece and drag: it is picked and moves in one go (Shift adds, Shift-drag sweeps floors)"
             }
-            GridTool::Extrude => "Drag a rectangle over the floor to extrude",
             GridTool::Ramp => "Drag a rectangle where the ramp goes",
             GridTool::Stairs => "Drag a rectangle where the stairs go",
             GridTool::Slab => match self.grid.verb.slab.mode {
@@ -117,8 +125,11 @@ impl EditorWorkspace {
     fn amount_step(&self, tool: GridTool) -> String {
         let verb = &self.grid.verb;
         match tool {
+            GridTool::Extrude if verb.surface == ExtrudeSurface::Ceiling => {
+                "Drag the picked ceilings up or down, or press another to pick it".to_string()
+            }
             GridTool::Extrude => {
-                "Press on the region and drag up to extrude, down to sink".to_string()
+                "Drag the picked floors up or down, or press another to pick it".to_string()
             }
             GridTool::Ramp => {
                 "Press near the side that stays put and drag up (R turns the side)".to_string()

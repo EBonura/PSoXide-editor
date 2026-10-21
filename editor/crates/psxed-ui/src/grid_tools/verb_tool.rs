@@ -507,7 +507,12 @@ pub(super) enum Begin {
 }
 
 /// Press on the region: start the amount drag of the active verb.
-fn begin_amount(ws: &mut EditorWorkspace, ptr: &GridPointer, room: usize, cell: [i32; 2]) -> Begin {
+pub(super) fn begin_amount(
+    ws: &mut EditorWorkspace,
+    ptr: &GridPointer,
+    room: usize,
+    cell: [i32; 2],
+) -> Begin {
     match ws.grid.tool {
         GridTool::Extrude => begin_raise(ws, ptr, room, cell),
         GridTool::Ramp => super::ramp_tool::begin(ws, ptr, room, cell),
@@ -574,6 +579,14 @@ fn raise_drag(ws: &EditorWorkspace, region: &Region, cell: [i32; 2]) -> Option<(
     RaiseDrag::begin(world, region, params).map(|d| (d, reference))
 }
 
+/// Room-relative height of the ceiling over `cell`, from its corners.
+fn ceiling_height_at(ws: &EditorWorkspace, room: usize, cell: [i32; 2]) -> Option<i32> {
+    let room = ws.project.active_scene().world.grid()?.rooms.get(room)?;
+    let [x, z] = room.local(cell)?;
+    let heights = room.sector(x, z)?.ground_ceiling()?.heights;
+    Some(heights.iter().sum::<i32>() / 4)
+}
+
 fn begin_raise(ws: &mut EditorWorkspace, ptr: &GridPointer, room: usize, cell: [i32; 2]) -> Begin {
     let Some(region) = ws.grid.verb.region.clone() else {
         return Begin::Refused;
@@ -597,7 +610,13 @@ fn begin_raise(ws: &mut EditorWorkspace, ptr: &GridPointer, room: usize, cell: [
         }
         return Begin::Refused;
     };
-    let ppu = drag_rate(ws, ptr, room, cell, ws.grid.verb.reference);
+    // The rate is measured where the surface being dragged is: a ceiling's
+    // pixels per unit are not the floor's.
+    let grab = match ws.grid.verb.surface {
+        ExtrudeSurface::Ceiling => ceiling_height_at(ws, room, cell),
+        _ => None,
+    };
+    let ppu = drag_rate(ws, ptr, room, cell, grab.unwrap_or(ws.grid.verb.reference));
     ws.grid.gesture = Gesture::Verb(Box::new(VerbGesture {
         drag,
         press_y: ptr.at_press().pos.y,

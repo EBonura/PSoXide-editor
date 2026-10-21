@@ -220,9 +220,15 @@ fn another_room_in_the_way_is_said_and_nothing_changes() {
 fn a_ceiling_region_drags_up_and_leaves_the_floor_alone() {
     let mut rig = GridRig::top("extrude-ceiling", room());
     rig.tool(GridTool::Extrude);
+    // A ceiling region (picked in the 3D view) carries on being dragged in
+    // the plan.
+    let region = psxed_project::grid::edit::Region::from_rect(
+        0,
+        psxed_project::grid::edit::CellRect::from_corners([1, 1], [2, 2]),
+    );
     rig.ws.grid.verb.surface = ExtrudeSurface::Ceiling;
+    rig.ws.grid.verb.region = Some(region);
     let original = rig.ws.project.clone();
-    rig.drag(rig.cell_centre(1, 1), rig.cell_centre(2, 2));
     let from = rig.cell_centre(1, 1);
     let to = from - Vec2::new(0.0, 2.0 * crate::grid_tools::view::TOP_PIXELS_PER_CLICK);
     rig.drag(from, to);
@@ -236,6 +242,27 @@ fn a_ceiling_region_drags_up_and_leaves_the_floor_alone() {
     assert_eq!(floor_at(&rig, [1, 1]), Some([0; 4]));
     rig.ws.do_undo();
     assert_eq!(rig.ws.project, original);
+}
+
+#[test]
+fn a_new_pick_in_the_plan_is_a_floor_pick() {
+    let mut rig = GridRig::top("extrude-plan-floor", room());
+    rig.tool(GridTool::Extrude);
+    rig.ws.grid.verb.surface = ExtrudeSurface::Ceiling;
+    rig.ws.grid.verb.region = Some(psxed_project::grid::edit::Region::from_rect(
+        0,
+        psxed_project::grid::edit::CellRect::from_corners([1, 1], [2, 2]),
+    ));
+    // Outside the ceiling region: a new pick, of floors.
+    rig.click(rig.cell_centre(4, 4));
+    assert_eq!(rig.ws.grid.verb.surface, ExtrudeSurface::Floor);
+    let from = rig.cell_centre(4, 4);
+    rig.drag(
+        from,
+        from - Vec2::new(0.0, crate::grid_tools::view::TOP_PIXELS_PER_CLICK),
+    );
+    assert_eq!(floor_at(&rig, [4, 4]), Some([256; 4]), "{}", rig.ws.status);
+    assert_eq!(ceiling_at(&rig, [4, 4]), Some([1536; 4]));
 }
 
 #[test]

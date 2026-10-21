@@ -10,12 +10,9 @@ use psxed_project::grid::edit::verbs::raise::RaiseMode;
 impl EditorWorkspace {
     /// Options of the active verb, in the strip's option row.
     pub(super) fn draw_verb_options(&mut self, ui: &mut egui::Ui) {
-        if self.grid.tool == GridTool::Extrude {
-            self.draw_extrude_surfaces(ui);
-            ui.separator();
-            if self.grid.verb.surface == ExtrudeSurface::Wall {
-                return self.draw_wall_options(ui);
-            }
+        // What Extrude moves follows what was pressed: no chip to set first.
+        if self.grid.tool == GridTool::Extrude && self.grid.verb.surface == ExtrudeSurface::Wall {
+            return self.draw_wall_options(ui);
         }
         ui.label(RichText::new("Region").color(STUDIO_TEXT_WEAK).size(11.0));
         // A flight is a rectangle or a path; the other sources make no order
@@ -318,23 +315,6 @@ impl EditorWorkspace {
             .on_hover_text("Ceilings move with the floors (headroom stays)");
     }
 
-    /// Extrude: what it moves.
-    fn draw_extrude_surfaces(&mut self, ui: &mut egui::Ui) {
-        ui.label(RichText::new("Moves").color(STUDIO_TEXT_WEAK).size(11.0));
-        for surface in ExtrudeSurface::ALL {
-            if ui
-                .selectable_label(self.grid.verb.surface == surface, surface.label())
-                .on_hover_text(surface.hint())
-                .clicked()
-            {
-                self.grid.verb.surface = surface;
-                self.grid.verb.region = None;
-                self.grid.verb.path.clear();
-                self.grid.selection.clear();
-            }
-        }
-    }
-
     /// Extrude on walls: the step and the Out and In buttons.
     fn draw_wall_options(&mut self, ui: &mut egui::Ui) {
         ui.label(RichText::new("Push").color(STUDIO_TEXT_WEAK).size(11.0));
@@ -367,6 +347,10 @@ impl EditorWorkspace {
                 .color(STUDIO_TEXT_WEAK)
                 .size(11.0),
         );
+        // Why the pick cannot be pushed, where it can be seen.
+        if let Some(why) = super::extrude_tool::wall_refusal(self) {
+            ui.label(RichText::new(why).color(STUDIO_WARNING).size(11.0));
+        }
     }
 
     fn draw_raise_options(&mut self, ui: &mut egui::Ui) {
@@ -431,6 +415,9 @@ impl EditorWorkspace {
                         }
                         GridTool::Slab => {
                             "Adds a floor above this one, with open space underneath (needs a ceiling or open sky above). Drag a rectangle, then press on it and drag up"
+                        }
+                        GridTool::Extrude => {
+                            "Press a floor, a ceiling or a wall piece and drag: it is picked and moves in the same press. Shift adds more of the same kind"
                         }
                         _ => "Drag a marquee (or use the brush or a path) to pick the sectors, then press on them and drag up or down",
                     };

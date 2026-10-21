@@ -174,7 +174,10 @@ fn the_3d_view_raises_a_region_too() {
     let original = rig.ws.project.clone();
     rig.tool(GridTool::Extrude);
     let ground = |rig: &GridRig, x: f32, z: f32| rig.screen_of([x * S, 0.0, z * S]);
-    rig.drag(ground(&rig, 3.5, 3.5), ground(&rig, 4.5, 4.5));
+    // A plain press-drag extrudes what it presses; Shift-drag sweeps a
+    // rectangle of sectors.
+    let (a, b) = (ground(&rig, 3.5, 3.5), ground(&rig, 4.5, 4.5));
+    rig.drag_with(a, b, egui::Modifiers::SHIFT);
     let region = rig.ws.grid.verb.region.clone().expect("a region");
     assert_eq!(region.len(), 4, "{}", rig.ws.status);
     let from = ground(&rig, 3.5, 3.5);

@@ -177,20 +177,24 @@ const BANDS: Rows = &[
 ];
 const EXTRUDE: Rows = &[
     (
-        "Raise = Extrude on floors",
-        "Raise (U) is Extrude: it raises floors as it did, and the Moves chips pick Ceiling or Wall",
+        "Press a floor, ceiling or wall piece, drag",
+        "It is picked and moves in the same press; there is nothing to set first. Floors and ceilings go up or down, a wall piece along its normal. A press on something already picked drags the whole pick; a press elsewhere replaces it",
     ),
     (
-        "Wall: press, drag along the normal",
-        "Out opens an alcove (a niche for a band), in fills; Shift adds pieces, a box picks many; Esc cancels",
+        "Click",
+        "Only picks. Shift adds more of the same kind; mixing floors, ceilings and walls is refused",
+    ),
+    (
+        "Shift-drag (floors)",
+        "Sweep a rectangle of sectors and add it to the pick; then press on them and drag. The plan sweeps a rectangle with a plain drag",
+    ),
+    (
+        "Wall: drag along the normal",
+        "Out opens an alcove (a niche for a band), in fills; a box over a wall picks many; Esc cancels",
     ),
     (
         "Wall: Out, In, = and -",
-        "Push the picked pieces a step; refused for hand-placed walls and other rooms",
-    ),
-    (
-        "Drag, click (Marquee)",
-        "Pick a rectangle of sectors, or one with a click; Shift adds to the region",
+        "Push the picked pieces a step; refused, with the reason in the options bar, for hand-placed walls and other rooms",
     ),
     (
         "Brush, Path, Lasso (option row)",
@@ -205,7 +209,7 @@ const EXTRUDE: Rows = &[
         "Crack the outer triangle of the region's convex corners down by the last raise (a click if none): a plateau with 45 degree corners, one undo step",
     ),
     (
-        "Press on the region, drag",
+        "Drag up or down",
         "Up raises, down lowers (256 units a step, Alt for 64); the sides appear live, release commits",
     ),
     ("Tab", "Switch Offset (keep the shape) and Level (flatten to the height under the pointer)"),
