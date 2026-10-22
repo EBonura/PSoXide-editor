@@ -38,6 +38,12 @@ pub const GRID_SKY_BG_ROWS: &[u16] = &[];
 pub const GRID_SKY_BG_RUNS: &[u8] = &[];
 /// The tiles of the sky VRAM starts with (room 0's) that differ from the background.
 pub const GRID_SKY_INITIAL_MASK: &[u32] = &[];
+/// Far panels in place of cube skies (`psx_grid::render::panels`): the depth of each
+/// cell of each room's panels, the eye they were baked from, and the backdrop colours
+/// (below the horizon, at it, at the top of the screen). Empty: the skies are cube skies.
+pub const GRID_PANEL_DEPTH: &[u8] = &[];
+pub const GRID_PANEL_EYE: &[[i16; 3]] = &[];
+pub const GRID_PANEL_BACKDROP: [[u8; 3]; 3] = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
 pub const LEN_ROOMS: usize = 0;
 pub const LEN_ROOM_REFLECTION_PROBES: usize = 0;
 pub const LEN_LIGHTS: usize = 0;

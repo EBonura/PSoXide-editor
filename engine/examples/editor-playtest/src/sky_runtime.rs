@@ -105,6 +105,16 @@ pub(super) fn draw_scene_sky(
     let Some(slot) = slot.filter(|slot| slot.ready) else {
         return;
     };
+    if kind == SkyTextureKind::Cube && !crate::generated::GRID_PANEL_DEPTH.is_empty() {
+        draw_panel_sky(
+            slot.tpage_word,
+            slot.clut_word,
+            camera,
+            primitive_packets,
+            ot,
+        );
+        return;
+    }
     let word_capacity = match kind {
         SkyTextureKind::QuakeLayered => VIEW_RAY_SKY_PACKET_WORDS,
         SkyTextureKind::Cube => VIEW_RAY_CUBE_SKY_PACKET_WORDS,
@@ -190,4 +200,76 @@ pub(super) fn draw_scene_sky(
     unsafe {
         ot.add_committed_tagged_packet_stream_unchecked(stream);
     }
+}
+
+/// Draw the far panels of the room whose panels the atlas holds, and the
+/// backdrop they sit on, in the sky's slot ([`psx_grid::render::panels`]).
+///
+/// The packets are written nearest cell first and the backdrop last, so the
+/// ordering table (which prepends in memory order) draws the backdrop, then the
+/// farthest cell, and the nearest cell last.
+fn draw_panel_sky(
+    tpage: u16,
+    clut: u16,
+    camera: WorldCamera,
+    primitive_packets: &mut PrimitivePacketArena<'_>,
+    ot: &mut OtFrame<'_, OT_DEPTH>,
+) {
+    use crate::generated::{GRID_PANEL_BACKDROP, GRID_PANEL_DEPTH, GRID_PANEL_EYE};
+    use psx_grid::render::panels::{
+        draw_panels, write_backdrop, Backdrop, PanelTables, PanelView, PANEL_DRAW_WORDS,
+    };
+    let Some(mut reservation) = primitive_packets.reserve_packet_words(PANEL_DRAW_WORDS) else {
+        return;
+    };
+    let focal = camera.projection.focal_length;
+    psx_gte::scene::set_screen_offset(
+        i32::from(crate::PROJECTION.screen_x) << 16,
+        i32::from(crate::PROJECTION.screen_y) << 16,
+    );
+    psx_gte::scene::set_projection_plane(focal.clamp(1, i32::from(u16::MAX)) as u16);
+    let view = psx_grid::render::load_view_rotation(
+        crate::world_common::view_camera(camera).origin,
+        crate::world_common::world_view_rotation(camera),
+    );
+    let screen = [i32::from(SCREEN_W), i32::from(SCREEN_H)];
+    let (_, forward) = psx_grid::render::plan_axes(&view.rotation.m);
+    let panel_view = PanelView {
+        screen,
+        near_sz: (focal / 2 + 2).clamp(1, i32::from(u16::MAX)) as u16,
+        forward,
+        slot: (OT_DEPTH - 1) as u16,
+        tpage,
+        clut,
+    };
+    let tables = PanelTables::new(GRID_PANEL_DEPTH, GRID_PANEL_EYE);
+    let words = reservation.words_mut();
+    let drawn = draw_panels(
+        &tables,
+        &crate::vram_runtime::panel_page_rooms(),
+        &panel_view,
+        words,
+    );
+    let [below, horizon, top] = GRID_PANEL_BACKDROP;
+    let (backdrop_words, backdrop_packets) = write_backdrop(
+        &view.rotation.m,
+        focal,
+        screen,
+        Backdrop {
+            below,
+            horizon,
+            top,
+        },
+        panel_view.slot,
+        &mut words[drawn.words..],
+    );
+    let stream = reservation
+        .commit(
+            drawn.words + backdrop_words,
+            (drawn.packets + backdrop_packets) as usize,
+        )
+        .expect("panel draw exceeded its reserved packet range");
+    // SAFETY: the stream is one committed arena range, live until the walk
+    // ends, and its slot is below OT_DEPTH.
+    unsafe { ot.add_committed_tagged_packet_stream_unchecked(stream) };
 }

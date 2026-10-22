@@ -334,7 +334,16 @@ pub(super) fn cook(
         let albedo = materials.iter().map(|&m| (m, table.albedo(m))).collect();
         let colours =
             cook::sky_bake::WorldColours::new(world, i32::from(cooked.level.sector_units), albedo);
-        bake_chunk_skies(&cooked, &colours, report)
+        if world.stream.flood.panels {
+            bake_chunk_panels(
+                &cooked,
+                &colours,
+                world.stream.flood.panel_near_sectors(),
+                report,
+            )
+        } else {
+            bake_chunk_skies(&cooked, &colours, report)
+        }
     } else {
         (Vec::new(), PlaytestSkyTables::default())
     };
@@ -481,6 +490,42 @@ pub fn cook_level_bytes(
     })
 }
 
+/// Run `job` for every one of `rooms` rooms across the host's cores,
+/// results in room order.
+fn across_rooms<T: Send>(
+    rooms: usize,
+    job: &(dyn Fn(usize) -> Result<T, String> + Sync),
+) -> Result<Vec<T>, String> {
+    let threads = std::thread::available_parallelism()
+        .map_or(4, std::num::NonZeroUsize::get)
+        .min(rooms.max(1));
+    std::thread::scope(|scope| {
+        let workers: Vec<_> = (0..threads)
+            .map(|worker| {
+                scope.spawn(move || {
+                    (worker..rooms)
+                        .step_by(threads)
+                        .map(|room| job(room).map(|out| (room, out)))
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        let mut out: Vec<Option<T>> = (0..rooms).map(|_| None).collect();
+        for worker in workers {
+            for result in worker
+                .join()
+                .map_err(|_| "a bake thread panicked".to_string())?
+            {
+                let (room, value) = result?;
+                out[room] = Some(value);
+            }
+        }
+        out.into_iter()
+            .map(|value| value.ok_or_else(|| "a room was not baked".to_string()))
+            .collect()
+    })
+}
+
 /// Bake every room's sky ([`cook::sky_bake`], hits in their materials'
 /// colours) across the host's cores, on palettes shared by all of them (so
 /// the guest streams one over another in place), each stored sparsely against
@@ -493,35 +538,8 @@ fn bake_chunk_skies(
 ) -> (Vec<Vec<u8>>, PlaytestSkyTables) {
     let started = std::time::Instant::now();
     let rooms = cooked.level.rooms.len();
-    let threads = std::thread::available_parallelism()
-        .map_or(4, std::num::NonZeroUsize::get)
-        .min(rooms.max(1));
     // Run `job` for every room across the cores, results in room order.
-    let across = |job: &(dyn Fn(usize) -> Result<Vec<u8>, String> + Sync)| {
-        std::thread::scope(|scope| {
-            let workers: Vec<_> = (0..threads)
-                .map(|worker| {
-                    scope.spawn(move || {
-                        (worker..rooms)
-                            .step_by(threads)
-                            .map(|room| job(room).map(|out| (room, out)))
-                            .collect::<Vec<_>>()
-                    })
-                })
-                .collect();
-            let mut out = vec![Vec::new(); rooms];
-            for worker in workers {
-                for result in worker
-                    .join()
-                    .map_err(|_| "a bake thread panicked".to_string())?
-                {
-                    let (room, bytes) = result?;
-                    out[room] = bytes;
-                }
-            }
-            Ok::<_, String>(out)
-        })
-    };
+    let across = |job: &(dyn Fn(usize) -> Result<Vec<u8>, String> + Sync)| across_rooms(rooms, job);
     let skies = std::sync::Mutex::new(Vec::new());
     let baked = across(&|room| {
         let sky = cook::sky_bake::bake_chunk_sky_with(cooked, room, Some(colours))?;
@@ -551,6 +569,7 @@ fn bake_chunk_skies(
                 background_rows: background.rows,
                 background_runs: background.runs,
                 palettes: palettes.to_vec(),
+                ..PlaytestSkyTables::default()
             },
         ))
     });
@@ -570,6 +589,87 @@ fn bake_chunk_skies(
         Err(error) => {
             report.warn(format!(
                 "grid world: chunk sky bake failed, keeping the authored sky: {error}"
+            ));
+            (Vec::new(), PlaytestSkyTables::default())
+        }
+    }
+}
+
+/// Bake every room's far panels ([`cook::sky_bake::bake_chunk_panels_with`])
+/// across the host's cores, on palettes shared by all of them, each stored
+/// sparsely against a transparent background in the cube sky's own atlas
+/// layout, so the guest streams and swaps them as it does a chunk sky. A
+/// failure leaves the world with its one authored sky.
+fn bake_chunk_panels(
+    cooked: &cook::CookedLevel,
+    colours: &cook::sky_bake::WorldColours<'_>,
+    near_sectors: i32,
+    report: &mut PlaytestValidationReport,
+) -> (Vec<Vec<u8>>, PlaytestSkyTables) {
+    use psx_grid::render::panels::CELLS;
+    let started = std::time::Instant::now();
+    let rooms = cooked.level.rooms.len();
+    let baked = across_rooms(rooms, &|room| {
+        cook::sky_bake::bake_chunk_panels_with(cooked, room, Some(colours), near_sectors)
+    })
+    .and_then(|panels| {
+        use psx_level::sky_tiles as st;
+        let palettes = cook::sky_bake::panel_palettes(&panels)?;
+        let background = cook::sky_bake::panel_background();
+        let entries = across_rooms(rooms, &|room| {
+            Ok(panels[room].to_sparse(&palettes, &background))
+        })?;
+        let initial = panels[0].to_psxt_with(&palettes)?;
+        let initial_mask = entries[0][st::HEADER_BYTES..st::TILES_OFFSET]
+            .chunks_exact(4)
+            .map(|w| u32::from_le_bytes([w[0], w[1], w[2], w[3]]))
+            .collect();
+        let mut panel_depth = Vec::with_capacity(rooms * CELLS);
+        let mut panel_eye = Vec::with_capacity(rooms);
+        for panel in &panels {
+            panel_depth.extend_from_slice(&panel.depth);
+            let eye = panel.sky.eye;
+            let fit = |v: i32| i16::try_from(v).map_err(|_| format!("eye {eye:?} exceeds 16 bits"));
+            panel_eye.push([fit(eye[0])?, fit(eye[1])?, fit(eye[2])?]);
+        }
+        let fog = panels.first().map_or([0.0; 3], |p| p.sky.fog);
+        let backdrop = cook::sky_bake::panel_backdrop(fog);
+        Ok((
+            entries,
+            PlaytestSkyTables {
+                initial,
+                initial_mask,
+                background_rows: background.rows,
+                background_runs: background.runs,
+                palettes: palettes.to_vec(),
+                panel_depth,
+                panel_eye,
+                panel_backdrop: [backdrop.below, backdrop.horizon, backdrop.top],
+            },
+        ))
+    });
+    match baked {
+        Ok((entries, tables)) => {
+            let bytes: usize = entries.iter().map(Vec::len).sum();
+            let cells = tables.panel_depth.iter().filter(|&&d| d != 0).count();
+            report.warn(format!(
+                "grid world: baked {rooms} panel sets (near {near_sectors} sectors) in {:.1} s: \
+                 {} KiB on disc ({} KiB in sectors), {cells} of {} cells drawn, depth tables {} KiB",
+                started.elapsed().as_secs_f64(),
+                bytes / 1024,
+                entries
+                    .iter()
+                    .map(|e| e.len().div_ceil(SECTOR_BYTES) * SECTOR_BYTES)
+                    .sum::<usize>()
+                    / 1024,
+                rooms * CELLS,
+                (tables.panel_depth.len() + tables.panel_eye.len() * 6) / 1024,
+            ));
+            (entries, tables)
+        }
+        Err(error) => {
+            report.warn(format!(
+                "grid world: panel bake failed, keeping the authored sky: {error}"
             ));
             (Vec::new(), PlaytestSkyTables::default())
         }

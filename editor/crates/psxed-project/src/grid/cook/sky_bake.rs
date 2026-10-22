@@ -16,6 +16,7 @@
 use psx_engine::sky::{CubeFace, CUBE_SKY_FACE_HEIGHT, CUBE_SKY_FACE_WIDTH};
 use psx_engine::{CollisionTrace, CollisionTraceProvider, CollisionTraceQuery, RoomPoint};
 use psx_grid::collision::GridTraceProvider;
+use psx_grid::render::panels::{self, DEPTH_UNIT};
 use psx_grid::write::{aligned_copy, words_as_bytes};
 use psx_grid::{CollisionView, LevelView, ResidentRooms, RoomView};
 
@@ -271,37 +272,42 @@ impl ChunkSky {
         palettes: &[Vec<[u8; 3]>; 6],
         background: &SkyBackground,
     ) -> Result<Vec<u8>, String> {
-        use psx_level::sky_tiles as st;
-        let indices = self.indices(palettes);
-        let view = background.view();
-        let width = st::FACES * st::FACE_TEXELS;
-        let mut mask = [0u8; st::MASK_BYTES];
-        let mut tiles = Vec::new();
-        let mut count = 0usize;
-        for index in 0..st::TILE_COUNT {
-            let (face, tile_y, tile_x) = st::tile_position(index);
-            let words: [u32; st::TILE_WORDS] = std::array::from_fn(|r| {
-                let y = tile_y * st::TILE_TEXELS + r;
-                let at = y * width + face * st::FACE_TEXELS + tile_x * st::TILE_TEXELS;
-                (0..st::TILE_TEXELS)
-                    .fold(0u32, |word, t| word | u32::from(indices[at + t]) << (4 * t))
-            });
-            if words == view.tile_words(face, tile_y, tile_x) {
-                continue;
-            }
-            mask[index / 8] |= 1 << (index % 8);
-            count += 1;
-            for word in words {
-                tiles.extend_from_slice(&word.to_le_bytes());
-            }
-        }
-        let mut entry = Vec::with_capacity(st::entry_bytes(count));
-        entry.extend_from_slice(&st::VERSION.to_le_bytes());
-        entry.extend_from_slice(&(count as u16).to_le_bytes());
-        entry.extend_from_slice(&mask);
-        entry.extend_from_slice(&tiles);
-        Ok(entry)
+        Ok(sparse_entry(&self.indices(palettes), background))
     }
+}
+
+/// The sparse entry ([`psx_level::sky_tiles`]) of an atlas of palette
+/// `indices` (1536 by 256, row-major): the 8x8 tiles that differ from
+/// `background`, nothing else.
+fn sparse_entry(indices: &[u8], background: &SkyBackground) -> Vec<u8> {
+    use psx_level::sky_tiles as st;
+    let view = background.view();
+    let width = st::FACES * st::FACE_TEXELS;
+    let mut mask = [0u8; st::MASK_BYTES];
+    let mut tiles = Vec::new();
+    let mut count = 0usize;
+    for index in 0..st::TILE_COUNT {
+        let (face, tile_y, tile_x) = st::tile_position(index);
+        let words: [u32; st::TILE_WORDS] = std::array::from_fn(|r| {
+            let y = tile_y * st::TILE_TEXELS + r;
+            let at = y * width + face * st::FACE_TEXELS + tile_x * st::TILE_TEXELS;
+            (0..st::TILE_TEXELS).fold(0u32, |word, t| word | u32::from(indices[at + t]) << (4 * t))
+        });
+        if words == view.tile_words(face, tile_y, tile_x) {
+            continue;
+        }
+        mask[index / 8] |= 1 << (index % 8);
+        count += 1;
+        for word in words {
+            tiles.extend_from_slice(&word.to_le_bytes());
+        }
+    }
+    let mut entry = Vec::with_capacity(st::entry_bytes(count));
+    entry.extend_from_slice(&st::VERSION.to_le_bytes());
+    entry.extend_from_slice(&(count as u16).to_le_bytes());
+    entry.extend_from_slice(&mask);
+    entry.extend_from_slice(&tiles);
+    entry
 }
 
 /// The index every texel that no ray hit reads, level-wide: what the sparse
@@ -598,6 +604,291 @@ pub fn bake_chunk_sky_with(
     })
 }
 
+/// The far panels of one room ([`psx_grid::render::panels`]): the picture an
+/// eye at the room's centre sees beyond the rooms near it, as 24 strips in
+/// the sky atlas's layout, and the depth of each cell of each strip.
+pub struct ChunkPanels {
+    /// The room baked from. `sky.rgb` is the atlas, face-major like a cube
+    /// sky's (strip `s` is at columns `s % 4 * 64` of face `s / 4`); a texel no
+    /// ray hit is black, which is index 0, transparent.
+    pub sky: ChunkSky,
+    /// Depth of each cell in [`DEPTH_UNIT`]s, strip-major; 0 for a cell no
+    /// ray hit.
+    pub depth: [u8; panels::CELLS],
+}
+
+impl ChunkPanels {
+    /// The palette index of every texel over `palettes` (index 0 for a miss,
+    /// the nearest of the others otherwise), as one row-major 1536x256 image.
+    pub fn indices(&self, palettes: &[Vec<[u8; 3]>; 6]) -> Vec<u8> {
+        let (w, h) = (
+            usize::from(CUBE_SKY_FACE_WIDTH),
+            usize::from(CUBE_SKY_FACE_HEIGHT),
+        );
+        let mut indices = vec![0u8; 6 * w * h];
+        for (face, palette) in palettes.iter().enumerate() {
+            for y in 0..h {
+                for x in 0..w {
+                    let texel = self.sky.rgb[(face * h + y) * w + x];
+                    if texel != [0, 0, 0] {
+                        indices[y * 6 * w + face * w + x] = nearest(&palette[1..], texel) + 1;
+                    }
+                }
+            }
+        }
+        indices
+    }
+
+    /// The atlas as a 4bpp PSXT over `palettes`, index 0 transparent.
+    pub fn to_psxt_with(&self, palettes: &[Vec<[u8; 3]>; 6]) -> Result<Vec<u8>, String> {
+        psxed_tex::encode_indexed_psxt_with_clut_rows(
+            CUBE_SKY_FACE_WIDTH * 6,
+            CUBE_SKY_FACE_HEIGHT,
+            psxed_format::texture::Depth::Bit4,
+            &self.indices(palettes),
+            palettes.as_slice(),
+            true,
+        )
+        .map_err(|e| format!("encode the panels: {e}"))
+    }
+
+    /// The panels as a sparse entry against [`panel_background`].
+    pub fn to_sparse(&self, palettes: &[Vec<[u8; 3]>; 6], background: &SkyBackground) -> Vec<u8> {
+        sparse_entry(&self.indices(palettes), background)
+    }
+}
+
+/// The background of a panel atlas: index 0 (transparent) everywhere.
+pub fn panel_background() -> SkyBackground {
+    let rows = 6 * usize::from(CUBE_SKY_FACE_HEIGHT);
+    SkyBackground {
+        rows: (0..=rows as u16).collect(),
+        runs: [255u8, 0].repeat(rows),
+    }
+}
+
+/// One 16-colour palette per atlas page for a whole set of panels, index 0
+/// black (transparent) and the other fifteen quantised from every texel a ray
+/// hit.
+pub fn panel_palettes(panels: &[ChunkPanels]) -> Result<[Vec<[u8; 3]>; 6], String> {
+    let (w, h) = (
+        usize::from(CUBE_SKY_FACE_WIDTH),
+        usize::from(CUBE_SKY_FACE_HEIGHT),
+    );
+    let mut palettes: [Vec<[u8; 3]>; 6] = Default::default();
+    for (face, palette) in palettes.iter_mut().enumerate() {
+        let hits: Vec<[u8; 3]> = panels
+            .iter()
+            .flat_map(|p| p.sky.rgb[face * w * h..(face + 1) * w * h].iter().copied())
+            .filter(|texel| *texel != [0, 0, 0])
+            .collect();
+        let stride = (hits.len() / 262_144).max(1);
+        let sample: Vec<[u8; 3]> = hits.into_iter().step_by(stride).collect();
+        *palette = vec![[0, 0, 0]];
+        if sample.is_empty() {
+            continue;
+        }
+        palette.extend(
+            psxed_tex::quantize_rgb(&sample, 15)
+                .map_err(|e| format!("panel page {face}: {e}"))?
+                .0,
+        );
+    }
+    Ok(palettes)
+}
+
+/// The backdrop colours a level of fog `fog` shows through its panels, the
+/// colours the cube sky paints a ray that hits nothing: the void under the
+/// level, the fog at the horizon, and the sky a little way up.
+pub fn panel_backdrop(fog: [f64; 3]) -> panels::Backdrop {
+    let q = |c: [f64; 3]| c.map(|v| v.clamp(0.0, 255.0) as u8);
+    let top = [fog[0] * 0.35, fog[1] * 0.45, fog[2] * 0.7];
+    panels::Backdrop {
+        below: q(fog.map(|c| c * 0.6)),
+        horizon: q(fog),
+        // The top of the screen is about half way to the zenith.
+        top: q([0, 1, 2].map(|i| fog[i] + (top[i] - fog[i]) * 0.5)),
+    }
+}
+
+/// Bake the panels of room `chunk` of `cooked`: the rooms within
+/// `near_sectors` sectors of the room's centre are left out, the rest is
+/// traced from the centre through each texel of each strip.
+pub fn bake_chunk_panels_with(
+    cooked: &CookedLevel,
+    chunk: usize,
+    colours: Option<&WorldColours<'_>>,
+    near_sectors: i32,
+) -> Result<ChunkPanels, String> {
+    let rooms = cooked.level.rooms.len();
+    if chunk >= rooms {
+        return Err(format!("room {chunk} does not exist ({rooms} rooms)"));
+    }
+    let chunk_words: Vec<Vec<u32>> = cooked.chunks.iter().map(|c| aligned_copy(c)).collect();
+    let views = chunk_words
+        .iter()
+        .zip(&cooked.chunks)
+        .map(|(words, bytes)| {
+            RoomView::parse(words_as_bytes(words, bytes.len()))
+                .map(|view| Some(view.col))
+                .map_err(|e| format!("room chunk does not parse: {e:?}"))
+        })
+        .collect::<Result<Vec<Option<CollisionView<'_>>>, String>>()?;
+    let core_words = aligned_copy(&cooked.core);
+    let level = LevelView::parse(words_as_bytes(&core_words, cooked.core.len()))
+        .map_err(|e| format!("level core does not parse: {e:?}"))?;
+    let s = i32::from(cooked.level.sector_units);
+    let record = cooked.level.rooms[chunk];
+    let (cx, cz) = (
+        record.origin[0] + i32::from(record.width) * s / 2,
+        record.origin[2] + i32::from(record.depth) * s / 2,
+    );
+    // The eye stands on whatever is under the room's centre in the whole
+    // level.
+    let eye_y = {
+        let set = ResidentRooms::from_collisions(level, &views)
+            .ok_or("the level's rooms do not fit a resident set")?;
+        let world = set.collision();
+        let mut provider = GridTraceProvider::new(&world);
+        let top = record.origin[1] + i32::from(record.max_y) + EYE_HEIGHT;
+        let bottom = record.origin[1] + i32::from(record.min_y) - EYE_HEIGHT;
+        let down = point_trace(&mut provider, [cx, top, cz], [cx, bottom, cz]);
+        if down.hit() && !down.start_solid {
+            down.end.y + EYE_HEIGHT
+        } else {
+            record.origin[1] + EYE_HEIGHT
+        }
+    };
+    let eye = [cx, eye_y, cz];
+    // The rooms the runtime draws whole from anywhere in this room are left
+    // out: those within `near_sectors` of the eye. They move far outside the
+    // level, as the cube sky's ring does, so no ray starts inside one.
+    let near = i64::from(near_sectors.max(0)) * i64::from(s);
+    let gap = |axis: usize, lo: i32, size: i32| {
+        i64::from((lo - eye[axis]).max(eye[axis] - (lo + size)).max(0))
+    };
+    let excluded: Vec<usize> = (0..rooms)
+        .filter(|&room| {
+            let r = cooked.level.rooms[room];
+            let (gx, gz) = (
+                gap(0, r.origin[0], i32::from(r.width) * s),
+                gap(2, r.origin[2], i32::from(r.depth) * s),
+            );
+            room == chunk || gx * gx + gz * gz <= near * near
+        })
+        .collect();
+    let mut core = cooked.level.clone();
+    for &room in &excluded {
+        core.rooms[room].origin = [40_000, 30_000, 40_000];
+    }
+    let cut_bytes = core.try_to_bytes()?;
+    let cut_words = aligned_copy(&cut_bytes);
+    let cut = LevelView::parse(words_as_bytes(&cut_words, cut_bytes.len()))
+        .map_err(|e| format!("cut level core does not parse: {e:?}"))?;
+    let set = ResidentRooms::from_collisions(cut, &views)
+        .ok_or("the level's rooms do not fit a resident set")?;
+    let world = set.collision();
+    let mut provider = GridTraceProvider::new(&world);
+
+    let fogged = record.flags & psx_grid::ROOM_FOG != 0;
+    let fog = if fogged {
+        record.fog_rgb.map(f64::from)
+    } else {
+        NO_FOG_HORIZON
+    };
+    let (fog_near, fog_far) = if fogged {
+        (f64::from(record.fog_near), f64::from(record.fog_far))
+    } else {
+        (f64::MAX, f64::MAX)
+    };
+    let light = {
+        let l = [0.4f64, 0.8, 0.3];
+        let n = (l[0] * l[0] + l[1] * l[1] + l[2] * l[2]).sqrt();
+        [l[0] / n, l[1] / n, l[2] / n]
+    };
+    let (face_w, face_h) = (
+        usize::from(CUBE_SKY_FACE_WIDTH),
+        usize::from(CUBE_SKY_FACE_HEIGHT),
+    );
+    let half_width = f64::from(panels::HALF_WIDTH_Q12) / 4096.0;
+    let half_height = f64::from(panels::HALF_HEIGHT_Q12) / 4096.0;
+    let mut rgb = vec![[0u8; 3]; 6 * face_w * face_h];
+    let mut cells: Vec<Vec<u16>> = vec![Vec::new(); panels::CELLS];
+    let mut hits = 0;
+    for strip in 0..panels::STRIPS {
+        let theta = (strip as f64 * 15.0).to_radians();
+        let n = [theta.cos(), 0.0, theta.sin()];
+        let t = [-theta.sin(), 0.0, theta.cos()];
+        let (face, column) = (
+            strip / panels::STRIPS_PER_PAGE,
+            strip % panels::STRIPS_PER_PAGE * panels::STRIP_TEXELS,
+        );
+        for y in 0..panels::ROWS {
+            let h = half_height * (1.0 - (y as f64 + 0.5) / (panels::ROWS as f64 / 2.0));
+            for x in 0..panels::STRIP_TEXELS {
+                let u = half_width * ((x as f64 + 0.5) / (panels::STRIP_TEXELS as f64 / 2.0) - 1.0);
+                // The ray's depth along the strip's heading is 1 per unit of
+                // its length, so a ray `REACH` long reaches depth `REACH`.
+                let d = [n[0] + t[0] * u, h, n[2] + t[2] * u];
+                let end = [
+                    eye[0] + (d[0] * REACH) as i32,
+                    eye[1] + (d[1] * REACH) as i32,
+                    eye[2] + (d[2] * REACH) as i32,
+                ];
+                let hit = point_trace(&mut provider, eye, end);
+                if !hit.hit() || hit.start_solid {
+                    continue;
+                }
+                hits += 1;
+                let depth = REACH * f64::from(hit.fraction_q12) / 4096.0;
+                let distance = depth * (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
+                let normal = hit.normal_q12.map(|c| f64::from(c) / 4096.0);
+                let lambert =
+                    (normal[0] * light[0] + normal[1] * light[1] + normal[2] * light[2]).max(0.0);
+                let at = [hit.end.x, hit.end.y, hit.end.z];
+                let base =
+                    colours
+                        .and_then(|c| c.colour(at, normal))
+                        .unwrap_or(if normal[1] > 0.7 {
+                            [70.0, 92.0, 150.0]
+                        } else {
+                            [44.0, 58.0, 110.0]
+                        });
+                let lit = base.map(|c| c * (0.45 + 0.55 * lambert));
+                let k = if fogged {
+                    ((distance - fog_near) / (fog_far - fog_near).max(1.0)).clamp(0.0, 1.0)
+                } else {
+                    0.0
+                };
+                // Never pure black: that is a miss.
+                rgb[(face * face_h + y) * face_w + column + x] = [0, 1, 2]
+                    .map(|i| lit[i] + (fog[i] - lit[i]) * k)
+                    .map(|c| c.clamp(8.0, 255.0) as u8);
+                let steps = (depth / f64::from(DEPTH_UNIT)).round().clamp(1.0, 255.0);
+                cells[strip * panels::BANDS + y / panels::BAND_ROWS].push(steps as u16);
+            }
+        }
+    }
+    let mut depth = [0u8; panels::CELLS];
+    for (byte, found) in depth.iter_mut().zip(&mut cells) {
+        if !found.is_empty() {
+            found.sort_unstable();
+            *byte = found[found.len() / 2] as u8;
+        }
+    }
+    Ok(ChunkPanels {
+        sky: ChunkSky {
+            chunk,
+            ring: excluded,
+            eye,
+            fog,
+            rgb,
+            hits,
+        },
+        depth,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -735,5 +1026,98 @@ mod tests {
             assert_eq!(background.runs[end - 2], 255);
         }
         assert_eq!(background.rows.len(), 6 * h + 1);
+    }
+
+    /// The depth byte of cell `band` of heading `strip`, in sectors.
+    fn depth_sectors(panels: &ChunkPanels, strip: usize, band: usize) -> f64 {
+        f64::from(panels.depth[strip * panels::BANDS + band]) * f64::from(DEPTH_UNIT) / 80.0
+    }
+
+    #[test]
+    fn panels_show_the_far_tower_at_its_depth_and_nothing_else() {
+        // Room 0 is the eye's, room 1 (a raised block beside it) is within
+        // three sectors and left out, the tower's wall stands 38 sectors east.
+        let cooked = cook(&far_tower_world()).unwrap();
+        let s = f64::from(cooked.level.sector_units);
+        assert_eq!(s, 80.0);
+        let panels = bake_chunk_panels_with(&cooked, 0, None, 3).unwrap();
+        assert!(panels.sky.ring.contains(&0) && panels.sky.ring.contains(&1));
+        assert!(!panels.sky.ring.contains(&2));
+        // Strip 0 looks along +X at the tower: some cell of it sits near the
+        // tower's 39 sectors, in the bands around the horizon.
+        let east: Vec<f64> = (0..panels::BANDS)
+            .map(|b| depth_sectors(&panels, 0, b))
+            .filter(|&d| d > 0.0)
+            .collect();
+        assert!(!east.is_empty(), "{:?}", panels.depth);
+        for d in &east {
+            assert!((d - 38.0).abs() < 3.0, "tower at {d} sectors");
+        }
+        // Every strip that faces away (the quarter turn past 90 degrees to
+        // 270) has nothing in it.
+        for strip in 7..=17 {
+            for band in 0..panels::BANDS {
+                assert_eq!(
+                    panels.depth[strip * panels::BANDS + band],
+                    0,
+                    "strip {strip}"
+                );
+            }
+        }
+        assert!(panels.sky.hits > 0);
+    }
+
+    #[test]
+    fn a_larger_near_radius_leaves_out_more_rooms() {
+        let cooked = cook(&far_tower_world()).unwrap();
+        // The block beside the eye is two sectors off: in at 3, out at 0.
+        let wide = bake_chunk_panels_with(&cooked, 0, None, 3).unwrap();
+        let narrow = bake_chunk_panels_with(&cooked, 0, None, 0).unwrap();
+        assert!(wide.sky.ring.len() > narrow.sky.ring.len());
+        // The room itself is always left out.
+        assert_eq!(narrow.sky.ring, vec![0]);
+    }
+
+    #[test]
+    fn a_panel_atlas_is_sparse_against_a_transparent_background_and_decodes_exactly() {
+        use psx_level::sky_tiles as st;
+        let cooked = cook(&far_tower_world()).unwrap();
+        let panels = vec![bake_chunk_panels_with(&cooked, 0, None, 3).unwrap()];
+        let palettes = panel_palettes(&panels).unwrap();
+        // Index 0 is black in every palette, the rest never are.
+        for palette in &palettes {
+            assert_eq!(palette[0], [0, 0, 0]);
+        }
+        let background = panel_background();
+        let entry = panels[0].to_sparse(&palettes, &background);
+        let count = st::header_tile_count(&entry).unwrap();
+        // The tower is a small part of 6 pages of mostly empty strips.
+        assert!(count > 0 && count < st::TILE_COUNT / 8, "{count} tiles");
+        let mut decoded = vec![0u8; 6 * 256 * 256];
+        st::decode_indices(&entry, &background.view(), &mut decoded).unwrap();
+        let indices = panels[0].indices(&palettes);
+        assert_eq!(decoded, indices);
+        // Texels that hit something are never index 0.
+        let hits = indices.iter().filter(|&&i| i != 0).count();
+        assert_eq!(hits, panels[0].sky.hits);
+        // The PSXT keeps index 0 transparent.
+        let psxt = panels[0].to_psxt_with(&palettes).unwrap();
+        let texture = psx_asset::Texture::from_bytes(&psxt).unwrap();
+        assert!(texture.is_index_zero_transparent());
+        assert_eq!([texture.width(), texture.height()], [1536, 256]);
+        assert_eq!(texture.clut_entries(), 96);
+    }
+
+    #[test]
+    fn the_backdrop_is_the_cube_skys_miss_colours() {
+        let fog = [34.0, 38.0, 40.0];
+        let backdrop = panel_backdrop(fog);
+        assert_eq!(backdrop.below, background_colour(-0.5, fog));
+        assert_eq!(backdrop.horizon, background_colour(0.0, fog));
+        let top = background_colour(1.0, fog);
+        for i in 0..3 {
+            assert!(backdrop.top[i] <= backdrop.horizon[i].max(top[i]));
+            assert!(backdrop.top[i] >= top[i].min(backdrop.horizon[i]));
+        }
     }
 }

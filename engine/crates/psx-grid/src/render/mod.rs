@@ -35,6 +35,7 @@ use crate::view::RoomView;
 mod clip;
 mod emit;
 mod frustum;
+pub mod panels;
 mod projection;
 mod select;
 mod skin;

@@ -1967,6 +1967,9 @@ impl<
         let base_x = left_tpage.x();
         let base_y = left_tpage.y();
         let mut header_taken = false;
+        // Bit 0 of the asset header's flags (`INDEX_ZERO_TRANSPARENT`): far
+        // panels use palette index 0 for "nothing here".
+        let mut transparent_zero = false;
         let mut rows_done: u16 = 0;
         let mut clut_done = false;
         let result = cd_stream::read_chunk_banded(
@@ -1985,6 +1988,7 @@ impl<
                     // cook; the header is skipped rather than reparsed here
                     // because the pixel run must stay contiguous.
                     header_taken = true;
+                    transparent_zero = bytes[6] & 1 != 0;
                     taken = ASSET_AND_TEXTURE_HEADER_BYTES;
                 }
                 if rows_done < DIRECTIONAL_SKY_ATLAS_HEIGHT {
@@ -2010,11 +2014,33 @@ impl<
                     && rows_done == DIRECTIONAL_SKY_ATLAS_HEIGHT
                     && bytes.len() - taken >= clut_bytes
                 {
-                    upload_model_clut(
-                        VramRect::new(clut.x(), clut.y(), DIRECTIONAL_SKY_CLUT_ENTRIES, 1),
-                        &bytes[taken..taken + clut_bytes],
-                        false,
-                    );
+                    if transparent_zero {
+                        use psx_engine::sky::{
+                            CUBE_SKY_CLUT_ENTRIES_PER_FACE as PER_FACE,
+                            CUBE_SKY_FACE_COUNT as FACES,
+                        };
+                        // Index 0 of each face's palette is transparent, not
+                        // just the first of the 96 entries.
+                        let row_bytes = usize::from(PER_FACE) * 2;
+                        for face in 0..usize::from(FACES) {
+                            upload_model_clut(
+                                VramRect::new(
+                                    clut.x() + face as u16 * PER_FACE,
+                                    clut.y(),
+                                    PER_FACE,
+                                    1,
+                                ),
+                                &bytes[taken + face * row_bytes..taken + (face + 1) * row_bytes],
+                                true,
+                            );
+                        }
+                    } else {
+                        upload_model_clut(
+                            VramRect::new(clut.x(), clut.y(), DIRECTIONAL_SKY_CLUT_ENTRIES, 1),
+                            &bytes[taken..taken + clut_bytes],
+                            false,
+                        );
+                    }
                     clut_done = true;
                     taken += clut_bytes;
                 }

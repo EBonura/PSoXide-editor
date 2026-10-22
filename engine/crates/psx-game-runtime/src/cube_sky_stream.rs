@@ -412,6 +412,17 @@ impl<K: Copy> CubeSkyStream<K> {
         *pos = at.min(TILE_COUNT) as u16;
     }
 
+    /// How far the sky being streamed in has got: its LBA and the index of
+    /// the first tile the walk has not handed out yet (every tile before it
+    /// shows the new sky, or the background where neither sky stores one).
+    /// `None` when no sky is in flight past its header.
+    pub fn progress(&self) -> Option<(u32, u16)> {
+        self.job
+            .as_ref()
+            .filter(|job| job.header && !job.cancelling)
+            .map(|job| (job.lba, job.pos))
+    }
+
     /// Whether a sky is being streamed and has tile operations to hand out.
     pub fn active(&self) -> bool {
         self.job

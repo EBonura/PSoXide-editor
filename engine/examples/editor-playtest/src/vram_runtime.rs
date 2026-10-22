@@ -304,6 +304,29 @@ pub(super) fn release_gameplay_vram() {
     vram_arena().release_gameplay_vram();
 }
 
+/// The room whose far panels each page of the sky atlas holds. A sky swap
+/// writes the atlas in tile order, which is page by page, so a page is the
+/// old room's until the walk has passed its last tile and the new room's
+/// after (room 0's is what the level starts with).
+#[cfg(feature = "cd-stream-bench")]
+static mut PANEL_PAGE_ROOM: [u16; psx_grid::render::panels::PAGES] =
+    [0; psx_grid::render::panels::PAGES];
+
+/// Tiles in one page of the sky atlas (256 by 256 texels in 8 by 8 tiles).
+#[cfg(feature = "cd-stream-bench")]
+const SKY_PAGE_TILES: u16 = 1024;
+
+/// See [`PANEL_PAGE_ROOM`].
+pub(super) fn panel_page_rooms() -> [u16; psx_grid::render::panels::PAGES] {
+    #[cfg(feature = "cd-stream-bench")]
+    // SAFETY: single-threaded guest; written only by `step_chunk_sky`.
+    unsafe {
+        PANEL_PAGE_ROOM
+    }
+    #[cfg(not(feature = "cd-stream-bench"))]
+    [0; psx_grid::render::panels::PAGES]
+}
+
 /// The chunk sky being streamed in, and the RAM its reads land in.
 #[cfg(feature = "cd-stream-bench")]
 static mut CHUNK_SKY: psx_game_runtime::cube_sky_stream::CubeSkyStream<
@@ -337,7 +360,7 @@ pub(super) fn step_chunk_sky(room: Option<usize>) {
     let resident = vram_arena().cube_sky_origin(key).is_some();
     // SAFETY: single-threaded guest; see `release_gameplay_vram`.
     unsafe {
-        (*core::ptr::addr_of_mut!(CHUNK_SKY)).step(
+        let step = (*core::ptr::addr_of_mut!(CHUNK_SKY)).step(
             &mut psx_game_runtime::grid_stream::DiscTransport,
             &mut *core::ptr::addr_of_mut!(CHUNK_SKY_WINDOW),
             resident,
@@ -345,6 +368,31 @@ pub(super) fn step_chunk_sky(room: Option<usize>) {
             sectors,
             GRID_SKY_INITIAL_MASK,
         );
+        // Which room's sky the stream is writing or has written, for the
+        // panels' depths: a page switches to it once its tiles are all in.
+        let room_of = |at: u32| {
+            GRID_ROOM_SKY_SECTORS
+                .iter()
+                .position(|&sector| sector != 0 && WORLD_PACK_START_LBA + sector == at)
+        };
+        if let psx_game_runtime::cube_sky_stream::SkyStep::Shown(shown) = step {
+            if let Some(shown_room) = room_of(shown) {
+                PANEL_PAGE_ROOM = [shown_room as u16; psx_grid::render::panels::PAGES];
+            }
+        } else if let Some((at, pos)) = (*core::ptr::addr_of!(CHUNK_SKY)).progress() {
+            // The sky in flight is almost always the wanted room's.
+            let incoming = if at == lba { room } else { room_of(at) };
+            if let Some(incoming) = incoming {
+                for (page, room) in (*core::ptr::addr_of_mut!(PANEL_PAGE_ROOM))
+                    .iter_mut()
+                    .enumerate()
+                {
+                    if pos >= (page as u16 + 1) * SKY_PAGE_TILES {
+                        *room = incoming as u16;
+                    }
+                }
+            }
+        }
         CHUNK_SKY_COUNTERS = (*core::ptr::addr_of!(CHUNK_SKY)).counters;
     }
 }

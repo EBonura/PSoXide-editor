@@ -389,22 +389,29 @@ fn colour_word(rgb555: u16, quarters: u32) -> u32 {
 /// Outcode of a projected corner.
 #[inline(always)]
 fn screen_of(p: scene::Projected, camera: &SkinCamera<'_>) -> GridScreen {
+    screen_code(p, camera.near_sz, camera.screen)
+}
+
+/// Outcode of a projected corner against a screen of `screen` pixels and a
+/// smallest depth of `near_sz`.
+#[inline(always)]
+pub(super) fn screen_code(p: scene::Projected, near_sz: u16, screen: [i32; 2]) -> GridScreen {
     let sx = i32::from(p.sx);
     let sy = i32::from(p.sy);
     let mut code = 0u16;
-    if p.sz < camera.near_sz {
+    if p.sz < near_sz {
         code = NEAR;
     } else {
         if sx < 0 {
             code |= OFF_LEFT;
         }
-        if sx >= camera.screen[0] {
+        if sx >= screen[0] {
             code |= OFF_RIGHT;
         }
         if sy < 0 {
             code |= OFF_TOP;
         }
-        if sy >= camera.screen[1] {
+        if sy >= screen[1] {
             code |= OFF_BOTTOM;
         }
     }
@@ -417,13 +424,24 @@ fn screen_of(p: scene::Projected, camera: &SkinCamera<'_>) -> GridScreen {
 
 /// A GTE vertex from world coordinates the cook proved fit 16 bits.
 #[inline(always)]
-fn vertex(x: i32, y: i32, z: i32) -> GteVec3I16 {
+pub(super) fn vertex(x: i32, y: i32, z: i32) -> GteVec3I16 {
     GteVec3I16::new(x as i16, y as i16, z as i16)
 }
 
 /// Project four corners: a triangle of the GTE and one more.
 #[inline(always)]
 fn project4(corners: [(i32, i32, i32); 4], camera: &SkinCamera<'_>) -> [GridScreen; 4] {
+    project_corners(corners, camera.near_sz, camera.screen)
+}
+
+/// [`project4`] against a screen of `screen` pixels and a smallest depth of
+/// `near_sz`.
+#[inline(always)]
+pub(super) fn project_corners(
+    corners: [(i32, i32, i32); 4],
+    near_sz: u16,
+    screen: [i32; 2],
+) -> [GridScreen; 4] {
     let t = scene::project_triangle_scheduled(
         vertex(corners[0].0, corners[0].1, corners[0].2),
         vertex(corners[1].0, corners[1].1, corners[1].2),
@@ -431,10 +449,10 @@ fn project4(corners: [(i32, i32, i32); 4], camera: &SkinCamera<'_>) -> [GridScre
     );
     let d = scene::project_vertex_scheduled(vertex(corners[3].0, corners[3].1, corners[3].2));
     [
-        screen_of(t[0], camera),
-        screen_of(t[1], camera),
-        screen_of(t[2], camera),
-        screen_of(d, camera),
+        screen_code(t[0], near_sz, screen),
+        screen_code(t[1], near_sz, screen),
+        screen_code(t[2], near_sz, screen),
+        screen_code(d, near_sz, screen),
     ]
 }
 
@@ -463,7 +481,7 @@ fn gpu_safe(corners: &[GridScreen; 4]) -> bool {
 /// Whether a quad of these corners is worth a packet: nothing at or behind
 /// the near plane, not wholly off one screen edge, safe for the GPU.
 #[inline(always)]
-fn drawable(s: &[GridScreen; 4]) -> bool {
+pub(super) fn drawable(s: &[GridScreen; 4]) -> bool {
     let any = s[0].code | s[1].code | s[2].code | s[3].code;
     if any & NEAR != 0 {
         return false;

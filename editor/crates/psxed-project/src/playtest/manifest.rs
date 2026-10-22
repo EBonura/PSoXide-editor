@@ -398,8 +398,19 @@ pub fn render_manifest_source(package: &PlaytestPackage) -> String {
          pub const GRID_SKY_BG_ROWS: &[u16] = &{:?};\n\
          pub const GRID_SKY_BG_RUNS: &[u8] = &{:?};\n\
          /// The tiles of the sky VRAM starts with (room 0's) that differ from the background.\n\
-         pub const GRID_SKY_INITIAL_MASK: &[u32] = &{:?};\n",
-        sky.background_rows, sky.background_runs, sky.initial_mask,
+         pub const GRID_SKY_INITIAL_MASK: &[u32] = &{:?};\n\
+         /// Far panels in place of cube skies (`psx_grid::render::panels`): the depth of each\n\
+         /// cell of each room's panels, the eye they were baked from, and the backdrop colours\n\
+         /// (below the horizon, at it, at the top of the screen). Empty: the skies are cube skies.\n\
+         pub const GRID_PANEL_DEPTH: &[u8] = &{:?};\n\
+         pub const GRID_PANEL_EYE: &[[i16; 3]] = &{:?};\n\
+         pub const GRID_PANEL_BACKDROP: [[u8; 3]; 3] = {:?};\n",
+        sky.background_rows,
+        sky.background_runs,
+        sky.initial_mask,
+        sky.panel_depth,
+        sky.panel_eye,
+        sky.panel_backdrop,
     );
 
     // The shape of the level's own records: how many of each table chunk 1 of

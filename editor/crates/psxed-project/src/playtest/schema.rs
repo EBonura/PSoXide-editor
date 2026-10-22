@@ -123,6 +123,15 @@ pub struct PlaytestSkyTables {
     pub background_runs: Vec<u8>,
     /// The six face palettes every sky is quantised to.
     pub palettes: Vec<Vec<[u8; 3]>>,
+    /// Far panels instead of cube skies ([`psx_grid::render::panels`]): the
+    /// depth of every cell of every room's panels, `CELLS` bytes a room;
+    /// empty when the skies are cube skies.
+    pub panel_depth: Vec<u8>,
+    /// Per room, the eye its panels were baked from.
+    pub panel_eye: Vec<[i16; 3]>,
+    /// The colours behind the panels (below the horizon, at it, at the top
+    /// of the screen).
+    pub panel_backdrop: [[u8; 3]; 3],
 }
 
 /// A cooked grid world: the resident level core and the room chunks.

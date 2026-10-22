@@ -105,6 +105,15 @@ pub struct FloodSettings {
     /// Runtime units two sectors' tops may differ by and still merge into one
     /// skin leaf (the skin's one detail knob); 0 means the default, 20.
     pub skin_tolerance: u8,
+    /// Bake each chunk's far picture as depth-set panels instead of a cube
+    /// sky ([`crate::grid::cook::sky_bake::bake_chunk_panels_with`]). Needs
+    /// `ring` and a cube sky: the panels ride the chunk skies' atlas, stream
+    /// and swap.
+    pub panels: bool,
+    /// Rooms within this many sectors of a chunk's centre are left out of its
+    /// panels (the draw radius shows them live); 0 means the default, two
+    /// sectors under `near_radius`.
+    pub panel_near: u8,
 }
 
 impl FloodSettings {
@@ -117,7 +126,18 @@ impl FloodSettings {
         quad_budget: 0,
         skin: false,
         skin_tolerance: 0,
+        panels: false,
+        panel_near: 0,
     };
+
+    /// Sectors around a chunk's centre its panels leave out.
+    pub fn panel_near_sectors(&self) -> i32 {
+        if self.panel_near > 0 {
+            i32::from(self.panel_near)
+        } else {
+            i32::from(self.near_radius.saturating_sub(2))
+        }
+    }
 
     /// Whether these are the defaults (the document then omits them).
     pub fn is_default(&self) -> bool {
