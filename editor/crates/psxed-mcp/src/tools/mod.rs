@@ -8,6 +8,7 @@
 mod bands;
 mod cells;
 mod combat;
+mod flood;
 mod geometry;
 mod instructions;
 mod meshes;
@@ -90,6 +91,7 @@ impl EditorServer {
             ("surfaces", Self::surfaces_router()),
             ("bands", Self::bands_router()),
             ("cells", Self::cells_router()),
+            ("flood", Self::flood_router()),
             ("storeys", Self::storeys_router()),
             ("planes", Self::planes_router()),
             ("meshes", Self::meshes_router()),
