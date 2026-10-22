@@ -48,12 +48,15 @@ impl PickFace {
     }
 }
 
+/// Document revision, eye bits, cutaway bits and hidden rooms.
+type SightKey = (u64, [u32; 3], Option<u32>, Vec<usize>);
+
 /// Faces the camera sees, worked out on demand and remembered for as long as
 /// nothing that decides it changes (a box drag asks again every frame).
 #[derive(Default)]
 pub(crate) struct Sight {
     /// Document revision, eye, cutaway and hidden rooms this is valid for.
-    key: Option<(u64, [u32; 3], Option<u32>, Vec<usize>)>,
+    key: Option<SightKey>,
     /// Per face of the pick cache (by index): seen or not.
     seen: std::collections::HashMap<usize, bool>,
 }
