@@ -160,3 +160,55 @@ pub fn flood(project: &ProjectDocument, root: &Path, world: &GridWorld, req: &Fl
     let budget = if budget == 0 { NO_PAGE_BUDGET } else { budget };
     Ok(flood_report(&blobs, &graph, &sample, near, res, budget))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::grid::test_support::fixture;
+
+    fn root() -> std::path::PathBuf {
+        psxed_project::projects_dir().join(psxed_project::grid::starter::STARTER_BASE)
+    }
+
+    #[test]
+    fn the_census_reads_the_starter_and_floods_it_whole() {
+        let (project, world) = fixture();
+        let req = CellsReq {
+            scene: None,
+            rechunk_hex: None,
+            sweep: Some(true),
+            stand_in_materials: None,
+            ceiling_kib: None,
+            resident_radii: Some(vec![8.0]),
+        };
+        let text = cells(&project, &root(), &world, &req).unwrap();
+        assert!(text.contains("cells 1,"), "{text}");
+        assert!(text.contains("flood: resident cells"), "{text}");
+        assert!(text.contains("whole level reached in 6 of them"), "{text}");
+    }
+
+    #[test]
+    fn a_flood_from_a_sector_reports_its_cells_and_refuses_an_empty_one() {
+        let (project, world) = fixture();
+        let req = FloodReq {
+            scene: None,
+            rechunk_hex: None,
+            at: [0, 0],
+            yaw_degrees: Some(90.0),
+            near: Some(4),
+            res: Some(6),
+            budget_pages: None,
+        };
+        let text = flood(&project, &root(), &world, &req).unwrap();
+        assert!(text.contains("resident: 1 cells"), "{text}");
+        let far = FloodReq { at: [500, 500], ..req };
+        assert!(flood(&project, &root(), &world, &far).is_err());
+        let backwards = FloodReq {
+            near: Some(8),
+            res: Some(4),
+            at: [0, 0],
+            ..far
+        };
+        assert!(flood(&project, &root(), &world, &backwards).is_err());
+    }
+}
