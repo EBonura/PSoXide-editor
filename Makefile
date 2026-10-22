@@ -283,7 +283,7 @@ lint:
 	cargo clippy --workspace --all-targets --all-features -- -D warnings
 	cd engine && cargo clippy --workspace --all-targets --all-features -- -D warnings
 	cd sdk && cargo clippy --workspace --all-targets --all-features -- -D warnings
-	cd engine/examples/hardware-tests && CARGO_TARGET_DIR="$(CURDIR)/build/examples-clippy" cargo clippy --release $(PSX_BUILD_FLAGS) -- -D warnings
+	cd engine/examples/hardware-tests && CARGO_TARGET_DIR="$(CURDIR)/build/examples-clippy" cargo clippy --release $(EDITOR_PLAYTEST_PSX_BUILD_FLAGS) -- -D warnings
 
 lint-policy-guard:
 	$(PSOXIDE_DEV) lint-policy-guard
@@ -562,8 +562,10 @@ showcase-fog: assets
 showcase-particles:
 	cd engine/examples/showcase-particles && $(ENGINE_EXAMPLE_CARGO_ENV) cargo build --release $(PSX_BUILD_FLAGS)
 
+# build-std needs alloc: psx-engine pulls psx-level, whose wire module uses it,
+# and the suite links the SDK bump allocator (psx-rt "alloc").
 hardware-tests:
-	cd engine/examples/hardware-tests && $(ENGINE_EXAMPLE_CARGO_ENV) cargo build --release $(PSX_BUILD_FLAGS)
+	cd engine/examples/hardware-tests && $(ENGINE_EXAMPLE_CARGO_ENV) cargo build --release $(EDITOR_PLAYTEST_PSX_BUILD_FLAGS)
 	cargo run -q --release --locked -p psoxide-hazard --bin hazard-scan -- $(EXAMPLE_OUT)/hardware-tests.exe
 
 # --- hardware-test capture pipeline -------------------------------------
