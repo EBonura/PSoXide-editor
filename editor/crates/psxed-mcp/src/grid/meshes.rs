@@ -8,12 +8,12 @@
 //! `docs/grid/meshes.md` has the model.
 
 use psxed_project::grid::edit::{
-    add_asset, arch_span, delete_meshes, place_mesh, set_asset, solve_arch_span, update_mesh,
-    MeshRefusal,
+    add_asset, arch_span, delete_meshes, place_mesh, set_asset, solve_arch_span, solve_span,
+    span_between, update_mesh, MeshRefusal,
 };
 use psxed_project::grid::mesh::{
     ArchProfile, ArchSpec, ColumnSpec, ImportProxy, ImportedMesh, MeshAsset, MeshKind, RubbleSpec,
-    SCALE_ONE,
+    SpanSpec, SCALE_ONE,
 };
 use psxed_project::grid::{GridMesh, GridWorld};
 use schemars::JsonSchema;
@@ -29,7 +29,7 @@ fn refused(r: MeshRefusal) -> String {
 /// generator's defaults. All lengths are GRID units (1024 to a sector).
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema)]
 pub struct MeshRecipe {
-    /// `arch`, `column`, `rubble` or `obj`.
+    /// `arch`, `column`, `rubble`, `span` or `obj`.
     pub kind: String,
     /// Name shown in the palette and `grid_meshes`.
     pub name: Option<String>,
@@ -39,12 +39,14 @@ pub struct MeshRecipe {
     pub span: Option<i32>,
     /// arch: height of the crown of the intrados above the springing line.
     /// Round wants half the span, segmental less, pointed at least half.
+    /// span: height of the end above the start (negative descends).
     pub rise: Option<i32>,
     /// arch: height of the springing line above the floor (the piers). The
     /// character is 64 runtime units tall, so keep it above about 1000 grid
     /// units (at the default scale) if a body is to walk through.
     pub spring: Option<i32>,
     /// arch: thickness of the band and width of the piers (64 to 2048).
+    /// span: vertical thickness of the deck (64 to 8192).
     pub thickness: Option<i32>,
     /// arch: depth of the band (64 to 4096).
     pub depth: Option<i32>,
@@ -53,6 +55,10 @@ pub struct MeshRecipe {
     /// arch: put a hook socket at the crown so the player can perch on it.
     /// Default true.
     pub perch: Option<bool>,
+    /// span: length between the two supports (128 to 16384). Default 4096.
+    pub length: Option<i32>,
+    /// span: width across the deck (64 to 8192). Default 1024.
+    pub width: Option<i32>,
     /// column: shaft circumradius (64 to 1024).
     pub radius: Option<i32>,
     /// column: total height.
@@ -98,6 +104,15 @@ fn arch_from(r: &MeshRecipe, base: ArchSpec) -> Result<ArchSpec, String> {
     })
 }
 
+fn span_from(r: &MeshRecipe, base: SpanSpec) -> SpanSpec {
+    SpanSpec {
+        length: r.length.unwrap_or(base.length),
+        width: r.width.unwrap_or(base.width),
+        thickness: r.thickness.unwrap_or(base.thickness),
+        rise: r.rise.unwrap_or(base.rise),
+    }
+}
+
 fn column_from(r: &MeshRecipe, base: ColumnSpec) -> ColumnSpec {
     ColumnSpec {
         radius: r.radius.unwrap_or(base.radius),
@@ -133,6 +148,13 @@ fn kind_of(r: &MeshRecipe, current: Option<&MeshKind>) -> Result<MeshKind, Strin
                 _ => ColumnSpec::default(),
             };
             Ok(MeshKind::Column(column_from(r, base)))
+        }
+        "span" | "deck" | "bridge" => {
+            let base = match current {
+                Some(MeshKind::Span(s)) => *s,
+                _ => SpanSpec::default(),
+            };
+            Ok(MeshKind::Span(span_from(r, base)))
         }
         "rubble" => {
             let base = match current {
@@ -175,7 +197,7 @@ fn kind_of(r: &MeshRecipe, current: Option<&MeshKind>) -> Result<MeshKind, Strin
             )?))
         }
         other => Err(format!(
-            "unknown mesh kind {other:?}; use arch, column, rubble or obj"
+            "unknown mesh kind {other:?}; use arch, column, rubble, span or obj"
         )),
     }
 }
@@ -185,6 +207,7 @@ fn default_name(kind: &MeshKind) -> String {
         MeshKind::Arch(s) => format!("{} arch {}", s.profile.label(), s.span),
         MeshKind::Column(s) => format!("column {}", s.height),
         MeshKind::Rubble(s) => format!("rubble {}", s.seed),
+        MeshKind::Span(s) => format!("span {} x {} x {}", s.length, s.width, s.thickness),
         MeshKind::Imported(m) => {
             if m.source.is_empty() {
                 "imported mesh".to_string()
@@ -326,7 +349,7 @@ pub fn list(
         out.push_str("no meshes placed\n");
     }
     out.push_str(
-        "\nNew assets: grid_place_mesh with a recipe, or grid_arch_span. Kinds: arch (round, segmental, pointed, flat; span, rise, spring, thickness, depth, segments, perch), column (radius, height, sides, plinth, capital), rubble (size, pieces, seed), obj (path, scale, collision). Lengths are grid units, 1024 to a sector.\n",
+        "\nNew assets: grid_place_mesh with a recipe, or grid_arch_span / grid_span. Kinds: arch (round, segmental, pointed, flat; span, rise, spring, thickness, depth, segments, perch), column (radius, height, sides, plinth, capital), rubble (size, pieces, seed), span (length, width, thickness, rise; also grid_span), obj (path, scale, collision: none, box, box_top, slab). Lengths are grid units, 1024 to a sector.\n",
     );
     Ok(out)
 }
@@ -711,10 +734,133 @@ pub fn arch(
     Ok(text)
 }
 
+/// A thick deck between two points.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SpanReq {
+    /// Scene index. Omit for the first scene with a grid world.
+    pub scene: Option<usize>,
+    /// Room index. Required when the world has several rooms.
+    pub room: Option<usize>,
+    /// Where the top surface meets the first support, `[x, y, z]` grid units
+    /// (x and z on the world lattice, y relative to the room).
+    pub from: [i32; 3],
+    /// Where it meets the second. The deck is as long as their plan distance
+    /// (128 to 16384), climbs by their height difference (at most its
+    /// length) and is turned to run along them.
+    pub to: [i32; 3],
+    /// Width across the deck. Default a quarter of the length (64 to 8192).
+    pub width: Option<i32>,
+    /// Vertical thickness. Default an eighth of the length, at most 1024 (64
+    /// to 8192).
+    pub thickness: Option<i32>,
+    /// Material for every slot.
+    pub material: Option<String>,
+    /// Material per slot: top, sides, underside.
+    pub materials: Option<Vec<String>>,
+    /// Collide. Default true: the deck is one thick platform, solid from the
+    /// top to the underside and at its ends.
+    pub collide: Option<bool>,
+    /// Name of the asset.
+    pub name: Option<String>,
+}
+
+/// Apply [`SpanReq`].
+pub fn span(world: &mut GridWorld, mats: &Materials<'_>, req: &SpanReq) -> Result<String, String> {
+    let room = pick_room(world, req.room)?;
+    let length = ((req.to[0] - req.from[0]) as f64)
+        .hypot((req.to[2] - req.from[2]) as f64)
+        .round() as i32;
+    let mut spec = SpanSpec::spanning(length);
+    if let Some(v) = req.width {
+        spec.width = v;
+    }
+    if let Some(v) = req.thickness {
+        spec.thickness = v;
+    }
+    // Solve first so a bad number is reported before anything is staged.
+    solve_span(req.from, req.to, spec).map_err(refused)?;
+    let (_, id, placed) =
+        span_between(world, room, req.from, req.to, spec, req.name.clone()).map_err(refused)?;
+    let (r, i) = world.find_mesh(id).ok_or("the mesh vanished")?;
+    {
+        let mut look = world.rooms[r].meshes[i].clone();
+        apply_look(
+            &mut look,
+            mats,
+            req.material.as_deref(),
+            req.materials.as_deref(),
+            3,
+        )?;
+        look.collide = req.collide.unwrap_or(true);
+        let (m, c) = (look.materials.clone(), look.collide);
+        update_mesh(world, id, |mesh| {
+            mesh.materials = m;
+            mesh.collide = c;
+        })
+        .map_err(refused)?;
+    }
+    let (r, i) = world.find_mesh(id).ok_or("the mesh vanished")?;
+    Ok(format!(
+        "span from {:?} to {:?}: length {}, width {}, thickness {}, rise {}, yaw {} degrees\n{}",
+        req.from,
+        req.to,
+        placed.spec.length,
+        placed.spec.width,
+        placed.spec.thickness,
+        placed.spec.rise,
+        placed.yaw,
+        describe_mesh(r, &world.rooms[r].meshes[i], world, mats),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::grid::test_support::fixture;
+
+    #[test]
+    fn a_span_reports_its_numbers_and_places_one_collision_slab() {
+        let (p, mut w) = fixture();
+        let mats = Materials::new(&p);
+        let out = span(
+            &mut w,
+            &mats,
+            &SpanReq {
+                scene: None,
+                room: None,
+                from: [1024, 512, 2048],
+                to: [5120, 512, 2048],
+                width: None,
+                thickness: None,
+                material: Some("Graybox / Cliff 64".into()),
+                materials: None,
+                collide: None,
+                name: None,
+            },
+        )
+        .unwrap();
+        assert!(out.contains("length 4096"), "{out}");
+        assert_eq!(w.mesh_assets.len(), 1);
+        let built = w.mesh_assets[0].build().unwrap();
+        assert_eq!(built.proxies.len(), 1);
+        assert!(w.rooms[0].meshes[0].materials.iter().all(Option::is_some));
+        // The same deck again shares the asset.
+        let again = SpanReq {
+            scene: None,
+            room: None,
+            from: [1024, 512, 3072],
+            to: [5120, 512, 3072],
+            width: None,
+            thickness: None,
+            material: None,
+            materials: None,
+            collide: None,
+            name: None,
+        };
+        span(&mut w, &mats, &again).unwrap();
+        assert_eq!(w.mesh_assets.len(), 1);
+        assert_eq!(w.rooms[0].meshes.len(), 2);
+    }
 
     fn arch_req(from: [i32; 3], to: [i32; 3]) -> ArchSpanReq {
         ArchSpanReq {

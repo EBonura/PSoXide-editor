@@ -12,7 +12,7 @@ use super::*;
 use psxed_project::grid::edit::{add_asset, set_asset, update_mesh};
 use psxed_project::grid::mesh::{
     ArchProfile, ArchSpec, ColumnSpec, ImportProxy, ImportedMesh, MeshAsset, MeshKind, RubbleSpec,
-    SCALE_ONE, SCALE_RANGE,
+    SpanSpec, SCALE_ONE, SCALE_RANGE,
 };
 
 fn kind_label(kind: &MeshKind) -> &'static str {
@@ -20,6 +20,7 @@ fn kind_label(kind: &MeshKind) -> &'static str {
         MeshKind::Arch(_) => "arch",
         MeshKind::Column(_) => "column",
         MeshKind::Rubble(_) => "rubble",
+        MeshKind::Span(_) => "span",
         MeshKind::Imported(_) => "imported",
     }
 }
@@ -128,6 +129,34 @@ fn edit_recipe(ui: &mut egui::Ui, kind: &mut MeshKind) -> bool {
                 &mut spec.capital,
                 8.0,
                 (0, 2048),
+            );
+        }
+        MeshKind::Span(spec) => {
+            drag(
+                ui,
+                &mut changed,
+                "Length",
+                &mut spec.length,
+                16.0,
+                (128, 16384),
+            );
+            drag(ui, &mut changed, "Width", &mut spec.width, 16.0, (64, 8192));
+            drag(
+                ui,
+                &mut changed,
+                "Thickness",
+                &mut spec.thickness,
+                8.0,
+                (64, 8192),
+            );
+            let limit = spec.length;
+            drag(
+                ui,
+                &mut changed,
+                "Rise (end over start)",
+                &mut spec.rise,
+                8.0,
+                (-limit, limit),
             );
         }
         MeshKind::Rubble(spec) => {
@@ -242,6 +271,13 @@ impl EditorWorkspace {
                     }
                     if ui.button("+ Column").clicked() {
                         make = Some(MeshAsset::new("column", MeshKind::Column(ColumnSpec::default())));
+                    }
+                    if ui
+                        .button("+ Span")
+                        .on_hover_text("A thick deck: a bridge, a gantry or a floating lintel. One collision platform.")
+                        .clicked()
+                    {
+                        make = Some(MeshAsset::new("span", MeshKind::Span(SpanSpec::default())));
                     }
                     if ui.button("+ Rubble").clicked() {
                         make = Some(MeshAsset::new("rubble", MeshKind::Rubble(RubbleSpec::default())));

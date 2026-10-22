@@ -6,7 +6,9 @@ use rmcp::ErrorData;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-use psxed_mcp::grid::meshes::{self, ArchSpanReq, DeleteMeshReq, PlaceMeshReq, SetMeshReq};
+use psxed_mcp::grid::meshes::{
+    self, ArchSpanReq, DeleteMeshReq, PlaceMeshReq, SetMeshReq, SpanReq,
+};
 use psxed_mcp::grid::Materials;
 
 use super::EditorServer;
@@ -78,6 +80,18 @@ impl EditorServer {
     ) -> Result<CallToolResult, ErrorData> {
         self.grid_edit(req.scene, "grid_arch_span", |world, project| {
             meshes::arch(world, &Materials::new(project), &req)
+        })
+    }
+
+    #[rmcp::tool(
+        description = "Generate a thick deck and place it between two points: from and to are where its TOP surface meets the two supports (grid units), the length is their plan distance, the deck climbs by their height difference and is turned to run along them. width (default a quarter of the length) and thickness (default an eighth, at most 1024) are vertical-prism numbers; materials are top, sides, underside. A floating stone bridge, a gantry, a lintel or the span of an arch of floating stone. Collision is ONE thick platform: stand on the top, blocked from the sides and from under it. Reports the numbers; use grid_budget and cook_check for the cost."
+    )]
+    async fn grid_span(
+        &self,
+        Parameters(req): Parameters<SpanReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.grid_edit(req.scene, "grid_span", |world, project| {
+            meshes::span(world, &Materials::new(project), &req)
         })
     }
 }
