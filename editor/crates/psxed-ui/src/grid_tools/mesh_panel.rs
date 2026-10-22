@@ -167,12 +167,14 @@ fn edit_recipe(ui: &mut egui::Ui, kind: &mut MeshKind) -> bool {
                         ImportProxy::None => "none",
                         ImportProxy::Box => "box",
                         ImportProxy::BoxTop => "box, standable top",
+                        ImportProxy::Slab => "solid slab",
                     })
                     .show_ui(ui, |ui| {
                         for (value, label) in [
                             (ImportProxy::None, "none"),
                             (ImportProxy::Box, "box"),
                             (ImportProxy::BoxTop, "box, standable top"),
+                            (ImportProxy::Slab, "solid slab"),
                         ] {
                             changed |= ui.selectable_value(&mut mesh.proxy, value, label).changed();
                         }

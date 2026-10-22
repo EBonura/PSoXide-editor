@@ -76,8 +76,8 @@ pub struct MeshRecipe {
     pub path: Option<String>,
     /// obj: grid units per OBJ unit. Default 1024 (an OBJ unit is a sector).
     pub scale: Option<f64>,
-    /// obj: collision, `none` (default), `box` or `box_top` (a box with a
-    /// surface to stand on).
+    /// obj: collision, `none` (default), `box`, `box_top` (a box with a
+    /// surface to stand on) or `slab` (one thick platform).
     pub collision: Option<String>,
 }
 
@@ -157,9 +157,10 @@ fn kind_of(r: &MeshRecipe, current: Option<&MeshKind>) -> Result<MeshKind, Strin
                 None | Some("none") => ImportProxy::None,
                 Some("box") => ImportProxy::Box,
                 Some("box_top") => ImportProxy::BoxTop,
+                Some("slab") => ImportProxy::Slab,
                 Some(other) => {
                     return Err(format!(
-                        "unknown collision {other:?}; use none, box or box_top"
+                        "unknown collision {other:?}; use none, box, box_top or slab"
                     ))
                 }
             };
