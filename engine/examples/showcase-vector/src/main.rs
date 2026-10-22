@@ -13,16 +13,17 @@
 
 extern crate psx_rt;
 
+#[path = "../../editor-playtest/src/stance_hud_layout.rs"]
 mod hud;
 
-use hud::{draw_hud, Bar, HudIds, SCRATCH_VERTICES};
+use hud::{draw_hud, Bar, HudIds, HudState, SCRATCH_VERTICES};
 use psx_engine::{App, Config, Ctx, OtFrame, Scene};
-use psx_gpu::ot::OrderingTable;
 use psx_gpu::material::BlendMode;
+use psx_gpu::ot::OrderingTable;
 use psx_io::timers::{self, Timer};
 use psx_vector::{
-    include_vector, BlendOverride, ClipRect, Emit, Placement, Scratch, Style, VectorAsset,
-    VectorPacket,
+    include_vector, BlendOverride, ClipRect, Emit, PacketCache, Placement, Scratch, Style,
+    VectorAsset, VectorPacket,
 };
 
 static GALLERY: &[u8] = include_vector!("../assets/gallery.psvg");
@@ -30,9 +31,9 @@ static STANCE_HUD: &[u8] = include_vector!("../../editor-playtest/assets/hud/sta
 
 static mut SCRATCH: Scratch<SCRATCH_VERTICES> = Scratch::new();
 
-/// Ordering table and packet pool for the packet path (HUD B).
-static mut OT: OrderingTable<128> = OrderingTable::new();
-static mut POOL: [VectorPacket; 700] = [VectorPacket::ZERO; 700];
+/// Ordering table and the cached HUD packets, linked into it every frame.
+static mut OT: OrderingTable<16> = OrderingTable::new();
+static mut CACHE: PacketCache<128> = PacketCache::new();
 
 const HORIZON: [u8; 3] = [234, 82, 48];
 const ZENITH: [u8; 3] = [76, 202, 181];
@@ -59,21 +60,19 @@ static mut MEASURE: Measure = Measure {
     magic: *b"PSVGMEAS",
     rows_used: 0,
     frames: 0,
-    rows: [Row { tag: [0; 8], triangles: 0, cycles: 0 }; 48],
+    rows: [Row {
+        tag: [0; 8],
+        triangles: 0,
+        cycles: 0,
+    }; 48],
 };
-
-/// Where each group's packets sit in [`POOL`], recorded when they are built.
-struct Plan {
-    groups: usize,
-    spans: [(u16, u16); 64],
-}
-
-static mut PLAN: Plan = Plan { groups: 0, spans: [(0, 0); 64] };
 
 /// Cycles of a timer read pair, subtracted from every row.
 static mut OVERHEAD: u32 = 0;
 
 struct Demo {
+    frames: u32,
+    cached_state: Option<HudState>,
     ids: Option<HudIds>,
     gallery: Option<VectorAsset<'static>>,
     hud: Option<VectorAsset<'static>>,
@@ -94,9 +93,16 @@ fn record(tag: &str, triangles: u32, ticks8: u16) {
     }
     let cycles = (ticks8 as u32 * 8).saturating_sub(unsafe { OVERHEAD });
     let used = m.rows_used as usize;
-    let slot = m.rows[..used].iter().position(|r| r.tag == t).unwrap_or(used);
+    let slot = m.rows[..used]
+        .iter()
+        .position(|r| r.tag == t)
+        .unwrap_or(used);
     if slot < m.rows.len() {
-        m.rows[slot] = Row { tag: t, triangles, cycles };
+        m.rows[slot] = Row {
+            tag: t,
+            triangles,
+            cycles,
+        };
         if slot == used {
             m.rows_used += 1;
         }
@@ -118,58 +124,74 @@ impl Scene for Demo {
     fn update(&mut self, _ctx: &mut Ctx) {}
 
     fn render(&mut self, ctx: &mut Ctx) {
-        // SAFETY: single-threaded guest; the table and pool are only used here,
-        // and `submit` waits for the walk before anything is rebuilt.
-        let (ot_table, pool, scratch, plan) =
-            unsafe { (&mut OT, &mut POOL[..], &mut SCRATCH, &mut PLAN) };
+        // SAFETY: single-threaded guest; the table and cache are only used
+        // here, and `submit` waits for the walk before anything is rebuilt.
+        let (ot_table, cache, scratch) = unsafe { (&mut OT, &mut CACHE, &mut SCRATCH) };
         let mut ot = OtFrame::begin(ot_table);
+        let frame = self.frames;
+        self.frames += 1;
         if let (Some(ids), Some(asset)) = (self.ids.as_ref(), self.hud.as_ref()) {
-            // Build the packets once. The HUD state is fixed here, so every
-            // later frame only links them: the "built once, relinked" case.
-            if plan.groups == 0 {
-                let t = ticks();
-                let mut rest = &mut pool[..];
-                let mut triangles = 0u32;
-                let (active, inactive) =
-                    (Bar { rgb: ZENITH, cells: 9 }, Bar { rgb: HORIZON, cells: 6 });
-                let mut used_total = 0usize;
-                draw_hud(ids, (6, 160), active, inactive, 4, &mut |g, p, s| {
-                    let n = asset.emit_packets(g, p, s, scratch, rest).unwrap_or(0);
-                    let (_, tail) = core::mem::take(&mut rest).split_at_mut(n);
-                    rest = tail;
-                    if plan.groups < plan.spans.len() {
-                        plan.spans[plan.groups] = (used_total as u16, n as u16);
-                        plan.groups += 1;
-                    }
-                    used_total += n;
-                    triangles += n as u32;
-                });
-                record("ot_build", triangles, ticks().wrapping_sub(t));
-            }
-            // Link back to front: one slot per group (the first drawn deepest)
-            // and, inside a slot, last packet first, because a slot is walked
-            // last-in-first-out.
-            let base = pool.as_mut_ptr();
-            let t = ticks();
-            let mut triangles = 0u32;
-            for (seq, &(start, len)) in plan.spans[..plan.groups].iter().enumerate() {
-                let slot = 127usize.saturating_sub(seq);
-                // SAFETY: the span was handed out by `emit_packets` above, lies inside
-                // `POOL`, and no other reference to it exists; the packets stay
-                // untouched until the walk ends.
-                let span = unsafe {
-                    core::slice::from_raw_parts_mut(base.add(start as usize), len as usize)
-                };
-                for packet in span.iter_mut().rev() {
-                    ot.add_packet(slot, packet);
+            // The HUD state flips every 48 frames; the packets are rebuilt
+            // only then, and linked every frame.
+            let state = if (frame / 48) % 2 == 0 {
+                HudState {
+                    active: Bar {
+                        rgb: ZENITH,
+                        cells: 9,
+                    },
+                    inactive: Bar {
+                        rgb: HORIZON,
+                        cells: 6,
+                    },
+                    energy: 4,
                 }
-                triangles += len as u32;
+            } else {
+                HudState {
+                    active: Bar {
+                        rgb: HORIZON,
+                        cells: 6,
+                    },
+                    inactive: Bar {
+                        rgb: ZENITH,
+                        cells: 9,
+                    },
+                    energy: 7,
+                }
+            };
+            if self.cached_state != Some(state) {
+                let t = ticks();
+                cache.clear();
+                draw_hud(ids, (6, 160), &state, &mut |g, p, s| {
+                    let _ = cache.push(asset, g, p, s, scratch, 8);
+                });
+                self.cached_state = Some(state);
+                record("c_build", cache.len() as u32, ticks().wrapping_sub(t));
             }
-            record("ot_link", triangles, ticks().wrapping_sub(t));
+            // Every frame links the cached HUD except one in 64, which links
+            // nothing, so the difference in the walk is the GPU time of the HUD.
+            if frame % 64 != 63 {
+                let t = ticks();
+                for (slot, packet) in cache.links() {
+                    let words = packet.words();
+                    // SAFETY: the cache is a `static`, so the packets outlive
+                    // the walk; nothing touches them until `submit` returns.
+                    unsafe { ot.add_raw(slot, (packet as *mut VectorPacket).cast::<u32>(), words) };
+                }
+                record("c_link", cache.len() as u32, ticks().wrapping_sub(t));
+            }
         }
         let t = ticks();
         ot.submit(ctx.gpu_dma());
-        record("ot_walk", 0, ticks().wrapping_sub(t));
+        let dt = ticks().wrapping_sub(t);
+        record(
+            if frame % 64 != 63 {
+                "walk_hud"
+            } else {
+                "walk_off"
+            },
+            0,
+            dt,
+        );
     }
 
     fn render_overlay(&mut self, ctx: &mut Ctx) {
@@ -203,16 +225,28 @@ impl Scene for Demo {
         if let Some(star) = gallery.group("star") {
             let t = ticks();
             let mut n = 0;
-            for (i, (scale, angle)) in [(4096u16, 0u16), (3072, 256), (2048, 1024)].iter().enumerate() {
-                let p = Placement::at(180 + 44 * i as i32, 6).scaled(*scale).rotated(*angle);
-                n += gallery.draw_group(gpu, star, &p, &Style::DEFAULT, scratch).unwrap_or(0);
+            for (i, (scale, angle)) in [(4096u16, 0u16), (3072, 256), (2048, 1024)]
+                .iter()
+                .enumerate()
+            {
+                let p = Placement::at(180 + 44 * i as i32, 6)
+                    .scaled(*scale)
+                    .rotated(*angle);
+                n += gallery
+                    .draw_group(gpu, star, &p, &Style::DEFAULT, scratch)
+                    .unwrap_or(0);
             }
             record("star3", n, ticks().wrapping_sub(t));
         }
 
         // Clip: the blob through a window, tinted.
         if let Some(blob) = gallery.group("blob") {
-            let clip = ClipRect { x0: 188, y0: 70, x1: 262, y1: 100 };
+            let clip = ClipRect {
+                x0: 188,
+                y0: 70,
+                x1: 262,
+                y1: 100,
+            };
             let style = Style::tinted([255, 220, 160]).clipped(clip);
             let t = ticks();
             let n = gallery
@@ -225,7 +259,10 @@ impl Scene for Demo {
         if let (Some(rects), Some(grad)) = (gallery.group("rects"), gallery.group("gradient")) {
             let p = Placement::at(268, 70);
             let _ = gallery.draw_group(gpu, grad, &p, &Style::DEFAULT, scratch);
-            let fade = Style { blend: BlendOverride::Force(BlendMode::Average), ..Style::DEFAULT };
+            let fade = Style {
+                blend: BlendOverride::Force(BlendMode::Average),
+                ..Style::DEFAULT
+            };
             let t = ticks();
             let n = gallery
                 .draw_group(gpu, rects, &Placement::at(268, 66), &fade, scratch)
@@ -233,48 +270,89 @@ impl Scene for Demo {
             record("fade", n, ticks().wrapping_sub(t));
         }
 
-        // The HUD: A and the worst case straight to the GPU, B as packets for
-        // the ordering table (built here, walked by `render`), and A once more
-        // with a sink that discards, to split CPU cost from GPU time.
+        // The HUD straight to the GPU in two states, and once more into a
+        // sink that discards, to split CPU cost from GPU time.
         if let Some(ids) = self.ids.as_ref() {
-            let (horizon, zenith) = (Bar { rgb: HORIZON, cells: 6 }, Bar { rgb: ZENITH, cells: 9 });
+            let state_a = HudState {
+                active: Bar {
+                    rgb: HORIZON,
+                    cells: 6,
+                },
+                inactive: Bar {
+                    rgb: ZENITH,
+                    cells: 9,
+                },
+                energy: 6,
+            };
+            let state_max = HudState {
+                active: Bar {
+                    rgb: HORIZON,
+                    cells: 10,
+                },
+                inactive: Bar {
+                    rgb: ZENITH,
+                    cells: 10,
+                },
+                energy: 10,
+            };
             let t = ticks();
             let mut n = 0;
-            draw_hud(ids, (6, 122), horizon, zenith, 6, &mut |g, p, s| {
+            draw_hud(ids, (6, 122), &state_a, &mut |g, p, s| {
                 n += hud_asset.draw_group(gpu, g, p, s, scratch).unwrap_or(0);
             });
             record("hud_a", n, ticks().wrapping_sub(t));
 
             let t = ticks();
             let mut n = 0;
-            let full = (Bar { rgb: HORIZON, cells: 10 }, Bar { rgb: ZENITH, cells: 10 });
-            draw_hud(ids, (6, 198), full.0, full.1, 10, &mut |g, p, s| {
+            draw_hud(ids, (6, 198), &state_max, &mut |g, p, s| {
                 n += hud_asset.draw_group(gpu, g, p, s, scratch).unwrap_or(0);
             });
             record("hud_max", n, ticks().wrapping_sub(t));
 
             let t = ticks();
             let mut n = 0u32;
-            draw_hud(ids, (6, 122), horizon, zenith, 6, &mut |g, p, s| {
+            draw_hud(ids, (6, 122), &state_a, &mut |g, p, s| {
                 let mut count = 0u32;
                 let _ = hud_asset.emit_group(g, p, s, scratch, &mut |e| {
-                    count += matches!(e, Emit::Triangle(_)) as u32;
+                    count += match e {
+                        Emit::Triangle(_) => 1,
+                        Emit::Quad(_) => 2,
+                        Emit::Blend(_) => 0,
+                    };
                 });
                 n += count;
             });
             record("cpu_a", n, ticks().wrapping_sub(t));
         }
+
         // CPU-only microbenchmarks on the blob (36 triangles, 38 vertices): the
         // emit loop with a counting sink, varying one input at a time.
         if let Some(blob) = gallery.group("blob") {
-            let around = ClipRect { x0: -1000, y0: -1000, x1: 1000, y1: 1000 };
-            let part = ClipRect { x0: 100, y0: 70, x1: 130, y1: 100 };
+            let around = ClipRect {
+                x0: -1000,
+                y0: -1000,
+                x1: 1000,
+                y1: 1000,
+            };
+            let part = ClipRect {
+                x0: 100,
+                y0: 70,
+                x1: 130,
+                y1: 100,
+            };
             let rot = Placement::at(8, 6).rotated(300);
             let scl = Placement::at(8, 6).scaled(3000);
             let base = Placement::at(8, 6);
             let tint = Style::tinted([200, 160, 120]);
-            let sat = Style { saturation: 100, ..Style::DEFAULT };
-            let both = Style { saturation: 100, tint: [200, 160, 120], ..Style::DEFAULT };
+            let sat = Style {
+                saturation: 100,
+                ..Style::DEFAULT
+            };
+            let both = Style {
+                saturation: 100,
+                tint: [200, 160, 120],
+                ..Style::DEFAULT
+            };
             let cases: [(&str, &Placement, Style); 9] = [
                 ("m_plain", &base, Style::DEFAULT),
                 ("m_scale", &scl, Style::DEFAULT),
@@ -286,15 +364,54 @@ impl Scene for Demo {
                 ("m_clip1", &base, Style::DEFAULT.clipped(part)),
                 ("m_cliptn", &base, tint.clipped(part)),
             ];
+            // Eight calls each, averaged: the first call pays the instruction
+            // cache refill, the rest show the steady cost a HUD sees.
             for (tag, place, style) in cases {
-                let t = ticks();
                 let mut count = 0u32;
-                let _ = gallery.emit_group(blob, place, &style, scratch, &mut |e| {
-                    count += matches!(e, Emit::Triangle(_)) as u32;
-                });
-                record(tag, count, ticks().wrapping_sub(t));
+                let t = ticks();
+                for _ in 0..8 {
+                    count = 0;
+                    let _ = gallery.emit_group(blob, place, &style, scratch, &mut |e| {
+                        count += match e {
+                            Emit::Triangle(_) => 1,
+                            Emit::Quad(_) => 2,
+                            Emit::Blend(_) => 0,
+                        };
+                    });
+                }
+                record(tag, count, ticks().wrapping_sub(t) / 8);
             }
         }
+        // Fixed cost of one group draw: a one-quad group, 16 calls, counting sink.
+        if let Some(gem) = hud_asset.group("energy_0") {
+            for (tag, style) in [
+                ("g_plain", Style::DEFAULT),
+                ("g_tint", Style::tinted([200, 160, 120])),
+            ] {
+                let t = ticks();
+                let mut count = 0u32;
+                for _ in 0..16 {
+                    let _ = hud_asset.emit_group(
+                        gem,
+                        &Placement::at(8, 6),
+                        &style,
+                        scratch,
+                        &mut |e| {
+                            count += matches!(e, Emit::Quad(_)) as u32;
+                        },
+                    );
+                }
+                record(tag, count, ticks().wrapping_sub(t) / 16);
+            }
+        }
+        // Calibration, as in the Cortex proof: one 4-pixel triangle with the GPU
+        // idle before and after.
+        gpu.wait_idle();
+        let tiny = psx_gpu::prim::TriGouraud::new([(0, 0), (4, 0), (0, 4)], [(1, 1, 1); 3]);
+        let t = ticks();
+        gpu.draw(&tiny);
+        gpu.wait_idle();
+        record("tiny", 1, ticks().wrapping_sub(t));
         // SAFETY: single-threaded guest.
         unsafe { MEASURE.frames += 1 };
     }
@@ -302,7 +419,16 @@ impl Scene for Demo {
 
 #[no_mangle]
 fn main() -> ! {
-    let mut demo = Demo { ids: None, gallery: None, hud: None };
-    let config = Config { clear_color: (16, 24, 40), ..Config::default() };
+    let mut demo = Demo {
+        frames: 0,
+        cached_state: None,
+        ids: None,
+        gallery: None,
+        hud: None,
+    };
+    let config = Config {
+        clear_color: (16, 24, 40),
+        ..Config::default()
+    };
     App::run(config, &mut demo);
 }

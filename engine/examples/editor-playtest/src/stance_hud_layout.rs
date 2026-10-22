@@ -1,6 +1,9 @@
-//! The stance HUD composed from `stance_hud.psvg`: how game-side code uses the
-//! vector runtime. A sketch of the Cortex swap (cx-7); it lives in the
-//! showcase until the live HUD state is wired in.
+//! The stance HUD composed from `assets/hud/stance_hud.psvg`: which groups are
+//! drawn, in what order, with what tint, for a given HUD state.
+//!
+//! Shared by the `vector-hud-proof` feature of this crate and by the
+//! `showcase-vector` example (which includes this file by path), so both draw
+//! the same composition.
 //!
 //! The composition is written once against a `draw` callback, so the same code
 //! drives an immediate GPU draw, a packet build for an ordering table, and a
@@ -8,8 +11,8 @@
 
 use psx_vector::{GroupId, Placement, Style, VectorAsset};
 
-/// Scratch capacity: the HUD asset's largest group has 215 vertices.
-pub const SCRATCH_VERTICES: usize = 256;
+/// Scratch capacity: the HUD asset's largest group has 14 vertices.
+pub const SCRATCH_VERTICES: usize = 64;
 
 /// Group handles looked up once at load.
 pub struct HudIds {
@@ -18,7 +21,6 @@ pub struct HudIds {
     emblem: GroupId,
     emblem_core: GroupId,
     rail: GroupId,
-    glow: [GroupId; 10],
     energy: [GroupId; 10],
 }
 
@@ -43,20 +45,32 @@ impl HudIds {
             emblem: asset.group("emblem")?,
             emblem_core: asset.group("emblem_core")?,
             rail: asset.group("rail")?,
-            glow: numbered("glow_")?,
             energy: numbered("energy_")?,
         })
     }
 }
 
 /// One stance's colour and how much of its bar is filled.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Bar {
     /// Stance colour (the tint multiplied into the grey-authored art).
     pub rgb: [u8; 3],
     /// Lit cells, 0 to 10.
     pub cells: u8,
 }
+
+/// Everything the HUD shows; the cached packets are valid while it is equal.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct HudState {
+    /// The stance in front.
+    pub active: Bar,
+    /// The stance behind, dimmed.
+    pub inactive: Bar,
+    /// Lit energy crystals, 0 to 10.
+    pub energy: u8,
+}
+
+const AMBER_EMPTY: [u8; 3] = [70, 44, 24];
 
 fn scaled(rgb: [u8; 3], k: u16) -> [u8; 3] {
     [
@@ -66,46 +80,42 @@ fn scaled(rgb: [u8; 3], k: u16) -> [u8; 3] {
     ]
 }
 
-fn draw_bar(
-    ids: &HudIds,
-    place: &Placement,
-    bar: Bar,
-    dim: bool,
-    draw: &mut impl FnMut(GroupId, &Placement, &Style),
-) {
-    let (body, lit, empty, saturation) = if dim {
-        (scaled(bar.rgb, 90), scaled(bar.rgb, 100), scaled(bar.rgb, 36), 110)
-    } else {
-        (bar.rgb, bar.rgb, scaled(bar.rgb, 52), 255)
-    };
-    let style = |tint| Style { tint, saturation, ..Style::DEFAULT };
-    draw(ids.plate, place, &style(body));
-    for (i, &cell) in ids.health.iter().enumerate() {
-        let tint = if (i as u8) < bar.cells { lit } else { empty };
-        draw(cell, place, &style(tint));
-    }
-}
-
-/// Draw the whole cluster at `origin` (top-left of the asset's canvas), back
-/// to front: the inactive bar behind and offset up, the active bar, the
-/// emblem, then the energy rail with `energy` lit crystals.
+/// Draw the cluster at `origin` (top-left of the asset's canvas), back to
+/// front: the inactive plate dimmed and offset up, the active plate, its
+/// cells, the emblem, then the rail and the energy crystals.
 pub fn draw_hud(
     ids: &HudIds,
     origin: (i32, i32),
-    active: Bar,
-    inactive: Bar,
-    energy: u8,
+    state: &HudState,
     draw: &mut impl FnMut(GroupId, &Placement, &Style),
 ) {
     let front = Placement::at(origin.0, origin.1);
     let back = Placement::at(origin.0, origin.1 - 7);
-    draw_bar(ids, &back, inactive, true, draw);
-    draw_bar(ids, &front, active, false, draw);
-    draw(ids.emblem, &front, &Style::tinted(active.rgb));
-    draw(ids.emblem_core, &front, &Style::tinted(inactive.rgb));
+    let dim = Style {
+        tint: scaled(state.inactive.rgb, 110),
+        saturation: 110,
+        ..Style::DEFAULT
+    };
+    draw(ids.plate, &back, &dim);
+    draw(ids.plate, &front, &Style::tinted(state.active.rgb));
+    let empty = scaled(state.active.rgb, 52);
+    for (i, &cell) in ids.health.iter().enumerate() {
+        let tint = if (i as u8) < state.active.cells {
+            state.active.rgb
+        } else {
+            empty
+        };
+        draw(cell, &front, &Style::tinted(tint));
+    }
+    draw(ids.emblem, &front, &Style::tinted(state.active.rgb));
+    draw(ids.emblem_core, &front, &Style::tinted(state.inactive.rgb));
     draw(ids.rail, &front, &Style::DEFAULT);
-    for i in 0..energy.min(10) as usize {
-        draw(ids.glow[i], &front, &Style::DEFAULT);
-        draw(ids.energy[i], &front, &Style::DEFAULT);
+    for (i, &gem) in ids.energy.iter().enumerate() {
+        let tint = if (i as u8) < state.energy {
+            [255, 255, 255]
+        } else {
+            AMBER_EMPTY
+        };
+        draw(gem, &front, &Style::tinted(tint));
     }
 }

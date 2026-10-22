@@ -23,10 +23,16 @@ fn area_px(asset: &VectorAsset<'_>, name: &str) -> f64 {
     // Pull the triangles through the runtime so the test covers decoding too.
     asset
         .emit_group(id, &identity, &Style::DEFAULT, &mut scratch, &mut |step| {
-            if let psx_vector::Emit::Triangle(t) = step {
-                let p = |w: u32| ((w as u16 as i16) as f64, ((w >> 16) as u16 as i16) as f64);
-                let (a, b, c) = (p(t.v0), p(t.v1), p(t.v2));
-                sum += ((b.0 - a.0) * (c.1 - a.1) - (b.1 - a.1) * (c.0 - a.0)).abs() / 2.0;
+            let p = |w: u32| ((w as u16 as i16) as f64, ((w >> 16) as u16 as i16) as f64);
+            let tri = |a: (f64, f64), b: (f64, f64), c: (f64, f64)| {
+                ((b.0 - a.0) * (c.1 - a.1) - (b.1 - a.1) * (c.0 - a.0)).abs() / 2.0
+            };
+            match step {
+                psx_vector::Emit::Triangle(t) => sum += tri(p(t.v0), p(t.v1), p(t.v2)),
+                psx_vector::Emit::Quad(q) => {
+                    sum += tri(p(q.v0), p(q.v1), p(q.v2)) + tri(p(q.v1), p(q.v2), p(q.v3));
+                }
+                psx_vector::Emit::Blend(_) => {}
             }
         })
         .unwrap();
@@ -385,4 +391,48 @@ fn pivot_attribute_sets_the_group_pivot() {
         asset.group_info(asset.group("p").unwrap()).pivot_q4,
         [20 * 16, 10 * 16]
     );
+}
+
+#[test]
+fn rect_and_parallelogram_cook_to_single_quads() {
+    let c = cook_ok(
+        "<g id=\"q\"><rect width=\"10\" height=\"6\" fill=\"#fff\"/>\
+         <path d=\"M20 0 H32 L30 6 H18 Z\" fill=\"#888\"/></g>",
+    );
+    let g = &c.report.groups[0];
+    assert_eq!(
+        (g.triangles, g.quads, g.vertices),
+        (4, 2, 8),
+        "{}",
+        c.report
+    );
+}
+
+#[test]
+fn per_corner_colours_shade_a_quad_without_splitting_it() {
+    let c = cook_ok(
+        "<g id=\"q\"><path d=\"M10 10 H50 L46 30 H14 Z\" \
+         data-corners=\"#ffffff #ffffff #000000 #000000\"/></g>",
+    );
+    let g = &c.report.groups[0];
+    assert_eq!((g.triangles, g.quads), (2, 1), "{}", c.report);
+    let (tris, _) = render_both(&c);
+    // White at the top, black at the bottom, a mix between.
+    let top = tris.pixel(30, 11)[0];
+    let mid = tris.pixel(30, 20)[0];
+    let bottom = tris.pixel(30, 29)[0];
+    assert!(
+        top > 200 && bottom < 50 && (80..180).contains(&mid),
+        "{top} {mid} {bottom}"
+    );
+}
+
+#[test]
+fn wrong_number_of_corner_colours_is_an_error() {
+    let e = cook(
+        &svg("<path d=\"M0 0 H9 V9 H0 Z\" data-corners=\"#fff #000\"/>"),
+        &CookOptions::default(),
+    )
+    .unwrap_err();
+    assert!(e.to_string().contains("data-corners"), "{e}");
 }

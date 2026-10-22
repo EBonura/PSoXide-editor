@@ -3,10 +3,10 @@
 
 use psx_gpu::material::BlendMode;
 use psx_vector::encode::{encode, GroupSource};
-use psx_vector::format::{pack_rgb, Vertex};
+use psx_vector::format::{pack_rgb, Vertex, RUN_QUADS, RUN_TRIANGLES};
 use psx_vector::{
-    draw_mode_word, BlendOverride, ClipRect, DrawError, Emit, PacketError, ParseError, Placement,
-    Scratch, Style, VectorAsset, VectorPacket,
+    draw_mode_word, BlendOverride, ClipRect, DrawError, Emit, PacketCache, PacketError, ParseError,
+    Placement, Scratch, Style, VectorAsset, VectorPacket, QUAD_WORDS, TRIANGLE_WORDS,
 };
 
 /// 4-byte-aligned copy of `bytes`.
@@ -48,7 +48,8 @@ fn sample() -> Vec<u8> {
             v(10, 52, red),
         ],
         triangles: vec![[0, 1, 2], [0, 2, 3]],
-        runs: vec![(0, 2)],
+        quads: vec![],
+        runs: vec![(0, RUN_TRIANGLES, 2)],
         pivot: None,
     };
     let glow = GroupSource {
@@ -59,10 +60,25 @@ fn sample() -> Vec<u8> {
             v(0, 8, pack_rgb(9, 9, 9)),
         ],
         triangles: vec![[0, 1, 2]],
-        runs: vec![(2, 1)],
+        quads: vec![],
+        runs: vec![(2, RUN_TRIANGLES, 1)],
         pivot: Some([0, 0]),
     };
-    encode([q4(100) as u16, q4(60) as u16], &[boxg, glow]).unwrap()
+    // A 20x10 quad at (100, 10): red on the left corners, blue on the right.
+    let quadg = GroupSource {
+        name: "quad".into(),
+        vertices: vec![
+            v(100, 10, red),
+            v(120, 10, blue),
+            v(100, 20, red),
+            v(120, 20, blue),
+        ],
+        triangles: vec![],
+        quads: vec![[0, 1, 2, 3]],
+        runs: vec![(0, RUN_QUADS, 1)],
+        pivot: None,
+    };
+    encode([q4(100) as u16, q4(60) as u16], &[boxg, glow, quadg]).unwrap()
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -90,6 +106,22 @@ fn run(
                 p: [p(t.v0), p(t.v1), p(t.v2)],
                 c: [t.color0_cmd & 0xFF_FFFF, t.color1, t.color2],
                 translucent: t.color0_cmd & (1 << 25) != 0,
+            });
+        }
+        // Report a quad as the two triangles the GPU splits it into.
+        Emit::Quad(q) => {
+            let p = |w: u32| ((w as u16 as i16) as i32, ((w >> 16) as u16 as i16) as i32);
+            let translucent = q.color0_cmd & (1 << 25) != 0;
+            let c0 = q.color0_cmd & 0xFF_FFFF;
+            tris.push(Tri {
+                p: [p(q.v0), p(q.v1), p(q.v2)],
+                c: [c0, q.color1, q.color2],
+                translucent,
+            });
+            tris.push(Tri {
+                p: [p(q.v1), p(q.v2), p(q.v3)],
+                c: [q.color1, q.color2, q.color3],
+                translucent,
             });
         }
     });
@@ -141,7 +173,7 @@ fn lookup_and_info() {
     let bytes = sample();
     let w = aligned(&bytes);
     let a = VectorAsset::parse(as_bytes(&w, bytes.len())).unwrap();
-    assert_eq!(a.group_count(), 2);
+    assert_eq!(a.group_count(), 3);
     let id = a.group("box").unwrap();
     assert_eq!(a.group_name(id), "box");
     assert_eq!(a.group("nope"), None);
@@ -151,7 +183,7 @@ fn lookup_and_info() {
     // Default pivot is the bounds centre.
     assert_eq!(info.pivot_q4, [q4(42), q4(36)]);
     assert_eq!(a.max_group_vertices(), 4);
-    assert_eq!(a.triangle_count(), 3);
+    assert_eq!(a.triangle_count(), 5); // 2 + 1 triangles and one quad
 }
 
 #[test]
@@ -324,7 +356,10 @@ fn clipping_keeps_pixels_inside_and_interpolates_colour() {
         .sum();
     // Crossing points round to whole pixels, so the fan is within a pixel of
     // the window along its diagonal cuts.
-    assert!((area - 2 * 30 * 20).abs() <= 2 * 30 * 20 / 25, "area {area}");
+    assert!(
+        (area - 2 * 30 * 20).abs() <= 2 * 30 * 20 / 25,
+        "area {area}"
+    );
     // Colour at the clip's left edge is a mix, not an end colour.
     let left = tris
         .iter()
@@ -365,7 +400,13 @@ fn packets_carry_their_draw_mode_and_match_the_emitted_triangles() {
     let mut scratch = Box::new(Scratch::<64>::new());
     let mut out = [VectorPacket::ZERO; 4];
     let n = a
-        .emit_packets(a.group("box").unwrap(), &place, &Style::DEFAULT, &mut scratch, &mut out)
+        .emit_packets(
+            a.group("box").unwrap(),
+            &place,
+            &Style::DEFAULT,
+            &mut scratch,
+            &mut out,
+        )
         .unwrap();
     assert_eq!(n, 2);
     let (_, tris, _) = run(&a, "box", &place, &Style::DEFAULT);
@@ -375,14 +416,164 @@ fn packets_carry_their_draw_mode_and_match_the_emitted_triangles() {
         assert_eq!(packet.color0_cmd >> 24, 0x30);
     }
     let n = a
-        .emit_packets(a.group("glow").unwrap(), &place, &Style::DEFAULT, &mut scratch, &mut out)
+        .emit_packets(
+            a.group("glow").unwrap(),
+            &place,
+            &Style::DEFAULT,
+            &mut scratch,
+            &mut out,
+        )
         .unwrap();
     assert_eq!(n, 1);
     assert_eq!(out[0].draw_mode, draw_mode_word(BlendMode::Add));
     assert_eq!(out[0].color0_cmd >> 24, 0x32);
     let mut small = [VectorPacket::ZERO; 1];
     let err = a
-        .emit_packets(a.group("box").unwrap(), &place, &Style::DEFAULT, &mut scratch, &mut small)
+        .emit_packets(
+            a.group("box").unwrap(),
+            &place,
+            &Style::DEFAULT,
+            &mut scratch,
+            &mut small,
+        )
         .unwrap_err();
     assert_eq!(err, PacketError::OutputTooSmall { needed: 2 });
+}
+
+#[test]
+fn quads_emit_as_one_primitive_and_transform_like_triangles() {
+    let bytes = sample();
+    let w = aligned(&bytes);
+    let a = VectorAsset::parse(as_bytes(&w, bytes.len())).unwrap();
+    let id = a.group("quad").unwrap();
+    assert_eq!(a.group_info(id).quads, 1);
+    let mut scratch = Box::new(Scratch::<8>::new());
+    let mut quads = 0;
+    let r = a.emit_group(
+        id,
+        &Placement::at(5, 5),
+        &Style::DEFAULT,
+        &mut scratch,
+        &mut |s| {
+            if let Emit::Quad(q) = s {
+                quads += 1;
+                assert_eq!(q.v0, (105u32) | (15u32 << 16));
+                assert_eq!(q.v3, (125u32) | (25u32 << 16));
+                assert_eq!(q.color0_cmd >> 24, 0x38);
+            }
+        },
+    );
+    assert_eq!((r, quads), (Ok(2), 1));
+}
+
+#[test]
+fn clipping_a_quad_cuts_it_as_two_triangles() {
+    let bytes = sample();
+    let w = aligned(&bytes);
+    let a = VectorAsset::parse(as_bytes(&w, bytes.len())).unwrap();
+    let id = a.group("quad").unwrap();
+    let mut scratch = Box::new(Scratch::<8>::new());
+    let mut seen = Vec::new();
+    let clip = ClipRect {
+        x0: 105,
+        y0: 0,
+        x1: 115,
+        y1: 100,
+    };
+    a.emit_group(
+        id,
+        &Placement::IDENTITY,
+        &Style::DEFAULT.clipped(clip),
+        &mut scratch,
+        &mut |s| {
+            if let Emit::Triangle(t) = s {
+                seen.push([t.v0, t.v1, t.v2]);
+            }
+            assert!(!matches!(s, Emit::Quad(_)));
+        },
+    )
+    .unwrap();
+    assert!(!seen.is_empty());
+    for tri in seen {
+        for w in tri {
+            let x = (w as u16 as i16) as i32;
+            assert!((105..=115).contains(&x), "x {x}");
+        }
+    }
+    // Wholly inside stays a quad.
+    let mut quads = 0;
+    let inside = ClipRect {
+        x0: 0,
+        y0: 0,
+        x1: 200,
+        y1: 200,
+    };
+    a.emit_group(
+        id,
+        &Placement::IDENTITY,
+        &Style::DEFAULT.clipped(inside),
+        &mut scratch,
+        &mut |s| quads += matches!(s, Emit::Quad(_)) as u32,
+    )
+    .unwrap();
+    assert_eq!(quads, 1);
+}
+
+#[test]
+fn packet_cache_links_back_to_front_with_the_right_node_lengths() {
+    let bytes = sample();
+    let w = aligned(&bytes);
+    let a = VectorAsset::parse(as_bytes(&w, bytes.len())).unwrap();
+    let mut scratch = Box::new(Scratch::<8>::new());
+    let mut cache = PacketCache::<8>::new();
+    let place = Placement::IDENTITY;
+    let boxed = cache.push(
+        &a,
+        a.group("box").unwrap(),
+        &place,
+        &Style::DEFAULT,
+        &mut scratch,
+        5,
+    );
+    let quad = cache.push(
+        &a,
+        a.group("quad").unwrap(),
+        &place,
+        &Style::DEFAULT,
+        &mut scratch,
+        3,
+    );
+    assert_eq!((boxed, quad), (Ok(2), Ok(1)));
+    assert_eq!(cache.len(), 3);
+    let order: Vec<(usize, u8)> = cache.links().map(|(slot, p)| (slot, p.words())).collect();
+    // Reverse of push order: the quad first, then the box's two triangles.
+    assert_eq!(
+        order,
+        [(3, QUAD_WORDS), (5, TRIANGLE_WORDS), (5, TRIANGLE_WORDS)]
+    );
+    // Nothing is added when a push does not fit.
+    let mut full = PacketCache::<2>::new();
+    assert!(full
+        .push(
+            &a,
+            a.group("box").unwrap(),
+            &place,
+            &Style::DEFAULT,
+            &mut scratch,
+            0
+        )
+        .is_ok());
+    assert!(full
+        .push(
+            &a,
+            a.group("quad").unwrap(),
+            &place,
+            &Style::DEFAULT,
+            &mut scratch,
+            0
+        )
+        .is_err());
+    assert_eq!(full.len(), 2);
+    full.clear();
+    assert!(full.is_empty());
 }

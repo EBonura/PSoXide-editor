@@ -89,24 +89,21 @@ impl Edge {
 /// with Sutherland-Hodgman, colours interpolated linearly. Returns the polygon
 /// vertices and their count; a count below 3 means nothing is left.
 ///
-/// Only the edges the triangle's bounding box actually crosses are processed,
-/// which for a typical straddling triangle is one or two of the four.
-#[inline(never)]
+/// `cut` has bit 0 to 3 set for the left, right, top and bottom edges the
+/// triangle crosses (the high nibble of its vertices' outcodes, shifted down);
+/// only those passes run, which for a typical straddling triangle is one or two.
 pub(crate) fn clip_triangle(
     tri: [ClipVertex; 3],
     rect: ClipRect,
+    cut: u8,
 ) -> ([ClipVertex; MAX_CLIPPED], usize) {
-    let min_x = tri[0].x.min(tri[1].x).min(tri[2].x);
-    let max_x = tri[0].x.max(tri[1].x).max(tri[2].x);
-    let min_y = tri[0].y.min(tri[1].y).min(tri[2].y);
-    let max_y = tri[0].y.max(tri[1].y).max(tri[2].y);
     // A vertex on the right/bottom boundary x1 still rasterises no pixel at
     // x1, so clipping to x1 itself (inclusive here) keeps the half-open rule.
     let edges = [
-        (min_x < rect.x0, Edge::Left(rect.x0)),
-        (max_x > rect.x1, Edge::Right(rect.x1)),
-        (min_y < rect.y0, Edge::Top(rect.y0)),
-        (max_y > rect.y1, Edge::Bottom(rect.y1)),
+        (cut & 1 != 0, Edge::Left(rect.x0)),
+        (cut & 2 != 0, Edge::Right(rect.x1)),
+        (cut & 4 != 0, Edge::Top(rect.y0)),
+        (cut & 8 != 0, Edge::Bottom(rect.y1)),
     ];
     let zero = tri[0];
     let mut poly = [zero; MAX_CLIPPED];

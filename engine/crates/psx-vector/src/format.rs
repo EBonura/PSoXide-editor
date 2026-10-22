@@ -21,10 +21,11 @@
 //! indices, runs, names), `48` total length, `52` reserved (zero).
 //!
 //! A group owns a contiguous range of vertices, a contiguous range of indices
-//! (three per triangle, local to the group's first vertex) and a contiguous
-//! range of runs. Triangles are in paint order. A run is a consecutive stretch
-//! of triangles drawn with the same blend mode, so painter's order survives
-//! mode changes.
+//! (local to the group's first vertex) and a contiguous range of runs.
+//! Primitives are in paint order: a primitive is a triangle (three indices) or
+//! a quad (four indices, drawn as the GPU draws a GP0 quad: triangles `0 1 2`
+//! and `1 2 3`). A run is a consecutive stretch of primitives of one kind drawn
+//! with the same blend mode, so painter's order survives mode and kind changes.
 
 use psx_gpu::material::BlendMode;
 
@@ -55,7 +56,7 @@ pub struct GroupRecord {
     pub vertex_start: u32,
     /// Number of vertices.
     pub vertex_count: u16,
-    /// Number of triangles.
+    /// Number of triangle primitives.
     pub tri_count: u16,
     /// Index (in `u16` units) of the group's first index in the index section.
     pub index_start: u32,
@@ -63,8 +64,8 @@ pub struct GroupRecord {
     pub run_start: u32,
     /// Number of runs.
     pub run_count: u16,
-    /// Reserved, zero.
-    pub reserved: u16,
+    /// Number of quad primitives.
+    pub quad_count: u16,
     /// Bounding box `[min_x, min_y, max_x, max_y]` in Q4 pixels.
     pub bounds: [i16; 4],
     /// Pivot `[x, y]` in Q4 pixels, the default rotation and scale centre.
@@ -91,10 +92,10 @@ pub struct Vertex {
 pub struct Run {
     /// Blend code, see [`blend_from_code`].
     pub blend: u8,
-    /// Reserved, zero.
-    pub reserved: u8,
-    /// Number of triangles in the run.
-    pub tri_count: u16,
+    /// Primitive kind of the run, [`RUN_TRIANGLES`] or [`RUN_QUADS`].
+    pub kind: u8,
+    /// Number of primitives in the run.
+    pub count: u16,
 }
 
 const _: () = assert!(core::mem::size_of::<GroupRecord>() == 40);
@@ -103,6 +104,10 @@ const _: () = assert!(core::mem::size_of::<Run>() == 4);
 
 /// Blend code for an opaque run.
 pub const BLEND_OPAQUE: u8 = 0;
+/// [`Run::kind`] of a run of triangles (three indices each).
+pub const RUN_TRIANGLES: u8 = 0;
+/// [`Run::kind`] of a run of quads (four indices each).
+pub const RUN_QUADS: u8 = 1;
 
 /// Pack `r`, `g`, `b` into a [`Vertex::color`] word.
 #[inline]

@@ -2,13 +2,13 @@
 //! triple.
 
 use psx_gpu::material::{BlendMode, TextureMaterial};
-use psx_gpu::prim::TriGouraud;
+use psx_gpu::prim::{QuadGouraud, TriGouraud};
 use psx_gpu::Gpu;
 use psx_math::{cos_q12, sin_q12};
 
 use crate::asset::{GroupId, VectorAsset};
 use crate::clip::{clip_triangle, ClipVertex};
-use crate::format::{blend_from_code, GroupRecord, Vertex, COORD_SHIFT};
+use crate::format::{blend_from_code, GroupRecord, Vertex, COORD_SHIFT, RUN_QUADS};
 
 /// The largest [`Placement::scale_q12`] (4.0). Larger values are clamped so
 /// the 32-bit transform cannot overflow for coordinates inside the canvas
@@ -159,6 +159,8 @@ impl Default for Style {
 pub struct Scratch<const N: usize> {
     pos: [u32; N],
     col: [u32; N],
+    /// Clip outcodes, used only by clipped draws.
+    code: [u8; N],
 }
 
 impl<const N: usize> Scratch<N> {
@@ -167,6 +169,7 @@ impl<const N: usize> Scratch<N> {
         Self {
             pos: [0; N],
             col: [0; N],
+            code: [0; N],
         }
     }
 }
@@ -192,11 +195,20 @@ pub enum Emit<'a> {
     Blend(BlendMode),
     /// A triangle, translucent exactly when the current blend is not opaque.
     Triangle(&'a TriGouraud),
+    /// A quad (GP0 0x38), drawn by the GPU as triangles `0 1 2` and `1 2 3`,
+    /// translucent exactly when the current blend is not opaque.
+    Quad(&'a QuadGouraud),
 }
 
 /// Opaque and semi-transparent Gouraud-triangle command words (no colour).
 const OPCODE_OPAQUE: u32 = TriGouraud::new([(0, 0); 3], [(0, 0, 0); 3]).color0_cmd;
 const OPCODE_TRANSLUCENT: u32 = TriGouraud::new([(0, 0); 3], [(0, 0, 0); 3])
+    .translucent()
+    .color0_cmd;
+
+/// The same for Gouraud quads.
+const QUAD_OPAQUE: u32 = QuadGouraud::new([(0, 0); 4], [(0, 0, 0); 4]).color0_cmd;
+const QUAD_TRANSLUCENT: u32 = QuadGouraud::new([(0, 0); 4], [(0, 0, 0); 4])
     .translucent()
     .color0_cmd;
 
@@ -247,10 +259,18 @@ struct Transform {
 impl Transform {
     fn new(place: &Placement, default_pivot: [i16; 2]) -> Self {
         let scale = place.scale_q12.min(MAX_SCALE_Q12) as i32;
-        let (sin, cos) = (sin_q12(place.angle_q12), cos_q12(place.angle_q12));
-        let m00 = (cos * scale + 2048) >> 12;
-        let m01 = (-sin * scale + 2048) >> 12;
-        let m10 = (sin * scale + 2048) >> 12;
+        // The common unrotated case skips the sine table: cos 0 is 1.0 exactly,
+        // so the matrix is the scale on the diagonal.
+        let (m00, m01, m10) = if place.angle_q12 & 0x0FFF == 0 {
+            (scale, 0, 0)
+        } else {
+            let (sin, cos) = (sin_q12(place.angle_q12), cos_q12(place.angle_q12));
+            (
+                (cos * scale + 2048) >> 12,
+                (-sin * scale + 2048) >> 12,
+                (sin * scale + 2048) >> 12,
+            )
+        };
         let m11 = m00;
         let [px, py] = place
             .pivot_q4
@@ -329,8 +349,28 @@ fn transformed_bounds(bounds: [i16; 4], t: &Transform) -> [i32; 4] {
     [lo[0] - 1, lo[1] - 1, hi[0] + 1, hi[1] + 1]
 }
 
+/// Clip outcode of a transformed position word against `clip`.
+///
+/// Low nibble: on or outside an edge (left, right, top, bottom), enough to
+/// reject a primitive whose vertices share one. High nibble: strictly outside
+/// that edge, which is what forces a cut.
+#[inline(always)]
+fn outcode(word: u32, clip: ClipRect) -> u8 {
+    let x = word as u16 as i16 as i32;
+    let y = (word >> 16) as u16 as i16 as i32;
+    (x <= clip.x0) as u8
+        | ((x >= clip.x1) as u8) << 1
+        | ((y <= clip.y0) as u8) << 2
+        | ((y >= clip.y1) as u8) << 3
+        | ((x < clip.x0) as u8) << 4
+        | ((x > clip.x1) as u8) << 5
+        | ((y < clip.y0) as u8) << 6
+        | ((y > clip.y1) as u8) << 7
+}
+
 impl<'a> VectorAsset<'a> {
-    /// Draw `group` straight to the GPU, returning the triangles emitted.
+    /// Draw `group` straight to the GPU, returning the GPU triangles emitted (a
+    /// quad counts as two).
     ///
     /// Draw order within the group is the cooked paint order; draw groups
     /// back to front. See the crate docs for the draw-mode register this
@@ -349,15 +389,17 @@ impl<'a> VectorAsset<'a> {
                 gpu.set_draw_mode(TextureMaterial::blended(0, 0, (0, 0, 0), mode));
             }
             Emit::Triangle(tri) => gpu.draw(tri),
+            Emit::Quad(quad) => gpu.draw(quad),
         })
     }
 
-    /// Run `group`'s draw through `sink` instead of the GPU, returning the
-    /// triangles emitted.
+    /// Run `group`'s draw through `sink` instead of the GPU, returning the GPU
+    /// triangles emitted (a quad counts as two).
     ///
     /// This is the path for linking packets into an ordering table or for
     /// host tests: the sink sees exactly the [`Emit`] steps the immediate
-    /// draw would send, and a [`TriGouraud`] is the same packet either way.
+    /// draw would send, and a [`TriGouraud`] or [`QuadGouraud`] is the same
+    /// packet either way.
     pub fn emit_group<const N: usize>(
         &self,
         group: GroupId,
@@ -372,10 +414,17 @@ impl<'a> VectorAsset<'a> {
             return Err(DrawError::ScratchTooSmall);
         }
         let t = Transform::new(place, record.pivot);
+        // A clip rectangle that contains the whole group changes nothing, so
+        // that group takes the unclipped path; one that misses it draws nothing.
+        let mut clip_needed = None;
         if let Some(clip) = style.clip {
             let b = transformed_bounds(record.bounds, &t);
             if b[2] <= clip.x0 || b[0] >= clip.x1 || b[3] <= clip.y0 || b[1] >= clip.y1 {
                 return Ok(0);
+            }
+            let inside = b[0] >= clip.x0 && b[2] <= clip.x1 && b[1] >= clip.y0 && b[3] <= clip.y1;
+            if !inside {
+                clip_needed = Some(clip);
             }
         }
         let n = verts.len();
@@ -386,15 +435,22 @@ impl<'a> VectorAsset<'a> {
                 *c = recolor(v.color, style);
             }
         }
-        let ctx = Triangles {
+        if let Some(clip) = clip_needed {
+            for (p, c) in scratch.pos[..n].iter().zip(scratch.code[..n].iter_mut()) {
+                *c = outcode(*p, clip);
+            }
+        }
+        let ctx = Primitives {
             asset: self,
             record,
             verts,
             pos: &scratch.pos[..n],
             col: &scratch.col[..n],
+            code: &scratch.code[..n],
             style,
+            clip: clip_needed,
         };
-        Ok(match (style.clip, recolor_vertices) {
+        Ok(match (clip_needed, recolor_vertices) {
             (None, false) => ctx.emit::<false, false>(sink),
             (None, true) => ctx.emit::<false, true>(sink),
             (Some(_), false) => ctx.emit::<true, false>(sink),
@@ -403,22 +459,25 @@ impl<'a> VectorAsset<'a> {
     }
 }
 
-/// Everything the triangle loop reads, bundled so the loop's four
+/// Everything the primitive loop reads, bundled so the loop's four
 /// instantiations take one argument.
-struct Triangles<'a> {
+struct Primitives<'a> {
     asset: &'a VectorAsset<'a>,
     record: &'a GroupRecord,
     verts: &'a [Vertex],
     pos: &'a [u32],
     col: &'a [u32],
+    code: &'a [u8],
     style: &'a Style,
+    /// The clip rectangle when this group crosses it, else `None`.
+    clip: Option<ClipRect>,
 }
 
-impl Triangles<'_> {
+impl Primitives<'_> {
     #[inline(always)]
     fn emit<const CLIP: bool, const RECOLOR: bool>(&self, sink: &mut impl FnMut(Emit<'_>)) -> u32 {
         let indices = self.asset.group_indices(self.record);
-        let clip = self.style.clip.unwrap_or(ClipRect {
+        let clip = self.clip.unwrap_or(ClipRect {
             x0: 0,
             y0: 0,
             x1: 0,
@@ -436,83 +495,170 @@ impl Triangles<'_> {
                 sink(Emit::Blend(mode));
                 current = Some(mode);
             }
-            let opcode = if mode.is_translucent() {
-                OPCODE_TRANSLUCENT
-            } else {
-                OPCODE_OPAQUE
-            };
-            let end = next + run.tri_count as usize * 3;
-            // Index triples were validated at parse: every index is below the
-            // group's vertex count, which `pos`, `col` and `verts` all have.
-            while next < end {
-                let (i0, i1, i2) = (
-                    indices[next] as usize,
-                    indices[next + 1] as usize,
-                    indices[next + 2] as usize,
-                );
-                next += 3;
-                // SAFETY: see above; `pos`, `col` and `verts` have exactly the
-                // group's vertex count entries and `i*` are below it.
-                let (p0, p1, p2, c0, c1, c2) = unsafe {
-                    let c = |i: usize| {
-                        if RECOLOR {
-                            *self.col.get_unchecked(i)
-                        } else {
-                            self.verts.get_unchecked(i).color
-                        }
-                    };
-                    (
-                        *self.pos.get_unchecked(i0),
-                        *self.pos.get_unchecked(i1),
-                        *self.pos.get_unchecked(i2),
-                        c(i0),
-                        c(i1),
-                        c(i2),
-                    )
-                };
-                if CLIP {
-                    emitted += emit_clipped(opcode, [p0, p1, p2], [c0, c1, c2], clip, sink);
+            let translucent = mode.is_translucent();
+            // Index values were validated at parse: every index is below the
+            // group's vertex count, which `pos`, `col`, `code` and `verts` all
+            // have, and `next + 3` or `next + 4` stays inside `indices` because
+            // the run counts add up to the group's primitive counts.
+            if run.kind == RUN_QUADS {
+                let opcode = if translucent {
+                    QUAD_TRANSLUCENT
                 } else {
-                    let tri = TriGouraud {
-                        tag: 0,
-                        color0_cmd: opcode | c0,
-                        v0: p0,
-                        color1: c1,
-                        v1: p1,
-                        color2: c2,
-                        v2: p2,
-                    };
-                    sink(Emit::Triangle(&tri));
-                    emitted += 1;
+                    QUAD_OPAQUE
+                };
+                for _ in 0..run.count {
+                    let q = [
+                        indices[next] as usize,
+                        indices[next + 1] as usize,
+                        indices[next + 2] as usize,
+                        indices[next + 3] as usize,
+                    ];
+                    next += 4;
+                    // SAFETY: see above.
+                    let (p, c) = unsafe { self.gather4::<RECOLOR>(q) };
+                    if CLIP {
+                        // SAFETY: see above.
+                        let k = unsafe {
+                            [
+                                *self.code.get_unchecked(q[0]),
+                                *self.code.get_unchecked(q[1]),
+                                *self.code.get_unchecked(q[2]),
+                                *self.code.get_unchecked(q[3]),
+                            ]
+                        };
+                        emitted += emit_quad_clipped(opcode, p, c, k, clip, sink);
+                    } else {
+                        let quad = QuadGouraud {
+                            tag: 0,
+                            color0_cmd: opcode | c[0],
+                            v0: p[0],
+                            color1: c[1],
+                            v1: p[1],
+                            color2: c[2],
+                            v2: p[2],
+                            color3: c[3],
+                            v3: p[3],
+                        };
+                        sink(Emit::Quad(&quad));
+                        emitted += 2;
+                    }
+                }
+            } else {
+                let opcode = if translucent {
+                    OPCODE_TRANSLUCENT
+                } else {
+                    OPCODE_OPAQUE
+                };
+                for _ in 0..run.count {
+                    let t = [
+                        indices[next] as usize,
+                        indices[next + 1] as usize,
+                        indices[next + 2] as usize,
+                    ];
+                    next += 3;
+                    // SAFETY: see above.
+                    let (p, c) = unsafe { self.gather3::<RECOLOR>(t) };
+                    if CLIP {
+                        // SAFETY: see above.
+                        let k = unsafe {
+                            [
+                                *self.code.get_unchecked(t[0]),
+                                *self.code.get_unchecked(t[1]),
+                                *self.code.get_unchecked(t[2]),
+                            ]
+                        };
+                        emitted += emit_tri_clipped(opcode, p, c, k, clip, sink);
+                    } else {
+                        let tri = TriGouraud {
+                            tag: 0,
+                            color0_cmd: opcode | c[0],
+                            v0: p[0],
+                            color1: c[1],
+                            v1: p[1],
+                            color2: c[2],
+                            v2: p[2],
+                        };
+                        sink(Emit::Triangle(&tri));
+                        emitted += 1;
+                    }
                 }
             }
         }
         emitted
     }
+
+    /// Position and colour words of three vertices.
+    ///
+    /// # Safety
+    ///
+    /// Every index is below the group's vertex count.
+    #[inline(always)]
+    unsafe fn gather3<const RECOLOR: bool>(&self, i: [usize; 3]) -> ([u32; 3], [u32; 3]) {
+        // SAFETY: forwarded contract.
+        unsafe {
+            let c = |k: usize| {
+                if RECOLOR {
+                    *self.col.get_unchecked(k)
+                } else {
+                    self.verts.get_unchecked(k).color
+                }
+            };
+            (
+                [
+                    *self.pos.get_unchecked(i[0]),
+                    *self.pos.get_unchecked(i[1]),
+                    *self.pos.get_unchecked(i[2]),
+                ],
+                [c(i[0]), c(i[1]), c(i[2])],
+            )
+        }
+    }
+
+    /// Position and colour words of four vertices.
+    ///
+    /// # Safety
+    ///
+    /// Every index is below the group's vertex count.
+    #[inline(always)]
+    unsafe fn gather4<const RECOLOR: bool>(&self, i: [usize; 4]) -> ([u32; 4], [u32; 4]) {
+        // SAFETY: forwarded contract.
+        unsafe {
+            let c = |k: usize| {
+                if RECOLOR {
+                    *self.col.get_unchecked(k)
+                } else {
+                    self.verts.get_unchecked(k).color
+                }
+            };
+            (
+                [
+                    *self.pos.get_unchecked(i[0]),
+                    *self.pos.get_unchecked(i[1]),
+                    *self.pos.get_unchecked(i[2]),
+                    *self.pos.get_unchecked(i[3]),
+                ],
+                [c(i[0]), c(i[1]), c(i[2]), c(i[3])],
+            )
+        }
+    }
 }
 
-/// Emit one triangle clipped to `clip`; returns 1 if anything was drawn.
-///
-/// The common cases (wholly outside, wholly inside) are decided from the
-/// position words alone, before any colour is unpacked.
-#[inline(never)]
-fn emit_clipped(
+/// Emit one triangle clipped to `clip`, deciding from the vertex outcodes
+/// `k`; returns the GPU triangles drawn from it.
+#[inline(always)]
+fn emit_tri_clipped(
     opcode: u32,
     pos: [u32; 3],
     col: [u32; 3],
+    k: [u8; 3],
     clip: ClipRect,
     sink: &mut impl FnMut(Emit<'_>),
 ) -> u32 {
-    let x = |w: u32| w as u16 as i16 as i32;
-    let y = |w: u32| (w >> 16) as u16 as i16 as i32;
-    let min_x = x(pos[0]).min(x(pos[1])).min(x(pos[2]));
-    let max_x = x(pos[0]).max(x(pos[1])).max(x(pos[2]));
-    let min_y = y(pos[0]).min(y(pos[1])).min(y(pos[2]));
-    let max_y = y(pos[0]).max(y(pos[1])).max(y(pos[2]));
-    if max_x <= clip.x0 || min_x >= clip.x1 || max_y <= clip.y0 || min_y >= clip.y1 {
+    if k[0] & k[1] & k[2] & 0x0F != 0 {
         return 0;
     }
-    if min_x >= clip.x0 && max_x <= clip.x1 && min_y >= clip.y0 && max_y <= clip.y1 {
+    let cut = (k[0] | k[1] | k[2]) >> 4;
+    if cut == 0 {
         let packet = TriGouraud {
             tag: 0,
             color0_cmd: opcode | col[0],
@@ -525,12 +671,26 @@ fn emit_clipped(
         sink(Emit::Triangle(&packet));
         return 1;
     }
+    clip_and_emit(opcode, pos, col, cut, clip, sink)
+}
+
+/// The slow path: cut a triangle that crosses the edges in `cut` and emit the
+/// fan. Kept out of line so the common accept path stays small.
+#[inline(never)]
+fn clip_and_emit(
+    opcode: u32,
+    pos: [u32; 3],
+    col: [u32; 3],
+    cut: u8,
+    clip: ClipRect,
+    sink: &mut impl FnMut(Emit<'_>),
+) -> u32 {
     let tri = [
         ClipVertex::from_words(pos[0], col[0]),
         ClipVertex::from_words(pos[1], col[1]),
         ClipVertex::from_words(pos[2], col[2]),
     ];
-    let (poly, len) = clip_triangle(tri, clip);
+    let (poly, len) = clip_triangle(tri, clip, cut);
     if len < 3 {
         return 0;
     }
@@ -548,4 +708,53 @@ fn emit_clipped(
         sink(Emit::Triangle(&packet));
     }
     1
+}
+
+/// Emit one quad clipped to `clip`. A quad wholly inside goes out whole; one
+/// that crosses an edge is drawn as the two triangles the GPU would split it
+/// into, each clipped on its own.
+#[inline(always)]
+fn emit_quad_clipped(
+    opcode: u32,
+    pos: [u32; 4],
+    col: [u32; 4],
+    k: [u8; 4],
+    clip: ClipRect,
+    sink: &mut impl FnMut(Emit<'_>),
+) -> u32 {
+    if k[0] & k[1] & k[2] & k[3] & 0x0F != 0 {
+        return 0;
+    }
+    if (k[0] | k[1] | k[2] | k[3]) >> 4 == 0 {
+        let packet = QuadGouraud {
+            tag: 0,
+            color0_cmd: opcode | col[0],
+            v0: pos[0],
+            color1: col[1],
+            v1: pos[1],
+            color2: col[2],
+            v2: pos[2],
+            color3: col[3],
+            v3: pos[3],
+        };
+        sink(Emit::Quad(&packet));
+        return 2;
+    }
+    // The triangle opcode differs from the quad opcode only in the quad bit.
+    let tri_opcode = opcode & !(1 << 27);
+    emit_tri_clipped(
+        tri_opcode,
+        [pos[0], pos[1], pos[2]],
+        [col[0], col[1], col[2]],
+        [k[0], k[1], k[2]],
+        clip,
+        sink,
+    ) + emit_tri_clipped(
+        tri_opcode,
+        [pos[1], pos[2], pos[3]],
+        [col[1], col[2], col[3]],
+        [k[1], k[2], k[3]],
+        clip,
+        sink,
+    )
 }

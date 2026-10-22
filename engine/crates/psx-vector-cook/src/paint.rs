@@ -136,6 +136,8 @@ pub struct Style {
     pub blend: u8,
     /// Accumulated `opacity` of the element and its ancestors.
     pub opacity: f64,
+    /// Per-vertex fill colours from `data-corners`, in path order. Not inherited.
+    pub corners: Option<Vec<Rgb>>,
 }
 
 impl Default for Style {
@@ -152,6 +154,7 @@ impl Default for Style {
             miter_limit: 4.0,
             blend: 0,
             opacity: 1.0,
+            corners: None,
         }
     }
 }

@@ -1,235 +1,101 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="176" height="32" viewBox="0 0 176 32">
   <!--
-    Cortex stance HUD, first pass (concept: cortex-hud/03-concept-final-r11.png).
-    Units are screen pixels. Stance-coloured parts are authored in greys and tinted at
-    runtime (multiply), so one asset serves Horizon (red) and Zenith (cyan). Fixed-colour
-    parts (rail, crystals) are authored in amber.
+    Cortex stance HUD (concept: cortex-hud/03-concept-final-r11.png). Units are screen pixels.
+    Budget: 80 GPU triangles for the whole asset (`--budget total=80`); a quad counts as two.
 
-    Draw order, back to front, for the active bar:
-      plate, health_0..health_N (lit cells), emblem, emblem_core
-    The inactive bar is `plate` + its lit `health_i` again, dimmed and offset up.
-    Energy: rail, then energy_i for each lit crystal (glow_i first, additive).
+    Shading is per corner (`data-corners`, one colour per path vertex) so every shape stays a
+    single quad or a few triangles; there are no multi-stop gradients.
+
+    Stance-coloured parts are authored in greys and tinted at runtime (multiply), so one asset
+    serves Horizon (red) and Zenith (cyan). Rail and crystals are authored in amber.
+
+    Draw order, back to front:
+      plate (dimmed, offset up: the inactive stance), plate, health_0..9, emblem, emblem_core,
+      rail, energy_0..9
+    An empty cell or crystal is the same group drawn with a dark tint.
   -->
-  <defs>
-    <linearGradient id="plateGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#f4f4f4"/><stop offset="0.5" stop-color="#b6b6b6"/>
-      <stop offset="1" stop-color="#767676"/>
-    </linearGradient>
-    <linearGradient id="glassGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#d8d8d8"/><stop offset="0.45" stop-color="#b4b4b4"/>
-      <stop offset="1" stop-color="#868686"/>
-    </linearGradient>
-    <linearGradient id="ringGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#f2f2f2"/><stop offset="1" stop-color="#8e8e8e"/>
-    </linearGradient>
-    <linearGradient id="gemGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffeaa6"/><stop offset="0.5" stop-color="#ffb41e"/>
-      <stop offset="1" stop-color="#d86c00"/>
-    </linearGradient>
-  </defs>
 
-  <!-- Armour plate with ten recessed wells. -->
+  <!-- Armour plate: blade-shaped silhouette plus the dark strip the cells sit in. -->
   <g id="plate">
-    <path d="M22 8 H152 L163.5 4.5 L157 14 L149 21 H22 Z" fill="url(#plateGrad)"/>
-    <path d="M22 8 H152 L163.5 4.5 L161 8.2 L153 9.4 H22 Z" fill="#ffffff"/>
-    <path d="M22 19.8 H148 L149 21 H22 Z" fill="#4c4c4c"/>
-
-    <path d="M27.6 9.6 H38.4 L35.8 18.4 H25 Z" fill="#12161a" transform="translate(0.0 0)"/>
-    <path d="M27.6 9.6 H38.4 L35.8 18.4 H25 Z" fill="#12161a" transform="translate(11.7 0)"/>
-    <path d="M27.6 9.6 H38.4 L35.8 18.4 H25 Z" fill="#12161a" transform="translate(23.4 0)"/>
-    <path d="M27.6 9.6 H38.4 L35.8 18.4 H25 Z" fill="#12161a" transform="translate(35.1 0)"/>
-    <path d="M27.6 9.6 H38.4 L35.8 18.4 H25 Z" fill="#12161a" transform="translate(46.8 0)"/>
-    <path d="M27.6 9.6 H38.4 L35.8 18.4 H25 Z" fill="#12161a" transform="translate(58.5 0)"/>
-    <path d="M27.6 9.6 H38.4 L35.8 18.4 H25 Z" fill="#12161a" transform="translate(70.2 0)"/>
-    <path d="M27.6 9.6 H38.4 L35.8 18.4 H25 Z" fill="#12161a" transform="translate(81.9 0)"/>
-    <path d="M27.6 9.6 H38.4 L35.8 18.4 H25 Z" fill="#12161a" transform="translate(93.6 0)"/>
-    <path d="M27.6 9.6 H38.4 L35.8 18.4 H25 Z" fill="#12161a" transform="translate(105.3 0)"/>
-    <path d="M146 11.6 H147.5 L146.4 14.6 H144.9 Z M149 11.6 H150.5 L149.4 14.6 H147.9 Z M152 11.6 H153.5 L152.4 14.6 H150.9 Z" fill="#2a2a2a"/>
+    <path d="M22 8 H152 L163.5 4.5 L157 14 L149 21 H22 Z"
+          data-corners="#f4f4f4 #f4f4f4 #ffffff #c8c8c8 #707070 #707070"/>
+    <path d="M24.6 9.8 H146.6 L143.9 18.8 H24.6 Z" fill="#12161a"/>
   </g>
 
   <g id="health_0" transform="translate(0.0 0)">
-    <path d="M28.3 10.5 H37.7 L35.2 17.5 H25.8 Z" fill="url(#glassGrad)"/>
-    <path d="M28.3 10.5 H37.7 L36.6 13.6 H27.2 Z" fill="#ffffff"/>
+    <path d="M28.3 10.5 H37.7 L35.2 17.5 H25.8 Z" data-corners="#ffffff #ffffff #9a9a9a #9a9a9a"/>
   </g>
   <g id="health_1" transform="translate(11.7 0)">
-    <path d="M28.3 10.5 H37.7 L35.2 17.5 H25.8 Z" fill="url(#glassGrad)"/>
-    <path d="M28.3 10.5 H37.7 L36.6 13.6 H27.2 Z" fill="#ffffff"/>
+    <path d="M28.3 10.5 H37.7 L35.2 17.5 H25.8 Z" data-corners="#ffffff #ffffff #9a9a9a #9a9a9a"/>
   </g>
   <g id="health_2" transform="translate(23.4 0)">
-    <path d="M28.3 10.5 H37.7 L35.2 17.5 H25.8 Z" fill="url(#glassGrad)"/>
-    <path d="M28.3 10.5 H37.7 L36.6 13.6 H27.2 Z" fill="#ffffff"/>
+    <path d="M28.3 10.5 H37.7 L35.2 17.5 H25.8 Z" data-corners="#ffffff #ffffff #9a9a9a #9a9a9a"/>
   </g>
   <g id="health_3" transform="translate(35.1 0)">
-    <path d="M28.3 10.5 H37.7 L35.2 17.5 H25.8 Z" fill="url(#glassGrad)"/>
-    <path d="M28.3 10.5 H37.7 L36.6 13.6 H27.2 Z" fill="#ffffff"/>
+    <path d="M28.3 10.5 H37.7 L35.2 17.5 H25.8 Z" data-corners="#ffffff #ffffff #9a9a9a #9a9a9a"/>
   </g>
   <g id="health_4" transform="translate(46.8 0)">
-    <path d="M28.3 10.5 H37.7 L35.2 17.5 H25.8 Z" fill="url(#glassGrad)"/>
-    <path d="M28.3 10.5 H37.7 L36.6 13.6 H27.2 Z" fill="#ffffff"/>
+    <path d="M28.3 10.5 H37.7 L35.2 17.5 H25.8 Z" data-corners="#ffffff #ffffff #9a9a9a #9a9a9a"/>
   </g>
   <g id="health_5" transform="translate(58.5 0)">
-    <path d="M28.3 10.5 H37.7 L35.2 17.5 H25.8 Z" fill="url(#glassGrad)"/>
-    <path d="M28.3 10.5 H37.7 L36.6 13.6 H27.2 Z" fill="#ffffff"/>
+    <path d="M28.3 10.5 H37.7 L35.2 17.5 H25.8 Z" data-corners="#ffffff #ffffff #9a9a9a #9a9a9a"/>
   </g>
   <g id="health_6" transform="translate(70.2 0)">
-    <path d="M28.3 10.5 H37.7 L35.2 17.5 H25.8 Z" fill="url(#glassGrad)"/>
-    <path d="M28.3 10.5 H37.7 L36.6 13.6 H27.2 Z" fill="#ffffff"/>
+    <path d="M28.3 10.5 H37.7 L35.2 17.5 H25.8 Z" data-corners="#ffffff #ffffff #9a9a9a #9a9a9a"/>
   </g>
   <g id="health_7" transform="translate(81.9 0)">
-    <path d="M28.3 10.5 H37.7 L35.2 17.5 H25.8 Z" fill="url(#glassGrad)"/>
-    <path d="M28.3 10.5 H37.7 L36.6 13.6 H27.2 Z" fill="#ffffff"/>
+    <path d="M28.3 10.5 H37.7 L35.2 17.5 H25.8 Z" data-corners="#ffffff #ffffff #9a9a9a #9a9a9a"/>
   </g>
   <g id="health_8" transform="translate(93.6 0)">
-    <path d="M28.3 10.5 H37.7 L35.2 17.5 H25.8 Z" fill="url(#glassGrad)"/>
-    <path d="M28.3 10.5 H37.7 L36.6 13.6 H27.2 Z" fill="#ffffff"/>
+    <path d="M28.3 10.5 H37.7 L35.2 17.5 H25.8 Z" data-corners="#ffffff #ffffff #9a9a9a #9a9a9a"/>
   </g>
   <g id="health_9" transform="translate(105.3 0)">
-    <path d="M28.3 10.5 H37.7 L35.2 17.5 H25.8 Z" fill="url(#glassGrad)"/>
-    <path d="M28.3 10.5 H37.7 L36.6 13.6 H27.2 Z" fill="#ffffff"/>
+    <path d="M28.3 10.5 H37.7 L35.2 17.5 H25.8 Z" data-corners="#ffffff #ffffff #9a9a9a #9a9a9a"/>
   </g>
 
-  <!-- Octagon emblem: ring with a hole, bevel step, and the core ring in the other stance colour. -->
+  <!-- Octagon emblem and the small core in the other stance's colour. -->
   <g id="emblem">
-    <path fill-rule="evenodd" fill="url(#ringGrad)" d="M17.75 2.54 L24.46 9.25 V18.75 L17.75 25.46 H8.25 L1.54 18.75 V9.25 L8.25 2.54 Z M16.15 6.4 L20.6 10.85 V17.15 L16.15 21.6 H9.85 L5.4 17.15 V10.85 L9.85 6.4 Z"/>
-    <path fill-rule="evenodd" fill="#5a5a5a" d="M16.8 4.4 L22.6 10.2 V17.8 L16.8 23.6 H9.2 L3.4 17.8 V10.2 L9.2 4.4 Z M16.15 6.4 L20.6 10.85 V17.15 L16.15 21.6 H9.85 L5.4 17.15 V10.85 L9.85 6.4 Z"/>
+    <path d="M17.75 2.54 L24.46 9.25 V18.75 L17.75 25.46 H8.25 L1.54 18.75 V9.25 L8.25 2.54 Z"
+          data-corners="#f2f2f2 #d8d8d8 #a8a8a8 #8e8e8e #8e8e8e #a8a8a8 #d8d8d8 #f2f2f2"/>
   </g>
   <g id="emblem_core">
-    <path fill-rule="evenodd" fill="url(#ringGrad)" d="M15.73 7.4 L19.6 11.27 V16.73 L15.73 20.6 H10.27 L6.4 16.73 V11.27 L10.27 7.4 Z M15.2 8.7 L18.3 11.8 V16.2 L15.2 19.3 H10.8 L7.7 16.2 V11.8 L10.8 8.7 Z"/>
+    <path d="M13 8.4 L18 14 L13 19.6 L8 14 Z" data-corners="#ffffff #d0d0d0 #a0a0a0 #d0d0d0"/>
   </g>
 
-  <!-- Energy rail with ten sockets (amber rim, dark core). Sockets are always drawn. -->
+  <!-- Energy rail: three straight segments around the blade tip. -->
   <g id="rail">
-    <path d="M21 24.6 H119 C136 24.6 150 21 158 13.5 C163 8.5 167 4 170 1.5" fill="none" stroke="#6b4210" stroke-width="1.8"/>
-    <path d="M21 24.6 H119 C136 24.6 150 21 158 13.5 C163 8.5 167 4 170 1.5" fill="none" stroke="#d9942a" stroke-width="0.8"/>
-    <g transform="translate(28.8 24.6) rotate(0.0)">
-      <path d="M-3.6 0 L-1.8 -2.5 H1.8 L3.6 0 L1.8 2.5 H-1.8 Z" fill="#d9942a"/>
-      <path d="M-2.9 0 L-1.5 -1.9 H1.5 L2.9 0 L1.5 1.9 H-1.5 Z" fill="#3a2210"/>
-    </g>
-    <g transform="translate(43.0 24.6) rotate(0.0)">
-      <path d="M-3.6 0 L-1.8 -2.5 H1.8 L3.6 0 L1.8 2.5 H-1.8 Z" fill="#d9942a"/>
-      <path d="M-2.9 0 L-1.5 -1.9 H1.5 L2.9 0 L1.5 1.9 H-1.5 Z" fill="#3a2210"/>
-    </g>
-    <g transform="translate(57.2 24.6) rotate(0.0)">
-      <path d="M-3.6 0 L-1.8 -2.5 H1.8 L3.6 0 L1.8 2.5 H-1.8 Z" fill="#d9942a"/>
-      <path d="M-2.9 0 L-1.5 -1.9 H1.5 L2.9 0 L1.5 1.9 H-1.5 Z" fill="#3a2210"/>
-    </g>
-    <g transform="translate(71.4 24.6) rotate(0.0)">
-      <path d="M-3.6 0 L-1.8 -2.5 H1.8 L3.6 0 L1.8 2.5 H-1.8 Z" fill="#d9942a"/>
-      <path d="M-2.9 0 L-1.5 -1.9 H1.5 L2.9 0 L1.5 1.9 H-1.5 Z" fill="#3a2210"/>
-    </g>
-    <g transform="translate(85.6 24.6) rotate(0.0)">
-      <path d="M-3.6 0 L-1.8 -2.5 H1.8 L3.6 0 L1.8 2.5 H-1.8 Z" fill="#d9942a"/>
-      <path d="M-2.9 0 L-1.5 -1.9 H1.5 L2.9 0 L1.5 1.9 H-1.5 Z" fill="#3a2210"/>
-    </g>
-    <g transform="translate(99.8 24.6) rotate(0.0)">
-      <path d="M-3.6 0 L-1.8 -2.5 H1.8 L3.6 0 L1.8 2.5 H-1.8 Z" fill="#d9942a"/>
-      <path d="M-2.9 0 L-1.5 -1.9 H1.5 L2.9 0 L1.5 1.9 H-1.5 Z" fill="#3a2210"/>
-    </g>
-    <g transform="translate(114.0 24.6) rotate(0.0)">
-      <path d="M-3.6 0 L-1.8 -2.5 H1.8 L3.6 0 L1.8 2.5 H-1.8 Z" fill="#d9942a"/>
-      <path d="M-2.9 0 L-1.5 -1.9 H1.5 L2.9 0 L1.5 1.9 H-1.5 Z" fill="#3a2210"/>
-    </g>
-    <g transform="translate(128.19 24.22) rotate(-4.9)">
-      <path d="M-3.6 0 L-1.8 -2.5 H1.8 L3.6 0 L1.8 2.5 H-1.8 Z" fill="#d9942a"/>
-      <path d="M-2.9 0 L-1.5 -1.9 H1.5 L2.9 0 L1.5 1.9 H-1.5 Z" fill="#3a2210"/>
-    </g>
-    <g transform="translate(142.16 21.78) rotate(-15.8)">
-      <path d="M-3.6 0 L-1.8 -2.5 H1.8 L3.6 0 L1.8 2.5 H-1.8 Z" fill="#d9942a"/>
-      <path d="M-2.9 0 L-1.5 -1.9 H1.5 L2.9 0 L1.5 1.9 H-1.5 Z" fill="#3a2210"/>
-    </g>
-    <g transform="translate(155.02 15.93) rotate(-35.4)">
-      <path d="M-3.6 0 L-1.8 -2.5 H1.8 L3.6 0 L1.8 2.5 H-1.8 Z" fill="#d9942a"/>
-      <path d="M-2.9 0 L-1.5 -1.9 H1.5 L2.9 0 L1.5 1.9 H-1.5 Z" fill="#3a2210"/>
-    </g>
+    <polyline points="21,24.6 119,24.6 150,21 168,3.5" fill="none" stroke="#d9942a" stroke-width="1"
+              stroke-linejoin="bevel"/>
   </g>
-  <g id="glow_0" transform="translate(28.8 24.6) rotate(0.0)">
-    <path d="M-5.8 0 L-2.9 -3.7 H2.9 L5.8 0 L2.9 3.7 H-2.9 Z" fill="#40260a" data-blend="add"/>
-  </g>
+
   <g id="energy_0" transform="translate(28.8 24.6) rotate(0.0)">
-    <path d="M-3.1 0 L-1.6 -2.1 H1.6 L3.1 0 L1.6 2.1 H-1.6 Z" fill="url(#gemGrad)"/>
-    <path d="M-1.6 -2.1 H1.6 L0.9 -0.3 H-0.9 Z" fill="#fff4cc"/>
-    <path d="M-3.1 0 L-0.9 -0.3 L-1.6 2.1 Z" fill="#ffc84a"/>
-    <path d="M3.1 0 L0.9 -0.3 L1.6 2.1 Z" fill="#c25d00"/>
-  </g>
-  <g id="glow_1" transform="translate(43.0 24.6) rotate(0.0)">
-    <path d="M-5.8 0 L-2.9 -3.7 H2.9 L5.8 0 L2.9 3.7 H-2.9 Z" fill="#40260a" data-blend="add"/>
+    <path d="M0 -2.6 L3.6 0 L0 2.6 L-3.6 0 Z" data-corners="#ffeaa6 #ffb41e #d86c00 #ffc84a"/>
   </g>
   <g id="energy_1" transform="translate(43.0 24.6) rotate(0.0)">
-    <path d="M-3.1 0 L-1.6 -2.1 H1.6 L3.1 0 L1.6 2.1 H-1.6 Z" fill="url(#gemGrad)"/>
-    <path d="M-1.6 -2.1 H1.6 L0.9 -0.3 H-0.9 Z" fill="#fff4cc"/>
-    <path d="M-3.1 0 L-0.9 -0.3 L-1.6 2.1 Z" fill="#ffc84a"/>
-    <path d="M3.1 0 L0.9 -0.3 L1.6 2.1 Z" fill="#c25d00"/>
-  </g>
-  <g id="glow_2" transform="translate(57.2 24.6) rotate(0.0)">
-    <path d="M-5.8 0 L-2.9 -3.7 H2.9 L5.8 0 L2.9 3.7 H-2.9 Z" fill="#40260a" data-blend="add"/>
+    <path d="M0 -2.6 L3.6 0 L0 2.6 L-3.6 0 Z" data-corners="#ffeaa6 #ffb41e #d86c00 #ffc84a"/>
   </g>
   <g id="energy_2" transform="translate(57.2 24.6) rotate(0.0)">
-    <path d="M-3.1 0 L-1.6 -2.1 H1.6 L3.1 0 L1.6 2.1 H-1.6 Z" fill="url(#gemGrad)"/>
-    <path d="M-1.6 -2.1 H1.6 L0.9 -0.3 H-0.9 Z" fill="#fff4cc"/>
-    <path d="M-3.1 0 L-0.9 -0.3 L-1.6 2.1 Z" fill="#ffc84a"/>
-    <path d="M3.1 0 L0.9 -0.3 L1.6 2.1 Z" fill="#c25d00"/>
-  </g>
-  <g id="glow_3" transform="translate(71.4 24.6) rotate(0.0)">
-    <path d="M-5.8 0 L-2.9 -3.7 H2.9 L5.8 0 L2.9 3.7 H-2.9 Z" fill="#40260a" data-blend="add"/>
+    <path d="M0 -2.6 L3.6 0 L0 2.6 L-3.6 0 Z" data-corners="#ffeaa6 #ffb41e #d86c00 #ffc84a"/>
   </g>
   <g id="energy_3" transform="translate(71.4 24.6) rotate(0.0)">
-    <path d="M-3.1 0 L-1.6 -2.1 H1.6 L3.1 0 L1.6 2.1 H-1.6 Z" fill="url(#gemGrad)"/>
-    <path d="M-1.6 -2.1 H1.6 L0.9 -0.3 H-0.9 Z" fill="#fff4cc"/>
-    <path d="M-3.1 0 L-0.9 -0.3 L-1.6 2.1 Z" fill="#ffc84a"/>
-    <path d="M3.1 0 L0.9 -0.3 L1.6 2.1 Z" fill="#c25d00"/>
-  </g>
-  <g id="glow_4" transform="translate(85.6 24.6) rotate(0.0)">
-    <path d="M-5.8 0 L-2.9 -3.7 H2.9 L5.8 0 L2.9 3.7 H-2.9 Z" fill="#40260a" data-blend="add"/>
+    <path d="M0 -2.6 L3.6 0 L0 2.6 L-3.6 0 Z" data-corners="#ffeaa6 #ffb41e #d86c00 #ffc84a"/>
   </g>
   <g id="energy_4" transform="translate(85.6 24.6) rotate(0.0)">
-    <path d="M-3.1 0 L-1.6 -2.1 H1.6 L3.1 0 L1.6 2.1 H-1.6 Z" fill="url(#gemGrad)"/>
-    <path d="M-1.6 -2.1 H1.6 L0.9 -0.3 H-0.9 Z" fill="#fff4cc"/>
-    <path d="M-3.1 0 L-0.9 -0.3 L-1.6 2.1 Z" fill="#ffc84a"/>
-    <path d="M3.1 0 L0.9 -0.3 L1.6 2.1 Z" fill="#c25d00"/>
-  </g>
-  <g id="glow_5" transform="translate(99.8 24.6) rotate(0.0)">
-    <path d="M-5.8 0 L-2.9 -3.7 H2.9 L5.8 0 L2.9 3.7 H-2.9 Z" fill="#40260a" data-blend="add"/>
+    <path d="M0 -2.6 L3.6 0 L0 2.6 L-3.6 0 Z" data-corners="#ffeaa6 #ffb41e #d86c00 #ffc84a"/>
   </g>
   <g id="energy_5" transform="translate(99.8 24.6) rotate(0.0)">
-    <path d="M-3.1 0 L-1.6 -2.1 H1.6 L3.1 0 L1.6 2.1 H-1.6 Z" fill="url(#gemGrad)"/>
-    <path d="M-1.6 -2.1 H1.6 L0.9 -0.3 H-0.9 Z" fill="#fff4cc"/>
-    <path d="M-3.1 0 L-0.9 -0.3 L-1.6 2.1 Z" fill="#ffc84a"/>
-    <path d="M3.1 0 L0.9 -0.3 L1.6 2.1 Z" fill="#c25d00"/>
-  </g>
-  <g id="glow_6" transform="translate(114.0 24.6) rotate(0.0)">
-    <path d="M-5.8 0 L-2.9 -3.7 H2.9 L5.8 0 L2.9 3.7 H-2.9 Z" fill="#40260a" data-blend="add"/>
+    <path d="M0 -2.6 L3.6 0 L0 2.6 L-3.6 0 Z" data-corners="#ffeaa6 #ffb41e #d86c00 #ffc84a"/>
   </g>
   <g id="energy_6" transform="translate(114.0 24.6) rotate(0.0)">
-    <path d="M-3.1 0 L-1.6 -2.1 H1.6 L3.1 0 L1.6 2.1 H-1.6 Z" fill="url(#gemGrad)"/>
-    <path d="M-1.6 -2.1 H1.6 L0.9 -0.3 H-0.9 Z" fill="#fff4cc"/>
-    <path d="M-3.1 0 L-0.9 -0.3 L-1.6 2.1 Z" fill="#ffc84a"/>
-    <path d="M3.1 0 L0.9 -0.3 L1.6 2.1 Z" fill="#c25d00"/>
+    <path d="M0 -2.6 L3.6 0 L0 2.6 L-3.6 0 Z" data-corners="#ffeaa6 #ffb41e #d86c00 #ffc84a"/>
   </g>
-  <g id="glow_7" transform="translate(128.19 24.22) rotate(-4.9)">
-    <path d="M-5.8 0 L-2.9 -3.7 H2.9 L5.8 0 L2.9 3.7 H-2.9 Z" fill="#40260a" data-blend="add"/>
+  <g id="energy_7" transform="translate(128.14 23.54) rotate(-6.6)">
+    <path d="M0 -2.6 L3.6 0 L0 2.6 L-3.6 0 Z" data-corners="#ffeaa6 #ffb41e #d86c00 #ffc84a"/>
   </g>
-  <g id="energy_7" transform="translate(128.19 24.22) rotate(-4.9)">
-    <path d="M-3.1 0 L-1.6 -2.1 H1.6 L3.1 0 L1.6 2.1 H-1.6 Z" fill="url(#gemGrad)"/>
-    <path d="M-1.6 -2.1 H1.6 L0.9 -0.3 H-0.9 Z" fill="#fff4cc"/>
-    <path d="M-3.1 0 L-0.9 -0.3 L-1.6 2.1 Z" fill="#ffc84a"/>
-    <path d="M3.1 0 L0.9 -0.3 L1.6 2.1 Z" fill="#c25d00"/>
+  <g id="energy_8" transform="translate(142.24 21.9) rotate(-6.6)">
+    <path d="M0 -2.6 L3.6 0 L0 2.6 L-3.6 0 Z" data-corners="#ffeaa6 #ffb41e #d86c00 #ffc84a"/>
   </g>
-  <g id="glow_8" transform="translate(142.16 21.78) rotate(-15.8)">
-    <path d="M-5.8 0 L-2.9 -3.7 H2.9 L5.8 0 L2.9 3.7 H-2.9 Z" fill="#40260a" data-blend="add"/>
-  </g>
-  <g id="energy_8" transform="translate(142.16 21.78) rotate(-15.8)">
-    <path d="M-3.1 0 L-1.6 -2.1 H1.6 L3.1 0 L1.6 2.1 H-1.6 Z" fill="url(#gemGrad)"/>
-    <path d="M-1.6 -2.1 H1.6 L0.9 -0.3 H-0.9 Z" fill="#fff4cc"/>
-    <path d="M-3.1 0 L-0.9 -0.3 L-1.6 2.1 Z" fill="#ffc84a"/>
-    <path d="M3.1 0 L0.9 -0.3 L1.6 2.1 Z" fill="#c25d00"/>
-  </g>
-  <g id="glow_9" transform="translate(155.02 15.93) rotate(-35.4)">
-    <path d="M-5.8 0 L-2.9 -3.7 H2.9 L5.8 0 L2.9 3.7 H-2.9 Z" fill="#40260a" data-blend="add"/>
-  </g>
-  <g id="energy_9" transform="translate(155.02 15.93) rotate(-35.4)">
-    <path d="M-3.1 0 L-1.6 -2.1 H1.6 L3.1 0 L1.6 2.1 H-1.6 Z" fill="url(#gemGrad)"/>
-    <path d="M-1.6 -2.1 H1.6 L0.9 -0.3 H-0.9 Z" fill="#fff4cc"/>
-    <path d="M-3.1 0 L-0.9 -0.3 L-1.6 2.1 Z" fill="#ffc84a"/>
-    <path d="M3.1 0 L0.9 -0.3 L1.6 2.1 Z" fill="#c25d00"/>
+  <g id="energy_9" transform="translate(154.58 16.54) rotate(-44.2)">
+    <path d="M0 -2.6 L3.6 0 L0 2.6 L-3.6 0 Z" data-corners="#ffeaa6 #ffb41e #d86c00 #ffc84a"/>
   </g>
 </svg>

@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 
 use psx_vector::encode::{encode, EncodeError, GroupSource};
-use psx_vector::format::{Vertex, COORD_SHIFT};
+use psx_vector::format::{Vertex, COORD_SHIFT, RUN_QUADS, RUN_TRIANGLES};
 
 use crate::geom::{Affine, Pt};
 use crate::paint::{
@@ -81,8 +81,10 @@ impl std::error::Error for CookError {}
 pub struct GroupReport {
     /// SVG id (empty for loose shapes).
     pub name: String,
-    /// Triangles.
+    /// GPU triangles drawn (a quad counts as two).
     pub triangles: usize,
+    /// Of those, how many came from quads: the group holds this many quads.
+    pub quads: usize,
     /// Vertices after sharing.
     pub vertices: usize,
     /// Blend runs.
@@ -121,21 +123,22 @@ impl fmt::Display for Report {
             .max(5);
         writeln!(
             f,
-            "{:width$}  {:>9}  {:>8}  {:>5}",
-            "group", "triangles", "vertices", "runs"
+            "{:width$}  {:>9}  {:>5}  {:>8}  {:>5}",
+            "group", "triangles", "quads", "vertices", "runs"
         )?;
         for g in &self.groups {
             let name = if g.name.is_empty() { "(root)" } else { &g.name };
             writeln!(
                 f,
-                "{:width$}  {:>9}  {:>8}  {:>5}",
-                name, g.triangles, g.vertices, g.runs
+                "{:width$}  {:>9}  {:>5}  {:>8}  {:>5}",
+                name, g.triangles, g.quads, g.vertices, g.runs
             )?;
         }
         write!(
             f,
-            "total: {} triangles, {} groups, max {} vertices in a group, {} bytes",
+            "total: {} triangles ({} as quads), {} groups, max {} vertices in a group, {} bytes",
             self.total_triangles(),
+            self.groups.iter().map(|g| 2 * g.quads).sum::<usize>(),
             self.groups.len(),
             self.max_group_vertices(),
             self.bytes
@@ -187,15 +190,20 @@ pub struct Cooked {
     pub reference: Vec<RefShape>,
 }
 
+/// A coloured vertex: lattice position and colour word.
+type CVert = (i32, i32, u32);
+
+/// A triangle (`n == 3`) or quad (`n == 4`, drawn as `0 1 2` then `1 2 3`).
 #[derive(Clone, Copy)]
-struct CTri {
-    v: [(i32, i32, u32); 3],
+struct Prim {
+    v: [CVert; 4],
+    n: u8,
     blend: u8,
 }
 
 struct GroupBuild {
     name: String,
-    tris: Vec<CTri>,
+    prims: Vec<Prim>,
     pivot: Option<IPt>,
 }
 
@@ -423,7 +431,7 @@ impl Cooker<'_> {
             None => *self.root_group.get_or_insert_with(|| {
                 self.groups.push(GroupBuild {
                     name: String::new(),
-                    tris: Vec::new(),
+                    prims: Vec::new(),
                     pivot: None,
                 });
                 self.by_name.insert(String::new(), self.groups.len() - 1);
@@ -465,7 +473,7 @@ impl Cooker<'_> {
                     }
                     self.groups.push(GroupBuild {
                         name: id.to_string(),
-                        tris: Vec::new(),
+                        prims: Vec::new(),
                         pivot: None,
                     });
                     let idx = self.groups.len() - 1;
@@ -567,6 +575,19 @@ impl Cooker<'_> {
         if let Some(v) = number("opacity")? {
             s.opacity *= v.clamp(0.0, 1.0);
         }
+        // Per-corner colours belong to one element and are not inherited.
+        s.corners = match el.attr("data-corners") {
+            Some(list) => Some(
+                list.split_whitespace()
+                    .map(|c| match parse_color(c) {
+                        Ok(Some(rgb)) => Ok(rgb),
+                        Ok(None) => svg_err(el, "data-corners colours cannot be none"),
+                        Err(m) => svg_err(el, m),
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+            ),
+            None => None,
+        };
         if let Some(v) = get("data-blend").or_else(|| get("mix-blend-mode")) {
             s.blend = parse_blend(v).or_else(|m| svg_err(el, m))?;
         }
@@ -668,6 +689,28 @@ impl Cooker<'_> {
                         message: "could not triangulate (touching or degenerate contours)".into(),
                     },
                 })?;
+                let corners = match &style.corners {
+                    None => None,
+                    Some(colors) => {
+                        if contours[0].len() != colors.len() {
+                            return svg_err(
+                                el,
+                                format!(
+                                    "data-corners lists {} colours but the shape has {} vertices",
+                                    colors.len(),
+                                    contours[0].len()
+                                ),
+                            );
+                        }
+                        Some(
+                            contours[0]
+                                .iter()
+                                .zip(colors)
+                                .map(|(&p, &c)| (to_lattice(p), c))
+                                .collect::<HashMap<IPt, Rgb>>(),
+                        )
+                    }
+                };
                 self.emit(
                     el,
                     group,
@@ -678,6 +721,8 @@ impl Cooker<'_> {
                     ctm,
                     bbox,
                     Some((contours, style.fill_rule)),
+                    corners.as_ref(),
+                    Merge::Anywhere,
                 )?;
             }
         }
@@ -722,6 +767,8 @@ impl Cooker<'_> {
                 ctm,
                 bbox,
                 Some((ref_contours, FillRule::NonZero)),
+                None,
+                Merge::Neighbours,
             )?;
         }
         Ok(())
@@ -740,6 +787,8 @@ impl Cooker<'_> {
         ctm: &Affine,
         bbox: [f64; 4],
         reference: Option<(Vec<Vec<Pt>>, FillRule)>,
+        corners: Option<&HashMap<IPt, Rgb>>,
+        merge: Merge,
     ) -> Result<(), CookError> {
         if alpha <= 0.0 || tris.is_empty() {
             return Ok(());
@@ -768,6 +817,25 @@ impl Cooker<'_> {
         };
         let (ref_color, shaded): (RefColor, Box<dyn Fn(IPt) -> Rgb + '_>) = match paint {
             Paint::None => return Ok(()),
+            // Per-corner colours replace the paint: the colour of a vertex is
+            // the one listed for the nearest authored corner.
+            _ if corners.is_some() => {
+                let map = corners.cloned().unwrap_or_default();
+                (
+                    RefColor::Solid(Rgb(0, 0, 0)),
+                    Box::new(move |p: IPt| {
+                        map.get(&p).copied().unwrap_or_else(|| {
+                            map.iter()
+                                .min_by_key(|(q, _)| {
+                                    let (dx, dy) =
+                                        (q.0 as i64 - p.0 as i64, q.1 as i64 - p.1 as i64);
+                                    (dx * dx + dy * dy, q.0, q.1)
+                                })
+                                .map_or(Rgb(0, 0, 0), |(_, c)| *c)
+                        })
+                    }),
+                )
+            }
             Paint::Solid(c) => (RefColor::Solid(*c), Box::new(move |_| *c)),
             Paint::Url(id) => {
                 let Some(grad) = self.gradients.get(id).cloned() else {
@@ -796,7 +864,9 @@ impl Cooker<'_> {
             }
             _ => Vec::new(),
         };
-        if let Some((contours, rule)) = &reference {
+        // Per-corner shapes have no analytic reference (it would only restate
+        // the triangulation), so they are left out of it.
+        if let (Some((contours, rule)), None) = (&reference, corners) {
             self.reference.push(RefShape {
                 group,
                 contours: contours.clone(),
@@ -819,6 +889,7 @@ impl Cooker<'_> {
         for tri in tris {
             split_at_thresholds(tri, &thresholds, &t_of, &mut pieces);
         }
+        let mut coloured: Vec<[CVert; 3]> = Vec::with_capacity(pieces.len());
         for tri in pieces {
             let area = (tri[1].0 as i64 - tri[0].0 as i64) * (tri[2].1 as i64 - tri[0].1 as i64)
                 - (tri[1].1 as i64 - tri[0].1 as i64) * (tri[2].0 as i64 - tri[0].0 as i64);
@@ -826,11 +897,11 @@ impl Cooker<'_> {
                 continue;
             }
             let v = |p: IPt| (p.0, p.1, scale_rgb(shaded(p)).word());
-            self.groups[group].tris.push(CTri {
-                v: [v(tri[0]), v(tri[1]), v(tri[2])],
-                blend,
-            });
+            coloured.push([v(tri[0]), v(tri[1]), v(tri[2])]);
         }
+        self.groups[group]
+            .prims
+            .extend(merge_into_prims(&coloured, blend, merge));
         Ok(())
     }
 
@@ -848,10 +919,11 @@ impl Cooker<'_> {
             let mut index: HashMap<(i32, i32, u32), u16> = HashMap::new();
             let mut vertices: Vec<Vertex> = Vec::new();
             let mut triangles: Vec<[u16; 3]> = Vec::new();
-            let mut runs: Vec<(u8, u16)> = Vec::new();
-            for tri in &g.tris {
-                let mut ids = [0u16; 3];
-                for (slot, &(x, y, color)) in ids.iter_mut().zip(&tri.v) {
+            let mut quads: Vec<[u16; 4]> = Vec::new();
+            let mut runs: Vec<(u8, u8, u16)> = Vec::new();
+            for prim in &g.prims {
+                let mut ids = [0u16; 4];
+                for (slot, &(x, y, color)) in ids.iter_mut().zip(&prim.v[..prim.n as usize]) {
                     *slot = match index.get(&(x, y, color)) {
                         Some(&i) => i,
                         None => {
@@ -881,15 +953,22 @@ impl Cooker<'_> {
                         }
                     };
                 }
-                triangles.push(ids);
+                let kind = if prim.n == 4 {
+                    quads.push(ids);
+                    RUN_QUADS
+                } else {
+                    triangles.push([ids[0], ids[1], ids[2]]);
+                    RUN_TRIANGLES
+                };
                 match runs.last_mut() {
-                    Some((b, n)) if *b == tri.blend && *n < u16::MAX => *n += 1,
-                    _ => runs.push((tri.blend, 1)),
+                    Some((b, k, n)) if *b == prim.blend && *k == kind && *n < u16::MAX => *n += 1,
+                    _ => runs.push((prim.blend, kind, 1)),
                 }
             }
             report.groups.push(GroupReport {
                 name: g.name.clone(),
-                triangles: triangles.len(),
+                triangles: triangles.len() + 2 * quads.len(),
+                quads: quads.len(),
                 vertices: vertices.len(),
                 runs: runs.len(),
             });
@@ -897,6 +976,7 @@ impl Cooker<'_> {
                 name: g.name.clone(),
                 vertices,
                 triangles,
+                quads,
                 runs,
                 pivot: g.pivot.map(|p| [p.0 as i16, p.1 as i16]),
             });
@@ -913,6 +993,70 @@ impl Cooker<'_> {
             reference,
         })
     }
+}
+
+/// How far apart two triangles may be in a shape and still become one quad.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Merge {
+    /// Any two triangles that share an edge. For fills, whose triangles do
+    /// not overlap, so reordering them within the shape changes nothing.
+    Anywhere,
+    /// Only neighbours in paint order, for strokes whose pieces overlap.
+    Neighbours,
+}
+
+/// The vertex shared by position and colour, if `a` and `b` share exactly an
+/// edge: returns the shared edge's endpoints in `a` and the apex of each.
+fn shared_edge(a: &[CVert; 3], b: &[CVert; 3]) -> Option<([CVert; 2], CVert, CVert)> {
+    let mut shared = Vec::with_capacity(3);
+    for (i, va) in a.iter().enumerate() {
+        if b.contains(va) {
+            shared.push(i);
+        }
+    }
+    if shared.len() != 2 {
+        return None;
+    }
+    let apex_a = (0..3).find(|i| !shared.contains(i))?;
+    let apex_b = b.iter().find(|v| !a.contains(v))?;
+    Some(([a[shared[0]], a[shared[1]]], a[apex_a], *apex_b))
+}
+
+/// Pair up triangles that share an edge into quads. A GPU quad `p q r s` is
+/// the triangles `p q r` and `q r s`, so a pair with the shared edge `q r` and
+/// apexes `p` and `s` is exactly that quad, convex or not.
+fn merge_into_prims(tris: &[[CVert; 3]], blend: u8, merge: Merge) -> Vec<Prim> {
+    let mut used = vec![false; tris.len()];
+    let mut out = Vec::with_capacity(tris.len());
+    for i in 0..tris.len() {
+        if used[i] {
+            continue;
+        }
+        used[i] = true;
+        let last = match merge {
+            Merge::Anywhere => tris.len(),
+            Merge::Neighbours => (i + 2).min(tris.len()),
+        };
+        let partner = (i + 1..last)
+            .filter(|&j| !used[j])
+            .find_map(|j| shared_edge(&tris[i], &tris[j]).map(|e| (j, e)));
+        match partner {
+            Some((j, (edge, apex_a, apex_b))) => {
+                used[j] = true;
+                out.push(Prim {
+                    v: [apex_a, edge[0], edge[1], apex_b],
+                    n: 4,
+                    blend,
+                });
+            }
+            None => out.push(Prim {
+                v: [tris[i][0], tris[i][1], tris[i][2], tris[i][2]],
+                n: 3,
+                blend,
+            }),
+        }
+    }
+    out
 }
 
 fn collect_hrefs(el: &Element, out: &mut Vec<(String, String)>) {

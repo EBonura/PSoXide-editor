@@ -15,10 +15,13 @@ pub struct GroupSource {
     pub name: String,
     /// Vertices, Q4 pixels.
     pub vertices: Vec<Vertex>,
-    /// Triangles as indices into `vertices`, in paint order.
+    /// Triangle primitives as indices into `vertices`.
     pub triangles: Vec<[u16; 3]>,
-    /// `(blend code, triangle count)` runs covering `triangles` in order.
-    pub runs: Vec<(u8, u16)>,
+    /// Quad primitives as indices into `vertices`.
+    pub quads: Vec<[u16; 4]>,
+    /// Runs in paint order: `(blend code, kind, count)`. The runs of one kind
+    /// consume `triangles` or `quads` front to back.
+    pub runs: Vec<(u8, u8, u16)>,
     /// Pivot in Q4 pixels; the bounding-box centre when `None`.
     pub pivot: Option<[i16; 2]>,
 }
@@ -34,8 +37,8 @@ pub enum EncodeError {
     TooManyTriangles(String),
     /// A name is longer than 255 bytes, or the names section passed 64 KiB.
     NameTooLong(String),
-    /// A triangle index is not below the vertex count, or the runs do not
-    /// cover the triangles.
+    /// An index is not below the vertex count, or the runs do not cover the
+    /// primitives.
     Inconsistent(String),
 }
 
@@ -80,19 +83,28 @@ pub fn encode(canvas_q4: [u16; 2], groups: &[GroupSource]) -> Result<Vec<u8>, En
         if group.vertices.len() > MAX_GROUP_VERTICES {
             return Err(EncodeError::TooManyVertices(group.name.clone()));
         }
-        if group.triangles.len() > MAX_GROUP_TRIANGLES {
+        if group.triangles.len() > MAX_GROUP_TRIANGLES || group.quads.len() > MAX_GROUP_TRIANGLES {
             return Err(EncodeError::TooManyTriangles(group.name.clone()));
         }
         if group.name.len() > u8::MAX as usize || names.len() > u16::MAX as usize {
             return Err(EncodeError::NameTooLong(group.name.clone()));
         }
-        let covered: usize = group.runs.iter().map(|&(_, n)| n as usize).sum();
-        let in_range = group
-            .triangles
-            .iter()
-            .flatten()
-            .all(|&i| (i as usize) < group.vertices.len());
-        if covered != group.triangles.len() || !in_range {
+        let covered = |kind: u8| -> usize {
+            group
+                .runs
+                .iter()
+                .filter(|r| r.1 == kind)
+                .map(|r| r.2 as usize)
+                .sum()
+        };
+        let n = group.vertices.len();
+        let in_range = group.triangles.iter().flatten().all(|&i| (i as usize) < n)
+            && group.quads.iter().flatten().all(|&i| (i as usize) < n);
+        if covered(format::RUN_TRIANGLES) != group.triangles.len()
+            || covered(format::RUN_QUADS) != group.quads.len()
+            || group.runs.iter().any(|r| r.1 > format::RUN_QUADS)
+            || !in_range
+        {
             return Err(EncodeError::Inconsistent(group.name.clone()));
         }
         let bounds = bounds_of(&group.vertices);
@@ -110,19 +122,42 @@ pub fn encode(canvas_q4: [u16; 2], groups: &[GroupSource]) -> Result<Vec<u8>, En
             index_start: indices.len() as u32,
             run_start: runs.len() as u32,
             run_count: group.runs.len() as u16,
-            reserved: 0,
+            quad_count: group.quads.len() as u16,
             bounds,
             pivot,
             reserved2: 0,
         });
         names.extend_from_slice(group.name.as_bytes());
         vertices.extend_from_slice(&group.vertices);
-        indices.extend(group.triangles.iter().flatten().copied());
-        runs.extend(group.runs.iter().map(|&(blend, tri_count)| Run {
-            blend,
-            reserved: 0,
-            tri_count,
-        }));
+        // Indices follow paint order: each run takes its primitives from the
+        // front of the matching list.
+        let (mut next_tri, mut next_quad) = (0usize, 0usize);
+        for &(_, kind, count) in &group.runs {
+            let count = count as usize;
+            if kind == format::RUN_TRIANGLES {
+                indices.extend(
+                    group.triangles[next_tri..next_tri + count]
+                        .iter()
+                        .flatten()
+                        .copied(),
+                );
+                next_tri += count;
+            } else {
+                indices.extend(
+                    group.quads[next_quad..next_quad + count]
+                        .iter()
+                        .flatten()
+                        .copied(),
+                );
+                next_quad += count;
+            }
+        }
+        runs.extend(
+            group
+                .runs
+                .iter()
+                .map(|&(blend, kind, count)| Run { blend, kind, count }),
+        );
     }
 
     let mut out = Vec::new();
@@ -138,7 +173,7 @@ pub fn encode(canvas_q4: [u16; 2], groups: &[GroupSource]) -> Result<Vec<u8>, En
         put_u32(&mut out, g.index_start);
         put_u32(&mut out, g.run_start);
         put_u16(&mut out, g.run_count);
-        put_u16(&mut out, g.reserved);
+        put_u16(&mut out, g.quad_count);
         for b in g.bounds {
             out.extend_from_slice(&b.to_le_bytes());
         }
@@ -162,8 +197,8 @@ pub fn encode(canvas_q4: [u16; 2], groups: &[GroupSource]) -> Result<Vec<u8>, En
     let off_runs = out.len();
     for r in &runs {
         out.push(r.blend);
-        out.push(r.reserved);
-        put_u16(&mut out, r.tri_count);
+        out.push(r.kind);
+        put_u16(&mut out, r.count);
     }
     let off_names = out.len();
     out.extend_from_slice(&names);

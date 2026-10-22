@@ -37,15 +37,17 @@ extern crate alloc;
 mod asset;
 mod clip;
 mod draw;
-mod packet;
 #[cfg(feature = "encode")]
 pub mod encode;
 pub mod format;
+mod packet;
 
 pub use asset::{GroupId, GroupInfo, ParseError, VectorAsset};
-pub use packet::{draw_mode_word, PacketError, VectorPacket};
 pub use draw::{
     BlendOverride, ClipRect, DrawError, Emit, Placement, Scratch, Style, MAX_SCALE_Q12,
+};
+pub use packet::{
+    draw_mode_word, PacketCache, PacketError, VectorPacket, QUAD_WORDS, TRIANGLE_WORDS,
 };
 
 #[cfg(not(target_endian = "little"))]

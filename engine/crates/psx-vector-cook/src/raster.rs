@@ -102,7 +102,11 @@ impl Image {
             for &b in data {
                 crc ^= b as u32;
                 for _ in 0..8 {
-                    crc = if crc & 1 != 0 { (crc >> 1) ^ 0xEDB8_8320 } else { crc >> 1 };
+                    crc = if crc & 1 != 0 {
+                        (crc >> 1) ^ 0xEDB8_8320
+                    } else {
+                        crc >> 1
+                    };
                 }
             }
             !crc
@@ -274,6 +278,33 @@ pub fn draw_group(
     asset.emit_group(group, place, style, &mut scratch, &mut |step| match step {
         Emit::Blend(m) => mode = m,
         Emit::Triangle(t) => draw_triangle(img, t, mode, origin),
+        // The GPU splits a quad into `0 1 2` and `1 2 3`.
+        Emit::Quad(q) => {
+            let tri = |a: (u32, u32), b: (u32, u32), c: (u32, u32)| TriGouraud {
+                tag: 0,
+                color0_cmd: a.1,
+                v0: a.0,
+                color1: b.1,
+                v1: b.0,
+                color2: c.1,
+                v2: c.0,
+            };
+            let corner = |p: u32, c: u32| (p, c & 0xFF_FFFF);
+            let (a, b) = (
+                tri(
+                    corner(q.v0, q.color0_cmd),
+                    corner(q.v1, q.color1),
+                    corner(q.v2, q.color2),
+                ),
+                tri(
+                    corner(q.v1, q.color1),
+                    corner(q.v2, q.color2),
+                    corner(q.v3, q.color3),
+                ),
+            );
+            draw_triangle(img, &a, mode, origin);
+            draw_triangle(img, &b, mode, origin);
+        }
     })
 }
 
