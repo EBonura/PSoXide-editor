@@ -41,7 +41,7 @@ pub(super) const AREAS: [(&str, &str); 14] = [
     ("storeys", "STOREYS"),
     ("planes", "FREE PLANES (bridges, ramps, slanted walls)"),
     ("meshes", "STATIC MESHES"),
-    ("verbs", "LEVEL VERBS (raise, ramp, stairs, spiral)"),
+    ("verbs", "LEVEL VERBS (extrude, ramp, stairs, spiral)"),
     ("natural", "NATURAL TERRAIN"),
     ("nodes", "SCENE NODES (spawns, lights, entities)"),
     ("combat", "COMBAT"),

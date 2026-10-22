@@ -508,7 +508,9 @@ fn the_help_page_names_the_natural_terrain_keys() {
     let mut ws = EditorWorkspace::with_project(test_temp_dir("natural-help"), hall());
     ws.apply_grid_pose("help").unwrap();
     // egui sizes a new window invisibly first; the next frame shows it.
-    draw_editor_sized(&mut ws, &ctx, true, Vec2::new(1920.0, 7000.0));
+    for _ in 0..3 {
+        draw_editor_sized(&mut ws, &ctx, true, Vec2::new(1920.0, 7000.0));
+    }
     let text = text_of(&draw_editor_sized(
         &mut ws,
         &ctx,

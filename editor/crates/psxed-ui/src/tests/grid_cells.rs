@@ -68,31 +68,6 @@ fn alt_paints_the_cells_back_together_and_a_balanced_neighbour_follows_a_deep_di
 }
 
 #[test]
-fn the_selection_buttons_act_on_the_picked_cells() {
-    let mut rig = GridRig::top("cells-select", hall());
-    // A tool switch drops the selection, so the cells are picked after it
-    // (Select all and the pose reach the tool the same way).
-    rig.tool(GridTool::Cells);
-    rig.ws
-        .grid
-        .selection
-        .replace(psxed_project::grid::edit::GridElement::Cell {
-            room: 0,
-            cell: [1, 1],
-        });
-    rig.key(egui::Key::Enter);
-    assert_eq!(levels(&rig)[3], 4, "{}", rig.ws.status);
-    rig.key_with(
-        egui::Key::Enter,
-        egui::Modifiers {
-            shift: true,
-            ..egui::Modifiers::NONE
-        },
-    );
-    assert_eq!(rig.room(0).leaf_count(), 64, "{}", rig.ws.status);
-}
-
-#[test]
 fn raise_lifts_the_fine_cells_of_a_region_and_the_height_tool_drags_a_fine_corner() {
     let mut rig = GridRig::top("cells-raise", hall());
     rig.tool(GridTool::Cells);

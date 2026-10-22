@@ -8,13 +8,14 @@
 
 use std::fmt::Write as _;
 
+use psxed_project::grid::edit::verbs::extrude::{pieces_of, CeilingDrag, ExtrudeDrag};
 use psxed_project::grid::edit::verbs::fine::{run_fine, FineDrag, FineReport, FineVerb};
 use psxed_project::grid::edit::verbs::raise::{
     default_mode, height_under, raise_region, RaiseMode, RaiseParams,
 };
 use psxed_project::grid::edit::verbs::ramp::{RampDir, RampDrag, RampParams};
 use psxed_project::grid::edit::verbs::stairs::{RiserOption, StairsDrag, StairsParams};
-use psxed_project::grid::edit::{CellRect, Region};
+use psxed_project::grid::edit::{CellRect, GridElement, Region};
 use psxed_project::grid::heat::{heatmap, HeatOptions};
 use psxed_project::grid::units::{snap_to, CLICK_UNITS, FINE_UNITS};
 use psxed_project::grid::walk::{self, analyse, EdgeKind, WalkLimits};
@@ -261,6 +262,179 @@ fn raise_clicks(
         let _ = write!(out, "\n{} cell(s) had no floor", applied.skipped);
     }
     Ok(out)
+}
+
+/// Extrude a floor, a ceiling or a wall piece: the editor's Extrude tool.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct ExtrudeReq {
+    /// Scene index. Omit for the first scene with a grid world.
+    pub scene: Option<usize>,
+    /// What moves: `floor` (a rectangle of floors up or down), `ceiling` (a
+    /// rectangle of ceilings up or down) or `wall` (one wall piece pushed
+    /// out or in along its normal).
+    pub surface: String,
+    /// Floor and ceiling: room index, required when the world has several.
+    pub room: Option<usize>,
+    /// Floor and ceiling: one corner of the rectangle, WORLD sector `[x, z]`.
+    pub from: Option<[i32; 2]>,
+    /// Floor and ceiling: the opposite corner, inclusive. Omit for the
+    /// single cell `from`.
+    pub to: Option<[i32; 2]>,
+    /// Floor and ceiling: grid units, positive up, negative down (256 a
+    /// click), snapped by `snap`.
+    pub amount: Option<i32>,
+    /// `click` (default) or `fine`.
+    pub snap: Option<Snap>,
+    /// Floor: ceilings move with the floor under them. Default false, as in
+    /// the editor (a floor lowered or raised leaves the ceiling where it is,
+    /// held a click clear of it).
+    pub follow_ceiling: Option<bool>,
+    /// Floor: material (name or id) of the derived walls of the shaped
+    /// sectors.
+    pub wall_material: Option<String>,
+    /// Wall: the piece to push. A derived wall or a hand-placed one, named
+    /// as every wall tool names it (grid_walls and grid_sector list them).
+    pub wall: Option<super::walls::WallRef>,
+    /// Wall: a band of the wall's set to push on its own (grid_bands lists
+    /// them): out makes a niche that is one piece. Omit to push the whole
+    /// wall.
+    pub band: Option<u8>,
+    /// Wall: whole sectors to push; positive out (an alcove, or a corridor
+    /// when the wall was the end of a room), negative in (the sectors in
+    /// front are filled). Default 1.
+    pub steps: Option<i32>,
+    /// Floor and ceiling: which span of a column to edit, `y` or `storey`.
+    /// Needed where a sector has several spans.
+    #[serde(flatten)]
+    pub aim: super::aim::SpanAim,
+}
+
+/// Apply [`ExtrudeReq`].
+pub fn extrude(
+    world: &mut GridWorld,
+    project: &ProjectDocument,
+    req: &ExtrudeReq,
+) -> Result<String, String> {
+    match req.surface.to_ascii_lowercase().as_str() {
+        "floor" => extrude_floor(world, project, req),
+        "ceiling" => extrude_ceiling(world, req),
+        "wall" => extrude_wall(world, req),
+        other => Err(format!(
+            "unknown surface {other:?}; use floor, ceiling or wall"
+        )),
+    }
+}
+
+/// The rectangle of a floor or ceiling extrusion.
+fn extrude_cells(req: &ExtrudeReq) -> Result<Cells, String> {
+    let from = req.from.ok_or_else(|| {
+        format!(
+            "a {} extrusion needs `from` (and `to`): a rectangle of WORLD sectors",
+            req.surface
+        )
+    })?;
+    Ok(Cells { from, to: req.to })
+}
+
+fn extrude_floor(
+    world: &mut GridWorld,
+    project: &ProjectDocument,
+    req: &ExtrudeReq,
+) -> Result<String, String> {
+    let amount = req
+        .amount
+        .ok_or("a floor extrusion needs `amount`: grid units up (negative down)")?;
+    // The editor's Extrude on a floor is Raise in offset mode, ceilings left
+    // where they are; it is the same function.
+    let raise_req = RaiseReq {
+        scene: req.scene,
+        room: req.room,
+        cells: extrude_cells(req)?,
+        amount,
+        mode: Some("offset".to_string()),
+        reference: None,
+        follow_ceiling: Some(req.follow_ceiling.unwrap_or(false)),
+        wall_material: req.wall_material.clone(),
+        snap: req.snap,
+        unit: None,
+        size: None,
+        aim: super::aim::SpanAim {
+            y: req.aim.y,
+            storey: req.aim.storey,
+        },
+    };
+    Ok(format!(
+        "Extrude floor: {}",
+        raise(world, project, &raise_req)?
+    ))
+}
+
+fn extrude_ceiling(world: &mut GridWorld, req: &ExtrudeReq) -> Result<String, String> {
+    let amount = req
+        .amount
+        .ok_or("a ceiling extrusion needs `amount`: grid units up (negative down)")?;
+    let room = pick_room(world, req.room)?;
+    let rect = extrude_cells(req)?.rect();
+    check_rect(&rect)?;
+    let (amount, note) = req.snap.unwrap_or_default().apply(amount);
+    super::aim::aimed(world, room, rect, &req.aim, |world| {
+        let region = Region::from_rect(room, rect);
+        let drag = CeilingDrag::begin(world, &region)
+            .ok_or("nothing to extrude: no sector of the rectangle has a ceiling")?;
+        let applied = drag.apply(world, amount);
+        let mut out = format!(
+            "Extrude ceiling: room {room}: moved {} ceiling(s) by {}",
+            applied.moved,
+            clicks_text(amount)
+        );
+        if let Some(note) = &note {
+            let _ = write!(out, "\n{note}");
+        }
+        if applied.skipped > 0 {
+            let _ = write!(
+                out,
+                "\n{} sector(s) had no ceiling and were skipped",
+                applied.skipped
+            );
+        }
+        if applied.clamped > 0 {
+            let _ = write!(
+                out,
+                "\n{} ceiling(s) held one click over their floor",
+                applied.clamped
+            );
+        }
+        Ok(out)
+    })
+}
+
+fn extrude_wall(world: &mut GridWorld, req: &ExtrudeReq) -> Result<String, String> {
+    let wall = req.wall.as_ref().ok_or(
+        "a wall extrusion needs `wall`: {cell, edge} and `kind` or `index` where the edge has several (grid_walls lists them)",
+    )?;
+    let steps = req.steps.unwrap_or(1);
+    if steps == 0 {
+        return Err(
+            "steps is 0: nothing to extrude (positive pushes out, negative in)".to_string(),
+        );
+    }
+    let face = super::walls::resolve_wall(world, wall)?;
+    let element = match req.band {
+        Some(band) => GridElement::Band { face, band },
+        None => GridElement::Face(face),
+    };
+    let pieces = pieces_of(world, &[element]).map_err(|why| why.describe())?;
+    let drag = ExtrudeDrag::begin(world, pieces).map_err(|why| why.describe())?;
+    // A refusal leaves the room as it was captured.
+    let done = drag.apply(world, steps).map_err(|why| why.describe())?;
+    let what = match req.band {
+        Some(band) => format!("band {band} of the wall"),
+        None => "the wall".to_string(),
+    };
+    Ok(format!(
+        "{} ({what}; out makes an alcove, a band a niche, in fills)",
+        done.describe(steps)
+    ))
 }
 
 /// Slope a region from one side to the opposite side.

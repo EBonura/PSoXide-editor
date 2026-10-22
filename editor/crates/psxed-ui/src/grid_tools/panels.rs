@@ -212,7 +212,18 @@ impl EditorWorkspace {
         };
         let mut changed = 0;
         for face in &faces {
-            changed += usize::from(set_material(world, *face, None, Some(material)));
+            // A whole wall takes the paint on its bands too (those that
+            // kept a material of their own).
+            if psxed_project::grid::edit::bands::is_bandable(face) {
+                let done = psxed_project::grid::edit::bands::paint_whole_wall(
+                    world,
+                    *face,
+                    Some(material),
+                );
+                changed += usize::from(done.changed());
+            } else {
+                changed += usize::from(set_material(world, *face, None, Some(material)));
+            }
         }
         // A selected triangle takes the material on its own.
         for (face, tri) in &triangles {

@@ -48,6 +48,99 @@ impl PickFace {
     }
 }
 
+/// Faces the camera sees, worked out on demand and remembered for as long as
+/// nothing that decides it changes (a box drag asks again every frame).
+#[derive(Default)]
+pub(crate) struct Sight {
+    /// Document revision, eye, cutaway and hidden rooms this is valid for.
+    key: Option<(u64, [u32; 3], Option<u32>, Vec<usize>)>,
+    /// Per face of the pick cache (by index): seen or not.
+    seen: std::collections::HashMap<usize, bool>,
+}
+
+impl Sight {
+    /// Whether face `index` of `cache` is seen from `eye`, asking the cache
+    /// the first time. `rev`, `cut` and `hidden` say what else the answer
+    /// depends on.
+    pub(crate) fn sees(
+        &mut self,
+        cache: &PickCache,
+        index: usize,
+        eye: [f32; 3],
+        cut: Option<f32>,
+        hidden: &std::collections::HashSet<usize>,
+        counts: impl Fn(&PickFace) -> bool,
+    ) -> bool {
+        let mut rooms: Vec<usize> = hidden.iter().copied().collect();
+        rooms.sort_unstable();
+        let key = (
+            cache.rev,
+            eye.map(f32::to_bits),
+            cut.map(f32::to_bits),
+            rooms,
+        );
+        if self.key.as_ref() != Some(&key) {
+            self.key = Some(key);
+            self.seen.clear();
+        }
+        *self
+            .seen
+            .entry(index)
+            .or_insert_with(|| cache.sees(eye, &cache.faces[index], counts))
+    }
+}
+
+impl PickCache {
+    /// Whether the camera at `eye` sees some part of `face`: the face turns
+    /// its front to it and, from the middle of the face or from a point near
+    /// each corner, nothing the renderer draws stands in the way. `counts`
+    /// says which faces can stand in the way (not hidden rooms, nor what the
+    /// cutaway removes). Five sight lines, not every pixel: a face peeking
+    /// out from behind a corner counts as seen, one wholly behind another
+    /// does not.
+    pub(crate) fn sees(
+        &self,
+        eye: [f32; 3],
+        face: &PickFace,
+        counts: impl Fn(&PickFace) -> bool,
+    ) -> bool {
+        if !face.faces(eye) {
+            return false;
+        }
+        let n = face.points.len().max(1) as f32;
+        let centre = face.points.iter().fold([0.0; 3], |acc, p| {
+            [acc[0] + p[0] / n, acc[1] + p[1] / n, acc[2] + p[2] / n]
+        });
+        // The middle, then a point most of the way from the middle to each
+        // corner (the corners themselves touch the neighbours' edges).
+        let samples = std::iter::once(centre).chain(face.points.iter().map(|p| {
+            [
+                centre[0] + (p[0] - centre[0]) * 0.6,
+                centre[1] + (p[1] - centre[1]) * 0.6,
+                centre[2] + (p[2] - centre[2]) * 0.6,
+            ]
+        }));
+        samples.into_iter().any(|target| {
+            let dir = [target[0] - eye[0], target[1] - eye[1], target[2] - eye[2]];
+            !self.faces.iter().any(|other| {
+                // Pieces of the face itself (its triangles, its bands) are
+                // not in front of it, and a face drawn nowhere hides nothing.
+                if other.face == face.face || other.void || !other.faces(eye) || !counts(other) {
+                    return false;
+                }
+                let p = &other.points;
+                let hit = ray_triangle(eye, dir, p[0], p[1], p[2]).or_else(|| {
+                    (p.len() == 4)
+                        .then(|| ray_triangle(eye, dir, p[0], p[2], p[3]))
+                        .flatten()
+                });
+                // `dir` runs from the eye to the sample, so 1 is the sample.
+                hit.is_some_and(|t| t < 0.998)
+            })
+        })
+    }
+}
+
 /// One corner of a face in editor space.
 pub(crate) struct PickCorner {
     pub corner: CornerRef,

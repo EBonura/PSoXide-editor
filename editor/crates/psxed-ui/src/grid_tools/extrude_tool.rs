@@ -636,30 +636,7 @@ pub(super) fn finished(ws: &mut EditorWorkspace, live: &WallLive, steps: i32) {
 pub(super) fn readout(steps: i32, result: &Result<Extruded, ExtrudeRefusal>) -> String {
     match result {
         Err(refusal) => refusal.describe(),
-        Ok(done) => {
-            let way = if steps > 0 { "out" } else { "in" };
-            let n = steps.abs();
-            let sectors = if n == 1 { "sector" } else { "sectors" };
-            let mut line = format!("Extrude {way} {n} {sectors}");
-            if steps == 0 {
-                return "Extrude: no change".to_string();
-            }
-            let parts = [
-                (done.created, "made"),
-                (done.opened, "opened"),
-                (done.filled, "filled"),
-                (done.removed, "removed"),
-            ];
-            let text: Vec<String> = parts
-                .iter()
-                .filter(|(n, _)| *n > 0)
-                .map(|(n, what)| format!("{n} {what}"))
-                .collect();
-            if !text.is_empty() {
-                line += &format!(": {}", text.join(", "));
-            }
-            line
-        }
+        Ok(done) => done.describe(steps),
     }
 }
 

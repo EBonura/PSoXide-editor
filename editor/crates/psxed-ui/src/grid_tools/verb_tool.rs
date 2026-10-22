@@ -151,8 +151,9 @@ pub(super) fn verb_drag_over(
     Some((drag, max))
 }
 
-/// Switching to a verb: adopt the Select tool's cells as the region when
-/// there is none.
+/// Switching to a verb: forget what the last one gathered. (A selection made
+/// with Select never carries over: `set_grid_tool` drops it, so a verb works
+/// on what the pointer is over or on a region picked inside it.)
 pub(super) fn on_tool_changed(ws: &mut EditorWorkspace) {
     ws.grid.verb.path.clear();
     ws.grid.verb.lasso.clear();
@@ -166,35 +167,6 @@ pub(super) fn on_tool_changed(ws: &mut EditorWorkspace) {
         // Extrude picks with the box and a click: no brush, path or lasso.
         GridTool::Extrude => ws.grid.verb.source = RegionSource::Marquee,
         _ => {}
-    }
-    // The selection is sectors: it only becomes a region at sector size.
-    if !ws.grid.tool.is_verb() || ws.grid.verb.region.is_some() || ws.grid.cell_size.level() != 2 {
-        return;
-    }
-    let Some(world) = ws.project.active_scene().world.grid() else {
-        return;
-    };
-    let cells = ws.grid.selection.cells();
-    let Some(&(room, _)) = cells.iter().next() else {
-        return;
-    };
-    let region = Region::from_cells(
-        room,
-        cells
-            .iter()
-            .filter(|(r, cell)| {
-                *r == room
-                    && world.rooms.get(room).is_some_and(|ro| {
-                        ro.local(*cell)
-                            .and_then(|[x, z]| ro.sector(x, z))
-                            .is_some_and(|s| s.ground_floor().is_some())
-                    })
-            })
-            .map(|(_, cell)| *cell),
-    );
-    if !region.is_empty() {
-        ws.status = format!("Region: {} sectors from the selection", region.len());
-        ws.grid.verb.region = Some(region);
     }
 }
 

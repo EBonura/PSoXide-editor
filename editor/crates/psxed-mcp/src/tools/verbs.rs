@@ -6,7 +6,8 @@ use rmcp::model::CallToolResult;
 use rmcp::ErrorData;
 
 use psxed_mcp::grid::verbs::{
-    self, HeatmapReq, RaiseReq, RampReq, SetWalkableReq, SpiralReq, StairsReq, WalkabilityReq,
+    self, ExtrudeReq, HeatmapReq, RaiseReq, RampReq, SetWalkableReq, SpiralReq, StairsReq,
+    WalkabilityReq,
 };
 
 use super::EditorServer;
@@ -14,7 +15,19 @@ use super::EditorServer;
 #[rmcp::tool_router(router = verbs_router, vis = "pub(super)")]
 impl EditorServer {
     #[rmcp::tool(
-        description = "Raise or lower the floors of a rectangle of WORLD sectors by an amount (grid units, 256 a click, negative lowers): the editor's Raise tool. mode offset keeps each sector's shape, level sets every corner to a reference height plus the amount (the default on a flat region). Corners on the border move with the region and the sectors outside keep theirs, so a cliff appears and in a derived room its walls follow. Ceilings follow by default (follow_ceiling false holds a floor one click under its ceiling). Surfaces made by this tool or grid_add_surface choose their own diagonal from their heights; smart paint rules and wall_material apply to the shaped sectors."
+        description = "Extrude a floor, a ceiling or a wall piece: the editor's Extrude tool (it replaced Raise). surface floor: a rectangle of WORLD sectors (from, to) up or down by amount (grid units, 256 a click, negative lowers), every corner moving together; ceilings stay where they are unless follow_ceiling is true. surface ceiling: the same rectangle's ceilings up or down, held a click over their floor. surface wall: one wall piece (wall: room, cell, edge, and kind or index where the edge has several; grid_walls lists them) pushed steps whole sectors along its normal: OUT (positive) opens the sectors behind it, an alcove for a whole wall and a corridor when it was the end of a room (the room grows), a niche when band names one band of the wall's set (grid_bands lists them); IN (negative) fills the sectors in front, so the platform grows, the ceiling drops, or a sector filled floor to ceiling is gone. Derived and hand-placed walls both extrude (a hand-placed one turns into derived behaviour, keeping its look). A push that cannot be made is refused with the reason and nothing changes: a diagonal wall, a piece covering part of its edge, cells of several sizes, another room in the way, a wall facing empty space, a piece floating between floor and ceiling, the room outgrowing its size limit. The reply counts the sectors made, opened, filled and removed."
+    )]
+    async fn grid_extrude(
+        &self,
+        Parameters(req): Parameters<ExtrudeReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.grid_edit(req.scene, "grid_extrude", |world, project| {
+            verbs::extrude(world, project, &req)
+        })
+    }
+
+    #[rmcp::tool(
+        description = "Deprecated alias of grid_extrude with surface floor, kept so old scripts run: use grid_extrude. Raise or lower the floors of a rectangle of WORLD sectors by an amount (grid units, 256 a click, negative lowers); unlike grid_extrude it keeps ceilings following by default and offers level mode, unit click and size half or quarter. mode offset keeps each sector's shape, level sets every corner to a reference height plus the amount (the default on a flat region). Corners on the border move with the region and the sectors outside keep theirs, so a cliff appears and in a derived room its walls follow. Ceilings follow by default (follow_ceiling false holds a floor one click under its ceiling). Surfaces made by this tool or grid_add_surface choose their own diagonal from their heights; smart paint rules and wall_material apply to the shaped sectors."
     )]
     async fn grid_raise(
         &self,

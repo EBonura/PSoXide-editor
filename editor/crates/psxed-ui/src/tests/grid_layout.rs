@@ -29,7 +29,10 @@ pub(super) fn screen(ws: &mut EditorWorkspace) -> String {
 /// below the screen are not drawn).
 pub(super) fn screen_sized(ws: &mut EditorWorkspace, size: Vec2) -> String {
     let ctx = full_context();
-    let _ = draw_editor_sized(ws, &ctx, false, size);
+    // A window is sized invisibly first, then its scroll area settles.
+    for _ in 0..3 {
+        let _ = draw_editor_sized(ws, &ctx, false, size);
+    }
     text_of(&draw_editor_sized(ws, &ctx, false, size))
 }
 

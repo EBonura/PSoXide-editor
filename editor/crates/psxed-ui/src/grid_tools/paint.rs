@@ -8,7 +8,7 @@
 use super::*;
 
 use psxed_project::face_uv::ZOOM_STEPS_Q8;
-use psxed_project::grid::edit::bands::{edit_bands, BandScope};
+use psxed_project::grid::edit::bands::{edit_bands, is_bandable, paint_whole_wall, BandScope};
 use psxed_project::grid::edit::{
     edit_plane_uv, edit_uv, set_material, set_plane_material, FaceRef, FaceTarget, SurfaceKind,
     UvOp,
@@ -177,37 +177,56 @@ impl PaintGhost {
 
     /// Write the paint onto `world`. Returns whether anything changed.
     pub fn apply(&self, world: &mut GridWorld) -> bool {
+        self.apply_counting(world).0
+    }
+
+    /// [`Self::apply`], also saying how many bands of a painted wall took the
+    /// paint because they kept a material of their own.
+    pub fn apply_counting(&self, world: &mut GridWorld) -> (bool, usize) {
         let material = Some(self.material);
         let orient = self.orient;
         match &self.target {
             PaintTarget::Faces { faces, tri } => {
                 let mut changed = false;
+                let mut bands = 0;
                 for face in faces {
-                    changed |= set_material(world, *face, *tri, material);
+                    // A whole wall takes its bands with it: a band with a
+                    // material of its own would otherwise keep the old look
+                    // under a paint meant for the wall.
+                    if tri.is_none() && is_bandable(face) {
+                        let done = paint_whole_wall(world, *face, material);
+                        changed |= done.changed();
+                        bands += done.bands;
+                    } else {
+                        changed |= set_material(world, *face, *tri, material);
+                    }
                     for op in orient.ops() {
                         changed |= edit_uv(world, *face, *tri, op);
                     }
                 }
-                changed
+                (changed, bands)
             }
             PaintTarget::Plane(id) => {
                 let mut changed = set_plane_material(world, *id, material);
                 for op in orient.ops() {
                     changed |= edit_plane_uv(world, *id, op);
                 }
-                changed
+                (changed, 0)
             }
-            PaintTarget::Band { face, band } => edit_bands(world, *face, BandScope::Piece, |set| {
-                let mut changed = set.set_band_material(*band, material);
-                if let Some(band) = set.bands.get_mut(*band) {
-                    let before = band.uv;
-                    for op in orient.ops() {
-                        op.apply(&mut band.uv);
+            PaintTarget::Band { face, band } => (
+                edit_bands(world, *face, BandScope::Piece, |set| {
+                    let mut changed = set.set_band_material(*band, material);
+                    if let Some(band) = set.bands.get_mut(*band) {
+                        let before = band.uv;
+                        for op in orient.ops() {
+                            op.apply(&mut band.uv);
+                        }
+                        changed |= band.uv != before;
                     }
-                    changed |= band.uv != before;
-                }
-                changed
-            }),
+                    changed
+                }),
+                0,
+            ),
         }
     }
 }

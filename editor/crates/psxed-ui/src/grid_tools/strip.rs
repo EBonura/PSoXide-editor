@@ -291,7 +291,9 @@ impl EditorWorkspace {
             .auto_shrink([false, false])
             .show(&mut inner, |ui| {
                 let options = ui.scope(|ui| self.draw_grid_context_controls(ui));
-                if options.response.rect.width() < 1.0 {
+                let no_options = options.response.rect.width() < 1.0;
+                self.grid.hints_in_options.set(no_options);
+                if no_options {
                     ui.add(
                         egui::Label::new(
                             RichText::new(self.grid_key_hints())
@@ -375,7 +377,7 @@ impl EditorWorkspace {
             GridTool::Break => "Pick sectors | Press on them, drag up for intensity | Tab target | Shift+X re-roll | Enter commit | Esc cancel",
             GridTool::Slab => "Pick sectors | Add floor above: press on them and drag up for the height | Remove upper floor, Fill opening: click them | Tab mode | Alt+Up/Down level | G go to level | Z cutaway | Esc cancel",
             GridTool::Sculpt => "Press and drag on the ground | Shift inverts | [ ] radius | Tab mode | Ramp: drag A to B | Dunes: drag across | Esc cancels the stroke",
-            GridTool::Cells => "Paint to subdivide | Alt+paint merges | [ ] brush | Enter / Shift+Enter subdivide / merge the selection | Alt+L cell sizes",
+            GridTool::Cells => "Paint to subdivide | Alt+paint merges | Shift+M merges the cell under the pointer | [ ] brush | Alt+L cell sizes",
             GridTool::Place => "Click to place at the sector centre | Shift+click keeps placing | Alt 64 | Shift+Alt free",
         }
     }
@@ -523,15 +525,19 @@ impl EditorWorkspace {
                                 )
                                 .truncate(),
                             );
-                            ui.separator();
-                            ui.add(
-                                egui::Label::new(
-                                    RichText::new(self.grid_key_hints())
-                                        .color(STUDIO_TEXT_WEAK)
-                                        .size(12.0),
-                                )
-                                .truncate(),
-                            );
+                            // A tool with no options already has the hints in
+                            // the bar above: not twice.
+                            if !self.grid.hints_in_options.get() {
+                                ui.separator();
+                                ui.add(
+                                    egui::Label::new(
+                                        RichText::new(self.grid_key_hints())
+                                            .color(STUDIO_TEXT_WEAK)
+                                            .size(12.0),
+                                    )
+                                    .truncate(),
+                                );
+                            }
                         });
                     });
                 });

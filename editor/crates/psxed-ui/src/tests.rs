@@ -8,6 +8,8 @@ mod geometry_resources;
 mod global_light;
 mod grid_aim;
 mod grid_audit;
+mod grid_backlog;
+mod grid_backlog_shots;
 mod grid_bands;
 mod grid_cells;
 mod grid_cycle;

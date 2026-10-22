@@ -224,19 +224,31 @@ pub(super) fn marquee_elements(
         GridView::Persp(view) => {
             let cam = pick::Cam::new(ws.viewport_3d_camera(), view);
             let eye = ws.viewport_3d_camera().position_f32();
+            let cut = ws.cutaway_plane().map(|y| y as f32);
+            // What can stand in a face's way: what is drawn (not hidden
+            // rooms, not what the cutaway removes).
+            let counts = |pf: &pick::PickFace| {
+                !ws.grid_hidden_rooms.contains(&pf.face.room)
+                    && !cut.is_some_and(|cut| pf.points.iter().all(|p| p[1] >= cut))
+            };
+            let mut sight = ws.grid.sight.borrow_mut();
             ws.with_pick_cache(|cache| {
                 let mut seen = std::collections::BTreeSet::new();
-                for pf in &cache.faces {
-                    // Hidden rooms, and faces the camera does not draw, are
-                    // not reached.
-                    if ws.grid_hidden_rooms.contains(&pf.face.room) || !pf.faces(eye) {
+                for (index, pf) in cache.faces.iter().enumerate() {
+                    // Hidden rooms are not reached.
+                    if ws.grid_hidden_rooms.contains(&pf.face.room) {
                         continue;
                     }
                     let n = pf.points.len() as f32;
                     let centre = pf.points.iter().fold([0.0; 3], |acc, p| {
                         [acc[0] + p[0] / n, acc[1] + p[1] / n, acc[2] + p[2] / n]
                     });
-                    if cam.project(centre).is_some_and(|(p, _)| rect.contains(p)) {
+                    // The box is cheap to test: only a face whose middle is
+                    // inside it is asked whether the camera sees it (not
+                    // turned away, not hidden behind other faces).
+                    if cam.project(centre).is_some_and(|(p, _)| rect.contains(p))
+                        && sight.sees(cache, index, eye, cut, &ws.grid_hidden_rooms, counts)
+                    {
                         seen.insert((pf.face, pf.band));
                     }
                 }
@@ -312,6 +324,16 @@ impl EditorWorkspace {
                 .clicked()
         {
             super::bands_tool::merge_selected_bands(self);
+        }
+        if super::cells_tool::selection_has_cells(self)
+            && ui
+                .button("Subdivide cells")
+                .on_hover_text(
+                    "Split the picked cells into four finer ones, as far as the Cells tool's Subdivide to says (one level by default); the document looks and stands the same",
+                )
+                .clicked()
+        {
+            super::cells_tool::apply_selection(self, false);
         }
         if self.can_merge_cells()
             && ui

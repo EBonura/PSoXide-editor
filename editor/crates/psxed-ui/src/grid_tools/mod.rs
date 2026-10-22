@@ -41,7 +41,7 @@ mod face_tools;
 mod global_light_panel;
 mod heat_overlay;
 mod height_tool;
-mod help;
+pub(crate) mod help;
 mod keys;
 mod lasso;
 mod leaf_overlay;
@@ -365,7 +365,7 @@ impl GridTool {
                 "Terraform the ground with a brush: press and drag. Raise (Shift lowers), Smooth, Flatten, Ramp (drag A to B) and Dunes (drag across, ripples run perpendicular). [ and ] change the radius, Tab the mode, Esc cancels the stroke."
             }
             Self::Cells => {
-                "Paint over the plan to subdivide cells into four finer ones; Alt merges them back. Enter and Shift+Enter subdivide and merge the Select tool's cells. [ and ] change the brush."
+                "Paint over the plan to subdivide cells into four finer ones; Alt merges them back, and Shift+M merges the cell under the pointer. [ and ] change the brush. Cells you picked with Select are split by its Subdivide cells button."
             }
             Self::Slab => {
                 "Adds a floor above this one, with open space underneath (needs a ceiling or open sky above). Drag a rectangle, then press on it and drag up for the height. Remove upper floor and Fill opening are clicks on the region. Tab changes the mode."
@@ -672,6 +672,9 @@ pub(crate) struct GridEditState {
     /// Bumped by every document change; the pick cache and budget follow it.
     pub rev: u64,
     pub cache: RefCell<Option<PickCache>>,
+    /// Which faces the camera sees, for the box selections: kept while the
+    /// document, the camera and the hidden rooms stay as they were.
+    pub sight: RefCell<pick::Sight>,
     /// Palette entry to scroll into view next frame.
     pub palette_scroll_to: Option<ResourceId>,
     /// Material counts for the status bar, per revision.
@@ -680,6 +683,9 @@ pub(crate) struct GridEditState {
     pub fit_pending: bool,
     /// Where the 3D view was drawn last, for the in-view face count.
     pub view_rect: std::cell::Cell<Option<Rect>>,
+    /// The options bar showed the tool's key hints in the last frame (a tool
+    /// with no options), so the status bar does not say them again.
+    pub hints_in_options: std::cell::Cell<bool>,
     /// A scripted hover (see `pose`) stays until a real pointer replaces it.
     pub hover_pinned: bool,
     /// The key and gesture help overlay (`?`) is open.
@@ -758,10 +764,12 @@ impl Default for GridEditState {
             last_room: 0,
             rev: 1,
             cache: RefCell::new(None),
+            sight: RefCell::new(pick::Sight::default()),
             palette_scroll_to: None,
             budget: RefCell::new(None),
             fit_pending: true,
             view_rect: std::cell::Cell::new(None),
+            hints_in_options: std::cell::Cell::new(false),
             hover_pinned: false,
             help_open: false,
             help_search: String::new(),

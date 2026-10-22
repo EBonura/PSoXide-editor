@@ -27,6 +27,10 @@ const SELECT: Rows = &[
         "Shift+M",
         "Merge: join two neighbouring picked bands of a wall back into one (the first picked keeps its material), or the picked cells of a split sector back into the whole cell",
     ),
+    (
+        "Subdivide cells (option row)",
+        "Split the picked cells into four finer ones, as far as the Cells tool's Subdivide to says",
+    ),
     ("Ctrl/Cmd+A", "Select everything in the room"),
     (
         "- and =",
@@ -383,12 +387,12 @@ const CELLS: Rows = &[
         "The coarsest cell a merge may make: a sector, two sectors across, or four",
     ),
     (
-        "Enter, Shift+Enter",
-        "Subdivide or merge the cells the Select tool picked",
+        "Shift+M",
+        "Merge the cell under the pointer back into the bigger cell it was split from",
     ),
     (
-        "Shift+M, Merge cells",
-        "Merge the cells the Select tool picked, or with nothing picked the cell under the pointer, back into the bigger cell they were split from",
+        "Select tool, Subdivide cells",
+        "Split the cells you picked with Select, as far as Subdivide to says (Merge cells, Shift+M, joins them back)",
     ),
     (
         "Extrude (U), Height (H)",
@@ -454,6 +458,21 @@ const VIEW: Rows = &[
     ("?", "This page"),
 ];
 
+/// The Keys window's identity. A window remembers the height it grew to and
+/// never offers its contents more, so on a screen that has grown since the
+/// page last opened the sections would stay squeezed; a new height is a new
+/// window, which sizes itself afresh.
+pub(crate) fn keys_window_id(screen_height: f32) -> egui::Id {
+    egui::Id::new(("grid editor keys", screen_height.round() as i32))
+}
+
+/// Where the Keys window starts under the top of the screen, clear of the top
+/// bar and the tool row.
+const HELP_TOP: f32 = 96.0;
+/// The window's title bar, frame and bottom margin: what the scroll area
+/// leaves free below the sections.
+const HELP_FRAME: f32 = 64.0;
+
 impl EditorWorkspace {
     /// The `?` key toggles the overlay, Escape closes it. Call with the
     /// other grid shortcuts.
@@ -503,12 +522,16 @@ impl EditorWorkspace {
             ("Snapping and reserved keys", SNAP),
             ("Camera and project", VIEW),
         ];
+        let screen_height = ctx.screen_rect().height();
         egui::Window::new("Grid editor keys")
+            .id(keys_window_id(screen_height))
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
             .fade_in(false)
-            .anchor(egui::Align2::CENTER_TOP, Vec2::new(0.0, 96.0))
+            .anchor(egui::Align2::CENTER_TOP, Vec2::new(0.0, HELP_TOP))
+            .default_height((screen_height - HELP_TOP - 8.0).max(200.0))
+            .max_height((screen_height - HELP_TOP - 8.0).max(200.0))
             .show(ctx, |ui| {
                 ui.set_width(1500.0_f32.min(ctx.screen_rect().width() - 60.0));
                 ui.label(
@@ -525,6 +548,16 @@ impl EditorWorkspace {
                         .hint_text("Search keys")
                         .desired_width(320.0),
                 );
+                // The page is taller than most screens: the sections scroll
+                // inside the window, under the search box, instead of the
+                // window running off the bottom of the screen.
+                let used = ui.min_rect().height();
+                let room = (ctx.screen_rect().height() - HELP_TOP - HELP_FRAME - used).max(160.0);
+                egui::ScrollArea::vertical()
+                    .id_salt("grid_help_scroll")
+                    .max_height(room)
+                    .auto_shrink([false, true])
+                    .show(ui, |ui| {
                 let query = self.grid.help_search.trim().to_ascii_lowercase();
                 if !query.is_empty() {
                     // The sections with a match, and in each only the rows
@@ -600,6 +633,7 @@ impl EditorWorkspace {
                             });
                     }
                 });
+                    });
             });
         if !open {
             self.grid.help_open = false;

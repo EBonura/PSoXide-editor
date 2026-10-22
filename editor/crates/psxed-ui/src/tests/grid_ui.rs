@@ -279,11 +279,14 @@ fn the_question_mark_opens_the_key_help_and_escape_closes_it() {
     assert!(ws.grid.help_open);
     // egui sizes a new window invisibly first; the next frame shows it.
     drop(open);
+    for _ in 0..3 {
+        draw_editor_sized(&mut ws, &ctx, true, Vec2::new(1920.0, 2900.0));
+    }
     let open = shapes_text(&draw_editor_sized(
         &mut ws,
         &ctx,
         true,
-        Vec2::new(1920.0, 2600.0),
+        Vec2::new(1920.0, 2900.0),
     ));
     assert!(open.contains("Grid editor keys"), "{open}");
     assert!(open.contains("Shift+drag"), "{open}");

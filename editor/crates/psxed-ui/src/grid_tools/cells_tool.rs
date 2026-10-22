@@ -6,8 +6,9 @@
 //!   the options row). Hold Alt to merge instead: the four cells that share
 //!   a parent become it, when it reproduces them exactly. One undo step per
 //!   stroke. `[` and `]` change the brush radius, in quarter sectors.
-//! * **Selection**: the Subdivide and Merge buttons (Enter and Shift+Enter)
-//!   act on the cells the Select tool picked.
+//! * **Selection**: the Select tool's Subdivide cells and Merge cells
+//!   buttons (Shift+M merges) act on the cells it picked. This tool has no
+//!   selection of its own: switching tools drops it.
 //!
 //! Subdividing changes how the room is stored, never what it looks like or
 //! stands on; the tree is balanced afterwards, so a neighbour two levels
@@ -338,6 +339,11 @@ fn selected_leaves(ws: &EditorWorkspace) -> Vec<(usize, LeafKey)> {
         }
     }
     out.into_iter().collect()
+}
+
+/// Whether the selection names any cell Subdivide cells could act on.
+pub(super) fn selection_has_cells(ws: &EditorWorkspace) -> bool {
+    !selected_leaves(ws).is_empty()
 }
 
 /// Subdivide (or, with `merge`, merge) the cells of the selection as one

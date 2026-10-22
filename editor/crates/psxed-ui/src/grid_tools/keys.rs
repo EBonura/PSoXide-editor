@@ -304,12 +304,6 @@ impl EditorWorkspace {
             self.cycle_cutaway();
         }
         if self.grid.tool == GridTool::Cells {
-            // Shift+Enter first: a plain Enter also matches when Shift is held.
-            if pressed_shift(ctx, egui::Key::Enter) {
-                super::cells_tool::apply_selection(self, true);
-            } else if pressed(ctx, egui::Key::Enter) {
-                super::cells_tool::apply_selection(self, false);
-            }
             for (key, delta) in [(egui::Key::CloseBracket, 1), (egui::Key::OpenBracket, -1)] {
                 if pressed(ctx, key) {
                     super::cells_tool::adjust_radius(self, delta);

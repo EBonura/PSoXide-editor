@@ -138,19 +138,20 @@ fn paint_target_at(ws: &EditorWorkspace, ptr: &GridPointer) -> Option<PaintTarge
 }
 
 /// Apply the palette material, turned and flipped as the brush is, to what
-/// is under the pointer. Returns whether anything changed. `before` is taken
-/// on the first change of a stroke and recorded for undo.
+/// is under the pointer. Returns whether anything changed, and how many bands
+/// of a whole wall took the paint with it. `before` is taken on the first
+/// change of a stroke and recorded for undo.
 fn paint_at(
     ws: &mut EditorWorkspace,
     ptr: &GridPointer,
     before: &mut Option<ProjectDocument>,
-) -> bool {
+) -> (bool, usize) {
     let Some(material) = ws.grid.material else {
         ws.status = "Pick a material in the palette first".to_string();
-        return false;
+        return (false, 0);
     };
     let Some(target) = paint_target_at(ws, ptr) else {
-        return false;
+        return (false, 0);
     };
     let paint = PaintGhost {
         target,
@@ -159,16 +160,16 @@ fn paint_at(
     };
     let snapshot = ws.project.clone();
     let Some(world) = ws.project.active_scene_mut().world.grid_mut() else {
-        return false;
+        return (false, 0);
     };
-    let changed = paint.apply(world);
+    let (changed, bands) = paint.apply_counting(world);
     if changed {
         if before.is_none() {
             *before = Some(snapshot);
         }
         ws.grid_changed();
     }
-    changed
+    (changed, bands)
 }
 
 pub(super) fn paint_press(ws: &mut EditorWorkspace, ptr: &GridPointer) {
@@ -190,7 +191,7 @@ pub(super) fn paint_drag(ws: &mut EditorWorkspace, ptr: &GridPointer) {
         return;
     };
     let mut before = None;
-    if paint_at(ws, ptr, &mut before) {
+    if paint_at(ws, ptr, &mut before).0 {
         if !undo_pushed {
             if let Some(snapshot) = before {
                 ws.history.record(snapshot);
@@ -212,7 +213,8 @@ pub(super) fn paint_click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
         return;
     }
     let mut before = None;
-    if paint_at(ws, ptr, &mut before) {
+    let (changed, bands) = paint_at(ws, ptr, &mut before);
+    if changed {
         if let Some(snapshot) = before {
             ws.history.record(snapshot);
         }
@@ -222,7 +224,13 @@ pub(super) fn paint_click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
             .and_then(|id| ws.project.resource_name(id))
             .unwrap_or("material")
             .to_string();
-        ws.status = format!("Painted {name}");
+        ws.status = match bands {
+            0 => format!("Painted {name}"),
+            1 => format!("Painted {name} (1 band of the wall had its own material and took it)"),
+            n => {
+                format!("Painted {name} ({n} bands of the wall had their own material and took it)")
+            }
+        };
     }
 }
 

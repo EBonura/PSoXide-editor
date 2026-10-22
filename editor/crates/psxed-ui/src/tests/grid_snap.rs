@@ -50,9 +50,10 @@ fn the_status_bar_and_help_say_the_same_rule() {
     ws.apply_grid_pose("tool=plane").unwrap();
     ws.grid.help_open = true;
     // egui sizes a new window invisibly first; the next frame shows it.
-    let tall = Vec2::new(1920.0, 2600.0);
-    let _ = super::grid_ui::draw_editor_sized(&mut ws, &ctx, true, tall);
-    let _ = super::grid_ui::draw_editor_sized(&mut ws, &ctx, true, tall);
+    let tall = Vec2::new(1920.0, 2900.0);
+    for _ in 0..4 {
+        let _ = super::grid_ui::draw_editor_sized(&mut ws, &ctx, true, tall);
+    }
     let output = super::grid_ui::draw_editor_sized(&mut ws, &ctx, true, tall);
     let text: String = output
         .shapes
