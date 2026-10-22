@@ -45,10 +45,10 @@ fn cell_bounds(
     // Derived walls hosted here can reach past the sector's own surfaces
     // (a riser runs down to the neighbour's floor).
     if room.wall_mode == psxed_project::grid::WallMode::Derived {
-        let derived = if room.leaves.is_sectors_only() {
-            psxed_project::grid::derive::derived_range(room, [cx, cz])
-        } else {
+        let derived = if world.builds_from_leaves(room) {
             psxed_project::grid::leaf_derive::derived_range_in(world, room_index, [cx, cz])
+        } else {
+            psxed_project::grid::derive::derived_range(room, [cx, cz])
         };
         if let Some((lo, hi)) = derived {
             low = low.min(lo);
