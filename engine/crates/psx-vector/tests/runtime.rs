@@ -5,7 +5,8 @@ use psx_gpu::material::BlendMode;
 use psx_vector::encode::{encode, GroupSource};
 use psx_vector::format::{pack_rgb, Vertex};
 use psx_vector::{
-    BlendOverride, ClipRect, DrawError, Emit, ParseError, Placement, Scratch, Style, VectorAsset,
+    draw_mode_word, BlendOverride, ClipRect, DrawError, Emit, PacketError, ParseError, Placement,
+    Scratch, Style, VectorAsset, VectorPacket,
 };
 
 /// 4-byte-aligned copy of `bytes`.
@@ -321,7 +322,9 @@ fn clipping_keeps_pixels_inside_and_interpolates_colour() {
             (((b.0 - a.0) * (c.1 - a.1) - (b.1 - a.1) * (c.0 - a.0)) as i64).abs()
         })
         .sum();
-    assert_eq!(area, 2 * 30 * 20);
+    // Crossing points round to whole pixels, so the fan is within a pixel of
+    // the window along its diagonal cuts.
+    assert!((area - 2 * 30 * 20).abs() <= 2 * 30 * 20 / 25, "area {area}");
     // Colour at the clip's left edge is a mix, not an end colour.
     let left = tris
         .iter()
@@ -351,4 +354,35 @@ fn offscreen_group_is_culled_by_bounds() {
     );
     assert_eq!(r, Ok(0));
     assert!(tris.is_empty());
+}
+
+#[test]
+fn packets_carry_their_draw_mode_and_match_the_emitted_triangles() {
+    let bytes = sample();
+    let w = aligned(&bytes);
+    let a = VectorAsset::parse(as_bytes(&w, bytes.len())).unwrap();
+    let place = Placement::at(3, 4);
+    let mut scratch = Box::new(Scratch::<64>::new());
+    let mut out = [VectorPacket::ZERO; 4];
+    let n = a
+        .emit_packets(a.group("box").unwrap(), &place, &Style::DEFAULT, &mut scratch, &mut out)
+        .unwrap();
+    assert_eq!(n, 2);
+    let (_, tris, _) = run(&a, "box", &place, &Style::DEFAULT);
+    for (packet, tri) in out.iter().zip(&tris) {
+        assert_eq!(packet.draw_mode, draw_mode_word(BlendMode::Opaque));
+        assert_eq!(packet.color0_cmd & 0xFF_FFFF, tri.c[0]);
+        assert_eq!(packet.color0_cmd >> 24, 0x30);
+    }
+    let n = a
+        .emit_packets(a.group("glow").unwrap(), &place, &Style::DEFAULT, &mut scratch, &mut out)
+        .unwrap();
+    assert_eq!(n, 1);
+    assert_eq!(out[0].draw_mode, draw_mode_word(BlendMode::Add));
+    assert_eq!(out[0].color0_cmd >> 24, 0x32);
+    let mut small = [VectorPacket::ZERO; 1];
+    let err = a
+        .emit_packets(a.group("box").unwrap(), &place, &Style::DEFAULT, &mut scratch, &mut small)
+        .unwrap_err();
+    assert_eq!(err, PacketError::OutputTooSmall { needed: 2 });
 }
