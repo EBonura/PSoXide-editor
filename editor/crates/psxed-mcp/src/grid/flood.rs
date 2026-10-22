@@ -10,8 +10,8 @@ use std::fmt::Write as _;
 use std::path::Path;
 
 use psxed_project::grid::census::{
-    flood_page_budget, NO_PAGE_BUDGET, flood_report, resident_radii, sample_cameras, CellCensus, Graph,
-    LevelBlobs, Sample, Sweep,
+    flood_page_budget, flood_report, resident_radii, sample_cameras, CellCensus, Graph, LevelBlobs,
+    Sample, Sweep, NO_PAGE_BUDGET,
 };
 use psxed_project::grid::cook::GUEST_POOL_CEILING_KIB;
 use psxed_project::grid::edit::chunks::{rechunk_hex, HexLayout};
@@ -92,7 +92,12 @@ fn blobs_of(
 }
 
 /// `grid_cells`.
-pub fn cells(project: &ProjectDocument, root: &Path, world: &GridWorld, req: &CellsReq) -> Result<String, String> {
+pub fn cells(
+    project: &ProjectDocument,
+    root: &Path,
+    world: &GridWorld,
+    req: &CellsReq,
+) -> Result<String, String> {
     let world = world_for(world, req.rechunk_hex)?;
     let binding = if req.stand_in_materials.unwrap_or(false) {
         MaterialBinding::StandIn
@@ -104,7 +109,10 @@ pub fn cells(project: &ProjectDocument, root: &Path, world: &GridWorld, req: &Ce
     let census = CellCensus::of(&blobs, &graph);
     let mut out = String::new();
     if let Some(size) = req.rechunk_hex {
-        let _ = writeln!(out, "(re-cut into hexagons of size {size}; the document is unchanged)");
+        let _ = writeln!(
+            out,
+            "(re-cut into hexagons of size {size}; the document is unchanged)"
+        );
     }
     out.push_str(&census.report());
     if req.sweep.unwrap_or(false) {
@@ -116,7 +124,10 @@ pub fn cells(project: &ProjectDocument, root: &Path, world: &GridWorld, req: &Ce
             .resident_radii
             .clone()
             .unwrap_or_else(|| DEFAULT_RESIDENT_RADII.to_vec());
-        let _ = writeln!(out, "pool when the flood also stops at a resident radius (two cameras per cell):");
+        let _ = writeln!(
+            out,
+            "pool when the flood also stops at a resident radius (two cameras per cell):"
+        );
         for row in resident_radii(&blobs, ceiling, &radii) {
             let _ = writeln!(
                 out,
@@ -129,7 +140,12 @@ pub fn cells(project: &ProjectDocument, root: &Path, world: &GridWorld, req: &Ce
 }
 
 /// `grid_flood`.
-pub fn flood(project: &ProjectDocument, root: &Path, world: &GridWorld, req: &FloodReq) -> Result<String, String> {
+pub fn flood(
+    project: &ProjectDocument,
+    root: &Path,
+    world: &GridWorld,
+    req: &FloodReq,
+) -> Result<String, String> {
     let world = world_for(world, req.rechunk_hex)?;
     let blobs = blobs_of(project, root, &world, MaterialBinding::Project)?;
     let graph = Graph::new(&blobs);
@@ -152,7 +168,9 @@ pub fn flood(project: &ProjectDocument, root: &Path, world: &GridWorld, req: &Fl
     let near = req.near.unwrap_or(u32::from(settings.near_radius));
     let res = req.res.unwrap_or(u32::from(settings.res_radius));
     if res < near {
-        return Err(format!("the resident radius ({res}) is below the draw radius ({near})"));
+        return Err(format!(
+            "the resident radius ({res}) is below the draw radius ({near})"
+        ));
     }
     let budget = req
         .budget_pages
@@ -201,7 +219,10 @@ mod tests {
         };
         let text = flood(&project, &root(), &world, &req).unwrap();
         assert!(text.contains("resident: 1 cells"), "{text}");
-        let far = FloodReq { at: [500, 500], ..req };
+        let far = FloodReq {
+            at: [500, 500],
+            ..req
+        };
         assert!(flood(&project, &root(), &world, &far).is_err());
         let backwards = FloodReq {
             near: Some(8),
