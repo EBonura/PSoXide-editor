@@ -27,6 +27,7 @@ use psxed_ui::GridPreviewView;
 /// Editor-space bounds of one sector, from its lowest to highest geometry.
 fn cell_bounds(
     world: &GridWorld,
+    room_index: usize,
     room: &GridRoom,
     x: usize,
     z: usize,
@@ -47,7 +48,7 @@ fn cell_bounds(
         let derived = if room.leaves.is_sectors_only() {
             psxed_project::grid::derive::derived_range(room, [cx, cz])
         } else {
-            psxed_project::grid::leaf_derive::derived_range(room, [cx, cz])
+            psxed_project::grid::leaf_derive::derived_range_in(world, room_index, [cx, cz])
         };
         if let Some((lo, hi)) = derived {
             low = low.min(lo);
@@ -249,7 +250,7 @@ pub(super) fn prepare_room(world: &GridWorld, room_index: usize) -> PreparedRoom
     let room = &world.rooms[room_index];
     let mut prepared = PreparedRoom::default();
     for [x, z] in room.face_cells() {
-        if let Some(bounds) = cell_bounds(world, room, x, z) {
+        if let Some(bounds) = cell_bounds(world, room_index, room, x, z) {
             prepared
                 .cells
                 .push(LazyBox::new(bounds, BoxSource::Cell(x, z)));
