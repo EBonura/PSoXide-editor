@@ -17,6 +17,8 @@ use std::fmt::Write as _;
 
 /// Cycles in two vblanks, the work budget of one 30 fps frame.
 pub const TWO_VBLANK_CYCLES: i64 = 1_128_960;
+/// Cycles in one vblank, the time a 60 Hz simulation tick has to finish in.
+pub const ONE_VBLANK_CYCLES: i64 = TWO_VBLANK_CYCLES / 2;
 const NTSC_HZ: f64 = 60.0;
 
 /// A CSV parsed to named integer columns. Empty cells read as zero.
@@ -191,6 +193,48 @@ pub fn route_summary(route: &Table, from_poll: u64) -> Result<String, String> {
     Ok(out)
 }
 
+/// Fixed simulation ticks that took longer than one vblank, over `rows`: the
+/// `fixed_update_task` column when the guest recorded the task, else the
+/// `update` stage (the scene's update, which is nearly all of a tick).
+///
+/// The playtest scheduler has no cap on the fixed ticks it runs before a
+/// visual frame (`max_fixed_ticks_before_visual: 0`): a tick that outgrows a
+/// vblank leaves the simulation permanently behind real time, so it runs back
+/// to back and no frame is ever rendered. That is a total stall with a picture
+/// frozen on screen, and this line is what names it. `None` when the log has
+/// no such column.
+fn tick_overruns(profile: &Table, rows: &[usize]) -> Option<String> {
+    let ticks_of = |name: &str| -> Vec<i64> {
+        profile.col(name).map_or_else(Vec::new, |c| {
+            rows.iter()
+                .map(|&r| profile.get(r, c))
+                .filter(|&v| v > 0)
+                .collect()
+        })
+    };
+    let mut ticks = ticks_of("fixed_update_task");
+    if ticks.is_empty() {
+        ticks = ticks_of("update");
+    }
+    if ticks.is_empty() {
+        return None;
+    }
+    let over = ticks.iter().filter(|&&c| c > ONE_VBLANK_CYCLES).count();
+    let mut out = format!(
+        "sim ticks over one vblank ({} cycles): {over} of {}, {}\n",
+        thousands(ONE_VBLANK_CYCLES),
+        ticks.len(),
+        stats("tick cycles", &ticks)
+    );
+    if over * 2 > ticks.len() {
+        let _ = writeln!(
+            out,
+            "the simulation cannot keep up with real time: ticks run back to back and starve rendering (the scheduler has no fixed-tick cap)"
+        );
+    }
+    Some(out)
+}
+
 /// Cost from the guest telemetry CSV over the rows after `from_cycle`.
 pub fn profile_summary(profile: &Table, from_cycle: i64) -> Result<String, String> {
     let (Some(start), Some(visual), Some(render), Some(update)) = (
@@ -217,7 +261,15 @@ pub fn profile_summary(profile: &Table, from_cycle: i64) -> Result<String, Strin
         .filter(|&r| profile.get(r, visual) > 0)
         .collect();
     if visuals.is_empty() {
-        return Err("no presented frames in the route window".to_string());
+        // The telemetry is there and says nothing was presented: that is the
+        // finding (a stalled game), not a reason to fall back to the cadence
+        // log, which cannot see why.
+        let mut out = format!(
+            "frame cost from guest telemetry: 0 presented frames over {} guest frames = 0.0 fps\n",
+            rows.len()
+        );
+        out.push_str(&tick_overruns(profile, &rows).unwrap_or_default());
+        return Ok(out);
     }
     let renders: Vec<i64> = visuals.iter().map(|&r| profile.get(r, render)).collect();
     let worlds: Option<Vec<i64>> =
@@ -259,6 +311,7 @@ pub fn profile_summary(profile: &Table, from_cycle: i64) -> Result<String, Strin
         thousands(TWO_VBLANK_CYCLES),
         work.len()
     );
+    out.push_str(&tick_overruns(profile, &rows).unwrap_or_default());
     Ok(out)
 }
 
@@ -334,5 +387,66 @@ mod tests {
         assert!(text.contains("40 presented frames"), "{text}");
         assert!(text.contains("1 of 40"), "{text}");
         assert!(text.contains("max 1,300,000"), "{text}");
+    }
+
+    fn ticks_csv(visual: i64, task: i64) -> String {
+        let mut csv = String::from(
+            "guest_frame,start_bus_cycles,fixed_update_task,visual_frames,render,update,room\n",
+        );
+        for i in 0..40 {
+            csv.push_str(&format!(
+                "{i},{},{task},{visual},400000,{task},0\n",
+                i * 600_000
+            ));
+        }
+        csv
+    }
+
+    const NO_ROUTE: &str =
+        "route_tick,bus_cycles,bus_cycle_delta,display_start_changed,port1_polls\n0,0,0,0,0\n";
+
+    #[test]
+    fn ticks_longer_than_a_vblank_are_counted() {
+        let text = summarize(NO_ROUTE, Some(&ticks_csv(1, 700_000)), 0).unwrap();
+        assert!(
+            text.contains("sim ticks over one vblank (564,480 cycles): 40 of 40"),
+            "{text}"
+        );
+        assert!(text.contains("max 700,000"), "{text}");
+        assert!(text.contains("cannot keep up with real time"), "{text}");
+        let text = summarize(NO_ROUTE, Some(&ticks_csv(1, 120_000)), 0).unwrap();
+        assert!(
+            text.contains("over one vblank (564,480 cycles): 0 of 40"),
+            "{text}"
+        );
+        assert!(!text.contains("cannot keep up"), "{text}");
+    }
+
+    #[test]
+    fn the_update_stage_stands_in_when_the_task_is_not_recorded() {
+        // The playtest disc leaves `fixed_update_task` at zero.
+        let mut csv = String::from(
+            "guest_frame,start_bus_cycles,fixed_update_task,visual_frames,render,update,room\n",
+        );
+        for i in 0..40 {
+            let update = if i % 10 == 0 { 900_000 } else { 100_000 };
+            csv.push_str(&format!("{i},{},0,1,400000,{update},0\n", i * 600_000));
+        }
+        let text = summarize(NO_ROUTE, Some(&csv), 0).unwrap();
+        assert!(text.contains("(564,480 cycles): 4 of 40"), "{text}");
+        assert!(!text.contains("cannot keep up"), "{text}");
+    }
+
+    #[test]
+    fn a_stalled_run_reports_its_ticks_instead_of_a_cadence() {
+        // Telemetry is present, the game ran, nothing was presented: the old
+        // summary fell back to the route log and never said why.
+        let text = summarize(NO_ROUTE, Some(&ticks_csv(0, 700_000)), 0).unwrap();
+        assert!(
+            text.contains("0 presented frames over 40 guest frames"),
+            "{text}"
+        );
+        assert!(text.contains("40 of 40"), "{text}");
+        assert!(!text.contains("no guest telemetry"), "{text}");
     }
 }
