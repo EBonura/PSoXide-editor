@@ -84,6 +84,66 @@ impl Image {
         out
     }
 
+    /// Nearest-neighbour enlargement by an integer `factor`.
+    pub fn upscaled(&self, factor: usize) -> Self {
+        let mut out = Self::new(self.width * factor, self.height * factor, [0, 0, 0]);
+        for y in 0..out.height {
+            for x in 0..out.width {
+                out.set(x, y, self.pixel(x / factor, y / factor));
+            }
+        }
+        out
+    }
+
+    /// Encode as an uncompressed PNG (stored deflate blocks), for review frames.
+    pub fn to_png(&self) -> Vec<u8> {
+        fn crc32(data: &[u8]) -> u32 {
+            let mut crc = !0u32;
+            for &b in data {
+                crc ^= b as u32;
+                for _ in 0..8 {
+                    crc = if crc & 1 != 0 { (crc >> 1) ^ 0xEDB8_8320 } else { crc >> 1 };
+                }
+            }
+            !crc
+        }
+        fn chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
+            out.extend_from_slice(&(data.len() as u32).to_be_bytes());
+            let mut body = kind.to_vec();
+            body.extend_from_slice(data);
+            out.extend_from_slice(&body);
+            out.extend_from_slice(&crc32(&body).to_be_bytes());
+        }
+        let mut raw = Vec::with_capacity((self.width * 3 + 1) * self.height);
+        for row in self.rgb.chunks(self.width * 3) {
+            raw.push(0);
+            raw.extend_from_slice(row);
+        }
+        let mut z = vec![0x78, 0x01];
+        let mut blocks = raw.chunks(65_535).peekable();
+        while let Some(block) = blocks.next() {
+            z.push(blocks.peek().is_none() as u8);
+            z.extend_from_slice(&(block.len() as u16).to_le_bytes());
+            z.extend_from_slice(&(!(block.len() as u16)).to_le_bytes());
+            z.extend_from_slice(block);
+        }
+        let (mut a, mut b) = (1u32, 0u32);
+        for &byte in &raw {
+            a = (a + byte as u32) % 65_521;
+            b = (b + a) % 65_521;
+        }
+        z.extend_from_slice(&((b << 16) | a).to_be_bytes());
+        let mut out = b"\x89PNG\r\n\x1a\n".to_vec();
+        let mut ihdr = Vec::new();
+        ihdr.extend_from_slice(&(self.width as u32).to_be_bytes());
+        ihdr.extend_from_slice(&(self.height as u32).to_be_bytes());
+        ihdr.extend_from_slice(&[8, 2, 0, 0, 0]);
+        chunk(&mut out, b"IHDR", &ihdr);
+        chunk(&mut out, b"IDAT", &z);
+        chunk(&mut out, b"IEND", &[]);
+        out
+    }
+
     /// Decode a binary PPM (P6, maxval 255).
     pub fn from_ppm(bytes: &[u8]) -> Result<Self, String> {
         let mut pos = 0usize;

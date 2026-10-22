@@ -5,7 +5,7 @@
 //! psx-svg-cook cook <in.svg> -o <out.psvg> [--tolerance PX] [--budget total=N]
 //!                   [--budget GROUP=N] [--budget-per-group N] [--quiet]
 //! psx-svg-cook raster <in.psvg> -o <out.ppm> [--groups a,b] [--origin X,Y]
-//!                   [--size W,H] [--bg RRGGBB]
+//!                   [--size W,H] [--bg RRGGBB] [--scale N]   (.png or .ppm by extension)
 //! psx-svg-cook diff <a.ppm> <b.ppm> [--threshold N] [--region X0,Y0,X1,Y1]
 //! ```
 
@@ -127,7 +127,10 @@ fn run(args: &[String]) -> Result<(), String> {
                 )
                 .map_err(|e| format!("{e:?}"))?;
             }
-            std::fs::write(out, img.to_ppm()).map_err(|e| format!("{out}: {e}"))
+            let scale: usize = flag("scale").map_or(Ok(1), |s| s.parse().map_err(|_| "bad --scale"))?;
+            let img = if scale > 1 { img.upscaled(scale) } else { img };
+            let bytes = if out.ends_with(".png") { img.to_png() } else { img.to_ppm() };
+            std::fs::write(out, bytes).map_err(|e| format!("{out}: {e}"))
         }
         "diff" => {
             let (a, b) = (

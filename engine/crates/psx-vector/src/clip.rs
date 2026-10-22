@@ -60,13 +60,16 @@ impl Edge {
     }
 
     /// The point where segment `a`-`b` crosses this edge. Only called when the
-    /// endpoints are on opposite sides, so the denominator is not zero.
+    /// endpoints are on opposite sides, so the denominator is not zero. One
+    /// division gives the crossing as a Q12 fraction; every channel then
+    /// interpolates with a multiply, since a divide costs far more on the R3000.
     fn cross(self, a: ClipVertex, b: ClipVertex) -> ClipVertex {
         let (num, den) = match self {
             Edge::Left(e) | Edge::Right(e) => (e - a.x, b.x - a.x),
             Edge::Top(e) | Edge::Bottom(e) => (e - a.y, b.y - a.y),
         };
-        let lerp = |p: i32, q: i32| p + (q - p) * num / den;
+        let t = (num << 12) / den;
+        let lerp = |p: i32, q: i32| p + (((q - p) * t + 2048) >> 12);
         let mut out = ClipVertex {
             x: lerp(a.x, b.x),
             y: lerp(a.y, b.y),
@@ -85,37 +88,50 @@ impl Edge {
 /// Clip a triangle to `rect` (half-open: pixels `x0 <= x < x1`, `y0 <= y < y1`)
 /// with Sutherland-Hodgman, colours interpolated linearly. Returns the polygon
 /// vertices and their count; a count below 3 means nothing is left.
+///
+/// Only the edges the triangle's bounding box actually crosses are processed,
+/// which for a typical straddling triangle is one or two of the four.
+#[inline(never)]
 pub(crate) fn clip_triangle(
     tri: [ClipVertex; 3],
     rect: ClipRect,
 ) -> ([ClipVertex; MAX_CLIPPED], usize) {
+    let min_x = tri[0].x.min(tri[1].x).min(tri[2].x);
+    let max_x = tri[0].x.max(tri[1].x).max(tri[2].x);
+    let min_y = tri[0].y.min(tri[1].y).min(tri[2].y);
+    let max_y = tri[0].y.max(tri[1].y).max(tri[2].y);
     // A vertex on the right/bottom boundary x1 still rasterises no pixel at
     // x1, so clipping to x1 itself (inclusive here) keeps the half-open rule.
     let edges = [
-        Edge::Left(rect.x0),
-        Edge::Right(rect.x1),
-        Edge::Top(rect.y0),
-        Edge::Bottom(rect.y1),
+        (min_x < rect.x0, Edge::Left(rect.x0)),
+        (max_x > rect.x1, Edge::Right(rect.x1)),
+        (min_y < rect.y0, Edge::Top(rect.y0)),
+        (max_y > rect.y1, Edge::Bottom(rect.y1)),
     ];
     let zero = tri[0];
     let mut poly = [zero; MAX_CLIPPED];
     poly[..3].copy_from_slice(&tri);
     let mut len = 3usize;
-    for edge in edges {
+    for (needed, edge) in edges {
+        if !needed {
+            continue;
+        }
         let mut next = [zero; MAX_CLIPPED];
         let mut next_len = 0usize;
-        for i in 0..len {
-            let a = poly[i];
-            let b = poly[(i + 1) % len];
-            let (a_in, b_in) = (edge.inside(a), edge.inside(b));
-            if a_in {
-                next[next_len] = a;
-                next_len += 1;
-            }
+        let mut a = poly[len - 1];
+        let mut a_in = edge.inside(a);
+        for &b in &poly[..len] {
+            let b_in = edge.inside(b);
             if a_in != b_in {
                 next[next_len] = edge.cross(a, b);
                 next_len += 1;
             }
+            if b_in {
+                next[next_len] = b;
+                next_len += 1;
+            }
+            a = b;
+            a_in = b_in;
         }
         poly = next;
         len = next_len;

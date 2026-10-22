@@ -492,7 +492,10 @@ impl Triangles<'_> {
 }
 
 /// Emit one triangle clipped to `clip`; returns 1 if anything was drawn.
-#[inline(always)]
+///
+/// The common cases (wholly outside, wholly inside) are decided from the
+/// position words alone, before any colour is unpacked.
+#[inline(never)]
 fn emit_clipped(
     opcode: u32,
     pos: [u32; 3],
@@ -500,15 +503,12 @@ fn emit_clipped(
     clip: ClipRect,
     sink: &mut impl FnMut(Emit<'_>),
 ) -> u32 {
-    let tri = [
-        ClipVertex::from_words(pos[0], col[0]),
-        ClipVertex::from_words(pos[1], col[1]),
-        ClipVertex::from_words(pos[2], col[2]),
-    ];
-    let min_x = tri[0].x.min(tri[1].x).min(tri[2].x);
-    let max_x = tri[0].x.max(tri[1].x).max(tri[2].x);
-    let min_y = tri[0].y.min(tri[1].y).min(tri[2].y);
-    let max_y = tri[0].y.max(tri[1].y).max(tri[2].y);
+    let x = |w: u32| w as u16 as i16 as i32;
+    let y = |w: u32| (w >> 16) as u16 as i16 as i32;
+    let min_x = x(pos[0]).min(x(pos[1])).min(x(pos[2]));
+    let max_x = x(pos[0]).max(x(pos[1])).max(x(pos[2]));
+    let min_y = y(pos[0]).min(y(pos[1])).min(y(pos[2]));
+    let max_y = y(pos[0]).max(y(pos[1])).max(y(pos[2]));
     if max_x <= clip.x0 || min_x >= clip.x1 || max_y <= clip.y0 || min_y >= clip.y1 {
         return 0;
     }
@@ -525,6 +525,11 @@ fn emit_clipped(
         sink(Emit::Triangle(&packet));
         return 1;
     }
+    let tri = [
+        ClipVertex::from_words(pos[0], col[0]),
+        ClipVertex::from_words(pos[1], col[1]),
+        ClipVertex::from_words(pos[2], col[2]),
+    ];
     let (poly, len) = clip_triangle(tri, clip);
     if len < 3 {
         return 0;
