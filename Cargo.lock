@@ -1460,56 +1460,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "frontend"
-version = "0.1.0"
-dependencies = [
- "axum",
- "base64 0.22.1",
- "clap",
- "claxon",
- "console_error_panic_hook",
- "cpal",
- "egui",
- "egui-wgpu",
- "egui-winit",
- "emulator-core",
- "gilrs",
- "image",
- "js-sys",
- "objc2 0.6.4",
- "objc2-app-kit 0.3.2",
- "objc2-foundation 0.3.2",
- "pollster 0.3.0",
- "psoxide-debug-ui",
- "psoxide-jit",
- "psoxide-settings",
- "psoxide-validation",
- "psx-asset",
- "psx-bsp",
- "psx-engine",
- "psx-gpu",
- "psx-gpu-render",
- "psx-gte",
- "psx-hw",
- "psx-iso",
- "psx-trace",
- "psx-vram",
- "psxed-project",
- "psxed-ui",
- "rfd",
- "rmcp",
- "schemars",
- "serde",
- "tokio",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
- "web-time",
- "wgpu",
- "winit",
-]
-
-[[package]]
 name = "futures"
 version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3271,6 +3221,56 @@ name = "psoxide-dev"
 version = "0.1.0"
 dependencies = [
  "fontdue",
+]
+
+[[package]]
+name = "psoxide-emulator"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "base64 0.22.1",
+ "clap",
+ "claxon",
+ "console_error_panic_hook",
+ "cpal",
+ "egui",
+ "egui-wgpu",
+ "egui-winit",
+ "emulator-core",
+ "gilrs",
+ "image",
+ "js-sys",
+ "objc2 0.6.4",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
+ "pollster 0.3.0",
+ "psoxide-debug-ui",
+ "psoxide-jit",
+ "psoxide-settings",
+ "psoxide-validation",
+ "psx-asset",
+ "psx-bsp",
+ "psx-engine",
+ "psx-gpu",
+ "psx-gpu-render",
+ "psx-gte",
+ "psx-hw",
+ "psx-iso",
+ "psx-trace",
+ "psx-vram",
+ "psxed-project",
+ "psxed-ui",
+ "rfd",
+ "rmcp",
+ "schemars",
+ "serde",
+ "tokio",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "web-time",
+ "wgpu",
+ "winit",
 ]
 
 [[package]]
