@@ -2770,6 +2770,13 @@ fn decode_embedded_png(bytes: &[u8]) -> Option<ColorImage> {
 }
 
 impl EditorWorkspace {
+    /// How soon the shell should redraw the editor window next. The shell asks
+    /// from emulator 9196be6 on. The editor ticks at the display rate while it is
+    /// in front, as it did before the shell asked, so this changes no behaviour.
+    pub fn redraw_interval(&self) -> std::time::Duration {
+        std::time::Duration::from_secs_f32(1.0 / 60.0)
+    }
+
     /// Current top-level workspace, exposed for native startup validation.
     pub const fn active_workspace_view(&self) -> EditorWorkspaceView {
         self.active_workspace.to_project()
