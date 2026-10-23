@@ -18,6 +18,12 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+/// Instruction cap per requested poll. A generous bound, so the poll target is
+/// what ends a run; a level that loads a wide resident set at start spins for
+/// a long while before its first poll and needs more than the 900 000 a
+/// small level gets by on.
+const STEPS_PER_POLL: u64 = 2_000_000;
+
 /// Route ticks between scheduled CROSS taps in the default schedule.
 const MENU_TAP_INTERVAL: u32 = 240;
 /// How long each tap is held, in route ticks. Four is the documented floor
@@ -183,7 +189,7 @@ pub fn run_disc(
         .arg(format!("--stop-at-poll={polls}"))
         // Instructions, not ticks: a generous cap so the poll target is what
         // actually ends the run.
-        .arg(format!("--steps={}", u64::from(polls) * 900_000))
+        .arg(format!("--steps={}", u64::from(polls) * STEPS_PER_POLL))
         .arg("--dump-hw")
         .arg(dump);
     if !press.is_empty() {
@@ -255,7 +261,7 @@ pub fn run_route(
         .arg("--input-tape")
         .arg(tape)
         .arg(format!("--stop-at-poll={polls}"))
-        .arg(format!("--steps={}", u64::from(polls) * 900_000))
+        .arg(format!("--steps={}", u64::from(polls) * STEPS_PER_POLL))
         .arg("--dump-hw")
         .arg(&final_ppm)
         .arg("--route-log")
