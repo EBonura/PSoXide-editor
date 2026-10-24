@@ -20,7 +20,7 @@ root, bootstrap its pinned dependencies and launch the native editor:
 
 ```bash
 make bootstrap
-cargo run -p frontend --features editor -- --editor --windowed
+cargo run -p psoxide-emulator -- --editor --windowed
 ```
 
 1. Choose **File → New Project…**, enter a name and press **Create**. The

@@ -29,6 +29,30 @@
   gap. Fades are unchanged; a data read still pauses the song and restarts it
   from the point the head had reached.
 
+- The shared chain loader hands the CD drive to the payload quiet. The last
+  stop of a load is now `Reader::stop_proved` (the SDK's `SectorReader::stop_proved`:
+  wait for the Pause's second response, 1.2 to 3.9 million clocks after the first
+  on the console, settle by status if it never comes), and the loader acknowledges
+  every controller flag, drops the data request and closes `I_MASK` before the
+  jump. Before, the payload could receive that second response (a stray INT2) in
+  its first moments. Intermediate chunk stops are unchanged, and a stop that
+  cannot be proved fails the payload stage and retries like any other.
+
+- The shared chain loader can animate its loading screen. `Observer::tick` and
+  `Presentation::tick` (both default to nothing) are called after every payload
+  sector, once per spin of a seek wait and every 4 KiB of the checksum pass, and
+  `paint::take_vblank` counts VBlank edges while interrupts are masked. A
+  presentation that polls the SDK's `psx-loading` indicator there keeps its
+  text moving for the whole load. The transport itself (reads, stops, events,
+  checksum) is unchanged: the legacy-oracle traces still match.
+
+- `psxed-audio` can cook sounds straight from WAV files or in-memory bytes
+  (`cook_sounds`, `import_files`), sharing the decode, resample, normalize and
+  encode path with `import_pack`, so the `.psau` output is byte-identical.
+  Callers that already hold the WAVs no longer have to build a zip archive and
+  a manifest first. The zip sound-pack importer now sits behind the default-on
+  `pack` feature, so those callers can drop the zip dependency.
+
 - Walls and floors close to the third-person camera are now drawn where they
   really are. The GTE's perspective divide pulled anything nearer than about
   50 units toward the screen centre, which warped near walls and let sky show
