@@ -403,7 +403,7 @@ pub fn find_frontend(explicit: Option<&Path>) -> Result<PathBuf, String> {
         }
     }
     Err(
-        "no frontend binary found; build one with `cargo build -p frontend --profile run-fast`"
+        "no frontend binary found; build one with `cargo build -p psoxide-emulator --profile run-fast`"
             .to_string(),
     )
 }
