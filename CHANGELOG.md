@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- The grid line is the editor now. The branch that held the grid-world editor,
+  `psx-grid` runtime and the Citadel is the mainline, and the BSP-based Cortex
+  engine and its authoring (brush editing, the PXBSP world cook, the region
+  streamer) are gone from it; `archive/bsp-engine-2026-10-24` keeps the last
+  commit that had them. `psx-bsp` and `psx-goldsrc` stay because Quake,
+  Half-Life and Counter-Strike build against them from this repository. The
+  Cortex-only parts of `psx-bsp` (the world streamer behind the `streaming`
+  feature, destructible submodels, the collision-provider adapter and the PXBSP
+  toolchain probe) are removed; its sky functions now live in `psx-engine` and
+  `psx_bsp::sky` re-exports them.
+
 - The far vista ring is gone. It was an old feature: a ring of textured cards
   around the camera, set on the World node. The Far Vista section of the World
   form, the preview ring, the cooked room field and the runtime draw are all

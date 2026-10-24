@@ -335,7 +335,7 @@ GONCHAROV_WAV ?= build/audio/GONCHAROV.wav
 MAGIKAAAAARP_PONG_TRACK ?= assets/audio/cdda/GONCHAROV.track02.cdda
 MAGIKAAAAARP_PONG_SPECTRUM := engine/examples/game-magikaaaaaarp-pong/assets/goncharov_spectrum_16x30hz.bin
 # Keep the historical output stem and ISO identity for preburn comparisons,
-# but cook the current BSP-authored Cortex Ignition project.
+# but cook the current grid-authored Cortex project.
 CORTEX_IGNITION_V1_NAME ?= cortex_v1
 CORTEX_IGNITION_V1_VOLUME ?= CORTEX_V1
 CORTEX_IGNITION_V1_PROJECT ?= editor/projects/default
