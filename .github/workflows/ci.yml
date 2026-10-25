@@ -21,6 +21,7 @@ jobs:
       - run: cargo test --locked --workspace --features psoxide-emulator/editor
       - run: cargo check --locked --manifest-path engine/Cargo.toml --workspace --all-features
       - run: cargo test --locked --manifest-path engine/Cargo.toml -p psx-game-runtime -p psx-render-contract -p psx-chainloader -p psx-goldsrc -p psx-bsp
+      - run: cargo test --locked --manifest-path engine/Cargo.toml -p psx-level --features wire
       # editor-playtest declares its own [workspace], so none of the commands
       # above reach it. Its tests run against a checked-in fixture manifest, not
       # whatever project was last cooked into generated/.
