@@ -93,9 +93,9 @@ const NO_ENTRY: u8 = 0xff;
 /// meanwhile), so a fourth index would cost 1.2 KiB of the guest's scarce RAM for nothing much.
 const EYES: usize = 3;
 /// Eyes kept ready besides the one in use: the nearest to the camera and to where it walks to.
-pub const RING: usize = 3;
+pub const RING: usize = 2;
 /// Of those, the first this many have every tile of every panel kept, not only the view's.
-const FULL_RING: usize = 1;
+const FULL_RING: usize = 0;
 
 /// Rooms a crossing changes over one by one; a room past these changes at once.
 pub const FADE_ROOMS: usize = 128;
@@ -892,6 +892,7 @@ impl<K: Copy> PanelStream<K> {
     }
 
     /// Retire the reads that finished, taking the indexes out of the window.
+    #[inline(never)]
     fn poll<T>(&mut self, transport: &mut T, window: &[u32])
     where
         T: RoomTransport<Ticket = K>,
@@ -978,6 +979,7 @@ impl<K: Copy> PanelStream<K> {
 
     /// The bake eye nearest the camera, kept until another is nearer by a quarter of the
     /// spacing.
+    #[inline(never)]
     fn choose_eye(&mut self, input: &PanelInput<'_>) {
         let distance = |eye: usize| {
             let e = input.eyes[eye];
@@ -986,8 +988,10 @@ impl<K: Copy> PanelStream<K> {
                 [i32::from(e[0]), i32::from(e[1]), i32::from(e[2])],
             )
         };
-        // The two nearest eyes (the first of equals), swept outward from the eye in use.
-        let two = nearest::<2>(input.eyes, input.eye, usize::from(self.eye));
+        // The nearest eyes (the first of equals), swept outward from the eye in use: the ring is
+        // chosen from them, and the first is the one a crossing goes to.
+        let around = nearest::<{ RING + 2 }>(input.eyes, input.eye, usize::from(self.eye));
+        let two = [around[0], around[1]];
         let (best, best_distance) = two[0].unwrap_or((0, i32::MAX));
         // The camera crosses to a nearer eye at once, whatever the disc has brought in: the
         // tiles of the eye it leaves stand in for those of the new one that have not landed
@@ -1076,7 +1080,6 @@ impl<K: Copy> PanelStream<K> {
                 .filter(|&(eye, _)| eye != current);
             ahead_best = [picked.next(), picked.next()];
         }
-        let around = nearest::<{ RING + 2 }>(input.eyes, input.eye, current);
         let near_distance = around
             .into_iter()
             .flatten()
@@ -1125,6 +1128,7 @@ impl<K: Copy> PanelStream<K> {
 
     /// Whether every stored tile of every panel of `eye` is in VRAM (of the panels in view
     /// only, with `view_only`).
+    #[inline(never)]
     fn eye_ready(&self, eye: u16, view_only: bool, input: &PanelInput<'_>) -> bool {
         // What the eye stores is in its panels here (their masks), not in its index, so an eye
         // whose index has been given up is ready too.
@@ -1174,6 +1178,7 @@ impl<K: Copy> PanelStream<K> {
 
     /// Whether every panel of `eye` the index listed is here, and a slot holds every tile they
     /// store: `None` when nothing of the eye is here.
+    #[inline(never)]
     fn eye_whole(&self, eye: u16) -> Option<bool> {
         let panels = self
             .cache
@@ -1274,6 +1279,7 @@ impl<K: Copy> PanelStream<K> {
 
     /// Cache index of the panel `(eye, heading)`, making one (and dropping the least
     /// recently wanted panel no slot refers to) when it is not there.
+    #[inline(never)]
     fn cache_index(&mut self, eye: u16, heading: u8) -> Option<u8> {
         if let Some(at) = self
             .cache
@@ -1312,6 +1318,7 @@ impl<K: Copy> PanelStream<K> {
 
     /// A slot for a tile of rank `rank`: a free one, or the one holding the worst ranked tile
     /// if that is worse than `rank` by more than the margin and no pass wanted it.
+    #[inline(never)]
     fn slot_for(&mut self, rank: i32) -> Option<usize> {
         if let Some(slot) = self.slots[..self.limit]
             .iter()
@@ -1352,6 +1359,7 @@ impl<K: Copy> PanelStream<K> {
     }
 
     /// Decide the eye and the wanted tiles.
+    #[inline(never)]
     fn pass(&mut self, input: &PanelInput<'_>) {
         self.choose_eye(input);
         let eye = self.eye;
@@ -1489,6 +1497,7 @@ impl<K: Copy> PanelStream<K> {
 
     /// Index of the list of `eye`'s stored tiles, asking for it (and giving up the one used
     /// longest ago that nothing refers to) when it is not there.
+    #[inline(never)]
     fn list_index(&mut self, eye: u16, input: &PanelInput<'_>) -> Option<usize> {
         if let Some(at) = self.lists.iter().position(|l| l.eye == eye) {
             return Some(at);
@@ -1536,6 +1545,7 @@ impl<K: Copy> PanelStream<K> {
 
     /// Tiles of the panels of `heading` that a panel of an eye other than `eye` holds in VRAM:
     /// the ones that would not be blank if the camera crossed to `eye` before its own landed.
+    #[inline(never)]
     fn standing_in(&self, eye: u16, heading: u8) -> u8 {
         let mut mask = 0u8;
         for c in &self.cache {
@@ -1556,10 +1566,43 @@ impl<K: Copy> PanelStream<K> {
         mask
     }
 
+    /// When every tile of every panel of `eye` is in VRAM, mark the slots as wanted by an eye kept
+    /// ready at `rank` and say so; otherwise change nothing.
+    fn mark_shown(&mut self, eye: u16, rank: i32) -> bool {
+        let shown = |stream: &Self, c: &Cached, tile: usize| {
+            let held = c.held[tile];
+            held != NO_SLOT_INDEX && stream.slots[usize::from(held)].state == SlotState::Shown
+        };
+        for c in self.cache.iter().filter(|c| c.eye == eye) {
+            for tile in 0..TILES {
+                if c.cols[tile / ROWS] >> (tile % ROWS) & 1 != 0 && !shown(self, c, tile) {
+                    return false;
+                }
+            }
+        }
+        for ci in 0..CACHE {
+            if self.cache[ci].eye != eye {
+                continue;
+            }
+            self.cache[ci].used = self.ticks.max(1);
+            for tile in 0..TILES {
+                let held = self.cache[ci].held[tile];
+                if self.cache[ci].cols[tile / ROWS] >> (tile % ROWS) & 1 != 0 {
+                    let slot = &mut self.slots[usize::from(held)];
+                    slot.wanted = true;
+                    slot.prefetch = true;
+                    slot.rank = rank;
+                }
+            }
+        }
+        true
+    }
+
     /// Ask for the tiles of `eye` the camera can see, ranked from `base` up by how far each is
     /// from the middle of the view. A tile of an eye kept ready that the screen shows and no
     /// panel of another eye could stand in for is ranked ahead of the rest of its eye
     /// ([`EXPOSED`]): crossing to the eye before it lands would leave a hole.
+    #[inline(never)]
     fn want_tiles(
         &mut self,
         input: &PanelInput<'_>,
@@ -1579,6 +1622,11 @@ impl<K: Copy> PanelStream<K> {
         // are all here with a slot for every tile needs no index: what its panels kept says
         // what it stores.
         let whole = self.eye_whole(eye) == Some(true);
+        // An eye kept ready whose every tile is in VRAM has nothing to read: its slots are only
+        // marked as wanted, all at one rank.
+        if prefetch && whole && self.mark_shown(eye, base + OFF_VIEW) {
+            return;
+        }
         let found = self.lists.iter().position(|l| l.eye == eye);
         let mut list = found.filter(|&i| self.lists[i].state == Header::Ready);
         // The eye in use keeps its index (the fade and the counters read it).
@@ -1632,7 +1680,7 @@ impl<K: Copy> PanelStream<K> {
                 cached.since = self.ticks.max(1);
             }
             let standing_in = match seen {
-                Some(_) if prefetch => self.standing_in(eye, heading as u8),
+                Some(_) if prefetch && exposed => self.standing_in(eye, heading as u8),
                 _ => u8::MAX,
             };
             for col in 0..COLS {
@@ -1704,11 +1752,40 @@ impl<K: Copy> PanelStream<K> {
 
     /// The slots to draw each tile from: those of the eye in use that a pass wants, and those
     /// of an eye left where the new eye's tile is stored and not in VRAM yet.
+    #[inline(never)]
     fn rebuild_show(&mut self, eye: u16) {
         let list = self
             .lists
             .iter()
             .find(|l| l.eye == eye && l.state == Header::Ready);
+        // Per heading, which tiles the eye in use stores (the ones of a heading it has no panel for
+        // are all taken to be stored: what an eye left shows there stands in) and which of them
+        // are in VRAM.
+        let mut stored = [u8::MAX; HEADINGS];
+        let mut shown = [0u8; HEADINGS];
+        if let Some(list) = list {
+            for (heading, mask) in stored.iter_mut().enumerate() {
+                if list.index.panel[heading] != NO_PANEL {
+                    *mask = (0..TILES)
+                        .filter(|&tile| list.stored(heading, tile))
+                        .fold(0, |bits, tile| bits | 1 << tile);
+                }
+            }
+        }
+        for o in self.cache.iter().filter(|o| o.eye == eye) {
+            if o.header != Header::Ready {
+                continue;
+            }
+            let heading = usize::from(o.heading);
+            stored[heading] = 0;
+            for tile in 0..TILES {
+                stored[heading] |= (o.cols[tile / ROWS] >> (tile % ROWS) & 1) << tile;
+                let held = o.held[tile];
+                shown[heading] |= u8::from(
+                    held != NO_SLOT_INDEX && self.slots[usize::from(held)].state == SlotState::Shown,
+                ) << tile;
+            }
+        }
         for c in 0..CACHE {
             let cached = &self.cache[c];
             let mut shows = [NO_TILE_SLOT; TILES];
@@ -1729,12 +1806,9 @@ impl<K: Copy> PanelStream<K> {
                     // for every tile. While the new eye's index is not in, its tile is not
                     // known to be stored: the old one stands in.
                     let heading = usize::from(cached.heading);
-                    let list = list.filter(|l| l.index.panel[heading] != NO_PANEL);
-                    let replacing = self
-                        .cache
-                        .iter()
-                        .find(|o| o.eye == eye && o.heading == cached.heading)
-                        .filter(|o| o.header == Header::Ready);
+                    // While the crossing fades, the eye left stands under the new one, and
+                    // fades out where the new one shows nothing.
+                    let fading = self.fade.active && cached.eye == self.fade.from;
                     for (tile, show) in shows.iter_mut().enumerate() {
                         let held = cached.held[tile];
                         if held == NO_SLOT_INDEX
@@ -1742,15 +1816,8 @@ impl<K: Copy> PanelStream<K> {
                         {
                             continue;
                         }
-                        let replaced = replacing.is_some_and(|o| {
-                            let s = o.held[tile];
-                            s != NO_SLOT_INDEX
-                                && self.slots[usize::from(s)].state == SlotState::Shown
-                        });
-                        let new_stored = list.is_none_or(|l| l.stored(heading, tile));
-                        // While the crossing fades, the eye left stands under the new one, and
-                        // fades out where the new one shows nothing.
-                        let fading = self.fade.active && cached.eye == self.fade.from;
+                        let replaced = shown[heading] >> tile & 1 != 0;
+                        let new_stored = stored[heading] >> tile & 1 != 0;
                         if fading || (new_stored && !replaced) {
                             *show = held;
                         }
@@ -1779,6 +1846,7 @@ impl<K: Copy> PanelStream<K> {
 
     /// Give the wanted tiles that lie in a group already landed an entry in it: they need no
     /// read.
+    #[inline(never)]
     fn attach_warm(&mut self, input: &PanelInput<'_>) {
         let _ = input;
         for stage in 0..STAGES {
@@ -1921,6 +1989,7 @@ impl<K: Copy> PanelStream<K> {
     /// Queue reads for the indexes and tiles that need one into the free stages: the best
     /// ranked of them, and everything else wanted in the same group (and the next, when both
     /// stages are free).
+    #[inline(never)]
     fn start_reads<T>(&mut self, transport: &mut T, window: &mut [u32], input: &PanelInput<'_>)
     where
         T: RoomTransport<Ticket = K>,
@@ -2348,6 +2417,7 @@ impl<K: Copy> PanelStream<K> {
     /// One step of the fade of a crossing: the rooms changing over go on a level, and the rooms
     /// whose new pictures are in, nearest first, start. A room is *in* when every tile of the new
     /// eye's panels that shows a cell of it and that the screen can see is in VRAM.
+    #[inline(never)]
     fn step_fade(&mut self) {
         if !self.fade.active {
             return;
