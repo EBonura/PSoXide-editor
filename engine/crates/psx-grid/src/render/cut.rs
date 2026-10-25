@@ -72,6 +72,34 @@ pub(super) fn bend_edges(screen: &[&GridScreen; 4]) -> u8 {
         u32::from(c.sz),
         u32::from(d.sz),
     );
+    // Most quads cannot bend: no edge is longer than the box of the corners
+    // nor steps deeper than the corners' depth range, and the budget scales
+    // with the nearer depth. One test of the box rules them out before any
+    // edge is measured.
+    let x = |p: u32| p as u16 as i16;
+    let y = |p: u32| (p >> 16) as u16 as i16;
+    let (left, right) = (
+        x(pa).min(x(pb)).min(x(pc)).min(x(pd)),
+        x(pa).max(x(pb)).max(x(pc)).max(x(pd)),
+    );
+    let (top, bottom) = (
+        y(pa).min(y(pb)).min(y(pc)).min(y(pd)),
+        y(pa).max(y(pb)).max(y(pc)).max(y(pd)),
+    );
+    let (width, height) = (
+        right.abs_diff(left).min(4095),
+        bottom.abs_diff(top).min(4095),
+    );
+    let (long, short) = if width > height {
+        (width, height)
+    } else {
+        (height, width)
+    };
+    let reach = u32::from(long) + ((u32::from(short) * 3) >> 3);
+    let (near, far) = (za.min(zb).min(zc).min(zd), za.max(zb).max(zc).max(zd));
+    if reach * (far - near) * 2 <= near * u32::from(WARP_BUDGET_Q3) {
+        return 0;
+    }
     let bends = |p: u32, z: u32, q: u32, w: u32| -> bool {
         let dx = (p as u16 as i16).abs_diff(q as u16 as i16).min(4095);
         let dy = ((p >> 16) as u16 as i16)

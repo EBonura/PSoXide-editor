@@ -84,7 +84,7 @@ pub(crate) const GRID_RENDER_PROFILE: SurfaceProfile = SurfaceProfile {
 /// the renderer cuts the quad (see `psx_engine::tess`). The GPU interpolates
 /// texture coordinates in screen space, so the picture on a wall that runs
 /// away from the eye bends where the quad's depth changes most.
-pub(crate) const WARP_BUDGET_Q3: u16 = 96;
+pub(crate) const WARP_BUDGET_Q3: u16 = 48;
 
 /// A material slot as the runtime resolved it: page words and the texture's
 /// page-local origin, or not resident while its texture is not uploaded.

@@ -103,7 +103,7 @@ impl GridRenderer {
             // visibly, is cut where it bends (see `cut`). Only a quad that
             // runs off the screen can: one wholly on it is far or small or
             // shallow, and the few that are not bend by little.
-            let bends = if straight && any != 0 && !triangle {
+            let bends = if straight && !triangle {
                 bend_edges(&[s0, s1, s2, s3])
             } else {
                 0
