@@ -93,9 +93,9 @@ const NO_ENTRY: u8 = 0xff;
 /// meanwhile), so a fourth index would cost 1.2 KiB of the guest's scarce RAM for nothing much.
 const EYES: usize = 3;
 /// Eyes kept ready besides the one in use: the nearest to the camera and to where it walks to.
-pub const RING: usize = 2;
+pub const RING: usize = 3;
 /// Of those, the first this many have every tile of every panel kept, not only the view's.
-const FULL_RING: usize = 2;
+const FULL_RING: usize = 1;
 
 /// Rooms a crossing changes over one by one; a room past these changes at once.
 pub const FADE_ROOMS: usize = 128;
@@ -1115,7 +1115,7 @@ impl<K: Copy> PanelStream<K> {
 
     /// The first two eyes kept ready: the nearest other and the likeliest to be crossed to.
     pub fn ahead(&self) -> (Option<u16>, Option<u16>) {
-        (self.ring[0], self.ring[1])
+        (self.ring[0], self.ring.get(1).copied().flatten())
     }
 
     /// Whether every picture of the eye in use is in VRAM, as of the last pass.
