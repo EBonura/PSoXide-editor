@@ -93,9 +93,9 @@ const NO_ENTRY: u8 = 0xff;
 /// meanwhile), so a fourth index would cost 1.2 KiB of the guest's scarce RAM for nothing much.
 const EYES: usize = 3;
 /// Eyes kept ready besides the one in use: the nearest to the camera and to where it walks to.
-pub const RING: usize = 4;
+pub const RING: usize = 2;
 /// Of those, the first this many have every tile of every panel kept, not only the view's.
-const FULL_RING: usize = RING;
+const FULL_RING: usize = 2;
 
 /// Rooms a crossing changes over one by one; a room past these changes at once.
 pub const FADE_ROOMS: usize = 128;
@@ -1197,30 +1197,29 @@ impl<K: Copy> PanelStream<K> {
 
     /// Measurement: what became of the tiles the screen shows of the eye the camera has just
     /// crossed to, before this pass asks for any: never asked for, asked for and not read, read.
-    fn audit_crossing(&mut self, input: &PanelInput<'_>) {
-        let _ = input;
-        let Some(list) = self
-            .lists
+    fn audit(&mut self, eye: u16) {
+        if !self
+            .cache
             .iter()
-            .find(|l| l.eye == self.eye && l.state == Header::Ready)
-        else {
+            .any(|c| c.eye == eye && c.header == Header::Ready)
+        {
             (self.counters.cross_absent, self.counters.cross_wanted) = (u32::MAX, u32::MAX);
             self.counters.cross_pending = u32::MAX;
             return;
-        };
+        }
         let (mut absent, mut wanted, mut pending) = (0, 0, 0);
         for heading in 0..HEADINGS {
-            let Some(view) = visible_in(heading, &self.view, 18, PICTURE_ROWS / 3)
-                .filter(|_| list.index.panel[heading] != NO_PANEL)
-            else {
+            let Some(view) = visible_in(heading, &self.view, 18, PICTURE_ROWS / 3) else {
                 continue;
             };
             let cached = self
                 .cache
                 .iter()
-                .find(|c| c.eye == self.eye && c.heading == heading as u8);
+                .find(|c| c.eye == eye && c.heading == heading as u8);
             for tile in 0..TILES {
-                if !list.stored(heading, tile) || !tile_in_view(&view, tile / ROWS, tile % ROWS) {
+                if !cached.is_some_and(|c| c.cols[tile / ROWS] >> (tile % ROWS) & 1 != 0)
+                    || !tile_in_view(&view, tile / ROWS, tile % ROWS)
+                {
                     continue;
                 }
                 let held = cached.map_or(NO_SLOT_INDEX, |c| c.held[tile]);
@@ -1242,18 +1241,16 @@ impl<K: Copy> PanelStream<K> {
 
     /// Tiles of the panels in view of the eye in use that are not in VRAM.
     fn view_missing(&self, input: &PanelInput<'_>) -> u32 {
-        let Some(list) = self
-            .lists
+        if !self
+            .cache
             .iter()
-            .find(|l| l.eye == self.eye && l.state == Header::Ready)
-        else {
+            .any(|c| c.eye == self.eye && c.header == Header::Ready)
+        {
             return u32::MAX;
-        };
+        }
         let mut missing = 0;
         for heading in 0..HEADINGS {
-            let Some(view) =
-                visible(heading, input).filter(|_| list.index.panel[heading] != NO_PANEL)
-            else {
+            let Some(view) = visible(heading, input) else {
                 continue;
             };
             let cached = self
@@ -1261,7 +1258,9 @@ impl<K: Copy> PanelStream<K> {
                 .iter()
                 .find(|c| c.eye == self.eye && c.heading == heading as u8);
             for tile in 0..TILES {
-                if !list.stored(heading, tile) || !tile_in_view(&view, tile / ROWS, tile % ROWS) {
+                if !cached.is_some_and(|c| c.cols[tile / ROWS] >> (tile % ROWS) & 1 != 0)
+                    || !tile_in_view(&view, tile / ROWS, tile % ROWS)
+                {
                     continue;
                 }
                 let held = cached.map_or(NO_SLOT_INDEX, |c| c.held[tile]);
@@ -1354,11 +1353,7 @@ impl<K: Copy> PanelStream<K> {
 
     /// Decide the eye and the wanted tiles.
     fn pass(&mut self, input: &PanelInput<'_>) {
-        let before = (self.eye, self.have_eye);
         self.choose_eye(input);
-        if METER && before.1 && before.0 != self.eye {
-            self.audit_crossing(input);
-        }
         let eye = self.eye;
         // A tile of an eye left that was never read is not worth reading now.
         for slot in 0..SLOTS {
@@ -1415,6 +1410,15 @@ impl<K: Copy> PanelStream<K> {
             self.want_tiles(input, &sights, next, ask, &mut wanted, &mut starved);
         }
         self.rebuild_show(eye);
+        if METER {
+            match self.gate {
+                Some(gate) => self.audit(gate),
+                None => {
+                    (self.counters.cross_absent, self.counters.cross_wanted) = (0, 0);
+                    self.counters.cross_pending = 0;
+                }
+            }
+        }
         let (mut held, mut missing) = (0u32, 0u32);
         for slot in &self.slots {
             if slot.state != SlotState::Free {

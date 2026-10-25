@@ -774,11 +774,25 @@ fn bake_panels(
     // eyes and the radius are those they were baked for (the bake's code is not part of the key:
     // delete the file when it changes).
     let cache = std::env::var_os("PSXED_PANEL_CACHE").map(std::path::PathBuf::from);
+    let eyes_text = format!(
+        "{:?} {focal} {radius} {rooms}",
+        eyes.iter()
+            .map(|e| (e.room, e.eye.map(f32::to_bits)))
+            .collect::<Vec<_>>()
+    );
     let key = cook::panels::bake_cache::key(&[
         &cooked.core,
         &cooked.chunks.concat(),
-        format!("{:?} {focal} {radius} {rooms}", eyes.iter().map(|e| (e.room, e.eye.map(f32::to_bits))).collect::<Vec<_>>()).as_bytes(),
+        eyes_text.as_bytes(),
     ]);
+    if cache.is_some() {
+        report.warn(format!(
+            "panels: bake cache key {key:x} (core {:x}, chunks {:x}, eyes {:x})",
+            cook::panels::bake_cache::key(&[&cooked.core]),
+            cook::panels::bake_cache::key(&[&cooked.chunks.concat()]),
+            cook::panels::bake_cache::key(&[eyes_text.as_bytes()]),
+        ));
+    }
     let kept = cache
         .as_ref()
         .and_then(|path| std::fs::read(path).ok())
