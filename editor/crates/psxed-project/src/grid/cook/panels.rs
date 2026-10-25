@@ -384,13 +384,38 @@ impl World {
         self.tris.rooms.len()
     }
 
+    /// The box (low and high corner, runtime units) round the geometry of `room`; `None` for a
+    /// room that draws nothing.
+    pub fn room_bounds(&self, room: usize) -> Option<([f32; 3], [f32; 3])> {
+        let (range, lo, hi) = self.tris.rooms.get(room)?;
+        (!range.is_empty()).then_some((*lo, *hi))
+    }
+
     /// Triangles in the level.
     pub fn triangles(&self) -> usize {
         self.tris.triangles.len()
     }
 
+    /// The triangles of `room` (corner positions, runtime units).
+    pub fn room_triangles(&self, room: usize) -> impl Iterator<Item = &[[f32; 3]; 3]> {
+        let range = self.tris.rooms.get(room).map(|r| r.0.clone()).unwrap_or(0..0);
+        self.tris.triangles[range].iter().map(|t| &t.position)
+    }
+
     /// Render the rooms `keep` names, as seen by `cam`, with `ss * ss` samples a pixel.
     pub fn render(&self, cam: &Camera, ss: usize, keep: &dyn Fn(usize) -> bool) -> Samples {
+        self.render_with(cam, ss, keep, &|_| true)
+    }
+
+    /// [`Self::render`] of only the triangles `keep_triangle` accepts (given a triangle's
+    /// corners), of the rooms `keep` names.
+    pub fn render_with(
+        &self,
+        cam: &Camera,
+        ss: usize,
+        keep: &dyn Fn(usize) -> bool,
+        keep_triangle: &dyn Fn(&[[f32; 3]; 3]) -> bool,
+    ) -> Samples {
         let mut out = Samples::new(cam.width * ss, cam.height * ss);
         let near = self.sector * NEAR_SECTORS;
         let scale = ss as f32;
@@ -426,6 +451,9 @@ impl World {
                 continue;
             }
             for tri in &self.tris.triangles[range.clone()] {
+                if !keep_triangle(&tri.position) {
+                    continue;
+                }
                 let centroid = [0, 1, 2]
                     .map(|k| (tri.position[0][k] + tri.position[1][k] + tri.position[2][k]) / 3.0);
                 let to_eye = [0, 1, 2].map(|k| cam.eye[k] - centroid[k]);

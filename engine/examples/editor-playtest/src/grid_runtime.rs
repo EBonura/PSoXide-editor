@@ -1417,7 +1417,7 @@ impl GridRuntime {
                             static PANEL_RAYS: PanelRays =
                                 PanelRays::new(GRID_PANEL_FOCAL, GRID_PANEL_SECTOR);
                             static mut PANEL_SCRATCH: PanelScratch = PanelScratch::new();
-                            let mut list: [Option<PanelRef<'static>>; 6] = [None; 6];
+                            let mut list: [Option<PanelRef<'static>>; 8] = [None; 8];
                             let count = crate::vram_runtime::panel_drawables(&mut list);
                             #[cfg(feature = "card-trace")]
                             crate::card_trace::panel_pose(
@@ -1471,6 +1471,7 @@ impl GridRuntime {
                                         overflowed: frame.overflowed,
                                         ..GridFrame::default()
                                     });
+                                    crate::vram_runtime::note_panel_draw(&frame);
                                     #[cfg(feature = "card-trace")]
                                     crate::card_trace::panel_frame(
                                         &frame,

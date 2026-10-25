@@ -1017,3 +1017,23 @@ mod tests {
         assert_eq!(px[0] & 0x0f, 0, "decal corner must be transparent");
     }
 }
+
+/// Measurement: the far panels' draw, summed over the frames so far: packets, cells wholly behind
+/// the near plane, cells off screen, cells too large, cells with an edge too long, panels drawn.
+/// A RAM dump or `--route-watch-u32` reads it.
+#[cfg(feature = "cd-stream-bench")]
+#[no_mangle]
+pub static mut PANEL_DRAW: [u32; 6] = [0; 6];
+
+/// Add one panel's draw to [`PANEL_DRAW`].
+#[cfg(feature = "cd-stream-bench")]
+pub(super) fn note_panel_draw(frame: &psx_grid::render::GridFrame) {
+    // SAFETY: single-threaded guest; the draw is the only writer.
+    let sums = unsafe { &mut *core::ptr::addr_of_mut!(PANEL_DRAW) };
+    sums[0] += frame.packets;
+    sums[1] += u32::from(frame.depth_skipped);
+    sums[2] += u32::from(frame.lod_replaced);
+    sums[3] += u32::from(frame.lod_quads);
+    sums[4] += u32::from(frame.robust_quads);
+    sums[5] += 1;
+}

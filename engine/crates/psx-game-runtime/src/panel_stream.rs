@@ -34,8 +34,9 @@
 use psx_grid::eye_block::{BlockIndex, GROUP_BYTES, GROUP_SECTORS, NO_PANEL, SECTOR};
 use psx_grid::flood::octagonal_distance;
 use psx_grid::render::{
-    PanelRef, CELLS, CELL_EMPTY, COLS, HEADINGS, HORIZON_ROW, MESH, NO_TILE_SLOT, PICTURE_ROWS,
-    ROWS, SLOTS as ATLAS_SLOTS, TILES, TILE_TEXELS, VIEW_COS_Q12, VIEW_SIN_Q12,
+    FadeRole, PanelFade, PanelRef, CELLS, CELLS_X, CELLS_Y, CELL_EMPTY, CELL_MIXED, COLS, FADE_DONE,
+    HEADINGS, HORIZON_ROW, MESH, MESH_W, NO_TILE_SLOT, PICTURE_ROWS, ROWS, SLOTS as ATLAS_SLOTS,
+    TILES, TILE_TEXELS, VIEW_COS_Q12, VIEW_SIN_Q12,
 };
 use psx_grid::tile_lz::{decode_tile_slack, OUT_SLACK, TILE_BYTES};
 
@@ -60,7 +61,7 @@ const PASS_TICKS: u32 = 8;
 const OFF_VIEW: i32 = 1 << 14;
 /// Measurement: count the tiles the screen shows that have no picture, and how long tiles
 /// wait (the counters are read from RAM; it costs code and time, so a shipping build has it off).
-const METER: bool = false;
+const METER: bool = true;
 /// Panels whose header and tile slots are kept.
 pub const CACHE: usize = 3 * HEADINGS;
 /// Rank of a tile of an eye the camera has left, past every tile of the eye it is at.
@@ -90,6 +91,45 @@ const NO_ENTRY: u8 = 0xff;
 /// eye just left needs only its index read again if the camera goes back (its tiles stay in VRAM
 /// meanwhile), so a fourth index would cost 1.2 KiB of the guest's scarce RAM for nothing much.
 const EYES: usize = 3;
+
+/// Rooms a crossing changes over one by one; a room past these changes at once.
+pub const FADE_ROOMS: usize = 128;
+/// Ticks between two steps of a crossing's fade.
+const FADE_STEP_TICKS: u32 = 4;
+/// Rooms a step of the fade starts changing over.
+const FADE_STARTS: usize = 3;
+/// Ticks after which a crossing that has not finished fading is cut short.
+const FADE_MAX_TICKS: u32 = 1200;
+/// Slots of a panel with no partner: nothing stands under or over it.
+static NO_PARTNER: [u8; TILES] = [NO_TILE_SLOT; TILES];
+
+/// A crossing between two eyes being faded in, a room at a time, nearest first.
+#[derive(Copy, Clone)]
+struct Fade {
+    /// A crossing is being faded.
+    active: bool,
+    /// The eye the camera left.
+    from: u16,
+    /// Tick the crossing began at.
+    since: u32,
+    /// Per room, how far the change has got (see [`PanelFade::level`]).
+    level: [u8; FADE_ROOMS],
+    /// Per room, the nearest depth byte of its cells, to order the rooms.
+    depth: [u8; FADE_ROOMS],
+    /// The level of a cell more than one room shows.
+    mixed: u8,
+}
+
+impl Fade {
+    const NONE: Self = Self {
+        active: false,
+        from: u16::MAX,
+        since: 0,
+        level: [FADE_DONE; FADE_ROOMS],
+        depth: [255; FADE_ROOMS],
+        mixed: FADE_DONE,
+    };
+}
 
 /// What a [`PanelStream`] has done, for telemetry and diagnosis.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -161,6 +201,8 @@ pub struct PanelCounters {
     /// Tiles of the panels in view of the eye in use that are not in VRAM (`u32::MAX` while its
     /// index is not in).
     pub view_missing: u32,
+    /// Rooms of the crossing being faded that have not changed over yet (0 when none is).
+    pub fading: u32,
 }
 
 impl PanelCounters {
@@ -195,6 +237,7 @@ impl PanelCounters {
         indexes_waiting: 0,
         preempted: 0,
         view_missing: 0,
+        fading: 0,
     };
 }
 
@@ -691,6 +734,8 @@ pub struct PanelStream<K> {
     /// stage freed): [`Self::start_reads`] looks. Clear, with every stage free, the tick has
     /// nothing to do and costs next to nothing.
     reads_dirty: bool,
+    /// The crossing being faded in.
+    fade: Fade,
 }
 
 impl<K: Copy> PanelStream<K> {
@@ -722,6 +767,7 @@ impl<K: Copy> PanelStream<K> {
             tail: 0,
             force_pass: false,
             reads_dirty: true,
+            fade: Fade::NONE,
         }
     }
 
@@ -743,6 +789,7 @@ impl<K: Copy> PanelStream<K> {
             self.force_pass = false;
             self.pass(input);
         }
+        self.step_fade();
         self.ticks = self.ticks.wrapping_add(1);
         self.start_reads(transport, window, input);
         if METER {
@@ -875,8 +922,12 @@ impl<K: Copy> PanelStream<K> {
         let lost = !self.have_eye || current >= input.eyes.len();
         let nearer = !lost && best_distance + input.spacing / 4 < distance(current);
         if lost || nearer {
+            let left = self.eye;
             self.eye = best as u16;
             self.have_eye = true;
+            if !lost && left != self.eye {
+                self.begin_fade(left);
+            }
         }
         let here = distance(usize::from(self.eye));
         let waiting =
@@ -1477,7 +1528,9 @@ impl<K: Copy> PanelStream<K> {
                                 && self.slots[usize::from(s)].state == SlotState::Shown
                         });
                         let new_stored = list.is_none_or(|l| l.stored(heading, tile));
-                        if new_stored && !replaced {
+                        // While the crossing fades, the eye left stands under the new one.
+                        let fading = self.fade.active && cached.eye == self.fade.from;
+                        if new_stored && (!replaced || fading) {
                             *show = held;
                         }
                     }
@@ -2014,7 +2067,8 @@ impl<K: Copy> PanelStream<K> {
                         let heading = cached.heading;
                         self.cache[c].show[tile] = held;
                         for left in &mut self.cache {
-                            if left.eye != self.eye && left.heading == heading {
+                            let fading = self.fade.active && left.eye == self.fade.from;
+                            if left.eye != self.eye && left.heading == heading && !fading {
                                 left.show[tile] = NO_TILE_SLOT;
                             }
                         }
@@ -2022,6 +2076,153 @@ impl<K: Copy> PanelStream<K> {
                 }
             }
         }
+    }
+
+    /// The camera has crossed from eye `from` to the one in use: change the far view over room by
+    /// room instead of in one frame ([`Self::step_fade`]). A crossing still fading is cut short.
+    fn begin_fade(&mut self, from: u16) {
+        self.fade = Fade {
+            active: true,
+            from,
+            since: self.ticks,
+            level: [0; FADE_ROOMS],
+            depth: [255; FADE_ROOMS],
+            mixed: 0,
+        };
+        self.counters.fading = FADE_ROOMS as u32;
+    }
+
+    /// Whether every panel of the eye in use that its index lists is in the cache with its depth
+    /// mesh and room cells.
+    fn panels_in(&self) -> bool {
+        let Some(list) = self
+            .lists
+            .iter()
+            .find(|l| l.eye == self.eye && l.state == Header::Ready)
+        else {
+            return false;
+        };
+        (0..HEADINGS).all(|heading| {
+            list.index.panel[heading] == NO_PANEL
+                || self.cache.iter().any(|c| {
+                    c.eye == self.eye && usize::from(c.heading) == heading && c.header == Header::Ready
+                })
+        })
+    }
+
+    /// One step of the fade of a crossing: the rooms changing over go on a level, and the rooms
+    /// whose new pictures are in, nearest first, start. A room is *in* when every tile of the new
+    /// eye's panels that shows a cell of it and that the screen can see is in VRAM.
+    fn step_fade(&mut self) {
+        if !self.fade.active {
+            return;
+        }
+        if self.ticks.wrapping_sub(self.fade.since) > FADE_MAX_TICKS {
+            self.fade = Fade::NONE;
+            self.counters.fading = 0;
+            return;
+        }
+        if !self.ticks.is_multiple_of(FADE_STEP_TICKS) {
+            return;
+        }
+        for level in &mut self.fade.level {
+            if (1..FADE_DONE).contains(level) {
+                *level += 1;
+            }
+        }
+        let mut seen = [false; FADE_ROOMS];
+        let mut waiting = [false; FADE_ROOMS];
+        let mut depth = [255u8; FADE_ROOMS];
+        let all_in = self.panels_in();
+        let mut views = [None; HEADINGS];
+        for (heading, view) in views.iter_mut().enumerate() {
+            *view = visible_in(heading, &self.view, 20, PICTURE_ROWS / 8);
+        }
+        for c in &self.cache {
+            let entering = c.eye == self.eye;
+            if c.header != Header::Ready || (!entering && c.eye != self.fade.from) {
+                continue;
+            }
+            let view = views[usize::from(c.heading) % HEADINGS];
+            for (cell, &room) in c.rooms.iter().enumerate() {
+                if room == CELL_EMPTY || room == CELL_MIXED || usize::from(room) >= FADE_ROOMS {
+                    continue;
+                }
+                let room = usize::from(room);
+                seen[room] = true;
+                let tile = cell / (CELLS_X * CELLS_Y);
+                let within = cell % (CELLS_X * CELLS_Y);
+                let (col, row) = (tile / ROWS, tile % ROWS);
+                let at = (row * CELLS_Y + within / CELLS_X) * MESH_W + col * CELLS_X + within % CELLS_X;
+                depth[room] = depth[room].min(c.depth[at]);
+                if entering && view.is_some_and(|v| tile_in_view(&v, col, row)) {
+                    let held = c.held[tile];
+                    let shown = held != NO_SLOT_INDEX
+                        && self.slots[usize::from(held)].state == SlotState::Shown;
+                    waiting[room] |= !shown;
+                }
+            }
+        }
+        self.fade.depth = depth;
+        let mut sum = 0u32;
+        let mut count = 0u32;
+        for room in 0..FADE_ROOMS {
+            if !seen[room] {
+                // Nothing of it in either eye: nothing to change over.
+                self.fade.level[room] = FADE_DONE;
+            } else {
+                sum += u32::from(self.fade.level[room]);
+                count += 1;
+            }
+        }
+        self.fade.mixed = (sum / count.max(1)) as u8;
+        if all_in {
+            for _ in 0..FADE_STARTS {
+                let mut best: Option<usize> = None;
+                for room in 0..FADE_ROOMS {
+                    if self.fade.level[room] == 0
+                        && seen[room]
+                        && !waiting[room]
+                        && best.is_none_or(|b| depth[room] < depth[b])
+                    {
+                        best = Some(room);
+                    }
+                }
+                let Some(room) = best else { break };
+                self.fade.level[room] = 1;
+            }
+        }
+        let left = self.fade.level.iter().filter(|&&l| l < FADE_DONE).count();
+        self.counters.fading = left as u32;
+        if left == 0 {
+            self.fade = Fade::NONE;
+            self.counters.fading = 0;
+        }
+    }
+
+    /// The fade a panel `c` takes part in, when it is one of the two eyes of a crossing.
+    fn fade_of<'a>(&'a self, c: &'a Cached) -> Option<PanelFade<'a>> {
+        if !self.fade.active {
+            return None;
+        }
+        let (role, other) = if c.eye == self.eye {
+            (FadeRole::Entering, self.fade.from)
+        } else if c.eye == self.fade.from {
+            (FadeRole::Leaving, self.eye)
+        } else {
+            return None;
+        };
+        let partner = self
+            .cache
+            .iter()
+            .find(|o| o.eye == other && o.heading == c.heading && o.header == Header::Ready)
+            .map_or(&NO_PARTNER, |o| &o.show);
+        Some(PanelFade {
+            role,
+            level: &self.fade.level,
+            mixed: self.fade.mixed,
+            partner,
+        })
     }
 
     /// The panel `c` as the draw reads it, when it has a picture to show and the screen sees it.
@@ -2048,6 +2249,7 @@ impl<K: Copy> PanelStream<K> {
             last_col: v.last_col as u8,
             first_row: v.first_row as u8,
             last_row: v.last_row as u8,
+            fade: self.fade_of(c),
         })
     }
 
@@ -2135,6 +2337,8 @@ mod tests {
 
     /// A disc of sectors, a read finishing on the poll after it was queued.
     struct Disc {
+        /// The room every cell of every panel shows (`CELL_EMPTY` for none).
+        room: u8,
         bytes: Vec<u8>,
         reads: Vec<(u32, u32)>,
         polls: Vec<u32>,
@@ -2148,6 +2352,7 @@ mod tests {
                 bytes.extend(core::iter::repeat_n(n as u8, SECTOR));
             }
             Self {
+                room: CELL_EMPTY,
                 bytes,
                 reads: Vec::new(),
                 polls: Vec::new(),
@@ -2169,7 +2374,7 @@ mod tests {
         /// [`Self::put_block`] with the stored rows of each column given.
         fn put_panels(&mut self, sector: u32, panels: &[(usize, [u8; COLS])], noisy: bool) -> u32 {
             let depth: [u8; MESH] = core::array::from_fn(|k| k as u8);
-            let rooms = [CELL_EMPTY; CELLS];
+            let rooms = [self.room; CELLS];
             let encoded: Vec<Vec<u8>> = (0..TILES)
                 .map(|k| {
                     let tile = if noisy { noise(k) } else { picture(k) };
@@ -2462,6 +2667,107 @@ mod tests {
             [1],
             "{list:?}"
         );
+    }
+
+    /// The fade of the panels `stream` draws: per panel, its eye, its role, the level of `room`.
+    fn fades(
+        stream: &PanelStream<usize>,
+        eyes: &[[i16; 3]],
+        room: u8,
+    ) -> Vec<(usize, psx_grid::render::FadeRole, u8)> {
+        let mut out = [None; 9];
+        let count = stream.drawables(eyes, &mut out);
+        out[..count]
+            .iter()
+            .flatten()
+            .filter_map(|p| {
+                let eye = eyes
+                    .iter()
+                    .position(|e| [i32::from(e[0]), i32::from(e[1]), i32::from(e[2])] == p.eye)?;
+                let f = p.fade?;
+                Some((eye, f.role, f.level[usize::from(room)]))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_crossing_changes_a_room_over_in_steps_with_the_old_eye_standing_under() {
+        use psx_grid::render::FadeRole;
+        let eyes = [[0i16; 3], [2000, 0, 0]];
+        let blocks = [5u32, 5 + SPAN];
+        let mut disc = Disc::new(4 + 5 + 2 * SPAN as usize + 40);
+        disc.room = 7;
+        disc.put_block(5, &[0], false);
+        disc.put_block(5 + SPAN, &[0], false);
+        let mut window = window();
+        let mut stream = PanelStream::<usize>::new();
+        let at_first = input(&eyes, &blocks, [-1200, 0, 0], [4096, 0]);
+        run(&mut stream, &mut disc, &mut window, &at_first, 200);
+        assert!(fades(&stream, &eyes, 7).is_empty(), "no crossing, no fade");
+        // The camera crosses. Until the new eye's tiles are in, nothing changes over.
+        let moved = input(&eyes, &blocks, [3200, 0, 0], [4096, 0]);
+        let mut levels = Vec::new();
+        let mut both = false;
+        for _ in 0..600 {
+            run(&mut stream, &mut disc, &mut window, &moved, 1);
+            let now = fades(&stream, &eyes, 7);
+            both |= now.len() == 2;
+            if let Some(entering) = now.iter().find(|f| f.1 == FadeRole::Entering) {
+                if levels.last() != Some(&entering.2) {
+                    levels.push(entering.2);
+                }
+            }
+        }
+        assert!(both, "both eyes are drawn while the room changes over");
+        // Level 3 is the steady state: the fade is gone by then.
+        assert_eq!(levels, [0, 1, 2], "the room goes 0, half, three quarters, done");
+        assert!(fades(&stream, &eyes, 7).is_empty(), "the fade ends");
+        let list = drawn(&stream, &eyes);
+        assert_eq!(list.iter().map(|d| d.0).collect::<Vec<_>>(), [1], "{list:?}");
+    }
+
+    #[test]
+    fn the_nearer_room_changes_over_first() {
+        let eyes = [[0i16; 3], [2000, 0, 0]];
+        let blocks = [5u32, 5 + SPAN];
+        let mut disc = Disc::new(4 + 5 + 2 * SPAN as usize + 40);
+        disc.put_block(5, &[0], false);
+        // The new eye shows two rooms; room 9 is nearer (its depth bytes are smaller).
+        // Room 9 is on the first tile column, room 4 on the second.
+        let mut rooms = [CELL_EMPTY; CELLS];
+        for (k, r) in rooms.iter_mut().enumerate() {
+            *r = if k < CELLS / 2 { 9 } else { 4 };
+        }
+        let depth: [u8; MESH] = core::array::from_fn(|k| if k % MESH_W < 2 { 10 } else { 200 });
+        let encoded: Vec<Vec<u8>> = (0..TILES)
+            .map(|k| psx_grid::tile_lz::encode_tile(&picture(k)))
+            .collect();
+        let mut parts: [Option<psx_grid::eye_block::PanelPart<'_>>; HEADINGS] = Default::default();
+        parts[0] = Some(psx_grid::eye_block::PanelPart {
+            cols: [(1 << ROWS) - 1; COLS],
+            depth: &depth,
+            rooms: &rooms,
+            tiles: core::array::from_fn(|k| Some(encoded[k].as_slice())),
+        });
+        let block = psx_grid::eye_block::build_block(&parts);
+        let at = (4 + (5 + SPAN) as usize) * SECTOR;
+        disc.bytes[at..at + block.len()].copy_from_slice(&block);
+        let mut window = window();
+        let mut stream = PanelStream::<usize>::new();
+        let at_first = input(&eyes, &blocks, [-1200, 0, 0], [4096, 0]);
+        run(&mut stream, &mut disc, &mut window, &at_first, 200);
+        let moved = input(&eyes, &blocks, [3200, 0, 0], [4096, 0]);
+        let mut started = [None; 2];
+        for _ in 0..600 {
+            run(&mut stream, &mut disc, &mut window, &moved, 1);
+            for (k, room) in [9usize, 4].into_iter().enumerate() {
+                if started[k].is_none() && stream.fade.level[room] > 0 {
+                    started[k] = Some(stream.ticks);
+                }
+            }
+        }
+        let (near, far) = (started[0].expect("room 9 started"), started[1].expect("room 4 started"));
+        assert!(near <= far, "the nearer room starts first: {near} {far}");
     }
 
     #[test]

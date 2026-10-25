@@ -192,6 +192,65 @@ pub struct PanelCamera {
     pub otz_floor: u32,
 }
 
+/// Which side of a crossing a panel is on.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum FadeRole {
+    /// The panel of the eye the camera crossed to: its cells of a room come in over the old
+    /// ones.
+    Entering,
+    /// The panel of the eye the camera left: it stands under the new one until each room's
+    /// cells are in.
+    Leaving,
+}
+
+/// Fade level of a room whose cells are all in: steady state.
+pub const FADE_DONE: u8 = 3;
+
+/// How a crossing between two eyes is drawn: per room, the new eye's cells come in over the old
+/// eye's in steps instead of the whole far view changing in one frame.
+#[derive(Copy, Clone, Debug)]
+pub struct PanelFade<'a> {
+    /// Which side this panel is on.
+    pub role: FadeRole,
+    /// Per room, how far the change has got: `0` the old cells only, `1` the new cells over
+    /// them at half strength, `2` at three quarters, [`FADE_DONE`] the new cells only. A room
+    /// past the end of the list counts as done.
+    pub level: &'a [u8],
+    /// The level of a cell more than one room shows.
+    pub mixed: u8,
+    /// Per tile, the slot of the other side's panel of the same heading (the old tiles for an
+    /// entering panel, the new for a leaving one), or [`NO_TILE_SLOT`]: a cell with nothing
+    /// to change over from or to is drawn as it is.
+    pub partner: &'a [u8; TILES],
+}
+
+impl PanelFade<'_> {
+    /// How the cell of `room` in `tile` is drawn: `0` not at all, `1` whole, `2` and `3` that
+    /// many layers of the picture at half strength each.
+    #[inline(always)]
+    fn mode(&self, room: u8, tile: usize) -> u8 {
+        let level = if room == CELL_MIXED {
+            self.mixed
+        } else {
+            self.level
+                .get(usize::from(room))
+                .copied()
+                .unwrap_or(FADE_DONE)
+        };
+        let alone = self.partner[tile] == NO_TILE_SLOT;
+        match self.role {
+            FadeRole::Entering => match level {
+                _ if alone => 1,
+                0 => 0,
+                1 => 2,
+                2 => 3,
+                _ => 1,
+            },
+            FadeRole::Leaving => u8::from(level < FADE_DONE || alone),
+        }
+    }
+}
+
 /// One panel to draw.
 #[derive(Copy, Clone, Debug)]
 pub struct PanelRef<'a> {
@@ -214,6 +273,8 @@ pub struct PanelRef<'a> {
     pub last_col: u8,
     pub first_row: u8,
     pub last_row: u8,
+    /// The crossing this panel is part of, when one is under way.
+    pub fade: Option<PanelFade<'a>>,
 }
 
 impl<'a> PanelRef<'a> {
@@ -235,6 +296,7 @@ impl<'a> PanelRef<'a> {
             last_col: (COLS - 1) as u8,
             first_row: 0,
             last_row: (ROWS - 1) as u8,
+            fade: None,
         }
     }
 }
@@ -313,24 +375,25 @@ fn clamp_world(v: i32) -> i16 {
 /// The ordering table slot of a panel's quad whose four corners' depths add up to `sum`. Where
 /// two cells of neighbouring panels cover the same pixels, the odd panel's is a slot farther, so
 /// the order never depends on the frame: packets of one slot are drawn in the order of the
-/// frame's packet arena, which runs the other way every other frame. The far end is kept one
-/// short of the last slot so the step is never lost to the clamp (everything past about 8,000
-/// units of depth lands there, and that is where the horizon of a level is).
+/// frame's packet arena, which runs the other way every other frame. The far end is kept four
+/// short of the last slot so the steps are never lost to the clamp (everything past about 8,000
+/// units of depth lands there, and that is where the horizon of a level is). `under` is 2 for
+/// the cells of the eye the camera left while a crossing fades: they stand under the new ones.
 #[inline(always)]
-fn panel_slot(sum: u32, floor: u32, heading: u8) -> u32 {
-    (sum >> 4).max(floor).clamp(1, 2046) + u32::from(heading & 1)
+fn panel_slot(sum: u32, floor: u32, heading: u8, under: u32) -> u32 {
+    (sum >> 4).max(floor).clamp(1, 2044) + u32::from(heading & 1) + under
 }
 
 /// Whether a quad with these corners is worth a packet: nothing at or behind the near plane,
 /// not wholly off one edge, safe for the GPU.
 #[inline(always)]
-fn drawable(s: &[GridScreen; 4]) -> bool {
+fn drawable_why(s: &[GridScreen; 4]) -> u8 {
     let any = s[0].code | s[1].code | s[2].code | s[3].code;
     if any & NEAR != 0 {
-        return false;
+        return 1;
     }
     if s[0].code & s[1].code & s[2].code & s[3].code & OFF_ANY != 0 {
-        return false;
+        return 2;
     }
     let (mut left, mut right, mut top, mut bottom) = (i32::MAX, i32::MIN, i32::MAX, i32::MIN);
     for corner in s {
@@ -348,7 +411,7 @@ fn drawable(s: &[GridScreen; 4]) -> bool {
         && right - left <= 1023
         && bottom - top <= 511)
     {
-        return false;
+        return 3;
     }
     // A cell across a jump in depth (the edge of a cliff against the far sky behind it) is a long
     // sliver once the eye has moved off the one the picture was baked from. The pictures are 1
@@ -356,12 +419,16 @@ fn drawable(s: &[GridScreen; 4]) -> bool {
     // magnifies what the rooms drawn whole leave to the panels by two at most, so an edge longer
     // than [`MAX_EDGE`] is the stretch, not the scene, and the cells beyond it (which are right)
     // show instead.
-    (0..4).all(|k| {
+    if (0..4).all(|k| {
         let (a, b) = (s[k].sxy, s[(k + 1) & 3].sxy);
         let dx = (i32::from(a as u16 as i16) - i32::from(b as u16 as i16)).abs();
         let dy = (i32::from((a >> 16) as u16 as i16) - i32::from((b >> 16) as u16 as i16)).abs();
         dx <= MAX_EDGE && dy <= MAX_EDGE
-    })
+    }) {
+        0
+    } else {
+        4
+    }
 }
 
 /// `tan` of half the angle between two headings (22.5 degrees) as Q12: past it a cell is the
@@ -419,6 +486,7 @@ pub fn draw_panel(
             let (i0, j0) = (col * CELLS_X, row * CELLS_Y);
             // The cells that show anything the camera does not draw whole.
             let mut wanted = [false; CELLS_X * CELLS_Y];
+            let mut modes = [1u8; CELLS_X * CELLS_Y];
             let mut any = false;
             for (k, w) in wanted.iter_mut().enumerate() {
                 let room = panel.rooms[tile * CELLS_X * CELLS_Y + k];
@@ -433,6 +501,10 @@ pub fn draw_panel(
                     && across > -SEAM_Q12
                     && (room == CELL_MIXED
                         || !skip.get(usize::from(room)).copied().unwrap_or(false));
+                if let (true, Some(fade)) = (*w, panel.fade.as_ref()) {
+                    modes[k] = fade.mode(room, tile);
+                    *w = modes[k] != 0;
+                }
                 any |= *w;
             }
             if !any {
@@ -501,6 +573,15 @@ pub fn draw_panel(
             let tpage = page_word(base_tpage, column / 4);
             let clut = slot_clut_word(atlas, slot);
             let mut drawn = false;
+            // The panel of the eye left stands two slots farther than the new one, so the new
+            // cells draw over it.
+            let under = u32::from(matches!(
+                panel.fade,
+                Some(PanelFade {
+                    role: FadeRole::Leaving,
+                    ..
+                })
+            )) * 2;
             for cy in 0..CELLS_Y {
                 for cx in 0..CELLS_X {
                     if !wanted[cy * CELLS_X + cx] {
@@ -513,15 +594,26 @@ pub fn draw_panel(
                         scratch.screen[(j + 1) * MESH_W + i + 1],
                         scratch.screen[(j + 1) * MESH_W + i],
                     ];
-                    if !drawable(&s) {
+                    let why = drawable_why(&s);
+                    if why != 0 {
+                        match why {
+                            1 => frame.depth_skipped += 1,
+                            2 => frame.lod_replaced += 1,
+                            3 => frame.lod_quads += 1,
+                            _ => frame.robust_quads += 1,
+                        }
                         frame.screen_culled += 1;
                         continue;
                     }
+
                     let sum = u32::from(s[0].sz)
                         + u32::from(s[1].sz)
                         + u32::from(s[2].sz)
                         + u32::from(s[3].sz);
-                    let otz = panel_slot(sum, camera.otz_floor, panel.heading);
+                    let mode = modes[cy * CELLS_X + cx];
+                    let layers: usize = if mode == 3 { 2 } else { 1 };
+                    let blend = if mode >= 2 { Blend::Average } else { Blend::Opaque };
+                    let otz = panel_slot(sum, camera.otz_floor, panel.heading, under);
                     // SAFETY: both pointers lie in the packet storage.
                     let left = unsafe {
                         if reverse {
@@ -530,7 +622,7 @@ pub fn draw_panel(
                             end.offset_from(next)
                         }
                     };
-                    if left < super::cards::CARD_PACKET_WORDS as isize {
+                    if left < (super::cards::CARD_PACKET_WORDS * layers) as isize {
                         frame.overflowed = true;
                         break;
                     }
@@ -538,30 +630,32 @@ pub fn draw_panel(
                     let v0 = (v_tile + cy as u32 * CELL_H as u32) as u8;
                     let u1 = u0 + (CELL_W - 1) as u8;
                     let v1 = v0 + (CELL_H - 1) as u8;
-                    // SAFETY: room for one packet was just checked.
-                    unsafe {
-                        let at = if reverse {
-                            next.sub(super::cards::CARD_PACKET_WORDS)
-                        } else {
-                            next
-                        };
-                        write_card(
-                            at,
-                            &s,
-                            [(u0, v0), (u1, v0), (u1, v1), (u0, v1)],
-                            clut,
-                            tpage,
-                            128,
-                            Blend::Opaque,
-                            otz,
-                        );
-                        next = if reverse {
-                            at
-                        } else {
-                            at.add(super::cards::CARD_PACKET_WORDS)
-                        };
+                    for _ in 0..layers {
+                        // SAFETY: room for `layers` packets was just checked.
+                        unsafe {
+                            let at = if reverse {
+                                next.sub(super::cards::CARD_PACKET_WORDS)
+                            } else {
+                                next
+                            };
+                            write_card(
+                                at,
+                                &s,
+                                [(u0, v0), (u1, v0), (u1, v1), (u0, v1)],
+                                clut,
+                                tpage,
+                                128,
+                                blend,
+                                otz,
+                            );
+                            next = if reverse {
+                                at
+                            } else {
+                                at.add(super::cards::CARD_PACKET_WORDS)
+                            };
+                        }
+                        packets += 1;
                     }
-                    packets += 1;
                     drawn = true;
                 }
                 if frame.overflowed {
@@ -601,12 +695,12 @@ mod tests {
         for sum in (0..70_000u32).step_by(7) {
             for floor in [0, 300, 2047] {
                 for heading in 0..HEADINGS as u8 {
-                    let slot = panel_slot(sum, floor, heading);
+                    let slot = panel_slot(sum, floor, heading, 0);
                     assert!(
                         (1..=2047).contains(&slot),
                         "{sum} {floor} {heading}: {slot}"
                     );
-                    let next = panel_slot(sum, floor, (heading + 1) % HEADINGS as u8);
+                    let next = panel_slot(sum, floor, (heading + 1) % HEADINGS as u8, 0);
                     assert_ne!(slot, next, "{sum} {floor} {heading}");
                 }
             }
@@ -810,3 +904,4 @@ mod tests {
         assert_eq!(frame.packet_words, 22);
     }
 }
+
