@@ -234,42 +234,6 @@ impl FrustumPlanes {
             .wrapping_add(plane.0[2].wrapping_mul(position[2] as i32))
             .wrapping_add(plane.1)
     }
-    /// Whether the box lies wholly outside the top or the bottom plane, the two
-    /// the row-span cell cull leaves out. A box inside the rounding band of a
-    /// side plane is kept, as in [`Self::cull_aabb`].
-    ///
-    /// The planes must be loaded by [`load_gte_clip_planes`] on the guest.
-    #[inline(always)]
-    pub fn outside_vertical(&self, mins: Vec3I16, maxs: Vec3I16) -> bool {
-        let lo = [mins.x, mins.y, mins.z];
-        let hi = [maxs.x, maxs.y, maxs.z];
-        let bits = self.outer_bits;
-        let error = self.side_error;
-        macro_rules! plane {
-            ($index:literal) => {{
-                let outer = [
-                    if bits & (1 << (3 * $index)) != 0 {
-                        lo[0]
-                    } else {
-                        hi[0]
-                    },
-                    if bits & (1 << (3 * $index + 1)) != 0 {
-                        lo[1]
-                    } else {
-                        hi[1]
-                    },
-                    if bits & (1 << (3 * $index + 2)) != 0 {
-                        lo[2]
-                    } else {
-                        hi[2]
-                    },
-                ];
-                self.distance_at($index, outer) < -error
-            }};
-        }
-        plane!(3) || plane!(4)
-    }
-
     /// Hierarchical frustum test of one node box against the live clip planes.
     ///
     /// `mask` names the planes a caller still has to care about; the rest were

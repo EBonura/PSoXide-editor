@@ -71,6 +71,7 @@ impl GridRenderer {
         let have_blocks = !room.render.lod_blocks.is_empty();
         let mut sky_seen = false;
         let planes = &frustum.planes;
+        let (top, bottom) = (planes[3].0, planes[4].0);
         let (y_lo, y_hi) = (i32::from(head.min_y), i32::from(head.max_y));
         let width = grid_w as i32;
         for cz in 0..grid_d {
@@ -107,6 +108,22 @@ impl GridRenderer {
             }
             let first = div_floor_i32(lo, size).max(0);
             let last = div_floor_i32(hi, size).min(width - 1);
+            // What a cell box adds to the top and bottom planes' distance is
+            // its x and y terms; the row fixes the rest, with the rounding
+            // band folded in so "outside" is a negative sum.
+            let row_rest = |normal: &[i32; 3], constant: i32| {
+                let z = if normal[2] < 0 {
+                    z0 - CELL_BOX_SLACK
+                } else {
+                    z1 + CELL_BOX_SLACK
+                };
+                normal[2]
+                    .wrapping_mul(z)
+                    .wrapping_add(constant)
+                    .wrapping_add(frustum.side_error)
+            };
+            let top_rest = row_rest(&top, planes[3].1);
+            let bottom_rest = row_rest(&bottom, planes[4].1);
             let row = cz * grid_w;
             let mut cx = first;
             while cx <= last {
@@ -143,18 +160,29 @@ impl GridRenderer {
                     // its block's merged quads stand in for it. The sky test
                     // below still sees every cell, as before.
                     let above_or_below = far == 0 && {
+                        // The box corner farthest along each plane's normal,
+                        // against the distance the row's terms already hold.
                         let x0 = cx * size;
-                        let lo = GteVec3I16 {
-                            x: (x0 - CELL_BOX_SLACK) as i16,
-                            y: cell.min_y.saturating_sub(CELL_BOX_SLACK as i16),
-                            z: (z0 - CELL_BOX_SLACK) as i16,
+                        let (y_min, y_max) = (
+                            i32::from(cell.min_y) - CELL_BOX_SLACK,
+                            i32::from(cell.max_y) + CELL_BOX_SLACK,
+                        );
+                        let x = |normal: &[i32; 3]| {
+                            if normal[0] < 0 {
+                                x0 - CELL_BOX_SLACK
+                            } else {
+                                x0 + size + CELL_BOX_SLACK
+                            }
                         };
-                        let hi = GteVec3I16 {
-                            x: (x0 + size + CELL_BOX_SLACK) as i16,
-                            y: cell.max_y.saturating_add(CELL_BOX_SLACK as i16),
-                            z: (z1 + CELL_BOX_SLACK) as i16,
-                        };
-                        frustum.outside_vertical(lo, hi)
+                        let y = |normal: &[i32; 3]| if normal[1] < 0 { y_min } else { y_max };
+                        top_rest
+                            .wrapping_add(top[0].wrapping_mul(x(&top)))
+                            .wrapping_add(top[1].wrapping_mul(y(&top)))
+                            < 0
+                            || bottom_rest
+                                .wrapping_add(bottom[0].wrapping_mul(x(&bottom)))
+                                .wrapping_add(bottom[1].wrapping_mul(y(&bottom)))
+                                < 0
                     };
                     if !above_or_below {
                         // SAFETY: at most one entry per cell, and `cells`
