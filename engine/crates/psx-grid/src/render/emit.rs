@@ -1,5 +1,7 @@
 //! Packet writing: the straight-line fast path and the shared near-plane path.
 
+use super::cut::{bend_edges, cut_quad, Writer};
+
 use super::*;
 
 impl GridRenderer {
@@ -96,8 +98,17 @@ impl GridRenderer {
             let triangle = quad.flags & QUAD_TRI != 0;
             // Every corner on screen and in front of the near plane: nothing
             // else to prove. Otherwise the corners must still fit the GPU.
-            let fast = any == 0 || (any & NEAR == 0 && gpu_safe(&[s0, s1, s2, s3], triangle));
-            if fast {
+            let straight = any == 0 || (any & NEAR == 0 && gpu_safe(&[s0, s1, s2, s3], triangle));
+            // A quad the GPU draws as given, but whose texture would bend
+            // visibly, is cut where it bends (see `cut`). Only a quad that
+            // runs off the screen can: one wholly on it is far or small or
+            // shallow, and the few that are not bend by little.
+            let bends = if straight && any != 0 && !triangle {
+                bend_edges(&[s0, s1, s2, s3])
+            } else {
+                0
+            };
+            if straight && bends == 0 {
                 let sum = u32::from(s0.sz) + u32::from(s1.sz) + u32::from(s2.sz);
                 let otz = if triangle {
                     (sum * 0x155) >> 12
@@ -142,7 +153,8 @@ impl GridRenderer {
                 packets += 1;
                 continue;
             }
-            // Near-plane, oversize and saturated quads share one path.
+            // Near-plane, oversize, saturated and bending quads share one
+            // path: the room has to hold the worst case of the longer one.
             // SAFETY: both pointers lie in the packet storage.
             let room_left = unsafe {
                 if REVERSE {
@@ -155,22 +167,39 @@ impl GridRenderer {
                 frame.overflowed = true;
                 break;
             }
-            robust_quads += 1;
             let before = packets;
+            let mut write = Writer {
+                material,
+                origin,
+                window,
+                packets: 0,
+            };
             // SAFETY: room for the worst case was just checked. In reverse
             // the packets are built at the low end of the free space and then
             // moved up against the stream written so far.
             unsafe {
                 if REVERSE {
-                    let built = robust_quad(start, next, room, eye, quad, material, &mut packets);
+                    let built = if bends != 0 {
+                        cut_quad(start, room, quad, [s0, s1, s2, s3], bends, &mut write)
+                    } else {
+                        robust_quad(start, next, room, eye, quad, material, &mut packets)
+                    };
                     let words = built.offset_from(start) as usize;
                     core::ptr::copy(start, next.sub(words), words);
                     next = next.sub(words);
                 } else {
-                    next = robust_quad(next, end, room, eye, quad, material, &mut packets);
+                    next = if bends != 0 {
+                        cut_quad(next, room, quad, [s0, s1, s2, s3], bends, &mut write)
+                    } else {
+                        robust_quad(next, end, room, eye, quad, material, &mut packets)
+                    };
                 }
             }
-            robust_packets += packets - before;
+            packets += write.packets;
+            if bends == 0 {
+                robust_quads += 1;
+                robust_packets += packets - before;
+            }
         }
         frame.robust_quads = robust_quads;
         frame.robust_packets = robust_packets.min(u32::from(u16::MAX)) as u16;
@@ -222,7 +251,7 @@ fn gpu_safe(corners: &[&GridScreen; 4], triangle: bool) -> bool {
 /// # Safety
 /// `next` must have room for [`QUAD_PACKET_WORDS`].
 #[inline(always)]
-unsafe fn write_quad(
+pub(super) unsafe fn write_quad(
     next: *mut u32,
     quad: &Quad,
     material: &GridMaterial,
@@ -260,7 +289,7 @@ unsafe fn write_quad(
 /// # Safety
 /// `next` must have room for `QUAD_PACKET_WORDS - 3`.
 #[inline(always)]
-unsafe fn write_triangle(
+pub(super) unsafe fn write_triangle(
     next: *mut u32,
     quad: &Quad,
     material: &GridMaterial,
@@ -287,6 +316,21 @@ unsafe fn write_triangle(
         next.add(9).write(s[2].sxy);
         next.add(10).write(uv(2));
         next.add(11)
+    }
+}
+
+/// The loaded view as the splitter reprojects with it.
+#[inline(always)]
+fn near_view(eye: &RoomCamera<'_>) -> NearView {
+    NearView {
+        rows: eye.view.rotation.m,
+        translation: [
+            eye.view.translation.x,
+            eye.view.translation.y,
+            eye.view.translation.z,
+        ],
+        focal_length: eye.focal_length,
+        center: [eye.screen[0] / 2, eye.screen[1] / 2],
     }
 }
 
@@ -377,16 +421,7 @@ unsafe fn robust_quad(
         texture_window_word: if repeat { window } else { 0 },
         color_command_word: TEXTURED_GOURAUD_COMMAND | material.command_bits,
     };
-    let near_view = NearView {
-        rows: eye.view.rotation.m,
-        translation: [
-            eye.view.translation.x,
-            eye.view.translation.y,
-            eye.view.translation.z,
-        ],
-        focal_length: eye.focal_length,
-        center: [eye.screen[0] / 2, eye.screen[1] / 2],
-    };
+    let near_view = near_view(eye);
     // SAFETY: `clipped` holds `polygon` projected vertices plus the splitter's
     // scratch slots; `next..end` has room per the caller's contract.
     let drawn = unsafe {
