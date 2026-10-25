@@ -8,4 +8,4 @@ grid-starter core=9b85d581eda8fc62 rooms=6f494049a9d9c4bb manifest=9fa6d1aa97a89
 grid-gate core=6c594e5249299242 rooms=37cc23eb83ed1971 manifest=d8806b0faf56b514
 grid-tower core=9d1df3ae99b39f57 rooms=00bccffb2cec4b13 manifest=34f3a7d8f93e16df
 grid-corridor core=83f75b9d22789e56 rooms=e140d5f9d4f7910c manifest=cff98895d1d8857b
-zz-far-s10 core=43e36fe6890b6290 rooms=9cd0b9ad7ab0a2c0 manifest=c1497812d26e1365
+zz-far-s10 core=277d111fffe4ae79 rooms=56e993c488c7c381 manifest=0517e7dd54b1b6fd
