@@ -82,3 +82,43 @@ scarf is simulated per rendered frame, so it differs between builds of different
 read from the CD command log with one row per sector delivered; frame rate is flips over the polls after the first
 full view. Tools were kept beside the lane notes (not in the repository): `waits.sh` (route log and CD command log per
 tape), `cdstat` (level open, first full view, crossings, reads by kind), `fpsgame.sh`, `frames.sh`, `tilecmp`.
+
+## Where the eyes stand, and what an eye leaves out
+
+The cook (`playtest::panel_eyes`, `bake_panels`) puts one eye on each group of standable floor sectors of a
+lattice cell and a storey, and bakes every panel of the eye without the rooms the camera draws whole.
+
+* **Eyes beyond the edge.** The follow camera stands out over the edge of the level, up to seven sectors from the
+  floor the player stands on. Lattice cells with no floor but within 0.7 of a spacing of one (`PANEL_CAMERA_OUT_TENTHS`)
+  get an eye too, at the height of the nearest floor. On the 0851 tape the camera was more than 8 sectors from the
+  eye in use for 36 percent of the ticks (plan distance beyond 6 sectors for 53 percent); with the extra eyes (149
+  to 194, `WORLD.PAK` +0.8 MB) it is 3.5 percent.
+* **What an eye leaves out.** The rooms the flood draws whole from wherever the camera is within a reach of the eye:
+  the flood radius (12 sectors) less `PANEL_REACH_TENTHS` of a spacing (5, was 0.8). A room near the eye that stays
+  in the bake is an occluder: when the camera walks on, what it hid is in no picture, and the panel's cells of the
+  room are skipped as the room is drawn whole, so a half screen of tower showed sky (tick 2779 of the 0851 tape:
+  15 cells of room 63 skipped, the rooms 80 and 81 behind it nowhere). A room left out that is not drawn whole is
+  a hole the other way. Share of the far pixels the level shows and the game does not, on 0851 (`far_holes` in
+  `editor/crates/psxed-project/examples`): old eyes and reach 6.7 percent, reach 0.5 5.2 percent, new eyes and
+  reach 0.5 3.2 percent; the four other tapes 1.9 to 2.9 percent before and 2.0 to 2.1 after.
+
+## Crossing from one eye to another
+
+The camera crosses to a nearer eye at once. Before this change every tile of the new eye replaced the tile of the
+eye left in the frame it landed in, so a crossing changed the whole far view over a few frames. Now a crossing is
+faded in a room at a time (`panel_stream::Fade`, `psx_grid::render::PanelFade`):
+
+* The cells of a panel name the one room they show, so the room is the unit. Rooms with a cell on screen start in
+  the order of their depth, nearest first, `FADE_STARTS` rooms every `FADE_STEP_TICKS` ticks, once every tile of
+  the new eye that shows the room (and is on screen) is in VRAM. A room off screen changes over at once.
+* A room changes in two steps: the new eye's cells at half strength over the old eye's, then alone. The semi-transparent flag of a panel tile's palette entries is
+  already set (`cards::encode`), so the draw only asks for `Blend::Average`. The old eye's cells go two ordering table slots
+  under the new one's.
+* The old eye's tiles stay in VRAM while the fade runs (`rebuild_show`); a cell with no picture to change over from
+  or to is drawn as it is.
+* Measured on the lockstep discs, 0851: the largest change of the far region between two presented frames in the
+  12 ticks after a crossing, over what the walk alone does, 0.110 before and 0.050 after on average, 0.413 and 0.156 at worst (a walk with no crossing: 0.025 both).
+
+The room table of the resident rooms (`ResidentRooms`) is made once at the size the streamer can hold
+(`ROOM_ENTRIES`, 25): on the 0851 tape 25 rooms are resident at once and the table used to double from 16 slots,
+7 KB of a heap that never gives a block of that size back.
