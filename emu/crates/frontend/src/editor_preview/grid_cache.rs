@@ -272,7 +272,10 @@ impl GridGeometry {
         if !world.global_light.enabled {
             self.gi.clear();
         } else if gi_dirty || (self.gi.field().is_none() && !self.gi.pending()) {
-            let lights = self.context.as_ref().map_or_else(Vec::new, |c| c.lights.clone());
+            let lights = self
+                .context
+                .as_ref()
+                .map_or_else(Vec::new, |c| c.lights.clone());
             self.gi
                 .restart(project, world, lights, self.project_root.clone());
         }
@@ -606,8 +609,12 @@ mod tests {
         );
         // Over the middle of the first sector (1344 editor units a sector at
         // the default scale), at the height of a chest.
-        project.active_scene_mut().node_mut(lamp).unwrap().transform.translation =
-            [672.0, 640.0, 672.0];
+        project
+            .active_scene_mut()
+            .node_mut(lamp)
+            .unwrap()
+            .transform
+            .translation = [672.0, 640.0, 672.0];
         project
     }
 
@@ -622,7 +629,10 @@ mod tests {
         let at = |sector: i32| store.light_at([sector * 84 + 42, 32, 42]).expect("a probe");
         let (under, beside, behind, far) = (at(0), at(1), at(2), at(3));
         assert!(under[0] > 200, "under the lamp: {under:?}");
-        assert!(beside[0] > behind[0] + 60, "beside {beside:?}, behind the wall {behind:?}");
+        assert!(
+            beside[0] > behind[0] + 60,
+            "beside {beside:?}, behind the wall {behind:?}"
+        );
         assert_eq!(behind, far, "past the wall only the ambient reaches");
         assert_eq!(behind, [32; 3]);
         // The probes are kept until something changes.

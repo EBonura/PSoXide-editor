@@ -151,26 +151,10 @@ fn prepare_face(
     // so it cuts at the same four-tile pieces.
     if uv_split::wants_split(face, true) {
         for piece in uv_split::split(face, scale, true) {
-            prepare_piece(
-                project,
-                textures,
-                &piece,
-                face,
-                ambient,
-                rig,
-                &mut pieces,
-            );
+            prepare_piece(project, textures, &piece, face, ambient, rig, &mut pieces);
         }
     } else {
-        prepare_piece(
-            project,
-            textures,
-            face,
-            face,
-            ambient,
-            rig,
-            &mut pieces,
-        );
+        prepare_piece(project, textures, face, face, ambient, rig, &mut pieces);
     }
     PreparedFace {
         // The cutaway keeps or drops a face by its lowest corner, whole.
@@ -219,10 +203,7 @@ fn with_bake_rig<R>(
     field: Option<&GiField>,
     f: impl FnOnce(&BakeRig<'_>) -> R,
 ) -> R {
-    let gather = world
-        .global_light
-        .enabled
-        .then_some(Gather { field });
+    let gather = world.global_light.enabled.then_some(Gather { field });
     match scene {
         // The scene parsed when it was built, so a rig over it cannot fail.
         Some(scene) => scene
@@ -318,68 +299,68 @@ pub(super) fn walk_grid(
         mut ghost,
     } = geometry.rooms_lights_ghost(world);
     with_bake_rig(world, scene, lights, field, |rig| {
-    for (room_index, slot) in rooms.iter_mut().enumerate() {
-        // Rooms the author hid in the Rooms panel are not drawn.
-        if view.hides_room(room_index) {
-            continue;
-        }
-        // The room a paint preview lands in is drawn from the world that has
-        // the paint written, instead of from the document's.
-        let (world, prepared) = match ghost.as_deref_mut().filter(|g| g.room == room_index) {
-            Some(ghost) => (&ghost.world, &mut ghost.prepared),
-            None => (
-                world,
-                slot.prepared
-                    .get_or_insert_with(|| prepare_room(world, room_index)),
-            ),
-        };
-        for boxes in [
-            &mut prepared.cells,
-            &mut prepared.planes,
-            &mut prepared.meshes,
-        ] {
-            for lazy in boxes.iter_mut() {
-                // The storey cutaway: nothing at or above its plane is drawn.
-                if !preview_cell_bounds_visible(camera, lazy.bounds)
-                    || (lazy.is_cell() && view.cuts(lazy.bounds.min[1]))
-                {
-                    continue;
-                }
-                if scratch.geometry_full() {
-                    // A visible box that no longer fits: count it, keep
-                    // counting so the report says how much is missing.
-                    scratch.dropped = scratch.dropped.saturating_add(1);
-                    continue;
-                }
-                let faces = lazy.faces.get_or_insert_with(|| {
-                    prepare_box(
-                        project,
-                        textures,
-                        world,
-                        &defaults,
-                        room_index,
-                        lazy.source,
-                        rig,
-                    )
-                });
-                for face in faces
-                    .iter()
-                    .filter(|face| view.cutaway.is_none_or(|cut| face.low_y < cut))
-                {
-                    for piece in &face.pieces {
-                        emit_uv_polygon(
-                            scratch,
-                            camera,
-                            piece.shade,
-                            &piece.verts,
-                            &piece.uvs,
-                            Some(&piece.colors),
-                        );
+        for (room_index, slot) in rooms.iter_mut().enumerate() {
+            // Rooms the author hid in the Rooms panel are not drawn.
+            if view.hides_room(room_index) {
+                continue;
+            }
+            // The room a paint preview lands in is drawn from the world that has
+            // the paint written, instead of from the document's.
+            let (world, prepared) = match ghost.as_deref_mut().filter(|g| g.room == room_index) {
+                Some(ghost) => (&ghost.world, &mut ghost.prepared),
+                None => (
+                    world,
+                    slot.prepared
+                        .get_or_insert_with(|| prepare_room(world, room_index)),
+                ),
+            };
+            for boxes in [
+                &mut prepared.cells,
+                &mut prepared.planes,
+                &mut prepared.meshes,
+            ] {
+                for lazy in boxes.iter_mut() {
+                    // The storey cutaway: nothing at or above its plane is drawn.
+                    if !preview_cell_bounds_visible(camera, lazy.bounds)
+                        || (lazy.is_cell() && view.cuts(lazy.bounds.min[1]))
+                    {
+                        continue;
+                    }
+                    if scratch.geometry_full() {
+                        // A visible box that no longer fits: count it, keep
+                        // counting so the report says how much is missing.
+                        scratch.dropped = scratch.dropped.saturating_add(1);
+                        continue;
+                    }
+                    let faces = lazy.faces.get_or_insert_with(|| {
+                        prepare_box(
+                            project,
+                            textures,
+                            world,
+                            &defaults,
+                            room_index,
+                            lazy.source,
+                            rig,
+                        )
+                    });
+                    for face in faces
+                        .iter()
+                        .filter(|face| view.cutaway.is_none_or(|cut| face.low_y < cut))
+                    {
+                        for piece in &face.pieces {
+                            emit_uv_polygon(
+                                scratch,
+                                camera,
+                                piece.shade,
+                                &piece.verts,
+                                &piece.uvs,
+                                Some(&piece.colors),
+                            );
+                        }
                     }
                 }
             }
         }
-    }
     });
 }
 

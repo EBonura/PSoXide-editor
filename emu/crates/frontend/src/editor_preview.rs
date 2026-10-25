@@ -2222,8 +2222,14 @@ mod tests {
         assert_eq!(half, (50, 30, 14));
         // And the preview puts the model in the probe cell the game would:
         // the same division by the world unit divisor.
-        assert_eq!(probe_point(psx_engine::WorldVertex::new(1344 / 2, 512, 8)), [42, 32, 1]);
-        assert_eq!(probe_point(psx_engine::WorldVertex::new(-1, -8, -9)), [0, 0, -1]);
+        assert_eq!(
+            probe_point(psx_engine::WorldVertex::new(1344 / 2, 512, 8)),
+            [42, 32, 1]
+        );
+        assert_eq!(
+            probe_point(psx_engine::WorldVertex::new(-1, -8, -9)),
+            [0, 0, -1]
+        );
     }
 
     #[test]
