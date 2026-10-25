@@ -2,6 +2,10 @@
 
 /// Height of the lid slab the open columns are bounded by, runtime units.
 const SKY_LID: i32 = 9;
+/// Runtime units a cell's box is grown by on every side before the vertical
+/// frustum test, so a vertex the cook snapped just past the cell edge or its
+/// recorded height range still counts as inside.
+const CELL_BOX_SLACK: i32 = 2;
 use psx_gte::math::Vec3I16 as GteVec3I16;
 use psx_gte::scene;
 
@@ -111,9 +115,6 @@ impl GridRenderer {
                 // `cells.len() == width * depth`.
                 let cell = unsafe { room.render.cells.get_unchecked(index) };
                 if cell.count != 0 {
-                    // SAFETY: at most one entry per cell, and `cells` holds
-                    // capacity for every cell of the largest room.
-                    unsafe { *out.add(count) = index as u16 };
                     let mut far = 0u8;
                     if lod && cell.flags & CELL_HAS_LOD != 0 {
                         let (bx, bz) = (cx >> shift, (cz as i32) >> shift);
@@ -137,9 +138,34 @@ impl GridRenderer {
                             }
                         }
                     }
-                    // SAFETY: parallel to `cells`, same capacity.
-                    unsafe { *far_out.add(count) = far };
-                    count += 1;
+                    // A cell wholly above or below the view draws nothing, and
+                    // the row spans never test those planes. A far cell stays:
+                    // its block's merged quads stand in for it. The sky test
+                    // below still sees every cell, as before.
+                    let above_or_below = far == 0 && {
+                        let x0 = cx * size;
+                        let lo = GteVec3I16 {
+                            x: (x0 - CELL_BOX_SLACK) as i16,
+                            y: cell.min_y.saturating_sub(CELL_BOX_SLACK as i16),
+                            z: (z0 - CELL_BOX_SLACK) as i16,
+                        };
+                        let hi = GteVec3I16 {
+                            x: (x0 + size + CELL_BOX_SLACK) as i16,
+                            y: cell.max_y.saturating_add(CELL_BOX_SLACK as i16),
+                            z: (z1 + CELL_BOX_SLACK) as i16,
+                        };
+                        frustum.outside_vertical(lo, hi)
+                    };
+                    if !above_or_below {
+                        // SAFETY: at most one entry per cell, and `cells`
+                        // holds capacity for every cell of the largest room.
+                        unsafe {
+                            *out.add(count) = index as u16;
+                            // Parallel to `cells`, same capacity.
+                            *far_out.add(count) = far;
+                        }
+                        count += 1;
+                    }
                     if cell.flags & CELL_OPEN_SKY != 0 && !sky_seen {
                         if have_blocks {
                             let (bx, bz) = ((cx >> shift) as usize, cz >> shift);
