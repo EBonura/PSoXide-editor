@@ -185,9 +185,8 @@ pub struct PanelCamera {
     /// Texture-page word of the atlas's first page, and its top-left VRAM pixel.
     pub tpage: u16,
     pub atlas: (u16, u16),
-    /// The same of a second atlas, for the slots past [`SLOTS`] (unused when 0 slots go there).
-    pub tpage2: u16,
-    pub atlas2: (u16, u16),
+    /// The same of each extra atlas, for the slots past [`SLOTS`] (unused when none go there).
+    pub extra: [(u16, (u16, u16)); super::cards::EXTRA_ATLASES],
     /// Runtime units in a sector, for the depth mesh.
     pub sector: i32,
     /// Ordering-table slot no cell goes in front of: the depth the real rooms end at, so a
@@ -563,11 +562,9 @@ pub fn draw_panel(
             }
             let slot = usize::from(slot);
             let (slot, atlas, base_tpage) = if slot >= SLOTS {
-                (
-                    super::cards::second_atlas_slot(slot - SLOTS),
-                    camera.atlas2,
-                    camera.tpage2,
-                )
+                let (which, in_first) = super::cards::extra_atlas_of(slot);
+                let (tpage, origin) = camera.extra[which];
+                (in_first, origin, tpage)
             } else {
                 (slot, camera.atlas, camera.tpage)
             };
@@ -823,8 +820,7 @@ mod tests {
             near_sz: 154,
             tpage: 0x0105,
             atlas: (320, 0),
-            tpage2: 0,
-            atlas2: (0, 0),
+            extra: [(0, (0, 0)); crate::render::EXTRA_ATLASES],
             sector: 80,
             otz_floor: 0,
         }

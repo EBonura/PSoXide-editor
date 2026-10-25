@@ -138,9 +138,13 @@ pub fn view_keep(view: u8, dx: i32, dz: i32) -> bool {
     along > 0 && across.abs() * 100 < along * 54
 }
 
-/// Slots of the far panels' second atlas: four pages wide (16 columns) and four slots down,
-/// the room the allocator has beside the sky's six pages.
-pub const SECOND_ATLAS_SLOTS: usize = 64;
+/// Atlases the far panels have past the first (the sky's six pages), each four pages wide (16
+/// columns) and four slots down: the room the allocator has beside the sky's pages.
+pub const EXTRA_ATLASES: usize = 2;
+/// Slots of each of those.
+pub const EXTRA_ATLAS_SLOTS: usize = 64;
+/// Slots of the far panels in all, with every atlas got.
+pub const PANEL_SLOTS: usize = SLOTS + EXTRA_ATLASES * EXTRA_ATLAS_SLOTS;
 /// Columns of the second atlas.
 const SECOND_ATLAS_COLUMNS: usize = 16;
 
@@ -148,6 +152,16 @@ const SECOND_ATLAS_COLUMNS: usize = 16;
 /// first sixteen columns of each used.
 pub fn second_atlas_slot(local: usize) -> usize {
     local / SECOND_ATLAS_COLUMNS * ATLAS_COLUMNS + local % SECOND_ATLAS_COLUMNS
+}
+
+/// Which extra atlas holds `slot` (one at or past [`SLOTS`]), and its place in the first atlas's
+/// geometry.
+pub fn extra_atlas_of(slot: usize) -> (usize, usize) {
+    let local = slot - SLOTS;
+    (
+        (local / EXTRA_ATLAS_SLOTS).min(EXTRA_ATLASES - 1),
+        second_atlas_slot(local % EXTRA_ATLAS_SLOTS),
+    )
 }
 
 /// Top-left VRAM pixel of `slot`, given the atlas's own origin.

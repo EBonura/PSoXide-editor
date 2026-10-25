@@ -564,7 +564,7 @@ pub(super) fn panels_loaded() -> bool {
     let Some((origin, _)) = card_atlas() else {
         return false;
     };
-    let second = panel_atlas_origin();
+    let (extra, _) = panel_atlases();
     // SAFETY: single-threaded guest; see `step_panels`.
     let (stream, window) = unsafe {
         (
@@ -579,12 +579,11 @@ pub(super) fn panels_loaded() -> bool {
         }
         for upload in uploads[..count].iter().flatten() {
             let slot = usize::from(upload.slot);
-            let (x, y) = match second {
-                Some(second) if slot >= psx_grid::render::SLOTS => psx_grid::render::slot_origin(
-                    second,
-                    psx_grid::render::second_atlas_slot(slot - psx_grid::render::SLOTS),
-                ),
-                _ => psx_grid::render::slot_origin(origin, slot),
+            let (x, y) = if slot >= psx_grid::render::SLOTS {
+                let (which, in_first) = psx_grid::render::extra_atlas_of(slot);
+                psx_grid::render::slot_origin(extra[which].1, in_first)
+            } else {
+                psx_grid::render::slot_origin(origin, slot)
             };
             let mut picture: psx_game_runtime::card_stream::Picture = [0; SLOT_BYTES / 4 + 1];
             if !psx_game_runtime::panel_stream::decode_upload(upload, window, &mut picture) {
@@ -610,18 +609,27 @@ pub(super) fn panels_loaded() -> bool {
     }
 }
 
-/// A second atlas for the far panels' tiles, as large as the sky's, from VRAM nothing else
-/// uses: its top-left pixel and first texture-page word. The allocator is asked once a
-/// gameplay; with no six pages in a row to give, the panels keep to the sky atlas's slots.
+/// More atlases for the far panels' tiles, four pages each, from VRAM nothing else uses: for
+/// each the texture-page word of its first page and its top-left pixel, and how many were got.
+/// The allocator is asked once a gameplay; with no four pages in a row to give, the panels keep
+/// to the slots they have.
 #[cfg(feature = "cd-stream-bench")]
-pub(super) fn panel_atlas() -> Option<((u16, u16), u16)> {
-    card_atlas()?;
-    vram_arena().reserve_panel_atlas()
-}
-
-#[cfg(feature = "cd-stream-bench")]
-pub(super) fn panel_atlas_origin() -> Option<(u16, u16)> {
-    panel_atlas().map(|(origin, _)| origin)
+pub(super) fn panel_atlases() -> (
+    [(u16, (u16, u16)); psx_grid::render::EXTRA_ATLASES],
+    usize,
+) {
+    let mut out = [(0, (0, 0)); psx_grid::render::EXTRA_ATLASES];
+    if card_atlas().is_none() {
+        return (out, 0);
+    }
+    let arena = vram_arena();
+    let count = arena.reserve_panel_atlases();
+    for (which, atlas) in out.iter_mut().enumerate().take(count) {
+        if let Some((origin, word)) = arena.panel_atlas(which) {
+            *atlas = (word, origin);
+        }
+    }
+    (out, count)
 }
 
 /// Fades' widths (3 sectors each) past the far edge a room takes its slot and
@@ -769,11 +777,7 @@ pub(super) fn step_panels(eye: [i32; 3], focal: i32) {
         blocks: GRID_PANEL_BLOCKS,
         sectors: GRID_PANEL_SECTORS,
         base_lba: WORLD_PACK_START_LBA,
-        slots: if panel_atlas().is_some() {
-            psx_grid::render::SLOTS + psx_grid::render::SECOND_ATLAS_SLOTS
-        } else {
-            psx_grid::render::SLOTS
-        },
+        slots: psx_grid::render::SLOTS + panel_atlases().1 * psx_grid::render::EXTRA_ATLAS_SLOTS,
         eye,
         forward,
         pitch_tan_q12: ((fy << 12) / plan).clamp(-16384, 16384),
@@ -873,7 +877,7 @@ pub(super) fn emit_panel_uploads(
         &uploads[..count],
         window,
         origin,
-        panel_atlas_origin().unwrap_or(origin),
+        &panel_atlases().0.map(|(_, origin)| origin),
         (OT_DEPTH - 1) as u16,
         reservation.words_mut(),
     );

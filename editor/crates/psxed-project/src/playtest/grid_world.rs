@@ -770,7 +770,29 @@ fn bake_panels(
         drawn
     };
     let focal = PANEL_FOCAL;
-    let baked = cook::panels::bake_eyes(&tris, &eyes, focal as f32, &exclude);
+    // PSXED_PANEL_CACHE=<file>: keep the baked panels there, and use them when the level, the
+    // eyes and the radius are those they were baked for (the bake's code is not part of the key:
+    // delete the file when it changes).
+    let cache = std::env::var_os("PSXED_PANEL_CACHE").map(std::path::PathBuf::from);
+    let key = cook::panels::bake_cache::key(&[
+        &cooked.core,
+        &cooked.chunks.concat(),
+        format!("{:?} {focal} {radius} {rooms}", eyes.iter().map(|e| (e.room, e.eye.map(f32::to_bits))).collect::<Vec<_>>()).as_bytes(),
+    ]);
+    let kept = cache
+        .as_ref()
+        .and_then(|path| std::fs::read(path).ok())
+        .and_then(|bytes| cook::panels::bake_cache::read(&bytes, key, eyes.len()));
+    let baked = match kept {
+        Some(baked) => baked,
+        None => {
+            let baked = cook::panels::bake_eyes(&tris, &eyes, focal as f32, &exclude);
+            if let Some(path) = &cache {
+                let _ = std::fs::write(path, cook::panels::bake_cache::write(&baked, key));
+            }
+            baked
+        }
+    };
     let blocks = cook::panels::eye_blocks(&baked);
     let count: usize = baked.iter().map(|set| set.iter().flatten().count()).sum();
     // Where the player starts, in plan: the pack ends around it.

@@ -1407,7 +1407,7 @@ impl GridRuntime {
                     #[cfg(feature = "cd-stream-bench")]
                     if !total.overflowed && crate::vram_runtime::has_panels() {
                         if let Some((atlas, tpage)) = crate::vram_runtime::card_atlas() {
-                            let second = crate::vram_runtime::panel_atlas();
+                            let (extra, _) = crate::vram_runtime::panel_atlases();
                             use crate::generated::{
                                 GRID_PANEL_FOCAL, GRID_PANEL_REAL, GRID_PANEL_SECTOR,
                             };
@@ -1441,8 +1441,7 @@ impl GridRuntime {
                                         as u16,
                                     tpage,
                                     atlas,
-                                    tpage2: second.map_or(0, |(_, word)| word),
-                                    atlas2: second.map_or((0, 0), |(origin, _)| origin),
+                                    extra,
                                     sector,
                                     otz_floor: (((units * scale) >> 12) >> 2) as u32,
                                 };

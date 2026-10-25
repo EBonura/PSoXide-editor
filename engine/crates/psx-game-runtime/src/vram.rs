@@ -21,6 +21,7 @@ mod upload_queue;
 use crate::cd_stream;
 use psx_asset::Texture;
 use psx_engine::telemetry;
+use psx_grid::render::EXTRA_ATLASES;
 use psx_font::{font_pack_metrics, upload_fonts, BitmapFont, FontAtlas, FontSetVram};
 use psx_gpu::material::{BlendMode, TextureMaterial, TextureWindow};
 #[cfg(feature = "cd-stream-bench")]
@@ -645,11 +646,11 @@ pub struct VramRuntime<
     /// the unified allocator on gameplay exit. `Empty` while the sky is not
     /// resident.
     sky_page_region: VramHandle,
-    /// A second picture atlas for the far panels (four pages in a row), kept
-    /// for the gameplay: its run in the allocator and the texture-page word of its first
-    /// page. `Empty` and 0 until [`Self::reserve_panel_atlas`] gets one.
-    panel_atlas_region: VramHandle,
-    panel_atlas_word: u16,
+    /// More picture atlases for the far panels (four pages in a row each), kept for the
+    /// gameplay: the run of each in the allocator and the texture-page word of its first page.
+    /// `Empty` and 0 until [`Self::reserve_panel_atlases`] gets them.
+    panel_atlas_regions: [VramHandle; EXTRA_ATLASES],
+    panel_atlas_words: [u16; EXTRA_ATLASES],
     /// The allocator was asked this gameplay (it is asked once).
     panel_atlas_tried: bool,
     sky_clut_regions: [VramHandle; SKY_PANORAMA_PALETTE_BANDS],
@@ -719,8 +720,8 @@ impl<
             sky_page_tpage_words: [0; 2],
             sky_clut_words: [0; SKY_PANORAMA_PALETTE_BANDS],
             sky_page_region: VramHandle::Empty,
-            panel_atlas_region: VramHandle::Empty,
-            panel_atlas_word: 0,
+            panel_atlas_regions: [VramHandle::Empty; EXTRA_ATLASES],
+            panel_atlas_words: [0; EXTRA_ATLASES],
             panel_atlas_tried: false,
             sky_clut_regions: [VramHandle::Empty; SKY_PANORAMA_PALETTE_BANDS],
             small_texture_page: None,
@@ -2205,35 +2206,45 @@ impl<
         ))
     }
 
-    /// A second atlas of four pages for the far panels' tiles (64 slots): its top-left
-    /// pixel and the texture-page word of its first page. Idempotent; `None` when the
-    /// allocator has no six pages in a row to give.
-    pub fn reserve_panel_atlas(&mut self) -> Option<((u16, u16), u16)> {
-        if matches!(self.panel_atlas_region, VramHandle::Empty) {
-            if self.panel_atlas_tried {
-                return None;
-            }
+    /// Atlases of four pages for the far panels' tiles (64 slots each), as many as the allocator
+    /// has four pages in a row for: how many were got. Idempotent (the allocator is asked once a
+    /// gameplay).
+    pub fn reserve_panel_atlases(&mut self) -> usize {
+        if !self.panel_atlas_tried {
             self.panel_atlas_tried = true;
-            // Four pages in a row, in whichever band has them: the sky's six leave the rest of
-            // its band, and the room textures take pages as the level needs them.
-            let (left, region) = self
-                .allocator
-                .alloc_page_run(4, TextureDepth::Bit4, 0)
-                .or_else(|| self.allocator.alloc_page_run(4, TextureDepth::Bit4, 256))?;
-            self.panel_atlas_region = region;
-            self.panel_atlas_word = left.uv_word(0);
+            for k in 0..EXTRA_ATLASES {
+                // Four pages in a row, in whichever band has them: the sky's six leave the rest
+                // of its band, and the room textures take pages as the level needs them.
+                let Some((left, region)) = self
+                    .allocator
+                    .alloc_page_run(4, TextureDepth::Bit4, 0)
+                    .or_else(|| self.allocator.alloc_page_run(4, TextureDepth::Bit4, 256))
+                else {
+                    break;
+                };
+                self.panel_atlas_regions[k] = region;
+                self.panel_atlas_words[k] = left.uv_word(0);
+            }
         }
-        let word = self.panel_atlas_word;
-        // The tpage word encodes the page exactly: x / 64 and y / 256.
-        Some((((word & 0xF) * 64, ((word >> 4) & 1) * 256), word))
+        self.panel_atlas_count()
     }
 
-    /// The second panel atlas, if one was reserved: see [`Self::reserve_panel_atlas`].
-    pub fn panel_atlas(&self) -> Option<((u16, u16), u16)> {
-        if matches!(self.panel_atlas_region, VramHandle::Empty) {
+    /// How many extra panel atlases were got (they are got in order).
+    pub fn panel_atlas_count(&self) -> usize {
+        self.panel_atlas_regions
+            .iter()
+            .take_while(|r| !matches!(r, VramHandle::Empty))
+            .count()
+    }
+
+    /// The top-left pixel and texture-page word of the first page of extra panel atlas `which`,
+    /// if it was got: see [`Self::reserve_panel_atlases`].
+    pub fn panel_atlas(&self, which: usize) -> Option<((u16, u16), u16)> {
+        if which >= self.panel_atlas_count() {
             return None;
         }
-        let word = self.panel_atlas_word;
+        let word = self.panel_atlas_words[which];
+        // The tpage word encodes the page exactly: x / 64 and y / 256.
         Some((((word & 0xF) * 64, ((word >> 4) & 1) * 256), word))
     }
 
@@ -2274,12 +2285,14 @@ impl<
     /// no model, sky, shadow, or particle allocation crosses this edge.
     pub fn release_gameplay_vram(&mut self) {
         self.release_streamed_sky();
-        if !matches!(self.panel_atlas_region, VramHandle::Empty) {
-            self.allocator.free(core::mem::replace(
-                &mut self.panel_atlas_region,
-                VramHandle::Empty,
-            ));
-            self.panel_atlas_word = 0;
+        for k in 0..EXTRA_ATLASES {
+            if !matches!(self.panel_atlas_regions[k], VramHandle::Empty) {
+                self.allocator.free(core::mem::replace(
+                    &mut self.panel_atlas_regions[k],
+                    VramHandle::Empty,
+                ));
+                self.panel_atlas_words[k] = 0;
+            }
         }
         self.panel_atlas_tried = false;
         // Scene transitions happen after the loader has drained uploads. Reset

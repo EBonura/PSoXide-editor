@@ -24,7 +24,7 @@ use crate::render::{CELLS, CENTRAL_ROWS, COLS, HEADINGS, MESH, ROWS, TILES};
 /// Bytes of a sector.
 pub const SECTOR: usize = 2048;
 /// Sectors of a group, the unit of a read.
-pub const GROUP_SECTORS: usize = 6;
+pub const GROUP_SECTORS: usize = 4;
 /// Bytes of a group.
 pub const GROUP_BYTES: usize = GROUP_SECTORS * SECTOR;
 /// Bytes of the tile masks at the start of the index.
