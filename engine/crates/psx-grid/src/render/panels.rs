@@ -66,6 +66,9 @@ pub const CENTRE_COLUMN: i32 = COLS as i32 * TILE_TEXELS / 2;
 pub const CENTRAL_ROWS: u8 = ((1u16 << ROWS) - 1) as u8;
 /// Tile value of an atlas slot that holds nothing.
 pub const NO_TILE_SLOT: u8 = 0xff;
+/// Tile value of a tile a panel stores nothing for (the sky): only the fade of a crossing tells
+/// it from a picture that is not there yet.
+pub const TILE_EMPTY: u8 = 0xfe;
 /// Bytes of a panel's header sector that the depth mesh takes.
 pub const HEADER_DEPTH_BYTES: usize = MESH;
 /// Mesh cells of a panel that hold a picture: [`CELLS_X`] by [`CELLS_Y`] to a tile.
@@ -218,10 +221,11 @@ pub struct PanelFade<'a> {
     pub level: &'a [u8],
     /// The level of a cell more than one room shows.
     pub mixed: u8,
-    /// Per tile, the slot of the other side's panel of the same heading (the old tiles for an
-    /// entering panel, the new for a leaving one), or [`NO_TILE_SLOT`]: a cell with nothing
-    /// to change over from or to is drawn as it is.
-    pub partner: &'a [u8; TILES],
+    /// Per tile, what the other side's panel of the same heading has there (the old tiles for an
+    /// entering panel, the new for a leaving one): the slot holding it, [`TILE_EMPTY`] when it
+    /// shows nothing there (sky), or [`NO_TILE_SLOT`] when it has a picture there that is not in
+    /// VRAM. Without a picture to stand in for, a cell is drawn as it is.
+    pub partner: [u8; TILES],
 }
 
 impl PanelFade<'_> {
@@ -237,6 +241,7 @@ impl PanelFade<'_> {
                 .copied()
                 .unwrap_or(FADE_DONE)
         };
+        // A picture that is not in VRAM cannot be changed over from or to: the cell shows as it is.
         let alone = self.partner[tile] == NO_TILE_SLOT;
         match self.role {
             FadeRole::Entering => match level {
@@ -439,6 +444,71 @@ const SEAM_Q12: i32 = 1697;
 /// panel of five columns (one texel to a pixel), and as much longer as the texels are larger.
 const MAX_EDGE: i32 = 96 * 5 / COLS as i32;
 
+/// Measurement: the fate of every cell of every panel drawn in a frame.
+#[cfg(feature = "panel-trace")]
+pub mod trace {
+    /// A tile with a picture to draw that is not in VRAM.
+    pub const NO_SLOT: u8 = 1;
+    /// A cell past the seam, drawn by the next panel.
+    pub const SEAM: u8 = 2;
+    /// A cell of a room the camera draws whole.
+    pub const REAL: u8 = 3;
+    /// A cell the crossing fade holds back.
+    pub const FADE_SKIP: u8 = 4;
+    /// A cell that went on to be projected.
+    pub const WANTED: u8 = 5;
+    /// Drawn.
+    pub const DRAWN: u8 = 6;
+    /// Culled: this plus the reason of `drawable_why` (1 near plane, 2 off screen, 3 size, 4 edge).
+    pub const CULL_BASE: u8 = 10;
+    /// Entries of the table.
+    pub const LEN: usize = 192;
+
+    /// `heading << 24 | tile << 16 | cell << 8 | fate`, from `PANEL_TRACE[0]`.
+    #[no_mangle]
+    pub static mut PANEL_TRACE: [u32; LEN] = [0; LEN];
+    /// Entries written this frame.
+    #[no_mangle]
+    pub static mut PANEL_TRACE_LEN: u32 = 0;
+
+    /// The last frame's table, whole: a dump of RAM taken mid-frame reads this.
+    #[no_mangle]
+    pub static mut PANEL_TRACE_SHOWN: [u32; LEN] = [0; LEN];
+    /// Entries of [`PANEL_TRACE_SHOWN`].
+    #[no_mangle]
+    pub static mut PANEL_TRACE_SHOWN_LEN: u32 = 0;
+
+    /// End a frame: keep its table.
+    pub fn latch() {
+        // SAFETY: single-threaded guest.
+        unsafe {
+            PANEL_TRACE_SHOWN = PANEL_TRACE;
+            PANEL_TRACE_SHOWN_LEN = PANEL_TRACE_LEN;
+        }
+    }
+
+    /// Start a frame.
+    pub fn begin() {
+        // SAFETY: single-threaded guest.
+        unsafe { PANEL_TRACE_LEN = 0 };
+    }
+
+    /// Record one cell's fate (a fate of 40 carries a room in the heading's place).
+    pub fn note(heading: u8, tile: usize, cell: usize, fate: u8) {
+        // SAFETY: single-threaded guest.
+        unsafe {
+            let at = PANEL_TRACE_LEN as usize;
+            if at < LEN {
+                PANEL_TRACE[at] = (u32::from(heading) << 24)
+                    | ((tile as u32 & 255) << 16)
+                    | ((cell as u32 & 255) << 8)
+                    | u32::from(fate);
+                PANEL_TRACE_LEN = at as u32 + 1;
+            }
+        }
+    }
+}
+
 /// Draw the tiles of `panel` that are in VRAM.
 ///
 /// The GTE must hold the world view (rotation and the translation of the world origin).
@@ -455,6 +525,21 @@ pub fn draw_panel(
 ) -> GridFrame {
     let mut frame = GridFrame::default();
     scratch.clear();
+    #[cfg(feature = "panel-trace")]
+    {
+        let mask = panel.slots.iter().enumerate().fold(0usize, |m, (k, &s)| {
+            m | (usize::from(s != NO_TILE_SLOT) << k)
+        });
+        let role = match panel.fade {
+            None => 0,
+            Some(PanelFade {
+                role: FadeRole::Entering,
+                ..
+            }) => 1,
+            Some(_) => 2,
+        };
+        trace::note(panel.heading, role, mask, 20);
+    }
     let start = out.as_mut_ptr();
     // SAFETY: one past the end of the slice.
     let end = unsafe { start.add(out.len()) };
@@ -480,6 +565,8 @@ pub fn draw_panel(
             let tile = col * ROWS + row;
             let slot = panel.slots[tile];
             if slot == NO_TILE_SLOT {
+                #[cfg(feature = "panel-trace")]
+                trace::note(panel.heading, tile, 0xff, trace::NO_SLOT);
                 continue;
             }
             frame.cells_visible += 1;
@@ -504,6 +591,23 @@ pub fn draw_panel(
                 if let (true, Some(fade)) = (*w, panel.fade.as_ref()) {
                     modes[k] = fade.mode(room, tile);
                     *w = modes[k] != 0;
+                }
+                #[cfg(feature = "panel-trace")]
+                if room != CELL_EMPTY {
+                    let code = if across > SEAM_Q12 || across <= -SEAM_Q12 {
+                        trace::SEAM
+                    } else if !*w
+                        && room != CELL_MIXED
+                        && skip.get(usize::from(room)).copied().unwrap_or(false)
+                    {
+                        trace::REAL
+                    } else if !*w {
+                        trace::FADE_SKIP
+                    } else {
+                        trace::WANTED
+                    };
+                    trace::note(panel.heading, tile, k, code);
+                    trace::note(room, 0, 0, 40);
                 }
                 any |= *w;
             }
@@ -603,6 +707,13 @@ pub fn draw_panel(
                             _ => frame.robust_quads += 1,
                         }
                         frame.screen_culled += 1;
+                        #[cfg(feature = "panel-trace")]
+                        trace::note(
+                            panel.heading,
+                            tile,
+                            cy * CELLS_X + cx,
+                            trace::CULL_BASE + why,
+                        );
                         continue;
                     }
 
@@ -611,8 +722,14 @@ pub fn draw_panel(
                         + u32::from(s[2].sz)
                         + u32::from(s[3].sz);
                     let mode = modes[cy * CELLS_X + cx];
+                    #[cfg(feature = "panel-trace")]
+                    trace::note(panel.heading, tile, cy * CELLS_X + cx, trace::DRAWN);
                     let layers: usize = if mode == 3 { 2 } else { 1 };
-                    let blend = if mode >= 2 { Blend::Average } else { Blend::Opaque };
+                    let blend = if mode >= 2 {
+                        Blend::Average
+                    } else {
+                        Blend::Opaque
+                    };
                     let otz = panel_slot(sum, camera.otz_floor, panel.heading, under);
                     // SAFETY: both pointers lie in the packet storage.
                     let left = unsafe {
@@ -703,6 +820,60 @@ mod tests {
                     let next = panel_slot(sum, floor, (heading + 1) % HEADINGS as u8, 0);
                     assert_ne!(slot, next, "{sum} {floor} {heading}");
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn a_cell_of_a_room_changing_over_is_drawn_by_the_side_it_is_on() {
+        let under = [3u8; TILES];
+        let mut alone = [3u8; TILES];
+        alone[1] = NO_TILE_SLOT;
+        let levels = [0u8, 1, 2, FADE_DONE];
+        fn fade(role: FadeRole, level: &[u8], partner: [u8; TILES]) -> PanelFade<'_> {
+            PanelFade {
+                role,
+                level,
+                mixed: 1,
+                partner,
+            }
+        }
+        let entering = fade(FadeRole::Entering, &levels, under);
+        // New cells: none, a half layer, two half layers, whole.
+        assert_eq!(
+            [0, 1, 2, 3].map(|room| entering.mode(room, 0)),
+            [0, 2, 3, 1]
+        );
+        let leaving = fade(FadeRole::Leaving, &levels, under);
+        // Old cells: drawn until the room is done.
+        assert_eq!([0, 1, 2, 3].map(|room| leaving.mode(room, 0)), [1, 1, 1, 0]);
+        // Nothing to change over from or to: the cell is drawn as it is, at any level.
+        let entering = fade(FadeRole::Entering, &levels, alone);
+        assert_eq!([0, 1, 3].map(|room| entering.mode(room, 1)), [1, 1, 1]);
+        let leaving = fade(FadeRole::Leaving, &levels, alone);
+        assert_eq!(leaving.mode(3, 1), 1);
+        // Where the other eye shows nothing (sky) the new cells come in over it, and the old
+        // ones leave once their room is done.
+        let mut sky = [3u8; TILES];
+        sky[2] = TILE_EMPTY;
+        let entering = fade(FadeRole::Entering, &levels, sky);
+        assert_eq!(
+            [0, 1, 2, 3].map(|room| entering.mode(room, 2)),
+            [0, 2, 3, 1]
+        );
+        let leaving = fade(FadeRole::Leaving, &levels, sky);
+        assert_eq!([0, 1, 2, 3].map(|room| leaving.mode(room, 2)), [1, 1, 1, 0]);
+        // A cell of several rooms follows the mixed level, a room past the list is done.
+        let entering = fade(FadeRole::Entering, &levels, under);
+        assert_eq!(entering.mode(CELL_MIXED, 0), 2);
+        assert_eq!(entering.mode(100, 0), 1);
+    }
+
+    #[test]
+    fn the_cells_under_a_crossing_stay_inside_the_table() {
+        for sum in (0..70_000u32).step_by(11) {
+            for heading in 0..HEADINGS as u8 {
+                assert!(panel_slot(sum, 2047, heading, 2) <= 2047);
             }
         }
     }
@@ -904,4 +1075,3 @@ mod tests {
         assert_eq!(frame.packet_words, 22);
     }
 }
-

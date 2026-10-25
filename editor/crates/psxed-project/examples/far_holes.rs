@@ -70,6 +70,61 @@ fn parse_poses(path: &Path) -> Vec<Pose> {
     out
 }
 
+/// The camera of every presented frame of a route log that watched `PANEL_POSE` (eight words from
+/// column `col`: the eye, then the rotation packed in 16 bits), taken `lag` presented frames
+/// before the one on screen: the frame shown at a flip was drawn a little earlier.
+fn poses_from_csv(path: &Path, col: usize, lag: usize) -> Vec<Pose> {
+    let text = std::fs::read_to_string(path).expect("read the route log");
+    let mut rows: Vec<(u32, u64, Pose)> = Vec::new();
+    for line in text.lines().skip(1) {
+        let f: Vec<&str> = line.split(',').collect();
+        let word = |k: usize| f.get(col + k).and_then(|v| v.parse::<u32>().ok());
+        let (Some(tick), Some(cycles)) = (
+            f.first().and_then(|v| v.parse::<u32>().ok()),
+            f.get(3).and_then(|v| v.parse::<u64>().ok()),
+        ) else {
+            continue;
+        };
+        let flipped = f.get(10).is_some_and(|v| *v != "0");
+        let (Some(x), Some(y), Some(z)) = (word(0), word(1), word(2)) else {
+            continue;
+        };
+        let mut r = [0i16; 9];
+        for k in 0..4 {
+            let Some(w) = word(3 + k) else { break };
+            r[2 * k] = w as u16 as i16;
+            r[2 * k + 1] = (w >> 16) as u16 as i16;
+        }
+        r[8] = word(7).unwrap_or(0) as u16 as i16;
+        if !flipped || (x | y | z) == 0 {
+            continue;
+        }
+        rows.push((
+            tick,
+            cycles,
+            Pose {
+                frame: tick,
+                cycles,
+                eye: [x as i32 as f32, y as i32 as f32, z as i32 as f32],
+                rot: [[r[0], r[1], r[2]], [r[3], r[4], r[5]], [r[6], r[7], r[8]]],
+                bake_eye: 0,
+            },
+        ));
+    }
+    (lag..rows.len())
+        .map(|k| {
+            let p = &rows[k - lag].2;
+            Pose {
+                frame: rows[k].0,
+                cycles: rows[k].1,
+                eye: p.eye,
+                rot: p.rot,
+                bake_eye: 0,
+            }
+        })
+        .collect()
+}
+
 struct GameFrames {
     dir: PathBuf,
     /// `(bus cycles, route tick)` of every route log row.
@@ -172,8 +227,32 @@ fn main() {
     let real_r = real_sectors * sector;
     let world = World::new(&cooked, &albedo, Some(panel_textures(&project, &root, &cooked)));
     println!("level: {} rooms, {} triangles, sector {sector}", world.rooms(), world.triangles());
+    // The bake eyes, to say which hole pixels lie in rooms the eye in use leaves out of its
+    // panels (the rooms the game draws whole from anywhere within reach of it).
+    let mut scaled = project.clone();
+    psxed_project::units::scale_project_to_engine_units(&mut scaled);
+    let sgrid = scaled.active_scene().world.grid().expect("a grid world");
+    let eyes: Vec<[f32; 3]> = psxed_project::playtest::panel_eyes(&scaled, sgrid, &cooked, 10)
+        .iter()
+        .map(|e| e.eye)
+        .collect();
+    let box_distance = |room: usize, p: [f32; 3]| -> f32 {
+        world.room_bounds(room).map_or(f32::MAX, |(lo, hi)| {
+            let dx = (lo[0] - p[0]).max(0.0).max(p[0] - hi[0]);
+            let dz = (lo[2] - p[2]).max(0.0).max(p[2] - hi[2]);
+            (dx * dx + dz * dz).sqrt() / sector
+        })
+    };
+    let mut classes = [0usize; 4];
     let game = GameFrames::open(Path::new(&args[2]));
-    let mut poses = parse_poses(Path::new(&args[1]));
+    let mut poses = match arg(&args, "pose_col") {
+        Some(col) => poses_from_csv(
+            Path::new(&args[1]),
+            col as usize,
+            arg(&args, "lag").unwrap_or(1.0) as usize,
+        ),
+        None => parse_poses(Path::new(&args[1])),
+    };
     poses.retain(|p| p.frame >= from);
     println!("poses: {}", poses.len());
     let mut results: Vec<(f64, u32, u32, RgbImage)> = Vec::new();
@@ -190,6 +269,7 @@ fn main() {
             })
         };
         let real = world.render(&cam, 2, &near).resolve(2);
+        let mut hole_rooms: std::collections::HashMap<u16, usize> = std::collections::HashMap::new();
         let mut image = RgbImage::new(320 * 3, 240);
         let (mut seen, mut holes, mut extra) = (0usize, 0usize, 0usize);
         for y in 0..240usize {
@@ -212,6 +292,27 @@ fn main() {
                 let hole = t_cov && sky;
                 let spare = !t_cov && !sky;
                 holes += usize::from(hole);
+                if hole {
+                    *hole_rooms.entry(truth.room[at]).or_default() += 1;
+                }
+                if hole && truth.room[at] != u16::MAX {
+                    let room = usize::from(truth.room[at]);
+                    let at_eye = eyes
+                        .iter()
+                        .copied()
+                        .min_by(|a, b| {
+                            let d = |e: &[f32; 3]| (0..3).map(|k| (e[k] - pose.eye[k]).powi(2)).sum::<f32>();
+                            d(a).total_cmp(&d(b))
+                        })
+                        .unwrap_or(pose.eye);
+                    let class = match (box_distance(room, at_eye) <= 3.44, box_distance(room, pose.eye) <= 12.0) {
+                        (true, true) => 0,
+                        (true, false) => 1,
+                        (false, true) => 2,
+                        (false, false) => 3,
+                    };
+                    classes[class] += 1;
+                }
                 extra += usize::from(spare);
                 let mark = if hole {
                     [255, 0, 0]
@@ -227,6 +328,12 @@ fn main() {
         tot_holes += holes;
         tot_extra += extra;
         let pct = 100.0 * holes as f64 / seen.max(1) as f64;
+        if pct > 20.0 {
+            let mut v: Vec<_> = hole_rooms.iter().collect();
+            v.sort_by_key(|e| std::cmp::Reverse(*e.1));
+            let top: Vec<String> = v.iter().take(4).map(|(r, n)| format!("room {r}: {n}")).collect();
+            println!("  HOLEROOMS f{} {}", pose.frame, top.join(", "));
+        }
         println!(
             "F f{} tick {tick} eye {} far {seen} holes {pct:.1}% extra {:.1}%",
             pose.frame,
@@ -235,6 +342,10 @@ fn main() {
         );
         results.push((pct, pose.frame, tick, image));
     }
+    println!(
+        "HOLE rooms: left out of the eye's panels and within 12 sectors of the camera {}, left out and farther {}, not left out but within 12 {}, neither {}",
+        classes[0], classes[1], classes[2], classes[3]
+    );
     println!(
         "TOTAL far pixels {tot_seen} holes {:.2}% extra {:.2}%",
         100.0 * tot_holes as f64 / tot_seen.max(1) as f64,

@@ -646,6 +646,33 @@ fn main() {
                 );
             }
         }
+        Some("walk") => {
+            use psxed_project::grid::walk::{analyse, player_spawns};
+            let mut scaled = project.clone();
+            psxed_project::units::scale_project_to_engine_units(&mut scaled);
+            let sgrid = scaled.active_scene().world.grid().expect("a grid world");
+            let spawns = player_spawns(&scaled, sgrid);
+            let analysis = analyse(sgrid, &spawns, &psx_engine::WalkLimits::DEFAULT).expect("walk");
+            for (ri, room) in sgrid.rooms.iter().enumerate() {
+                let (mut floors, mut stand, mut unreach, mut ghost, mut steep, mut low) = (0, 0, 0, 0, 0, 0);
+                for (lx, lz, sec) in room.iter() {
+                    floors += usize::from(sec.ground_floor().is_some());
+                    if let Some(w) = analysis.rooms.get(ri).and_then(|r| r.cell([room.origin[0] + lx as i32, room.origin[1] + lz as i32])) {
+                        stand += usize::from(w.standable);
+                        unreach += usize::from(w.unreachable);
+                        ghost += usize::from(w.ghost);
+                        steep += usize::from(w.steep);
+                        low += usize::from(w.low_headroom);
+                    }
+                }
+                println!("room {ri:3} floors {floors:4} standable {stand:4} unreachable {unreach:4} ghost {ghost:4} steep {steep:4} low {low:4}");
+            }
+        }
+        Some("eyes") => {
+            for (i, e) in setup.eyes.iter().enumerate() {
+                println!("eye {i:3} at ({:6.1}, {:5.1}, {:6.1})", e[0] / sector, e[1] / sector, e[2] / sector);
+            }
+        }
         Some("eval") => eval(&setup, &args),
         _ => eprintln!("usage: bb_lab <project.ron> info|eval ..."),
     }

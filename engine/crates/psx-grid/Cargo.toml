@@ -12,6 +12,8 @@ workspace = true
 [features]
 # Host-side writer and cook helpers (needs `std`). The guest never enables it.
 std = []
+# Measurement: every far panel cell's fate in a frame, kept at a fixed address (`PANEL_TRACE`).
+panel-trace = []
 
 [dependencies]
 # Explicit paths (not `workspace = true`): the crate is consumed from the
