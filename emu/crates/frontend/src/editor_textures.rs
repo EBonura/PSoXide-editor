@@ -1740,9 +1740,8 @@ mod tests {
     use psx_gpu::material::TextureWindow;
     use psx_gpu_render::VRAM_WIDTH;
     use psxed_project::{
-        GeneratedMaterialTexture, MaterialResource, MaterialTextureMode,
-        ModelSecondaryLayer, NodeKind, ProjectDocument, PsxBlendMode, ResourceData,
-        TransitionMaterialTexture,
+        GeneratedMaterialTexture, MaterialResource, MaterialTextureMode, ModelSecondaryLayer,
+        NodeKind, ProjectDocument, PsxBlendMode, ResourceData, TransitionMaterialTexture,
     };
     use std::path::{Path, PathBuf};
 

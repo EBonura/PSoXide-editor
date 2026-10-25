@@ -199,11 +199,7 @@ fn solve_world(inputs: &Inputs<'_>, world: &GridWorld, full: bool) -> Option<Sol
     let scene = LightScene::new(world).ok()?;
     let faces = psxed_project::grid::faces::all_faces_with(world, &());
     let root = inputs.project_root.clone().unwrap_or_default();
-    let albedo = AlbedoTable::from_project(
-        inputs.project,
-        &root,
-        faces.iter().map(|f| f.material),
-    );
+    let albedo = AlbedoTable::from_project(inputs.project, &root, faces.iter().map(|f| f.material));
     drop(faces);
     let field = solve(&GatherInput {
         world,
