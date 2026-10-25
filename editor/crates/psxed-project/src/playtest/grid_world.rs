@@ -656,6 +656,11 @@ pub fn panel_eyes(
             }
         }
         taken.clear();
+        // In sector order: the hash map's own order differs from run to run, and the eyes' means
+        // are sums of floats, so a cook of the same level put the eyes in slightly different
+        // places every time.
+        let mut candidates: Vec<_> = candidates.into_iter().collect();
+        candidates.sort_by_key(|&(at, _)| at);
         for ((cx, cz), (_, k, y)) in candidates {
             let x = (cx * sector + sector / 2) as f32;
             let z = (cz * sector + sector / 2) as f32;
