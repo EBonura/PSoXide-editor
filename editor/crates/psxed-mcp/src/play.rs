@@ -82,16 +82,16 @@ pub fn build_disc_with(
         .arg("build-project-disc")
         .arg("--project")
         .arg(project_dir);
-    if features.telemetry || features.track {
-        let mut list = String::from("cd-stream-bench");
-        if features.telemetry {
-            list.push_str(" emulator-telemetry");
-        }
-        if features.track {
-            list.push_str(" camera-pose-log");
-        }
-        command.env("EDITOR_PLAYTEST_FEATURES", list);
+    // These builds are validation runs read through the terminal (the duel and sample logs), so
+    // they ask for the SDK's debug TTY, which is off in every other build.
+    let mut list = String::from("cd-stream-bench host-tty");
+    if features.telemetry {
+        list.push_str(" emulator-telemetry");
     }
+    if features.track {
+        list.push_str(" camera-pose-log");
+    }
+    command.env("EDITOR_PLAYTEST_FEATURES", list);
     let output = command
         .output()
         .map_err(|error| format!("run {}: {error}", frontend.display()))?;
