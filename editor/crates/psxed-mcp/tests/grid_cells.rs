@@ -19,11 +19,8 @@ fn new_project(tmp: &Path) -> PathBuf {
     let projects = tmp.join("projects");
     std::fs::create_dir_all(&projects).expect("create projects");
     for name in ["default", "graybox-reach"] {
-        std::os::unix::fs::symlink(
-            repo_root().join("editor/projects").join(name),
-            projects.join(name),
-        )
-        .expect("link a base project");
+        std::os::unix::fs::symlink(repo_root().join("projects").join(name), projects.join(name))
+            .expect("link a base project");
     }
     let project = projects.join("cells");
     let made = std::process::Command::new(env!("CARGO_BIN_EXE_psxed-mcp"))
@@ -179,14 +176,14 @@ fn verbs_walls_and_floors_work_on_cells_smaller_than_a_sector() {
 /// Builds the T9 demo project through the protocol: a 12 by 12 sector open
 /// floor of big cells with one corner of quarter-sector cells holding a
 /// staircase of fine treads. Run it with
-/// `PSXED_CELLS_DEMO=<dir under editor/projects> cargo test -p psxed-mcp --test grid_cells -- --ignored build_the_cells_demo`.
+/// `PSXED_CELLS_DEMO=<dir under projects> cargo test -p psxed-mcp --test grid_cells -- --ignored build_the_cells_demo`.
 #[test]
 #[ignore]
 fn build_the_cells_demo() {
     let Ok(dir) = std::env::var("PSXED_CELLS_DEMO") else {
         return;
     };
-    let projects = repo_root().join("editor/projects");
+    let projects = repo_root().join("projects");
     let project = projects.join(&dir);
     let _ = std::fs::remove_dir_all(&project);
     let made = std::process::Command::new(env!("CARGO_BIN_EXE_psxed-mcp"))
@@ -286,7 +283,7 @@ fn play_the_cells_demo() {
     let Ok(dir) = std::env::var("PSXED_CELLS_DEMO") else {
         return;
     };
-    let project = repo_root().join("editor/projects").join(dir);
+    let project = repo_root().join("projects").join(dir);
     let mut c = Client::start(&["--project", project.to_str().unwrap()], &[], &repo_root());
     let run = c.ok(
         "playtest",
@@ -319,7 +316,7 @@ fn build_the_natural_cells_demo() {
     let Ok(dir) = std::env::var("PSXED_NATURAL_DEMO") else {
         return;
     };
-    let projects = repo_root().join("editor/projects");
+    let projects = repo_root().join("projects");
     let project = projects.join(&dir);
     let _ = std::fs::remove_dir_all(&project);
     let made = std::process::Command::new(env!("CARGO_BIN_EXE_psxed-mcp"))

@@ -1,7 +1,7 @@
 # The octagonal tower of docs/grid/multi-storey.md section 8, built only with
 # the server's tools. One call per line: the tool, then its arguments as JSON.
 # Run by tests/grid_tower.rs; a project this builds is what
-# editor/projects/grid-tower holds.
+# projects/grid-tower holds.
 
 # 1. The starter room's 6 by 6 floor goes; the tower grows its own footprint.
 grid_remove_surface {"kind":"floor","from":[0,0],"to":[5,5]}

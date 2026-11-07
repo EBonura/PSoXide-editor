@@ -4,7 +4,7 @@
             name: "grid_starter",
             category: Project,
             artifact: Project(
-                project: "editor/projects/grid-starter",
+                project: "projects/grid-starter",
             ),
             checkpoints: [
                 (

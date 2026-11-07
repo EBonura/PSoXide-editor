@@ -52,7 +52,7 @@
 #   CORTEX_PGO_PROFILE         reuse this profile (made from the same stage root
 #                              and features) and only run the optimised build
 #   CORTEX_PGO_CONVERTER       psoxide-pgo executable (default: the locked one)
-#   CORTEX_PGO_PROJECT         project.ron (default: editor/projects/default)
+#   CORTEX_PGO_PROJECT         project.ron (default: projects/default)
 #   CORTEX_PGO_WORK            scratch directory, no spaces (default: build/cortex-pgo)
 #   CORTEX_PGO_FLAGS           profile-use flags for the optimised build
 #                              (default: the measured variant above)
@@ -62,7 +62,7 @@
 set -eu
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PROJECT="${CORTEX_PGO_PROJECT:-editor/projects/default/project.ron}"
+PROJECT="${CORTEX_PGO_PROJECT:-projects/default/project.ron}"
 case "$PROJECT" in /*) ;; *) PROJECT="$ROOT/$PROJECT" ;; esac
 TAPE="${CORTEX_PGO_TAPE:?set CORTEX_PGO_TAPE to a poll-bound .pxtape to profile}"
 WORK="${CORTEX_PGO_WORK:-$ROOT/build/cortex-pgo}"

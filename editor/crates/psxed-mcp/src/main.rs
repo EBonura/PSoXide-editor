@@ -7,8 +7,8 @@
 //! level with it.
 //!
 //! ```bash
-//! psxed-mcp --project editor/projects/default
-//! psxed-mcp --new editor/projects/scratch   # a New Grid Project, then exit
+//! psxed-mcp --project projects/default
+//! psxed-mcp --new projects/scratch   # a New Grid Project, then exit
 //! ```
 
 mod tools;
@@ -63,7 +63,7 @@ fn new_project(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut project = PathBuf::from("editor/projects/default");
+    let mut project = PathBuf::from("projects/default");
     let mut new_at: Option<PathBuf> = None;
     let mut frontend: Option<PathBuf> = None;
     let mut scratch: Option<PathBuf> = None;

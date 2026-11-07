@@ -1,11 +1,11 @@
 //! The streaming corridor: sixteen rooms in a row, built only with the server's
 //! tools, with a short draw distance so the player can walk further than the
 //! room pool holds. It is the project the streamer is measured on
-//! (`editor/projects/grid-corridor`): every step east asks the disc for a room
+//! (`projects/grid-corridor`): every step east asks the disc for a room
 //! ahead and gives one behind back.
 //!
 //! `PSXED_CORRIDOR_OUT=<dir>` builds the project at `<dir>` (which must not
-//! exist yet) instead of a temporary one: how `editor/projects/grid-corridor`
+//! exist yet) instead of a temporary one: how `projects/grid-corridor`
 //! is made.
 
 mod common;
@@ -42,7 +42,7 @@ fn the_corridor_is_built_with_the_tools_and_cooks() {
     if out.is_none() {
         for name in ["default", "graybox-reach"] {
             std::os::unix::fs::symlink(
-                repo.join("editor/projects").join(name),
+                repo.join("projects").join(name),
                 tmp.join("projects").join(name),
             )
             .expect("link a base project");

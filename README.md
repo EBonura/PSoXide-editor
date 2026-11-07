@@ -6,14 +6,16 @@ Start with the [PSoXide Demo Disc](https://bonnie-studios.itch.io/psoxide-demo-d
 and the other Bonnie Studios PlayStation demos. Standalone downloads are available
 for testing just this project.
 
-The PlayStation editor, runtime engine and Cortex Ignition live together here.
+The PlayStation editor and the projects it edits (Cortex Ignition among them) live here.
 Author sector-grid levels, materials, animation, audio and UI, then cook a
 project into a PS1 disc and playtest it with the integrated emulator.
 
-[The SDK](https://github.com/EBonura/PSoXide) retains the original repository
-URL. [The emulator](https://github.com/EBonura/PSoXide-emulator) owns CPU and
-peripheral emulation. This repository pins both components and keeps the
-editor's preview and playtest UI with the engine and game content.
+[The SDK](https://github.com/EBonura/PSoXide) owns the runtime engine (`engine/`: psx-engine,
+psx-bsp, psx-goldsrc, psx-grid, the editor-playtest runtime), the content pipeline crates
+(`crates/psxed-*`) and the host tools. [The emulator](https://github.com/EBonura/PSoXide-emulator)
+owns CPU and peripheral emulation. This repository pins both, hydrates them with
+`make bootstrap`, and keeps the editor UI (`editor/crates/psxed-ui`, `psxed-mcp`), the
+editor-owned frontend modules and the projects (`projects/`).
 
 ## Build
 
@@ -29,7 +31,7 @@ make run
 ```
 
 `make run-release` builds the release editor. Cortex's current project is
-`editor/projects/cortex-ignition-tech-demo-0.4b`; earlier versions and assets
+`projects/cortex-ignition-tech-demo-0.4b`; earlier versions and assets
 remain in the source history. PS1 release builds need no external MIPS
 binutils: the post-link hazard and stack checks decode instructions with the
 in-tree `psx-disasm` crate. Only a few optional analysis scripts

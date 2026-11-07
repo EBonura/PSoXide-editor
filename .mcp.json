@@ -9,7 +9,7 @@
         "psxed-mcp",
         "--",
         "--project",
-        "editor/projects/default"
+        "projects/default"
       ]
     }
   }

@@ -12,7 +12,7 @@
 # SDK and engine examples are compiled individually with explicit PSX
 # cargo flags from this Makefile.
 
-.PHONY: help check test canaries fmt lint lint-policy-guard runtime-numeric-guard clean clean-guest-stage run run-fast run-release editor-ui-screenshot ui-screens ui-bless pgo web web-bundle web-stage-disc itch-web validate validate-repeat validate-bless \
+.PHONY: help check test canaries fmt fmt-check lint lint-policy-guard runtime-numeric-guard clean clean-guest-stage run run-fast run-release editor-ui-screenshot ui-screens ui-bless pgo web web-bundle web-stage-disc itch-web validate validate-repeat validate-bless \
         test-sdk \
         psxed assets \
 	examples hello-tri hello-tri-disc hello-input hello-input-disc hello-ot hello-ot-disc \
@@ -146,7 +146,7 @@ run:
 run-fast:
 	cd emu && cargo run -p psoxide-emulator --features editor --profile run-fast
 
-EDITOR_UI_PROJECT ?= editor/projects/default
+EDITOR_UI_PROJECT ?= projects/default
 EDITOR_UI_VIEW ?= animation
 EDITOR_UI_RESOURCE ?= Stand To Roll
 EDITOR_UI_OUT ?= /tmp/psoxide-editor-ui.png
@@ -246,20 +246,14 @@ validate-repeat:
 validate-bless:
 	cd emu && cargo run -p psoxide-emulator --features editor --release -- validate --manifest ../validation/suite.ron --bless
 
+# engine/, sdk/ and the content crates are hydrated from the SDK, which runs their own checks, tests
+# and lints; this workspace builds and tests the editor, the hydrated frontend and the hydrated
+# psxed-project (its tests read the projects/ and assets/ here).
 check:
 	cargo check --workspace --all-features
-	cd engine && cargo check --workspace --all-features
-	cd sdk && cargo check --workspace --all-features
 
 test:
 	cargo test --workspace --features psoxide-emulator/editor
-	cd engine && cargo test --workspace
-	cd sdk && cargo test --workspace
-# `editor-playtest` declares its own `[workspace]`, so the three lines above
-# never reach it and its `#[cfg(test)]` modules went unrun for their whole
-# existence. It host-compiles only because `no_std`/`no_main`/`no_mangle main`
-# are gated on `not(test)`; running it here is what keeps that gating honest.
-	cd engine/examples/editor-playtest && cargo test
 
 canaries:
 	cargo test --workspace --features psoxide-emulator/editor -- --ignored
@@ -269,20 +263,22 @@ canaries:
 # `cargo fmt --all` never reaches these files; format them directly.
 FRONTEND_EDITOR_RS := $(addprefix emu/crates/frontend/src/,editor_assets.rs editor_preview.rs editor_textures.rs embedded_playtest.rs playtest_disc.rs)
 
+# Only the files this repository owns: `cargo fmt --all` would also reach the hydrated SDK, engine
+# and content crates, which are formatted by their own repository.
+EDITOR_RS := $(shell find editor/crates -name '*.rs' -not -path '*/target/*')
+
 fmt:
-	cargo fmt --all
-	rustfmt --edition 2021 $(FRONTEND_EDITOR_RS)
-	cd engine && cargo fmt --all
-	cd sdk && cargo fmt --all
-	cd engine/examples/editor-playtest && cargo fmt
+	rustfmt --edition 2021 $(EDITOR_RS) $(FRONTEND_EDITOR_RS)
+
+fmt-check:
+	rustfmt --edition 2021 --check $(EDITOR_RS) $(FRONTEND_EDITOR_RS)
 
 lint:
 	$(PSOXIDE_DEV) lint-policy-guard
 	$(PSOXIDE_DEV) runtime-numeric-guard
-	cargo clippy --workspace --all-targets --all-features -- -D warnings
-	cd engine && cargo clippy --workspace --all-targets --all-features -- -D warnings
-	cd sdk && cargo clippy --workspace --all-targets --all-features -- -D warnings
-	cd engine/examples/hardware-tests && CARGO_TARGET_DIR="$(CURDIR)/build/examples-clippy" cargo clippy --release $(EDITOR_PLAYTEST_PSX_BUILD_FLAGS) -- -D warnings
+	# The editor crates only: the hydrated emulator-core fails clippy -D warnings under these
+	# lints (redundant closures, is_multiple_of) and is the emulator repository's to fix.
+	cargo clippy -p psxed-ui -p psxed-mcp --all-targets --all-features -- -D warnings
 
 lint-policy-guard:
 	$(PSOXIDE_DEV) lint-policy-guard
@@ -292,8 +288,6 @@ runtime-numeric-guard:
 
 clean: clean-guest-stage
 	cargo clean
-	cd engine && cargo clean
-	cd sdk && cargo clean
 	rm -rf build
 
 # Drop the canonical guest staging tree. It lives outside the repository and
@@ -310,6 +304,10 @@ test-sdk: examples
 	cd emu && cargo test -p emulator-core --release --test sdk_milestones -- --ignored --nocapture
 
 # --- SDK examples ---------------------------------------------------------
+
+# Engine examples, the hardware-test suite build and discs, psxed and assets come from the SDK
+# (tools/engine-examples.mk, hydrated by make bootstrap).
+-include tools/engine-examples.mk
 
 PSX_TARGET := mipsel-sony-psx
 EXAMPLE_TARGET_DIR := $(CURDIR)/build/examples
@@ -337,7 +335,7 @@ MAGIKAAAAARP_PONG_SPECTRUM := engine/examples/game-magikaaaaaarp-pong/assets/gon
 # but cook the current grid-authored Cortex project.
 CORTEX_IGNITION_V1_NAME ?= cortex_v1
 CORTEX_IGNITION_V1_VOLUME ?= CORTEX_V1
-CORTEX_IGNITION_V1_PROJECT ?= editor/projects/default
+CORTEX_IGNITION_V1_PROJECT ?= projects/default
 CORTEX_IGNITION_V1_CUE ?= $(CORTEX_IGNITION_V1_PROJECT)/baked/$(CORTEX_IGNITION_V1_NAME).cue
 CORTEX_IGNITION_V1_BIN ?= $(CORTEX_IGNITION_V1_PROJECT)/baked/$(CORTEX_IGNITION_V1_NAME).bin
 CORTEX_IGNITION_V1_PREBURN_OUT ?= build/preburn/$(CORTEX_IGNITION_V1_NAME)
@@ -404,10 +402,8 @@ PROFILE_DEMO7_CAMERA_SWEEP_HASH_LOG ?= /tmp/psoxide-demo7-camera-sweep-visual.cs
 PROFILE_DEMO7_PROJECT ?= projects/mantis/project.ron
 DATA_DISC_EXAMPLES := \
 	hello-tri hello-input hello-ot hello-tex hello-gte hello-audio \
-	showcase-text game-pong game-breakout game-invaders \
-	showcase-3d showcase-model showcase-lights showcase-fog showcase-particles \
-	hello-engine hello-memcard hello-i64probe hello-memprobe
-PUBLIC_EXAMPLE_DISCS := $(addsuffix -disc,$(DATA_DISC_EXAMPLES)) hello-cdda-disc hello-pack-disc game-magikaaaaaarp-pong-disc
+	hello-memcard hello-i64probe hello-memprobe
+PUBLIC_EXAMPLE_DISCS := $(addsuffix -disc,$(DATA_DISC_EXAMPLES)) hello-cdda-disc hello-pack-disc $(ENGINE_EXAMPLE_DISCS)
 
 define build_data_disc
 $(1)-disc: $(1)
@@ -477,11 +473,6 @@ verify-hello-pack: hello-pack-disc
 hello-ot:
 	cd sdk/examples/hello-ot && $(SDK_EXAMPLE_CARGO_ENV) cargo build --release $(PSX_BUILD_FLAGS)
 
-# engine/ examples live outside sdk/examples/ - the engine is its
-# own domain and its demos exercise the engine framework.
-hello-engine:
-	cd engine/examples/hello-engine && $(ENGINE_EXAMPLE_CARGO_ENV) cargo build --release $(PSX_BUILD_FLAGS)
-
 hello-tex: assets
 	cd sdk/examples/hello-tex && $(SDK_EXAMPLE_CARGO_ENV) cargo build --release $(PSX_BUILD_FLAGS)
 
@@ -513,59 +504,6 @@ cdda-read-contention-disc: cdda-read-contention
 		--out ../../$(EXAMPLE_OUT)/cdda-read-contention.bin \
 		--volume PSOXIDE \
 		--cdda-track ../../$(CDDA_DEMO_TRACK)
-
-showcase-text:
-	cd engine/examples/showcase-text && $(ENGINE_EXAMPLE_CARGO_ENV) cargo build --release $(PSX_BUILD_FLAGS)
-
-game-pong:
-	cd engine/examples/game-pong && $(ENGINE_EXAMPLE_CARGO_ENV) cargo build --release $(PSX_BUILD_FLAGS)
-
-game-magikaaaaaarp-pong:
-	cd engine/examples/game-magikaaaaaarp-pong && $(ENGINE_EXAMPLE_CARGO_ENV) cargo build --release $(PSX_BUILD_FLAGS)
-
-$(GONCHAROV_WAV): $(CDDA_DEMO_TRACK) tools/wav_from_cdda.py
-	python3 tools/wav_from_cdda.py $(CDDA_DEMO_TRACK) -o $@
-
-magikaaaaaarp-pong-spectrum: $(GONCHAROV_WAV)
-	$(PSOXIDE_DEV) bake-spectrum $(GONCHAROV_WAV) \
-		-o $(MAGIKAAAAARP_PONG_SPECTRUM) \
-		--fps 30 --bands 16 --seconds 233
-
-game-magikaaaaaarp-pong-disc: game-magikaaaaaarp-pong
-	cd tools/mkisopsx && cargo run --release -- \
-		--exe ../../$(EXAMPLE_OUT)/game-magikaaaaaarp-pong.exe \
-		--out ../../$(EXAMPLE_OUT)/game-magikaaaaaarp-pong.bin \
-		--volume MAGIKARP \
-		--cdda-track ../../$(MAGIKAAAAARP_PONG_TRACK)
-
-game-breakout:
-	cd engine/examples/game-breakout && $(ENGINE_EXAMPLE_CARGO_ENV) cargo build --release $(PSX_BUILD_FLAGS)
-
-game-invaders:
-	cd engine/examples/game-invaders && $(ENGINE_EXAMPLE_CARGO_ENV) cargo build --release $(PSX_BUILD_FLAGS)
-
-showcase-3d: assets
-	cd engine/examples/showcase-3d && $(ENGINE_EXAMPLE_CARGO_ENV) cargo build --release $(PSX_BUILD_FLAGS)
-
-showcase-model:
-	cd engine/examples/showcase-model && $(ENGINE_EXAMPLE_CARGO_ENV) cargo build --release $(PSX_BUILD_FLAGS)
-
-showcase-lights: assets
-	cd engine/examples/showcase-lights && $(ENGINE_EXAMPLE_CARGO_ENV) cargo build --release $(PSX_BUILD_FLAGS)
-
-# showcase-fog uses two cooked textures (brick wall + cobblestone
-# floor) on its corridor walls + floor, plus procedural geometry.
-showcase-fog: assets
-	cd engine/examples/showcase-fog && $(ENGINE_EXAMPLE_CARGO_ENV) cargo build --release $(PSX_BUILD_FLAGS)
-
-showcase-particles:
-	cd engine/examples/showcase-particles && $(ENGINE_EXAMPLE_CARGO_ENV) cargo build --release $(PSX_BUILD_FLAGS)
-
-# Cargo features of the guest, e.g. HWTEST_FEATURES=console-diag.
-HWTEST_FEATURES ?=
-hardware-tests:
-	cd engine/examples/hardware-tests && $(ENGINE_EXAMPLE_CARGO_ENV) cargo build --release $(EDITOR_PLAYTEST_PSX_BUILD_FLAGS) $(if $(HWTEST_FEATURES),--features "$(HWTEST_FEATURES)")
-	cargo run -q --release --locked -p psoxide-hazard --bin hazard-scan -- $(EXAMPLE_OUT)/hardware-tests.exe
 
 # --- hardware-test pipeline ----------------------------------------------
 # v2.0 and later are ONE linear run. The disc boots into a five-row menu; row 0 is
@@ -600,21 +538,6 @@ hwtest-run: hardware-tests-disc
 		echo "hwtest-run: the run did not finish clean and silent; see $(HWTEST_LOG)"; exit 2; }
 	@echo "captured $$(grep -c 'px8' $(HWTEST_LOG)) PX8 page line(s) -> $(HWTEST_LOG)"
 
-HWTEST_CODE_BASELINE := docs/hardware-refs/hwtest-machine-code-v$(HWTEST_SUITE).txt
-
-# Audit the linked EXE: the instructions between each probe's markers must be
-# the ones the source asked for, or its cycle count measures something else.
-hwtest-verify-code: hardware-tests
-	@test -f $(HWTEST_CODE_BASELINE) || { \
-		echo "hwtest-verify-code: $(HWTEST_CODE_BASELINE) does not exist."; \
-		echo "  The suite version bumped without a machine-code baseline."; \
-		echo "  Review the spans, then pin them with:"; \
-		echo "    $(PSOXIDE_HWTEST) verify-machine-code $(EXAMPLE_OUT)/hardware-tests.exe --baseline <previous version's file> | grep -v '^# drift' | cut -d, -f1-4 > $(HWTEST_CODE_BASELINE)"; \
-		echo "  (--baseline carries the probe names over by id; name any probe_NN rows by hand.)"; \
-		exit 2; }
-	$(PSOXIDE_HWTEST) verify-machine-code $(EXAMPLE_OUT)/hardware-tests.exe \
-		--baseline $(HWTEST_CODE_BASELINE) --fail-on-change
-
 # CI gate: any observation or warm-record minimum that moves against the
 # emulator baseline fails the build and is named in the output; the silence of
 # the capture pages is checked on the audio the emulator dumped.
@@ -643,98 +566,6 @@ hwtest-baseline: hwtest-run
 		--steps $(HWTEST_STEPS) > $(HWTEST_BASELINE)
 	@echo "re-baselined $(HWTEST_BASELINE)"
 
-# The deterministic read region and the other data the disc carries.
-# The CD-DA track is required, not decorative: read-while-CD-DA contention is
-# the one CD failure no emulator reproduces. The tone is synthesised
-# (tools/gen-cdda-tone.py) so the image stays redistributable and
-# bit-reproducible.
-HWTEST_CDDA := $(EXAMPLE_OUT)/hardware-tests-cdda.pcm
-
-$(HWTEST_CDDA):
-	@mkdir -p $(dir $@)
-	python3 tools/gen-cdda-tone.py --seconds 10 --out $@
-
-# HWSONGS.XA for the XA music loop: the SDK's four generated tone songs (6 s
-# each, plain synthesis, nothing sampled) as the channels of one 37.8 kHz
-# stereo single-speed file. The SDK's psx-audio-cook is not imported here, so
-# PSOXIDE_SDK names a PSoXide checkout to run it from; the encode is
-# deterministic, and to reuse a built file, copy it to this path.
-PSOXIDE_SDK ?=
-HWTEST_XA_DIR := $(EXAMPLE_OUT)/xa
-HWTEST_XA := $(HWTEST_XA_DIR)/HWSONGS.XA
-HWTEST_XA_COOK = cargo run -q --release --locked --manifest-path "$(PSOXIDE_SDK)/Cargo.toml" \
-	--target-dir "$(CURDIR)/build/xa-tools" -p psx-audio-cook
-
-$(HWTEST_XA):
-	@[ -n "$(PSOXIDE_SDK)" ] || { echo "HWSONGS.XA: set PSOXIDE_SDK to a PSoXide checkout (its psx-audio-cook encodes the songs)" >&2; exit 1; }
-	@mkdir -p $(HWTEST_XA_DIR)
-	$(HWTEST_XA_COOK) --example xa_demo_songs -- "$(HWTEST_XA_DIR)" 6
-	$(HWTEST_XA_COOK) -- xa-encode $@ \
-		$(HWTEST_XA_DIR)/song0_pad.wav $(HWTEST_XA_DIR)/song1_high.wav \
-		$(HWTEST_XA_DIR)/song2_blips.wav $(HWTEST_XA_DIR)/song3_whistle.wav \
-		--manifest $(HWTEST_XA_DIR)/songs.json
-
-# HWCLOCK.XA for the XA clock drift case: one 190 s song (the pad of the
-# generated set, alone in its file as file number 2) that the case plays for
-# 180 s. 14,250 sectors, 33 MB: the length of the song is the point.
-HWTEST_XA_CLOCK := $(HWTEST_XA_DIR)/HWCLOCK.XA
-
-$(HWTEST_XA_CLOCK):
-	@[ -n "$(PSOXIDE_SDK)" ] || { echo "HWCLOCK.XA: set PSOXIDE_SDK to a PSoXide checkout (its psx-audio-cook encodes the songs)" >&2; exit 1; }
-	@mkdir -p $(HWTEST_XA_DIR)/clock
-	$(HWTEST_XA_COOK) --example xa_demo_songs -- "$(HWTEST_XA_DIR)/clock" 190
-	$(HWTEST_XA_COOK) -- xa-encode $@ $(HWTEST_XA_DIR)/clock/song0_pad.wav --file 2 \
-		--manifest $(HWTEST_XA_DIR)/clock.json
-
-# The boot EXE of the BIOS-free suite (v2.9 on) is 547 sectors, past the 542 that
-# CDTEST.BIN at 460 sectors leaves, so the disc is always the console-diag build
-# (the SDK stop panel; CDTEST_SECTORS 400 in main.rs), the same layout as the
-# radius disc and as every v2.9 burn.
-hardware-tests-disc: HWTEST_FEATURES = console-diag
-hardware-tests-disc: hardware-tests $(HWTEST_CDDA) $(HWTEST_XA) $(HWTEST_XA_CLOCK)
-	cd tools/mkisopsx && cargo run --release -- \
-		--exe ../../$(EXAMPLE_OUT)/hardware-tests.exe \
-		--out ../../$(EXAMPLE_OUT)/hardware-tests.bin \
-		--volume PSOXIDE \
-		--cdtest-sectors 400 \
-		--xa-file ../../$(HWTEST_XA) \
-		--xa-file ../../$(HWTEST_XA_CLOCK) \
-		--cdda-track ../../$(HWTEST_CDDA)
-
-# --- radius disc (v2.8) ---------------------------------------------------
-# The plain hardware-test image padded with RADIUS.DAT, deterministic filler
-# (psoxide-hwtest radius-fill) that carries the data track out to about 78
-# minutes, as full as the demo disc, so the CD RADIUS SWEEP step has outer
-# radius to read. It is built with the SDK stop panel (console-diag), which
-# moves CDTEST.BIN to 400 sectors (see CDTEST_SECTORS in main.rs). The filler
-# goes last on the data track, after the XA files, so everything else keeps its
-# place; the CD-DA track follows it, so on this disc it sits at the outer edge.
-# 16,660 sectors of image plus the filler stay under the 359,844 blocks of an
-# 80-minute CD-R; the recipe checks it.
-HWTEST_RADIUS_DIR := build/hwtest-radius
-HWTEST_RADIUS_FILL := $(HWTEST_RADIUS_DIR)/RADIUS.DAT
-HWTEST_RADIUS_SECTORS ?= 334300
-HWTEST_RADIUS_BLOCKS_MAX := 359844
-
-$(HWTEST_RADIUS_FILL):
-	@mkdir -p $(dir $@)
-	$(PSOXIDE_HWTEST) radius-fill $@ $(HWTEST_RADIUS_SECTORS)
-
-hwtest-radius-disc: HWTEST_FEATURES = console-diag
-hwtest-radius-disc: hardware-tests $(HWTEST_CDDA) $(HWTEST_XA) $(HWTEST_XA_CLOCK) $(HWTEST_RADIUS_FILL)
-	cd tools/mkisopsx && cargo run --release -- \
-		--exe ../../$(EXAMPLE_OUT)/hardware-tests.exe \
-		--out ../../$(HWTEST_RADIUS_DIR)/hardware-tests-radius.bin \
-		--volume PSOXIDE \
-		--cdtest-sectors 400 \
-		--xa-file ../../$(HWTEST_XA) \
-		--xa-file ../../$(HWTEST_XA_CLOCK) \
-		--xa-file ../../$(HWTEST_RADIUS_FILL) \
-		--cdda-track ../../$(HWTEST_CDDA)
-	@sectors=$$(( $$(stat -f %z $(HWTEST_RADIUS_DIR)/hardware-tests-radius.bin) / 2352 )); \
-		echo "radius disc: $$sectors sectors ($$(( sectors / 4500 )) min $$(( sectors % 4500 / 75 )) s), limit $(HWTEST_RADIUS_BLOCKS_MAX)"; \
-		[ $$sectors -le $(HWTEST_RADIUS_BLOCKS_MAX) ] || { echo "radius disc does not fit an 80-minute CD-R" >&2; exit 2; }
-
 $(foreach example,$(DATA_DISC_EXAMPLES),$(eval $(call build_data_disc,$(example))))
 
 # Cook a project into editor-playtest/generated/. With no
@@ -745,7 +576,7 @@ $(foreach example,$(DATA_DISC_EXAMPLES),$(eval $(call build_data_disc,$(example)
 # Don't run it after the editor's Play action unless you want
 # the editor's output replaced.
 cook-playtest:
-	cd editor && cargo run --release -p psxed-project --bin cook-playtest -- "$(PROJECT)"
+	cargo run --release -p psxed-project --bin cook-playtest -- "$(PROJECT)"
 
 # Build the editor-playtest example against whatever is in
 # `generated/level_manifest.cooked.rs` if present, otherwise
@@ -874,54 +705,6 @@ probe-warp:
 		--dump-hash
 
 # --- Content pipeline (host-side editor tooling) ------------------------
-
-PSXED := target/release/psxed
-
-# Build the content-pipeline CLI. Independent host workspace -
-# always builds fast, no MIPS toolchain needed.
-psxed:
-	cd editor && cargo build --release --bin psxed
-
-# Cook source assets into the binary blobs examples embed via
-# include_bytes!. Re-runs whenever an .obj changes. Targets go
-# next to the source under `assets/` so a repo clone has the
-# runtime input available without having to run the editor.
-SHOWCASE_3D := engine/examples/showcase-3d
-SHOWCASE_LIGHTS := engine/examples/showcase-lights
-HELLO_TEX := sdk/examples/hello-tex
-TEXTURE_ASSETS := assets/textures
-MAGIKAAAAARP_PONG := engine/examples/game-magikaaaaaarp-pong
-
-# Texture sources committed under example `vendor/` directories are
-# small pre-cropped JPGs. Larger originals are intentionally not
-# committed. Runtime examples consume the shared cooked blobs under
-# `assets/textures/`, so `make assets` updates that canonical location.
-# It still skips missing source files so local experiments with ignored
-# high-res replacements do not break fresh clones or CI.
-define cook_texture
-	@if [ -f "$(1)" ]; then \
-	    $(PSXED) tex "$(1)" -o "$(2)" --size $(3) --depth $(4) --resample lanczos3 $(5) ; \
-	else \
-	    echo "[psxed tex] skip: source $(1) not present (using committed $(2))" ; \
-	fi
-endef
-
-assets: psxed
-	@mkdir -p $(SHOWCASE_3D)/assets $(SHOWCASE_LIGHTS)/assets $(TEXTURE_ASSETS)
-	@$(PSXED) obj $(SHOWCASE_3D)/vendor/suzanne.obj \
-	    -o $(SHOWCASE_3D)/assets/suzanne.psxm \
-	    --palette warm --decimate-grid 6 --compute-normals
-	@$(PSXED) obj $(SHOWCASE_3D)/vendor/teapot.obj \
-	    -o $(SHOWCASE_3D)/assets/teapot.psxm \
-	    --palette cool --compute-normals
-	@$(PSXED) obj $(SHOWCASE_LIGHTS)/vendor/cube.obj \
-	    -o $(SHOWCASE_LIGHTS)/assets/cube.psxm \
-	    --compute-normals --no-colors
-	$(call cook_texture,$(HELLO_TEX)/vendor/brick-wall.jpg,$(TEXTURE_ASSETS)/brick-wall.psxt,64x64,4)
-	$(call cook_texture,$(HELLO_TEX)/vendor/floor.jpg,$(TEXTURE_ASSETS)/floor.psxt,64x64,4)
-	$(call cook_texture,$(MAGIKAAAAARP_PONG)/vendor/magikaaaaaarp_album.jpg,$(MAGIKAAAAARP_PONG)/assets/magikaaaaaarp_album.psxt,128x128,8)
-	$(call cook_texture,$(MAGIKAAAAARP_PONG)/vendor/score_flyby.png,$(MAGIKAAAAARP_PONG)/assets/score_flyby.psxt,128x128,8,--transparent-index-zero)
-	@$(MAKE) magikaaaaaarp-pong-spectrum
 
 examples: $(PUBLIC_EXAMPLE_DISCS)
 	@echo ""
@@ -1118,7 +901,7 @@ cortex-anim-shots: cortex-anim-disc
 	@echo "[cortex-anim-shots] wrote $$(ls $(CORTEX_ANIM_SHOT_DIR) | wc -l | tr -d ' ') frames to $(CORTEX_ANIM_SHOT_DIR)"
 
 # Cortex Ignition before/after benchmark: cooks + builds a copy of the 0.4b
-# project (editor/projects/default) with a linker map in a private stage root,
+# project (projects/default) with a linker map in a private stage root,
 # runs the 64-bit symbol gate, replays the tracked whole-level tape (opening
 # skip spliced in) twice and prints one benchmark row.
 # CORTEX_BENCH_BASELINE=<previous out dir> prints before/after.

@@ -164,7 +164,7 @@ fn test_temp_dir(label: &str) -> PathBuf {
 ///
 /// Tests that exercise `create_and_open_project` have to write where
 /// `psxed_project::projects_dir()` points, which in a checkout is the TRACKED
-/// `editor/projects/`. That directory's `.gitignore` starts with `*` and
+/// `projects/`. That directory's `.gitignore` starts with `*` and
 /// allowlists the real projects, so a directory a failing assertion leaves
 /// behind is invisible to `git status` and stays forever. A trailing
 /// `remove_dir_all` never runs on the panic path; this guard does.
@@ -195,7 +195,7 @@ fn cookable_template_copy(label: &str) -> (PathBuf, ScratchProjectDir) {
 }
 
 /// The guard has to survive a panicking test body, which is the only case
-/// that ever leaked a directory into the tracked `editor/projects/`.
+/// that ever leaked a directory into the tracked `projects/`.
 #[test]
 fn scratch_project_dir_guard_cleans_up_after_a_panic() {
     let dir = test_temp_dir("scratch-guard");

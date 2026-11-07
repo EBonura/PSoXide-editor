@@ -207,7 +207,8 @@ fn open(world: &World) -> (EditorWorkspace, ScratchProjectDir) {
     let guard = ScratchProjectDir::new(dir.clone());
     let mut ws = match world {
         World::Starter => {
-            let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../projects/grid-starter");
+            let source =
+                Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../projects/grid-starter");
             crate::starter_catalogue::copy_dir_recursive(&source, &dir).unwrap();
             EditorWorkspace::open_directory(&dir).unwrap()
         }

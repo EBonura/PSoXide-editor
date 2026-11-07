@@ -29,7 +29,7 @@ fn levels() -> Vec<String> {
 
 fn project_dir(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../projects")
+        .join("../../../projects")
         .join(name)
 }
 

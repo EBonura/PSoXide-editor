@@ -105,7 +105,7 @@ impl EditorServer {
     #[cfg(test)]
     pub(crate) fn for_listing() -> Self {
         let workspace = Workspace::open(
-            &PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../projects/default"),
+            &PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../projects/default"),
         )
         .expect("the default project opens");
         Self::new(workspace, None, std::env::temp_dir())

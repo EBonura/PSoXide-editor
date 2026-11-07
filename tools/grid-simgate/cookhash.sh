@@ -1,5 +1,5 @@
 #!/bin/zsh
-# cookhash.sh LABEL PROJECT... : cook each project (editor/projects/PROJECT) with the tree's own cook and
+# cookhash.sh LABEL PROJECT... : cook each project (projects/PROJECT) with the tree's own cook and
 # record the SHA-256 (first 16 hex digits) of the cooked grid level core and room blobs and of the level manifest, so a later
 # change that must not touch existing levels can prove it with `diff`. Output: build/simgate/cookhash-LABEL.txt
 #
@@ -13,9 +13,11 @@ mkdir -p $root/build/simgate
 out=$root/build/simgate/cookhash-$label.txt; : >| $out
 gen=$root/engine/examples/editor-playtest/generated
 fnv() { cat "$@" | shasum -a 256 | cut -c1-16; }
-fnvm() { sed "s#$root#<root>#g" "$@" | shasum -a 256 | cut -c1-16; }
+# The projects moved from editor/projects to projects/ (2026-11); the goldens were taken with the old path in the
+# doc comments, so it is mapped back to keep them comparable.
+fnvm() { sed -e "s#$root#<root>#g" -e "s#<root>/projects#<root>/editor/projects#g" "$@" | shasum -a 256 | cut -c1-16; }
 for p in "$@"; do
-  (cd $root/editor && $cook $root/editor/projects/$p/project.ron >/dev/null 2>&1) || { echo "$p COOK FAILED" >> $out; continue; }
+  (cd $root/editor && $cook $root/projects/$p/project.ron >/dev/null 2>&1) || { echo "$p COOK FAILED" >> $out; continue; }
   echo "$p core=$(fnv $gen/grid_level.pgl) rooms=$(fnv $gen/grid_rooms.pgr) manifest=$(fnvm $gen/level_manifest.cooked.rs)" >> $out
 done
 cat $out

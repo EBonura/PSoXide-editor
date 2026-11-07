@@ -545,7 +545,7 @@ fn texscale_capture_project() {
         .unwrap_or(false)
     {
         std::fs::remove_file(dir.join("assets")).unwrap();
-        let tracked = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../projects");
+        let tracked = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../projects");
         crate::starter_catalogue::copy_dir_recursive(
             &tracked.join("graybox-reach/assets"),
             &dir.join("assets"),

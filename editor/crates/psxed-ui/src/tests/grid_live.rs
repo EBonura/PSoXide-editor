@@ -25,7 +25,7 @@ pub(super) fn dp_world() -> (EditorWorkspace, ScratchProjectDir) {
         NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     ));
     let guard = ScratchProjectDir::new(dir.clone());
-    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../projects/grid-starter");
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../projects/grid-starter");
     crate::starter_catalogue::copy_dir_recursive(&source, &dir).unwrap();
     let mut ws = EditorWorkspace::open_directory(&dir).unwrap();
     // Manny's dp-world still has the starter room as it was made before
@@ -167,7 +167,7 @@ impl WindowRig {
             NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
         ));
         let guard = ScratchProjectDir::new(dir.clone());
-        let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../projects/grid-starter");
+        let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../projects/grid-starter");
         crate::starter_catalogue::copy_dir_recursive(&source, &dir).unwrap();
         let mut ws = EditorWorkspace::open_directory(&dir).unwrap();
         ws.active_workspace = WorkspaceView::Room;

@@ -10,7 +10,7 @@
 //! storey, a lap and a half round the ring, and must end on the third floor.
 //!
 //! `PSXED_TOWER_OUT=<dir>` builds the project at `<dir>` (which must not exist
-//! yet) instead of a temporary one: how `editor/projects/grid-tower` is made.
+//! yet) instead of a temporary one: how `projects/grid-tower` is made.
 
 mod common;
 
@@ -54,7 +54,7 @@ fn the_tower_is_built_from_the_script_and_reads_back_as_designed() {
     if out.is_none() {
         for name in ["default", "graybox-reach"] {
             std::os::unix::fs::symlink(
-                repo.join("editor/projects").join(name),
+                repo.join("projects").join(name),
                 tmp.join("projects").join(name),
             )
             .expect("link a base project");

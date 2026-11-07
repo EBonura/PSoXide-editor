@@ -19,11 +19,8 @@ fn new_project(tmp: &Path) -> PathBuf {
     let projects = tmp.join("projects");
     std::fs::create_dir_all(&projects).expect("create projects");
     for name in ["default", "graybox-reach"] {
-        std::os::unix::fs::symlink(
-            repo_root().join("editor/projects").join(name),
-            projects.join(name),
-        )
-        .expect("link a base project");
+        std::os::unix::fs::symlink(repo_root().join("projects").join(name), projects.join(name))
+            .expect("link a base project");
     }
     let project = projects.join("extrude");
     let made = std::process::Command::new(env!("CARGO_BIN_EXE_psxed-mcp"))

@@ -2777,7 +2777,7 @@ impl EditorWorkspace {
         self.project_watch.dirty_conflict
     }
 
-    /// Create `editor/projects/<derived-name>/` as a grid project with the
+    /// Create `projects/<derived-name>/` as a grid project with the
     /// starter room, then switch this workspace to it.
     ///
     /// Validates `name`: non-empty and the target directory must not already

@@ -629,8 +629,8 @@ mod tests {
         );
         assert_eq!(safe_project_build_stem("..."), "project");
         assert_eq!(
-            project_baked_disc_path(Path::new("editor/projects/default"), "Demo Project"),
-            Path::new("editor/projects/default")
+            project_baked_disc_path(Path::new("projects/default"), "Demo Project"),
+            Path::new("projects/default")
                 .join("baked")
                 .join("demo_project.cue")
         );

@@ -10,7 +10,7 @@
 # position and state, plus the first three entity positions). Both builds replay
 # the same poll-bound tape, and the lines are compared tick for tick.
 #
-#   simgate.sh disc LABEL PROJECT          build a sim-trace disc (editor/projects/PROJECT)
+#   simgate.sh disc LABEL PROJECT          build a sim-trace disc (projects/PROJECT)
 #   simgate.sh run  LABEL TAPE STOP_POLL [RUN]   replay it headlessly, keep the sim-state lines
 #                                          (stored under RUN, default LABEL, so one disc serves many tapes)
 #   simgate.sh cmp  RUN_A RUN_B [FROM]     compare two runs tick for tick from tick FROM
@@ -36,8 +36,8 @@ disc)
   out=$work/discs/$label; mkdir -p $out
   cd $root/emu
   env EDITOR_PLAYTEST_FEATURES="$features" PSOXIDE_GUEST_STAGE_ROOT=$work/stage \
-    $frontend build-project-disc --project ../editor/projects/$proj/project.ron >| $out/build.log 2>&1
-  cp $root/editor/projects/$proj/baked/*.cue $root/editor/projects/$proj/baked/*.bin $out/
+    $frontend build-project-disc --project ../projects/$proj/project.ron >| $out/build.log 2>&1
+  cp $root/projects/$proj/baked/*.cue $root/projects/$proj/baked/*.bin $out/
   echo "$label disc built"
   ;;
 run)

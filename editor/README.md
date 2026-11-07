@@ -27,7 +27,7 @@ cargo run -p psoxide-emulator -- --editor --windowed
    project is a grid project: a 6 by 6 sector room with a floor, a ceiling and
    walls on the whole outline, one lamp and the Graybox Reach player in the
    middle. It borrows the player, camera, sky and assets from
-   `editor/projects/graybox-reach` (its `assets` folder links there).
+   `projects/graybox-reach` (its `assets` folder links there).
 2. Shape the level with the grid tool strip: **Floor**, **Ceiling**, **Wall**,
    **Height**, **Paint**, **Split** and **Place**, in the 3D view or the Top
    view. **Select** picks vertices, edges and faces; Ctrl/Cmd+C and Ctrl/Cmd+V

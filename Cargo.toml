@@ -14,14 +14,14 @@ members = [
     "emu/crates/psoxide-validation",
     "emu/crates/psx-gpu-render",
     "emu/crates/psx-webdisc",
-    "editor/crates/psxed",
-    "editor/crates/psxed-audio",
+    "crates/psxed",
+    "crates/psxed-audio",
     "crates/psxed-format",
-    "editor/crates/psxed-gltf",
-    "editor/crates/psxed-obj",
+    "crates/psxed-gltf",
+    "crates/psxed-obj",
+    "crates/psxed-project",
+    "crates/psxed-tex",
     "editor/crates/psxed-mcp",
-    "editor/crates/psxed-project",
-    "editor/crates/psxed-tex",
     "editor/crates/psxed-ui",
     "tools/mkisopsx",
     "tools/psoxide-hazard",
@@ -70,12 +70,12 @@ psoxide-settings   = { path = "emu/crates/psoxide-settings" }
 psoxide-validation = { path = "emu/crates/psoxide-validation" }
 psx-gpu-render     = { path = "emu/crates/psx-gpu-render" }
 psx-webdisc        = { path = "emu/crates/psx-webdisc" }
-psxed-audio   = { path = "editor/crates/psxed-audio" }
+psxed-audio   = { path = "crates/psxed-audio" }
 psxed-format  = { path = "crates/psxed-format" }
-psxed-gltf    = { path = "editor/crates/psxed-gltf" }
-psxed-obj     = { path = "editor/crates/psxed-obj" }
-psxed-project = { path = "editor/crates/psxed-project" }
-psxed-tex     = { path = "editor/crates/psxed-tex" }
+psxed-gltf    = { path = "crates/psxed-gltf" }
+psxed-obj     = { path = "crates/psxed-obj" }
+psxed-project = { path = "crates/psxed-project" }
+psxed-tex     = { path = "crates/psxed-tex" }
 psxed-ui      = { path = "editor/crates/psxed-ui" }
 
 # ---- Cross-workspace path deps into the DEVICE side --------------------

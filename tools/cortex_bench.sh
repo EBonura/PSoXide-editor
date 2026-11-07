@@ -7,7 +7,7 @@
 # two replays are byte-identical, and prints one row of numbers. With
 # CORTEX_BENCH_BASELINE=<dir of a previous run> it prints before/after.
 #
-# The project is Tech Demo 0.4b, editor/projects/default (the project the demo
+# The project is Tech Demo 0.4b, projects/default (the project the demo
 # disc bakes). It is baked from a copy under $OUT, never in place, so the bench
 # writes nothing into the live project.
 #
@@ -24,7 +24,7 @@
 set -eu
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SOURCE_PROJECT="${CORTEX_BENCH_PROJECT:-editor/projects/default/project.ron}"
+SOURCE_PROJECT="${CORTEX_BENCH_PROJECT:-projects/default/project.ron}"
 TAPE="${CORTEX_BENCH_TAPE:-editor/archive/fixtures/cortex-0.4/whole-level-skip.pxtape}"
 OUT="${CORTEX_BENCH_OUT:-${TMPDIR:-/tmp}/psoxide-cortex-bench}"
 STAGE_ROOT="${CORTEX_BENCH_STAGE_ROOT:-${TMPDIR:-/tmp}/psoxide-psx-guest-cortex-bench}"

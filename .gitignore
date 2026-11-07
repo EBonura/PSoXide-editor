@@ -124,6 +124,21 @@ __pycache__/
 !/emu/crates/frontend/src/embedded_playtest.rs
 !/emu/crates/frontend/src/playtest_disc.rs
 /tools/sdk-examples.mk
+/engine
+/assets/audio
+/assets/textures
+/tools/engine-examples.mk
+/tools/psoxide-dev
+/tools/psoxide-hwtest
+/tools/psoxide-perf
+/tools/psoxide-vmcook
+/tools/build_guest_staged.sh
+/tools/toolchain_check.sh
+/tools/gen-cdda-tone.py
+/tools/wav_from_cdda.py
+/tools/hello_pack_fixture.py
+/tools/hwtest-video-qr.py
+/tools/clut-probe-report.rs
 
 # Perf evidence folders: large PNG/CSV captures kept locally beside their
 # write-up, never pushed. The write-ups themselves stay tracked.

@@ -3,21 +3,35 @@
   "components": {
     "sdk": {
       "repository": "EBonura/PSoXide",
-      "revision": "bfb46440549213cb7acaced016e0f277313e938f",
+      "revision": "095f13213823ec94cc6b976d681f671ad1c8d4c0",
       "paths": [
         "sdk",
         "crates",
+        "engine",
+        "assets/audio",
+        "assets/textures",
         "tools/mkisopsx",
         "tools/psoxide-link",
         "tools/psoxide-pgo",
         "tools/psoxide-hazard",
+        "tools/psoxide-dev",
+        "tools/psoxide-hwtest",
+        "tools/psoxide-perf",
         "tools/guest_symbol_gate.sh",
-        "tools/sdk-examples.mk"
+        "tools/sdk-examples.mk",
+        "tools/engine-examples.mk",
+        "tools/build_guest_staged.sh",
+        "tools/toolchain_check.sh",
+        "tools/gen-cdda-tone.py",
+        "tools/wav_from_cdda.py",
+        "tools/hello_pack_fixture.py",
+        "tools/hwtest-video-qr.py",
+        "tools/clut-probe-report.rs"
       ]
     },
     "emulator": {
       "repository": "EBonura/PSoXide-emulator",
-      "revision": "bb788f5b6beb94e17f972d54c7f90fb6ab3f53e7",
+      "revision": "d31e70754d97d877a7ed5e692d6e5604442c4f4d",
       "paths": [
         "emu/crates/emulator-core",
         "emu/crates/frontend",
@@ -29,7 +43,8 @@
         "emu/crates/psx-webdisc",
         "assets/branding/demo-disc-cover.png",
         "assets/branding/demo-disc-label.png",
-        "assets/home"
+        "assets/home",
+        "tools/psoxide-vmcook"
       ]
     }
   }

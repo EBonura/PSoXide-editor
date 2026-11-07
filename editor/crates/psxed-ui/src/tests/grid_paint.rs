@@ -573,7 +573,7 @@ fn paint_capture_project() {
     };
     let dir = PathBuf::from(dir);
     let _ = std::fs::remove_dir_all(&dir);
-    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../projects");
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../projects");
     crate::starter_catalogue::copy_dir_recursive(&source.join("grid-starter"), &dir).unwrap();
     // The starter's `assets` is a link into another project: make it a real
     // copy, so writing the sample never reaches the source tree.

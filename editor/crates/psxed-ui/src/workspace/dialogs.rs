@@ -106,7 +106,7 @@ impl EditorWorkspace {
                     psxed_project::project_file_stem(name.trim())
                 };
                 ui.label(
-                    RichText::new(format!("→ editor/projects/{stem}/"))
+                    RichText::new(format!("→ projects/{stem}/"))
                         .color(STUDIO_TEXT_WEAK)
                         .small(),
                 );
