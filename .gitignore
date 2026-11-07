@@ -104,3 +104,4 @@ __pycache__/
 # Perf evidence folders: large PNG/CSV captures kept locally beside their
 # write-up, never pushed. The write-ups themselves stay tracked.
 /docs/overnight-perf-2026-09-02/
+/emu/crates/psoxide-jit
