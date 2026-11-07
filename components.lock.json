@@ -17,7 +17,7 @@
     },
     "emulator": {
       "repository": "EBonura/PSoXide-emulator",
-      "revision": "6800e664087fb9c08b9d1320bef10e462ac2a55a",
+      "revision": "bb788f5b6beb94e17f972d54c7f90fb6ab3f53e7",
       "paths": [
         "emu/crates/emulator-core",
         "emu/crates/frontend",
@@ -25,7 +25,11 @@
         "emu/crates/psoxide-jit",
         "emu/crates/psoxide-settings",
         "emu/crates/psoxide-validation",
-        "emu/crates/psx-gpu-render"
+        "emu/crates/psx-gpu-render",
+        "emu/crates/psx-webdisc",
+        "assets/branding/demo-disc-cover.png",
+        "assets/branding/demo-disc-label.png",
+        "assets/home"
       ]
     }
   }

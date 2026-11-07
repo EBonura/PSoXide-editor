@@ -2801,6 +2801,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "objc2-game-controller"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1962c1882c5abcedb18e5f01acffeaad7b3cbd0a9d4cd8f5ca259ba8a64cb9a3"
+dependencies = [
+ "objc2 0.6.4",
+ "objc2-foundation 0.3.2",
+]
+
+[[package]]
 name = "objc2-io-kit"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3229,6 +3239,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "base64 0.22.1",
+ "chrono",
  "clap",
  "claxon",
  "console_error_panic_hook",
@@ -3243,6 +3254,7 @@ dependencies = [
  "objc2 0.6.4",
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
+ "objc2-game-controller",
  "pollster 0.3.0",
  "psoxide-debug-ui",
  "psoxide-jit",
@@ -3258,6 +3270,7 @@ dependencies = [
  "psx-iso",
  "psx-trace",
  "psx-vram",
+ "psx-webdisc",
  "psxed-project",
  "psxed-ui",
  "rfd",
@@ -3619,6 +3632,15 @@ version = "0.1.0"
 dependencies = [
  "psx-hw",
  "psx-io",
+]
+
+[[package]]
+name = "psx-webdisc"
+version = "0.1.0"
+dependencies = [
+ "emulator-core",
+ "miniz_oxide",
+ "psx-iso",
 ]
 
 [[package]]

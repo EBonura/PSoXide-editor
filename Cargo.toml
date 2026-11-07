@@ -13,6 +13,7 @@ members = [
     "emu/crates/psoxide-settings",
     "emu/crates/psoxide-validation",
     "emu/crates/psx-gpu-render",
+    "emu/crates/psx-webdisc",
     "editor/crates/psxed",
     "editor/crates/psxed-audio",
     "crates/psxed-format",
@@ -68,6 +69,7 @@ psoxide-debug-ui   = { path = "emu/crates/psoxide-debug-ui" }
 psoxide-settings   = { path = "emu/crates/psoxide-settings" }
 psoxide-validation = { path = "emu/crates/psoxide-validation" }
 psx-gpu-render     = { path = "emu/crates/psx-gpu-render" }
+psx-webdisc        = { path = "emu/crates/psx-webdisc" }
 psxed-audio   = { path = "editor/crates/psxed-audio" }
 psxed-format  = { path = "crates/psxed-format" }
 psxed-gltf    = { path = "editor/crates/psxed-gltf" }

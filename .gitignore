@@ -103,6 +103,10 @@ __pycache__/
 /emu/crates/psoxide-settings
 /emu/crates/psoxide-validation
 /emu/crates/psx-gpu-render
+/emu/crates/psx-webdisc
+/assets/home
+/assets/branding/demo-disc-cover.png
+/assets/branding/demo-disc-label.png
 # The shared frontend is hydrated from the emulator; only the editor-owned
 # files beside it (editor_*, embedded_playtest, playtest_disc, lucide.ttf) are tracked.
 /emu/crates/frontend/*
