@@ -686,12 +686,17 @@ $(HWTEST_XA_CLOCK):
 	$(HWTEST_XA_COOK) -- xa-encode $@ $(HWTEST_XA_DIR)/clock/song0_pad.wav --file 2 \
 		--manifest $(HWTEST_XA_DIR)/clock.json
 
+# The boot EXE of the BIOS-free suite (v2.9 on) is 547 sectors, past the 542 that
+# CDTEST.BIN at 460 sectors leaves, so the disc is always the console-diag build
+# (the SDK stop panel; CDTEST_SECTORS 400 in main.rs), the same layout as the
+# radius disc and as every v2.9 burn.
+hardware-tests-disc: HWTEST_FEATURES = console-diag
 hardware-tests-disc: hardware-tests $(HWTEST_CDDA) $(HWTEST_XA) $(HWTEST_XA_CLOCK)
 	cd tools/mkisopsx && cargo run --release -- \
 		--exe ../../$(EXAMPLE_OUT)/hardware-tests.exe \
 		--out ../../$(EXAMPLE_OUT)/hardware-tests.bin \
 		--volume PSOXIDE \
-		--cdtest-sectors 460 \
+		--cdtest-sectors 400 \
 		--xa-file ../../$(HWTEST_XA) \
 		--xa-file ../../$(HWTEST_XA_CLOCK) \
 		--cdda-track ../../$(HWTEST_CDDA)
