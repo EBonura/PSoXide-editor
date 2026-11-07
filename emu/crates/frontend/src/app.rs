@@ -4713,6 +4713,12 @@ mod tests {
         bytes.extend([checksum, 0x00, 0x00, 0x00]);
         for byte in bytes {
             bus.write8(0x1F80_1040, byte);
+            let mut waited = 0;
+            while bus.read32(0x1F80_1044) & 0x2 == 0 {
+                assert!(waited < 100_000, "SIO0 byte never arrived");
+                bus.tick(64);
+                waited += 64;
+            }
             let _ = bus.read8(0x1F80_1040);
         }
         bus.write16(0x1F80_104A, 0x0000);
