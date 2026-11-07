@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Hardware-test suite v2.10 is on editor main: the BIOS-free linear run (v2.9)
+  and the v1.27 tree are one tree. The v1.26 MDEC setup diagnostic, the E2
+  texture-window batches, the list-upload case and the CD/SPU audio probe's
+  per-stage fields run inside the linear run; `docs/hardware-test-v1-to-v2.10.md`
+  maps every v1.x feature, and `docs/hardware-test-v2.10-vs-v2.9.md` explains
+  the rows that moved. The test disc is the console-diag build with `CDTEST.BIN`
+  at 400 sectors.
+
 - The grid line is the editor now. The branch that held the grid-world editor,
   `psx-grid` runtime and the Citadel is the mainline, and the BSP-based Cortex
   engine and its authoring (brush editing, the PXBSP world cook, the region
