@@ -276,8 +276,8 @@ fmt-check:
 lint:
 	$(PSOXIDE_DEV) lint-policy-guard
 	$(PSOXIDE_DEV) runtime-numeric-guard
-	# The editor crates only: the hydrated emulator-core fails clippy -D warnings under these
-	# lints (redundant closures, is_multiple_of) and is the emulator repository's to fix.
+	# The editor crates only: the hydrated SDK and emulator crates are linted in their own
+	# repositories.
 	cargo clippy -p psxed-ui -p psxed-mcp --all-targets --all-features -- -D warnings
 
 lint-policy-guard:
@@ -516,6 +516,7 @@ HWTEST_WAV   := build/hwtest-run.wav
 # version should overwrite rather than accumulate files. The capture date lives
 # in the file header.
 HWTEST_SUITE := $(shell sed -n 's/^const SUITE_VERSION: &str = "HWTEST v\(.*\)";/\1/p' engine/examples/hardware-tests/src/main.rs)
+# docs/hardware-refs is hydrated from the SDK (components.lock.json); a re-baseline lands there.
 HWTEST_BASELINE := docs/hardware-refs/px8-emulator-v$(HWTEST_SUITE).txt
 # The run completes well inside this; the rest is the capture pages being on
 # show, which is where the silence check listens.

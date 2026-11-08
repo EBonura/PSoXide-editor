@@ -127,6 +127,7 @@ __pycache__/
 /engine
 /assets/audio
 /assets/textures
+/docs/hardware-refs
 /tools/engine-examples.mk
 /tools/psoxide-dev
 /tools/psoxide-hwtest

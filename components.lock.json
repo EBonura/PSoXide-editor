@@ -3,13 +3,14 @@
   "components": {
     "sdk": {
       "repository": "EBonura/PSoXide",
-      "revision": "31c3149b755790ad37fd4ead132c66cd2821c9f3",
+      "revision": "18eca0c050464ffb7e57a8cfe892400f16f5f50a",
       "paths": [
         "sdk",
         "crates",
         "engine",
         "assets/audio",
         "assets/textures",
+        "docs/hardware-refs",
         "tools/mkisopsx",
         "tools/psoxide-link",
         "tools/psoxide-pgo",
@@ -31,7 +32,7 @@
     },
     "emulator": {
       "repository": "EBonura/PSoXide-emulator",
-      "revision": "d31e70754d97d877a7ed5e692d6e5604442c4f4d",
+      "revision": "f137af1b0961fac4f234c417b63a91abe4c734a2",
       "paths": [
         "emu/crates/emulator-core",
         "emu/crates/frontend",
