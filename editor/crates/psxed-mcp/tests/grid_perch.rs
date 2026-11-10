@@ -4,7 +4,7 @@
 //! ceiling, span an arch between two floor points, put the player south of it)
 //! and check that the world cooks, that the arch cooks to a hook point under
 //! its crown and that the saved project round-trips. The play stage is opt in
-//! (`PSXED_MCP_VERIFY=1`, a built `target/release/frontend`, and
+//! (`PSXED_MCP_VERIFY=1`, a built `target/release/psoxide-emulator`, and
 //! `PSOXIDE_GUEST_STAGE_ROOT` at a private directory): it cooks a disc, plays
 //! a route that swaps to the ranged stance, aims at the crown (the camera
 //! pitched up with the right stick), fires the hook, waits to be attached,
@@ -64,7 +64,7 @@ fn an_arch_spans_two_points_cooks_a_hook_under_the_crown_and_is_perched_on() {
         "{}",
         String::from_utf8_lossy(&made.stderr)
     );
-    let frontend = repo.join("target/release/frontend");
+    let frontend = repo.join("target/release/psoxide-emulator");
     let scratch = tmp.join("scratch");
     let mut args = vec![
         "--project".to_string(),

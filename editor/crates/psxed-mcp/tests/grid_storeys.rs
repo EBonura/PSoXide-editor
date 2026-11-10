@@ -4,7 +4,7 @@
 //! The geometry stage always runs: the storeys and the columns read back,
 //! the cook accepts the spans, and the saved project builds a package whose
 //! room holds the extra span. The play stage is opt in (`PSXED_MCP_VERIFY=1`
-//! and a built `target/release/frontend`, with `PSOXIDE_GUEST_STAGE_ROOT` at
+//! and a built `target/release/psoxide-emulator`, with `PSOXIDE_GUEST_STAGE_ROOT` at
 //! a private directory): the player walks the ground floor under the slab
 //! and the tracked path must never rise to the upper floor.
 
@@ -49,7 +49,7 @@ fn a_two_storey_room_is_built_cooked_and_walked_on_its_ground_floor() {
         "{}",
         String::from_utf8_lossy(&made.stderr)
     );
-    let frontend = repo.join("target/release/frontend");
+    let frontend = repo.join("target/release/psoxide-emulator");
     let scratch = tmp.join("scratch");
     let mut args = vec![
         "--project".to_string(),

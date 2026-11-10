@@ -4,7 +4,7 @@
 //! round the outer ring. The geometry reads back as the design says, the cook
 //! accepts it, and nothing the stair needs is unreachable.
 //!
-//! `PSXED_MCP_VERIFY=1` (with a built `target/release/frontend` and
+//! `PSXED_MCP_VERIFY=1` (with a built `target/release/psoxide-emulator` and
 //! `PSOXIDE_GUEST_STAGE_ROOT` at a private directory) adds the play stage: a
 //! poll-bound route that climbs the stair from the ground floor to the top
 //! storey, a lap and a half round the ring, and must end on the third floor.
@@ -136,8 +136,8 @@ const ROUTE: &str = r#"[
 
 fn climb(c: &mut Client, repo: &std::path::Path) {
     assert!(
-        repo.join("target/release/frontend").is_file(),
-        "PSXED_MCP_VERIFY needs target/release/frontend"
+        repo.join("target/release/psoxide-emulator").is_file(),
+        "PSXED_MCP_VERIFY needs target/release/psoxide-emulator"
     );
     let route: Value = serde_json::from_str(ROUTE).expect("the route parses");
     let run = c.ok(

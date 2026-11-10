@@ -71,7 +71,7 @@ fn a_diagonal_plateau_edge_and_a_void_pillar_hold_in_play() {
     let tmp = std::env::temp_dir().join(format!("psxed-mcp-diag-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&tmp);
     let project = new_project(&tmp);
-    let frontend = repo.join("target/release/frontend");
+    let frontend = repo.join("target/release/psoxide-emulator");
     let scratch = tmp.join("scratch");
     let mut args = vec![
         "--project".to_string(),
@@ -261,7 +261,7 @@ fn a_diagonal_plateau_edge_and_a_void_pillar_hold_in_play() {
     }
     let _ = std::fs::remove_dir_all(&tmp);
     let project = new_project(&tmp);
-    let frontend = repo.join("target/release/frontend");
+    let frontend = repo.join("target/release/psoxide-emulator");
     let scratch = tmp.join("scratch");
     let mut args = vec![
         "--project".to_string(),

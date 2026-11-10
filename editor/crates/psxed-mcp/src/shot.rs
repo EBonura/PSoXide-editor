@@ -393,9 +393,9 @@ pub fn find_frontend(explicit: Option<&Path>) -> Result<PathBuf, String> {
     }
     // Newest first: run-fast is what `make run` builds and is usually current.
     for candidate in [
-        "target/run-fast/frontend",
-        "target/release/frontend",
-        "target/debug/frontend",
+        "target/run-fast/psoxide-emulator",
+        "target/release/psoxide-emulator",
+        "target/debug/psoxide-emulator",
     ] {
         let path = PathBuf::from(candidate);
         if path.is_file() {

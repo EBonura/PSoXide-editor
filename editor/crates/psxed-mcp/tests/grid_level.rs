@@ -80,7 +80,7 @@ fn an_agent_builds_a_grid_level_through_the_mcp_and_plays_it() {
     );
     let original = std::fs::read_to_string(project.join("project.ron")).unwrap();
 
-    let frontend = repo.join("target/release/frontend");
+    let frontend = repo.join("target/release/psoxide-emulator");
     let frontend_arg = frontend.to_string_lossy().into_owned();
     let scratch = tmp.join("scratch");
     let mut args = vec![

@@ -75,7 +75,7 @@ fn a_cave_is_built_with_the_natural_terrain_tools_and_played() {
     let tmp = std::env::temp_dir().join(format!("psxed-mcp-cave-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&tmp);
     let project = new_project(&tmp);
-    let frontend = repo.join("target/release/frontend");
+    let frontend = repo.join("target/release/psoxide-emulator");
     let scratch = tmp.join("scratch");
     let mut args = vec![
         "--project".to_string(),

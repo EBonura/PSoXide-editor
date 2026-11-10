@@ -17,7 +17,7 @@ To work on a grid project, change the path after `--project` to any directory un
 | --- | --- |
 | `--project <dir or project.ron>` | The project to edit. Default `editor/projects/default`. |
 | `--new <dir>` | Write a New Grid Project at `<dir>` and exit: what File > New Grid Project makes (the Graybox Reach base with the 6 by 6 starter room, assets linked). Keep `<dir>` beside the other projects so the `../default/assets` style paths in `project.ron` resolve. |
-| `--frontend <path>` | The renderer binary for `screenshot` and `playtest`. Default: `target/run-fast/frontend`, `target/release/frontend`, `target/debug/frontend`, in that order. Build one with `cargo build --release -p frontend --features editor`. |
+| `--frontend <path>` | The renderer binary for `screenshot` and `playtest`. Default: `target/run-fast/psoxide-emulator`, `target/release/psoxide-emulator`, `target/debug/psoxide-emulator`, in that order. Build one with `cargo build --release -p psoxide-emulator --features editor`. |
 | `--scratch <dir>` | Where frames, tapes and logs go. Default the system temp directory. |
 
 `playtest` builds the guest with the repository's staged guest build. Point `PSOXIDE_GUEST_STAGE_ROOT` at a private directory if another build shares the machine. A rebuilt frontend is needed whenever `psxed-project` changes (derived walls, bands and planes only draw in a frontend built after they landed).

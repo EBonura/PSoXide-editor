@@ -65,7 +65,7 @@ fn start(tag: &str) -> (Client, PathBuf) {
         "{}",
         String::from_utf8_lossy(&made.stderr)
     );
-    let frontend = repo.join("target/release/frontend");
+    let frontend = repo.join("target/release/psoxide-emulator");
     let mut args = vec![
         "--project".to_string(),
         project.to_string_lossy().into_owned(),
@@ -426,8 +426,10 @@ fn the_test_level_is_rebuilt_with_the_fixed_tools() {
         return;
     }
     assert!(
-        repo_root().join("target/release/frontend").is_file(),
-        "PSXED_MCP_VERIFY needs target/release/frontend"
+        repo_root()
+            .join("target/release/psoxide-emulator")
+            .is_file(),
+        "PSXED_MCP_VERIFY needs target/release/psoxide-emulator"
     );
     // An eye pose is exact: the same view asked for as an orbit from far
     // away is the same picture, pixel for pixel.

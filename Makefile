@@ -192,13 +192,13 @@ endif
 	rm -rf $(PGO_DIR)
 	cd emu && RUSTFLAGS="-Cprofile-generate=$(abspath $(PGO_DIR))" \
 		cargo build -p psoxide-emulator --release --features editor,mcp
-	target/release/frontend launch --path "$(PGO_GAME)" --steps 500000000
-	target/release/frontend launch --path "$(PGO_GAME)" --steps 150000000
+	target/release/psoxide-emulator launch --path "$(PGO_GAME)" --steps 500000000
+	target/release/psoxide-emulator launch --path "$(PGO_GAME)" --steps 150000000
 	"$$(rustc --print sysroot)"/lib/rustlib/*/bin/llvm-profdata merge \
 		-o $(PGO_DIR)/merged.profdata $(PGO_DIR)/*.profraw
 	cd emu && RUSTFLAGS="-Cprofile-use=$(abspath $(PGO_DIR))/merged.profdata" \
 		cargo build -p psoxide-emulator --release --features editor,mcp
-	@echo "PGO build ready: target/release/frontend"
+	@echo "PGO build ready: target/release/psoxide-emulator"
 
 # Serve the emulator-only wasm build locally (optimized) at http://127.0.0.1:8080.
 # `env -u NO_COLOR` works around trunk choking on the NO_COLOR=1 shell env.
