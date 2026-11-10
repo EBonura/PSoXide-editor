@@ -14,6 +14,6 @@ jobs:
       - run: make verify-components
       - run: make material-audit
       - run: make fmt-check
-      - run: cargo check --locked --workspace --all-features
+      - run: make check CARGO_FLAGS=--locked
       - run: cargo test --locked --workspace --features psoxide-emulator/editor
       - run: make lint

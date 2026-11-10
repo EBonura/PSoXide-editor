@@ -249,8 +249,12 @@ validate-bless:
 # engine/, sdk/ and the content crates are hydrated from the SDK, which runs their own checks, tests
 # and lints; this workspace builds and tests the editor, the hydrated frontend and the hydrated
 # psxed-project (its tests read the projects/ and assets/ here).
+# Every feature except the emulator's `devkit-ram`: that build is interpreter-only and the frontend
+# refuses to compile it together with the default `native-jit` tier.
+CHECK_FEATURES := emulator-core/trace-cop2,emulator-core/trace-mmio,emulator-core/verify-busclock,psxed-audio/pack,psoxide-emulator/editor,psoxide-emulator/editor-preview-benchmark,psoxide-emulator/mcp
+
 check:
-	cargo check --workspace --all-features
+	cargo check $(CARGO_FLAGS) --workspace --features $(CHECK_FEATURES)
 
 test:
 	cargo test --workspace --features psoxide-emulator/editor
