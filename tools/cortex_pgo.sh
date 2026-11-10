@@ -66,7 +66,7 @@ PROJECT="${CORTEX_PGO_PROJECT:-projects/default/project.ron}"
 case "$PROJECT" in /*) ;; *) PROJECT="$ROOT/$PROJECT" ;; esac
 TAPE="${CORTEX_PGO_TAPE:?set CORTEX_PGO_TAPE to a poll-bound .pxtape to profile}"
 WORK="${CORTEX_PGO_WORK:-$ROOT/build/cortex-pgo}"
-FRONTEND="$ROOT/target/release/frontend"
+FRONTEND="$ROOT/target/release/psoxide-emulator"
 REPLAY_FRONTEND="${CORTEX_PGO_REPLAY_FRONTEND:-$FRONTEND}"
 # Line tables and discriminators for sample profiling. The flat image drops
 # them at link time, so the profiled build runs like any other.

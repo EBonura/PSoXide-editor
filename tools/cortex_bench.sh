@@ -41,7 +41,7 @@ STEPS="${CORTEX_BENCH_STEPS:-6000000000}"
 # tape can end a poll early or late. 5340 is the last checkpoint where a no-op
 # build (+1% work) still matched display and VRAM; 5350 already moved.
 STOP_POLL="${CORTEX_BENCH_STOP_POLL:-5340}"
-FRONTEND="$ROOT/target/release/frontend"
+FRONTEND="$ROOT/target/release/psoxide-emulator"
 
 fail() { echo "cortex-bench: FAIL: $1" >&2; exit 1; }
 

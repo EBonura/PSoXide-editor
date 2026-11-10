@@ -19,14 +19,14 @@
 #                                          shifts the spawn drop; earlier ticks are reported but not judged)
 #
 # Work dir: $SIMGATE_DIR (default build/simgate). The frontend is $FRONTEND
-# (default target/release/frontend); the emulator core does not differ between
+# (default target/release/psoxide-emulator); the emulator core does not differ between
 # builds being compared, so one frontend can replay both builds' discs, but a
 # disc must be cooked by the frontend of the tree it describes (run `disc` from
 # the tree under test, with that tree's frontend built).
 set -e
 root=${SIMGATE_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}
 work=${SIMGATE_DIR:-$root/build/simgate}
-frontend=${FRONTEND:-$root/target/release/frontend}
+frontend=${FRONTEND:-$root/target/release/psoxide-emulator}
 features=${SIMGATE_FEATURES:-cd-stream-bench sim-trace}
 cmd=$1; shift
 
