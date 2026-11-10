@@ -52,7 +52,6 @@ fn the_heatmap_renders_on_every_reference_level() {
         "grid-dungeon",
         "grid-cave",
         "grid-sewers",
-        "grid-west",
     ] {
         let path = psxed_project::projects_dir().join(name).join("project.ron");
         let project = ProjectDocument::load_from_path(path).expect("the level loads");
@@ -79,7 +78,6 @@ fn measure_heatmap_on_the_reference_levels() {
         "grid-dungeon",
         "grid-cave",
         "grid-sewers",
-        "grid-west",
     ] {
         let path = psxed_project::projects_dir().join(name).join("project.ron");
         let project = ProjectDocument::load_from_path(path).expect("the level loads");

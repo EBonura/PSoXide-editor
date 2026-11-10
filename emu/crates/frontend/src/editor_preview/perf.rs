@@ -376,7 +376,6 @@ const GOLDEN_LEVELS: &[&str] = &[
     "grid-level008",
     "grid-cave",
     "grid-sewers",
-    "grid-west",
     "grid-starter",
     "grid-gate",
 ];
@@ -397,8 +396,6 @@ const GOLDEN: &[(&str, &str, u64)] = &[
     ("grid-cave", "interior", 0xe7e8e9e3808a4267),
     ("grid-sewers", "overview", 0xacb5e2f5a81a2d58),
     ("grid-sewers", "interior", 0x32b559fce1976924),
-    ("grid-west", "overview", 0xb01946e999a1071f),
-    ("grid-west", "interior", 0x86b6e472d0d0eae8),
     ("grid-starter", "overview", 0x5e19092ac60a8532),
     ("grid-starter", "interior", 0xc9927d84050cd864),
     ("grid-gate", "overview", 0x3c8975736525ea90),

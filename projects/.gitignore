@@ -10,8 +10,8 @@
 #                       every new project, so the build needs it on disk.
 #   graybox-reach       the base project every grid project borrows its
 #                       player, camera, sky and assets from
-#   grid-cathedral, grid-level008, grid-dungeon, grid-cave, grid-sewers,
-#   grid-west          the six grid reference levels (permanent: the grid
+#   grid-cathedral, grid-level008, grid-dungeon, grid-cave, grid-sewers
+#                       the five grid reference levels (permanent: the grid
 #                      importer is gone, these are the fixtures). Each links
 #                      its `assets` to ../graybox-reach/assets; its baked/
 #                      directory is regenerated and stays ignored.
@@ -32,8 +32,6 @@
 !grid-cave/**
 !grid-sewers/
 !grid-sewers/**
-!grid-west/
-!grid-west/**
 # The octagonal tower test level of docs/grid/multi-storey.md section 8, built
 # only with the MCP tools (editor/crates/psxed-mcp/tests/grid_tower.script).
 !grid-tower/

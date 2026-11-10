@@ -10,7 +10,7 @@ From the repository root:
 cargo run --release -p frontend --features editor -- --editor --windowed --editor-project editor/projects/grid-cathedral
 ```
 
-Swap the last path for any grid project: `grid-cathedral`, `grid-level008`, `grid-cave`, `grid-dungeon`, `grid-sewers`, `grid-west`, or a project you made with File > New Grid Project. Leave `--editor-project` off to open the default project and switch with File > Project. The first build takes a few minutes; `make run-release` does the same through the Makefile.
+Swap the last path for any grid project: `grid-cathedral`, `grid-level008`, `grid-cave`, `grid-dungeon`, `grid-sewers`, or a project you made with File > New Grid Project. Leave `--editor-project` off to open the default project and switch with File > Project. The first build takes a few minutes; `make run-release` does the same through the Makefile.
 
 Play and Build shell out to `make build-editor-playtest`, which runs `make bootstrap` first. Bootstrap refuses to continue when a hydrated emulator file has been edited ("Imported file changed"), so keep `emu/crates/frontend/src/cli.rs` and `gfx.rs` as the pinned emulator revision ships them. `.tools/sdk-*/bin/psoxide-components --root . --check` says whether they match.
 
@@ -18,7 +18,7 @@ Play and Build shell out to `make build-editor-playtest`, which runs `make boots
 
 * File > Project lists every project under `editor/projects`. A grid project opens in the 3D view with the grid tool strip across the top.
 * File > New Grid Project... asks for a name and makes `editor/projects/<name>/`: a 6 by 6 sector room with a floor, a ceiling, one lamp and the Graybox Reach player in the middle, and a palette of nine Graybox materials: the base's three blue-grey grid tints and six that read apart (Warm Stone, Dark Trim, Light Frieze, Wood, Metal, Moss; generated colour-plus-noise materials, no image files). Its outline walls are not stored: the room derives them (see Derived walls below). It borrows the player, camera, sky and UI from `editor/projects/graybox-reach` (the project's `assets` folder links to it), so that project has to exist. Press Play and you are walking in it.
-* The six reference levels (`grid-cathedral`, `grid-level008`, `grid-dungeon`, `grid-cave`, `grid-sewers`, `grid-west`) are tracked projects. They came from bonnie-32 maps; the importer is gone, so the projects are now the source of truth.
+* The five reference levels (`grid-cathedral`, `grid-level008`, `grid-dungeon`, `grid-cave`, `grid-sewers`) are tracked projects. They came from bonnie-32 maps; the importer is gone, so the projects are now the source of truth.
 
 ## The screen
 

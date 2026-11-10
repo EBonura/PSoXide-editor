@@ -3,7 +3,6 @@ grid-level008 core=54925ac2a2553485 rooms=983b9f52b26bf64e manifest=3fc98a054c0c
 grid-dungeon core=7f64c702629de118 rooms=fbf441218e8900a4 manifest=313d8d28f84fac5b
 grid-cave core=e67383cc4b00a912 rooms=9e0c0f58d9c0806e manifest=9f9c98a65e17f854
 grid-sewers core=3f7455d794144e52 rooms=d38fa88e0d5366fc manifest=62998e44dcd89bbd
-grid-west core=e510f3dd5a2b4345 rooms=162bb8689971ec6b manifest=e3286f71370ad12c
 grid-starter core=9b85d581eda8fc62 rooms=6f494049a9d9c4bb manifest=9fa6d1aa97a89687
 grid-gate core=6c594e5249299242 rooms=37cc23eb83ed1971 manifest=d8806b0faf56b514
 grid-tower core=9d1df3ae99b39f57 rooms=00bccffb2cec4b13 manifest=34f3a7d8f93e16df
