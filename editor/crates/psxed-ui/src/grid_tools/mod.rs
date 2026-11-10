@@ -836,14 +836,9 @@ impl EditorWorkspace {
             self.grid.abandon();
             // A room chosen for the Inspector gives way to the new tool's.
             self.selection.selected_room = None;
-            // Every tool but Select works on what the pointer is over (or
-            // on a region picked inside it), never on a selection carried
-            // in from Select.
-            if tool != GridTool::Select {
-                self.grid.selection.clear();
-                self.grid.plane_sel.clear();
-                self.grid.mesh_sel = None;
-            }
+            // The selection (faces, planes, meshes) survives the switch: a
+            // tool that acts under the pointer ignores it, and the next tool
+            // that works on a selection (Height, Extrude) finds it intact.
         }
         self.grid.tool = tool;
         if tool.group() == ToolGroup::Shape {

@@ -208,14 +208,14 @@ fn a_typed_amount_is_one_undo_step() {
 }
 
 #[test]
-fn a_selection_from_select_is_not_carried_into_raise() {
+fn a_selection_from_select_is_kept_but_not_adopted_as_the_raise_region() {
     let mut rig = GridRig::top("verb-adopt", hall());
     rig.ws
         .apply_grid_pose("tool=select;select=floors:1,1:2,1")
         .unwrap();
     assert!(!rig.ws.grid.selection.is_empty());
     rig.tool(GridTool::Extrude);
-    assert!(rig.ws.grid.selection.is_empty());
+    assert!(!rig.ws.grid.selection.is_empty());
     assert!(rig.ws.grid.verb.region.is_none());
 }
 

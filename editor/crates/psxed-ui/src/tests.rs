@@ -46,6 +46,7 @@ mod grid_tools_top;
 mod grid_triangles;
 mod grid_ui;
 mod grid_ux;
+mod grid_ux_phase1;
 mod grid_verb_guide;
 mod grid_verbs;
 mod grid_walk;

@@ -281,10 +281,10 @@ fn floor_material(rig: &GridRig, x: usize) -> Option<ResourceId> {
 }
 
 #[test]
-fn entering_paint_clears_the_selection() {
+fn entering_paint_keeps_the_selection() {
     let (mut rig, _) = floors();
     rig.tool(GridTool::Paint);
-    assert!(rig.ws.grid.selection.is_empty());
+    assert!(!rig.ws.grid.selection.is_empty());
 }
 
 #[test]

@@ -8,7 +8,7 @@ use psxed_project::grid::edit::{FaceRef, GridElement};
 use psxed_project::{NodeId, NodeKind};
 
 #[test]
-fn choosing_any_tool_but_select_drops_the_selection() {
+fn choosing_any_tool_keeps_the_selection() {
     for tool in GridTool::ALL {
         if tool == GridTool::Select {
             continue;
@@ -22,12 +22,12 @@ fn choosing_any_tool_but_select_drops_the_selection() {
         rig.ws.grid.mesh_sel = Some(7);
         rig.tool(tool);
         assert!(
-            rig.ws.grid.selection.is_empty(),
-            "{tool:?} kept the face selection"
+            !rig.ws.grid.selection.is_empty(),
+            "{tool:?} dropped the face selection"
         );
         assert!(
-            rig.ws.grid.plane_sel.is_empty() && rig.ws.grid.mesh_sel.is_none(),
-            "{tool:?} kept the plane or mesh selection"
+            rig.ws.grid.mesh_sel == Some(7),
+            "{tool:?} dropped the mesh selection"
         );
     }
 }

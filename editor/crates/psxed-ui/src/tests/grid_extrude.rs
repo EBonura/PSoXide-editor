@@ -341,10 +341,10 @@ fn a_floor_still_extrudes_as_raise_always_did() {
 }
 
 #[test]
-fn a_tool_switch_forgets_the_picked_wall_pieces() {
+fn a_tool_switch_keeps_the_picked_wall_pieces() {
     let mut rig = rig();
     rig.click(rig.screen_of(wall_point(500.0)));
     assert!(!rig.ws.grid.selection.is_empty());
     rig.tool(GridTool::Ramp);
-    assert!(rig.ws.grid.selection.is_empty());
+    assert!(!rig.ws.grid.selection.is_empty());
 }
