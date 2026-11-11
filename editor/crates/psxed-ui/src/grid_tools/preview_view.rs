@@ -24,6 +24,9 @@ pub struct GridPreviewView {
     /// preview draws the faces it lands on as they will look. Never part of
     /// the document.
     pub paint: Option<PaintGhost>,
+    /// A pointer gesture is in flight (a Build tool's live ghost, a drag):
+    /// the preview skips the lighting gather until it ends and bakes once.
+    pub live_gesture: bool,
 }
 
 impl GridPreviewView {
@@ -49,6 +52,15 @@ pub fn grid_preview_view() -> GridPreviewView {
 }
 
 impl EditorWorkspace {
+    /// Whether a pointer gesture that rewrites the document live is under
+    /// way.
+    pub(crate) fn gesture_is_live(&self) -> bool {
+        !matches!(
+            self.grid.gesture,
+            Gesture::Idle | Gesture::Node
+        ) || self.grid.build.is_dragging()
+    }
+
     /// Publish this frame's view settings to the 3D preview. A scene that is
     /// not a grid world publishes none.
     pub(crate) fn publish_grid_view(&self) {
@@ -59,6 +71,7 @@ impl EditorWorkspace {
                 hidden_rooms,
                 cutaway: self.cutaway_plane(),
                 paint: self.paint_ghost(),
+                live_gesture: self.gesture_is_live(),
             }
         } else {
             GridPreviewView::default()

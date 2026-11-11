@@ -77,6 +77,11 @@ pub(crate) struct BuildState {
 }
 
 impl BuildState {
+    /// Whether a Build gesture is in flight (its ghost is live).
+    pub(crate) fn is_dragging(&self) -> bool {
+        self.drag.is_some()
+    }
+
     /// Forget any gesture and typed number (a tool change).
     pub(crate) fn abandon(&mut self) {
         self.drag = None;

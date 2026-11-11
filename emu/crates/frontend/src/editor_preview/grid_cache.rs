@@ -195,6 +195,10 @@ pub(super) struct GridGeometry {
     /// `(document generation, textures generation)` the rooms were last
     /// checked against.
     synced: Option<(u64, u64)>,
+    /// A gather was due while a pointer gesture was in flight: it starts
+    /// once the gesture is over, so a drag is not paying for light on every
+    /// mouse move.
+    gi_stale: bool,
 }
 
 impl GridGeometry {
@@ -207,6 +211,10 @@ impl GridGeometry {
         textures_generation: u64,
     ) {
         if self.synced == Some((document_generation, textures_generation)) {
+            if self.gi_stale && !psxed_ui::grid_preview_view().live_gesture {
+                self.gi_stale = false;
+                self.start_gi(project);
+            }
             return;
         }
         self.synced = Some((document_generation, textures_generation));
@@ -271,14 +279,30 @@ impl GridGeometry {
         // the solution is made from changing starts another solve.
         if !world.global_light.enabled {
             self.gi.clear();
-        } else if gi_dirty || (self.gi.field().is_none() && !self.gi.pending()) {
-            let lights = self
-                .context
-                .as_ref()
-                .map_or_else(Vec::new, |c| c.lights.clone());
-            self.gi
-                .restart(project, world, lights, self.project_root.clone());
+        } else if gi_dirty || self.gi_stale || (self.gi.field().is_none() && !self.gi.pending()) {
+            if psxed_ui::grid_preview_view().live_gesture {
+                self.gi_stale = true;
+            } else {
+                self.gi_stale = false;
+                self.start_gi(project);
+            }
         }
+    }
+
+    /// Start solving the world's gathered light.
+    fn start_gi(&mut self, project: &ProjectDocument) {
+        let Some(world) = project.active_scene().world.grid() else {
+            return;
+        };
+        if !world.global_light.enabled {
+            return;
+        }
+        let lights = self
+            .context
+            .as_ref()
+            .map_or_else(Vec::new, |c| c.lights.clone());
+        self.gi
+            .restart(project, world, lights, self.project_root.clone());
     }
 
     /// The light probes of `world`, for the models of a frame to be lit by:
@@ -639,5 +663,32 @@ mod tests {
         assert!(geometry.probes.is_some());
         geometry.sync(&project, 2, 0);
         assert!(geometry.probes.is_none(), "an edit bakes them again");
+    }
+
+    /// A drag rewrites the document on every mouse move: the lighting gather
+    /// waits for the gesture to end and then starts once.
+    #[test]
+    fn the_gather_waits_for_a_live_gesture_to_end() {
+        let mut project = two_room_project();
+        if let Some(world) = project.active_scene_mut().world.grid_mut() {
+            world.global_light.enabled = true;
+        }
+        let live = |on| {
+            psxed_ui::publish_grid_preview_view_for_tests(psxed_ui::GridPreviewView {
+                live_gesture: on,
+                ..psxed_ui::GridPreviewView::default()
+            });
+        };
+        let mut geometry = GridGeometry::default();
+        live(true);
+        geometry.sync(&project, 1, 0);
+        assert!(!geometry.global_light_pending(), "no gather mid-gesture");
+        // The document moves on under the drag: still none.
+        geometry.sync(&project, 2, 0);
+        assert!(!geometry.global_light_pending());
+        live(false);
+        geometry.sync(&project, 2, 0);
+        assert!(geometry.global_light_pending(), "one gather once it ends");
+        live(false);
     }
 }

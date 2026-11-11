@@ -652,9 +652,7 @@ pub struct EditorWorkspace {
     content_browser_view: ContentBrowserView,
     viewport_zoom: f32,
     last_viewport_size: Vec2,
-    #[cfg(test)]
     last_orthographic_viewport_rect: Rect,
-    #[cfg(test)]
     last_persp_viewport_rect: Rect,
     #[cfg(test)]
     last_orthographic_response: Option<(egui::Id, bool, bool, bool)>,
@@ -2332,9 +2330,7 @@ impl EditorWorkspace {
             content_browser_view: ContentBrowserView::Resources,
             viewport_zoom: DEFAULT_VIEWPORT_ZOOM,
             last_viewport_size: Vec2::new(1280.0, 720.0),
-            #[cfg(test)]
             last_orthographic_viewport_rect: Rect::NOTHING,
-            #[cfg(test)]
             last_persp_viewport_rect: Rect::NOTHING,
             #[cfg(test)]
             last_orthographic_response: None,

@@ -82,17 +82,17 @@ pub(crate) const CATALOG: [ToolEntry; 33] = [
     ToolEntry {
         tool: GridTool::Ramp,
         group: ToolGroup::Build,
-        hint: "Pick sectors | Press near the side to keep, drag up/down | R turn the side | Tab hold to walkable | Esc cancel",
+        hint: "Drag a rectangle, or use your selection | Press near the side to keep, drag up/down | Path and Lasso close when you press on them | R turn the side | Tab hold to walkable | Esc cancel",
     },
     ToolEntry {
         tool: GridTool::Spiral,
         group: ToolGroup::Build,
-        hint: "Click the corners of a ring, Enter closes it | Press on it, drag up for the climb of a storey | Storeys in the option row | Alt+Up/Down level | Esc cancel",
+        hint: "Drag a rectangle: the stairs wind round its outline | Press on it, drag up for the climb of a storey | Path: click the corners, Enter | Your selection works too | Storeys in the option row | Esc cancel",
     },
     ToolEntry {
         tool: GridTool::Slab,
         group: ToolGroup::Build,
-        hint: "Pick sectors | Add floor above: press on them and drag up for the height | Remove upper floor, Fill opening: click them | Tab mode | Alt+Up/Down level | G go to level | Z cutaway | Esc cancel",
+        hint: "Drag a rectangle, or use your selection | Add floor above: press on them and drag up for the height | Remove upper floor, Fill opening: click them | Tab mode | Alt+Up/Down level | G go to level | Z cutaway | Esc cancel",
     },
     ToolEntry {
         tool: GridTool::Floor,
@@ -127,7 +127,7 @@ pub(crate) const CATALOG: [ToolEntry; 33] = [
     ToolEntry {
         tool: GridTool::Break,
         group: ToolGroup::Terrain,
-        hint: "Pick sectors | Press on them, drag up for intensity | Tab target | Shift+X re-roll | Enter commit | Esc cancel",
+        hint: "Drag a rectangle, or use your selection | Press on it, drag up for intensity | Tab target | Shift+X re-roll | Enter commit | Esc cancel",
     },
     ToolEntry {
         tool: GridTool::Terrain,

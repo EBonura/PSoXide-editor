@@ -109,9 +109,9 @@ impl EditorWorkspace {
             self.grid.fit_pending = false;
             self.frame_viewport();
         }
+        self.last_orthographic_viewport_rect = rect;
         #[cfg(test)]
         {
-            self.last_orthographic_viewport_rect = rect;
             self.last_orthographic_response = Some((
                 response.id,
                 response.hovered(),
