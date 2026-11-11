@@ -218,6 +218,7 @@ impl EditorWorkspace {
 
     fn draw_tool_row_items(&mut self, ui: &mut egui::Ui) {
         // Select and Height open the row, with no label.
+        self.row_tool(ui, GridTool::Edit);
         self.row_tool(ui, GridTool::Select);
         self.row_tool(ui, GridTool::Height);
         group_gap(ui);

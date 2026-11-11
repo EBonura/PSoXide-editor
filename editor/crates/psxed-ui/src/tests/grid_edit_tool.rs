@@ -412,3 +412,101 @@ fn raising_a_rectangle_as_a_platform_takes_two_steps() {
     assert_eq!(heights(&rig, [2, 1]), Some([256; 4]));
     assert_eq!(heights(&rig, [1, 2]), Some([0; 4]));
 }
+
+#[test]
+fn in_the_plan_a_floor_cell_rises_eighteen_pixels_a_click() {
+    let mut rig = GridRig::top("edit-plan", flat_project(5, 5, true));
+    rig.tool(GridTool::Edit);
+    let from = rig.cell_centre(2, 2);
+    rig.move_to(from, egui::Modifiers::NONE);
+    assert!(
+        hint(&rig).starts_with("Drag: raise floor"),
+        "{}",
+        hint(&rig)
+    );
+    rig.drag(from, from - Vec2::new(0.0, 36.0));
+    assert_eq!(heights(&rig, [2, 2]), Some([512; 4]));
+    assert_eq!(rig.ws.grid.selection.len(), 1);
+}
+
+#[test]
+fn in_the_plan_a_room_slopes_from_an_edge_of_a_double_clicked_floor() {
+    let mut rig = GridRig::top("edit-plan-tilt", flat_project(4, 4, true));
+    rig.tool(GridTool::Edit);
+    let p = rig.cell_centre(1, 1);
+    rig.click(p);
+    rig.click(p);
+    assert_eq!(rig.ws.grid.selection.len(), 16);
+    // The east edge of the room, a few pixels inside its last cell.
+    let edge = rig.top_at(3.97 * S, 1.5 * S);
+    rig.drag(edge, edge - Vec2::new(0.0, 36.0));
+    assert_eq!(heights(&rig, [3, 1]), Some([384, 512, 512, 384]));
+}
+
+#[test]
+fn a_walk_limit_warning_names_floors_too_steep_to_stand_on() {
+    let mut rig = tilted_room_rig("edit-steep", 2);
+    // Twelve clicks over two sectors is steeper than a body can stand on.
+    let from = at(&rig, 2.0, 0.0, 1.5);
+    rig.drag_hold(from, at(&rig, 2.0, 3072.0 / S, 1.5), egui::Modifiers::NONE);
+    assert!(rig.ws.status.contains("too steep"), "{}", rig.ws.status);
+    rig.key(egui::Key::Escape);
+}
+
+/// Captures of the Edit tool for review: `PSXED_EDIT_CAPTURE=<dir>` writes a
+/// hover over a floor, a hover over a wall with its arrow, and a slope in
+/// flight, from the whole window. Without the variable this does nothing.
+#[test]
+fn edit_tool_captures() {
+    use super::grid_live::WindowRig;
+    use super::grid_pick_shots::{look_from, sector, settle, three_d, wire};
+    let Some(dir) = std::env::var_os("PSXED_EDIT_CAPTURE") else {
+        return;
+    };
+    let dir = std::path::PathBuf::from(dir);
+    let mut rig = WindowRig::new();
+    three_d(&mut rig);
+    let s = sector(&rig);
+    look_from(
+        &mut rig,
+        [11.0 * s, 8500.0, 15.0 * s],
+        [11.0 * s, 0.0, 3.0 * s],
+    );
+    rig.ws.set_grid_tool(GridTool::Edit);
+    settle(&mut rig);
+    let p = |rig: &WindowRig, x: f32, y: f32, z: f32| rig.persp_screen([x * s, y, z * s]).unwrap();
+    // 1. Hover over a floor tile.
+    let tile = p(&rig, 11.5, 0.0, 3.5);
+    rig.move_to(tile);
+    settle(&mut rig);
+    wire(&mut rig);
+    rig.capture(&dir.join("edit-hover-floor.png"));
+    // 2. Hover near an edge, then a wall and its arrow.
+    let wall = p(&rig, 7.0, 1536.0, 3.5);
+    rig.move_to(wall);
+    settle(&mut rig);
+    wire(&mut rig);
+    rig.capture(&dir.join("edit-hover-wall.png"));
+    let arrow = p(&rig, 7.0, 3072.0, 3.5) - Vec2::new(0.0, 22.0);
+    rig.move_to(arrow);
+    settle(&mut rig);
+    wire(&mut rig);
+    rig.capture(&dir.join("edit-hover-wall-arrow.png"));
+    // 3. The room's floor, then its east edge half way up.
+    rig.click(tile);
+    rig.click(tile);
+    settle(&mut rig);
+    let edge = p(&rig, 14.97, 0.0, 3.5);
+    rig.move_to(edge);
+    let down = rig.press(edge, true);
+    rig.frame(vec![down]);
+    let up = p(&rig, 14.97, 768.0, 3.5);
+    for step in 1..=6 {
+        rig.move_to(edge + (up - edge) * (step as f32 / 6.0));
+    }
+    settle(&mut rig);
+    wire(&mut rig);
+    rig.capture(&dir.join("edit-drag-tilt.png"));
+    let release = rig.press(up, false);
+    rig.frame(vec![release]);
+}
