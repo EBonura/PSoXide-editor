@@ -19,7 +19,6 @@ pub(crate) enum BuildKind {
     Colonnade,
     Bridge,
     Building,
-    Cathedral,
     Terrain,
     Ruin,
     Door,
@@ -38,7 +37,6 @@ impl BuildKind {
             GridTool::Colonnade => Self::Colonnade,
             GridTool::Bridge => Self::Bridge,
             GridTool::Building => Self::Building,
-            GridTool::Cathedral => Self::Cathedral,
             GridTool::Terrain => Self::Terrain,
             GridTool::Ruin => Self::Ruin,
             GridTool::Door => Self::Door,
@@ -57,7 +55,6 @@ impl BuildKind {
             Self::Corridor => Some(("width", false)),
             Self::Arcade | Self::Colonnade => Some(("bays", false)),
             Self::Building => Some(("storeys", false)),
-            Self::Cathedral => Some(("bay size", false)),
             Self::Bridge => Some(("width", true)),
             Self::Terrain => Some(("amplitude", true)),
             Self::Ruin => Some(("intensity", true)),
@@ -176,17 +173,6 @@ pub(crate) struct BuildingOpts {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct CathedralOpts {
-    pub bay: i32,
-    pub aisle_width: i32,
-    pub nave_height: i32,
-    pub transept: bool,
-    pub apse: bool,
-    pub west_door: bool,
-    pub style: StyleResolved,
-}
-
-#[derive(Clone, Debug)]
 pub(crate) struct TerrainOpts {
     pub seed: u32,
     pub amplitude: i32,
@@ -244,7 +230,6 @@ pub(crate) struct Options {
     pub arcade: ArcadeOpts,
     pub bridge: BridgeOpts,
     pub building: BuildingOpts,
-    pub cathedral: CathedralOpts,
     pub terrain: TerrainOpts,
     pub ruin: RuinOpts,
     pub door: DoorOpts,
@@ -299,15 +284,6 @@ impl Default for Options {
                 parapet: true,
                 seed: 0,
             },
-            cathedral: CathedralOpts {
-                bay: 2,
-                aisle_width: 2,
-                nave_height: 9216,
-                transept: false,
-                apse: true,
-                west_door: true,
-                style: StyleResolved::Plain,
-            },
             terrain: TerrainOpts {
                 seed: 1,
                 amplitude: 1,
@@ -361,7 +337,6 @@ impl Options {
             BuildKind::Corridor => self.corridor.width = value.clamp(1, 8),
             BuildKind::Arcade | BuildKind::Colonnade => self.arcade.bays = value.clamp(1, 32),
             BuildKind::Building => self.building.storeys = value.clamp(1, 4),
-            BuildKind::Cathedral => self.cathedral.bay = value.clamp(2, 4),
             BuildKind::Bridge => self.bridge.width = value.max(256),
             BuildKind::Terrain => self.terrain.amplitude = (value / 256).max(0),
             BuildKind::Ruin => self.ruin.intensity = (value / 256).clamp(0, 100) as u32,

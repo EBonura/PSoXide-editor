@@ -66,10 +66,10 @@ fn rooms_corridors_openings_doors_and_levers_make_a_small_level() {
     let corridor = c
         .ok(
             "grid_corridor",
-            json!({"waypoints": [[16, 2], [22, 2]], "width": 1, "style": "gothic nave"}),
+            json!({"waypoints": [[20, 0], [20, 11]], "style": "rib corridor"}),
         )
         .text;
-    assert!(corridor.contains("Styled corridor"), "{corridor}");
+    assert!(corridor.contains("Corridor of 4 bays"), "{corridor}");
     let rooms = c.ok("grid_rooms", json!({})).text;
     assert!(rooms.matches("sectors").count() >= 3, "{rooms}");
     // A door in the north wall of the new room, then its lever.
@@ -162,20 +162,48 @@ fn walls_read_set_and_reset_through_one_api() {
 fn styles_are_listed_and_a_captured_bay_joins_them() {
     let mut c = client("styles");
     let list = c.ok("grid_style_list", json!({})).text;
-    assert!(list.contains("gothic"), "{list}");
-    c.ok(
-        "grid_corridor",
-        json!({"waypoints": [[10, 0], [17, 0]], "style": "gothic nave"}),
-    );
+    assert!(list.contains("Rib corridor"), "{list}");
+    assert!(!list.to_lowercase().contains("gothic"), "{list}");
+    // The shipped bay takes its own width when none is given.
+    let rib = c
+        .ok(
+            "grid_corridor",
+            json!({"waypoints": [[10, 0], [10, 5]], "style": "Rib corridor"}),
+        )
+        .text;
+    assert!(rib.contains("Corridor of 2 bays"), "{rib}");
+    // A width that is not the bay's is refused with the bay's.
+    let wrong = c
+        .call(
+            "grid_corridor",
+            json!({"waypoints": [[30, 0], [30, 5]], "width": 2, "style": "Rib corridor"}),
+        )
+        .expect_err("a bay has one width");
+    assert!(wrong.contains("6 sectors wide"), "{wrong}");
+    let room = c
+        .call(
+            "grid_room",
+            json!({"from": [40, 0], "to": [45, 5], "style": "Rib corridor"}),
+        )
+        .expect_err("a bay is a corridor's");
+    assert!(room.contains("only a corridor"), "{room}");
+    // A captured bay joins the list and a corridor lays it by name.
     let captured = c
         .ok(
             "grid_capture_style",
-            json!({"room": 1, "from": [10, 0], "to": [11, 0], "name": "My bay"}),
+            json!({"room": 1, "from": [8, 0], "to": [13, 2], "name": "My bay"}),
         )
         .text;
     assert!(captured.contains("My bay"), "{captured}");
     let after = c.ok("grid_style_list", json!({})).text;
     assert!(after.contains("My bay (captured bay)"), "{after}");
+    let mine = c
+        .ok(
+            "grid_corridor",
+            json!({"waypoints": [[30, 0], [30, 8]], "style": "My bay"}),
+        )
+        .text;
+    assert!(mine.contains("Corridor of 3 bays"), "{mine}");
 }
 
 #[test]

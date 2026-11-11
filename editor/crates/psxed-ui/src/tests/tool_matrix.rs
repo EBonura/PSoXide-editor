@@ -1,4 +1,4 @@
-//! The tool x view matrix. Every one of the 33 tools has a canonical use,
+//! The tool x view matrix. Every one of the 32 tools has a canonical use,
 //! written once, started from its strip button, and run in the 3D view, the
 //! Plan, and both panes of the split view. The same flow, held in the middle
 //! of its last gesture, is pressed Esc on. `PSXED_MATRIX_OUT=<file>` writes the
@@ -202,13 +202,6 @@ fn f_line(rig: &mut WindowRig, v: View, r: bool) -> Result<Out, String> {
 
 fn f_building(rig: &mut WindowRig, v: View, r: bool) -> Result<Out, String> {
     f_room(rig, v, r)
-}
-
-fn f_cathedral(rig: &mut WindowRig, v: View, r: bool) -> Result<Out, String> {
-    let (a, b) = (v.cell(rig, [8, -1]), v.cell(rig, [19, 5]));
-    let mut out = mark(rig);
-    go(rig, a, b, r, &mut out);
-    Ok(out)
 }
 
 fn f_region_drag(rig: &mut WindowRig, v: View, r: bool) -> Result<Out, String> {
@@ -441,7 +434,7 @@ fn f_mesh(rig: &mut WindowRig, v: View, r: bool) -> Result<Out, String> {
     Ok(out)
 }
 
-pub(super) const FLOWS: [(GridTool, Expect, Flow); 33] = [
+pub(super) const FLOWS: [(GridTool, Expect, Flow); 32] = [
     (GridTool::Edit, Expect::Doc, f_edit),
     (GridTool::Select, Expect::Selection, f_box),
     (GridTool::Height, Expect::Doc, f_height),
@@ -453,7 +446,6 @@ pub(super) const FLOWS: [(GridTool, Expect, Flow); 33] = [
     (GridTool::Colonnade, Expect::Doc, f_line),
     (GridTool::Bridge, Expect::Doc, f_bridge),
     (GridTool::Building, Expect::Doc, f_building),
-    (GridTool::Cathedral, Expect::Doc, f_cathedral),
     (GridTool::Stairs, Expect::Doc, f_stairs),
     (GridTool::Ramp, Expect::Doc, f_extrude),
     (GridTool::Spiral, Expect::Doc, f_spiral),

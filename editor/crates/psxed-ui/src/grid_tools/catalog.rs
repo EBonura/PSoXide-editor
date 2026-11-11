@@ -13,7 +13,7 @@ pub(crate) struct ToolEntry {
 }
 
 /// Every tool, in strip order.
-pub(crate) const CATALOG: [ToolEntry; 33] = [
+pub(crate) const CATALOG: [ToolEntry; 32] = [
     ToolEntry {
         tool: GridTool::Edit,
         group: ToolGroup::Edit,
@@ -68,11 +68,6 @@ pub(crate) const CATALOG: [ToolEntry; 33] = [
         tool: GridTool::Building,
         group: ToolGroup::Build,
         hint: "Drag a footprint | type a number for the storeys | Esc cancel",
-    },
-    ToolEntry {
-        tool: GridTool::Cathedral,
-        group: ToolGroup::Build,
-        hint: "Drag the nave: its length sets the bays, its depth the width | type a number for the bay size | Esc cancel",
     },
     ToolEntry {
         tool: GridTool::Stairs,

@@ -101,7 +101,6 @@ impl EditorWorkspace {
             | GridTool::Colonnade
             | GridTool::Bridge
             | GridTool::Building
-            | GridTool::Cathedral
             | GridTool::Terrain
             | GridTool::Ruin
             | GridTool::Door

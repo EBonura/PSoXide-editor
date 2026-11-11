@@ -1,13 +1,15 @@
-//! Styles the Style picker lists: the built-ins, then the ones stored with
-//! the project in its `styles/` folder (`<name>.style.ron` for a style,
-//! `<name>.bay.ron` for a bay captured from the level).
+//! Styles the Style picker lists: plain, the bays that ship with the editor
+//! (the Rib corridor), then the ones stored with the project in its
+//! `styles/` folder (`<name>.style.ron` for a style, `<name>.bay.ron` for a
+//! bay captured from the level).
 
 use std::path::Path;
 
+use psxed_project::grid::edit::verbs::bay_corridor::built_in_bays;
 use psxed_project::grid::edit::verbs::capture::{capture_bay, BayTemplate};
-use psxed_project::grid::edit::verbs::style::{built_in, Style};
+use psxed_project::grid::edit::verbs::style::Style;
 use psxed_project::grid::edit::CellRect;
-use psxed_project::grid::GridWorld;
+use psxed_project::ProjectDocument;
 
 use super::options::{StyleEntry, StyleResolved};
 
@@ -16,23 +18,18 @@ pub(crate) fn dir(project_dir: &Path) -> std::path::PathBuf {
     project_dir.join("styles")
 }
 
-/// Every style: plain, the built-ins, then the project's.
+/// Every style: plain, the built-in bays, then the project's.
 pub(crate) fn list(project_dir: &Path) -> Vec<StyleEntry> {
     let mut out = vec![StyleEntry {
         name: "Plain".to_string(),
         what: StyleResolved::Plain,
         project: false,
     }];
-    out.extend(
-        built_in()
-            .into_iter()
-            .filter(|s| s.name != "plain" && s.name != "Plain")
-            .map(|s| StyleEntry {
-                name: s.name.clone(),
-                what: StyleResolved::Style(s),
-                project: false,
-            }),
-    );
+    out.extend(built_in_bays().into_iter().map(|(name, bay)| StyleEntry {
+        name,
+        what: StyleResolved::Bay(bay),
+        project: false,
+    }));
     let mut stored: Vec<StyleEntry> = Vec::new();
     if let Ok(read) = std::fs::read_dir(dir(project_dir)) {
         for entry in read.flatten() {
@@ -70,7 +67,7 @@ pub(crate) fn list(project_dir: &Path) -> Vec<StyleEntry> {
 /// Capture the bay `rect` of `room` as a named style stored with the project.
 pub(crate) fn capture(
     project_dir: &Path,
-    world: &GridWorld,
+    project: &ProjectDocument,
     room: usize,
     rect: CellRect,
     name: &str,
@@ -89,7 +86,13 @@ pub(crate) fn capture(
     if name.is_empty() {
         return Err("Name the style first".to_string());
     }
-    let bay = capture_bay(world, room, rect).map_err(|e| e.describe())?;
+    let world = project
+        .active_scene()
+        .world
+        .grid()
+        .ok_or("This scene has no grid world")?;
+    let mut bay = capture_bay(world, room, rect).map_err(|e| e.describe())?;
+    bay.name_materials(project);
     let text = ron::ser::to_string_pretty(&bay, ron::ser::PrettyConfig::default())
         .map_err(|e| e.to_string())?;
     let folder = dir(project_dir);

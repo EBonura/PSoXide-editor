@@ -261,29 +261,118 @@ fn corridor_with_a_height_change_is_a_ramp_or_stairs_you_can_walk() {
     }
 }
 
+/// The leaves of the last room's three sector rows from `row` over the six
+/// columns from `col`: key, floor corners, ceiling corners and splits.
+fn bay_heights(
+    rig: &WindowRig,
+    col: i32,
+    row: i32,
+) -> Vec<(
+    psxed_project::grid::leaf::LeafKey,
+    [i32; 4],
+    [i32; 4],
+    psxed_project::grid::surface::GridSplit,
+)> {
+    use psxed_project::grid::edit::verbs::capture::capture_bay;
+    use psxed_project::grid::edit::CellRect;
+    let world = rig.world();
+    let bay = capture_bay(
+        world,
+        world.rooms.len() - 1,
+        CellRect::from_corners([col, row], [col + 5, row + 2]),
+    )
+    .expect("a bay of the corridor");
+    let mut out: Vec<_> = bay
+        .leaves
+        .iter()
+        .map(|(k, s)| {
+            let f = s.ground_floor().expect("floor");
+            (
+                *k,
+                f.heights,
+                s.ground_ceiling().expect("ceiling").heights,
+                f.split,
+            )
+        })
+        .collect();
+    out.sort_by_key(|(k, ..)| (k.level, k.x, k.z));
+    out
+}
+
 #[test]
-fn corridor_in_a_style_chosen_from_the_options_bar() {
+fn corridor_in_the_rib_style_chosen_from_the_options_bar() {
+    use psxed_project::grid::edit::verbs::bay_corridor::rib_corridor;
     let mut rig = starter_plan();
-    frame_cells(&mut rig, [-1, -2], [16, 7]);
-    second_room(&mut rig, [10, 0], [13, 3]);
-    assert!(start(&mut rig, GridTool::Corridor, Start::Search));
+    frame_cells(&mut rig, [16, -2], [32, 14]);
+    // The real Corridor button, then the Style combo box in the options bar.
+    assert!(start(&mut rig, GridTool::Corridor, Start::Strip));
     assert!(
-        pick_style(&mut rig, "Plain", "gothic"),
+        pick_style(&mut rig, "Plain", "rib corridor"),
         "{}",
         options_line(&rig)
     );
-    set_field(&mut rig, "Width", "3");
-    for c in [[5, 2], [9, 2]] {
+    assert_eq!(
+        rig.ws.grid.build.opts.corridor.width, 6,
+        "choosing the bay takes its width"
+    );
+    let steps = history_steps(&rig);
+    let rooms = room_count(&rig);
+    // Twelve sectors along Z, centre line x 24: columns 22 to 27, four bays.
+    for c in [[24, 0], [24, 11]] {
         click_cell(&mut rig, c);
     }
     key(&mut rig, egui::Key::Enter);
-    eprintln!("{} | {}", rig.ws.status, rig.ws.build_hint());
-    assert!(rig.ws.status.contains("in style"), "{}", rig.ws.status);
-    for z in 1..=3 {
-        assert!(has_floor_at(&rig, [7, z]), "three sectors across at z={z}");
+    assert!(
+        rig.ws.status.starts_with("Corridor of 4 bays"),
+        "{}",
+        rig.ws.status
+    );
+    assert_eq!(room_count(&rig), rooms + 1);
+    assert_eq!(history_steps(&rig), steps + 1, "one undo step");
+    // Every bay is the shipped bay, leaf by leaf: corner heights and splits.
+    let want: Vec<_> = {
+        let mut v: Vec<_> = rib_corridor()
+            .leaves
+            .iter()
+            .map(|(k, s)| {
+                let f = s.ground_floor().unwrap();
+                (*k, f.heights, s.ground_ceiling().unwrap().heights, f.split)
+            })
+            .collect();
+        v.sort_by_key(|(k, ..)| (k.level, k.x, k.z));
+        v
+    };
+    // The template's heights are relative to its lowest floor, which the
+    // corridor puts at the floor height of the click (0 here).
+    for bay in 0..4 {
+        assert_eq!(bay_heights(&rig, 22, bay * 3), want, "bay {bay}");
     }
-    assert!(walkable(&rig, [8, 2]), "the styled corridor can be walked");
-    assert_cooks(&rig, "styled corridor");
+    assert!(has_floor_at(&rig, [24, 5]), "the corridor has a floor");
+    assert_cooks(&rig, "rib corridor");
+    rig.ws.do_undo();
+    assert_eq!(room_count(&rig), rooms);
+}
+
+#[test]
+fn a_rib_corridor_of_another_width_is_refused_with_the_width() {
+    let mut rig = starter_plan();
+    frame_cells(&mut rig, [16, -2], [32, 14]);
+    assert!(start(&mut rig, GridTool::Corridor, Start::Strip));
+    assert!(pick_style(&mut rig, "Plain", "rib corridor"));
+    set_field(&mut rig, "Width", "3");
+    let before = rig.ws.project.clone();
+    let steps = history_steps(&rig);
+    for c in [[24, 0], [24, 11]] {
+        click_cell(&mut rig, c);
+    }
+    key(&mut rig, egui::Key::Enter);
+    assert!(
+        rig.ws.status.contains("6 sectors wide"),
+        "{}",
+        rig.ws.status
+    );
+    assert!(rig.ws.project == before, "nothing was laid");
+    assert_eq!(history_steps(&rig), steps);
 }
 
 #[test]
@@ -879,98 +968,6 @@ fn opening_on_an_upper_storey_is_a_whole_sector_and_the_door_tool_says_it_cannot
     assert!(rig.ws.status.contains("ground floor"), "{}", rig.ws.status);
     assert!(rig.ws.project == before);
     assert_eq!(history_steps(&rig), steps);
-}
-
-/// The cathedral dragged out over world cells `a` to `b` with `bay` sectors
-/// to a bay and `aisle` sectors of aisle, started from `how`.
-fn make_cathedral(how: Start, a: [i32; 2], b: [i32; 2], bay: i32, aisle: i32) -> WindowRig {
-    let mut rig = starter_plan();
-    frame_cells(&mut rig, [-1, -3], [22, 8]);
-    assert!(start(&mut rig, GridTool::Cathedral, how));
-    set_field(&mut rig, "Bay", &bay.to_string());
-    set_field(&mut rig, "Aisle", &aisle.to_string());
-    drag_cells(&mut rig, a, b);
-    rig
-}
-
-#[test]
-fn cathedral_nave_axis_width_bays_and_aisles() {
-    // 12 sectors long, 7 deep, bays of 2 and aisles of 2: six bays, a nave of 3.
-    let rig = make_cathedral(Start::Strip, [8, -1], [19, 5], 2, 2);
-    assert!(
-        rig.ws.status.starts_with("Cathedral of 6 bays, 12 arches"),
-        "{}",
-        rig.ws.status
-    );
-    assert_eq!(room_count(&rig), 2);
-    for (cell, what) in [
-        ([8, 0], "an aisle cell"),
-        ([8, 1], "the nave"),
-        ([19, 3], "the east end of the nave"),
-        ([13, 1], "the nave middle"),
-    ] {
-        assert!(has_floor_at(&rig, cell), "{what} {cell:?} has a floor");
-    }
-    assert!(!has_floor_at(&rig, [7, 1]), "nothing west of the drag");
-    assert!(standable(&rig, [13, 2]), "the nave can be stood in");
-    assert_cooks(&rig, "cathedral");
-    // Bays of 3 and aisles of 1: four bays, eight arches.
-    let rig = make_cathedral(Start::Search, [8, -1], [19, 5], 3, 1);
-    assert!(
-        rig.ws.status.starts_with("Cathedral of 4 bays, 8 arches"),
-        "{}",
-        rig.ws.status
-    );
-    assert!(
-        has_floor_at(&rig, [19, 0]),
-        "the long side is still the full drag"
-    );
-    assert_cooks(&rig, "cathedral bay 3");
-    // No aisles: no arcade.
-    let rig = make_cathedral(Start::Strip, [8, -1], [19, 3], 2, 0);
-    assert!(rig.ws.status.contains("0 arches"), "{}", rig.ws.status);
-    assert_cooks(&rig, "cathedral no aisle");
-}
-
-#[test]
-fn cathedral_in_a_style_and_one_undo_step_and_a_plain_refusal() {
-    let mut rig = starter_plan();
-    frame_cells(&mut rig, [-1, -3], [22, 8]);
-    let before = rig.ws.project.clone();
-    let steps = history_steps(&rig);
-    assert!(start(&mut rig, GridTool::Cathedral, Start::Strip));
-    assert!(
-        pick_style(&mut rig, "Plain", "gothic"),
-        "{}",
-        options_line(&rig)
-    );
-    drag_cells(&mut rig, [8, -1], [19, 5]);
-    assert!(
-        rig.ws.status.starts_with("Cathedral of"),
-        "{}",
-        rig.ws.status
-    );
-    assert_eq!(history_steps(&rig), steps + 1);
-    assert_cooks(&rig, "styled cathedral");
-    rig.ws.do_undo();
-    assert!(rig.ws.project == before);
-    // Too shallow for the aisles: the words say what to change.
-    assert!(start(&mut rig, GridTool::Cathedral, Start::Strip));
-    drag_cells(&mut rig, [8, -1], [13, 3]);
-    assert!(
-        rig.ws.status.contains("Drag a deeper area"),
-        "{}",
-        rig.ws.status
-    );
-    assert_eq!(history_steps(&rig), steps);
-    assert!(rig.ws.project == before);
-}
-fn standable(rig: &WindowRig, cell: [i32; 2]) -> bool {
-    let world = rig.world();
-    let a = analyse(world, &[], &psx_engine::WalkLimits::DEFAULT).unwrap();
-    a.rooms
-        .iter()
-        .any(|r| r.cell(cell).is_some_and(|c| c.standable))
 }
 
 #[test]
@@ -1638,7 +1635,7 @@ fn each_view(f: impl Fn(View)) {
 }
 
 #[test]
-fn room_corridor_bridge_cathedral_in_every_view() {
+fn room_corridor_bridge_in_every_view() {
     each_view(|view| {
         // Room and Corridor.
         let mut rig = view.rig(Fixture::Starter);
@@ -1689,21 +1686,6 @@ fn room_corridor_bridge_cathedral_in_every_view() {
             "{view:?}: deck and two parapets"
         );
         assert_cooks(&rig, "bridge");
-        // Cathedral.
-        let mut rig = view.rig(Fixture::Starter);
-        view.aim(&mut rig, [-1, -3], [22, 8]);
-        assert!(
-            start(&mut rig, GridTool::Cathedral, Start::Strip),
-            "{view:?}"
-        );
-        view.drag_cells(&mut rig, [8, -1], [19, 5]);
-        assert!(
-            rig.ws.status.starts_with("Cathedral of 6 bays"),
-            "{view:?} cathedral: {}",
-            rig.ws.status
-        );
-        assert!(has_floor_at(&rig, [13, 1]), "{view:?}");
-        assert_cooks(&rig, "cathedral");
     });
 }
 

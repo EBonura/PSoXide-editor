@@ -1,13 +1,13 @@
 //! The Build group over MCP: rooms, corridors, openings, arcades, bridges,
-//! buildings, cathedrals, terrain patches, ruins, styles, doors and levers.
+//! buildings, terrain patches, ruins, styles, doors and levers.
 
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::CallToolResult;
 use rmcp::ErrorData;
 
 use psxed_mcp::grid::make::{
-    self, ArcadeReq, BridgeReq, BuildingReq, CaptureReq, CathedralReq, CorridorReq, DoorReq,
-    LeverReq, MoveReq, OpeningReq, RoomReq, RuinReq, TerrainReq, TiltReq, WallReq,
+    self, ArcadeReq, BridgeReq, BuildingReq, CaptureReq, CorridorReq, DoorReq, LeverReq, MoveReq,
+    OpeningReq, RoomReq, RuinReq, TerrainReq, TiltReq, WallReq,
 };
 
 use super::{text_result, EditorServer};
@@ -44,7 +44,7 @@ impl EditorServer {
     }
 
     #[rmcp::tool(
-        description = "Lay a corridor through waypoints (WORLD sectors, legs along X or Z): the editor's Corridor tool. width in sectors, headroom, leg ramp or stairs where heights change (heights gives the floor at each waypoint, null keeps the running one), style names a style: plain, sci-fi rib, gothic nave, cloister, crypt, domed chamber, a style stored with the project, or a captured bay (repeated along the path)."
+        description = "Lay a corridor through waypoints (WORLD sectors, legs along X or Z): the editor's Corridor tool. width in sectors, headroom, leg ramp or stairs where heights change (heights gives the floor at each waypoint, null keeps the running one), style names a style: plain (default), the built-in Rib corridor, or a style or captured bay stored with the project. A bay (Rib corridor or captured) is repeated along every straight leg: its width is fixed (6 for the Rib corridor, taken when width is omitted; another width is refused), the path must be level (every named height equal), and a turn leaves a plain landing the size of the width, so give legs of at least one bay (3 sectors for the Rib corridor)."
     )]
     async fn grid_corridor(
         &self,
@@ -104,16 +104,6 @@ impl EditorServer {
     }
 
     #[rmcp::tool(
-        description = "Build a cathedral: the editor's Cathedral tool. origin is the north-west sector of the plan; bays, bay (sectors per bay), nave_width, aisle_width, nave_height, arcade profile, clerestory, a transept (transept_at_bay), apse, west_door, chancel_rise and a nave style."
-    )]
-    async fn grid_cathedral(
-        &self,
-        Parameters(req): Parameters<CathedralReq>,
-    ) -> Result<CallToolResult, ErrorData> {
-        self.make_edit("grid_cathedral", |p, root| make::cathedral(p, root, &req))
-    }
-
-    #[rmcp::tool(
         description = "Shape hills and slopes over a region of WORLD sectors from a seed: the editor's Terrain patch tool. seed (another seed is a re-roll), amplitude_clicks, octaves, wavelength, slope_x and slope_z, keep_walkable, edge_blend (0 for a cliff), and base with create to make floors where there are none."
     )]
     async fn grid_terrain(
@@ -134,7 +124,7 @@ impl EditorServer {
     }
 
     #[rmcp::tool(
-        description = "List the styles a room, corridor or cathedral can take: the built-ins and those stored with the project."
+        description = "List the styles a room or corridor can take: plain, the built-in Rib corridor bay and those stored with the project."
     )]
     async fn grid_style_list(&self) -> Result<CallToolResult, ErrorData> {
         let text = self.with(|workspace| Ok(make::style_list(workspace.root())))?;

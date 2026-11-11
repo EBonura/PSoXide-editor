@@ -45,7 +45,7 @@ pub(super) const AREAS: [(&str, &str); 16] = [
     ("verbs", "LEVEL VERBS (extrude, ramp, stairs, spiral)"),
     (
         "make",
-        "BUILD (room, corridor, opening, arcade, bridge, building, cathedral, terrain, ruin, styles, door, lever)",
+        "BUILD (room, corridor, opening, arcade, bridge, building, terrain, ruin, styles, door, lever)",
     ),
     ("natural", "NATURAL TERRAIN"),
     ("nodes", "SCENE NODES (spawns, lights, entities)"),

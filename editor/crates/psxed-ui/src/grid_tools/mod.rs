@@ -192,8 +192,6 @@ pub(crate) enum GridTool {
     Bridge,
     /// Drag a footprint: a building with storeys, doors, windows and a stair.
     Building,
-    /// Drag the nave: a cathedral with aisles, transept, apse and west door.
-    Cathedral,
     /// Drag a region: hills and slopes from a seed.
     Terrain,
     /// Drag a region or take the whole room: damage, with a path kept clear.
@@ -244,10 +242,10 @@ impl ToolGroup {
 
 impl GridTool {
     /// Every tool, in strip order (read from the catalog).
-    pub(crate) const ALL: [Self; 33] = {
-        let mut all = [Self::Select; 33];
+    pub(crate) const ALL: [Self; 32] = {
+        let mut all = [Self::Select; 32];
         let mut i = 0;
-        while i < 33 {
+        while i < 32 {
             all[i] = catalog::CATALOG[i].tool;
             i += 1;
         }
@@ -303,7 +301,6 @@ impl GridTool {
             Self::Colonnade => "Colonnade",
             Self::Bridge => "Bridge",
             Self::Building => "Building",
-            Self::Cathedral => "Cathedral",
             Self::Terrain => "Terrain patch",
             Self::Ruin => "Ruin",
             Self::Door => "Door",
@@ -319,7 +316,6 @@ impl GridTool {
             self,
             Self::Colonnade
                 | Self::Building
-                | Self::Cathedral
                 | Self::Terrain
                 | Self::Ruin
                 | Self::Door
@@ -348,7 +344,7 @@ impl GridTool {
             Self::Sculpt => egui::Key::S,
             Self::Cells | Self::Slab => egui::Key::Q,
             Self::Room | Self::Building => egui::Key::B,
-            Self::Corridor | Self::Cathedral => egui::Key::K,
+            Self::Corridor => egui::Key::K,
             Self::Opening | Self::Door => egui::Key::I,
             Self::Arcade | Self::Colonnade => egui::Key::Y,
             Self::Bridge | Self::Terrain | Self::Ruin | Self::Lever | Self::Checkpoint => {
@@ -393,7 +389,6 @@ impl GridTool {
             Self::Bridge => "J",
             Self::Colonnade
             | Self::Building
-            | Self::Cathedral
             | Self::Terrain
             | Self::Ruin
             | Self::Door
@@ -478,9 +473,6 @@ impl GridTool {
             }
             Self::Building => {
                 "Drag a footprint for a building: storeys, doors, a window rhythm, a stair and a parapet."
-            }
-            Self::Cathedral => {
-                "Drag the nave: its length sets the bays and its depth the width. Aisles, transept, apse, west door and a style are in the options bar."
             }
             Self::Terrain => {
                 "Drag a region for hills and slopes. The seed re-rolls them; walkable keeps the ground steppable and the blend fades the edge."
@@ -1196,7 +1188,6 @@ impl EditorWorkspace {
             | GridTool::Colonnade
             | GridTool::Bridge
             | GridTool::Building
-            | GridTool::Cathedral
             | GridTool::Terrain
             | GridTool::Ruin
             | GridTool::Door

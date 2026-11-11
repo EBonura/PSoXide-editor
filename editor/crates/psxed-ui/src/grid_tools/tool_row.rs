@@ -49,7 +49,6 @@ pub(crate) const fn tool_icon(tool: GridTool) -> char {
         GridTool::Colonnade => icons::COLUMNS_3,
         GridTool::Bridge => icons::SPLINE,
         GridTool::Building => icons::BUILDING,
-        GridTool::Cathedral => icons::CHURCH,
         GridTool::Stairs => icons::STAIRS,
         GridTool::Ramp => icons::TRIANGLE_RIGHT,
         GridTool::Spiral => icons::ROTATE_3D,

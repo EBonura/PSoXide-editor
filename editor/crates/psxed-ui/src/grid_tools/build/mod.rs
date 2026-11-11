@@ -1,5 +1,5 @@
 //! The Build tools: Room, Corridor, Opening, Arcade, Colonnade, Bridge,
-//! Building, Cathedral, Terrain patch, Ruin, Door, Lever and Checkpoint.
+//! Building, Terrain patch, Ruin, Door, Lever and Checkpoint.
 //!
 //! One gesture serves them all. A press (or a click) starts it from a
 //! snapshot of the document; every pointer move restores the snapshot and
@@ -548,7 +548,6 @@ fn idle_hint(kind: BuildKind) -> &'static str {
         BuildKind::Arcade | BuildKind::Colonnade => "Drag a line on the floor",
         BuildKind::Bridge => "Click one end of the deck",
         BuildKind::Building => "Drag a footprint",
-        BuildKind::Cathedral => "Drag the nave, west to east",
         BuildKind::Terrain => "Drag the region the ground changes in",
         BuildKind::Ruin => "Drag a region to damage",
         BuildKind::Lever => "Click a floor to place the lever",
@@ -755,7 +754,6 @@ fn amount_units(o: &Options, kind: BuildKind) -> i32 {
         BuildKind::Corridor => o.corridor.width,
         BuildKind::Arcade | BuildKind::Colonnade => o.arcade.bays,
         BuildKind::Building => o.building.storeys,
-        BuildKind::Cathedral => o.cathedral.bay,
         BuildKind::Lever | BuildKind::Checkpoint => 0,
     }
 }

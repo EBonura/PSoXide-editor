@@ -139,29 +139,6 @@ fn a_corridor_is_clicks_then_enter_and_one_undo_step() {
 }
 
 #[test]
-fn a_corridor_in_a_style_places_piers() {
-    let mut rig = GridRig::top("build-corridor-style", derived_project_for_tiling(5, 5));
-    rig.tool(GridTool::Corridor);
-    rig.ws.refresh_styles();
-    let gothic = rig
-        .ws
-        .grid
-        .build
-        .styles
-        .iter()
-        .find(|e| e.name.to_lowercase().contains("gothic"))
-        .expect("a built-in gothic style")
-        .what
-        .clone();
-    rig.ws.grid.build.opts.corridor.style = gothic;
-    rig.ws.grid.build.opts.corridor.width = 3;
-    rig.click(rig.cell_centre(5, 2));
-    rig.click(rig.cell_centre(8, 2));
-    rig.key(egui::Key::Enter);
-    assert!(rig.ws.status.contains("in style"), "{}", rig.ws.status);
-}
-
-#[test]
 fn a_door_in_3d_is_one_drag_along_a_wall() {
     let mut rig = GridRig::persp("build-opening", tall());
     let before = rig.ws.project.clone();
@@ -230,14 +207,6 @@ fn a_building_a_terrain_patch_and_a_ruin_each_take_a_drag() {
     rig.ws.grid.build.opts.ruin.whole_room = true;
     rig.click(rig.cell_centre(2, 2));
     assert!(rig.ws.status.starts_with("Ruin"), "{}", rig.ws.status);
-}
-
-#[test]
-fn a_cathedral_is_a_drag_of_the_nave() {
-    let mut rig = GridRig::top("build-cathedral", derived_project_for_tiling(5, 5));
-    rig.tool(GridTool::Cathedral);
-    rig.drag(rig.cell_centre(6, 0), rig.cell_centre(12, 5));
-    assert!(rig.ws.status.starts_with("Cathedral"), "{}", rig.ws.status);
 }
 
 #[test]
@@ -438,7 +407,7 @@ fn build_tool_captures() {
     let p = |rig: &WindowRig, x: f32, y: f32, z: f32| rig.persp_screen([x * s, y, z * s]).unwrap();
     // Each shot: choose the tool, press at `a`, drag to `b`, capture, Esc.
     type Shot = (GridTool, (f32, f32, f32), (f32, f32, f32), &'static str);
-    let shots: [Shot; 6] = [
+    let shots: [Shot; 5] = [
         (GridTool::Room, (16.5, 0.0, 1.5), (20.5, 0.0, 4.5), "room"),
         (
             GridTool::Opening,
@@ -457,12 +426,6 @@ fn build_tool_captures() {
             (22.5, 0.0, 1.5),
             (26.5, 0.0, 5.5),
             "building",
-        ),
-        (
-            GridTool::Cathedral,
-            (13.5, 0.0, 6.5),
-            (21.5, 0.0, 12.5),
-            "cathedral",
         ),
         (
             GridTool::Terrain,

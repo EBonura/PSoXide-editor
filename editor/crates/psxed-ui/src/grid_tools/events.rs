@@ -127,7 +127,6 @@ fn dispatch_inner(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
             | GridTool::Colonnade
             | GridTool::Bridge
             | GridTool::Building
-            | GridTool::Cathedral
             | GridTool::Terrain
             | GridTool::Ruin
             | GridTool::Door

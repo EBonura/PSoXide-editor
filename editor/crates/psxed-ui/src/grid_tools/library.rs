@@ -4,7 +4,7 @@
 //! it: a material arms Paint, a style arms Corridor with that style, a mesh
 //! arms Mesh, an actor arms Place, a building preset arms Building.
 
-use super::build::options::StyleEntry;
+use super::build::options::{StyleEntry, StyleResolved};
 use super::*;
 
 /// The tabs of the Library.
@@ -226,6 +226,9 @@ impl EditorWorkspace {
             }
         });
         if let Some(style) = chosen {
+            if let StyleResolved::Bay(bay) = &style {
+                self.grid.build.opts.corridor.width = bay.size[0];
+            }
             self.grid.build.opts.corridor.style = style;
             self.set_grid_tool(GridTool::Corridor);
             self.status = "Tool: Corridor, click waypoints in this style".to_string();
@@ -249,17 +252,8 @@ impl EditorWorkspace {
                     chosen = Some(i);
                 }
             }
-            if matches_search("Cathedral", &query)
-                && ui
-                    .selectable_label(false, icons::label(icons::CHURCH, "Cathedral"))
-                    .on_hover_text("Arms the Cathedral tool")
-                    .clicked()
-            {
-                chosen = Some(usize::MAX);
-            }
         });
         match chosen {
-            Some(usize::MAX) => self.set_grid_tool(GridTool::Cathedral),
             Some(i) => {
                 let preset = &BUILDINGS[i];
                 let b = &mut self.grid.build.opts.building;

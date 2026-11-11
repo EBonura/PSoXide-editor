@@ -643,7 +643,6 @@ fn capture_every_build_tool_mid_drag() {
             (GridTool::Arcade, "arcade"),
             (GridTool::Bridge, "bridge"),
             (GridTool::Building, "building"),
-            (GridTool::Cathedral, "cathedral"),
             (GridTool::Stairs, "stairs"),
             (GridTool::Ramp, "ramp"),
             (GridTool::Spiral, "spiral"),

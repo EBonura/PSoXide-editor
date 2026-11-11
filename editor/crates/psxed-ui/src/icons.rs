@@ -88,7 +88,6 @@ pub const LANDMARK: char = '\u{e23a}';
 pub const COLUMNS_3: char = '\u{e099}';
 pub const SPLINE: char = '\u{e38b}';
 pub const BUILDING: char = '\u{e1cc}';
-pub const CHURCH: char = '\u{e3e1}';
 pub const TRIANGLE_RIGHT: char = '\u{e4ed}';
 pub const ARROW_UP_DOWN: char = '\u{e37d}';
 pub const HAMMER_TOOL: char = '\u{e0ec}';

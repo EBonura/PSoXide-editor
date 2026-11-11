@@ -1,5 +1,5 @@
 //! The Build group: rooms, corridors, openings, arcades, bridges, buildings,
-//! cathedrals, terrain patches, ruins, doors and levers, with styles. Thin
+//! terrain patches, ruins, doors and levers, with styles. Thin
 //! wrappers over the SDK operations the editor's Build tools call, with the
 //! operations' own parameters, defaults and refusal sentences.
 
@@ -8,10 +8,12 @@ use std::collections::BTreeSet;
 use psxed_project::grid::edit::verbs::arcade::{
     build_arcade, build_colonnade, ArcadeParams, Colonnade, Layout,
 };
+use psxed_project::grid::edit::verbs::bay_corridor::{
+    built_in_bays, lay_bay_corridor, BayCorridor,
+};
 use psxed_project::grid::edit::verbs::bridge::{build_bridge, BridgeParams};
 use psxed_project::grid::edit::verbs::building::{build_building, BuildingParams};
-use psxed_project::grid::edit::verbs::capture::capture_bay;
-use psxed_project::grid::edit::verbs::cathedral::{build_cathedral, CathedralParams, Transept};
+use psxed_project::grid::edit::verbs::capture::{capture_bay, BayTemplate};
 use psxed_project::grid::edit::verbs::corridor::{
     lay_corridor, CorridorParams, LegShape, Waypoint,
 };
@@ -21,7 +23,7 @@ use psxed_project::grid::edit::verbs::opening::{
 };
 use psxed_project::grid::edit::verbs::room::{lay_room, Footprint, RoomParams, RoomTarget};
 use psxed_project::grid::edit::verbs::ruin::{ruin_region, RuinParams};
-use psxed_project::grid::edit::verbs::style::{built_in, Roles, Style};
+use psxed_project::grid::edit::verbs::style::{Roles, Style};
 use psxed_project::grid::edit::verbs::styled::{
     lay_styled_corridor, lay_styled_room, StyledCorridor, StyledRoom,
 };
@@ -51,21 +53,45 @@ fn roles(project: &ProjectDocument) -> Roles {
     Roles::graybox(project)
 }
 
-/// The project's styles by name: the built-ins, then the `styles/` folder of
-/// the project directory.
-fn find_style(root: &std::path::Path, name: &str) -> Result<Style, String> {
+/// A style found by name.
+enum Found {
+    /// A profile and rhythm style.
+    Style(Style),
+    /// A bay a corridor repeats: shipped with the editor or captured.
+    Bay(BayTemplate),
+}
+
+/// A style by name: the bays that ship with the editor, then the `styles/`
+/// folder of the project directory (`NAME.style.ron`, then a captured
+/// `NAME.bay.ron`).
+fn find_style(root: &std::path::Path, name: &str) -> Result<Found, String> {
     let want = name.trim().to_lowercase();
-    if let Some(s) = built_in()
+    if let Some((_, bay)) = built_in_bays()
         .into_iter()
-        .find(|s| s.name.to_lowercase() == want)
+        .find(|(n, _)| n.to_lowercase() == want)
     {
-        return Ok(s);
+        return Ok(Found::Bay(bay));
     }
-    let path = root.join("styles").join(format!("{name}.style.ron"));
-    let text = std::fs::read_to_string(&path).map_err(|_| {
-        format!("no style called {name}; grid_style_list names the built-in and project styles")
-    })?;
-    Style::from_ron(&text)
+    let dir = root.join("styles");
+    if let Ok(text) = std::fs::read_to_string(dir.join(format!("{name}.style.ron"))) {
+        return Style::from_ron(&text).map(Found::Style);
+    }
+    if let Ok(text) = std::fs::read_to_string(dir.join(format!("{name}.bay.ron"))) {
+        return ron::from_str(&text)
+            .map(Found::Bay)
+            .map_err(|e| format!("the captured bay {name} does not read: {e}"));
+    }
+    Err(format!(
+        "no style called {name}; grid_style_list names the built-in and project styles"
+    ))
+}
+
+/// A style that a room can take: a bay is a corridor's.
+fn room_style(root: &std::path::Path, name: &str) -> Result<Style, String> {
+    match find_style(root, name)? {
+        Found::Style(s) => Ok(s),
+        Found::Bay(_) => Err(format!("{name} is a bay: only a corridor can repeat it")),
+    }
 }
 
 fn target(room: Option<usize>, name: &str) -> RoomTarget {
@@ -78,8 +104,8 @@ fn target(room: Option<usize>, name: &str) -> RoomTarget {
 /// A style by name, or plain.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct StyleName {
-    /// A built-in style (plain, sci-fi rib, gothic nave, cloister, crypt,
-    /// domed chamber) or one stored with the project. Omit for plain.
+    /// plain, the built-in `Rib corridor` bay (a corridor only), or a style or
+    /// captured bay stored with the project. Omit for plain.
     pub style: Option<String>,
 }
 
@@ -140,7 +166,7 @@ pub fn room(
         .as_deref()
         .filter(|s| !s.eq_ignore_ascii_case("plain"))
     {
-        let style = find_style(root, style)?;
+        let style = room_style(root, style)?;
         let out = lay_styled_room(
             world,
             &StyledRoom {
@@ -250,14 +276,39 @@ pub fn corridor(
         "stairs" => LegShape::Stairs,
         other => return Err(format!("unknown leg {other}; use ramp or stairs")),
     };
-    let world = project.scenes[index].world.grid_mut().expect("checked");
-    if let Some(style) = r
+    let found = r
         .style
         .style
         .as_deref()
         .filter(|s| !s.eq_ignore_ascii_case("plain"))
-    {
-        let style = find_style(root, style)?;
+        .map(|s| find_style(root, s))
+        .transpose()?;
+    // A bay binds to the project's materials by name before the world is
+    // borrowed for the edit.
+    let bay = match &found {
+        Some(Found::Bay(bay)) => Some(bay.bound_to(project, roles)),
+        _ => None,
+    };
+    let world = project.scenes[index].world.grid_mut().expect("checked");
+    if let Some(bay) = bay {
+        let out = lay_bay_corridor(
+            world,
+            &BayCorridor {
+                target: tgt,
+                waypoints,
+                width: r.width.unwrap_or(bay.size[0]),
+                base: r.base.unwrap_or(0),
+                bay,
+                roles,
+            },
+        )
+        .map_err(|e| e.describe())?;
+        return Ok(format!(
+            "Corridor of {} bays in room {}: {} sectors left plain, {} leaves",
+            out.bays, out.room, out.plain, out.leaves
+        ));
+    }
+    if let Some(Found::Style(style)) = found {
         let out = lay_styled_corridor(
             world,
             &StyledCorridor {
@@ -598,99 +649,6 @@ pub fn building(project: &mut ProjectDocument, r: &BuildingReq) -> Result<String
     ))
 }
 
-/// A cathedral.
-#[derive(Debug, Deserialize, JsonSchema)]
-pub struct CathedralReq {
-    /// Scene index.
-    pub scene: Option<usize>,
-    /// Name of its room.
-    pub name: Option<String>,
-    /// North-west corner sector of the whole plan (the north aisle).
-    pub origin: [i32; 2],
-    /// Nave floor height (default 0).
-    pub base: Option<i32>,
-    /// Bays of the nave (default 5).
-    pub bays: Option<i32>,
-    /// Sectors per bay (default 2).
-    pub bay: Option<i32>,
-    /// Nave width in sectors (default 4).
-    pub nave_width: Option<i32>,
-    /// Aisle width in sectors, 0 for none (default 2).
-    pub aisle_width: Option<i32>,
-    /// Nave height (default 9216).
-    pub nave_height: Option<i32>,
-    /// Aisle height (default 5120).
-    pub aisle_height: Option<i32>,
-    /// `round`, `pointed` (default), `segmental` or `flat` arcade.
-    pub profile: Option<String>,
-    /// Clerestory windows (default true).
-    pub clerestory: Option<bool>,
-    /// Transept: the bay it crosses at and the arm length.
-    pub transept_at_bay: Option<i32>,
-    /// Transept arm length in sectors (default 2).
-    pub transept_arm: Option<i32>,
-    /// A polygonal apse (default true).
-    pub apse: Option<bool>,
-    /// A west door (default true).
-    pub west_door: Option<bool>,
-    /// Chancel rise (default 512).
-    pub chancel_rise: Option<i32>,
-    /// A nave style (see grid_style_list).
-    #[serde(flatten)]
-    pub style: StyleName,
-}
-
-/// Build a cathedral.
-pub fn cathedral(
-    project: &mut ProjectDocument,
-    root: &std::path::Path,
-    r: &CathedralReq,
-) -> Result<String, String> {
-    let index = world_of(project, r.scene)?;
-    let rl = roles(project);
-    let style = match r
-        .style
-        .style
-        .as_deref()
-        .filter(|s| !s.eq_ignore_ascii_case("plain"))
-    {
-        Some(s) => Some(find_style(root, s)?),
-        None => None,
-    };
-    let world = project.scenes[index].world.grid_mut().expect("checked");
-    let name = r
-        .name
-        .clone()
-        .unwrap_or_else(|| format!("Cathedral {}", world.rooms.len() + 1));
-    let mut p = CathedralParams::new(RoomTarget::New(name), r.origin);
-    p.base = r.base.unwrap_or(0);
-    p.bays = r.bays.unwrap_or(p.bays);
-    p.bay = r.bay.unwrap_or(p.bay);
-    p.nave_width = r.nave_width.unwrap_or(p.nave_width);
-    p.aisle_width = r.aisle_width.unwrap_or(p.aisle_width);
-    p.nave_height = r.nave_height.unwrap_or(p.nave_height);
-    p.aisle_height = r.aisle_height.unwrap_or(p.aisle_height);
-    p.profile = profile_of(r.profile.as_deref().or(Some("pointed")))?;
-    p.clerestory = r.clerestory.unwrap_or(true);
-    p.transept = r.transept_at_bay.map(|at_bay| Transept {
-        at_bay,
-        arm: r.transept_arm.unwrap_or(2),
-    });
-    p.apse = r.apse.unwrap_or(true);
-    p.west_door = r.west_door.unwrap_or(true);
-    p.chancel_rise = r.chancel_rise.unwrap_or(p.chancel_rise);
-    p.roles = style.is_some().then_some(rl);
-    p.style = style;
-    p.floor_material = rl.floor;
-    p.ceiling_material = rl.ceiling;
-    p.wall_material = rl.wall;
-    let out = build_cathedral(world, &p).map_err(|e| e.describe())?;
-    Ok(format!(
-        "Cathedral in room {}: {} sectors, {} arches, {} windows",
-        out.room, out.cells, out.arches, out.windows
-    ))
-}
-
 /// A terrain patch.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct TerrainReq {
@@ -816,11 +774,14 @@ pub fn ruin(project: &mut ProjectDocument, r: &RuinReq) -> Result<String, String
     ))
 }
 
-/// The styles a corridor, room or cathedral can take.
+/// The styles a corridor or room can take.
 pub fn style_list(root: &std::path::Path) -> String {
-    let mut out = String::from("Built in:\n");
-    for s in built_in() {
-        out += &format!("  {} (headroom {})\n", s.name, s.headroom);
+    let mut out = String::from("Built in:\n  plain (the default)\n");
+    for (name, bay) in built_in_bays() {
+        out += &format!(
+            "  {name} (a bay for corridors: {} sectors wide, {} long, laid level)\n",
+            bay.size[0], bay.size[1]
+        );
     }
     out += "Stored with the project (styles/ folder):\n";
     let mut any = false;
@@ -866,7 +827,8 @@ pub fn capture_style(
     let index = crate::resolve_scene(project, r.scene)?;
     let world = project.scenes[index].world.grid().ok_or("no grid world")?;
     let room = pick_room(world, r.room)?;
-    let bay = capture_bay(world, room, r.cells.rect()).map_err(|e| e.describe())?;
+    let mut bay = capture_bay(world, room, r.cells.rect()).map_err(|e| e.describe())?;
+    bay.name_materials(project);
     let name: String = r
         .name
         .trim()

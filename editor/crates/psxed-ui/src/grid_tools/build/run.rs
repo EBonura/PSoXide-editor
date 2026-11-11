@@ -11,10 +11,9 @@ use std::collections::BTreeSet;
 use psxed_project::grid::edit::verbs::arcade::{
     build_arcade, build_colonnade, ArcadeParams, Colonnade, Layout,
 };
+use psxed_project::grid::edit::verbs::bay_corridor::{lay_bay_corridor, BayCorridor};
 use psxed_project::grid::edit::verbs::bridge::{build_bridge, BridgeParams, BridgeRefusal};
 use psxed_project::grid::edit::verbs::building::{build_building, BuildingParams};
-use psxed_project::grid::edit::verbs::capture::{repeat_bay, Along};
-use psxed_project::grid::edit::verbs::cathedral::{build_cathedral, CathedralParams, Transept};
 use psxed_project::grid::edit::verbs::corridor::{
     lay_corridor, CorridorParams, LegShape, Waypoint,
 };
@@ -164,7 +163,6 @@ pub(crate) fn apply(
         BuildKind::Arcade | BuildKind::Colonnade => arcade(project, kind, o, geo),
         BuildKind::Bridge => bridge(project, o, geo),
         BuildKind::Building => building(project, o, geo),
-        BuildKind::Cathedral => cathedral(project, o, geo),
         BuildKind::Terrain => terrain(project, o, geo),
         BuildKind::Ruin => ruin(project, o, geo),
         BuildKind::Door => door(project, o, geo),
@@ -327,25 +325,27 @@ fn corridor(project: &mut ProjectDocument, o: &Options, geo: &Geo) -> Outcome {
             }
         }
         StyleResolved::Bay(template) => {
-            let (first, last) = (geo.path[0].0, geo.path[geo.path.len() - 1].0);
-            let (along, len) = if (last[0] - first[0]).abs() >= (last[1] - first[1]).abs() {
-                (Along::X, (last[0] - first[0]).abs() + 1)
-            } else {
-                (Along::Z, (last[1] - first[1]).abs() + 1)
-            };
-            let step = match along {
-                Along::X => template.size[0].max(1),
-                Along::Z => template.size[1].max(1),
-            };
-            let count = (len / step).max(1);
-            let origin = [first[0].min(last[0]), first[1].min(last[1])];
-            let template = template.clone();
-            let room = geo.room;
-            let out = with_world(project, |w, _| {
-                repeat_bay(w, room, &template, origin, along, count, geo.base)
+            let roles = Roles::graybox(project);
+            let bay = template.bound_to(project, roles);
+            let out = with_world(project, |w, roles| {
+                lay_bay_corridor(
+                    w,
+                    &BayCorridor {
+                        target: tgt,
+                        waypoints,
+                        width,
+                        base: geo.base,
+                        bay,
+                        roles: *roles,
+                    },
+                )
             });
             match out {
-                Ok(n) => Outcome::made(format!("{} copies of the bay, {n} cells", count)),
+                Ok(r) => Outcome::made(format!(
+                    "Corridor of {}, {} sectors left plain",
+                    plural(r.bays, "bay", "bays"),
+                    r.plain
+                )),
                 Err(e) => Outcome::refusal(e.describe()),
             }
         }
@@ -610,66 +610,6 @@ fn building(project: &mut ProjectDocument, o: &Options, geo: &Geo) -> Outcome {
         Ok(r) => Outcome::made(format!(
             "Building of {}, {} windows",
             plural(storeys as usize, "storey", "storeys"),
-            r.windows
-        )),
-        Err(e) => Outcome::refusal(e.describe()),
-    }
-}
-
-fn cathedral(project: &mut ProjectDocument, o: &Options, geo: &Geo) -> Outcome {
-    let opts = &o.cathedral;
-    let rect = geo.rect();
-    let bay = geo.value.map_or(opts.bay, |v| v.clamp(2, 4));
-    // The long side is the nave: its length is the bays, its depth minus the
-    // aisles the nave's width.
-    let bays = (rect.width() / bay).clamp(1, 16);
-    let aisles = opts.aisle_width * 2;
-    let nave_width = rect.depth() - aisles;
-    if nave_width < 2 {
-        return Outcome::refusal(format!(
-            "The nave would be {} wide: it needs two sectors or more between the aisles. Drag a \
-             deeper area (at least {} sectors across), or set Aisle lower",
-            plural(nave_width.max(0) as usize, "sector", "sectors"),
-            2 + aisles
-        ));
-    }
-    if nave_width > 8 {
-        return Outcome::refusal(format!(
-            "The nave would be {nave_width} sectors wide, and eight is the most. Drag a shallower \
-             area, or set Aisle higher"
-        ));
-    }
-    let tgt = RoomTarget::New(name_of(project, "Cathedral"));
-    let style = match &opts.style {
-        StyleResolved::Style(s) => Some(s.clone()),
-        _ => None,
-    };
-    let out = with_world(project, |w, roles| {
-        let mut p = CathedralParams::new(tgt, [rect.min[0], rect.min[1]]);
-        p.base = geo.base;
-        p.bays = bays;
-        p.bay = bay;
-        p.nave_width = nave_width;
-        p.aisle_width = opts.aisle_width;
-        p.nave_height = opts.nave_height;
-        p.transept = opts.transept.then_some(Transept {
-            at_bay: (bays / 2).max(1),
-            arm: 2,
-        });
-        p.apse = opts.apse;
-        p.west_door = opts.west_door;
-        p.roles = style.is_some().then_some(*roles);
-        p.style = style;
-        p.floor_material = roles.floor;
-        p.ceiling_material = roles.ceiling;
-        p.wall_material = roles.wall;
-        build_cathedral(w, &p)
-    });
-    match out {
-        Ok(r) => Outcome::made(format!(
-            "Cathedral of {}, {} arches, {} windows",
-            plural(bays as usize, "bay", "bays"),
-            r.arches,
             r.windows
         )),
         Err(e) => Outcome::refusal(e.describe()),

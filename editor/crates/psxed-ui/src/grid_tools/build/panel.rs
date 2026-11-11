@@ -91,7 +91,14 @@ pub(super) fn reroll(ws: &mut EditorWorkspace, kind: BuildKind) {
     }
 }
 
-fn style_picker(ui: &mut egui::Ui, entries: &[StyleEntry], current: &mut options::StyleResolved) {
+/// The style combo. `bays` offers the captured and shipped bays too: only a
+/// corridor can lay one.
+fn style_picker(
+    ui: &mut egui::Ui,
+    entries: &[StyleEntry],
+    current: &mut options::StyleResolved,
+    bays: bool,
+) {
     label(ui, "Style");
     let shown = entries
         .iter()
@@ -101,7 +108,10 @@ fn style_picker(ui: &mut egui::Ui, entries: &[StyleEntry], current: &mut options
         .selected_text(shown)
         .width(120.0)
         .show_ui(ui, |ui| {
-            for e in entries {
+            for e in entries
+                .iter()
+                .filter(|e| bays || !matches!(e.what, options::StyleResolved::Bay(_)))
+            {
                 let text = if e.project {
                     format!("{}  (project)", e.name)
                 } else {
@@ -148,10 +158,7 @@ impl EditorWorkspace {
             return;
         };
         let name = self.grid.build.capture_name.clone();
-        let Some(world) = self.project.active_scene().world.grid() else {
-            return;
-        };
-        match styles::capture(&self.project_dir, world, room, rect, &name) {
+        match styles::capture(&self.project_dir, &self.project, room, rect, &name) {
             Ok(stored) => {
                 self.status = format!("Captured the bay as \"{stored}\", listed under Style");
                 self.refresh_styles();
@@ -201,7 +208,7 @@ impl EditorWorkspace {
                     if r.shape == RoomShape::Octagon {
                         num(ui, "Cut", &mut r.cut, 1..=8, "Sectors cut from each corner");
                     }
-                    style_picker(ui, &entries, &mut r.style);
+                    style_picker(ui, &entries, &mut r.style, false);
                     capture = true;
                 }
                 BuildKind::Corridor => {
@@ -231,7 +238,14 @@ impl EditorWorkspace {
                     );
                     ui.selectable_value(&mut c.into_this, false, "New room");
                     ui.selectable_value(&mut c.into_this, true, "Into this room");
-                    style_picker(ui, &entries, &mut c.style);
+                    let before = c.style.clone();
+                    style_picker(ui, &entries, &mut c.style, true);
+                    if c.style != before {
+                        // A bay has one width: take it, so the next drag fits.
+                        if let options::StyleResolved::Bay(bay) = &c.style {
+                            c.width = bay.size[0];
+                        }
+                    }
                     capture = true;
                 }
                 BuildKind::Opening => {
@@ -316,22 +330,6 @@ impl EditorWorkspace {
                     heads(ui, &mut g.window_head);
                     ui.checkbox(&mut g.stair, "Stair");
                     ui.checkbox(&mut g.parapet, "Parapet");
-                }
-                BuildKind::Cathedral => {
-                    let g = &mut o.cathedral;
-                    num(ui, "Bay", &mut g.bay, 2..=4, "Sectors per bay");
-                    num(
-                        ui,
-                        "Aisle",
-                        &mut g.aisle_width,
-                        0..=4,
-                        "Aisle width in sectors",
-                    );
-                    clicks_field(ui, "Nave height", &mut g.nave_height, 4096, 32768, "");
-                    ui.checkbox(&mut g.transept, "Transept");
-                    ui.checkbox(&mut g.apse, "Apse");
-                    ui.checkbox(&mut g.west_door, "West door");
-                    style_picker(ui, &entries, &mut g.style);
                 }
                 BuildKind::Terrain => {
                     let t = &mut o.terrain;

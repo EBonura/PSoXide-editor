@@ -106,7 +106,7 @@ pub(super) fn cells() -> Vec<(&'static str, View, Result<(), String>)> {
             "Styles",
             (|| {
                 let mut rig = rig_for(v);
-                // The first row is Plain; the second is a built-in style.
+                // The first row is Plain; the second is the Rib corridor.
                 if !lib_open(&mut rig, "Styles")
                     || !lib_row_nth(&mut rig, crate::icons::SWATCH_BOOK, 1)
                 {
@@ -119,14 +119,14 @@ pub(super) fn cells() -> Vec<(&'static str, View, Result<(), String>)> {
                     v.click_cell(&mut rig, c);
                 }
                 key(&mut rig, egui::Key::Enter);
-                if rig.ws.status.contains("in style") {
+                if rig.ws.status.starts_with("Corridor of 1 bay") {
                     Ok(())
                 } else {
-                    Err(format!("not in style: {}", rig.ws.status))
+                    Err(format!("not a corridor of bays: {}", rig.ws.status))
                 }
             })(),
         );
-        // Buildings: a preset arms Building, Cathedral arms its tool.
+        // Buildings: a preset arms Building.
         check(
             "Buildings",
             (|| {
@@ -154,11 +154,6 @@ pub(super) fn cells() -> Vec<(&'static str, View, Result<(), String>)> {
                     .map_or(0, |w| w.rooms.len());
                 if after != rooms + 1 {
                     return Err(format!("no building: {}", rig.ws.status));
-                }
-                if !lib_row(&mut rig, crate::icons::CHURCH)
-                    || rig.ws.grid.tool != GridTool::Cathedral
-                {
-                    return Err("the Cathedral row did not arm Cathedral".into());
                 }
                 frames(&mut rig, 1);
                 Ok(())
