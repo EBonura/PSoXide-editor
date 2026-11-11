@@ -194,6 +194,29 @@ fn an_edge_slopes_from_the_opposite_edge() {
     assert_eq!(heights(&rig, [2, 2]), Some([256, 256, 0, 0]));
 }
 
+/// An edge of a half-sector cell slopes that cell alone: the other three
+/// cells of its sector stay where they are.
+#[test]
+fn an_edge_of_a_half_cell_slopes_that_cell_and_not_its_sector() {
+    use psxed_project::grid::leaf::LeafKey;
+    let mut project = flat_project(5, 5, true);
+    let room = &mut project.active_scene_mut().world.grid_mut().unwrap().rooms[0];
+    psxed_project::grid::tree::subdivide(room, LeafKey::sector([2, 2])).unwrap();
+    let mut rig = edit_rig("edit-edge-half", project);
+    // The north edge of the north-west half cell of sector (2, 2).
+    rig.drag(at(&rig, 2.25, 0.0, 2.03), at(&rig, 2.25, 256.0 / S, 2.03));
+    let floor = |x: i32, z: i32| {
+        rig.room(0)
+            .leaf(LeafKey::new(3, x, z).unwrap())
+            .and_then(|s| s.ground_floor())
+            .map(|f| f.heights)
+    };
+    assert_eq!(floor(8, 8), Some([256, 256, 0, 0]), "{}", hint(&rig));
+    for (x, z) in [(10, 8), (8, 10), (10, 10)] {
+        assert_eq!(floor(x, z), Some([0; 4]), "half cell ({x}, {z})");
+    }
+}
+
 fn tilted_room_rig(label: &str, width: usize) -> GridRig {
     let mut rig = edit_rig(label, flat_project(width, 4, true));
     // The room's whole floor, by double click.

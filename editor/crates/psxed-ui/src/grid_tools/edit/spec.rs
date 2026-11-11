@@ -313,6 +313,12 @@ fn sdk_tilt(world: &GridWorld, spec: &Spec) -> Option<Result<TiltPlan, String>> 
                 if k == kind && span == first_span && face.room == first.room => {}
             _ => return None,
         }
+        // The SDK tilt works on whole sectors. A cell finer than a sector
+        // would drag the rest of its sector along, so those tilt corner by
+        // corner instead.
+        if face.leaf.edge_clicks() < psxed_project::grid::leaf::CLICKS_PER_SECTOR {
+            return None;
+        }
         let (lo, hi) = face.leaf.sector_range();
         cells.extend(CellRect { min: lo, max: hi }.cells());
     }
