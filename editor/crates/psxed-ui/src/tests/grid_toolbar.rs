@@ -509,7 +509,7 @@ const VIEWPORT_HEADER_HEIGHT: f32 = 38.0;
 
 /// The first row of the viewport column, under the tool row.
 fn header_band(rig: &WindowRig) -> Rect {
-    let top = ACTION_BAR_COMPACT_HEIGHT + crate::grid_tools::tool_strip_height(&rig.ctx);
+    let top = ACTION_BAR_COMPACT_HEIGHT + crate::grid_tools::chrome_height(&rig.ctx);
     Rect::from_min_max(
         Pos2::new(290.0, top),
         Pos2::new(rig.size.x - 300.0, top + VIEWPORT_HEADER_HEIGHT),
@@ -707,7 +707,7 @@ pub(super) fn snap_text(rig: &WindowRig) -> Rect {
             t.starts_with("Snap ")
                 && r.min.y
                     > ACTION_BAR_COMPACT_HEIGHT + crate::grid_tools::tool_strip_height(&rig.ctx)
-                && r.max.y < 240.0
+                && r.max.y < ACTION_BAR_COMPACT_HEIGHT + crate::grid_tools::chrome_height(&rig.ctx)
         })
         .map(|(_, r)| r)
         .expect("a Snap text in the options bar")
@@ -716,24 +716,10 @@ pub(super) fn snap_text(rig: &WindowRig) -> Rect {
 /// Everything the options bar shows besides Snap: texts left of it, on its row.
 pub(super) fn options_texts(rig: &WindowRig) -> Vec<(String, Rect)> {
     let snap = snap_text(rig);
-    // The viewport column ends where the Inspector begins.
-    let pane_right = text_in(
-        rig,
-        Rect::from_min_max(
-            Pos2::new(rig.size.x - 330.0, 0.0),
-            Pos2::new(rig.size.x, 200.0),
-        ),
-        "Inspector",
-    )
-    .unwrap()
-    .min
-    .x;
     texts(rig)
         .into_iter()
         .filter(|(t, r)| {
             (r.center().y - snap.center().y).abs() < 8.0
-                && r.min.x > 290.0
-                && r.min.x < pane_right - 20.0
                 && r.min.x < snap.max.x
                 && !t.starts_with("Snap ")
         })
@@ -807,24 +793,13 @@ fn snap_is_at_the_right_end_of_the_bar_for_every_tool() {
     let mut rig = WindowRig::new();
     rig.ws.apply_grid_pose("view=3d").unwrap();
     frames(&mut rig, 3);
-    let pane_right = text_in(
-        &rig,
-        Rect::from_min_max(
-            Pos2::new(rig.size.x - 330.0, 0.0),
-            Pos2::new(rig.size.x, 200.0),
-        ),
-        "Inspector",
-    )
-    .unwrap()
-    .min
-    .x;
     let mut right_edges = Vec::new();
     for tool in GridTool::ALL {
         rig.ws.set_grid_tool(tool);
         frames(&mut rig, 3);
         let snap = snap_text(&rig);
         assert!(
-            snap.max.x < pane_right && snap.max.x > pane_right - 60.0,
+            snap.max.x < rig.size.x && snap.max.x > rig.size.x - 40.0,
             "{}: Snap {snap:?} is not at the right end",
             tool.label()
         );

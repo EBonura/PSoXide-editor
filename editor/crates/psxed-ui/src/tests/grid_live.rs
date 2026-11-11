@@ -615,7 +615,7 @@ impl WindowRig {
     /// Visible text of the viewport header's view buttons, as
     /// `(text, bounds)`: the first row under the tool row.
     pub(super) fn header_texts(&self) -> Vec<(String, Rect)> {
-        let top = ACTION_BAR_COMPACT_HEIGHT + crate::grid_tools::tool_strip_height(&self.ctx);
+        let top = ACTION_BAR_COMPACT_HEIGHT + crate::grid_tools::chrome_height(&self.ctx);
         let tools_y = top + 36.0;
         self.out
             .shapes
@@ -684,7 +684,12 @@ fn no_pointer_gesture_changes_the_tool_unless_it_clicks_a_tool_button() {
             let b = Pos2::new(next() as f32 % 1456.0, next() as f32 % 819.0);
             // The tool buttons' neighbourhood, from the frame before the gesture.
             let near_a_button = |rig: &WindowRig, p: Pos2| {
-                GridTool::ALL.iter().any(|t| {
+                // The Place kind chips choose the Place tool as well.
+                let chip = ["Light", "Prop", "Actor"]
+                    .iter()
+                    .filter_map(|l| rig.find(l))
+                    .any(|c| (c.x - p.x).abs() < 60.0 && (c.y - p.y).abs() < 22.0);
+                chip || GridTool::ALL.iter().any(|t| {
                     [
                         t.label(),
                         if *t == GridTool::Split {
@@ -708,6 +713,8 @@ fn no_pointer_gesture_changes_the_tool_unless_it_clicks_a_tool_button() {
             }
             // A placement that lands returns to Select, by design.
             let placed = before == GridTool::Place && rig.ws.status.starts_with("Placed");
+            // The Storeys panel's "+" button chooses Upper floor by design.
+            let placed = placed || rig.ws.status.starts_with("New storey");
             assert!(
                 rig.tool() == before || on_strip || placed,
                 "round {round} step {step}: {before:?} became {:?} from a gesture at {a:?} / {b:?} ({})",

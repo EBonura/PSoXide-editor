@@ -179,10 +179,23 @@ impl EditorWorkspace {
         }
     }
 
-    /// The options bar: a bar of one fixed height under the viewport header,
-    /// whatever the tool. It shows the active tool's options, or its key
-    /// hints when it has none, and Snap at its right end. Nothing in it can
-    /// grow the bar, so switching tools never moves the viewport.
+    /// The options bar as a panel across the window, directly under the tool
+    /// strip: always in the same place, one fixed height.
+    pub(crate) fn draw_grid_options_panel(&mut self, ctx: &egui::Context) {
+        egui::TopBottomPanel::top("psxed_options_bar")
+            .exact_height(OPTIONS_BAR_HEIGHT + 8.0)
+            .frame(
+                egui::Frame::new()
+                    .fill(STUDIO_PANEL_HEADER)
+                    .inner_margin(egui::Margin::symmetric(10, 4)),
+            )
+            .show(ctx, |ui| self.draw_grid_options_bar(ui));
+    }
+
+    /// The options bar: a bar of one fixed height, whatever the tool. It
+    /// shows only the active tool's options (nothing when it has none) and
+    /// Snap at its right end. Nothing in it can grow the bar, so switching
+    /// tools never moves the viewport.
     pub(crate) fn draw_grid_options_bar(&mut self, ui: &mut egui::Ui) {
         let (bar, _) = ui.allocate_exact_size(
             Vec2::new(ui.available_width(), OPTIONS_BAR_HEIGHT),

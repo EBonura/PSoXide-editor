@@ -80,6 +80,13 @@ mod tiling_panel;
 mod tool_row;
 #[cfg(test)]
 pub(crate) use tool_row::tool_strip_height;
+
+/// Height of the strip plus the options bar under it: where the viewport
+/// column starts below the top bar.
+#[cfg(test)]
+pub(crate) fn chrome_height(ctx: &egui::Context) -> f32 {
+    tool_strip_height(ctx) + crate::OPTIONS_BAR_HEIGHT + 8.0
+}
 mod triangle_tool;
 mod verb_guide;
 mod verb_overlay;
