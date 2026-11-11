@@ -187,3 +187,161 @@ fn continue_from_save_is_its_own_choice_among_the_game_actions() {
     ));
     assert_eq!(CONTINUE_ACTION_ID, 401);
 }
+
+// ---- Autosave and crash recovery ----
+
+mod autosave {
+    use super::super::grid_rig::flat_project;
+    use super::*;
+    use crate::workspace::autosave::{AUTOSAVE_FILE, LONGEST_UNWRITTEN, QUIET_BEFORE_WRITE};
+    use std::time::{Duration, Instant};
+
+    fn saved_workspace(name: &str) -> EditorWorkspace {
+        let dir = test_temp_dir(name);
+        let mut ws = EditorWorkspace::with_project(dir, flat_project(3, 3, true));
+        ws.save().unwrap();
+        ws
+    }
+
+    fn edit(ws: &mut EditorWorkspace) {
+        let n = ws.project.resources.len();
+        ws.project.add_resource(
+            format!("Autosave test {n}"),
+            psxed_project::ResourceData::Material(psxed_project::MaterialResource::opaque(None)),
+        );
+        ws.mark_dirty();
+    }
+
+    #[test]
+    fn a_quiet_moment_after_a_change_writes_a_sidecar_and_never_touches_project_ron() {
+        let mut ws = saved_workspace("autosave-quiet");
+        let ron = ws.project_dir.join("project.ron");
+        let before = std::fs::read(&ron).unwrap();
+        let t0 = Instant::now();
+        ws.autosave_tick(t0, false);
+        assert!(
+            !ws.autosave_path().exists(),
+            "nothing unsaved, nothing written"
+        );
+        edit(&mut ws);
+        ws.autosave_tick(t0, false);
+        ws.autosave_tick(t0 + QUIET_BEFORE_WRITE / 2, false);
+        assert!(!ws.autosave_path().exists(), "not yet quiet");
+        ws.autosave_tick(t0 + QUIET_BEFORE_WRITE + Duration::from_millis(10), true);
+        assert!(!ws.autosave_path().exists(), "never while a drag is held");
+        ws.autosave_tick(t0 + QUIET_BEFORE_WRITE + Duration::from_millis(20), false);
+        assert!(ws.autosave_path().ends_with(AUTOSAVE_FILE));
+        assert!(ws.autosave_path().exists());
+        assert_eq!(
+            std::fs::read(&ron).unwrap(),
+            before,
+            "project.ron untouched"
+        );
+        assert_eq!(ws.autosave.writes, 1);
+        // Idle ticks do not rewrite the same revision.
+        ws.autosave_tick(t0 + Duration::from_secs(20), false);
+        assert_eq!(ws.autosave.writes, 1);
+    }
+
+    #[test]
+    fn edits_that_never_go_quiet_are_written_at_the_longest_wait() {
+        let mut ws = saved_workspace("autosave-overdue");
+        let t0 = Instant::now();
+        edit(&mut ws);
+        ws.autosave_tick(t0, false);
+        // A change every second keeps it from going quiet.
+        for s in 1..LONGEST_UNWRITTEN.as_secs() {
+            edit(&mut ws);
+            ws.autosave_tick(t0 + Duration::from_secs(s), false);
+        }
+        assert!(!ws.autosave_path().exists());
+        edit(&mut ws);
+        ws.autosave_tick(t0 + LONGEST_UNWRITTEN, false);
+        assert!(ws.autosave_path().exists());
+    }
+
+    #[test]
+    fn a_normal_save_removes_the_sidecar() {
+        let mut ws = saved_workspace("autosave-save");
+        let t0 = Instant::now();
+        edit(&mut ws);
+        ws.autosave_tick(t0, false);
+        ws.autosave_tick(t0 + Duration::from_secs(3), false);
+        assert!(ws.autosave_path().exists());
+        ws.save().unwrap();
+        assert!(!ws.autosave_path().exists());
+    }
+
+    #[test]
+    fn opening_a_project_with_a_newer_sidecar_asks_and_restore_brings_the_work_back() {
+        let mut ws = saved_workspace("autosave-recover");
+        let dir = ws.project_dir.clone();
+        let t0 = Instant::now();
+        edit(&mut ws);
+        let edited = ws.project.clone();
+        ws.autosave_tick(t0, false);
+        ws.autosave_tick(t0 + Duration::from_secs(3), false);
+        // The editor dies here. A newer file than project.ron is what the
+        // sidecar is on disk; make that certain whatever the clock grain.
+        let later = std::time::SystemTime::now() + Duration::from_secs(5);
+        std::fs::File::options()
+            .write(true)
+            .open(dir.join(AUTOSAVE_FILE))
+            .unwrap()
+            .set_modified(later)
+            .unwrap();
+        drop(ws);
+        let mut reopened = EditorWorkspace::open_directory(&dir).unwrap();
+        assert!(
+            matches!(reopened.modal, Modal::RecoverAutosave { .. }),
+            "asks to recover"
+        );
+        assert!(!reopened.dirty);
+        reopened.restore_autosave().unwrap();
+        reopened.modal = Modal::None;
+        assert!(reopened.dirty, "restored work is unsaved until saved");
+        assert_eq!(reopened.project.resources.len(), edited.resources.len());
+        reopened.save().unwrap();
+        assert!(!dir.join(AUTOSAVE_FILE).exists());
+    }
+
+    #[test]
+    fn keeping_the_saved_version_removes_the_sidecar_and_an_old_sidecar_is_ignored() {
+        let mut ws = saved_workspace("autosave-keep");
+        let dir = ws.project_dir.clone();
+        let t0 = Instant::now();
+        edit(&mut ws);
+        ws.autosave_tick(t0, false);
+        ws.autosave_tick(t0 + Duration::from_secs(3), false);
+        let side = dir.join(AUTOSAVE_FILE);
+        // Older than the saved project: stale, dropped without a question.
+        let earlier = std::time::SystemTime::now() - Duration::from_secs(3600);
+        std::fs::File::options()
+            .write(true)
+            .open(&side)
+            .unwrap()
+            .set_modified(earlier)
+            .unwrap();
+        let reopened = EditorWorkspace::open_directory(&dir).unwrap();
+        assert!(matches!(reopened.modal, Modal::None));
+        assert!(!side.exists());
+    }
+
+    #[test]
+    fn an_autosave_that_cannot_be_read_is_set_aside_not_offered() {
+        let ws = saved_workspace("autosave-bad");
+        let dir = ws.project_dir.clone();
+        let side = dir.join(AUTOSAVE_FILE);
+        std::fs::write(&side, "this is not a project").unwrap();
+        std::fs::File::options()
+            .write(true)
+            .open(&side)
+            .unwrap()
+            .set_modified(std::time::SystemTime::now() + Duration::from_secs(5))
+            .unwrap();
+        drop(ws);
+        let reopened = EditorWorkspace::open_directory(&dir).unwrap();
+        assert!(matches!(reopened.modal, Modal::None));
+        assert!(dir.join(".psxed-autosave.bad.ron").exists());
+    }
+}

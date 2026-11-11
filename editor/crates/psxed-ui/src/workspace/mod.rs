@@ -1,6 +1,7 @@
 use super::*;
 
 pub(crate) mod actor_inspector;
+pub(crate) mod autosave;
 mod dialogs;
 mod editing;
 mod geometry;

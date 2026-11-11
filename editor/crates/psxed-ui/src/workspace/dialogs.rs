@@ -81,8 +81,15 @@ impl EditorWorkspace {
         self.draw_new_project_dialog(ctx);
         self.draw_delete_project_dialog(ctx);
         self.draw_unsaved_changes_dialog(ctx);
+        self.draw_recover_autosave_dialog(ctx);
         self.draw_texture_import_dialog(ctx);
         self.draw_model_import_dialog(ctx);
+        // The autosave: a quiet moment after a change, never mid-drag.
+        let pointer_down = ctx.input(|i| i.pointer.any_down());
+        self.autosave_tick(std::time::Instant::now(), pointer_down);
+        if self.dirty && self.autosave.needs_wakeup() {
+            ctx.request_repaint_after(std::time::Duration::from_secs(1));
+        }
     }
 
     /// Modal for File → New Project.
@@ -270,6 +277,10 @@ impl EditorWorkspace {
         if choice == Choice::Cancel {
             self.modal = Modal::None;
             return;
+        }
+        if choice == Choice::Discard {
+            // The edits are given up: the autosave of them goes too.
+            self.discard_autosave();
         }
         if choice == Choice::Save {
             if let Err(error) = self.save() {

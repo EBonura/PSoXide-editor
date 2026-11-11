@@ -511,6 +511,8 @@ pub struct EditorWorkspace {
     last_cook_errors: Vec<psxed_project::playtest::PlaytestValidationError>,
     /// Save-flag slots the last cook used (`PlaytestPackage::persistent_slots_used`).
     last_slots_used: Option<u16>,
+    /// The autosave's timers.
+    autosave: workspace::autosave::AutosaveState,
     /// Project-portable Room-workspace clipboard. Unlike Duplicate, this owns
     /// material names rather than trusting project-local resource ids, so it
     /// deliberately survives switching or creating projects.
@@ -1345,6 +1347,9 @@ enum Modal {
         then: AfterUnsavedPrompt,
         error: Option<String>,
     },
+    /// The project opened with an autosave newer than its saved file: restore
+    /// it or keep the saved version. `age` is how long ago it was written.
+    RecoverAutosave { age: String, error: Option<String> },
 }
 
 /// What the unsaved-changes prompt does once the edits are saved or
@@ -2170,6 +2175,7 @@ impl EditorWorkspace {
             .unwrap_or_else(|| psxed_project::EditorViewState::starting_view(&workspace.project));
         workspace.apply_editor_view_state(view);
         workspace.saved_view_state = view;
+        workspace.check_autosave_on_open();
         workspace.frame_camera_if_uninitialized();
         if workspace.active_workspace == WorkspaceView::Room && workspace.view_2d {
             let status = workspace.status.clone();
@@ -2243,6 +2249,7 @@ impl EditorWorkspace {
             ui_transform_mode: UiTransformMode::Move,
             last_cook_errors: Vec::new(),
             last_slots_used: None,
+            autosave: workspace::autosave::AutosaveState::default(),
             clipboard_notice: None,
             renaming: None,
             pending_rename_focus: false,
@@ -2626,6 +2633,7 @@ impl EditorWorkspace {
         self.dirty = false;
         self.project_watch = ProjectWatchState::capture(&self.project_dir, &self.project);
         self.status = format!("Saved {}", short_path(&self.project_dir));
+        self.discard_autosave();
         if let Err(error) = self.save_view_state() {
             self.status = format!("Saved {}; {error}", short_path(&self.project_dir));
         }
@@ -2722,6 +2730,7 @@ impl EditorWorkspace {
                 self.resource_renaming = None;
                 self.resource_delete_confirm = None;
                 self.dirty = dirty;
+                self.discard_autosave();
                 self.project_watch = ProjectWatchState::capture(&self.project_dir, &self.project);
                 self.reconcile_selection_after_document_change();
                 self.status = sync_status
