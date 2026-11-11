@@ -253,19 +253,16 @@ impl EditorWorkspace {
                 }
             }
         });
-        match chosen {
-            Some(i) => {
-                let preset = &BUILDINGS[i];
-                let b = &mut self.grid.build.opts.building;
-                b.storeys = preset.storeys;
-                b.window_every = preset.window_every;
-                b.stair = preset.stair;
-                b.parapet = preset.parapet;
-                b.door = true;
-                self.set_grid_tool(GridTool::Building);
-                self.status = format!("Tool: Building, {}: drag a footprint", preset.name);
-            }
-            None => {}
+        if let Some(i) = chosen {
+            let preset = &BUILDINGS[i];
+            let b = &mut self.grid.build.opts.building;
+            b.storeys = preset.storeys;
+            b.window_every = preset.window_every;
+            b.stair = preset.stair;
+            b.parapet = preset.parapet;
+            b.door = true;
+            self.set_grid_tool(GridTool::Building);
+            self.status = format!("Tool: Building, {}: drag a footprint", preset.name);
         }
     }
 }
