@@ -15,13 +15,18 @@
 //! Walls and surfaces never mix: the pressed element's kind decides, and the
 //! other kinds in the selection stay where they are.
 
-use super::plan::{HeightsPlan, Plan, Profile, PushPlan};
+use super::plan::{HeightsPlan, Plan, Profile, PushPlan, TiltPlan, WallPlan};
 use super::target::{Hit, Target};
-use super::wall_handle::{WallHandle, WallSide};
+use super::wall_handle::{WallHandle, WallMove, WallSide};
 use super::{Axis, EditorWorkspace, FaceRef};
 
-use psxed_project::grid::edit::{CornerRef, FaceTarget, GridElement, SurfaceKind};
+use std::collections::BTreeSet;
+
+use psxed_project::grid::edit::tilt::{BoxCorner, Hinge, TiltTarget};
+use psxed_project::grid::edit::verbs::ramp::RampDir;
+use psxed_project::grid::edit::{CellRect, CornerRef, FaceTarget, GridElement, SurfaceKind};
 use psxed_project::grid::GridWorld;
+use psxed_project::grid::SECTOR_UNITS;
 
 /// A side of a selection's outline.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -195,7 +200,7 @@ pub(super) fn for_press(ws: &EditorWorkspace, hit: &Hit) -> Option<Spec> {
 }
 
 /// The label and the side effect of a spec, for the hint.
-pub(super) fn describe(world: &GridWorld, spec: &Spec) -> (String, Option<String>) {
+pub(super) fn describe(spec: &Spec) -> (String, Option<String>) {
     let many = spec.faces.len() > 1;
     let ceiling = spec.faces.first().and_then(surface_kind) == Some(SurfaceKind::Ceiling);
     let what = if ceiling { "ceiling" } else { "floor" };
@@ -218,41 +223,24 @@ pub(super) fn describe(world: &GridWorld, spec: &Spec) -> (String, Option<String
         ),
         Kind::TiltCorner(_) => ("slope the selection from the far corner".to_string(), None),
         Kind::Lift(_) => ("lift this corner".to_string(), None),
-        Kind::Stretch(side) => {
-            let walls: Vec<WallHandle> = spec
-                .faces
-                .iter()
-                .filter_map(|f| WallHandle::of(*f))
-                .collect();
-            let note = WallHandle::edge_move_all(&walls, world, side)
-                .ok()
-                .and_then(|m| m.note());
-            (
-                match side {
-                    WallSide::Top => "stretch the wall from its top".to_string(),
-                    WallSide::Bottom => "stretch the wall from its foot".to_string(),
-                },
-                note,
-            )
-        }
-        Kind::Slide => {
-            let walls: Vec<WallHandle> = spec
-                .faces
-                .iter()
-                .filter_map(|f| WallHandle::of(*f))
-                .collect();
-            let note = WallHandle::slide_all(&walls, world)
-                .ok()
-                .and_then(|m| m.note());
-            ("slide the wall, keeping its height".to_string(), note)
-        }
+        Kind::Stretch(side) => (
+            match side {
+                WallSide::Top => "stretch the wall from its top".to_string(),
+                WallSide::Bottom => "stretch the wall from its foot".to_string(),
+            },
+            Some("the floor and the ceiling stay".to_string()),
+        ),
+        Kind::Slide => (
+            "slide the wall, keeping its height".to_string(),
+            Some("the floor and the ceiling stay".to_string()),
+        ),
         Kind::Push => ("push the room out or in, a sector a step".to_string(), None),
     }
 }
 
 /// The plan for a spec. The world may gain leaves (see `refine_corners`).
 pub(super) fn build(world: &mut GridWorld, spec: &Spec, weld: bool) -> Result<Built, String> {
-    let (label, note) = describe(world, spec);
+    let (label, note) = describe(spec);
     let (plan, axis) = match spec.kind {
         Kind::Push => {
             let elements: Vec<GridElement> =
@@ -263,37 +251,18 @@ pub(super) fn build(world: &mut GridWorld, spec: &Spec, weld: bool) -> Result<Bu
             let axis = Axis::Horizontal([out[0] as f32 / len, out[1] as f32 / len]);
             (Plan::Push(Box::new(plan)), axis)
         }
-        Kind::Stretch(side) => {
+        Kind::Stretch(_) | Kind::Slide => {
+            let how = match spec.kind {
+                Kind::Stretch(side) => WallMove::Edge(side),
+                _ => WallMove::Slide,
+            };
             let walls: Vec<WallHandle> = spec
                 .faces
                 .iter()
                 .filter_map(|f| WallHandle::of(*f))
                 .collect();
-            let moved = WallHandle::edge_move_all(&walls, world, side)?;
             (
-                Plan::Heights(HeightsPlan::new(
-                    world,
-                    &moved.corners,
-                    Profile::Uniform,
-                    weld,
-                )?),
-                Axis::Vertical,
-            )
-        }
-        Kind::Slide => {
-            let walls: Vec<WallHandle> = spec
-                .faces
-                .iter()
-                .filter_map(|f| WallHandle::of(*f))
-                .collect();
-            let moved = WallHandle::slide_all(&walls, world)?;
-            (
-                Plan::Heights(HeightsPlan::new(
-                    world,
-                    &moved.corners,
-                    Profile::Uniform,
-                    weld,
-                )?),
+                Plan::Walls(WallPlan::new(world, &walls, how)?),
                 Axis::Vertical,
             )
         }
@@ -301,6 +270,10 @@ pub(super) fn build(world: &mut GridWorld, spec: &Spec, weld: bool) -> Result<Bu
             Plan::Heights(HeightsPlan::new(world, &[corner], Profile::Uniform, weld)?),
             Axis::Vertical,
         ),
+        Kind::Tilt(_) | Kind::TiltCorner(_) if sdk_tilt(world, spec).is_some() => {
+            let plan = sdk_tilt(world, spec).ok_or("Nothing to slope")?;
+            (Plan::Tilt(Box::new(plan?)), Axis::Vertical)
+        }
         Kind::Translate | Kind::Tilt(_) | Kind::TiltCorner(_) => {
             let corners: Vec<CornerRef> =
                 spec.faces.iter().flat_map(|f| f.corners(world)).collect();
@@ -320,6 +293,50 @@ pub(super) fn build(world: &mut GridWorld, spec: &Spec, weld: bool) -> Result<Bu
         label,
         note,
     })
+}
+
+/// The SDK tilt of a spec, when it applies: ground floors or ceilings of one
+/// room (the SDK tilts the ground span; other storeys use the corner plan).
+fn sdk_tilt(world: &GridWorld, spec: &Spec) -> Option<Result<TiltPlan, String>> {
+    let first = spec.faces.first()?;
+    let kind = surface_kind(first)?;
+    let mut cells: BTreeSet<[i32; 2]> = BTreeSet::new();
+    for face in &spec.faces {
+        match face.target {
+            FaceTarget::Surface { kind: k, span: 0 } if k == kind && face.room == first.room => {}
+            _ => return None,
+        }
+        let (lo, hi) = face.leaf.sector_range();
+        cells.extend(CellRect { min: lo, max: hi }.cells());
+    }
+    let (mut lo, mut hi) = ([i32::MAX; 2], [i32::MIN; 2]);
+    for c in &cells {
+        lo = [lo[0].min(c[0]), lo[1].min(c[1])];
+        hi = [hi[0].max(c[0]), hi[1].max(c[1])];
+    }
+    let hinge = match spec.kind {
+        Kind::Tilt(Side::East) => Hinge::Edge(RampDir::West),
+        Kind::Tilt(Side::West) => Hinge::Edge(RampDir::East),
+        Kind::Tilt(Side::South) => Hinge::Edge(RampDir::North),
+        Kind::Tilt(Side::North) => Hinge::Edge(RampDir::South),
+        Kind::TiltCorner(at) => {
+            // The corner that stays is opposite the one dragged.
+            let west = at[0] <= lo[0] * SECTOR_UNITS;
+            let north = at[1] <= lo[1] * SECTOR_UNITS;
+            Hinge::Corner(match (west, north) {
+                (true, true) => BoxCorner::SouthEast,
+                (false, true) => BoxCorner::SouthWest,
+                (false, false) => BoxCorner::NorthWest,
+                (true, false) => BoxCorner::NorthEast,
+            })
+        }
+        _ => return None,
+    };
+    let target = match kind {
+        SurfaceKind::Floor => TiltTarget::Floor,
+        SurfaceKind::Ceiling => TiltTarget::Ceiling,
+    };
+    Some(TiltPlan::new(world, first.room, cells, target, hinge))
 }
 
 /// The hinge and the dragged side of a tilt, from the outline of `corners`.

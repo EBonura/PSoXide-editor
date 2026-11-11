@@ -13,7 +13,7 @@ use super::*;
 use crate::grid_tools::GridTool;
 use psxed_project::grid::{GridRoom, GridSurface, WallMode};
 
-pub(super) const WINDOW: Vec2 = Vec2::new(1456.0, 819.0);
+pub(super) const WINDOW: Vec2 = Vec2::new(1456.0, 1000.0);
 
 /// Stand-in for dp-world: the starter project, 650 palette materials, and a
 /// second room "Machine Hall" (derived walls) at world sector [7, -1], 8 x 8.
@@ -131,6 +131,15 @@ pub(super) struct WindowRig {
 }
 
 impl WindowRig {
+    /// Open the Library drawer on its Materials tab (the palette's home).
+    pub(super) fn open_library(&mut self) {
+        self.ws
+            .open_library(crate::grid_tools::LibraryTab::Materials);
+        for _ in 0..4 {
+            self.frame(vec![]);
+        }
+    }
+
     pub(super) fn new() -> Self {
         Self::with_size(WINDOW)
     }
@@ -688,12 +697,12 @@ fn no_pointer_gesture_changes_the_tool_unless_it_clicks_a_tool_button() {
                 let chip = ["Light", "Prop", "Actor"]
                     .iter()
                     .filter_map(|l| rig.find(l))
-                    .any(|c| (c.x - p.x).abs() < 60.0 && (c.y - p.y).abs() < 22.0);
+                    .any(|c| (c.x - p.x).abs() < 60.0 && (c.y - p.y).abs() < 36.0);
                 // The Edit button stands just left of the Classic menu (the
                 // menu bar has an "Edit" of its own, which `find` meets first).
                 let edit_button = rig
                     .find("Classic")
-                    .is_some_and(|c| (c.x - p.x).abs() < 140.0 && (c.y - p.y).abs() < 22.0);
+                    .is_some_and(|c| (c.x - p.x).abs() < 140.0 && (c.y - p.y).abs() < 36.0);
                 chip || edit_button
                     || GridTool::ALL.iter().any(|t| {
                         [
@@ -707,7 +716,7 @@ fn no_pointer_gesture_changes_the_tool_unless_it_clicks_a_tool_button() {
                         .iter()
                         .filter(|l| !l.is_empty())
                         .filter_map(|l| rig.find(l))
-                        .any(|c| (c.x - p.x).abs() < 100.0 && (c.y - p.y).abs() < 22.0)
+                        .any(|c| (c.x - p.x).abs() < 100.0 && (c.y - p.y).abs() < 36.0)
                     })
             };
             let on_strip = near_a_button(&rig, a) || near_a_button(&rig, b);

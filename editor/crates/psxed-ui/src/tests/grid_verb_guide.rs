@@ -18,7 +18,7 @@ use crate::grid_tools::GridTool;
 use psxed_project::grid::faces::all_faces;
 
 const WALLS_PROMPT: &str =
-    "This room uses hand-placed walls, so new heights won't get walls. Convert to derived walls?";
+    "This room has walls placed one by one, so new heights won't get walls. Make the walls follow the heights?";
 
 /// The tracked starter project in a window, the plan showing, nothing drawn
 /// yet: a derived room, so there is no walls prompt.

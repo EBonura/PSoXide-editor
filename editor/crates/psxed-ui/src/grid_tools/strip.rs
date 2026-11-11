@@ -107,11 +107,7 @@ impl EditorWorkspace {
             | GridTool::Door
             | GridTool::Lever
             | GridTool::Checkpoint => self.draw_build_options(ui),
-            GridTool::Edit => {
-                ui.toggle_value(&mut self.grid.link, "Weld").on_hover_text(
-                    "L: off, a floor moves as a block and the walls between heights follow; on, corners that meet move together",
-                );
-            }
+            GridTool::Edit => self.draw_edit_options(ui),
             GridTool::Select | GridTool::Height => {
                 // Weld moves the corners that share a position together: Height always has
                 // some, Select once something is picked. Move and Global are
@@ -145,7 +141,13 @@ impl EditorWorkspace {
                 self.draw_active_place_options(ui);
             }
             GridTool::Paint => self.draw_paint_options(ui),
-            GridTool::Split => {}
+            GridTool::Split => {
+                ui.label(
+                    RichText::new("Click a floor or ceiling to flip its diagonal")
+                        .color(STUDIO_TEXT_WEAK)
+                        .size(11.0),
+                );
+            }
             GridTool::Extrude
             | GridTool::Ramp
             | GridTool::Stairs

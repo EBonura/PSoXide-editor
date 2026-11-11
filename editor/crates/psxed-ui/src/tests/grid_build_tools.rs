@@ -276,6 +276,9 @@ fn a_lever_is_placed_then_bound_to_the_door_clicked_next() {
         "{}",
         rig.ws.status
     );
+    // Two sectors from the door is not the door: nothing is bound.
+    rig.click(at(&rig, 3.5, 0.0, 0.5));
+    assert!(rig.ws.status.contains("not a door"), "{}", rig.ws.status);
     rig.click(at(&rig, 1.5, 0.0, 0.5));
     let target = rig
         .ws
@@ -477,4 +480,16 @@ fn build_tool_captures() {
         rig.frame(vec![up]);
         settle(&mut rig);
     }
+}
+
+#[test]
+fn play_from_here_restarts_a_running_playtest_at_the_new_spot() {
+    let mut rig = GridRig::top("build-play-restart", derived_project_for_tiling(5, 5));
+    rig.ws.playtest_running = true;
+    rig.ws.play_from_here([1280.0, 0.0, 2560.0], 0.0);
+    assert!(matches!(
+        rig.ws.pending_playtest_request,
+        Some(crate::EditorPlaytestRequest::Rebuild)
+    ));
+    assert!(rig.ws.status.contains("restarting"), "{}", rig.ws.status);
 }

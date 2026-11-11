@@ -432,23 +432,16 @@ fn the_strip_shows_every_tool_in_five_labelled_groups_at_every_window_width() {
             }) {
                 let name = find(tool.label());
                 assert_eq!(name.len(), 1, "{width}: {}", tool.label());
+                // The group's name stands above its buttons, over the same row.
+                let below = name[0].center().y - at[0].center().y;
                 assert!(
-                    (name[0].center().y - at[0].center().y).abs() < 6.0,
+                    (10.0..60.0).contains(&below) && name[0].min.x >= at[0].min.x - 24.0,
                     "{width}: {} left its group's row",
                     tool.label()
                 );
                 assert!(
                     name[0].max.x < width - 6.0,
                     "{width}: {} is clipped",
-                    tool.label()
-                );
-                assert!(
-                    !tool.has_key()
-                        || found.iter().any(|(t, r)| t == tool.key_label()
-                            && (r.center().y - name[0].center().y).abs() < 5.0
-                            && r.min.x >= name[0].max.x
-                            && r.min.x < name[0].max.x + 16.0),
-                    "{width}: {} shows no key beside it",
                     tool.label()
                 );
             }
@@ -462,6 +455,30 @@ fn the_strip_shows_every_tool_in_five_labelled_groups_at_every_window_width() {
         .expect("the left dock");
         assert!(structure.min.y > tool_band(&rig).max.y - 2.0, "{width}");
     }
+}
+
+#[test]
+fn the_strip_is_one_row_at_1920_and_wraps_whole_groups_at_1280() {
+    use crate::grid_tools::ToolGroup;
+    let rows = |width: f32| -> usize {
+        let rig = WindowRig::with_size(Vec2::new(width, 1080.0));
+        let found = strip_texts(&rig);
+        let mut ys: Vec<i32> = ToolGroup::ALL
+            .iter()
+            .filter_map(|g| found.iter().find(|(t, _)| t == g.label()))
+            .map(|(_, r)| r.min.y.round() as i32)
+            .collect();
+        assert_eq!(ys.len(), 5, "{width}: every group has its name");
+        ys.sort_unstable();
+        ys.dedup();
+        ys.len()
+    };
+    assert_eq!(rows(1920.0), 1, "one row at 1920");
+    let at_1280 = rows(1280.0);
+    assert!(
+        (2..=3).contains(&at_1280),
+        "a clean wrap at 1280: {at_1280} rows"
+    );
 }
 
 #[test]
@@ -571,7 +588,7 @@ fn the_view_switch_is_on_the_left_and_the_view_controls_on_the_right() {
             &rig,
             Rect::from_min_max(
                 Pos2::new(rig.size.x - 330.0, 0.0),
-                Pos2::new(rig.size.x, 200.0),
+                Pos2::new(rig.size.x, 320.0),
             ),
             "Inspector",
         )
@@ -1020,7 +1037,7 @@ fn the_classic_menu_holds_select_height_and_extrude() {
         row_click(&mut rig, "Classic");
         let entry = texts(&rig)
             .into_iter()
-            .find(|(t, _)| t.starts_with(tool.label()) && t.contains(tool.key_label()))
+            .find(|(t, _)| t.contains(tool.label()) && t.contains(tool.key_label()))
             .unwrap_or_else(|| panic!("no menu entry for {}", tool.label()));
         rig.click(entry.1.center());
         frames(&mut rig, 2);

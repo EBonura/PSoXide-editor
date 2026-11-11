@@ -822,6 +822,15 @@ impl EditorWorkspace {
             ui.menu_button(icons::label(icons::FOLDER, "Project"), |ui| {
                 self.draw_project_switch_menu(ui);
             });
+            if ui
+                .button("Rename Project...")
+                .on_hover_text("Rename the project (the same as clicking its name)")
+                .clicked()
+            {
+                self.project_name_editing = true;
+                self.project_name_focus_pending = true;
+                ui.close_menu();
+            }
             let can_delete_project = !self.current_project_is_bundled();
             let delete_response =
                 ui.add_enabled(can_delete_project, egui::Button::new("Delete Project..."));

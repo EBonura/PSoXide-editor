@@ -166,6 +166,7 @@ fn the_materials_panel_searches_and_a_made_material_joins_the_palette() {
         psxed_project::ResourceData::Material(psxed_project::MaterialResource::opaque(None)),
     );
     let mut ws = EditorWorkspace::with_project(test_temp_dir("ux-materials"), project);
+    ws.open_library(crate::grid_tools::LibraryTab::Materials);
     let ctx = full_context();
     let text = text_of(&draw_editor(&mut ws, &ctx, true));
     assert!(

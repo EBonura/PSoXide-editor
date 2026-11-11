@@ -201,6 +201,26 @@ impl EditorServer {
     }
 
     #[rmcp::tool(
+        description = "Set the material of one wall (a name or id; `none` takes it back to automatic), on any storey, whatever made the wall."
+    )]
+    async fn grid_wall_material(
+        &self,
+        Parameters(req): Parameters<WallReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.make_edit("grid_wall_material", |p, _| make::wall_material(p, &req))
+    }
+
+    #[rmcp::tool(
+        description = "Cut a door or window in one wall (from and to in clicks along the wall, top and sill in grid units, profile rectangular, pointed or round), or close it with opening none. Works on any storey, whatever made the wall."
+    )]
+    async fn grid_wall_opening(
+        &self,
+        Parameters(req): Parameters<WallReq>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.make_edit("grid_wall_opening", |p, _| make::wall_opening(p, &req))
+    }
+
+    #[rmcp::tool(
         description = "Take a wall back to automatic: heights, material, collision, bands or all (the default)."
     )]
     async fn grid_wall_reset(

@@ -813,8 +813,8 @@ fn place_object(project: &mut ProjectDocument, kind: BuildKind, o: &Options, geo
     })
 }
 
-/// The door (a Logic Door node) nearest `cell` within a few sectors, by
-/// name. The lever tool binds with it.
+/// The door (a Logic Door node) the click on `cell` is on, by name: its own
+/// sector or the one beside it. The lever tool binds with it.
 pub(crate) fn nearest_door(project: &ProjectDocument, cell: [i32; 2]) -> Option<(NodeId, String)> {
     let world = project.active_scene().world.grid()?;
     let scene = project.active_scene();
@@ -837,7 +837,7 @@ pub(crate) fn nearest_door(project: &ProjectDocument, cell: [i32; 2]) -> Option<
         let d = ((slab[0] / per_sector - (cell[0] as f32 + 0.5)).powi(2)
             + (slab[2] / per_sector - (cell[1] as f32 + 0.5)).powi(2))
         .sqrt();
-        if d <= 3.0 && best.as_ref().is_none_or(|b| d < b.0) {
+        if d <= 1.0 && best.as_ref().is_none_or(|b| d < b.0) {
             best = Some((d, node.id, node.name.clone()));
         }
     }

@@ -53,10 +53,10 @@ impl EditorWorkspace {
             ui.label(RichText::new("Walls").color(STUDIO_TEXT_WEAK).size(11.0));
             match mode {
                 WallMode::Derived => {
-                    ui.label(RichText::new("derived from heights").color(STUDIO_ACCENT));
+                    ui.label(RichText::new("walls follow the heights").color(STUDIO_ACCENT));
                 }
                 WallMode::Authored => {
-                    ui.label("authored (legacy)");
+                    ui.label("walls placed one by one");
                 }
             }
         });
@@ -64,9 +64,9 @@ impl EditorWorkspace {
             WallMode::Authored => {
                 ui.horizontal(|ui| {
                     if ui
-                        .button("Convert to derived")
+                        .button("Make walls follow heights")
                         .on_hover_text(
-                            "Walls come from height differences from now on. Walls that are exactly a derived face become overrides; everything else keeps looking and playing as it does.",
+                            "Walls come from height differences from now on. Walls that match a height difference exactly keep their place as set walls; everything else keeps looking and playing as it does.",
                         )
                         .clicked()
                     {
@@ -171,13 +171,13 @@ impl EditorWorkspace {
                 if overrides > 0 {
                     ui.horizontal(|ui| {
                         ui.label(
-                            RichText::new(format!("{overrides} wall overrides"))
+                            RichText::new(format!("{overrides} walls with their own settings"))
                                 .color(STUDIO_TEXT_WEAK)
                                 .size(11.0),
                         );
                         if ui
                             .button("Clean up")
-                            .on_hover_text("Drop the overrides whose wall no longer exists")
+                            .on_hover_text("Drop the settings of walls that no longer exist")
                             .clicked()
                         {
                             clean = true;
@@ -215,10 +215,10 @@ impl EditorWorkspace {
                 .map_or(0, |w| clean_overrides(w, index));
             if removed > 0 {
                 self.history.record(before);
-                self.status = format!("Removed {removed} unused wall overrides");
+                self.status = format!("Removed {removed} unused wall settings");
                 self.grid_changed();
             } else {
-                self.status = "No unused wall overrides".to_string();
+                self.status = "No unused wall settings".to_string();
             }
         }
     }
@@ -236,11 +236,11 @@ impl EditorWorkspace {
         self.grid.selection.clear();
         self.status = match mode {
             ConvertMode::PreserveLook => format!(
-                "Room {index} is derived: {} walls converted, {} kept authored, {} faces hidden to keep the look",
+                "Room {index} follows its heights: {} walls converted, {} kept as set walls, {} faces hidden to keep the look",
                 report.converted, report.kept_authored, report.hidden
             ),
             ConvertMode::FillNewWalls => format!(
-                "Room {index} is derived: {} walls converted, {} kept authored, {} new wall faces shown",
+                "Room {index} follows its heights: {} walls converted, {} kept as set walls, {} new wall faces shown",
                 report.converted, report.kept_authored, report.filled
             ),
         };

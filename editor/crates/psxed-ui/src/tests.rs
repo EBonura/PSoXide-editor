@@ -65,6 +65,7 @@ mod redraw;
 mod scene_tree_selection;
 mod ui_layout;
 mod ui_preview;
+mod ui_wording;
 mod viewport_gizmo;
 mod world_editing;
 

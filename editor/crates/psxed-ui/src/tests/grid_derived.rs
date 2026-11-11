@@ -202,11 +202,11 @@ fn the_rooms_panel_offers_convert_for_legacy_rooms_and_the_defaults_for_derived_
     ws.select_room(0);
     ws.last_viewport_size = Vec2::new(1200.0, 700.0);
     let legacy = text_of(&draw_editor(&mut ws, &ctx, true));
-    assert!(legacy.contains("authored (legacy)"), "{legacy}");
-    assert!(legacy.contains("Convert to derived"), "{legacy}");
+    assert!(legacy.contains("walls placed one by one"), "{legacy}");
+    assert!(legacy.contains("Make walls follow heights"), "{legacy}");
     ws.grid_convert_room(0, psxed_project::grid::edit::ConvertMode::FillNewWalls);
     let derived = text_of(&draw_editor(&mut ws, &ctx, true));
-    assert!(derived.contains("derived from heights"), "{derived}");
+    assert!(derived.contains("walls follow the heights"), "{derived}");
     assert!(derived.contains("Open wall"), "{derived}");
-    assert!(!derived.contains("Convert to derived"), "{derived}");
+    assert!(!derived.contains("Make walls follow heights"), "{derived}");
 }

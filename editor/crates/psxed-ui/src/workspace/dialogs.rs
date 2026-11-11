@@ -72,6 +72,7 @@ impl EditorWorkspace {
             self.draw_status_bar(ctx);
             if self.is_grid_world() && self.active_workspace == WorkspaceView::Room {
                 self.draw_grid_help(ctx);
+                self.draw_tool_search(ctx);
             }
         }
         self.draw_content_browser(ctx);

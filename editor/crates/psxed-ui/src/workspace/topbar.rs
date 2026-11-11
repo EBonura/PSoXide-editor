@@ -242,6 +242,7 @@ impl EditorWorkspace {
         play_metrics: Option<EditorPlaytestMetrics>,
     ) {
         let playtest_active = playtest_status.is_active();
+        self.playtest_running = playtest_active;
         let play_label = if playtest_active {
             "Rebuild & Play"
         } else {

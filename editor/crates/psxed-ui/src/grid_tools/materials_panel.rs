@@ -81,12 +81,7 @@ impl EditorWorkspace {
         }
     }
 
-    /// The palette, its search box and the New and Import buttons.
-    pub(super) fn draw_grid_palette(&mut self, ui: &mut egui::Ui) {
-        self.draw_grid_palette_in(ui, false);
-    }
-
-    /// [`Self::draw_grid_palette`]; `fill` lets the swatches take all the
+    /// The palette, its search box and the New and Import buttons; `fill` lets the swatches take all the
     /// height left (the Material tab's left dock), instead of a window.
     pub(crate) fn draw_grid_palette_in(&mut self, ui: &mut egui::Ui, fill: bool) {
         self.refresh_texture_thumbs(ui.ctx());
@@ -195,7 +190,7 @@ impl EditorWorkspace {
             // than a few rows.
             let window = if fill {
                 // What is left, less the Paint line under the list.
-                (ui.available_height() - 34.0).max(236.0)
+                (ui.available_height() - 34.0).max(120.0)
             } else {
                 (ui.available_height() * 0.5).clamp(236.0, 520.0)
             };
@@ -377,8 +372,17 @@ impl EditorWorkspace {
         } else {
             self.apply_grid_material_to_selection(id)
         };
+        // A material that went on nothing is the paint: Paint is armed.
+        let arm = applied == 0
+            && self.active_workspace == WorkspaceView::Room
+            && self.grid.tool != GridTool::Paint;
+        if arm {
+            self.set_grid_tool(GridTool::Paint);
+        }
         self.status = if applied > 0 {
             format!("Applied {name} to {applied} faces")
+        } else if arm {
+            format!("Paint: {name}")
         } else {
             format!("Material: {name}")
         };

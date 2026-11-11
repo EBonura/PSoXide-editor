@@ -483,7 +483,13 @@ impl EditorWorkspace {
         let max_height = max_resizable_bottom_dock_height(ctx);
         egui::TopBottomPanel::bottom("psxed_content_browser")
             .resizable(true)
-            .default_height(240.0)
+            .default_height(
+                if self.content_browser_view == ContentBrowserView::Library {
+                    380.0
+                } else {
+                    240.0
+                },
+            )
             .min_height(CONTENT_BROWSER_MIN_HEIGHT)
             .max_height(max_height)
             .frame(dock_frame())
@@ -499,6 +505,7 @@ impl EditorWorkspace {
                             match self.content_browser_view {
                                 ContentBrowserView::Resources => self.draw_resources_tab(ui),
                                 ContentBrowserView::Debug => self.draw_debug_terminal_tab(ui),
+                                ContentBrowserView::Library => self.draw_library(ui),
                             }
                         });
                     });
@@ -516,6 +523,7 @@ impl EditorWorkspace {
                 ui.horizontal_centered(|ui| {
                     ui.label(icons::text(icons::LAYERS, 15.0).color(STUDIO_ACCENT));
                     for (label, view) in [
+                        ("Library", ContentBrowserView::Library),
                         ("Assets", ContentBrowserView::Resources),
                         ("Console", ContentBrowserView::Debug),
                     ] {
@@ -529,7 +537,7 @@ impl EditorWorkspace {
                         }
                     }
                     ui.label(
-                        RichText::new("models, animations, characters, weapons and the build log")
+                        RichText::new("materials, meshes, actors, styles and buildings; models, animations and the build log")
                             .size(11.0)
                             .color(STUDIO_TEXT_WEAK),
                     );
@@ -554,11 +562,19 @@ impl EditorWorkspace {
                             match self.content_browser_view {
                                 ContentBrowserView::Resources => icons::LAYERS,
                                 ContentBrowserView::Debug => icons::TERMINAL,
+                                ContentBrowserView::Library => icons::LIBRARY,
                             },
                             15.0,
                         )
                         .color(STUDIO_ACCENT),
                     );
+                    if self.is_grid_world() {
+                        ui.selectable_value(
+                            &mut self.content_browser_view,
+                            ContentBrowserView::Library,
+                            "Library",
+                        );
+                    }
                     ui.selectable_value(
                         &mut self.content_browser_view,
                         ContentBrowserView::Resources,
@@ -584,6 +600,7 @@ impl EditorWorkspace {
                         match self.content_browser_view {
                             ContentBrowserView::Resources => self.draw_resource_panel_actions(ui),
                             ContentBrowserView::Debug => self.draw_debug_terminal_actions(ui),
+                            ContentBrowserView::Library => {}
                         }
                     });
                 });

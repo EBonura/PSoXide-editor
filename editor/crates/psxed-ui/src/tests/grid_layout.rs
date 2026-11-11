@@ -108,9 +108,10 @@ fn palette_groups_name_the_prefix_of_a_material() {
 fn the_palette_groups_600_materials_and_remembers_the_recent_ones() {
     let project = tiled_project(100, 6);
     let mut ws = EditorWorkspace::with_project(test_temp_dir("layout-palette"), project);
+    ws.open_library(crate::grid_tools::LibraryTab::Materials);
     let text = screen(&mut ws);
     assert!(text.contains("Graybox (1)"), "{text}");
-    assert!(text.contains("DP 5 (6)"), "{text}");
+    assert!(text.contains("DP 2 (6)"), "{text}");
     assert!(!text.contains("Recent"), "nothing used yet");
     // Using a material puts it first among the recent ones.
     let id = ws
@@ -145,6 +146,7 @@ fn the_palette_groups_600_materials_and_remembers_the_recent_ones() {
 fn searching_opens_the_groups_with_a_match() {
     let project = tiled_project(100, 6);
     let mut ws = EditorWorkspace::with_project(test_temp_dir("layout-palette-search"), project);
+    ws.open_library(crate::grid_tools::LibraryTab::Materials);
     ws.grid.palette_search = "DP 77.3".to_string();
     let text = screen(&mut ws);
     assert!(text.contains("1 of"), "the count reads the match: {text}");
@@ -156,18 +158,15 @@ fn searching_opens_the_groups_with_a_match() {
 fn properties_names_what_is_edited_and_nothing_selected_is_a_hint() {
     let mut ws =
         EditorWorkspace::with_project(test_temp_dir("layout-properties"), flat_project(4, 4, true));
-    // Nothing selected: a hint, not the World form.
+    // Nothing selected: the Inspector is about the world.
     let text = screen(&mut ws);
     assert!(text.contains("Properties"), "{text}");
-    assert!(text.contains("Nothing selected"), "{text}");
-    for form in ["Physics", "World Message", "Sky Texture"] {
-        assert!(!text.contains(form), "the World form is drawn: {form}");
-    }
-    // The World entry of the Structure panel opens the form.
+    assert!(text.contains("Physics"), "{text}");
+    assert!(!text.contains("Nothing selected"), "{text}");
+    // The World entry of the Structure panel opens the same form.
     ws.select_world();
     let text = screen(&mut ws);
     assert!(text.contains("Physics"), "{text}");
-    assert!(!text.contains("Nothing selected"), "{text}");
     // Faces name themselves.
     ws.clear_node_selection_state();
     ws.apply_grid_pose("tool=select;select=floors:0,0:1,1")
@@ -295,7 +294,9 @@ fn link_move_and_global_show_only_when_they_have_something_to_act_on() {
         EditorWorkspace::with_project(test_temp_dir("layout-link"), flat_project(4, 4, true));
     ws.set_grid_tool(GridTool::Select);
     let text = screen(&mut ws);
-    for label in ["Weld", "  Move", "  Global"] {
+    // (The World form is open with nothing selected: it has a Global light of
+    // its own, so only the gizmo's Move and Weld are checked.)
+    for label in ["Weld", "  Move"] {
         assert!(
             !text.contains(label),
             "{label:?} with nothing selected:\n{text}"

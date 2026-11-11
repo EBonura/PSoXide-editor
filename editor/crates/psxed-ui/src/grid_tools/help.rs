@@ -198,11 +198,11 @@ const EXTRUDE: Rows = &[
     ),
     (
         "Wall: drag along the normal",
-        "Out opens an alcove or corridor (a niche for a band), in makes a column or fills; works on hand-placed walls too; a box over a wall picks many; Esc cancels",
+        "Out opens an alcove or corridor (a niche for a band), in makes a column or fills; works on every wall; a box over a wall picks many; Esc cancels",
     ),
     (
         "Wall: Out, In, = and -",
-        "Push the picked pieces a step, hand-placed walls too; refused, with the reason in the options bar, where another room is in the way",
+        "Push the picked pieces a step, any wall; refused, with the reason in the options bar, where another room is in the way",
     ),
     (
         "Cut corners (Extrude option row, floors)",
@@ -271,7 +271,7 @@ const STAIRS: Rows = &[
 const BREAK: Rows = &[
     (
         "Pick a region, press on it, drag up",
-        "The intensity, 0 to 100: lips crumble, plateau edges bite, floor tiles tilt and crack, the derived faces appear live. Release commits as one undo step",
+        "The intensity, 0 to 100: lips crumble, plateau edges bite, floor tiles tilt and crack, the walls appear live. Release commits as one undo step",
     ),
     (
         "Tab",
@@ -391,8 +391,8 @@ const CELLS: Rows = &[
         "Merge the cell under the pointer back into the bigger cell it was split from",
     ),
     (
-        "Select tool, Subdivide cells",
-        "Split the cells you picked with Select, as far as Subdivide to says (Merge cells, Shift+M, joins them back)",
+        "Edit tool, Subdivide cells",
+        "Split the cells you picked with Edit, as far as Subdivide to says (Merge cells, Shift+M, joins them back)",
     ),
     (
         "Extrude (U), Height (H)",

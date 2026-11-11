@@ -50,6 +50,7 @@ mod lasso;
 mod leaf_overlay;
 mod level;
 pub(crate) mod levels_panel;
+mod library;
 pub(crate) mod materials_panel;
 mod mesh_overlay;
 mod mesh_panel;
@@ -80,7 +81,9 @@ mod stairs_tool;
 mod strip;
 mod tiling_panel;
 mod tool_row;
+mod tool_search;
 #[cfg(test)]
+pub(crate) use library::LibraryTab;
 pub(crate) use tool_row::{tool_strip_height, CLASSIC, MORE_BUILD};
 
 /// Height of the strip plus the options bar under it: where the viewport
@@ -809,6 +812,12 @@ pub(crate) struct GridEditState {
     pub hover_pinned: bool,
     /// The key and gesture help overlay (`?`) is open.
     pub help_open: bool,
+    /// The tab of the Library drawer.
+    pub library_tab: library::LibraryTab,
+    /// The search box of the Library tabs other than Materials.
+    pub library_search: String,
+    /// The tool search (`/`) is open.
+    pub tool_search: Option<tool_search::ToolSearch>,
     /// The search box of the key help page.
     pub help_search: String,
     /// The palette lists every project material, not only world surfaces.
@@ -891,6 +900,9 @@ impl Default for GridEditState {
             view_rect: std::cell::Cell::new(None),
             hover_pinned: false,
             help_open: false,
+            library_tab: library::LibraryTab::default(),
+            library_search: String::new(),
+            tool_search: None,
             help_search: String::new(),
             palette_all: false,
             palette_swatch: materials_panel::DEFAULT_SWATCH,

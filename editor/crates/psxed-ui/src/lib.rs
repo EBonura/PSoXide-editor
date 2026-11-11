@@ -261,8 +261,6 @@ const RESOURCE_CARD_HEIGHT: f32 = 128.0;
 const VIEWPORT_PREVIEW_ASPECT: f32 = 320.0 / 240.0;
 const SHORTCUT_GROUP_FLASH_SECONDS: f32 = 0.85;
 const ACTION_BAR_COMPACT_HEIGHT: f32 = 44.0;
-/// The tool row under the top bar of a grid world's World workspace.
-const TOOL_ROW_HEIGHT: f32 = 36.0;
 /// Height of the status and hint bar along the bottom of every tab.
 const STATUS_BAR_HEIGHT: f32 = 30.0;
 /// The options bar under the viewport header: always this tall, so no tool
@@ -438,6 +436,8 @@ enum ShortcutGroup {
 enum ContentBrowserView {
     Resources,
     Debug,
+    /// The Library of a grid world: what can be put into it.
+    Library,
 }
 
 /// An inspector edit that already owns one undo snapshot. Pointer drags and
@@ -699,6 +699,8 @@ pub struct EditorWorkspace {
     /// to handle. The frontend owns emulator state and build child
     /// processes, so the editor never launches playtest directly.
     pending_playtest_request: Option<EditorPlaytestRequest>,
+    /// Whether an embedded playtest was running at the last frame.
+    playtest_running: bool,
     /// Where the next cook puts the player (Play from here); used once.
     play_spawn: Option<psxed_project::playtest::SpawnOverride>,
     /// The view last read from or written to the view file, so an unchanged
@@ -2338,6 +2340,7 @@ impl EditorWorkspace {
             last_playtest_budget: None,
             authored_budget_estimate: std::cell::RefCell::new(None),
             pending_playtest_request: None,
+            playtest_running: false,
             play_spawn: None,
             saved_view_state: psxed_project::EditorViewState::default(),
             close_confirmed: false,
@@ -2971,13 +2974,24 @@ impl EditorWorkspace {
 
     /// Play with the player at `position` (editor units) facing `yaw_degrees`,
     /// without editing the project: the next cook moves the player there.
+    /// While a playtest is already running it is rebuilt and restarted at the
+    /// new spot.
     pub(crate) fn play_from_here(&mut self, position: [f32; 3], yaw_degrees: f32) {
+        let playtest_running = self.playtest_running;
         self.play_spawn = Some(psxed_project::playtest::SpawnOverride {
             position,
             yaw_degrees,
         });
-        self.pending_playtest_request = Some(EditorPlaytestRequest::Play);
-        self.status = "Play from here: the player starts at that spot".to_string();
+        self.pending_playtest_request = Some(if playtest_running {
+            EditorPlaytestRequest::Rebuild
+        } else {
+            EditorPlaytestRequest::Play
+        });
+        self.status = if playtest_running {
+            "Play from here: restarting at that spot".to_string()
+        } else {
+            "Play from here: the player starts at that spot".to_string()
+        };
     }
 
     /// Cook the active project into the playtest example's

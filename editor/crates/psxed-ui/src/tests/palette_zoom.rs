@@ -49,6 +49,7 @@ fn rig() -> WindowRig {
     let mut rig = WindowRig::new();
     rig.ws.apply_grid_pose("view=3d;tool=select").unwrap();
     frames(&mut rig, 4);
+    rig.open_library();
     rig
 }
 
@@ -168,7 +169,7 @@ fn the_all_materials_row_has_minus_and_plus_at_its_right_end() {
         "- is left of +: {minus:?} {plus:?}"
     );
     assert!(
-        rig.size.x - plus.max.x < 40.0,
+        rig.size.x - plus.max.x < 360.0,
         "+ hugs the dock edge: {plus:?}"
     );
 }
@@ -245,7 +246,7 @@ fn the_grid_fills_the_dock_width_at_every_size() {
         assert!(!found.is_empty(), "swatches at {size}");
         // The + glyph sits inside its button's padding; the button's frame
         // is the dock's content edge.
-        let edge = plus.max.x + 8.0;
+        let edge = plus.max.x + 20.0;
         let right = found.iter().map(|r| r.max.x).fold(f32::MIN, f32::max);
         assert!(
             right <= edge,

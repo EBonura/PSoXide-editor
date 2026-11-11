@@ -373,6 +373,59 @@ impl EditorWorkspace {
     /// The Paint tool's options: the paint material as the brush will lay
     /// it, the turn in degrees and a button (with its key) for each of the
     /// four actions.
+    /// The eight materials used last, one click each, and the button that
+    /// opens the Library on Materials.
+    fn draw_recent_materials(&mut self, ui: &mut egui::Ui) {
+        self.refresh_texture_thumbs(ui.ctx());
+        let recent: Vec<ResourceId> = self.grid.palette_recent.iter().copied().take(8).collect();
+        let mut chosen = None;
+        for id in recent {
+            let (rect, response) = ui.allocate_exact_size(Vec2::splat(22.0), Sense::click());
+            match self.texture_thumbs.get(&id) {
+                Some(entry) => {
+                    ui.painter().image(
+                        entry.handle.id(),
+                        rect,
+                        Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+                        Color32::WHITE,
+                    );
+                }
+                None => {
+                    ui.painter()
+                        .rect_filled(rect, 2.0, Color32::from_rgb(52, 56, 66));
+                }
+            }
+            let on = self.grid.material == Some(id);
+            ui.painter().rect_stroke(
+                rect,
+                2.0,
+                Stroke::new(
+                    if on { 2.0 } else { 1.0 },
+                    if on { STUDIO_ACCENT } else { STUDIO_BORDER },
+                ),
+                StrokeKind::Inside,
+            );
+            let name = self
+                .project
+                .resource_name(id)
+                .unwrap_or("material")
+                .to_string();
+            if response.on_hover_text(name).clicked() {
+                chosen = Some(id);
+            }
+        }
+        if let Some(id) = chosen {
+            self.choose_palette_material(id);
+        }
+        if ui
+            .button("Library")
+            .on_hover_text("All materials, with search and previews")
+            .clicked()
+        {
+            self.open_library(super::library::LibraryTab::Materials);
+        }
+    }
+
     pub(crate) fn draw_paint_options(&mut self, ui: &mut egui::Ui) {
         let material = self.grid.material;
         let name = material
@@ -414,6 +467,8 @@ impl EditorWorkspace {
             )
             .on_hover_text(format!("The paint material: {name}"));
         });
+        tight_separator(ui);
+        self.draw_recent_materials(ui);
         tight_separator(ui);
         if ui
             .button("Turn left (Shift+R)")

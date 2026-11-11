@@ -460,7 +460,7 @@ pub(super) fn selection_can_merge(ws: &EditorWorkspace) -> bool {
 pub(super) fn merge_under_pointer(ws: &mut EditorWorkspace) -> bool {
     let GridHover::Leaf { room, key } = ws.grid.hover.clone() else {
         ws.status =
-            "Point at a split cell to merge it, or pick cells with the Select tool".to_string();
+            "Point at a split cell to merge it, or pick cells with the Edit tool".to_string();
         return false;
     };
     let top = ws.grid.cells.merge_to.level();

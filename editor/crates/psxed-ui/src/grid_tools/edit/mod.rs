@@ -31,14 +31,14 @@ use psxed_project::grid::{CLICK_UNITS, FINE_UNITS};
 
 pub(super) mod amount;
 pub(super) mod keys;
-pub(super) mod menu;
+pub(crate) mod menu;
 pub(super) mod overlay;
 pub(super) mod pick_select;
-pub(super) mod plan;
+pub(crate) mod plan;
 pub(super) mod repeat_move;
 pub(super) mod spec;
 pub(crate) mod target;
-pub(super) mod wall_handle;
+pub(crate) mod wall_handle;
 
 use amount::{clicks_text, Amount};
 use plan::Plan;
@@ -108,9 +108,16 @@ pub(crate) struct EditState {
     pub(super) cycle: (usize, Option<Pos2>),
     /// The Move handle drag in flight.
     pub(super) moving: Option<repeat_move::MoveDrag>,
+    /// The amount of the options bar's "Raise by" field, in clicks.
+    pub(crate) offset_clicks: f32,
 }
 
 impl EditState {
+    /// Whether the context menu is open over an element.
+    pub(crate) fn menu_is_open(&self) -> bool {
+        self.menu.is_some()
+    }
+
     /// Forget any gesture and typed number (a document swap, a tool change).
     pub(crate) fn abandon(&mut self) {
         self.drag = None;
@@ -122,6 +129,55 @@ impl EditState {
 }
 
 impl EditorWorkspace {
+    /// The options of the Edit tool, for the options bar: Weld, what is
+    /// selected, an exact amount to raise it by, and the last action again.
+    pub(crate) fn draw_edit_options(&mut self, ui: &mut egui::Ui) {
+        ui.toggle_value(&mut self.grid.link, "Weld").on_hover_text(
+            "L: off, a floor moves as a block and the walls between heights follow; on, corners that meet move together",
+        );
+        let count = self
+            .project
+            .active_scene()
+            .world
+            .grid()
+            .map_or(0, |w| self.grid.selection.faces(w).len());
+        let text = match count {
+            0 => "No faces selected".to_string(),
+            1 => "1 face selected".to_string(),
+            n => format!("{n} faces selected"),
+        };
+        ui.label(RichText::new(text).color(STUDIO_TEXT_WEAK).size(11.0));
+        ui.separator();
+        ui.label(RichText::new("Raise by").color(STUDIO_TEXT_WEAK).size(11.0));
+        ui.add(
+            egui::DragValue::new(&mut self.grid.edit.offset_clicks)
+                .speed(0.05)
+                .suffix(" clicks")
+                .max_decimals(2),
+        )
+        .on_hover_text("An exact amount for the selection, in 256-unit clicks (negative lowers). Typing a number while you drag does the same.");
+        if ui
+            .add_enabled(count > 0, egui::Button::new("Apply"))
+            .on_hover_text(
+                "Raise or lower the selection by this amount (walls slide, keeping their height)",
+            )
+            .clicked()
+        {
+            let units = snap_to(
+                (self.grid.edit.offset_clicks * CLICK_UNITS as f32).round() as i32,
+                FINE_UNITS,
+            );
+            repeat_move::offset_selection(self, units);
+        }
+        if ui
+            .add_enabled(self.grid.edit.last.is_some(), egui::Button::new("Repeat"))
+            .on_hover_text("R: do the last action again on the selection")
+            .clicked()
+        {
+            repeat_move::repeat(self);
+        }
+    }
+
     /// What the Edit tool says a press-drag would do, for the hint bar; empty
     /// when the tool is not active.
     pub(crate) fn edit_hint(&self) -> &str {
@@ -243,9 +299,9 @@ fn hint_for(ws: &EditorWorkspace, ptr: &GridPointer, hit: &Hit) -> String {
     if ptr.shift() {
         return "Drag: box select, adds to the selection".to_string();
     }
-    let Some(world) = ws.project.active_scene().world.grid() else {
+    if ws.project.active_scene().world.grid().is_none() {
         return String::new();
-    };
+    }
     if hit.target == Target::Nothing {
         return "Drag: box select | Click: clear the selection".to_string();
     }
@@ -253,7 +309,7 @@ fn hint_for(ws: &EditorWorkspace, ptr: &GridPointer, hit: &Hit) -> String {
     let Some(spec) = spec::for_press(ws, hit) else {
         return String::new();
     };
-    let (label, note) = spec::describe(world, &spec);
+    let (label, note) = spec::describe(&spec);
     let scope = if in_selection && spec.count() > 1 {
         format!(" ({} selected)", spec.count())
     } else {
@@ -466,6 +522,9 @@ fn readout(drag: &Drag) -> String {
     if let Some(note) = &drag.note {
         text += &format!(", {note}");
     }
+    for warning in &drag.last.warnings {
+        text += &format!(" | Warning: {warning}");
+    }
     text
 }
 
@@ -503,6 +562,13 @@ pub(super) fn finish(ws: &mut EditorWorkspace) {
     }
     ws.grid.edit.last = repeat_move::Repeat::of(drag.kind, drag.amount);
     ws.status = readout(&drag);
+    if let Some(faces) = &drag.last.faces {
+        // A wall that followed the cells is a wall of its own now: the
+        // selection follows it to its new address.
+        ws.grid
+            .selection
+            .set(faces.iter().copied().map(GridElement::Face));
+    }
     ws.grid.edit.hint.clear();
     ws.after_grid_selection_changed();
 }

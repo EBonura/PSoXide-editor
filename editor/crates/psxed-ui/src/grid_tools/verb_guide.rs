@@ -213,7 +213,7 @@ impl EditorWorkspace {
                 .is_some_and(|r| r.wall_mode == WallMode::Authored);
             if legacy && !self.grid.walls_prompt_dismissed.contains(&room) {
                 return Some(BarNotice {
-                    text: "This room uses hand-placed walls, so new heights won't get walls. Convert to derived walls?"
+                    text: "This room has walls placed one by one, so new heights won't get walls. Make the walls follow the heights?"
                         .to_string(),
                     buttons: vec![
                         ("Convert", BarAction::ConvertWalls(room)),

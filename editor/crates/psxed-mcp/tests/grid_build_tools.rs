@@ -133,6 +133,29 @@ fn walls_read_set_and_reset_through_one_api() {
         )
         .text;
     assert!(reset.contains("automatic"), "{reset}");
+    // A material and an opening go through the same wall address.
+    let mat = c.ok(
+        "grid_wall_material",
+        json!({"room": 1, "cell": [10, 0], "side": "north", "material": "none"}),
+    );
+    assert!(mat.text.contains("Wall material set"), "{}", mat.text);
+    let closed = c.ok(
+        "grid_wall_opening",
+        json!({"room": 1, "cell": [10, 0], "side": "north", "opening": "none"}),
+    );
+    assert!(closed.text.contains("Wall opening set"), "{}", closed.text);
+    // Cutting one needs a sector with a floor and a ceiling: this wall's
+    // sector has neither, and the refusal says so.
+    let refused = c
+        .call(
+            "grid_wall_opening",
+            json!({"room": 1, "cell": [10, 0], "side": "north", "opening": "door", "from": 2, "to": 3, "top": 2048}),
+        )
+        .expect_err("a sector with no floor takes no opening");
+    assert!(
+        refused.to_string().contains("no floor and ceiling"),
+        "{refused}"
+    );
 }
 
 #[test]

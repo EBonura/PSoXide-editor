@@ -84,6 +84,7 @@ fn an_empty_palette_says_how_to_get_a_material() {
     let mut project = flat_project(4, 4, false);
     project.resources.clear();
     let mut ws = EditorWorkspace::with_project(test_temp_dir("newuser-palette"), project);
+    ws.open_library(crate::grid_tools::LibraryTab::Materials);
     let text = super::grid_layout::screen(&mut ws);
     assert!(text.contains("No materials"), "{text}");
     assert!(

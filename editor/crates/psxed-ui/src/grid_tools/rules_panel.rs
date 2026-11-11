@@ -167,7 +167,7 @@ impl EditorWorkspace {
                 "Trim",
                 Rule::Trim,
                 rules.trim,
-                "The foot band of every wall, written once when a verb makes a derived face in a room with no default band set",
+                "The foot band of every wall, written once when a verb makes a wall in a room with no default band set",
             ),
         ];
         let mut change: Option<(Rule, Option<ResourceId>)> = None;

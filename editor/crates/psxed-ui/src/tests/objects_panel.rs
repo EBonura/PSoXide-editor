@@ -266,7 +266,7 @@ fn texts_in(rig: &WindowRig, area: Rect) -> Vec<(String, Rect, Rect)> {
 }
 
 /// The left dock of the 1456 x 819 window.
-const DOCK: fn() -> Rect = || Rect::from_min_max(Pos2::new(0.0, 80.0), Pos2::new(280.0, 819.0));
+const DOCK: fn() -> Rect = || Rect::from_min_max(Pos2::new(0.0, 215.0), Pos2::new(280.0, 1000.0));
 
 fn dock_texts(rig: &WindowRig) -> Vec<String> {
     texts_in(rig, DOCK()).into_iter().map(|t| t.0).collect()
@@ -435,7 +435,7 @@ fn the_tree_view_keeps_a_folders_contents_and_the_kind_view_lists_them_by_kind()
 
 /// The Inspector column of the 1456 x 819 window.
 const INSPECTOR: fn() -> Rect =
-    || Rect::from_min_max(Pos2::new(1140.0, 80.0), Pos2::new(1456.0, 819.0));
+    || Rect::from_min_max(Pos2::new(1140.0, 215.0), Pos2::new(1456.0, 1000.0));
 
 fn inspector_texts(rig: &WindowRig) -> Vec<String> {
     texts_in(rig, INSPECTOR())
@@ -463,7 +463,7 @@ fn row_is_highlighted(rig: &WindowRig, label: &str) -> bool {
 fn row_is_visible(rig: &WindowRig, label: &str) -> bool {
     texts_in(rig, DOCK())
         .iter()
-        .any(|t| t.0 == label && t.1.top() >= 395.0 && t.1.bottom() <= 780.0)
+        .any(|t| t.0 == label && t.1.top() >= 500.0 && t.1.bottom() <= 975.0)
 }
 
 fn plan_rig() -> (WindowRig, Vec<(&'static str, NodeId)>) {
@@ -890,7 +890,7 @@ fn the_world_settings_hold_the_stream_radii_and_the_default_camera() {
     // The streaming group first: it sits below the camera's.
     let at = rig.at("Streaming and far view");
     rig.click(at);
-    frames(&mut rig, 3);
+    frames(&mut rig, 10);
     let shown = inspector_texts(&rig);
     for field in ["Draw distance", "Actors think within", "Prefetch margin"] {
         assert!(has_text(&shown, field), "{field}: {shown:?}");
@@ -999,7 +999,7 @@ fn collider_node3d_and_mesh_instance_are_in_no_menu() {
 fn the_place_chips_say_actor_where_the_menu_said_entity() {
     let mut rig = WindowRig::new();
     frames(&mut rig, 3);
-    let strip = Rect::from_min_max(Pos2::new(0.0, 40.0), Pos2::new(rig.size.x, 130.0));
+    let strip = Rect::from_min_max(Pos2::new(0.0, 40.0), Pos2::new(rig.size.x, 220.0));
     let texts: Vec<String> = texts_in(&rig, strip).into_iter().map(|t| t.0).collect();
     for item in ["Light", "Prop", "Actor"] {
         assert!(texts.iter().any(|t| t == item), "{item}: {texts:?}");

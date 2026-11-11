@@ -7,12 +7,16 @@
 //! drag back to zero is the document as it was, and the typed amount, the
 //! pointer and the repeat command all share one code path).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+
+use super::wall_handle::{warning_text, WallHandle, WallMove};
 
 use psxed_project::grid::cook::RuntimeUnits;
 use psxed_project::grid::edit::heights::refine_corners;
+use psxed_project::grid::edit::tilt::{tilt_cells, Hinge, TiltParams, TiltTarget};
 use psxed_project::grid::edit::verbs::extrude::{pieces_of, ExtrudeDrag};
-use psxed_project::grid::edit::{CornerRef, GridElement, HeightDrag, SurfaceKind};
+use psxed_project::grid::edit::verbs::ramp::RampDir;
+use psxed_project::grid::edit::{CornerRef, FaceRef, GridElement, HeightDrag, SurfaceKind};
 use psxed_project::grid::slope::{surface_class, SlopeClass};
 use psxed_project::grid::units::snap_to;
 use psxed_project::grid::{GridRoom, GridWorld, FINE_UNITS};
@@ -86,6 +90,10 @@ pub(crate) struct Applied {
     pub refused: Option<String>,
     /// The words for the result of a push.
     pub text: Option<String>,
+    /// What a wall edit leaves open, in words (never a refusal).
+    pub warnings: Vec<String>,
+    /// The faces a wall edit made: the selection follows them.
+    pub faces: Option<Vec<FaceRef>>,
 }
 
 /// Corner height changes, shared over the corners by a profile.
@@ -290,11 +298,215 @@ impl PushPlan {
     }
 }
 
+/// A selection tilted through the SDK's tilt: every corner gains its share of
+/// the rise (offset semantics, so a platform stays a platform), rounded to
+/// the 64 lattice the same way for neighbours.
+#[derive(Clone, Debug)]
+pub(crate) struct TiltPlan {
+    /// The room as captured, restored before every apply.
+    room: (usize, GridRoom),
+    params: TiltParams,
+    /// Whether the rise grows along x (else z), for the lattice check.
+    axis: usize,
+}
+
+impl TiltPlan {
+    /// Plan tilting `cells` of `room` about `hinge`.
+    pub fn new(
+        world: &GridWorld,
+        room: usize,
+        cells: BTreeSet<[i32; 2]>,
+        target: TiltTarget,
+        hinge: Hinge,
+    ) -> Result<Self, String> {
+        let captured = world
+            .rooms
+            .get(room)
+            .ok_or_else(|| "No such room".to_string())?
+            .clone();
+        let axis = match hinge {
+            Hinge::Edge(RampDir::East | RampDir::West) => 0,
+            _ => 1,
+        };
+        Ok(Self {
+            room: (room, captured),
+            params: TiltParams {
+                room,
+                cells,
+                target,
+                hinge,
+                rise: 0,
+                force: true,
+            },
+            axis,
+        })
+    }
+
+    /// Put the captured room back, then tilt by `amount` grid units at the
+    /// far side.
+    pub fn apply(&self, world: &mut GridWorld, amount: i32) -> Applied {
+        if let Some(slot) = world.rooms.get_mut(self.room.0) {
+            *slot = self.room.1.clone();
+        }
+        let mut out = Applied::default();
+        if amount == 0 {
+            return out;
+        }
+        let params = TiltParams {
+            rise: amount,
+            ..self.params.clone()
+        };
+        let done = match tilt_cells(world, &params) {
+            Ok(done) => done,
+            Err(refusal) => {
+                out.refused = Some(refusal.describe());
+                return out;
+            }
+        };
+        out.deviation = done
+            .cells
+            .iter()
+            .flat_map(|c| c.exact_16ths.iter().zip(c.applied.iter()))
+            .map(|(exact, applied)| (exact / 16 - applied).abs())
+            .max()
+            .unwrap_or(0);
+        if matches!(self.params.hinge, Hinge::Edge(_)) {
+            // Corner positions along the axis, in sectors, for the lattice check
+            // (a leaf larger than a sector counts as one).
+            let mut coords = Vec::new();
+            let mut deltas = Vec::new();
+            for cell in &done.cells {
+                let at = |i: usize| {
+                    let [dx, dz] = [[0, 0], [1, 0], [1, 1], [0, 1]][i];
+                    [cell.cell[0] + dx, cell.cell[1] + dz][self.axis]
+                };
+                for i in 0..4 {
+                    coords.push(at(i));
+                    deltas.push(cell.applied[i]);
+                }
+            }
+            if too_gentle(&coords, &deltas) {
+                if let Some(slot) = world.rooms.get_mut(self.room.0) {
+                    *slot = self.room.1.clone();
+                }
+                out.deviation = 0;
+                out.refused = Some(
+                    "Too gentle for the 64 lattice: drag further or slope fewer cells".to_string(),
+                );
+                return out;
+            }
+        }
+        out.changed = done.tilted > 0;
+        out.steep = done.steep;
+        out
+    }
+}
+
+/// Walls moved through the wall API: they keep the heights they are given
+/// and the floor and the ceiling stay where they are.
+#[derive(Clone, Debug)]
+pub(crate) struct WallPlan {
+    /// The rooms as captured, restored before every apply.
+    rooms: Vec<(usize, GridRoom)>,
+    walls: Vec<WallHandle>,
+    how: WallMove,
+}
+
+impl WallPlan {
+    /// Plan moving `walls` the way `how` says.
+    pub fn new(world: &GridWorld, walls: &[WallHandle], how: WallMove) -> Result<Self, String> {
+        if walls.is_empty() {
+            return Err("No wall to move".to_string());
+        }
+        for wall in walls {
+            wall.can_move(world)?;
+        }
+        let mut walls = walls.to_vec();
+        walls.sort_by_key(|w| w.face());
+        walls.dedup();
+        // The later faces of one edge first: writing a generated wall shifts
+        // the ones after it.
+        walls.reverse();
+        let mut rooms: Vec<usize> = walls.iter().map(|w| w.face().room).collect();
+        rooms.sort_unstable();
+        rooms.dedup();
+        Ok(Self {
+            rooms: rooms
+                .into_iter()
+                .filter_map(|r| world.rooms.get(r).map(|room| (r, room.clone())))
+                .collect(),
+            walls,
+            how,
+        })
+    }
+
+    /// Put the captured rooms back, then move the walls by `amount`.
+    pub fn apply(&self, world: &mut GridWorld, amount: i32) -> Applied {
+        for (index, room) in &self.rooms {
+            if let Some(slot) = world.rooms.get_mut(*index) {
+                *slot = room.clone();
+            }
+        }
+        let mut out = Applied::default();
+        if amount == 0 {
+            return out;
+        }
+        let mut faces = Vec::new();
+        let mut seen: BTreeSet<FaceRef> = BTreeSet::new();
+        for wall in &self.walls {
+            // A wall written earlier can have taken this one's place (the
+            // storeys of one edge are written together): find it again.
+            let handle = if wall.can_move(world).is_ok() {
+                *wall
+            } else {
+                match WallHandle::stand_in(world, wall.face(), &seen) {
+                    Some(handle) => handle,
+                    None => continue,
+                }
+            };
+            match handle.move_by(world, self.how, amount) {
+                Ok(moved) => {
+                    out.changed = true;
+                    for warning in moved.warnings {
+                        let text = warning_text(warning);
+                        if !out.warnings.contains(&text) {
+                            out.warnings.push(text);
+                        }
+                    }
+                    seen.insert(moved.face);
+                    faces.push(moved.face);
+                }
+                Err(reason) => {
+                    self.restore(world);
+                    return Applied {
+                        refused: Some(reason),
+                        ..Applied::default()
+                    };
+                }
+            }
+        }
+        out.faces = Some(faces);
+        out
+    }
+
+    fn restore(&self, world: &mut GridWorld) {
+        for (index, room) in &self.rooms {
+            if let Some(slot) = world.rooms.get_mut(*index) {
+                *slot = room.clone();
+            }
+        }
+    }
+}
+
 /// What a press-drag does.
 #[derive(Clone, Debug)]
 pub(crate) enum Plan {
     /// Corners move.
     Heights(HeightsPlan),
+    /// Walls keep their height and move, or stretch.
+    Walls(WallPlan),
+    /// A selection leans through the SDK's tilt.
+    Tilt(Box<TiltPlan>),
     /// A room's wall is pushed.
     Push(Box<PushPlan>),
 }
@@ -307,13 +519,15 @@ impl Plan {
 
     /// Whether the plan is a slope.
     pub fn is_tilt(&self) -> bool {
-        matches!(self, Self::Heights(p) if p.is_tilt())
+        matches!(self, Self::Tilt(_)) || matches!(self, Self::Heights(p) if p.is_tilt())
     }
 
     /// Put the captured document back and apply `amount`.
     pub fn apply(&self, world: &mut GridWorld, amount: i32) -> Applied {
         match self {
             Self::Heights(plan) => plan.apply(world, amount),
+            Self::Walls(plan) => plan.apply(world, amount),
+            Self::Tilt(plan) => plan.apply(world, amount),
             Self::Push(plan) => plan.apply(world, amount),
         }
     }

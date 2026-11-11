@@ -215,6 +215,38 @@ impl GridRig {
         );
     }
 
+    fn secondary(&mut self, pos: Pos2, pressed: bool) {
+        self.pump(
+            vec![egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Secondary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            egui::Modifiers::NONE,
+        );
+    }
+
+    /// A right click that stays put.
+    pub(crate) fn secondary_click(&mut self, pos: Pos2) {
+        self.move_to(pos, egui::Modifiers::NONE);
+        self.secondary(pos, true);
+        self.secondary(pos, false);
+    }
+
+    /// A right-button drag (the camera).
+    pub(crate) fn secondary_drag(&mut self, from: Pos2, to: Pos2) {
+        self.move_to(from, egui::Modifiers::NONE);
+        self.secondary(from, true);
+        for step in 1..=8 {
+            self.move_to(
+                from + (to - from) * (step as f32 / 8.0),
+                egui::Modifiers::NONE,
+            );
+        }
+        self.secondary(to, false);
+    }
+
     pub(crate) fn click(&mut self, pos: Pos2) {
         self.click_with(pos, egui::Modifiers::NONE);
     }

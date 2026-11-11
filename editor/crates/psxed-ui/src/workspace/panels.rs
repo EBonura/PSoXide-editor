@@ -57,6 +57,15 @@ impl EditorWorkspace {
             self.draw_grid_left_dock(ui);
             return;
         }
+        // The Animation tab works on characters and their clips, so its dock
+        // lists those; the Inspector shows the one chosen.
+        if self.is_grid_world() && self.active_workspace == WorkspaceView::Animation {
+            tool_panel_frame().show(ui, |ui| {
+                ui.set_min_height(ui.available_height());
+                self.draw_animation_dock(ui);
+            });
+            return;
+        }
         // The Material tab edits one material of the palette, so its dock is
         // the palette (the same list as the World tab's, taller).
         if self.is_grid_world() && self.active_workspace == WorkspaceView::Material {
@@ -1725,6 +1734,25 @@ impl EditorWorkspace {
                                     return;
                                 }
 
+                                // The Animation tab: the chosen character or
+                                // clip, never the level's lights and World form.
+                                if self.active_workspace == WorkspaceView::Animation
+                                    && self.is_grid_world()
+                                {
+                                    match self.selection.selected_resource {
+                                        Some(id) => self.draw_resource_inspector(ui, id),
+                                        None => {
+                                            ui.label(
+                                                RichText::new(
+                                                    "Choose a character or a clip on the left.",
+                                                )
+                                                .color(STUDIO_TEXT_WEAK),
+                                            );
+                                        }
+                                    }
+                                    return;
+                                }
+
                                 // The Material tab of a grid project: the
                                 // material being edited, not the World form.
                                 if self.active_workspace == WorkspaceView::Material
@@ -2065,6 +2093,59 @@ impl EditorWorkspace {
             });
         if let Some((project_before, history_epoch_before)) = undo_candidate {
             self.finish_inspector_undo_frame(project_before, history_epoch_before, ctx);
+        }
+    }
+}
+
+impl EditorWorkspace {
+    /// The left dock of the Animation tab: the project's characters, then its
+    /// animation clips. A click chooses one for the viewer and the Inspector.
+    pub(crate) fn draw_animation_dock(&mut self, ui: &mut egui::Ui) {
+        let mut characters: Vec<(ResourceId, String)> = Vec::new();
+        let mut clips: Vec<(ResourceId, String)> = Vec::new();
+        for resource in &self.project.resources {
+            match &resource.data {
+                ResourceData::Character(_) => characters.push((resource.id, resource.name.clone())),
+                ResourceData::AnimationClip(_) | ResourceData::AnimationSource(_) => {
+                    clips.push((resource.id, resource.name.clone()))
+                }
+                _ => {}
+            }
+        }
+        let mut chosen = None;
+        let selected = self.selection.selected_resource;
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            for (title, icon, rows) in [
+                ("Characters", icons::PERSON_STANDING, &characters),
+                ("Clips", icons::PLAY, &clips),
+            ] {
+                ui.label(
+                    RichText::new(format!("{title} ({})", rows.len()))
+                        .strong()
+                        .size(12.0),
+                );
+                for (id, name) in rows {
+                    if ui
+                        .selectable_label(selected == Some(*id), icons::label(icon, name))
+                        .clicked()
+                    {
+                        chosen = Some(*id);
+                    }
+                }
+                if rows.is_empty() {
+                    ui.label(
+                        RichText::new(format!("No {} in this project", title.to_lowercase()))
+                            .color(STUDIO_TEXT_WEAK),
+                    );
+                }
+                ui.add_space(8.0);
+            }
+        });
+        if let Some(id) = chosen {
+            self.replace_resource_selection(id);
+            self.clear_node_selection_state();
+            self.animation_viewer.focus_resource(&self.project, id);
+            self.animation_viewer_preview_texture = None;
         }
     }
 }

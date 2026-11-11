@@ -38,6 +38,10 @@ impl EditorWorkspace {
         if !self.is_grid_world() || self.active_workspace != WorkspaceView::Room || focus_taken {
             return;
         }
+        self.handle_tool_search_key(ctx);
+        if self.grid.tool_search.is_some() {
+            return;
+        }
         if consume_command_shortcut(ctx, egui::Key::A) {
             select_tool::select_all(self);
         }

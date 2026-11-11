@@ -24,6 +24,9 @@ impl EditorWorkspace {
     /// follow it. With nothing picked the node and World inspectors come
     /// after the palette, as before.
     pub(crate) fn draw_grid_panels(&mut self, ui: &mut egui::Ui) -> bool {
+        // A project opens with a paint material, whether or not the Library
+        // is open.
+        self.ensure_paint_material();
         let picked_faces = self
             .project
             .active_scene()
@@ -37,12 +40,6 @@ impl EditorWorkspace {
             self.selection.selected_room = None;
         }
         let room = self.selection.selected_room;
-        // The palette is for painting: it stays out of the way of a room, an
-        // actor or a light.
-        if room.is_none() && !self.palette_is_irrelevant(node_selected, picked_faces) {
-            self.draw_grid_palette(ui);
-            ui.add_space(6.0);
-        }
         let what = self.properties_subject(picked_faces, node_selected);
         self.draw_properties_header(ui, &what);
         let owns = if let Some(room) = room {
@@ -60,11 +57,8 @@ impl EditorWorkspace {
         } else if picked_faces {
             self.draw_grid_face_inspector(ui);
             true
-        } else if !node_selected {
-            // Nothing picked: a hint.
-            self.draw_nothing_selected(ui);
-            true
-        } else if self.world_is_selected() {
+        } else if !node_selected || self.world_is_selected() {
+            // Nothing picked: the Inspector is about the world.
             self.draw_world_inspector(ui);
             true
         } else {
@@ -73,27 +67,6 @@ impl EditorWorkspace {
         ui.add_space(8.0);
         ui.separator();
         owns
-    }
-
-    /// Whether the material palette has nothing to do for what is selected:
-    /// an actor, a light, a trigger. A prop or a face takes a material.
-    fn palette_is_irrelevant(&self, node_selected: bool, picked_faces: bool) -> bool {
-        if !node_selected || picked_faces || self.grid.tool.is_verb() {
-            return false;
-        }
-        let scene = self.project.active_scene();
-        let id = self.selection.selected_node;
-        scene.node(id).is_some_and(|node| {
-            !matches!(
-                node.kind,
-                NodeKind::ImageProp { .. }
-                    | NodeKind::BoxProp { .. }
-                    | NodeKind::CylinderProp { .. }
-                    | NodeKind::ArchProp { .. }
-                    | NodeKind::MeshInstance { .. }
-                    | NodeKind::ModelRenderer { .. }
-            )
-        })
     }
 
     /// What the Properties section edits, in a few words.
@@ -153,7 +126,7 @@ impl EditorWorkspace {
                 },
             );
         }
-        "Nothing selected".to_string()
+        "World".to_string()
     }
 
     /// The header of the Properties section: the name, then what it is about.
@@ -163,16 +136,6 @@ impl EditorWorkspace {
             ui.label(RichText::new(what).color(STUDIO_ACCENT).size(12.0));
         });
         ui.separator();
-    }
-
-    /// Nothing is picked: say how to pick.
-    fn draw_nothing_selected(&mut self, ui: &mut egui::Ui) {
-        ui.label(
-            RichText::new(
-                "Nothing selected. Click a face, a light or an actor with the Select tool, or choose a room or the World on the left.",
-            )
-            .color(STUDIO_TEXT_WEAK),
-        );
     }
 
     /// Apply the palette material to every selected face.
@@ -272,7 +235,8 @@ impl EditorWorkspace {
             .show(ui, |ui| {
                 let Some(&primary) = faces.first() else {
                     ui.label(
-                        RichText::new("Select faces with the Select tool").color(STUDIO_TEXT_WEAK),
+                        RichText::new("Select a face to see its heights and material")
+                            .color(STUDIO_TEXT_WEAK),
                     );
                     return;
                 };

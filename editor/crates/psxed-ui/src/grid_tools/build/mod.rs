@@ -671,7 +671,7 @@ pub(super) fn click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
                         }
                         None => {
                             ws.status =
-                                "No door near that click: click closer to the door".to_string();
+                                "That is not a door: click the door the lever operates".to_string();
                             ws.grid.build.hint = ws.status.clone();
                         }
                     }

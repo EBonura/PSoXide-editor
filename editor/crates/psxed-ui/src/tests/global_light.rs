@@ -11,7 +11,7 @@ fn frames(rig: &mut WindowRig, n: usize) {
 }
 
 fn world_panel() -> WindowRig {
-    let mut rig = WindowRig::starter(Vec2::new(1456.0, 819.0));
+    let mut rig = WindowRig::starter(Vec2::new(1456.0, 1100.0));
     // The rig's starter is an older one with the flat ambient: switch the
     // gather on the way a new project has it.
     rig.ws

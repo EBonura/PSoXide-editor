@@ -80,6 +80,31 @@ pub const TARGET: char = '\u{e180}';
 pub const TRIANGLE: char = '\u{e192}';
 pub const USER: char = '\u{e19f}';
 pub const ZAP: char = '\u{e1b4}';
+pub const MOUSE_POINTER_2: char = '\u{e1c3}';
+pub const ROUTE: char = '\u{e53e}';
+pub const DOOR_OPEN: char = '\u{e3d6}';
+pub const DOOR_CLOSED: char = '\u{e3d5}';
+pub const LANDMARK: char = '\u{e23a}';
+pub const COLUMNS_3: char = '\u{e099}';
+pub const SPLINE: char = '\u{e38b}';
+pub const BUILDING: char = '\u{e1cc}';
+pub const CHURCH: char = '\u{e3e1}';
+pub const TRIANGLE_RIGHT: char = '\u{e4ed}';
+pub const ARROW_UP_DOWN: char = '\u{e37d}';
+pub const HAMMER_TOOL: char = '\u{e0ec}';
+pub const LAND_PLOT: char = '\u{e528}';
+pub const BLOCKS: char = '\u{e4fa}';
+pub const LAYOUT_GRID: char = '\u{e0ff}';
+pub const SLICE: char = '\u{e2f0}';
+pub const PAINTBRUSH: char = '\u{e2e7}';
+pub const TOGGLE_LEFT: char = '\u{e18b}';
+pub const ELLIPSIS: char = '\u{e0b6}';
+pub const SQUARE_DASHED: char = '\u{e1cb}';
+pub const PANEL_TOP: char = '\u{e435}';
+pub const LIBRARY: char = '\u{e100}';
+pub const SWATCH_BOOK: char = '\u{e59f}';
+pub const HISTORY: char = '\u{e1f5}';
+pub const COMMAND: char = '\u{e09a}';
 
 pub fn font(size: f32) -> FontId {
     FontId::new(size, FontFamily::Name("lucide".into()))

@@ -76,6 +76,7 @@ fn a_selection_shows_in_the_inspector_and_a_hint_shows_in_the_status_bar() {
     ws.apply_grid_pose("tool=select;select=floors:0,0:1,1")
         .unwrap();
     assert_eq!(ws.grid.selection.len(), 4);
+    ws.open_library(crate::grid_tools::LibraryTab::Materials);
     let output = draw_editor(&mut ws, &ctx, true);
     let text: String = output
         .shapes

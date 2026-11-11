@@ -107,7 +107,7 @@ The Build group is the same code the editor's Build tools run, with the same ref
 * `grid_terrain` (seed, amplitude, wavelength, slope, keep walkable, edge blend) and `grid_ruin` (seed, intensity, keep path, toggles off) over a rectangle, or the whole room.
 * `grid_style_list` names the built-in styles and the ones stored with the project (its `styles/` folder); `grid_capture_style` stores the bay in a rectangle under a name, and a corridor `style` of that name repeats it.
 * `grid_door` cuts the doorway and places the sliding door (direction, distance, ticks, lock open, locked or one_way, refusal, persistent); `grid_lever` places a lever that operates a door by name.
-* `grid_wall_get`, `grid_wall_set` (four corner heights, the floors stay) and `grid_wall_reset` read, set and reset a wall whatever made it. `grid_move` moves cells with what stands on them; `grid_tilt` leans them by an offset ramp.
+* `grid_wall_get`, `grid_wall_set` (four corner heights, the floors stay) and `grid_wall_reset` read, set and reset a wall whatever made it; `grid_wall_material` and `grid_wall_opening` set its material and cut or close a door or window in it, on any storey. `grid_move` moves cells with what stands on them; `grid_tilt` leans them by an offset ramp.
 
 ## Meshes: arches, columns, rubble, props
 

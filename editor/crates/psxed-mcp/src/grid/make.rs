@@ -1082,6 +1082,22 @@ pub struct WallReq {
     /// grid_wall_reset: which property to take back to automatic: `heights`,
     /// `material`, `collision`, `bands` or `all` (default all).
     pub property: Option<String>,
+    /// grid_wall_material: a material name or id (see `materials`); `none`
+    /// takes the material back to automatic.
+    pub material: Option<String>,
+    /// grid_wall_opening: `door`, `window` or `none` (closes the opening).
+    pub opening: Option<String>,
+    /// grid_wall_opening: start along the wall, in clicks of 256 from the
+    /// sector's corner.
+    pub from: Option<i32>,
+    /// grid_wall_opening: end along the wall, in clicks.
+    pub to: Option<i32>,
+    /// grid_wall_opening: top of the opening above the floor, grid units.
+    pub top: Option<i32>,
+    /// grid_wall_opening: sill of a window above the floor, grid units.
+    pub sill: Option<i32>,
+    /// grid_wall_opening: `rectangular` (default), `pointed` or `round`.
+    pub profile: Option<String>,
 }
 
 fn wall_view(
@@ -1155,6 +1171,70 @@ pub fn wall_set(project: &mut ProjectDocument, r: &WallReq) -> Result<String, St
     } else {
         format!("Wall heights set; it leaves a gap ({warnings:?})")
     })
+}
+
+/// Set the material of a wall, on any storey and whatever made it.
+pub fn wall_material(project: &mut ProjectDocument, r: &WallReq) -> Result<String, String> {
+    use psxed_project::grid::edit::wall_api::set_wall_material;
+    let material = match r.material.as_deref() {
+        None => return Err("material is required (a name, or `none`)".to_string()),
+        Some("none") | Some("") => None,
+        Some(name) => Some(super::Materials::new(project).resolve(name)?),
+    };
+    let index = world_of(project, r.scene)?;
+    let world = project.scenes[index].world.grid_mut().expect("checked");
+    let view = wall_view(world, r)?;
+    set_wall_material(world, view.addr, material).map_err(|e| format!("{e:?}"))?;
+    Ok("Wall material set".to_string())
+}
+
+/// Cut or close an opening in a wall, on any storey and whatever made it.
+pub fn wall_opening(project: &mut ProjectDocument, r: &WallReq) -> Result<String, String> {
+    use psxed_project::grid::edit::wall_api::{set_wall_opening, OpeningSpec};
+    let index = world_of(project, r.scene)?;
+    let world = project.scenes[index].world.grid_mut().expect("checked");
+    let view = wall_view(world, r)?;
+    let spec = match r
+        .opening
+        .as_deref()
+        .ok_or("opening is required: door, window or none")?
+    {
+        "none" => None,
+        kind @ ("door" | "window") => {
+            let (from, to) = (
+                r.from.ok_or("from is required")?,
+                r.to.ok_or("to is required")?,
+            );
+            let top = r.top.unwrap_or(2048);
+            let clicks = to - from;
+            Some(OpeningSpec {
+                kind: if kind == "door" {
+                    OpeningKind::Door
+                } else {
+                    OpeningKind::Window {
+                        sill: r.sill.unwrap_or(768),
+                    }
+                },
+                from,
+                to,
+                top,
+                profile: match r.profile.as_deref().unwrap_or("rectangular") {
+                    "rectangular" => OpeningProfile::Rectangular,
+                    "pointed" => arch_head(ArchShape::Pointed, clicks, top),
+                    "round" => arch_head(ArchShape::Round, clicks, top),
+                    other => {
+                        return Err(format!(
+                            "unknown profile {other}; use rectangular, pointed or round"
+                        ))
+                    }
+                },
+                material: None,
+            })
+        }
+        other => return Err(format!("unknown opening {other}; use door, window or none")),
+    };
+    set_wall_opening(world, view.addr, spec).map_err(|e| format!("{e:?}"))?;
+    Ok("Wall opening set".to_string())
 }
 
 /// Take a wall back to automatic.

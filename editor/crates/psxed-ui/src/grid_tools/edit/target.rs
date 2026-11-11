@@ -195,7 +195,7 @@ pub(super) fn arrow_position(
     face: FaceRef,
 ) -> Option<(Pos2, [f32; 3])> {
     let world = ws.project.active_scene().world.grid()?;
-    WallHandle::of(face)?.slide(world).ok()?;
+    WallHandle::of(face)?.can_move(world).ok()?;
     let camera = ws.viewport_3d_camera();
     ws.with_pick_cache(|cache| {
         let pf = cache.faces.iter().find(|pf| pf.face == face)?;

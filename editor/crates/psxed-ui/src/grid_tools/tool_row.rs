@@ -9,26 +9,76 @@
 use super::catalog::tools_of;
 use super::*;
 
-/// Height of one button of the strip.
-const BUTTON_HEIGHT: f32 = 26.0;
+/// Height of one button of the strip: an icon over the tool's name.
+const BUTTON_HEIGHT: f32 = 42.0;
+/// Vertical margin of the strip, top and bottom together.
+const STRIP_MARGIN: f32 = 10.0;
+/// Height of the line that names a group.
+const LABEL_HEIGHT: f32 = 14.0;
 /// Vertical gap between two rows of the strip.
 const ROW_GAP: f32 = 4.0;
 /// Width a thin divider and its gaps take between two groups.
 const GROUP_GAP_WIDTH: f32 = 13.0;
 /// Slack added to every measured button for the spacing between buttons.
-const BUTTON_SLACK: f32 = 3.0;
+const BUTTON_SLACK: f32 = 2.0;
+/// Size of the name under an icon.
+const NAME_SIZE: f32 = 11.0;
+/// Size of the icon.
+const ICON_SIZE: f32 = 16.0;
+/// Size of a group's name.
+const GROUP_NAME_SIZE: f32 = 10.5;
 
 /// The kinds Place puts down: the word on the chip, the node it places.
-const OBJECT_KINDS: [(&str, PlaceKind); 3] = [
-    ("Light", PlaceKind::PointLightMarker),
-    ("Prop", PlaceKind::ModelInstance),
-    ("Actor", PlaceKind::Character),
+const OBJECT_KINDS: [(&str, PlaceKind, char); 3] = [
+    ("Light", PlaceKind::PointLightMarker, icons::LIGHTBULB),
+    ("Prop", PlaceKind::ModelInstance, icons::BOX),
+    ("Actor", PlaceKind::Character, icons::PERSON_STANDING),
 ];
 
-/// A button with the tool's name and, in weak small type beside it, its key.
-fn name_and_key_button(ui: &mut egui::Ui, name: &str, key: &str, selected: bool) -> egui::Response {
-    let (name_galley, key_galley) = name_and_key_galleys(ui, name, key);
-    let width = button_width(name_galley.size().x, key_galley.size().x);
+/// The icon of a tool, from the Lucide set the editor already carries.
+pub(crate) const fn tool_icon(tool: GridTool) -> char {
+    match tool {
+        GridTool::Edit => icons::MOUSE_POINTER_2,
+        GridTool::Select => icons::POINTER,
+        GridTool::Height => icons::ARROW_UP_DOWN,
+        GridTool::Extrude => icons::ARROW_UP_FROM_LINE,
+        GridTool::Room => icons::SQUARE,
+        GridTool::Corridor => icons::ROUTE,
+        GridTool::Opening => icons::DOOR_OPEN,
+        GridTool::Arcade => icons::LANDMARK,
+        GridTool::Colonnade => icons::COLUMNS_3,
+        GridTool::Bridge => icons::SPLINE,
+        GridTool::Building => icons::BUILDING,
+        GridTool::Cathedral => icons::CHURCH,
+        GridTool::Stairs => icons::STAIRS,
+        GridTool::Ramp => icons::TRIANGLE_RIGHT,
+        GridTool::Spiral => icons::ROTATE_3D,
+        GridTool::Slab => icons::LAYERS_2,
+        GridTool::Floor => icons::SQUARE_DASHED,
+        GridTool::Ceiling => icons::PANEL_TOP,
+        GridTool::Wall => icons::BRICK_WALL,
+        GridTool::Plane => icons::SCAN,
+        GridTool::Mesh => icons::CUBOID,
+        GridTool::Sculpt => icons::MOUNTAIN,
+        GridTool::Break => icons::HAMMER_TOOL,
+        GridTool::Terrain => icons::LAND_PLOT,
+        GridTool::Ruin => icons::BLOCKS,
+        GridTool::Cells => icons::LAYOUT_GRID,
+        GridTool::Split => icons::SLICE,
+        GridTool::Paint => icons::PAINTBRUSH,
+        GridTool::Bands => icons::ROWS_3,
+        GridTool::Place => icons::MAP_PIN,
+        GridTool::Door => icons::DOOR_CLOSED,
+        GridTool::Lever => icons::TOGGLE_LEFT,
+        GridTool::Checkpoint => icons::FLAG,
+    }
+}
+
+/// A button: the icon over the name. The key shows in the hover text and in
+/// the tool search, not on the button.
+fn icon_button(ui: &mut egui::Ui, icon: char, name: &str, selected: bool) -> egui::Response {
+    let name_galley = name_galley(ui, name);
+    let width = button_width(name_galley.size().x);
     let (rect, response) = ui.allocate_exact_size(Vec2::new(width, BUTTON_HEIGHT), Sense::click());
     let radius = egui::CornerRadius::same(CONTROL_RADIUS);
     if selected {
@@ -42,54 +92,56 @@ fn name_and_key_button(ui: &mut egui::Ui, name: &str, key: &str, selected: bool)
     } else if response.hovered() {
         ui.painter().rect_filled(rect, radius, STUDIO_HOVER);
     }
-    let name_pos = Pos2::new(
-        rect.min.x + 9.0,
-        rect.center().y - name_galley.size().y / 2.0,
+    let tint = if selected || response.hovered() {
+        STUDIO_TEXT
+    } else {
+        STUDIO_TEXT_WEAK
+    };
+    ui.painter().text(
+        Pos2::new(rect.center().x, rect.min.y + 6.0),
+        egui::Align2::CENTER_TOP,
+        icon.to_string(),
+        icons::font(ICON_SIZE),
+        tint,
     );
-    let key_pos = Pos2::new(
-        name_pos.x + name_galley.size().x + 6.0,
-        rect.center().y - key_galley.size().y / 2.0 + 1.0,
+    let name_pos = Pos2::new(
+        rect.center().x - name_galley.size().x / 2.0,
+        rect.max.y - name_galley.size().y - 5.0,
     );
     ui.painter().galley(name_pos, name_galley, STUDIO_TEXT);
-    ui.painter().galley(key_pos, key_galley, STUDIO_TEXT_WEAK);
     response
 }
 
-/// The width of a button whose name and key measure `name` and `key`.
-fn button_width(name: f32, key: f32) -> f32 {
-    if key > 0.0 {
-        9.0 + name + 6.0 + key + 9.0
-    } else {
-        9.0 + name + 9.0
-    }
+/// The width of a button whose name measures `name`.
+fn button_width(name: f32) -> f32 {
+    name.max(22.0) + 16.0
 }
 
-fn name_and_key_galleys(
-    ui: &egui::Ui,
-    name: &str,
-    key: &str,
-) -> (std::sync::Arc<egui::Galley>, std::sync::Arc<egui::Galley>) {
-    let font = egui::TextStyle::Button.resolve(ui.style());
-    let key_font = egui::FontId::proportional(10.5);
+fn name_galley(ui: &egui::Ui, name: &str) -> std::sync::Arc<egui::Galley> {
     ui.fonts(|f| {
-        (
-            f.layout_no_wrap(name.to_string(), font, STUDIO_TEXT),
-            f.layout_no_wrap(key.to_string(), key_font, STUDIO_TEXT_WEAK),
+        f.layout_no_wrap(
+            name.to_string(),
+            egui::FontId::proportional(NAME_SIZE),
+            STUDIO_TEXT,
         )
     })
 }
 
-/// The small word that names a group.
+/// The name of a group, legible, above its buttons.
 fn group_label(ui: &mut egui::Ui, text: &str) {
-    ui.add_space(4.0);
-    ui.label(RichText::new(text).color(STUDIO_TEXT_WEAK).size(9.5));
-    ui.add_space(2.0);
+    ui.label(
+        RichText::new(text)
+            .color(STUDIO_TEXT_WEAK)
+            .size(GROUP_NAME_SIZE)
+            .strong(),
+    );
 }
 
 /// A thin line between two groups.
 fn group_gap(ui: &mut egui::Ui) {
     ui.add_space(6.0);
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(1.0, 16.0), Sense::hover());
+    let (rect, _) =
+        ui.allocate_exact_size(Vec2::new(1.0, BUTTON_HEIGHT + LABEL_HEIGHT), Sense::hover());
     ui.painter().rect_filled(rect, 0.0, STUDIO_BORDER);
     ui.add_space(6.0);
 }
@@ -125,32 +177,24 @@ pub(crate) const MORE_BUILD: [GridTool; 6] = [
     GridTool::Mesh,
 ];
 
-/// The width the strip needs for `group`: its label, its buttons and, for
-/// OBJECTS, the kind chips.
+/// The width the strip needs for `group`: its buttons (the group's name sits
+/// above them), and for OBJECTS the kind chips.
 fn group_width(ctx: &egui::Context, group: ToolGroup) -> f32 {
-    let button_font = egui::TextStyle::Button.resolve(&ctx.style());
-    let key_font = egui::FontId::proportional(10.5);
-    let label_font = egui::FontId::proportional(9.5);
+    let name_font = egui::FontId::proportional(NAME_SIZE);
+    let label_font = egui::FontId::proportional(GROUP_NAME_SIZE);
     ctx.fonts(|f| {
+        let measure = |text: &str| {
+            f.layout_no_wrap(text.to_string(), name_font.clone(), STUDIO_TEXT)
+                .size()
+                .x
+        };
         let label = f
             .layout_no_wrap(group.label().to_string(), label_font, STUDIO_TEXT_WEAK)
             .size()
             .x;
-        let mut width = 4.0 + label + 2.0 + BUTTON_SLACK;
+        let mut width = 0.0;
         for tool in group_tools(group) {
-            let name = f
-                .layout_no_wrap(tool.label().to_string(), button_font.clone(), STUDIO_TEXT)
-                .size()
-                .x;
-            let key = f
-                .layout_no_wrap(
-                    tool.key_label().to_string(),
-                    key_font.clone(),
-                    STUDIO_TEXT_WEAK,
-                )
-                .size()
-                .x;
-            width += button_width(name, key) + BUTTON_SLACK;
+            width += button_width(measure(tool.label())) + BUTTON_SLACK;
         }
         if matches!(group, ToolGroup::Edit | ToolGroup::Build) {
             let word = if group == ToolGroup::Edit {
@@ -158,22 +202,14 @@ fn group_width(ctx: &egui::Context, group: ToolGroup) -> f32 {
             } else {
                 "More"
             };
-            let name = f
-                .layout_no_wrap(word.to_string(), button_font.clone(), STUDIO_TEXT)
-                .size()
-                .x;
-            width += button_width(name, 0.0) + BUTTON_SLACK;
+            width += button_width(measure(word)) + BUTTON_SLACK;
         }
         if group == ToolGroup::Objects {
-            for (kind, _) in OBJECT_KINDS {
-                let name = f
-                    .layout_no_wrap(kind.to_string(), button_font.clone(), STUDIO_TEXT)
-                    .size()
-                    .x;
-                width += button_width(name, 0.0) + BUTTON_SLACK;
+            for (kind, ..) in OBJECT_KINDS {
+                width += button_width(measure(kind)) + BUTTON_SLACK;
             }
         }
-        width + GROUP_GAP_WIDTH
+        width.max(label) + GROUP_GAP_WIDTH
     })
 }
 
@@ -197,10 +233,12 @@ fn strip_rows(ctx: &egui::Context) -> Vec<Vec<ToolGroup>> {
     rows
 }
 
-/// The strip's height at this window width: one row is
-/// `TOOL_ROW_HEIGHT`, each more adds a button and a gap.
+/// The strip's height at this window width: one row is a group name over a
+/// row of buttons, each more adds the same and a gap.
 pub(crate) fn tool_strip_height(ctx: &egui::Context) -> f32 {
-    TOOL_ROW_HEIGHT + (strip_rows(ctx).len() as f32 - 1.0) * (BUTTON_HEIGHT + ROW_GAP)
+    let row = LABEL_HEIGHT + BUTTON_HEIGHT + 2.0;
+    let rows = strip_rows(ctx).len() as f32;
+    STRIP_MARGIN + rows * row + (rows - 1.0) * ROW_GAP
 }
 
 impl EditorWorkspace {
@@ -220,7 +258,7 @@ impl EditorWorkspace {
                 ui.set_clip_rect(ui.max_rect().expand2(Vec2::new(0.0, 4.0)));
                 for row in rows {
                     ui.horizontal(|ui| {
-                        ui.set_height(BUTTON_HEIGHT);
+                        ui.set_height(BUTTON_HEIGHT + LABEL_HEIGHT);
                         for (n, group) in row.into_iter().enumerate() {
                             if n > 0 {
                                 group_gap(ui);
@@ -233,7 +271,17 @@ impl EditorWorkspace {
     }
 
     fn draw_strip_group(&mut self, ui: &mut egui::Ui, group: ToolGroup) {
-        group_label(ui, group.label());
+        ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing = Vec2::new(2.0, 2.0);
+            group_label(ui, group.label());
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing = Vec2::new(BUTTON_SLACK, 0.0);
+                self.draw_group_buttons(ui, group);
+            });
+        });
+    }
+
+    fn draw_group_buttons(&mut self, ui: &mut egui::Ui, group: ToolGroup) {
         // The single Edit tool takes the first button of the EDIT group;
         // Select, Height and Extrude wait in the Classic menu beside it.
         for tool in group_tools(group) {
@@ -265,7 +313,7 @@ impl EditorWorkspace {
     /// A menu of tools: Classic (the tools the Edit tool replaces) or More.
     fn row_menu(&mut self, ui: &mut egui::Ui, name: &str, id: &str, tools: &[GridTool], tip: &str) {
         let active = tools.contains(&self.grid.tool);
-        let response = name_and_key_button(ui, name, "", active).on_hover_text(tip);
+        let response = icon_button(ui, icons::ELLIPSIS, name, active).on_hover_text(tip);
         let id = ui.make_persistent_id(id);
         if response.clicked() {
             ui.memory_mut(|m| m.toggle_popup(id));
@@ -278,7 +326,12 @@ impl EditorWorkspace {
             |ui| {
                 ui.set_min_width(130.0);
                 for &tool in tools {
-                    let label = format!("{}  {}", tool.label(), tool.key_label());
+                    let label = format!(
+                        "{}  {}  {}",
+                        tool_icon(tool),
+                        tool.label(),
+                        tool.key_label()
+                    );
                     if ui
                         .selectable_label(self.grid.tool == tool, label)
                         .on_hover_text(tool_hover(tool))
@@ -293,9 +346,8 @@ impl EditorWorkspace {
 
     /// A plain tool button: its name, its key, lit while it is the tool.
     fn row_tool(&mut self, ui: &mut egui::Ui, tool: GridTool) {
-        let response =
-            name_and_key_button(ui, tool.label(), tool.key_label(), self.grid.tool == tool)
-                .on_hover_text(tool_hover(tool));
+        let response = icon_button(ui, tool_icon(tool), tool.label(), self.grid.tool == tool)
+            .on_hover_text(tool_hover(tool));
         if response.clicked() {
             self.set_grid_tool(tool);
         }
@@ -305,9 +357,9 @@ impl EditorWorkspace {
     /// is the tool, and a click both picks the kind and makes Place the tool.
     fn row_place_kinds(&mut self, ui: &mut egui::Ui) {
         let active = self.grid.tool == GridTool::Place;
-        for (label, kind) in OBJECT_KINDS {
+        for (label, kind, icon) in OBJECT_KINDS {
             let selected = active && self.place_kind == kind;
-            let response = name_and_key_button(ui, label, "", selected)
+            let response = icon_button(ui, icon, label, selected)
                 .on_hover_text(format!("Place a {} (Place, O)", label.to_lowercase()));
             if response.clicked() {
                 self.place_kind = kind;

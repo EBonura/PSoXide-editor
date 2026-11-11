@@ -86,15 +86,27 @@ fn show(ws: &mut EditorWorkspace, ui: &mut egui::Ui, hit: &Hit, spot: Option<[f3
     }
     if let Some(face) = hit.target.wall() {
         if ui.button("Reset wall to automatic").clicked() {
-            let handle = WallHandle::of(face);
-            let result = match (handle, ws.project.active_scene_mut().world.grid_mut()) {
-                (Some(h), Some(world)) => h.reset_to_automatic(world),
-                _ => Err("No wall".to_string()),
-            };
-            if let Err(reason) = result {
-                ws.status = reason;
-            }
+            reset_wall(ws, face);
             ui.close_menu();
         }
+    }
+}
+
+/// Put a wall back to what the cells give it: one undo step.
+pub(crate) fn reset_wall(ws: &mut EditorWorkspace, face: FaceRef) {
+    let before = ws.project.clone();
+    let handle = WallHandle::of(face);
+    let result = match (handle, ws.project.active_scene_mut().world.grid_mut()) {
+        (Some(h), Some(world)) => h.reset_to_automatic(world),
+        _ => Err("No wall".to_string()),
+    };
+    match result {
+        Ok(()) if ws.project != before => {
+            ws.history.record(before);
+            ws.grid_changed();
+            ws.status = "Wall is automatic again".to_string();
+        }
+        Ok(()) => ws.status = "That wall is already automatic".to_string(),
+        Err(reason) => ws.status = reason,
     }
 }

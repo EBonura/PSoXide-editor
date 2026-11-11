@@ -7,15 +7,15 @@
 //!
 //! Move is a handle at the middle of the selection: drag it over the plan or
 //! the floor in whole sectors and the selection goes with everything that
-//! stands on it. It is done with the copy and delete operations of the
-//! clipboard behind [`move_cells`], the one function an SDK Move operation
-//! will replace.
+//! stands on it, through the SDK's move.
 
 use super::spec::{self, Kind};
 use super::*;
 
-use psxed_project::grid::edit::{delete_faces, FaceTarget, GridClipboard, SurfaceKind};
-use psxed_project::grid::SECTOR_UNITS;
+use std::collections::BTreeSet;
+
+use psxed_project::grid::edit::move_cells::{move_cells as sdk_move, MoveOutcome, MoveParams};
+use psxed_project::grid::edit::{CellRect, FaceTarget, SurfaceKind};
 
 /// The last action: its kind and amount.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -131,7 +131,6 @@ pub(in crate::grid_tools) struct MoveDrag {
     /// The document at the press.
     pub before: Box<ProjectDocument>,
     faces: Vec<FaceRef>,
-    nodes: Vec<NodeId>,
     /// Where the pointer first met the floor, editor units `[x, z]`.
     anchor: [f32; 2],
     /// The height of the plane the pointer travels on, editor units.
@@ -187,11 +186,9 @@ pub(super) fn press_move(ws: &mut EditorWorkspace, press: &GridPointer) -> bool 
         return false;
     }
     let faces = movable(ws);
-    let nodes = dup_tool::nodes_standing_on(ws, &faces);
     ws.grid.edit.moving = Some(MoveDrag {
         before: Box::new(ws.project.clone()),
         faces,
-        nodes,
         anchor: [anchor[0], anchor[2]],
         plane_y: anchor[1],
         delta: [0, 0],
@@ -227,15 +224,18 @@ pub(super) fn drag_move(ws: &mut EditorWorkspace, ptr: &GridPointer) -> bool {
         if delta != drag.delta {
             drag.delta = delta;
             let mut project = (*drag.before).clone();
-            match move_cells(&mut project, &drag.faces, &drag.nodes, delta) {
-                Ok(()) => {
+            match move_cells(&mut project, &drag.faces, delta) {
+                Ok(done) => {
                     ws.project = project;
                     if !drag.recorded && delta != [0, 0] {
                         ws.history.record((*drag.before).clone());
                         drag.recorded = true;
                     }
                     ws.grid_changed();
-                    ws.status = format!("Move {:+}, {:+} sectors", delta[0], delta[1]);
+                    ws.status = format!(
+                        "Move {:+}, {:+} sectors, carrying {} cells, {} objects",
+                        delta[0], delta[1], done.leaves, done.nodes
+                    );
                 }
                 Err(reason) => {
                     ws.project = (*drag.before).clone();
@@ -290,37 +290,37 @@ fn moved_face(face: FaceRef, delta: [i32; 2]) -> Option<FaceRef> {
     }
 }
 
-/// Move `faces` and the `nodes` standing on them by `delta` whole sectors,
-/// in place. Copy, delete and paste for now; one function so an SDK Move
-/// replaces it alone.
+/// Move the cells under `faces` by `delta` whole sectors, through the SDK's
+/// move: every floor, ceiling and wall of those cells, the meshes and planes
+/// anchored in them and the lights, objects and logic standing on them go
+/// together. A collision is refused with its words and nothing changes.
 pub(super) fn move_cells(
     project: &mut ProjectDocument,
     faces: &[FaceRef],
-    nodes: &[NodeId],
     delta: [i32; 2],
-) -> Result<(), String> {
-    let Some(world) = project.active_scene_mut().world.grid_mut() else {
-        return Err("No grid world".to_string());
-    };
+) -> Result<MoveOutcome, String> {
     let room = faces.first().ok_or("Nothing to move")?.room;
-    let clip = GridClipboard::capture(world, faces).ok_or("Nothing to move")?;
-    let min = [
-        faces.iter().map(|f| f.cell()[0]).min().unwrap_or(0),
-        faces.iter().map(|f| f.cell()[1]).min().unwrap_or(0),
-    ];
-    let scale = world.scale;
-    delete_faces(world, faces);
-    let outcome = clip.paste(world, room, [min[0] + delta[0], min[1] + delta[1]]);
-    if let Some(refusal) = outcome.refused {
-        return Err(format!("Cannot move there: {refusal:?}"));
+    let mut cells = BTreeSet::new();
+    for face in faces.iter().filter(|f| f.room == room) {
+        let (lo, hi) = face.leaf.sector_range();
+        cells.extend(CellRect { min: lo, max: hi }.cells());
     }
-    let step = scale.to_editor(SECTOR_UNITS) as f32;
+    let params = MoveParams {
+        room,
+        cells,
+        delta,
+        dy_steps: 0,
+        overwrite: false,
+    };
     let scene = project.active_scene_mut();
-    for id in nodes {
-        if let Some(node) = scene.node_mut(*id) {
-            node.transform.translation[0] += delta[0] as f32 * step;
-            node.transform.translation[2] += delta[1] as f32 * step;
-        }
+    let mut world = scene
+        .world
+        .grid()
+        .cloned()
+        .ok_or_else(|| "No grid world".to_string())?;
+    let outcome = sdk_move(&mut world, Some(scene), &params).map_err(|r| r.describe())?;
+    if let Some(slot) = scene.world.grid_mut() {
+        *slot = world;
     }
-    Ok(())
+    Ok(outcome)
 }
