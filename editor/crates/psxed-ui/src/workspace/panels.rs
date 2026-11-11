@@ -1739,7 +1739,11 @@ impl EditorWorkspace {
                                 if self.active_workspace == WorkspaceView::Animation
                                     && self.is_grid_world()
                                 {
-                                    match self.selection.selected_resource {
+                                    let chosen = self
+                                        .selection
+                                        .selected_resource
+                                        .or_else(|| self.animation_viewer.selected_model());
+                                    match chosen {
                                         Some(id) => self.draw_resource_inspector(ui, id),
                                         None => {
                                             ui.label(
