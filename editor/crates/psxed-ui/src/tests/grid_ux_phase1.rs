@@ -195,3 +195,21 @@ fn the_far_view_preset_sets_the_citadel_values_and_leaves_the_rest() {
     );
     assert!(stream.flood.skin, "an unrelated setting stays");
 }
+
+#[test]
+fn edit_delete_selection_deletes_picked_faces_and_a_chosen_room() {
+    let mut rig = GridRig::top("ux-delete-selection", flat_project(4, 4, false));
+    rig.ws.grid_add_room();
+    rig.tool(GridTool::Select);
+    rig.click(rig.cell_centre(1, 1));
+    assert!(rig.ws.grid_selection_deletable());
+    let before = rig.world().rooms[0].sector_count();
+    assert!(rig.ws.delete_grid_selection());
+    assert!(rig.world().rooms[0].sector_count() < before, "faces went");
+    rig.ws.select_room(1);
+    assert!(rig.ws.grid_selection_deletable());
+    assert!(rig.ws.delete_grid_selection());
+    assert_eq!(rig.world().rooms.len(), 1, "the room went");
+    rig.ws.do_undo();
+    assert_eq!(rig.world().rooms.len(), 2);
+}
