@@ -83,7 +83,6 @@ mod strip;
 mod tiling_panel;
 mod tool_row;
 mod tool_search;
-#[cfg(test)]
 pub(crate) use library::LibraryTab;
 #[cfg(test)]
 pub(crate) use strip::elide_hint;

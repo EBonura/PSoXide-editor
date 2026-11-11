@@ -269,8 +269,18 @@ Press Play (or Build to export a disc). The editor cooks the grid document, buil
 
 The cook warns when a texture is not 64 by 64, when faces have no material the cook can bind and when collision slabs were refused.
 
+## Safety net, memory and checks
+
+* **Autosave.** While a project has unsaved edits the editor writes a copy to `.psxed-autosave.ron` inside the project folder, two seconds after the last change (never mid-drag), and at the latest 30 seconds after the first unwritten change. It never touches `project.ron`. A save, a reload or Discard removes it. When a project opens and a newer autosave holds work the saved file does not, the editor asks: restore the unsaved work, or keep the saved version. The two times are constants in `workspace/autosave.rs`.
+* **What it remembers.** Per user (`editor-layout.txt` in the PSoXide configuration folder, or `PSXED_CONFIG_DIR`): which docks are open and how wide, the Library drawer's open state, tab and height per view, the Structure and Objects split. Per project (`.psxed-session.ron` beside `project.ron`): the active tool and the storey cursor. `PSXED_NO_USER_PREFS=1` turns the user file off (headless captures set it).
+* **Small windows.** The left dock has a handle between Structure and Objects; the Library drawer opens at about a third of the window and keeps a height for each of its views; a long hint in the bottom bar is cut from the middle, keeping what the pointer is over and the keys that act.
+* **Sizes.** While any Build tool or the Edit tool drags, the hint says the size in sectors and in player heights (the player is 1024 units tall); a rise also says whether the player steps up it (the shared walk limit). Overlays > Player size draws a player-sized ghost at the pointer (off by default).
+* **Before Play.** Play checks the walk from the player start and lists every walkable sector it cannot reach, by room, with a Select it link in the Console's Before Play block, in the Console lines and in the status bar. The cook's own refusals (limits, memory) are shown as they are, each with its link. When the disc is packed, the packs are checked against the sectors the executable was built for.
+* **Save slots.** Play stores the cook's save-flag slot table in the project, so a new door never renumbers the others. The World form shows slots used of 832.
+
 ## Known gaps
 
+* Not finished in the editor: the sill of an Opening is not draggable yet, deleting rooms and objects has no undo toast, deleting a material from the Library has no confirmation that counts its faces, and the Lever tool does not place the plate and handle through the SDK helper (the Lever form can name a handle box and its slide). Leaving the editor through the emulator menu still saves silently; the prompt needs a change in the emulator's `close_editor_workspace`.
 * Camera and character: the starter and imported levels use the Graybox Reach character, which costs most of the frame.
 * Free planes: translucent planes follow the engine's ordering of blended packets.
 * An agent can build and play a grid level end to end through the psxed-mcp server (`docs/grid/mcp-guide.md`): the geometry tools wrap the same edit functions as the tools above.
