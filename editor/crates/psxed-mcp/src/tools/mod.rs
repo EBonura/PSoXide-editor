@@ -11,6 +11,7 @@ mod combat;
 mod flood;
 mod geometry;
 mod instructions;
+mod make;
 mod meshes;
 mod natural;
 mod nodes;
@@ -96,6 +97,7 @@ impl EditorServer {
             ("planes", Self::planes_router()),
             ("meshes", Self::meshes_router()),
             ("verbs", Self::verbs_router()),
+            ("make", Self::make_router()),
             ("natural", Self::natural_router()),
             ("verify", Self::verify_router()),
         ]

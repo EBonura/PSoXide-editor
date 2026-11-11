@@ -28,7 +28,7 @@ Edits stage in memory. Nothing reaches project.ron until save, which refuses if 
 
 /// The areas, in the order the catalogue lists them: the router's name, then
 /// the label the instructions give it.
-pub(super) const AREAS: [(&str, &str); 15] = [
+pub(super) const AREAS: [(&str, &str); 16] = [
     ("project", "PROJECT (files, checkpoints, undo)"),
     ("query", "READ"),
     (
@@ -43,6 +43,10 @@ pub(super) const AREAS: [(&str, &str); 15] = [
     ("planes", "FREE PLANES (bridges, ramps, slanted walls)"),
     ("meshes", "STATIC MESHES"),
     ("verbs", "LEVEL VERBS (extrude, ramp, stairs, spiral)"),
+    (
+        "make",
+        "BUILD (room, corridor, opening, arcade, bridge, building, cathedral, terrain, ruin, styles, door, lever)",
+    ),
     ("natural", "NATURAL TERRAIN"),
     ("nodes", "SCENE NODES (spawns, lights, entities)"),
     ("combat", "COMBAT"),

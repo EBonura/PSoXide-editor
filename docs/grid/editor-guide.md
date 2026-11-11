@@ -42,11 +42,14 @@ Grouped by name: the part before ` / ` (`Graybox / Brick` is in Graybox) or the 
 
 ## Tools
 
-The strip has nineteen tools in four labelled groups on two rows: PICK (Select, Height), DRAW (Floor, Ceiling, Wall, Plane, Mesh), FINISH (Paint, Diagonal, Bands, Place) and BUILD (the level verbs, on the second row). A row wraps when the window is narrow. Keys work in the 3D and Top views.
+The strip has five labelled groups: EDIT (Edit, and a Classic menu with Select, Height and Extrude), BUILD (Room, Corridor, Opening, Arcade, Bridge, Building, Cathedral, Stairs, Ramp, Spiral, Upper floor, and a More menu with Colonnade, Floor, Ceiling, Wall, Plane and Mesh), TERRAIN (Sculpt, Break, Terrain patch, Ruin, Cells, Diagonal), SURFACE (Paint, Bands) and OBJECTS (Place, Door, Lever, Checkpoint). A group never splits across rows: when the window is narrow the next group wraps onto a second row. The tool options sit in the bar under the strip, the hint and the last message in the bar at the bottom. Keys work in the 3D and Plan views, and every tool below makes the same gesture in both.
+
+**Edit** is the tool a session starts with (V). What the pointer is over decides what a drag does, and the hint bar names it before you press. Select, Height and Extrude are still in the Classic menu (Shift+V brings Select back).
 
 | Tool | Key | Gesture |
 | --- | --- | --- |
-| Select | V | Click picks the vertex, edge or face under the pointer. Shift+click extends a range, Ctrl/Cmd+click toggles, drag draws a box. Shift+drag raises or lowers the selected corners. Delete removes the selected faces. Ctrl/Cmd+A selects the room. **A cracked, voided or two-material floor or ceiling is picked one triangle at a time** (in the plan and in 3D; Alt+click names the triangle of a plain quad too): the Inspector says "Triangle A" or "B", a material click paints that triangle only, Shift+drag lifts its three corners, and Delete voids it (Restore triangle in the Inspector brings it back; void triangles are outlined in 3D while Select is active). |
+| Edit | V | Hover names the drag. Drag a floor to raise it as one block, an edge to slope from it, a corner to lift it, a wall to push the room out and in, the arrow over a wall to slide it. Click selects, Shift+drag boxes, double-click picks the room or the wall run, type a number and Enter to set an exact amount, R repeats, the backtick key cycles what is under the pointer, right click opens a menu (with Play from here), Esc puts everything back. |
+| Select | Shift+V | Click picks the vertex, edge or face under the pointer. Shift+click extends a range, Ctrl/Cmd+click toggles, drag draws a box. Shift+drag raises or lowers the selected corners. Delete removes the selected faces. Ctrl/Cmd+A selects the room. **A cracked, voided or two-material floor or ceiling is picked one triangle at a time** (in the plan and in 3D; Alt+click names the triangle of a plain quad too): the Inspector says "Triangle A" or "B", a material click paints that triangle only, Shift+drag lifts its three corners, and Delete voids it (Restore triangle in the Inspector brings it back; void triangles are outlined in 3D while Select is active). |
 | Floor | F | Drag a rectangle; the room grows to fit. Shift while dragging sets the height. Ctrl/Cmd+drag deletes floor. |
 | Ceiling | C | Same as Floor, for ceilings. |
 | Wall | W | Drag along an edge to place a run of walls; they fill the gap up to the ceiling or the next wall. R turns the direction (auto, N, E, S, W, two diagonals). Ctrl/Cmd+drag removes. |
@@ -58,7 +61,7 @@ The strip has nineteen tools in four labelled groups on two rows: PICK (Select, 
 | Place | O | Click to put the chosen node (light, spawn, actor...) at a sector centre; Shift+click keeps the tool for the next one; Alt places freely. |
 | Bands | E | Hover a wall and a rule previews where a click would cut it; click cuts the wall run there, drag a line to move it, Delete removes it, Shift+click picks a band for the palette. See Wall bands below. |
 
-| Raise | U | Pick a region, then press on it and drag up or down. See Level verbs below. |
+| Extrude | U | Pick a region, then press on it and drag up or down. See Level verbs below. |
 | Ramp | A | Pick a region, press near the side that keeps its height and drag up or down. See Level verbs below. |
 | Stairs | T | Drag a rectangle where the stairs go, then press on it and drag up for the height; the side nearest the pointer is the bottom (R turns it). The Path option makes a winding flight from clicked waypoints instead. See Level verbs below. |
 | Spiral | Shift+T | Click the corners of a ring of sectors, Enter closes it, then press on it and drag up for the climb of one storey; the Storeys option says how many. Stairs wind round the ring, a slab per tread. See Storeys below. |
@@ -67,7 +70,9 @@ The strip has nineteen tools in four labelled groups on two rows: PICK (Select, 
 | Cells | Q | Paint over the plan to subdivide the cell under the pointer into four finer ones, Alt+paint to merge them back. See Cells of several sizes below. |
 | Upper floor | Shift+Q | Adds a floor above this one, with open space underneath (it needs a ceiling or open sky above). Pick a region; *Add floor above*: press on it and drag up for the height; *Remove upper floor* and *Fill opening* are clicks on it. Tab changes the mode. It is not Raise: Raise moves the ground itself and leaves nothing underneath. See Storeys below. |
 
-Letters kept free for the level verbs that come next: B Room, K Corridor, I Opening, Y Stamps, J Vault (G goes to a level and Z switches the cutaway, below; N is the Plane tool and Shift+N the Mesh tool, E the Bands tool, U Raise, A Ramp, T Stairs, Shift+T Spiral, X Break, M Rough, Q Cells, Shift+Q Upper floor). L toggles Link and R turns, so no plain letter was left for Mesh. Alt+W is the walkability overlay and Alt+P the performance heatmap (below).
+Keys: V Edit, Shift+V Select, H Height, U Extrude, F Floor, C Ceiling, W Wall, N Plane, Shift+N Mesh, B Room, K Corridor, I Opening, Y Arcade, J Bridge, A Ramp, T Stairs, Shift+T Spiral, Shift+Q Upper floor, X Break (Shift+X re-rolls the seed of Break, Terrain patch and Ruin), S Sculpt, Q Cells, D Diagonal, P Paint, E Bands, O Place; G goes to a level, Z switches the cutaway. Building, Cathedral, Colonnade, Terrain patch, Ruin, Door, Lever and Checkpoint have no key: the plain letters are used up, choose them on the strip. L toggles Weld and R turns or repeats. Alt+W is the walkability overlay and Alt+P the performance heatmap (below).
+
+**The scope rule.** With nothing selected a tool acts on the one element under the pointer; with a selection it acts on the whole selection when you drag a selected element, and on the pressed element alone (which becomes the selection) when you drag an unselected one. The selection survives a change of tool. Esc cancels a gesture and puts the document back exactly, and every gesture is one undo step.
 
 Also: Ctrl/Cmd+C copies the selected faces, Ctrl/Cmd+V shows a ghost (click stamps, Shift keeps stamping, H and V flip, R turns), Esc cancels a drag, a ghost or the selection, Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z undo and redo, `.` frames the selection, Ctrl/Cmd+S saves.
 
@@ -76,6 +81,46 @@ Also: Ctrl/Cmd+C copies the selected faces, Ctrl/Cmd+V shows a ghost (click stam
 Snapping is one rule in every tool: a click (256) by default, **Alt** for the fine step (64), **Shift+Alt** for free movement where a tool can leave the lattice (planes, Place; heights always stay on the 64 lattice).
 
 Units: a sector is 1024 grid units, a click 256, the fine step 64. A project's scale maps grid units to editor units (File > New Grid Project uses 5/4, so a sector is 1280 editor units; the imported levels keep the scale their import chose. `GridScale::DEFAULT`, still 21/16, moves to 5/4 with the next phase). Walls belong to the sector edge they are on, with a front side (the interior) and an optional back or both.
+
+## Build tools
+
+One gesture serves every Build tool. A press, or a click, starts it; every pointer move applies the operation again to the document as it was at the start, so the 3D view and the Plan show the real result live (the ghost is the document itself, outlined in green, or in red when the operation is refused). A refusal is a plain sentence in the hint bar and changes nothing. Release (Enter for a path) keeps the result as one undo step, Esc puts the document back. Each option is a field in the options bar; while a gesture runs, typing a number sets the tool's main number (the hint says which) and Enter keeps it. Holding Shift while dragging turns the pointer's vertical travel into that number (Alt for the fine step).
+
+| Tool | Gesture | Options |
+| --- | --- | --- |
+| Room (B) | Drag a rectangle on the floor plane or in the Plan; Shift and drag up, or type a number, for the height. A new walled room beside another is B, drag. Lasso: click corners, Enter closes. | Rectangle, Octagon or Lasso; New room or Into this room; Height; Style |
+| Corridor (K) | Click waypoints, Enter finishes. Click a higher or lower floor and the leg ramps or stairs to it; typing sets the width. | Width, Headroom, Ramp or Stairs, New or Into this room, Style |
+| Opening (I) | Drag along a wall (any storey); a click cuts a door two clicks wide. Shift and drag up for the lintel. | Door or Window, Rectangular, Pointed or Round, Lintel, Sill |
+| Arcade (Y), Colonnade | Drag a line on the floor along X or Z; typing sets the bays. | Bays, Span, Pier, Rise, profile, Hook on crowns |
+| Bridge (J) | Click the two ends of the deck. | Width, Parapet, Piers every |
+| Building | Drag a footprint; typing sets the storeys. | Storeys, Storey height, Door, Window every, window head, Stair, Parapet |
+| Cathedral | Drag the nave: its length sets the bays, its depth minus the aisles the nave width. | Bay, Aisle, Nave height, Transept, Apse, West door, Style |
+
+**Style** lists Plain, the built-in styles (sci-fi rib, gothic nave, cloister, crypt, domed chamber), the styles stored with the project and captured bays. **Capture bay**: select the cells of one bay (Edit or Select, then the Room or Corridor tool), name it and press Capture as style; it is written to the project's `styles/` folder, listed with the built-ins, and a Corridor in it repeats the bay along the path.
+
+Stairs, Ramp, Spiral and Upper floor are the level verbs described under Level verbs and Storeys.
+
+## Terrain tools
+
+* **Terrain patch**: drag a region. Options: Seed with a dice button (Shift+X) that re-rolls it live, Amplitude (clicks), Wavelength, Slope X and Z, Keep walkable, Edge blend (0 is a cliff). Release keeps it.
+* **Ruin**: drag a region or choose Whole room (a click in the room). Options: Seed and dice, Intensity, toggles for crumble, sinking, floor holes, roof holes, breaches, fallen arches and rubble. **Paint path** turns the pointer into a brush that marks sectors to keep clear (Shift removes); Clear path forgets them.
+* Sculpt and Break are described under Natural terrain.
+
+## Objects: doors, levers, checkpoints
+
+* **Door**: drag along a wall. The doorway is cut and a sliding door placed in one gesture, with its own name ("Door 1"). Options: Slides (up, down or a compass side), Distance (0 slides clear of the doorway), Speed, Open, Locked or One way (the arrows show the side it refuses from), Refusal text, Remember across death and saves.
+* **Lever**: click a floor to place it, then click the door it operates (the nearest door within a few sectors). Esc before the second click removes the lever. Options: Toggle or One shot, Unlocks the door, Remember across death and saves.
+* **Checkpoint**: click a floor.
+
+Their forms in the Inspector say the same things in the same words.
+
+## Walls
+
+A wall reads the same whatever made it. Selecting one shows its four heights as numbers, each marked automatic or set, and a **Reset wall to automatic** button that takes the heights, material, collision and bands back to what the floors and ceilings give. Editing a height sets that wall's own corners and the floors stay.
+
+## Play from here
+
+The right-click menu of the Edit tool and the arrow of the Play button both have **Play from here**: the next cook starts the player at that spot (the view's centre from the Play menu) without moving the project's spawn.
 
 ## Meshes
 

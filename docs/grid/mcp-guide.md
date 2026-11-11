@@ -99,6 +99,16 @@ A route becomes a poll-bound input tape: sample N is what the guest reads at its
 
 Without a `route`, `playtest` runs the older fixed schedule (tap CROSS through the menus, optionally walk forward) for `polls` polls.
 
+## Building: rooms, corridors, openings, arcades, buildings, cathedrals
+
+The Build group is the same code the editor's Build tools run, with the same refusal sentences. Cells are WORLD sectors, heights grid units.
+
+* `grid_room` (rectangle, octagon or polygon; new room or inside `room`; `style`), `grid_corridor` (waypoints, optional `heights`, `width`, `headroom`, `leg` ramp or stairs, `style`), `grid_opening` (room, cell, side, `from`/`to` in world clicks, door or window, profile, top, sill, `span`), `grid_arcade` and `grid_colonnade` (a line in grid units), `grid_bridge`, `grid_building`, `grid_cathedral`.
+* `grid_terrain` (seed, amplitude, wavelength, slope, keep walkable, edge blend) and `grid_ruin` (seed, intensity, keep path, toggles off) over a rectangle, or the whole room.
+* `grid_style_list` names the built-in styles and the ones stored with the project (its `styles/` folder); `grid_capture_style` stores the bay in a rectangle under a name, and a corridor `style` of that name repeats it.
+* `grid_door` cuts the doorway and places the sliding door (direction, distance, ticks, lock open, locked or one_way, refusal, persistent); `grid_lever` places a lever that operates a door by name.
+* `grid_wall_get`, `grid_wall_set` (four corner heights, the floors stay) and `grid_wall_reset` read, set and reset a wall whatever made it. `grid_move` moves cells with what stands on them; `grid_tilt` leans them by an offset ramp.
+
 ## Meshes: arches, columns, rubble, props
 
 A mesh is not grid geometry. An **asset** is a recipe (or imported OBJ geometry) the world keeps once, and a room places **instances** of it; the cook draws an instance as a run of quads with the room's planes, collides it through the grid's own collision records and turns its sockets into hook points. `docs/grid/meshes.md` has the model, the cost (an arch is about 2.9 KB of chunk, a column 1.6 KB) and the audit of what existed before.
