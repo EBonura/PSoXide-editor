@@ -383,7 +383,10 @@ impl EditorWorkspace {
                     ui.toggle_value(&mut r.painting, "Paint path")
                         .on_hover_text("Paint the cells to keep clear, Shift removes");
                     if ui
-                        .button(format!("Clear path ({})", r.keep.len()))
+                        .add_enabled(
+                            !r.keep.is_empty(),
+                            egui::Button::new(format!("Clear path ({})", r.keep.len())),
+                        )
                         .clicked()
                     {
                         r.keep.clear();

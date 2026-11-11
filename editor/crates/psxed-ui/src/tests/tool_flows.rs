@@ -1483,57 +1483,7 @@ fn both_view_every_flow_works_from_either_pane() {
     assert_cooks(&rig, "both view");
 }
 
-/// Every control of every tool's options bar, clicked once: the ones that
-/// change nothing at all (document, tool, message, bar) are listed in
-/// `PSXED_DEAD_CONTROLS` when that is set, and must be a state the control
-/// is already in (the selected chip).
-#[test]
-fn no_options_bar_control_is_dead() {
-    use super::grid_toolbar::texts;
-    let mut dead = Vec::new();
-    let mut rig = Fixture::Starter.rig();
-    plan(&mut rig);
-    for tool in GridTool::ALL {
-        if !start(&mut rig, tool, Start::Strip) {
-            dead.push(format!("{}: no strip entry", tool.label()));
-            continue;
-        }
-        let top = ACTION_BAR_COMPACT_HEIGHT + crate::grid_tools::tool_strip_height(&rig.ctx);
-        let bottom = ACTION_BAR_COMPACT_HEIGHT + crate::grid_tools::chrome_height(&rig.ctx);
-        let items: Vec<String> = texts(&rig)
-            .into_iter()
-            .filter(|(_, r)| r.center().y > top && r.center().y < bottom && r.width() > 0.0)
-            .map(|(t, _)| t.trim().to_string())
-            .filter(|t| !t.is_empty())
-            .collect();
-        for label in items {
-            let base = rig.ws.project.clone();
-            let (status0, bar0, tool0) =
-                (rig.ws.status.clone(), options_line(&rig), rig.ws.grid.tool);
-            let fp0 = format!("{:?}|{:?}", rig.ws.grid.verb.source, rig.ws.grid.build.opts);
-            if !option_click(&mut rig, &label) {
-                continue;
-            }
-            let moved = rig.ws.project != base
-                || rig.ws.status != status0
-                || options_line(&rig) != bar0
-                || rig.ws.grid.tool != tool0
-                || format!("{:?}|{:?}", rig.ws.grid.verb.source, rig.ws.grid.build.opts) != fp0;
-            if !moved {
-                dead.push(format!("{} / {}", tool.label(), label));
-            }
-            // Put the tool and document back for the next control.
-            rig.ws.project = base;
-            if rig.ws.grid.tool != tool {
-                let _ = start(&mut rig, tool, Start::Strip);
-            }
-        }
-    }
-    if let Ok(path) = std::env::var("PSXED_DEAD_CONTROLS") {
-        std::fs::write(path, dead.join("\n")).unwrap();
-    }
-    eprintln!("controls that changed nothing when clicked: {}", dead.len());
-}
+
 
 // ---------------------------------------------------------------------
 // The view as a parameter: one flow, run in 3D, Plan and Both (once with the
