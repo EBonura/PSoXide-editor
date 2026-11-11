@@ -78,6 +78,7 @@ mod stairs_tool;
 mod strip;
 mod tiling_panel;
 mod tool_row;
+#[cfg(test)]
 pub(crate) use tool_row::tool_strip_height;
 mod triangle_tool;
 mod verb_guide;
@@ -197,6 +198,7 @@ impl GridTool {
     };
 
     /// The strip group of the tool.
+    #[cfg(test)]
     pub(crate) const fn group(self) -> ToolGroup {
         catalog::entry(self).group
     }
