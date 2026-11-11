@@ -26,7 +26,6 @@ use psxed_project::grid::edit::verbs::styled::{
     lay_styled_corridor, lay_styled_room, StyledCorridor, StyledRoom,
 };
 use psxed_project::grid::edit::verbs::terrain::{lay_terrain, Edge, TerrainParams};
-use psxed_project::grid::edit::CellRect;
 use psxed_project::grid::sector::WallEdge;
 use psxed_project::grid::units::SECTOR_UNITS;
 use psxed_project::grid::ArchProfile;
@@ -680,7 +679,7 @@ pub fn cathedral(
     p.apse = r.apse.unwrap_or(true);
     p.west_door = r.west_door.unwrap_or(true);
     p.chancel_rise = r.chancel_rise.unwrap_or(p.chancel_rise);
-    p.roles = style.is_some().then(|| rl.clone());
+    p.roles = style.is_some().then_some(rl);
     p.style = style;
     p.floor_material = rl.floor;
     p.ceiling_material = rl.ceiling;

@@ -413,13 +413,14 @@ fn build_tool_captures() {
     let s = sector(&rig);
     look_from(
         &mut rig,
-        [14.0 * s, 9000.0, 17.0 * s],
-        [14.0 * s, 0.0, 4.0 * s],
+        [15.0 * s, 13000.0, 22.0 * s],
+        [15.0 * s, 0.0, 5.0 * s],
     );
     settle(&mut rig);
     let p = |rig: &WindowRig, x: f32, y: f32, z: f32| rig.persp_screen([x * s, y, z * s]).unwrap();
     // Each shot: choose the tool, press at `a`, drag to `b`, capture, Esc.
-    let shots: [(GridTool, (f32, f32, f32), (f32, f32, f32), &str); 6] = [
+    type Shot = (GridTool, (f32, f32, f32), (f32, f32, f32), &'static str);
+    let shots: [Shot; 6] = [
         (GridTool::Room, (16.5, 0.0, 1.5), (20.5, 0.0, 4.5), "room"),
         (
             GridTool::Opening,
@@ -435,14 +436,14 @@ fn build_tool_captures() {
         ),
         (
             GridTool::Building,
-            (16.5, 0.0, 8.5),
-            (20.5, 0.0, 12.5),
+            (22.5, 0.0, 1.5),
+            (26.5, 0.0, 5.5),
             "building",
         ),
         (
             GridTool::Cathedral,
-            (23.5, 0.0, 1.5),
-            (30.5, 0.0, 8.5),
+            (13.5, 0.0, 6.5),
+            (21.5, 0.0, 12.5),
             "cathedral",
         ),
         (

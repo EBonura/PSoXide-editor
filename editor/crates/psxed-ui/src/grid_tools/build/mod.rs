@@ -58,6 +58,7 @@ pub(crate) struct Drag {
 }
 
 /// The state of the Build tools. Not saved with the project.
+#[derive(Default)]
 pub(crate) struct BuildState {
     /// What the tool says now, for the hint bar.
     pub hint: String,
@@ -73,21 +74,6 @@ pub(crate) struct BuildState {
     /// A lever just placed that waits for the click on its door, with the
     /// document before it was placed.
     pub(super) lever: Option<(NodeId, Box<ProjectDocument>)>,
-}
-
-impl Default for BuildState {
-    fn default() -> Self {
-        Self {
-            hint: String::new(),
-            opts: Options::default(),
-            drag: None,
-            amount: Amount::default(),
-            styles: Vec::new(),
-            styles_loaded: false,
-            capture_name: String::new(),
-            lever: None,
-        }
-    }
 }
 
 impl BuildState {
@@ -347,7 +333,7 @@ fn finish(ws: &mut EditorWorkspace) {
             .iter()
             .filter(|n| n.name.starts_with("Lever "))
             .map(|n| n.id)
-            .last();
+            .next_back();
         if let Some(id) = lever {
             ws.grid.build.lever = Some((id, drag.before));
         }

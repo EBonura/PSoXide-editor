@@ -203,7 +203,7 @@ fn room(project: &mut ProjectDocument, o: &Options, geo: &Geo) -> Outcome {
                     rect,
                     base,
                     style,
-                    roles: roles.clone(),
+                    roles: *roles,
                 },
             )
         });
@@ -312,7 +312,7 @@ fn corridor(project: &mut ProjectDocument, o: &Options, geo: &Geo) -> Outcome {
                         base: geo.base,
                         leg,
                         style,
-                        roles: roles.clone(),
+                        roles: *roles,
                     },
                 )
             });
@@ -581,7 +581,7 @@ fn cathedral(project: &mut ProjectDocument, o: &Options, geo: &Geo) -> Outcome {
         });
         p.apse = opts.apse;
         p.west_door = opts.west_door;
-        p.roles = style.is_some().then(|| roles.clone());
+        p.roles = style.is_some().then_some(*roles);
         p.style = style;
         p.floor_material = roles.floor;
         p.ceiling_material = roles.ceiling;

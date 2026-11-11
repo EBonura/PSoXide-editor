@@ -978,7 +978,11 @@ impl EditorWorkspace {
         {
             self.resources_open = true;
         }
-        self.status = format!("Tool: {} ({})", tool.label(), tool.key_label());
+        self.status = if tool.key_label().is_empty() {
+            format!("Tool: {}", tool.label())
+        } else {
+            format!("Tool: {} ({})", tool.label(), tool.key_label())
+        };
         self.mark_shortcut_group_changed(ShortcutGroup::Tool);
     }
 
