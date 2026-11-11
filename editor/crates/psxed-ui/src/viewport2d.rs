@@ -421,6 +421,20 @@ pub(crate) fn draw_scene_viewport(
                     &mut hits,
                 );
             }
+            // Any other entity (an actor, a prop, a lever, a checkpoint) is a
+            // marker too, so the Plan can pick and move it.
+            NodeKind::Entity => {
+                draw_simple_marker(
+                    painter,
+                    transform,
+                    node,
+                    selected_nodes.contains(&node.id)
+                        || (selected_nodes.is_empty() && selected == node.id),
+                    "E",
+                    Color32::from_rgb(168, 196, 120),
+                    &mut hits,
+                );
+            }
             NodeKind::MeshInstance { .. } => {
                 draw_mesh_marker(
                     painter,

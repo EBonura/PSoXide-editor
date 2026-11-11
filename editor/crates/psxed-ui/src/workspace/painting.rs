@@ -898,6 +898,12 @@ impl EditorWorkspace {
         self.replace_node_selection(id);
         self.clear_resource_selection_state();
         self.status = format!("Placed {}", kind.label());
+        // A light placed while lights are hidden would be invisible and
+        // impossible to pick: show them.
+        if matches!(kind, PlaceKind::PointLightMarker) && !self.show_lights {
+            self.show_lights = true;
+            self.status = "Placed Point Light (lights are shown now)".to_string();
+        }
         self.mark_dirty();
         self.return_to_select_after_place();
     }
