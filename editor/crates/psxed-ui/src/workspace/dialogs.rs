@@ -87,6 +87,7 @@ impl EditorWorkspace {
         // The autosave: a quiet moment after a change, never mid-drag.
         let pointer_down = ctx.input(|i| i.pointer.any_down());
         self.autosave_tick(std::time::Instant::now(), pointer_down);
+        self.persist_user_state(pointer_down);
         if self.dirty && self.autosave.needs_wakeup() {
             ctx.request_repaint_after(std::time::Duration::from_secs(1));
         }

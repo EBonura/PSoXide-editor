@@ -10,6 +10,7 @@ mod objects_panel;
 mod painting;
 pub(crate) mod play_check;
 mod panels;
+pub(crate) mod remember;
 mod selection;
 mod toolbars;
 pub(crate) mod tools2d;

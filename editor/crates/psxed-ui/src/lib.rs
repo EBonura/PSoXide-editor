@@ -21,6 +21,7 @@ mod play_mode;
 mod redraw;
 pub use redraw::publish_preview_animated;
 mod selection;
+mod session_state;
 pub use selection::*;
 mod starter_catalogue;
 pub use starter_catalogue::{
@@ -515,6 +516,14 @@ pub struct EditorWorkspace {
     autosave: workspace::autosave::AutosaveState,
     /// What the check before Play found (see `workspace::play_check`).
     play_problems: Vec<workspace::play_check::PlayProblem>,
+    /// What the panels measured last frame, for the remembered layout.
+    measured: workspace::remember::MeasuredSizes,
+    /// Where the user's layout is kept, when this run keeps one.
+    user_layout_path: Option<PathBuf>,
+    /// The layout as last written.
+    layout_saved: session_state::UserLayout,
+    /// The session as last written.
+    session_saved: session_state::ProjectSession,
     /// Project-portable Room-workspace clipboard. Unlike Duplicate, this owns
     /// material names rather than trusting project-local resource ids, so it
     /// deliberately survives switching or creating projects.
@@ -2178,6 +2187,7 @@ impl EditorWorkspace {
         workspace.apply_editor_view_state(view);
         workspace.saved_view_state = view;
         workspace.check_autosave_on_open();
+        workspace.restore_user_state();
         workspace.frame_camera_if_uninitialized();
         if workspace.active_workspace == WorkspaceView::Room && workspace.view_2d {
             let status = workspace.status.clone();
@@ -2253,6 +2263,10 @@ impl EditorWorkspace {
             last_slots_used: None,
             autosave: workspace::autosave::AutosaveState::default(),
             play_problems: Vec::new(),
+            measured: workspace::remember::MeasuredSizes::default(),
+            user_layout_path: None,
+            layout_saved: session_state::UserLayout::default(),
+            session_saved: session_state::ProjectSession::default(),
             clipboard_notice: None,
             renaming: None,
             pending_rename_focus: false,

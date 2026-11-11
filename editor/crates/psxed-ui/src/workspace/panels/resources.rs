@@ -484,6 +484,11 @@ impl EditorWorkspace {
         // Each view keeps the height the user gave it: the Library wants a
         // tall drawer for thumbnails, the Console a short one.
         let screen_height = ctx.screen_rect().height();
+        let view_slot = match self.content_browser_view {
+            ContentBrowserView::Resources => 0,
+            ContentBrowserView::Debug => 1,
+            ContentBrowserView::Library => 2,
+        };
         let (panel_id, default_height) = match self.content_browser_view {
             ContentBrowserView::Library => (
                 "psxed_content_browser_library",
@@ -492,7 +497,8 @@ impl EditorWorkspace {
             ContentBrowserView::Resources => ("psxed_content_browser", 240.0),
             ContentBrowserView::Debug => ("psxed_content_browser_console", 220.0),
         };
-        egui::TopBottomPanel::bottom(panel_id)
+        let default_height = self.measured.drawer_heights[view_slot].unwrap_or(default_height);
+        let shown = egui::TopBottomPanel::bottom(panel_id)
             .resizable(true)
             .default_height(default_height)
             .min_height(CONTENT_BROWSER_MIN_HEIGHT)
@@ -517,6 +523,7 @@ impl EditorWorkspace {
                     });
                 });
             });
+        self.measured.drawer_heights[view_slot] = Some(shown.response.rect.height().round());
     }
 
     /// The closed Assets drawer: one line with the two tabs that open it.

@@ -502,3 +502,63 @@ mod ruler {
         assert!(!ws.grid.overlays.player_ghost);
     }
 }
+
+// ---- What the editor remembers ----
+
+mod remembered {
+    use super::*;
+    use crate::grid_tools::{GridTool, LibraryTab};
+
+    #[test]
+    fn docks_drawer_tab_and_tool_come_back_after_a_restart() {
+        let mut rig = WindowRig::starter(Vec2::new(1366.0, 768.0));
+        let dir = rig.ws.project_dir.clone();
+        let layout = dir.join("scratch-layout.txt");
+        rig.ws.user_layout_path = Some(layout.clone());
+        rig.ws.left_dock_open = false;
+        rig.ws.inspector_open = false;
+        rig.ws.set_grid_tool(GridTool::Corridor);
+        rig.ws.open_library(LibraryTab::Styles);
+        for _ in 0..4 {
+            rig.frame(vec![]);
+        }
+        // Both docks away: the view has most of the window (acceptance 26).
+        let view = rig.ctx.available_rect();
+        assert!(view.width() >= 0.6 * 1366.0, "{view:?}");
+        rig.ws.persist_user_state(false);
+        assert!(layout.exists() && dir.join(".psxed-session.ron").exists());
+        // A pointer held down (a dock mid-drag) writes nothing new.
+        let stamp = std::fs::metadata(&layout).unwrap().modified().unwrap();
+        rig.ws.measured.left_width = Some(401.0);
+        rig.ws.persist_user_state(true);
+        assert_eq!(
+            std::fs::metadata(&layout).unwrap().modified().unwrap(),
+            stamp
+        );
+        rig.ws.persist_user_state(false);
+        drop(rig.ws);
+
+        let mut reopened = EditorWorkspace::open_directory(&dir).unwrap();
+        reopened.restore_user_state_from(Some(layout));
+        assert!(!reopened.left_dock_open && !reopened.inspector_open);
+        assert!(reopened.resources_open);
+        assert_eq!(reopened.grid.library_tab, LibraryTab::Styles);
+        assert_eq!(reopened.grid.tool, GridTool::Corridor);
+        assert_eq!(reopened.measured.left_width, Some(401.0));
+    }
+
+    #[test]
+    fn a_missing_or_stale_session_opens_the_project_as_it_always_did() {
+        let rig = WindowRig::starter(Vec2::new(1280.0, 720.0));
+        let dir = rig.ws.project_dir.clone();
+        std::fs::write(
+            dir.join(".psxed-session.ron"),
+            "tool No Such Tool\nstorey 99999\n",
+        )
+        .unwrap();
+        let mut reopened = EditorWorkspace::open_directory(&dir).unwrap();
+        reopened.restore_user_state_from(None);
+        assert_eq!(reopened.grid.tool, GridTool::Edit);
+        assert_eq!(reopened.grid.level.y, None, "no storey at that height");
+    }
+}

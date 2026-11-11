@@ -34,9 +34,9 @@ impl EditorWorkspace {
             return;
         }
         let max_width = max_resizable_side_dock_width(ctx, self.inspector_open);
-        egui::SidePanel::left("psxed_left_dock")
+        let shown = egui::SidePanel::left("psxed_left_dock")
             .resizable(true)
-            .default_width(280.0)
+            .default_width(self.measured.left_width.unwrap_or(280.0))
             .min_width(RESIZABLE_DOCK_MIN_WIDTH)
             .max_width(max_width)
             .frame(dock_frame())
@@ -47,6 +47,7 @@ impl EditorWorkspace {
                     self.draw_scene_filesystem_split(ui);
                 });
             });
+        self.measured.left_width = Some(shown.response.rect.width().round());
     }
 
     pub(crate) fn draw_scene_filesystem_split(&mut self, ui: &mut egui::Ui) {
@@ -1694,9 +1695,9 @@ impl EditorWorkspace {
         let undo_candidate =
             inspector_has_edit_input(ctx).then(|| (self.project.clone(), self.history.epoch()));
         let max_width = max_resizable_side_dock_width(ctx, false);
-        egui::SidePanel::right("psxed_inspector")
+        let shown = egui::SidePanel::right("psxed_inspector")
             .resizable(true)
-            .default_width(320.0)
+            .default_width(self.measured.inspector_width.unwrap_or(320.0))
             .min_width(RESIZABLE_DOCK_MIN_WIDTH)
             .max_width(max_width)
             .frame(dock_frame())
@@ -2104,6 +2105,7 @@ impl EditorWorkspace {
                 });
                 });
             });
+        self.measured.inspector_width = Some(shown.response.rect.width().round());
         if let Some((project_before, history_epoch_before)) = undo_candidate {
             self.finish_inspector_undo_frame(project_before, history_epoch_before, ctx);
         }
