@@ -12,7 +12,13 @@ use crate::grid_tools::GridTool;
 use psxed_project::NodeId;
 
 fn node_ids(rig: &WindowRig) -> Vec<NodeId> {
-    rig.ws.project.active_scene().nodes().iter().map(|n| n.id).collect()
+    rig.ws
+        .project
+        .active_scene()
+        .nodes()
+        .iter()
+        .map(|n| n.id)
+        .collect()
 }
 
 fn strip_band(rig: &WindowRig) -> Rect {
@@ -49,7 +55,11 @@ fn set_rotation_y(rig: &mut WindowRig, degrees: &str) -> Result<(), String> {
         .ok_or("no Rotation row in the Inspector")?;
     let field = all
         .iter()
-        .filter(|(t, r)| t.trim().starts_with("Y ") && (r.center().y - label.center().y).abs() < 10.0 && r.min.x > label.max.x)
+        .filter(|(t, r)| {
+            t.trim().starts_with("Y ")
+                && (r.center().y - label.center().y).abs() < 10.0
+                && r.min.x > label.max.x
+        })
         .map(|(_, r)| *r)
         .next()
         .ok_or("no Y rotation field")?;
@@ -86,7 +96,11 @@ fn node_px(rig: &WindowRig, v: View, t: [f32; 3]) -> Option<Pos2> {
 
 /// Pick a resource in the Place picker of the options bar (the combo shows
 /// `shown`; the popup lists resources by name).
-fn pick_place_resource(rig: &mut WindowRig, shown: &str, filter: fn(&psxed_project::ResourceData) -> bool) -> Result<(), String> {
+fn pick_place_resource(
+    rig: &mut WindowRig,
+    shown: &str,
+    filter: fn(&psxed_project::ResourceData) -> bool,
+) -> Result<(), String> {
     let name = rig
         .ws
         .project
@@ -96,7 +110,10 @@ fn pick_place_resource(rig: &mut WindowRig, shown: &str, filter: fn(&psxed_proje
         .map(|r| r.name.clone())
         .ok_or("no such resource in the project")?;
     if !option_click(rig, shown) {
-        return Err(format!("no `{shown}` picker in the options bar: {}", options_line(rig)));
+        return Err(format!(
+            "no `{shown}` picker in the options bar: {}",
+            options_line(rig)
+        ));
     }
     let picker = texts(rig)
         .into_iter()
@@ -106,7 +123,11 @@ fn pick_place_resource(rig: &mut WindowRig, shown: &str, filter: fn(&psxed_proje
     let hit = texts(rig)
         .into_iter()
         .filter(|(t, _)| t.trim() == name)
-        .min_by(|a, b| a.1.center().distance(picker).total_cmp(&b.1.center().distance(picker)));
+        .min_by(|a, b| {
+            a.1.center()
+                .distance(picker)
+                .total_cmp(&b.1.center().distance(picker))
+        });
     match hit {
         Some((_, r)) => {
             rig.click(r.center());
@@ -131,7 +152,15 @@ pub(super) fn object_life(v: View, chip: &str, tool: GridTool) -> Result<String,
         if !strip_click(&mut rig, "Door") {
             return Err("no Door in the strip".into());
         }
-        let (a, b) = v.wall(&mut rig, [2, 0], psxed_project::grid::WallEdge::North, 0.375, 0.625, 0.0, 300.0);
+        let (a, b) = v.wall(
+            &mut rig,
+            [2, 0],
+            psxed_project::grid::WallEdge::North,
+            0.375,
+            0.625,
+            0.0,
+            300.0,
+        );
         rig.drag(a, b);
         v.aim_near(&mut rig, [-1, -1], [7, 6], 0.55);
     }
@@ -140,16 +169,31 @@ pub(super) fn object_life(v: View, chip: &str, tool: GridTool) -> Result<String,
         return Err(format!("no `{chip}` in the strip"));
     }
     if rig.ws.grid.tool != tool {
-        return Err(format!("`{chip}` armed {:?}, not {tool:?}", rig.ws.grid.tool));
+        return Err(format!(
+            "`{chip}` armed {:?}, not {tool:?}",
+            rig.ws.grid.tool
+        ));
     }
     match chip {
-        "Prop" => pick_place_resource(&mut rig, "Auto Model", |d| matches!(d, psxed_project::ResourceData::Model(_)))?,
-        "Actor" => pick_place_resource(&mut rig, "Auto Profile", |d| matches!(d, psxed_project::ResourceData::Character(_)))?,
+        "Prop" => pick_place_resource(&mut rig, "Auto Model", |d| {
+            matches!(d, psxed_project::ResourceData::Model(_))
+        })?,
+        "Actor" => pick_place_resource(&mut rig, "Auto Profile", |d| {
+            matches!(d, psxed_project::ResourceData::Character(_))
+        })?,
         _ => {}
     }
     let spot = [4, 2];
     if chip == "Door" {
-        let (a, b) = v.wall(&mut rig, [2, 0], psxed_project::grid::WallEdge::North, 0.375, 0.625, 0.0, 300.0);
+        let (a, b) = v.wall(
+            &mut rig,
+            [2, 0],
+            psxed_project::grid::WallEdge::North,
+            0.375,
+            0.625,
+            0.0,
+            300.0,
+        );
         rig.drag(a, b);
         v.aim_near(&mut rig, [-1, -1], [7, 6], 0.55);
     } else {
@@ -166,28 +210,55 @@ pub(super) fn object_life(v: View, chip: &str, tool: GridTool) -> Result<String,
             v.click_cell(&mut rig, [2, 0]);
         }
     }
-    let steps_placed = history_steps(&rig);
-    let new: Vec<NodeId> = node_ids(&rig).into_iter().filter(|i| !ids_before.contains(i)).collect();
+    let new: Vec<NodeId> = node_ids(&rig)
+        .into_iter()
+        .filter(|i| !ids_before.contains(i))
+        .collect();
     // The thing to move is what can be seen: a door's slab, else the first.
     let id = new
         .iter()
         .copied()
         .find(|i| {
             chip != "Door"
-                || rig.ws.project.active_scene().node(*i).is_some_and(|n| n.name.ends_with(" box"))
+                || rig
+                    .ws
+                    .project
+                    .active_scene()
+                    .node(*i)
+                    .is_some_and(|n| n.name.ends_with(" box"))
         })
         .ok_or_else(|| format!("nothing placed: {}", rig.ws.status))?;
     let _ = (ids0, chip_label);
-    let name = rig.ws.project.active_scene().node(id).map(|n| n.name.clone()).unwrap();
+    let name = rig
+        .ws
+        .project
+        .active_scene()
+        .node(id)
+        .map(|n| n.name.clone())
+        .unwrap();
     // Move it by dragging it in the Edit tool.
     if !start(&mut rig, GridTool::Edit, Start::Strip) {
         return Err("Edit did not start".into());
     }
     if chip == "Door" && !v.in_plan() {
         // The door stands in the north wall, at the edge of the framing: look at it.
-        face_wall(&mut rig, [2, 0], psxed_project::grid::WallEdge::North, 0.0, 4.0, 1200.0);
+        face_wall(
+            &mut rig,
+            [2, 0],
+            psxed_project::grid::WallEdge::North,
+            0.0,
+            4.0,
+            1200.0,
+        );
     }
-    let t0 = rig.ws.project.active_scene().node(id).unwrap().transform.translation;
+    let t0 = rig
+        .ws
+        .project
+        .active_scene()
+        .node(id)
+        .unwrap()
+        .transform
+        .translation;
     let p = node_px(&rig, v, t0).ok_or("the object is off screen")?;
     let to = if chip == "Door" && !v.in_plan() {
         p + Vec2::new(60.0, 0.0)
@@ -207,17 +278,39 @@ pub(super) fn object_life(v: View, chip: &str, tool: GridTool) -> Result<String,
             .ok_or("no gizmo X arrow")?;
         let grab = axis.start + (axis.end - axis.start) * 0.8;
         rig.drag(grab, grab + Vec2::new(150.0, 0.0));
-        let t1 = rig.ws.project.active_scene().node(id).unwrap().transform.translation;
+        let t1 = rig
+            .ws
+            .project
+            .active_scene()
+            .node(id)
+            .unwrap()
+            .transform
+            .translation;
         if t1 == t0 {
             return Err(format!("the gizmo arrow moved nothing: {} grab {grab:?} rect {rect:?} axes {:?} p {p:?} mode {:?}", rig.ws.status, rig.ws.node_gizmo_screen_axes(rect).iter().map(|a| (a.axis, a.start, a.end)).collect::<Vec<_>>(), rig.ws.transform_gizmo_mode));
         }
         return finish_life(&mut rig, id, name);
     }
-    let picked = format!("selected_node {:?} wanted {:?} grid-sel {}", rig.ws.selection.selected_node, id, rig.ws.grid.selection.items().len());
+    let picked = format!(
+        "selected_node {:?} wanted {:?} grid-sel {}",
+        rig.ws.selection.selected_node,
+        id,
+        rig.ws.grid.selection.items().len()
+    );
     rig.drag(p, to);
-    let t1 = rig.ws.project.active_scene().node(id).unwrap().transform.translation;
+    let t1 = rig
+        .ws
+        .project
+        .active_scene()
+        .node(id)
+        .unwrap()
+        .transform
+        .translation;
     if t1 == t0 {
-        return Err(format!("`{name}` did not move when dragged: {} ({picked})", rig.ws.status));
+        return Err(format!(
+            "`{name}` did not move when dragged: {} ({picked})",
+            rig.ws.status
+        ));
     }
     finish_life(&mut rig, id, name)
 }
@@ -236,7 +329,14 @@ fn finish_life(rig: &mut WindowRig, id: NodeId, name: String) -> Result<String, 
     if !name.starts_with("Light") {
         set_rotation_y(rig, "90")?;
     }
-    let rot = rig.ws.project.active_scene().node(id).unwrap().transform.rotation_degrees;
+    let rot = rig
+        .ws
+        .project
+        .active_scene()
+        .node(id)
+        .unwrap()
+        .transform
+        .rotation_degrees;
     if !name.starts_with("Light") && rot[1].round() as i32 != 90 {
         return Err(format!("rotation is {rot:?}"));
     }

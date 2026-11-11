@@ -76,8 +76,16 @@ fn snap(rig: &WindowRig, mode: Mode) -> Snap {
         project: rig.ws.project.clone(),
         status: rig.ws.status.clone(),
         tool: rig.ws.grid.tool,
-        shapes: if mode == Mode::Screen { shapes_hash(rig) } else { 0 },
-        texts: if mode == Mode::Content { text_set(rig) } else { Vec::new() },
+        shapes: if mode == Mode::Screen {
+            shapes_hash(rig)
+        } else {
+            0
+        },
+        texts: if mode == Mode::Content {
+            text_set(rig)
+        } else {
+            Vec::new()
+        },
     }
 }
 
@@ -121,12 +129,12 @@ fn probe(
     // control's click brings it back.
     let mut near: Vec<&(String, Rect)> = siblings
         .iter()
-        .filter(|(l, r)| {
-            l != label && !icon_only(l) && *r != rect
-        })
+        .filter(|(l, r)| l != label && !icon_only(l) && *r != rect)
         .collect();
     near.sort_by(|a, b| {
-        a.1.center().distance(rect.center()).total_cmp(&b.1.center().distance(rect.center()))
+        a.1.center()
+            .distance(rect.center())
+            .total_cmp(&b.1.center().distance(rect.center()))
     });
     for (_, other) in near.into_iter().take(5) {
         reopen(rig);
@@ -204,14 +212,21 @@ pub(super) fn sweep_option_bars() -> Tally {
         let mut rig = View::Plan.rig(Fixture::Starter);
         View::Plan.aim_near(&mut rig, [-1, -1], [7, 6], 1.0);
         if !start(&mut rig, tool, Start::Strip) {
-            total.dead.push(format!("{}: not on the strip", tool.label()));
+            total
+                .dead
+                .push(format!("{}: not on the strip", tool.label()));
             continue;
         }
         let region = bar_region(&rig);
         // The region tools wait for a region: make one, as a person does.
         let needs_region = matches!(
             tool,
-            GridTool::Extrude | GridTool::Ramp | GridTool::Stairs | GridTool::Spiral | GridTool::Slab | GridTool::Break
+            GridTool::Extrude
+                | GridTool::Ramp
+                | GridTool::Stairs
+                | GridTool::Spiral
+                | GridTool::Slab
+                | GridTool::Break
         );
         let prepare = move |rig: &mut WindowRig| {
             if needs_region && rig.ws.grid.verb.region.is_none() {
@@ -251,11 +266,20 @@ pub(super) fn sweep_option_bars() -> Tally {
 /// that open a file dialog, close the editor or start a build.
 pub(super) fn sweep_menus() -> (Tally, Vec<String>) {
     let mut total = Tally::default();
-    let skipped: Vec<String> = ["New Project...", "Project", "Quit", "Emulator Menu", "Build Project", "Reload"]
-        .iter()
-        .map(|s| s.to_string())
-        .collect();
-    let bar_of = |rig: &WindowRig| Rect::from_min_max(Pos2::ZERO, Pos2::new(rig.size.x, ACTION_BAR_COMPACT_HEIGHT));
+    let skipped: Vec<String> = [
+        "New Project...",
+        "Project",
+        "Quit",
+        "Emulator Menu",
+        "Build Project",
+        "Reload",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    let bar_of = |rig: &WindowRig| {
+        Rect::from_min_max(Pos2::ZERO, Pos2::new(rig.size.x, ACTION_BAR_COMPACT_HEIGHT))
+    };
     for menu in ["File", "Edit", "View", "Tools", "Help"] {
         // Each menu starts from a fresh window, nothing open.
         let mut rig = View::Plan.rig(Fixture::Starter);
@@ -279,12 +303,22 @@ pub(super) fn sweep_menus() -> (Tally, Vec<String>) {
         let entries: Vec<(String, Rect)> = texts(&rig)
             .into_iter()
             .map(|(t, r)| (t.trim().to_string(), r))
-            .filter(|(t, r)| !t.is_empty() && r.center().y > ACTION_BAR_COMPACT_HEIGHT && r.center().y < ACTION_BAR_COMPACT_HEIGHT + 600.0)
+            .filter(|(t, r)| {
+                !t.is_empty()
+                    && r.center().y > ACTION_BAR_COMPACT_HEIGHT
+                    && r.center().y < ACTION_BAR_COMPACT_HEIGHT + 600.0
+            })
             .filter(|(t, _)| !baseline.iter().any(|c| c.trim() == t))
             .collect();
-        eprintln!("{menu} menu entries: {:?}", entries.iter().map(|(l, _)| l.as_str()).collect::<Vec<_>>());
+        eprintln!(
+            "{menu} menu entries: {:?}",
+            entries.iter().map(|(l, _)| l.as_str()).collect::<Vec<_>>()
+        );
         for (label, rect) in &entries {
-            let plain = label.trim_start_matches(|c: char| !c.is_alphanumeric()).trim().to_string();
+            let plain = label
+                .trim_start_matches(|c: char| !c.is_alphanumeric())
+                .trim()
+                .to_string();
             if skipped.iter().any(|s| plain.starts_with(s.as_str())) || plain.is_empty() {
                 continue;
             }
@@ -342,7 +376,15 @@ pub(super) fn sweep_context_menus() -> Tally {
             View::ThreeD.aim_near(&mut rig, [-1, -1], [7, 6], 0.55);
             assert!(start(&mut rig, GridTool::Edit, Start::Strip));
             let at = if on_wall {
-                let (a, _) = View::ThreeD.wall(&mut rig, [2, 0], psxed_project::grid::WallEdge::North, 0.5, 0.5, 0.0, 600.0);
+                let (a, _) = View::ThreeD.wall(
+                    &mut rig,
+                    [2, 0],
+                    psxed_project::grid::WallEdge::North,
+                    0.5,
+                    0.5,
+                    0.0,
+                    600.0,
+                );
                 a
             } else {
                 View::ThreeD.cell(&rig, [2, 2])
@@ -357,11 +399,19 @@ pub(super) fn sweep_context_menus() -> Tally {
             .map(|(t, r)| (t.trim().to_string(), r))
             .filter(|(t, _)| !t.is_empty() && !closed.iter().any(|c| c.trim() == t))
             .collect();
-        eprintln!("context menu on a {}: {:?}", if on_wall { "wall" } else { "floor" }, entries.iter().map(|(l, _)| l.as_str()).collect::<Vec<_>>());
+        eprintln!(
+            "context menu on a {}: {:?}",
+            if on_wall { "wall" } else { "floor" },
+            entries.iter().map(|(l, _)| l.as_str()).collect::<Vec<_>>()
+        );
         for (label, _) in &entries {
             let (mut rig, at) = make();
             rig.secondary_click(at);
-            let Some((_, rect)) = texts(&rig).into_iter().map(|(t, r)| (t.trim().to_string(), r)).find(|(t, _)| t == label) else {
+            let Some((_, rect)) = texts(&rig)
+                .into_iter()
+                .map(|(t, r)| (t.trim().to_string(), r))
+                .find(|(t, _)| t == label)
+            else {
                 continue;
             };
             let rest = shapes_hash(&rig);
@@ -375,10 +425,16 @@ pub(super) fn sweep_context_menus() -> Tally {
             let sel_before = format!("{:?}", rig.ws.grid.selection);
             rig.click(rect.center());
             frames(&mut rig, 3);
-            if snap(&rig, Mode::Content) != before || format!("{:?}", rig.ws.grid.selection) != sel_before || rig.ws.take_playtest_request().is_some() {
+            if snap(&rig, Mode::Content) != before
+                || format!("{:?}", rig.ws.grid.selection) != sel_before
+                || rig.ws.take_playtest_request().is_some()
+            {
                 total.alive += 1;
             } else {
-                total.dead.push(format!("context menu ({}): {label}", if on_wall { "wall" } else { "floor" }));
+                total.dead.push(format!(
+                    "context menu ({}): {label}",
+                    if on_wall { "wall" } else { "floor" }
+                ));
             }
         }
     }
@@ -397,7 +453,9 @@ pub(super) fn sweep_library() -> Tally {
             View::Plan.drag_cells(&mut rig, [1, 2], [4, 2]);
         }
         if !lib_open(&mut rig, tab) {
-            total.dead.push(format!("Library: the {tab} tab does not open"));
+            total
+                .dead
+                .push(format!("Library: the {tab} tab does not open"));
             continue;
         }
         let tab_row = texts(&rig)
@@ -413,7 +471,15 @@ pub(super) fn sweep_library() -> Tally {
         let reopen = move |rig: &mut WindowRig| {
             let _ = lib_open(rig, tab);
         };
-        total.add(sweep(&mut rig, &format!("Library {tab}"), region, Mode::Screen, true, &reopen, &reopen));
+        total.add(sweep(
+            &mut rig,
+            &format!("Library {tab}"),
+            region,
+            Mode::Screen,
+            true,
+            &reopen,
+            &reopen,
+        ));
     }
     total
 }
@@ -457,7 +523,15 @@ pub(super) fn sweep_inspector_forms() -> Tally {
             if !start(rig, GridTool::Door, Start::Strip) {
                 return false;
             }
-            let (a, b) = View::Plan.wall(rig, [2, 0], psxed_project::grid::WallEdge::North, 0.375, 0.625, 0.0, 300.0);
+            let (a, b) = View::Plan.wall(
+                rig,
+                [2, 0],
+                psxed_project::grid::WallEdge::North,
+                0.375,
+                0.625,
+                0.0,
+                300.0,
+            );
             rig.drag(a, b);
             let _ = start(rig, GridTool::Edit, Start::Strip);
             click_text(rig, "Door 1")
@@ -468,7 +542,9 @@ pub(super) fn sweep_inspector_forms() -> Tally {
         View::Plan.aim_near(&mut rig, [-1, -1], [7, 6], 1.0);
         assert!(start(&mut rig, GridTool::Edit, Start::Strip));
         if !select(&mut rig) {
-            total.dead.push(format!("Inspector: could not select the {what}"));
+            total
+                .dead
+                .push(format!("Inspector: could not select the {what}"));
             continue;
         }
         let after_select = rig.ws.project.clone();
@@ -484,15 +560,34 @@ pub(super) fn sweep_inspector_forms() -> Tally {
             rig.ws.grid.selection = sel_grid.clone();
             frames(rig, 3);
         };
-        let mut t = sweep(&mut rig, &format!("Inspector, {what}"), region, Mode::Screen, true, &reselect, &reselect);
+        let mut t = sweep(
+            &mut rig,
+            &format!("Inspector, {what}"),
+            region,
+            Mode::Screen,
+            true,
+            &reselect,
+            &reselect,
+        );
         // Not controls: the selectable headings and readouts of the form (the
         // selected thing's name and id, the section titles, the row names), and
         // Snap to Floor on an object that already stands on the floor.
-        let names = ["Properties", "World", "Name", "Rotation", "Snap to Floor", "Lever 1", "Checkpoint 1", "Door 1"];
+        let names = [
+            "Properties",
+            "World",
+            "Name",
+            "Rotation",
+            "Snap to Floor",
+            "Lever 1",
+            "Checkpoint 1",
+            "Door 1",
+        ];
         t.dead.retain(|d| {
             let label = d.split_once(": ").map_or(d.as_str(), |(_, l)| l);
             let label = d.rsplit(": ").next().unwrap_or(label);
-            let plain = label.trim_start_matches(|c: char| !c.is_alphanumeric() && c != '#').trim();
+            let plain = label
+                .trim_start_matches(|c: char| !c.is_alphanumeric() && c != '#')
+                .trim();
             let heading = names.contains(&plain)
                 || plain.starts_with('#')
                 || plain.starts_with("Interaction")
@@ -515,11 +610,20 @@ fn no_options_bar_control_is_dead_and_the_menus_have_no_dead_entry() {
         bars.alive, bars.labels, bars.icon_only, bars.dead
     );
     let ctx = sweep_context_menus();
-    eprintln!("context menus: {} alive, {} labels, dead {:?}", ctx.alive, ctx.labels, ctx.dead);
+    eprintln!(
+        "context menus: {} alive, {} labels, dead {:?}",
+        ctx.alive, ctx.labels, ctx.dead
+    );
     let lib = sweep_library();
-    eprintln!("library: {} alive, {} labels, {} icon-only, dead {:?}", lib.alive, lib.labels, lib.icon_only, lib.dead);
+    eprintln!(
+        "library: {} alive, {} labels, {} icon-only, dead {:?}",
+        lib.alive, lib.labels, lib.icon_only, lib.dead
+    );
     let forms = sweep_inspector_forms();
-    eprintln!("inspector forms: {} alive, {} labels, {} icon-only, dead {:?}", forms.alive, forms.labels, forms.icon_only, forms.dead);
+    eprintln!(
+        "inspector forms: {} alive, {} labels, {} icon-only, dead {:?}",
+        forms.alive, forms.labels, forms.icon_only, forms.dead
+    );
     let (menus, skipped) = sweep_menus();
     eprintln!(
         "menus: {} alive, {} labels, dead {:?} (skipped: {skipped:?})",
@@ -539,6 +643,10 @@ fn no_options_bar_control_is_dead_and_the_menus_have_no_dead_entry() {
     dead.extend(ctx.dead);
     dead.extend(lib.dead);
     dead.extend(forms.dead);
-    assert!(dead.is_empty(), "{} dead controls:\n{}", dead.len(), dead.join("\n"));
+    assert!(
+        dead.is_empty(),
+        "{} dead controls:\n{}",
+        dead.len(),
+        dead.join("\n")
+    );
 }
-

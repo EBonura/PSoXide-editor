@@ -62,8 +62,6 @@ fn mid(a: Pos2, b: Pos2) -> Pos2 {
     a + (b - a) * 0.5
 }
 
-const UP: Vec2 = Vec2::new(0.0, -70.0);
-
 fn cells_up_by(
     rig: &mut WindowRig,
     v: View,
@@ -79,7 +77,13 @@ fn cells_up_by(
     Ok(out)
 }
 
-fn cells_up(rig: &mut WindowRig, v: View, lo: [i32; 2], hi: [i32; 2], r: bool) -> Result<Out, String> {
+fn cells_up(
+    rig: &mut WindowRig,
+    v: View,
+    lo: [i32; 2],
+    hi: [i32; 2],
+    r: bool,
+) -> Result<Out, String> {
     cells_up_by(rig, v, lo, hi, 70.0, r)
 }
 
@@ -158,7 +162,13 @@ fn f_bridge(rig: &mut WindowRig, v: View, r: bool) -> Result<Out, String> {
     Ok(out)
 }
 
-fn f_wall_tool_run(rig: &mut WindowRig, v: View, r: bool, up: f32, base: f32) -> Result<Out, String> {
+fn f_wall_tool_run(
+    rig: &mut WindowRig,
+    v: View,
+    r: bool,
+    up: f32,
+    base: f32,
+) -> Result<Out, String> {
     let _ = (up, base);
     // Opening, Door and Bands act on a wall.
     let (a, b) = v.wall(rig, [2, 0], WallEdge::North, 0.375, 0.625, 0.0, 300.0);
@@ -292,12 +302,18 @@ pub(super) fn lib_open(rig: &mut WindowRig, tab: &str) -> bool {
             .map(|(_, r)| r)
     };
     // The closed drawer is one bar that describes what is in it.
-    let is_closed = |rig: &WindowRig| texts(rig).iter().any(|(t, _)| t.starts_with("materials, meshes"));
+    let is_closed = |rig: &WindowRig| {
+        texts(rig)
+            .iter()
+            .any(|(t, _)| t.starts_with("materials, meshes"))
+    };
     for _ in 0..3 {
         if !is_closed(rig) {
             break;
         }
-        let Some(r) = lowest(rig, "Library") else { return false };
+        let Some(r) = lowest(rig, "Library") else {
+            return false;
+        };
         rig.click(r.center());
         frames(rig, 4);
     }
@@ -341,7 +357,9 @@ pub(super) fn lib_row_nth(rig: &mut WindowRig, icon: char, n: usize) -> bool {
     let Some(tab) = tab else { return false };
     let mut rows: Vec<(String, Rect)> = texts(rig)
         .into_iter()
-        .filter(|(t, r)| t.contains(icon) && r.center().y > tab.center().y + 8.0 && r.min.x >= tab.min.x - 40.0)
+        .filter(|(t, r)| {
+            t.contains(icon) && r.center().y > tab.center().y + 8.0 && r.min.x >= tab.min.x - 40.0
+        })
         .collect();
     rows.sort_by(|a, b| a.1.center().y.total_cmp(&b.1.center().y));
     let hit = rows.into_iter().nth(n);
@@ -485,11 +503,20 @@ fn fresh(view: View, tool: GridTool) -> Result<WindowRig, String> {
 }
 
 /// Run one cell: the flow released, and the effect it was to have.
-pub(super) fn run_cell(tool: GridTool, expect: Expect, flow: Flow, view: View) -> Result<String, String> {
+pub(super) fn run_cell(
+    tool: GridTool,
+    expect: Expect,
+    flow: Flow,
+    view: View,
+) -> Result<String, String> {
     let mut rig = fresh(view, tool)?;
     // The Bands tool cuts at a height, which the Plan does not have: there it
     // selects the run and says to cut in the 3D view.
-    let expect = if tool == GridTool::Bands && view.in_plan() { Expect::Selection } else { expect };
+    let expect = if tool == GridTool::Bands && view.in_plan() {
+        Expect::Selection
+    } else {
+        expect
+    };
     let out = flow(&mut rig, view, true)?;
     let ok = match expect {
         Expect::Doc => rig.ws.project != out.before,
@@ -575,6 +602,11 @@ fn esc_in_the_middle_of_every_gesture_changes_nothing_in_every_view() {
 #[test]
 fn the_matrix_names_every_tool_once() {
     for tool in GridTool::ALL {
-        assert_eq!(FLOWS.iter().filter(|f| f.0 == tool).count(), 1, "{}", tool.label());
+        assert_eq!(
+            FLOWS.iter().filter(|f| f.0 == tool).count(),
+            1,
+            "{}",
+            tool.label()
+        );
     }
 }
