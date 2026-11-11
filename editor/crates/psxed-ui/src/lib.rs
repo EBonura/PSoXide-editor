@@ -263,6 +263,8 @@ const SHORTCUT_GROUP_FLASH_SECONDS: f32 = 0.85;
 const ACTION_BAR_COMPACT_HEIGHT: f32 = 44.0;
 /// The tool row under the top bar of a grid world's World workspace.
 const TOOL_ROW_HEIGHT: f32 = 36.0;
+/// Height of the status and hint bar along the bottom of every tab.
+const STATUS_BAR_HEIGHT: f32 = 30.0;
 /// The options bar under the viewport header: always this tall, so no tool
 /// moves the viewport.
 const OPTIONS_BAR_HEIGHT: f32 = 28.0;

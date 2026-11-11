@@ -291,18 +291,7 @@ impl EditorWorkspace {
             .auto_shrink([false, false])
             .show(&mut inner, |ui| {
                 let options = ui.scope(|ui| self.draw_grid_context_controls(ui));
-                let no_options = options.response.rect.width() < 1.0;
-                self.grid.hints_in_options.set(no_options);
-                if no_options {
-                    ui.add(
-                        egui::Label::new(
-                            RichText::new(self.grid_key_hints())
-                                .color(STUDIO_TEXT_WEAK)
-                                .size(12.0),
-                        )
-                        .truncate(),
-                    );
-                }
+                let _ = options;
             });
         self.grid.options_scroll = area.state.offset.x;
         let overflow = area.content_size.x - view_width;
@@ -421,48 +410,120 @@ impl EditorWorkspace {
         slot.map(|(_, budget)| budget)
     }
 
-    /// The bottom bar: last message, key hints, budget.
-    pub(crate) fn draw_grid_status_bar(&mut self, ctx: &egui::Context) {
-        let Some(budget) = self.grid_budget() else {
-            return;
+    /// What the pointer is over, in words, for the hint bar. `None` over
+    /// nothing worth naming.
+    pub(crate) fn grid_hover_text(&self) -> Option<String> {
+        let room_cell = |room: usize, cell: [i32; 2]| {
+            let name = self
+                .project
+                .active_scene()
+                .world
+                .grid()
+                .and_then(|w| w.rooms.get(room))
+                .map_or_else(|| format!("room {room}"), |r| r.name.clone());
+            format!("{name}, sector {}, {}", cell[0], cell[1])
         };
-        let room = self.grid_target_room();
-        let (room_sectors, room_name, room_count) = self
-            .project
-            .active_scene()
-            .world
-            .grid()
-            .map(|w| {
-                let r = w.rooms.get(room);
-                (
-                    r.map_or(0, |r| r.leaf_count()),
-                    r.map_or(String::new(), |r| r.name.clone()),
-                    w.rooms.len(),
-                )
-            })
-            .unwrap_or_default();
-        let in_view = self.grid_faces_in_view();
-        let worst = if self.grid.overlays.perf {
+        Some(match &self.grid.hover {
+            GridHover::None => return None,
+            GridHover::Cell { room, cell, height } => format!(
+                "Over {} at {:.2} clicks",
+                room_cell(*room, *cell),
+                *height as f32 / CLICK_UNITS as f32
+            ),
+            GridHover::Wall {
+                room, cell, edge, ..
+            } => format!("Over a wall of {} ({edge:?})", room_cell(*room, *cell)),
+            GridHover::Elements(list) => match list.len() {
+                0 => return None,
+                1 => "Over one element".to_string(),
+                n => format!("Over {n} elements"),
+            },
+            GridHover::Face { .. } => "Over a face".to_string(),
+            GridHover::Spot { .. } => "Over a spot to place at".to_string(),
+            GridHover::Band { .. } => "Over a wall, ready to cut".to_string(),
+            GridHover::Leaf { room, .. } => format!("Over a cell of room {room}"),
+            GridHover::Plane(_) => "Over a plane".to_string(),
+            GridHover::Mesh(_) => "Over a mesh".to_string(),
+            GridHover::MeshSpot { .. } => "Over a floor a mesh can stand on".to_string(),
+            GridHover::Grip(..) => "Over a plane handle".to_string(),
+            GridHover::PlaneSpot(..) => "Over a surface a plane can go on".to_string(),
+        })
+    }
+
+    /// The left of the hint bar: what the pointer is over, then the keys of
+    /// the active tool. A tab without tools says what its pointer does.
+    fn status_hint(&self) -> String {
+        if self.is_grid_world() && self.active_workspace == WorkspaceView::Room {
+            let keys = self.grid_key_hints();
+            return match self.grid_hover_text() {
+                Some(over) => format!("{over}   |   {keys}"),
+                None => keys.to_string(),
+            };
+        }
+        match self.active_workspace {
+            WorkspaceView::Room => "Open or create a grid project to edit a world".to_string(),
+            WorkspaceView::Ui => {
+                "Pick a node in the tree to edit it in the Inspector | Ctrl+S saves | Ctrl+Z undoes"
+                    .to_string()
+            }
+            WorkspaceView::Animation => {
+                "Pick a model or a clip in the Assets drawer | Ctrl+S saves | Ctrl+Z undoes"
+                    .to_string()
+            }
+            WorkspaceView::Material => {
+                "Pick a material in the Assets drawer to edit it | Ctrl+S saves | Ctrl+Z undoes"
+                    .to_string()
+            }
+        }
+    }
+
+    /// The bottom bar on every tab: the hint for the active tool and hover
+    /// target on the left, the last message on the right (so a Save or an
+    /// error is seen wherever it happened), and on the World tab the budget
+    /// chips beside the message.
+    pub(crate) fn draw_status_bar(&mut self, ctx: &egui::Context) {
+        let world_tab = self.is_grid_world() && self.active_workspace == WorkspaceView::Room;
+        let budget = if world_tab { self.grid_budget() } else { None };
+        let hint = self.status_hint();
+        let chips = budget.map(|budget| {
+            let room = self.grid_target_room();
+            let (room_sectors, room_name, room_count) = self
+                .project
+                .active_scene()
+                .world
+                .grid()
+                .map(|w| {
+                    let r = w.rooms.get(room);
+                    (
+                        r.map_or(0, |r| r.leaf_count()),
+                        r.map_or(String::new(), |r| r.name.clone()),
+                        w.rooms.len(),
+                    )
+                })
+                .unwrap_or_default();
+            (budget, room, room_sectors, room_name, room_count)
+        });
+        let in_view = if world_tab {
+            self.grid_faces_in_view()
+        } else {
+            None
+        };
+        let worst = if world_tab && self.grid.overlays.perf {
             self.heat_run().filter(|r| r.fresh).and_then(|r| {
                 let w = *r.map.worst()?;
                 let pct = w.cycles as f32 * 100.0 / r.map.options.world_budget() as f32;
                 Some(format!(
-                    "   cooked {} quads, worst spot {pct:.0}% (model)",
+                    "cooked {} quads, worst spot {pct:.0}% (model)",
                     r.map.quads_total
                 ))
             })
         } else {
             None
         };
-        let percent = budget.faces_percent();
-        let hot = percent >= 85;
-        let chip_colour = if hot {
-            Color32::from_rgb(240, 150, 90)
-        } else {
-            STUDIO_TEXT
-        };
-        egui::TopBottomPanel::bottom("psxed_grid_status_bar")
-            .exact_height(30.0)
+        let message = self.status.clone();
+        let half = (ctx.screen_rect().width() * 0.42).max(160.0);
+        egui::TopBottomPanel::bottom("psxed_status_bar")
+            .exact_height(STATUS_BAR_HEIGHT)
             .frame(
                 egui::Frame::new()
                     .fill(STUDIO_PANEL_HEADER)
@@ -470,74 +531,79 @@ impl EditorWorkspace {
             )
             .show(ctx, |ui| {
                 ui.horizontal_centered(|ui| {
-                    // The right end first: the budget chips, so the message
-                    // and the hints share what is left.
+                    // The right end first, so the hint takes what is left:
+                    // the message outermost, the chips beside it.
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let view_text = in_view.map(|n| format!("{n} in view"));
-                        if let Some(text) = view_text {
-                            ui.label(RichText::new(text).color(STUDIO_TEXT_WEAK).size(12.0));
-                            ui.separator();
-                        }
-                        if let Some(text) = &worst {
-                            ui.label(
-                                RichText::new(text.trim())
-                                    .color(STUDIO_TEXT_WEAK)
-                                    .size(12.0),
-                            );
-                            ui.separator();
-                        }
-                        ui.label(
-                            RichText::new(format!(
-                                "{} / {MAX_ROOM_FACES} faces ({percent}%)",
-                                budget.largest_room_faces
-                            ))
-                            .color(chip_colour)
-                            .size(12.0),
-                        )
-                        .on_hover_text(format!(
-                            "The busiest room's faces against the cap; the world has {} rooms and {} faces",
-                            room_count, budget.faces
-                        ));
-                        ui.separator();
-                        ui.label(
-                            RichText::new(format!(
-                                "{}: {room_sectors} {}",
-                                if room_name.is_empty() {
-                                    format!("Room {room}")
-                                } else {
-                                    format!("Room {room_name}")
-                                },
-                                budget
-                                    .levels_text()
-                                    .map_or("sectors".to_string(), |t| format!("cells ({t})")),
-                            ))
-                            .color(STUDIO_TEXT)
-                            .size(12.0),
-                        );
-                        ui.separator();
-                        // What is left: the message, then the hints.
-                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                        ui.scope(|ui| {
+                            ui.set_max_width(half);
                             ui.add(
                                 egui::Label::new(
-                                    RichText::new(&self.status)
+                                    RichText::new(&message)
                                         .color(Color32::from_rgb(120, 220, 140))
                                         .size(13.0),
                                 )
                                 .truncate(),
+                            )
+                            .on_hover_text(&message);
+                        });
+                        if let Some((budget, room, room_sectors, room_name, room_count)) = &chips {
+                            let percent = budget.faces_percent();
+                            let colour = if percent >= 85 {
+                                Color32::from_rgb(240, 150, 90)
+                            } else {
+                                STUDIO_TEXT
+                            };
+                            ui.separator();
+                            ui.label(
+                                RichText::new(format!(
+                                    "{} / {MAX_ROOM_FACES} faces ({percent}%)",
+                                    budget.largest_room_faces
+                                ))
+                                .color(colour)
+                                .size(12.0),
+                            )
+                            .on_hover_text(format!(
+                                "The busiest room's faces against the cap; the world has {} rooms and {} faces",
+                                room_count, budget.faces
+                            ));
+                            ui.separator();
+                            ui.label(
+                                RichText::new(format!(
+                                    "{}: {room_sectors} {}",
+                                    if room_name.is_empty() {
+                                        format!("Room {room}")
+                                    } else {
+                                        format!("Room {room_name}")
+                                    },
+                                    budget
+                                        .levels_text()
+                                        .map_or("sectors".to_string(), |t| format!("cells ({t})")),
+                                ))
+                                .color(STUDIO_TEXT)
+                                .size(12.0),
                             );
-                            // A tool with no options already has the hints in
-                            // the bar above: not twice.
-                            if !self.grid.hints_in_options.get() {
-                                ui.separator();
-                                ui.add(
-                                    egui::Label::new(
-                                        RichText::new(self.grid_key_hints())
-                                            .color(STUDIO_TEXT_WEAK)
-                                            .size(12.0),
-                                    )
-                                    .truncate(),
-                                );
-                            }
+                        }
+                        if let Some(text) = &worst {
+                            ui.separator();
+                            ui.label(RichText::new(text).color(STUDIO_TEXT_WEAK).size(12.0));
+                        }
+                        if let Some(n) = in_view {
+                            ui.separator();
+                            ui.label(
+                                RichText::new(format!("{n} in view"))
+                                    .color(STUDIO_TEXT_WEAK)
+                                    .size(12.0),
+                            );
+                        }
+                        ui.separator();
+                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                            ui.add(
+                                egui::Label::new(
+                                    RichText::new(&hint).color(STUDIO_TEXT_WEAK).size(12.0),
+                                )
+                                .truncate(),
+                            )
+                            .on_hover_text(&hint);
                         });
                     });
                 });

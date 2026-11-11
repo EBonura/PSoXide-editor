@@ -683,9 +683,6 @@ pub(crate) struct GridEditState {
     pub fit_pending: bool,
     /// Where the 3D view was drawn last, for the in-view face count.
     pub view_rect: std::cell::Cell<Option<Rect>>,
-    /// The options bar showed the tool's key hints in the last frame (a tool
-    /// with no options), so the status bar does not say them again.
-    pub hints_in_options: std::cell::Cell<bool>,
     /// A scripted hover (see `pose`) stays until a real pointer replaces it.
     pub hover_pinned: bool,
     /// The key and gesture help overlay (`?`) is open.
@@ -769,7 +766,6 @@ impl Default for GridEditState {
             budget: RefCell::new(None),
             fit_pending: true,
             view_rect: std::cell::Cell::new(None),
-            hints_in_options: std::cell::Cell::new(false),
             hover_pinned: false,
             help_open: false,
             help_search: String::new(),

@@ -1037,32 +1037,79 @@ fn snap_is_at_the_right_end_of_the_bar_for_every_tool() {
     );
 }
 
+/// The texts drawn in the status bar along the bottom of the window.
+fn status_bar_texts(rig: &WindowRig) -> Vec<String> {
+    let band = Rect::from_min_max(
+        Pos2::new(0.0, rig.size.y - STATUS_BAR_HEIGHT),
+        Pos2::new(rig.size.x, rig.size.y),
+    );
+    texts(rig)
+        .into_iter()
+        .filter(|(_, r)| band.contains(r.center()))
+        .map(|(t, _)| t)
+        .collect()
+}
+
 #[test]
-fn a_tool_with_no_options_shows_its_key_hints_and_one_with_options_shows_them() {
+fn the_status_bar_shows_the_hints_of_every_tool_and_the_options_bar_never_does() {
     let mut rig = WindowRig::new();
     rig.ws.grid.walls_prompt_dismissed.insert(0);
-    // Diagonal has no options: its hints fill the bar.
-    rig.ws.set_grid_tool(GridTool::Split);
-    frames(&mut rig, 3);
-    let shown: Vec<String> = options_texts(&rig).into_iter().map(|(t, _)| t).collect();
-    assert!(
-        shown.iter().any(|t| t.contains("flips its diagonal")),
-        "{shown:?}"
-    );
-    // Floor has a height: the option, no hints.
-    rig.ws.set_grid_tool(GridTool::Floor);
-    frames(&mut rig, 3);
-    let shown: Vec<String> = options_texts(&rig).into_iter().map(|(t, _)| t).collect();
-    assert!(shown.iter().any(|t| t == "Height"), "{shown:?}");
-    assert!(
-        !shown.iter().any(|t| t.contains("Drag rectangle")),
-        "{shown:?}"
-    );
-    // Select with nothing picked has none: hints.
-    rig.ws.set_grid_tool(GridTool::Select);
-    frames(&mut rig, 3);
-    let shown: Vec<String> = options_texts(&rig).into_iter().map(|(t, _)| t).collect();
-    assert!(shown.iter().any(|t| t.contains("Click pick")), "{shown:?}");
+    for (tool, hint) in [
+        (GridTool::Split, "flips its diagonal"),
+        (GridTool::Floor, "Drag rectangle"),
+        (GridTool::Select, "Click pick"),
+    ] {
+        rig.ws.set_grid_tool(tool);
+        frames(&mut rig, 3);
+        let bar = status_bar_texts(&rig);
+        assert!(
+            bar.iter().any(|t| t.contains(hint)),
+            "{}: {bar:?}",
+            tool.label()
+        );
+        let options: Vec<String> = options_texts(&rig).into_iter().map(|(t, _)| t).collect();
+        assert!(
+            !options.iter().any(|t| t.contains(hint)),
+            "{}: {options:?}",
+            tool.label()
+        );
+    }
+}
+
+#[test]
+fn the_last_message_is_in_the_status_bar_on_every_tab() {
+    use crate::WorkspaceView;
+    let mut rig = WindowRig::new();
+    for view in [
+        WorkspaceView::Room,
+        WorkspaceView::Ui,
+        WorkspaceView::Animation,
+        WorkspaceView::Material,
+    ] {
+        rig.ws.active_workspace = view;
+        rig.ws.status = format!("Saved {}", view.label());
+        frames(&mut rig, 3);
+        let bar = status_bar_texts(&rig);
+        assert!(
+            bar.iter().any(|t| t == &format!("Saved {}", view.label())),
+            "{}: {bar:?}",
+            view.label()
+        );
+        // The hint sits left of the message.
+        let all = texts(&rig);
+        let rect_of = |needle: &str| {
+            all.iter()
+                .find(|(t, r)| r.center().y > rig.size.y - STATUS_BAR_HEIGHT && t.contains(needle))
+                .map(|(_, r)| *r)
+        };
+        let message = rect_of("Saved").expect("message");
+        let hint = rect_of("Ctrl+").or_else(|| rect_of("Click")).expect("hint");
+        assert!(
+            hint.min.x < message.min.x,
+            "{}: {hint:?} {message:?}",
+            view.label()
+        );
+    }
 }
 
 #[test]
