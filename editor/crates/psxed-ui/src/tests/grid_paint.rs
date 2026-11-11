@@ -165,7 +165,11 @@ fn keys_during_a_drag_are_taken_and_ignored() {
     for x in 0..3 {
         assert!(floor_uv(&rig, x).is_identity(), "x {x}");
     }
-    assert_eq!(rig.ws.grid.tool, GridTool::Paint, "a key during a stroke does not change the tool");
+    assert_eq!(
+        rig.ws.grid.tool,
+        GridTool::Paint,
+        "a key during a stroke does not change the tool"
+    );
 }
 
 #[test]
@@ -194,7 +198,13 @@ fn paint_turn_and_mirror_keys_are_not_tool_keys_so_every_tool_key_still_switches
         }
         rig.tool(GridTool::Paint);
         rig.key(tool.key());
-        assert_ne!(rig.ws.grid.tool, GridTool::Paint, "{} key {:?}", tool.label(), tool.key());
+        assert_ne!(
+            rig.ws.grid.tool,
+            GridTool::Paint,
+            "{} key {:?}",
+            tool.label(),
+            tool.key()
+        );
         assert_eq!(rig.ws.grid.tool.key(), tool.key(), "{}", tool.label());
     }
     // Away from Paint, M and R do not touch the brush.

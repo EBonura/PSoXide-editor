@@ -910,7 +910,13 @@ pub(super) fn click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
                     moved.to -= 1;
                 }
                 if moved != run {
-                    if let Some(w) = ws.grid.build.drag.as_mut().and_then(|d| d.geo.wall.as_mut()) {
+                    if let Some(w) = ws
+                        .grid
+                        .build
+                        .drag
+                        .as_mut()
+                        .and_then(|d| d.geo.wall.as_mut())
+                    {
                         *w = moved;
                     }
                 }

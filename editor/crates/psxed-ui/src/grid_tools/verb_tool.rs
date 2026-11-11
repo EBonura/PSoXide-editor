@@ -421,8 +421,8 @@ pub(super) fn release(ws: &mut EditorWorkspace, ptr: &GridPointer) {
         Gesture::Verb(g) => {
             // A gesture that came to nothing (a refused flight, a break that
             // broke nothing) leaves no undo step.
-            let recorded = g.before.is_none()
-                || matches!(&g.drag, VerbDrag::Break(live) if live.recorded());
+            let recorded =
+                g.before.is_none() || matches!(&g.drag, VerbDrag::Break(live) if live.recorded());
             if recorded {
                 drop_empty_step(ws);
             }
