@@ -992,6 +992,40 @@ impl EditorWorkspace {
         }
     }
 
+    /// Whether Edit > Delete Selection has a grid target: a room chosen in the
+    /// Structure panel (never the last one), or picked faces and planes.
+    pub(crate) fn grid_selection_deletable(&self) -> bool {
+        let rooms = self
+            .project
+            .active_scene()
+            .world
+            .grid()
+            .map_or(0, |w| w.rooms.len());
+        (self.selection.selected_room.is_some() && rooms > 1)
+            || !self.grid.selection.is_empty()
+            || !self.grid.plane_sel.is_empty()
+    }
+
+    /// Delete the chosen room, else the picked faces and planes. `false` when
+    /// there was nothing of the grid to delete (the caller falls back to the
+    /// selected node).
+    pub(crate) fn delete_grid_selection(&mut self) -> bool {
+        if let Some(room) = self.selection.selected_room {
+            let rooms = self
+                .project
+                .active_scene()
+                .world
+                .grid()
+                .map_or(0, |w| w.rooms.len());
+            if rooms > 1 && room < rooms {
+                self.selection.selected_room = None;
+                self.grid_delete_room(room);
+                return true;
+            }
+        }
+        clipboard_tool::delete_selection(self)
+    }
+
     /// A grid edit just happened: stale caches, dirty document.
     pub(crate) fn grid_changed(&mut self) {
         self.mark_dirty();

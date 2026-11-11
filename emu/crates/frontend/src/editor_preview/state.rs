@@ -55,10 +55,26 @@ pub(super) struct PreviewState {
     next_serial: u64,
 }
 
+#[cfg(not(test))]
 static STATE: OnceLock<Mutex<PreviewState>> = OnceLock::new();
 
+/// The preview's state. In a test build each test thread has its own, so tests
+/// that run in parallel never observe each other's documents (the generation
+/// counter flips whenever a different document is asked about, which made the
+/// incremental-equals-cold comparison fail only when tests ran together).
 pub(super) fn preview_state() -> &'static Mutex<PreviewState> {
-    STATE.get_or_init(|| Mutex::new(PreviewState::default()))
+    #[cfg(test)]
+    {
+        thread_local! {
+            static THREAD_STATE: &'static Mutex<PreviewState> =
+                Box::leak(Box::new(Mutex::new(PreviewState::default())));
+        }
+        THREAD_STATE.with(|state| *state)
+    }
+    #[cfg(not(test))]
+    {
+        STATE.get_or_init(|| Mutex::new(PreviewState::default()))
+    }
 }
 
 /// A number that changes whenever `project` differs from the one this was

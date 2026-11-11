@@ -893,10 +893,15 @@ impl EditorWorkspace {
             }
             ui.separator();
             if ui
-                .add_enabled(can_node_delete, egui::Button::new("Delete Selection"))
+                .add_enabled(
+                    can_node_delete || self.grid_selection_deletable(),
+                    egui::Button::new("Delete Selection"),
+                )
                 .clicked()
             {
-                self.delete_selected();
+                if !self.delete_grid_selection() {
+                    self.delete_selected();
+                }
                 ui.close_menu();
             }
         });

@@ -533,6 +533,12 @@ impl EditorWorkspace {
             None
         };
         let message = self.status.clone();
+        // A narrow window keeps the hint readable: the secondary chips go
+        // first (the face budget stays, it is the cap that matters).
+        let screen_width = ctx.screen_rect().width();
+        let in_view = in_view.filter(|_| screen_width >= 1500.0);
+        let worst = worst.filter(|_| screen_width >= 1500.0);
+        let show_room_chip = screen_width >= 1500.0;
         let half = (ctx.screen_rect().width() * 0.42).max(160.0);
         egui::TopBottomPanel::bottom("psxed_status_bar")
             .exact_height(STATUS_BAR_HEIGHT)
@@ -578,6 +584,7 @@ impl EditorWorkspace {
                                 "The busiest room's faces against the cap; the world has {} rooms and {} faces",
                                 room_count, budget.faces
                             ));
+                            if show_room_chip {
                             ui.separator();
                             ui.label(
                                 RichText::new(format!(
@@ -594,6 +601,7 @@ impl EditorWorkspace {
                                 .color(STUDIO_TEXT)
                                 .size(12.0),
                             );
+                            }
                         }
                         if let Some(text) = &worst {
                             ui.separator();
