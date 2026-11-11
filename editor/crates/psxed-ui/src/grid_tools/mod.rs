@@ -84,6 +84,7 @@ mod tool_row;
 mod tool_search;
 #[cfg(test)]
 pub(crate) use library::LibraryTab;
+#[cfg(test)]
 pub(crate) use tool_row::{tool_strip_height, CLASSIC, MORE_BUILD};
 
 /// Height of the strip plus the options bar under it: where the viewport

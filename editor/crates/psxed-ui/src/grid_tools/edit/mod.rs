@@ -114,6 +114,7 @@ pub(crate) struct EditState {
 
 impl EditState {
     /// Whether the context menu is open over an element.
+    #[cfg(test)]
     pub(crate) fn menu_is_open(&self) -> bool {
         self.menu.is_some()
     }
