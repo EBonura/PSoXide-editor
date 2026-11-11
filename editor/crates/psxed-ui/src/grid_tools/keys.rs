@@ -161,8 +161,12 @@ impl EditorWorkspace {
                 self.status = "Selection cleared".to_string();
             }
         }
-        let delete_key =
-            ctx.input(|i| i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace));
+        // Backspace edits a typed amount and must never delete the selection
+        // while a drag is in progress; Delete stays the delete key.
+        let busy = !matches!(self.grid.gesture, Gesture::Idle) || ctx.wants_keyboard_input();
+        let delete_key = ctx.input(|i| {
+            i.key_pressed(egui::Key::Delete) || (!busy && i.key_pressed(egui::Key::Backspace))
+        });
         if delete_key {
             // With a mesh selected in the Mesh tool, Delete removes it; with
             // a band line selected, the line; otherwise the picked faces.

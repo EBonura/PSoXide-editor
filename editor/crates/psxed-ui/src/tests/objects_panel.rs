@@ -988,20 +988,11 @@ fn collider_node3d_and_mesh_instance_are_in_no_menu() {
 }
 
 #[test]
-fn the_objects_menu_says_actor_where_it_said_entity() {
+fn the_place_chips_say_actor_where_the_menu_said_entity() {
     let mut rig = WindowRig::new();
     frames(&mut rig, 3);
-    let place = rig.at("Place");
-    let arrow = Pos2::new(place.x + 40.0, place.y);
-    rig.click(arrow);
-    frames(&mut rig, 3);
-    let texts: Vec<String> = texts_in(
-        &rig,
-        Rect::from_min_max(Pos2::new(700.0, 60.0), Pos2::new(1100.0, 200.0)),
-    )
-    .into_iter()
-    .map(|t| t.0)
-    .collect();
+    let strip = Rect::from_min_max(Pos2::new(0.0, 40.0), Pos2::new(rig.size.x, 130.0));
+    let texts: Vec<String> = texts_in(&rig, strip).into_iter().map(|t| t.0).collect();
     for item in ["Light", "Prop", "Actor"] {
         assert!(texts.iter().any(|t| t == item), "{item}: {texts:?}");
     }

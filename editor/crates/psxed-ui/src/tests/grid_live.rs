@@ -615,7 +615,7 @@ impl WindowRig {
     /// Visible text of the viewport header's view buttons, as
     /// `(text, bounds)`: the first row under the tool row.
     pub(super) fn header_texts(&self) -> Vec<(String, Rect)> {
-        let top = ACTION_BAR_COMPACT_HEIGHT + TOOL_ROW_HEIGHT;
+        let top = ACTION_BAR_COMPACT_HEIGHT + crate::grid_tools::tool_strip_height(&self.ctx);
         let tools_y = top + 36.0;
         self.out
             .shapes

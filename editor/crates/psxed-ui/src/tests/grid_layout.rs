@@ -204,7 +204,7 @@ fn the_tools_sit_in_labelled_groups_on_one_row() {
         for shape in &output.shapes {
             if let egui::Shape::Text(t) = &shape.shape {
                 // The row is the strip under the top bar; the palette says Paint too.
-                if t.galley.text() == label && t.pos.x < 1600.0 && t.pos.y < 100.0 {
+                if t.galley.text() == label && t.pos.y < 100.0 {
                     found.push(t.pos.y);
                 }
             }
@@ -212,12 +212,12 @@ fn the_tools_sit_in_labelled_groups_on_one_row() {
         assert_eq!(found.len(), 1, "{label}: {found:?}");
         found[0]
     };
-    for group in ["CREATE", "SHAPE", "SURFACE", "OBJECTS"] {
+    for group in ["EDIT", "BUILD", "TERRAIN", "SURFACE", "OBJECTS"] {
         y_of(group);
     }
     let row = y_of("Select");
     for tool in [
-        "Height", "Floor", "Ceiling", "Wall", "Extrude", "Paint", "Bands", "Place",
+        "Height", "Extrude", "Floor", "Ceiling", "Wall", "Sculpt", "Paint", "Place",
     ] {
         assert!((y_of(tool) - row).abs() < 4.0, "{tool} is on the row");
     }
@@ -230,7 +230,7 @@ fn the_tools_sit_in_labelled_groups_on_one_row() {
             seen.push(g);
         }
     }
-    assert_eq!(seen, ["PICK", "CREATE", "SHAPE", "SURFACE", "OBJECTS"]);
+    assert_eq!(seen, ["EDIT", "BUILD", "TERRAIN", "SURFACE", "OBJECTS"]);
 }
 
 fn font_size_of(output: &egui::FullOutput, needle: &str) -> Option<f32> {

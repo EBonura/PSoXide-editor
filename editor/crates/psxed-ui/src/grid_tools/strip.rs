@@ -342,33 +342,7 @@ impl EditorWorkspace {
         {
             return "Drag a handle: corners and edges stretch, green ring turns, blue tip tilts | Drag body slides, Shift up/down | Alt 64, Shift+Alt free | R turn | Del | Ctrl+C/V";
         }
-        match self.grid.tool {
-            GridTool::Plane => {
-                "Click a surface to place a plane | Drag sizes it | Click a plane to select | Alt 64, Shift+Alt free"
-            }
-            GridTool::Select => {
-                "Click pick | Shift range | Ctrl toggle | Drag box | Shift-drag height | Del delete | Ctrl+C/V copy"
-            }
-            GridTool::Mesh => {
-                "Click a floor to place | Drag moves | R turns, [ ] 15 | - = scale | Del removes | Alt 64"
-            }
-            GridTool::Floor => "Drag rectangle | Shift height | Ctrl delete | Esc cancel",
-            GridTool::Ceiling => "Drag rectangle | Shift height | Ctrl delete | Esc cancel",
-            GridTool::Wall => "Drag a run | R direction | Ctrl remove | Esc cancel",
-            GridTool::Height => "Drag up/down | Alt fine | Alt+drag a face: one triangle | L link | PgUp/PgDn nudge | Esc cancel",
-            GridTool::Paint => "Click or drag paint | R / Shift+R turn | F / Shift+F flip | [ ] scale | Ctrl sample | pick in the palette",
-            GridTool::Split => "Click a floor or ceiling flips its diagonal | Shift+click voids a triangle | Click again for the ceiling in Top",
-            GridTool::Bands => "Hover a wall, click to cut | Drag a line | Del removes it | Shift+click picks a band | Esc cancel",
-            GridTool::Extrude => "Press a floor, ceiling or wall and drag (walls: along the normal) | Shift-drag a box picks many, Shift+Alt adds | Click Shift adds | = out, - in | Tab Offset/Level | Alt fine | Esc cancel",
-            GridTool::Ramp => "Pick sectors | Press near the side to keep, drag up/down | R turn the side | Tab hold to walkable | Esc cancel",
-            GridTool::Stairs => "Drag a rectangle | Press on it, drag up | R turn the bottom side | Path: click waypoints, Enter, [ ] width | Tab steps/ramp | Esc cancel",
-            GridTool::Spiral => "Click the corners of a ring, Enter closes it | Press on it, drag up for the climb of a storey | Storeys in the option row | Alt+Up/Down level | Esc cancel",
-            GridTool::Break => "Pick sectors | Press on them, drag up for intensity | Tab target | Shift+X re-roll | Enter commit | Esc cancel",
-            GridTool::Slab => "Pick sectors | Add floor above: press on them and drag up for the height | Remove upper floor, Fill opening: click them | Tab mode | Alt+Up/Down level | G go to level | Z cutaway | Esc cancel",
-            GridTool::Sculpt => "Press and drag on the ground | Shift inverts | [ ] radius | Tab mode | Ramp: drag A to B | Dunes: drag across | Esc cancels the stroke",
-            GridTool::Cells => "Paint to subdivide | Alt+paint merges | Shift+M merges the cell under the pointer | [ ] brush | Alt+L cell sizes",
-            GridTool::Place => "Click to place at the sector centre | Shift+click keeps placing | Alt 64 | Shift+Alt free",
-        }
+        self.grid.tool.hint()
     }
 
     /// Faces facing the camera with their centre inside the 3D view: a cheap

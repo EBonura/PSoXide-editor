@@ -1,85 +1,46 @@
-//! The tool row: one line under the top bar, never wrapping.
+//! The tool strip: five labelled groups, every tool its own button with its
+//! name and key, read from the one catalog.
 //!
-//! Select and Height first (no label), then CREATE (Floor, Wall, Ceiling and
-//! a menu with Plane and Mesh), SHAPE (a split button: its face is the last
-//! shape tool used, its arrow lists all nine), SURFACE (Paint, Bands) and
-//! OBJECTS (a Place split button whose menu lists Light, Prop and
-//! Actor). Every tool shows its key beside its name.
+//! EDIT, BUILD, TERRAIN, SURFACE and OBJECTS, in that order. A group is never
+//! split across rows: when the window is too narrow for one row the next
+//! group wraps onto a second, and the strip grows to fit instead of clipping.
+//! Place has one chip per kind of thing it puts down beside its button.
 
+use super::catalog::tools_of;
 use super::*;
 
-/// Height of one button of the row.
+/// Height of one button of the strip.
 const BUTTON_HEIGHT: f32 = 26.0;
-/// Width of a split button's arrow.
-const ARROW_WIDTH: f32 = 18.0;
+/// Vertical gap between two rows of the strip.
+const ROW_GAP: f32 = 4.0;
+/// Width a thin divider and its gaps take between two groups.
+const GROUP_GAP_WIDTH: f32 = 13.0;
+/// Slack added to every measured button for the spacing between buttons.
+const BUTTON_SLACK: f32 = 3.0;
 
-/// The kinds of the OBJECTS menu: the word on the menu, the node it places.
+/// The kinds Place puts down: the word on the chip, the node it places.
 const OBJECT_KINDS: [(&str, PlaceKind); 3] = [
     ("Light", PlaceKind::PointLightMarker),
     ("Prop", PlaceKind::ModelInstance),
     ("Actor", PlaceKind::Character),
 ];
 
-/// Which corners of a painted button are round: a split button's face is
-/// round on the left and its arrow on the right, so they read as one.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Corners {
-    All,
-    Left,
-}
-
-fn radius(corners: Corners) -> egui::CornerRadius {
-    match corners {
-        Corners::All => egui::CornerRadius::same(CONTROL_RADIUS),
-        Corners::Left => egui::CornerRadius {
-            nw: CONTROL_RADIUS,
-            sw: CONTROL_RADIUS,
-            ne: 0,
-            se: 0,
-        },
-    }
-}
-
 /// A button with the tool's name and, in weak small type beside it, its key.
-/// `min_width` keeps a button that changes its word (the SHAPE face) from
-/// moving what follows it.
-fn name_and_key_button(
-    ui: &mut egui::Ui,
-    name: &str,
-    key: &str,
-    selected: bool,
-    corners: Corners,
-    min_width: f32,
-) -> egui::Response {
+fn name_and_key_button(ui: &mut egui::Ui, name: &str, key: &str, selected: bool) -> egui::Response {
     let (name_galley, key_galley) = name_and_key_galleys(ui, name, key);
-    let width = (9.0 + name_galley.size().x + 6.0 + key_galley.size().x + 9.0).max(min_width);
+    let width = button_width(name_galley.size().x, key_galley.size().x);
     let (rect, response) = ui.allocate_exact_size(Vec2::new(width, BUTTON_HEIGHT), Sense::click());
+    let radius = egui::CornerRadius::same(CONTROL_RADIUS);
     if selected {
-        ui.painter()
-            .rect_filled(rect, radius(corners), STUDIO_SELECTION);
+        ui.painter().rect_filled(rect, radius, STUDIO_SELECTION);
         ui.painter().rect_stroke(
             rect,
-            radius(corners),
+            radius,
             Stroke::new(1.0, STUDIO_ACCENT),
             egui::StrokeKind::Inside,
         );
-    } else {
-        // A split button's face is a boxed control, so its arrow reads as
-        // part of it; a plain tool is flat until hovered.
-        if corners == Corners::Left {
-            ui.painter()
-                .rect_filled(rect, radius(corners), STUDIO_INPUT);
-            ui.painter().rect_stroke(
-                rect,
-                radius(corners),
-                Stroke::new(1.0, STUDIO_BORDER),
-                egui::StrokeKind::Inside,
-            );
-        }
-        if response.hovered() {
-            ui.painter()
-                .rect_filled(rect, radius(corners), STUDIO_HOVER);
-        }
+    } else if response.hovered() {
+        ui.painter().rect_filled(rect, radius, STUDIO_HOVER);
     }
     let name_pos = Pos2::new(
         rect.min.x + 9.0,
@@ -92,6 +53,15 @@ fn name_and_key_button(
     ui.painter().galley(name_pos, name_galley, STUDIO_TEXT);
     ui.painter().galley(key_pos, key_galley, STUDIO_TEXT_WEAK);
     response
+}
+
+/// The width of a button whose name and key measure `name` and `key`.
+fn button_width(name: f32, key: f32) -> f32 {
+    if key > 0.0 {
+        9.0 + name + 6.0 + key + 9.0
+    } else {
+        9.0 + name + 9.0
+    }
 }
 
 fn name_and_key_galleys(
@@ -107,17 +77,6 @@ fn name_and_key_galleys(
             f.layout_no_wrap(key.to_string(), key_font, STUDIO_TEXT_WEAK),
         )
     })
-}
-
-/// The width a button needs for the widest of `tools`.
-fn widest(ui: &egui::Ui, tools: &[GridTool]) -> f32 {
-    tools
-        .iter()
-        .map(|t| {
-            let (n, k) = name_and_key_galleys(ui, t.label(), t.key_label());
-            9.0 + n.size().x + 6.0 + k.size().x + 9.0
-        })
-        .fold(0.0, f32::max)
 }
 
 /// The small word that names a group.
@@ -144,212 +103,143 @@ fn tool_hover(tool: GridTool) -> String {
     )
 }
 
-/// One item of a tool menu: the name, its key at the right edge.
-fn menu_tool_item(ui: &mut egui::Ui, tool: GridTool, selected: bool) -> bool {
-    let clicked = ui
-        .add(
-            egui::Button::new(tool.label())
-                .shortcut_text(RichText::new(tool.key_label()).color(STUDIO_TEXT_WEAK))
-                .selected(selected)
-                .min_size(Vec2::new(150.0, 22.0)),
-        )
-        .on_hover_text(tool_hover(tool))
-        .clicked();
-    if clicked {
-        ui.close_menu();
-    }
-    clicked
+/// What one group of the strip holds.
+fn group_tools(group: ToolGroup) -> Vec<GridTool> {
+    tools_of(group).collect()
 }
 
-/// The arrow of a split button, or a menu button alone: flat until hovered,
-/// lit while one of its tools is the active one.
-fn arrow_menu(
-    ui: &mut egui::Ui,
-    selected: bool,
-    hover: &str,
-    corners: Corners,
-    add_contents: impl FnOnce(&mut egui::Ui),
-) {
-    ui.scope(|ui| {
-        // Boxed, so a lone arrow (CREATE) is found on the row.
-        ui.visuals_mut().widgets.inactive.weak_bg_fill = STUDIO_INPUT;
-        ui.visuals_mut().widgets.inactive.bg_stroke = Stroke::new(1.0, STUDIO_BORDER);
-        let corner = match corners {
-            Corners::All => egui::CornerRadius::same(CONTROL_RADIUS),
-            Corners::Left => egui::CornerRadius {
-                nw: 0,
-                sw: 0,
-                ne: CONTROL_RADIUS,
-                se: CONTROL_RADIUS,
-            },
-        };
-        let button = egui::Button::new(icons::text(icons::CHEVRON_DOWN, 12.0).color(STUDIO_TEXT))
-            .selected(selected)
-            .corner_radius(corner)
-            .min_size(Vec2::new(ARROW_WIDTH, BUTTON_HEIGHT));
-        ui.set_min_width(ARROW_WIDTH);
-        egui::menu::menu_custom_button(ui, button, |ui| {
-            ui.set_min_width(150.0);
-            add_contents(ui);
-        })
-        .response
-        .on_hover_text(hover);
-    });
+/// The width the strip needs for `group`: its label, its buttons and, for
+/// OBJECTS, the kind chips.
+fn group_width(ctx: &egui::Context, group: ToolGroup) -> f32 {
+    let button_font = egui::TextStyle::Button.resolve(&ctx.style());
+    let key_font = egui::FontId::proportional(10.5);
+    let label_font = egui::FontId::proportional(9.5);
+    ctx.fonts(|f| {
+        let label = f
+            .layout_no_wrap(group.label().to_string(), label_font, STUDIO_TEXT_WEAK)
+            .size()
+            .x;
+        let mut width = 4.0 + label + 2.0 + BUTTON_SLACK;
+        for tool in group_tools(group) {
+            let name = f
+                .layout_no_wrap(tool.label().to_string(), button_font.clone(), STUDIO_TEXT)
+                .size()
+                .x;
+            let key = f
+                .layout_no_wrap(
+                    tool.key_label().to_string(),
+                    key_font.clone(),
+                    STUDIO_TEXT_WEAK,
+                )
+                .size()
+                .x;
+            width += button_width(name, key) + BUTTON_SLACK;
+        }
+        if group == ToolGroup::Objects {
+            for (kind, _) in OBJECT_KINDS {
+                let name = f
+                    .layout_no_wrap(kind.to_string(), button_font.clone(), STUDIO_TEXT)
+                    .size()
+                    .x;
+                width += button_width(name, 0.0) + BUTTON_SLACK;
+            }
+        }
+        width + GROUP_GAP_WIDTH
+    })
+}
+
+/// The groups on each row of the strip at this window width: whole groups,
+/// filled greedily.
+fn strip_rows(ctx: &egui::Context) -> Vec<Vec<ToolGroup>> {
+    let available = ctx.screen_rect().width() - 20.0;
+    let mut rows: Vec<Vec<ToolGroup>> = vec![Vec::new()];
+    let mut used = 0.0;
+    for group in ToolGroup::ALL {
+        let width = group_width(ctx, group);
+        if used + width > available && !rows.last().is_some_and(|r| r.is_empty()) {
+            rows.push(Vec::new());
+            used = 0.0;
+        }
+        used += width;
+        if let Some(row) = rows.last_mut() {
+            row.push(group);
+        }
+    }
+    rows
+}
+
+/// The strip's height at this window width: one row is
+/// `TOOL_ROW_HEIGHT`, each more adds a button and a gap.
+pub(crate) fn tool_strip_height(ctx: &egui::Context) -> f32 {
+    TOOL_ROW_HEIGHT + (strip_rows(ctx).len() as f32 - 1.0) * (BUTTON_HEIGHT + ROW_GAP)
 }
 
 impl EditorWorkspace {
-    /// The row itself, a panel under the top bar across the whole window.
+    /// The strip itself, a panel under the top bar across the whole window.
     pub(crate) fn draw_grid_tool_row(&mut self, ctx: &egui::Context) {
+        let rows = strip_rows(ctx);
+        let height = tool_strip_height(ctx);
         egui::TopBottomPanel::top("psxed_tool_row")
-            .exact_height(TOOL_ROW_HEIGHT)
+            .exact_height(height)
             .frame(
                 egui::Frame::new()
                     .fill(STUDIO_PANEL_HEADER)
                     .inner_margin(egui::Margin::symmetric(10, 5)),
             )
             .show(ctx, |ui| {
-                ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
-                ui.horizontal_centered(|ui| {
-                    ui.set_clip_rect(ui.max_rect().expand2(Vec2::new(0.0, 4.0)));
-                    self.draw_tool_row_items(ui);
-                });
+                ui.spacing_mut().item_spacing = Vec2::new(2.0, ROW_GAP);
+                ui.set_clip_rect(ui.max_rect().expand2(Vec2::new(0.0, 4.0)));
+                for row in rows {
+                    ui.horizontal(|ui| {
+                        ui.set_height(BUTTON_HEIGHT);
+                        for (n, group) in row.into_iter().enumerate() {
+                            if n > 0 {
+                                group_gap(ui);
+                            }
+                            self.draw_strip_group(ui, group);
+                        }
+                    });
+                }
             });
     }
 
-    fn draw_tool_row_items(&mut self, ui: &mut egui::Ui) {
-        // Select and Height open the row, with no label.
-        self.row_tool(ui, GridTool::Select);
-        self.row_tool(ui, GridTool::Height);
-        group_gap(ui);
-
-        group_label(ui, ToolGroup::Create.label());
-        for tool in [GridTool::Floor, GridTool::Wall, GridTool::Ceiling] {
+    fn draw_strip_group(&mut self, ui: &mut egui::Ui, group: ToolGroup) {
+        group_label(ui, group.label());
+        // SLOT: the single Edit tool (id `Edit`, label "Edit", key V) takes the
+        // first button of the EDIT group here; Select, Height and Extrude then
+        // move to a "Classic" overflow menu of the same group. Register it in
+        // catalog.rs (one entry), not here.
+        for tool in group_tools(group) {
             self.row_tool(ui, tool);
         }
-        let more_active = matches!(self.grid.tool, GridTool::Plane | GridTool::Mesh);
-        let mut chosen = None;
-        arrow_menu(
-            ui,
-            more_active,
-            "More: Plane and Mesh",
-            Corners::All,
-            |ui| {
-                for tool in [GridTool::Plane, GridTool::Mesh] {
-                    if menu_tool_item(ui, tool, self.grid.tool == tool) {
-                        chosen = Some(tool);
-                    }
-                }
-            },
-        );
-        if let Some(tool) = chosen {
-            self.set_grid_tool(tool);
+        if group == ToolGroup::Objects {
+            self.row_place_kinds(ui);
         }
-        group_gap(ui);
-
-        group_label(ui, ToolGroup::Shape.label());
-        self.row_shape_button(ui);
-        group_gap(ui);
-
-        group_label(ui, ToolGroup::Surface.label());
-        for tool in [GridTool::Paint, GridTool::Bands] {
-            self.row_tool(ui, tool);
-        }
-        group_gap(ui);
-
-        group_label(ui, ToolGroup::Objects.label());
-        self.row_place_button(ui);
     }
 
     /// A plain tool button: its name, its key, lit while it is the tool.
     fn row_tool(&mut self, ui: &mut egui::Ui, tool: GridTool) {
-        let response = name_and_key_button(
-            ui,
-            tool.label(),
-            tool.key_label(),
-            self.grid.tool == tool,
-            Corners::All,
-            0.0,
-        )
-        .on_hover_text(tool_hover(tool));
+        let response =
+            name_and_key_button(ui, tool.label(), tool.key_label(), self.grid.tool == tool)
+                .on_hover_text(tool_hover(tool));
         if response.clicked() {
             self.set_grid_tool(tool);
         }
     }
 
-    /// SHAPE: the face picks the last shape tool used, the arrow lists all.
-    fn row_shape_button(&mut self, ui: &mut egui::Ui) {
-        let last = self.grid.last_shape;
-        let active = self.grid.tool.group() == ToolGroup::Shape;
-        let width = widest(ui, &GridTool::SHAPES);
-        ui.scope(|ui| {
-            ui.spacing_mut().item_spacing.x = 0.0;
-            let face = name_and_key_button(
-                ui,
-                last.label(),
-                last.key_label(),
-                active,
-                Corners::Left,
-                width,
-            )
-            .on_hover_text(tool_hover(last));
-            let mut chosen = face.clicked().then_some(last);
-            arrow_menu(
-                ui,
-                active,
-                "Shape tools: Extrude, Ramp, Stairs, Spiral, Break, Sculpt, Cells, Upper floor, Diagonal",
-                Corners::Left,
-                |ui| {
-                    for tool in GridTool::SHAPES {
-                        if menu_tool_item(ui, tool, self.grid.tool == tool) {
-                            chosen = Some(tool);
-                        }
-                    }
-                },
-            );
-            if let Some(tool) = chosen {
-                self.set_grid_tool(tool);
-            }
-        });
-    }
-
-    /// OBJECTS: the face picks Place with the kind it has, the arrow lists
-    /// the kinds.
-    fn row_place_button(&mut self, ui: &mut egui::Ui) {
+    /// One chip per kind Place puts down; the chosen kind is lit while Place
+    /// is the tool, and a click both picks the kind and makes Place the tool.
+    fn row_place_kinds(&mut self, ui: &mut egui::Ui) {
         let active = self.grid.tool == GridTool::Place;
-        ui.scope(|ui| {
-            ui.spacing_mut().item_spacing.x = 0.0;
-            let face = name_and_key_button(
-                ui,
-                GridTool::Place.label(),
-                GridTool::Place.key_label(),
-                active,
-                Corners::Left,
-                0.0,
-            )
-            .on_hover_text(tool_hover(GridTool::Place));
-            if face.clicked() {
-                self.set_grid_tool(GridTool::Place);
-            }
-            let mut chosen = None;
-            arrow_menu(
-                ui,
-                active,
-                "What Place puts down: Light, Spawn, Prop, Entity",
-                Corners::Left,
-                |ui| {
-                    for (label, kind) in OBJECT_KINDS {
-                        let selected = active && self.place_kind == kind;
-                        if toolbar_menu_choice(ui, label, selected) {
-                            chosen = Some(kind);
-                        }
-                    }
-                },
-            );
-            if let Some(kind) = chosen {
+        for (label, kind) in OBJECT_KINDS {
+            let selected = active && self.place_kind == kind;
+            let response = name_and_key_button(ui, label, "", selected)
+                .on_hover_text(format!("Place a {} (Place, O)", label.to_lowercase()));
+            if response.clicked() {
                 self.place_kind = kind;
                 self.set_grid_tool(GridTool::Place);
                 self.status = format!("Tool: Place, {}", kind.label());
             }
-        });
+        }
     }
 }
