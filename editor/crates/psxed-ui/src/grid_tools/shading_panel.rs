@@ -96,6 +96,7 @@ impl EditorWorkspace {
                     down: from_percent(fields[1].1),
                     side_x: from_percent(fields[2].1),
                     side_z: from_percent(fields[3].1),
+                    sun: current.sun,
                 };
             }
         }
