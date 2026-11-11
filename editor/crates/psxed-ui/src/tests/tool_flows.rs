@@ -1534,3 +1534,220 @@ fn no_options_bar_control_is_dead() {
     }
     eprintln!("controls that changed nothing when clicked: {}", dead.len());
 }
+
+// ---------------------------------------------------------------------
+// The view as a parameter: one flow, run in 3D, Plan and Both (once with the
+// plan pane used and once with the 3D pane used).
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum View {
+    ThreeD,
+    Plan,
+    /// The split layout, the tool used in the plan pane.
+    BothPlanPane,
+    /// The split layout, the tool used in the 3D pane.
+    BothPerspPane,
+}
+
+impl View {
+    pub(super) const ALL: [View; 4] =
+        [View::ThreeD, View::Plan, View::BothPlanPane, View::BothPerspPane];
+
+    pub(super) fn in_plan(self) -> bool {
+        matches!(self, View::Plan | View::BothPlanPane)
+    }
+
+    /// A fresh window on `fixture` in this view.
+    pub(super) fn rig(self, fixture: Fixture) -> WindowRig {
+        let mut rig = fixture.rig();
+        match self {
+            View::ThreeD => {
+                rig.ws.apply_grid_pose("view=3d").unwrap();
+            }
+            View::Plan => {
+                rig.ws.apply_grid_pose("view=plan").unwrap();
+            }
+            View::BothPlanPane | View::BothPerspPane => {
+                rig.ws.apply_grid_pose("view=split").unwrap();
+            }
+        }
+        frames(&mut rig, 4);
+        rig
+    }
+
+    /// Frame the sectors `lo` to `hi` (inclusive) in the pane this view uses,
+    /// the way a person pans and zooms before working.
+    pub(super) fn aim(self, rig: &mut WindowRig, lo: [i32; 2], hi: [i32; 2]) {
+        if self.in_plan() {
+            frame_cells(rig, lo, hi);
+            return;
+        }
+        let sector = rig.world().scale.to_editor(1024) as f32;
+        let w = (hi[0] - lo[0] + 1) as f32 * sector;
+        let d = (hi[1] - lo[1] + 1) as f32 * sector;
+        let c = [
+            (lo[0] + hi[0] + 1) as f32 * 0.5 * sector,
+            (lo[1] + hi[1] + 1) as f32 * 0.5 * sector,
+        ];
+        let span = w.max(d);
+        let cam = [c[0] as i32, (span * 0.85 + 1500.0) as i32, (c[1] + span * 0.7) as i32];
+        rig.ws.camera_rig.mode = ViewportCameraMode::Free;
+        rig.ws.camera_rig.free_initialized = true;
+        rig.ws.camera_rig.free_position = cam;
+        let (yaw, pitch) =
+            camera_angles_to_look_at(cam, [c[0] as i32, 0, c[1] as i32]).unwrap();
+        rig.ws.camera_rig.free_yaw = yaw;
+        rig.ws.camera_rig.free_pitch = pitch;
+        if matches!(self, View::BothPerspPane) {
+            // The plan pane is not used, but keep it on the same area.
+            frame_cells(rig, lo, hi);
+            rig.ws.camera_rig.free_position = cam;
+            rig.ws.camera_rig.free_yaw = yaw;
+            rig.ws.camera_rig.free_pitch = pitch;
+        }
+        frames(rig, 3);
+    }
+
+    /// The pixel of the middle of sector `c` on the ground of the view.
+    pub(super) fn cell(self, rig: &WindowRig, c: [i32; 2]) -> Pos2 {
+        if self.in_plan() {
+            return plan_px(rig, c);
+        }
+        let sector = rig.world().scale.to_editor(1024) as f32;
+        px3(rig, [(c[0] as f32 + 0.5) * sector, 0.0, (c[1] as f32 + 0.5) * sector])
+            .unwrap_or_else(|| panic!("sector {c:?} is not in the {self:?} view"))
+    }
+
+    pub(super) fn click_cell(self, rig: &mut WindowRig, c: [i32; 2]) {
+        let p = self.cell(rig, c);
+        rig.click(p);
+    }
+
+    pub(super) fn drag_cells(self, rig: &mut WindowRig, a: [i32; 2], b: [i32; 2]) {
+        let (pa, pb) = (self.cell(rig, a), self.cell(rig, b));
+        rig.drag(pa, pb);
+    }
+
+    /// Two pixels along the wall `side` of `cell`, at `a` and `b` of the way
+    /// along it and `up` editor units above the floor `base_y`. In 3D the
+    /// camera first stands in front of the wall.
+    pub(super) fn wall(
+        self,
+        rig: &mut WindowRig,
+        cell: [i32; 2],
+        side: WallEdge,
+        a: f32,
+        b: f32,
+        base_y: f32,
+        up: f32,
+    ) -> (Pos2, Pos2) {
+        if self.in_plan() {
+            frame_cells(
+                rig,
+                [cell[0] - 3, cell[1] - 3],
+                [cell[0] + 3, cell[1] + 3],
+            );
+            let at = |rig: &WindowRig, f: f32| {
+                let p = wall_point(rig, cell, side, f, base_y, up);
+                ViewportTransform::from_focus(
+                    rig.ws.last_orthographic_viewport_rect,
+                    OrthographicView::Top,
+                    [rig.ws.orthographic_focus[0], rig.ws.orthographic_focus[2]],
+                    rig.ws.viewport_zoom,
+                )
+                .world_to_screen([p[0], p[2]])
+            };
+            return (at(rig, a), at(rig, b));
+        }
+        face_wall(rig, cell, side, base_y, 3.0, 700.0);
+        (
+            px3(rig, wall_point(rig, cell, side, a, base_y, up)).unwrap(),
+            px3(rig, wall_point(rig, cell, side, b, base_y, up)).unwrap(),
+        )
+    }
+}
+
+fn each_view(f: impl Fn(View)) {
+    for view in View::ALL {
+        f(view);
+    }
+}
+
+#[test]
+fn room_corridor_bridge_cathedral_in_every_view() {
+    each_view(|view| {
+        // Room and Corridor.
+        let mut rig = view.rig(Fixture::Starter);
+        view.aim(&mut rig, [-1, -3], [22, 8]);
+        assert!(start(&mut rig, GridTool::Room, Start::Key), "{view:?}");
+        view.drag_cells(&mut rig, [10, 0], [13, 3]);
+        assert_eq!(room_count(&rig), 2, "{view:?} room: {}", rig.ws.status);
+        assert!(start(&mut rig, GridTool::Corridor, Start::Strip), "{view:?}");
+        for c in [[5, 2], [8, 2], [8, 1], [10, 1]] {
+            view.click_cell(&mut rig, c);
+        }
+        key(&mut rig, egui::Key::Enter);
+        assert!(rig.ws.status.starts_with("Corridor"), "{view:?} corridor: {}", rig.ws.status);
+        for c in [[6, 2], [8, 1], [9, 1]] {
+            assert!(has_floor_at(&rig, c), "{view:?} corridor floor at {c:?}");
+        }
+        assert!(walkable(&rig, [11, 1]), "{view:?}: the corridor reaches the far room");
+        assert_cooks(&rig, "corridor");
+        // Bridge over a gap.
+        let mut rig = view.rig(Fixture::Starter);
+        view.aim(&mut rig, [-1, -3], [22, 8]);
+        assert!(start(&mut rig, GridTool::Room, Start::Key));
+        view.drag_cells(&mut rig, [9, 0], [12, 3]);
+        assert!(start(&mut rig, GridTool::Bridge, Start::Search), "{view:?}");
+        set_field(&mut rig, "Piers every", "0");
+        let rooms0 = room_count(&rig);
+        view.click_cell(&mut rig, [5, 2]);
+        view.click_cell(&mut rig, [9, 2]);
+        assert_eq!(room_count(&rig), rooms0 + 1, "{view:?} bridge: {}", rig.ws.status);
+        assert_eq!(spans_of_last_room(&rig).len(), 3, "{view:?}: deck and two parapets");
+        assert_cooks(&rig, "bridge");
+        // Cathedral.
+        let mut rig = view.rig(Fixture::Starter);
+        view.aim(&mut rig, [-1, -3], [22, 8]);
+        assert!(start(&mut rig, GridTool::Cathedral, Start::Strip), "{view:?}");
+        view.drag_cells(&mut rig, [8, -1], [19, 5]);
+        assert!(
+            rig.ws.status.starts_with("Cathedral of 6 bays"),
+            "{view:?} cathedral: {}",
+            rig.ws.status
+        );
+        assert!(has_floor_at(&rig, [13, 1]), "{view:?}");
+        assert_cooks(&rig, "cathedral");
+    });
+}
+
+#[test]
+fn opening_door_and_lever_in_every_view() {
+    each_view(|view| {
+        // Opening.
+        let mut rig = view.rig(Fixture::Starter);
+        assert!(start(&mut rig, GridTool::Opening, Start::Key), "{view:?}");
+        let (a, b) = view.wall(&mut rig, [2, 0], WallEdge::North, 0.375, 0.625, 0.0, 300.0);
+        rig.drag(a, b);
+        assert!(rig.ws.status.starts_with("Door cut"), "{view:?} opening: {}", rig.ws.status);
+        assert_eq!(
+            open_clicks(&rig, 0, [2, 0], WallEdge::North, 0),
+            vec![9, 10],
+            "{view:?}: the clicks under the drag"
+        );
+        // Door, then the lever that operates it.
+        let mut rig = view.rig(Fixture::Starter);
+        assert!(start(&mut rig, GridTool::Door, Start::Strip), "{view:?}");
+        let (a, b) = view.wall(&mut rig, [2, 0], WallEdge::North, 0.375, 0.625, 0.0, 300.0);
+        rig.drag(a, b);
+        assert!(rig.ws.status.starts_with("Door 1"), "{view:?} door: {}", rig.ws.status);
+        assert_cooks(&rig, "door");
+        view.aim(&mut rig, [-1, -2], [8, 7]);
+        assert!(start(&mut rig, GridTool::Lever, Start::Search), "{view:?}");
+        view.click_cell(&mut rig, [4, 3]);
+        assert!(rig.ws.status.contains("click the door"), "{view:?} lever: {}", rig.ws.status);
+        view.click_cell(&mut rig, [2, 0]);
+        assert!(rig.ws.status.contains("Lever operates Door 1"), "{view:?}: {}", rig.ws.status);
+        assert_cooks(&rig, "lever");
+    });
+}
