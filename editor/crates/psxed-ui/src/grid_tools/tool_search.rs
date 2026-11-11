@@ -19,7 +19,7 @@ pub(crate) struct ToolSearch {
 /// order.
 pub(crate) fn matches(query: &str) -> Vec<GridTool> {
     let words: Vec<String> = query.split_whitespace().map(str::to_lowercase).collect();
-    CATALOG
+    let mut found: Vec<GridTool> = CATALOG
         .iter()
         .filter(|entry| {
             let name = entry.tool.label().to_lowercase();
@@ -29,7 +29,11 @@ pub(crate) fn matches(query: &str) -> Vec<GridTool> {
                 .all(|word| name.contains(word.as_str()) || group.contains(word.as_str()))
         })
         .map(|entry| entry.tool)
-        .collect()
+        .collect();
+    // A name typed in full comes first ("Floor" before "Upper floor").
+    let typed = query.trim().to_lowercase();
+    found.sort_by_key(|tool| tool.label().to_lowercase() != typed);
+    found
 }
 
 impl EditorWorkspace {

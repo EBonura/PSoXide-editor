@@ -62,10 +62,10 @@ fn band(rig: &WindowRig) -> Rect {
 /// Put the editor on a neutral tool so a start has to switch.
 pub(super) fn park(rig: &mut WindowRig) {
     rig.ws
-        .set_grid_tool(if rig.ws.grid.tool == GridTool::Paint {
+        .set_grid_tool(if rig.ws.grid.tool == GridTool::Select {
             GridTool::Split
         } else {
-            GridTool::Paint
+            GridTool::Select
         });
     frames(rig, 2);
 }
@@ -1084,3 +1084,19 @@ fn no_tool_ends_a_gesture_silently() {
     assert!(silent.is_empty(), "{}", silent.join("\n"));
 }
 
+
+/// Every catalog tool starts from its strip button, from the search, and
+/// from its key when it has one (the strip's menus included).
+#[test]
+fn every_catalog_tool_starts_from_the_strip_the_search_and_its_key() {
+    let mut rig = Fixture::Starter.rig();
+    for tool in GridTool::ALL {
+        for how in [Start::Strip, Start::Search, Start::Key] {
+            let started = start(&mut rig, tool, how);
+            if how == Start::Key && !tool.has_key() {
+                continue;
+            }
+            assert!(started, "{} from {how:?}: {}", tool.label(), rig.ws.status);
+        }
+    }
+}
