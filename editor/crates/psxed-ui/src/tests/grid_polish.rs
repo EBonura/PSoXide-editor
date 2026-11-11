@@ -623,3 +623,49 @@ mod deletions {
         assert!(ws.live_undo_toast().is_none());
     }
 }
+
+// ---- Captures (only with PSXED_POLISH_CAPTURE=<dir>) ----
+
+#[test]
+fn capture_every_build_tool_mid_drag() {
+    use crate::grid_tools::GridTool;
+    let Some(dir) = std::env::var_os("PSXED_POLISH_CAPTURE") else {
+        return;
+    };
+    let dir = Path::new(&dir);
+    for (size, tag) in [
+        (Vec2::new(1920.0, 1080.0), "1920x1080"),
+        (Vec2::new(1280.0, 720.0), "1280x720"),
+    ] {
+        for (tool, name) in [
+            (GridTool::Room, "room"),
+            (GridTool::Corridor, "corridor"),
+            (GridTool::Arcade, "arcade"),
+            (GridTool::Bridge, "bridge"),
+            (GridTool::Building, "building"),
+            (GridTool::Cathedral, "cathedral"),
+            (GridTool::Stairs, "stairs"),
+            (GridTool::Ramp, "ramp"),
+            (GridTool::Spiral, "spiral"),
+            (GridTool::Ruin, "ruin"),
+        ] {
+            let mut rig = WindowRig::starter(size);
+            rig.ws.apply_grid_pose("view=plan").unwrap();
+            for _ in 0..3 {
+                rig.frame(vec![]);
+            }
+            rig.ws.set_grid_tool(tool);
+            for _ in 0..3 {
+                rig.frame(vec![]);
+            }
+            let (from, to) = (rig.cell(1, 1), rig.cell(4, 4));
+            rig.move_to(from);
+            let down = rig.press(from, true);
+            rig.frame(vec![down]);
+            for step in 1..=6 {
+                rig.move_to(from + (to - from) * (step as f32 / 6.0));
+            }
+            rig.capture(&dir.join(format!("ghost-{name}-{tag}.png")));
+        }
+    }
+}
