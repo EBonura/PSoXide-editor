@@ -11,7 +11,6 @@ use super::grid_live::WindowRig;
 use super::grid_toolbar::{frames, press_key, text_in, texts};
 use super::*;
 use crate::grid_tools::{GridTool, CLASSIC, MORE_BUILD};
-use std::fmt::Write as _;
 
 pub(super) const AUDIT_WINDOW: Vec2 = Vec2::new(1456.0, 819.0);
 
@@ -301,24 +300,6 @@ pub(super) fn key(rig: &mut WindowRig, k: egui::Key) {
     press_key(rig, k, false);
 }
 
-pub(super) fn type_text(rig: &mut WindowRig, text: &str) {
-    for c in text.chars() {
-        let k = match c {
-            '0' => egui::Key::Num0,
-            '1' => egui::Key::Num1,
-            '2' => egui::Key::Num2,
-            '3' => egui::Key::Num3,
-            '4' => egui::Key::Num4,
-            '5' => egui::Key::Num5,
-            '6' => egui::Key::Num6,
-            '7' => egui::Key::Num7,
-            '8' => egui::Key::Num8,
-            _ => egui::Key::Num9,
-        };
-        press_key(rig, k, false);
-    }
-}
-
 /// What the user can read after a step: the hint bar and the message.
 pub(super) fn said(rig: &WindowRig) -> String {
     let hint = rig.ws.status_hint();
@@ -444,37 +425,6 @@ pub(super) fn option_click(rig: &mut WindowRig, label: &str) -> bool {
     }
 }
 
-/// Four floor pixels in the 3D view that make a rough rectangle, found with
-/// the editor's picking.
-pub(super) fn floor_quad(rig: &WindowRig) -> Option<[Pos2; 4]> {
-    let rect = rig.ws.last_persp_viewport_rect;
-    let is = |p: Pos2| {
-        rect.contains(p)
-            && rig
-                .ws
-                .pick_face_3d(rect, p)
-                .is_some_and(|h| h.normal[1] > 0.8)
-    };
-    let centre = rect.center();
-    for scale in [2.2_f32, 1.6, 1.0, 0.7, 0.5] {
-        for oy in [0.0_f32, 40.0, -40.0, 80.0, -80.0] {
-            for ox in [0.0_f32, 60.0, -60.0, 120.0, -120.0] {
-                let a = centre + Vec2::new(ox, oy);
-                let q = [
-                    a,
-                    a + Vec2::new(90.0 * scale, 0.0),
-                    a + Vec2::new(90.0 * scale, 50.0 * scale),
-                    a + Vec2::new(0.0, 50.0 * scale),
-                ];
-                if q.iter().all(|&p| is(p)) {
-                    return Some(q);
-                }
-            }
-        }
-    }
-    None
-}
-
 /// Screen pixel of the centre of world cell `c` of the block's room in the
 /// 3D view, projected through the editor's own camera.
 pub(super) fn cell_px3d(rig: &WindowRig, c: [i32; 2]) -> Option<Pos2> {
@@ -489,17 +439,6 @@ pub(super) fn cell_px3d(rig: &WindowRig, c: [i32; 2]) -> Option<Pos2> {
     let camera = rig.ws.viewport_3d_camera();
     let rect = rig.ws.last_persp_viewport_rect;
     crate::grid_tools::view::project_point(camera, rect, p).map(|(p, _)| p)
-}
-
-/// Four cell centres in the plan that make a 2x2 square.
-pub(super) fn plan_quad(rig: &WindowRig) -> [Pos2; 4] {
-    let (_, c) = floor_block(rig);
-    [
-        plan_px(rig, c),
-        plan_px(rig, [c[0] + 1, c[1]]),
-        plan_px(rig, [c[0] + 1, c[1] + 1]),
-        plan_px(rig, [c[0], c[1] + 1]),
-    ]
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

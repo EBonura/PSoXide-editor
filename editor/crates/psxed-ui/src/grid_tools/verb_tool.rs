@@ -356,10 +356,11 @@ fn drag_from_idle(ws: &mut EditorWorkspace, ptr: &GridPointer) {
             }
             finish_path(ws);
         }
-        if ws.grid.verb.path.is_empty() && ws.grid.verb.lasso.is_empty() {
-            if matches!(begin_amount(ws, ptr, room, cell), Begin::Started) {
-                update_amount(ws, ptr);
-            }
+        if ws.grid.verb.path.is_empty()
+            && ws.grid.verb.lasso.is_empty()
+            && matches!(begin_amount(ws, ptr, room, cell), Begin::Started)
+        {
+            update_amount(ws, ptr);
         }
         return;
     }
