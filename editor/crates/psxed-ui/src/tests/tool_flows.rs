@@ -1578,6 +1578,12 @@ impl View {
     /// Frame the sectors `lo` to `hi` (inclusive) in the pane this view uses,
     /// the way a person pans and zooms before working.
     pub(super) fn aim(self, rig: &mut WindowRig, lo: [i32; 2], hi: [i32; 2]) {
+        self.aim_near(rig, lo, hi, 1.0);
+    }
+
+    /// [`aim`](Self::aim) with the camera `k` times as far as the default
+    /// (smaller is closer).
+    pub(super) fn aim_near(self, rig: &mut WindowRig, lo: [i32; 2], hi: [i32; 2], k: f32) {
         if self.in_plan() {
             frame_cells(rig, lo, hi);
             return;
@@ -1590,7 +1596,7 @@ impl View {
             (lo[1] + hi[1] + 1) as f32 * 0.5 * sector,
         ];
         let span = w.max(d);
-        let cam = [c[0] as i32, (span * 0.85 + 1500.0) as i32, (c[1] + span * 0.7) as i32];
+        let cam = [c[0] as i32, ((span * 0.85 + 1500.0) * k) as i32, (c[1] + span * 0.7 * k) as i32];
         rig.ws.camera_rig.mode = ViewportCameraMode::Free;
         rig.ws.camera_rig.free_initialized = true;
         rig.ws.camera_rig.free_position = cam;

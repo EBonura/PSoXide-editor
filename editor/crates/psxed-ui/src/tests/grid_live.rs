@@ -287,6 +287,22 @@ impl WindowRig {
         self.frame(vec![]);
     }
 
+    /// A right click: the secondary button down and up without moving.
+    pub(super) fn secondary_click(&mut self, p: Pos2) {
+        self.move_to(p);
+        for pressed in [true, false] {
+            let e = egui::Event::PointerButton {
+                pos: p,
+                button: egui::PointerButton::Secondary,
+                pressed,
+                modifiers: self.modifiers,
+            };
+            self.frame(vec![e]);
+        }
+        self.frame(vec![]);
+        self.frame(vec![]);
+    }
+
     /// A drag with a frame between the steps.
     pub(super) fn drag(&mut self, from: Pos2, to: Pos2) {
         self.move_to(from);

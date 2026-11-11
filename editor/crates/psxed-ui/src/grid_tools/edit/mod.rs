@@ -622,3 +622,30 @@ pub(super) fn cancel(ws: &mut EditorWorkspace) -> bool {
 pub(super) fn click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     pick_select::click(ws, ptr);
 }
+
+/// Where the slide arrow of `face` stands on screen (tests aim at it).
+#[cfg(test)]
+pub(crate) fn arrow_screen(ws: &EditorWorkspace, rect: Rect, face: FaceRef) -> Option<Pos2> {
+    target::arrow_position(ws, rect, face).map(|(p, _)| p)
+}
+
+/// Where the Move handle of the selection stands on screen (tests aim at it).
+#[cfg(test)]
+pub(crate) fn move_handle_screen(ws: &EditorWorkspace, view: GridView) -> Option<Pos2> {
+    repeat_move::handle_position(ws, view).map(|(p, _)| p)
+}
+
+/// Whether a press at `pos` in the 3D view lands on nothing (tests look for a
+/// spot to start a box on).
+#[cfg(test)]
+pub(crate) fn lands_on_nothing(ws: &EditorWorkspace, rect: Rect, pos: Pos2) -> bool {
+    let ptr = GridPointer {
+        view: GridView::Persp(rect),
+        pos,
+        press: None,
+        modifiers: egui::Modifiers::NONE,
+        cycle: 0,
+    };
+    target::at(ws, &ptr).target == Target::Nothing
+}
+
