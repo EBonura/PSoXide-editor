@@ -425,10 +425,11 @@ fn the_strip_shows_every_tool_in_five_labelled_groups_at_every_window_width() {
             last = here;
             // Every tool of the group is on the group's row or a later one
             // only when the group itself wrapped: the same row as its label.
-            for tool in GridTool::ALL
-                .iter()
-                .filter(|t| t.group() == group && !crate::grid_tools::CLASSIC.contains(t))
-            {
+            for tool in GridTool::ALL.iter().filter(|t| {
+                t.group() == group
+                    && !crate::grid_tools::CLASSIC.contains(t)
+                    && !crate::grid_tools::MORE_BUILD.contains(t)
+            }) {
                 let name = find(tool.label());
                 assert_eq!(name.len(), 1, "{width}: {}", tool.label());
                 assert!(
@@ -442,10 +443,11 @@ fn the_strip_shows_every_tool_in_five_labelled_groups_at_every_window_width() {
                     tool.label()
                 );
                 assert!(
-                    found.iter().any(|(t, r)| t == tool.key_label()
-                        && (r.center().y - name[0].center().y).abs() < 5.0
-                        && r.min.x >= name[0].max.x
-                        && r.min.x < name[0].max.x + 16.0),
+                    !tool.has_key()
+                        || found.iter().any(|(t, r)| t == tool.key_label()
+                            && (r.center().y - name[0].center().y).abs() < 5.0
+                            && r.min.x >= name[0].max.x
+                            && r.min.x < name[0].max.x + 16.0),
                     "{width}: {} shows no key beside it",
                     tool.label()
                 );
@@ -466,10 +468,9 @@ fn the_strip_shows_every_tool_in_five_labelled_groups_at_every_window_width() {
 fn each_tool_button_selects_its_tool_and_the_kind_chips_set_the_kind() {
     for width in [1280.0, 1920.0] {
         let mut rig = WindowRig::with_size(Vec2::new(width, 819.0));
-        for tool in GridTool::ALL
-            .into_iter()
-            .filter(|t| !crate::grid_tools::CLASSIC.contains(t))
-        {
+        for tool in GridTool::ALL.into_iter().filter(|t| {
+            !crate::grid_tools::CLASSIC.contains(t) && !crate::grid_tools::MORE_BUILD.contains(t)
+        }) {
             rig.ws.set_grid_tool(if tool == GridTool::Select {
                 GridTool::Floor
             } else {
@@ -490,7 +491,7 @@ fn each_tool_button_selects_its_tool_and_the_kind_chips_set_the_kind() {
 #[test]
 fn every_tool_key_still_works() {
     let mut rig = WindowRig::new();
-    for tool in GridTool::ALL {
+    for tool in GridTool::ALL.into_iter().filter(|t| t.has_key()) {
         // From a tool the key does not belong to.
         rig.ws.set_grid_tool(if tool == GridTool::Select {
             GridTool::Floor

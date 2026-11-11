@@ -29,6 +29,7 @@ mod analysis;
 mod band_panel;
 mod bands_tool;
 mod break_tool;
+pub(crate) mod build;
 mod catalog;
 pub(crate) mod cell_size;
 mod cells_tool;
@@ -80,7 +81,7 @@ mod strip;
 mod tiling_panel;
 mod tool_row;
 #[cfg(test)]
-pub(crate) use tool_row::{tool_strip_height, CLASSIC};
+pub(crate) use tool_row::{tool_strip_height, CLASSIC, MORE_BUILD};
 
 /// Height of the strip plus the options bar under it: where the viewport
 /// column starts below the top bar.
@@ -96,6 +97,7 @@ pub(crate) mod verb_state;
 pub(crate) mod verb_tool;
 pub(crate) mod view;
 mod walk_overlay;
+pub(crate) mod wall_section;
 mod wall_tool;
 pub(crate) mod world_panel;
 
@@ -166,6 +168,32 @@ pub(crate) enum GridTool {
     /// Insert a slab into a tall hall, or cut one out: a floor between
     /// storeys.
     Slab,
+    /// Drag a rectangle: a walled room, new or inside this one.
+    Room,
+    /// Click waypoints: a corridor, plain or in a style.
+    Corridor,
+    /// Drag along a wall: a door or window, on any storey.
+    Opening,
+    /// Drag a line or along a wall: a run of arches on piers.
+    Arcade,
+    /// Drag a line: a row of columns.
+    Colonnade,
+    /// Click two points: a bridge deck with parapets and piers.
+    Bridge,
+    /// Drag a footprint: a building with storeys, doors, windows and a stair.
+    Building,
+    /// Drag the nave: a cathedral with aisles, transept, apse and west door.
+    Cathedral,
+    /// Drag a region: hills and slopes from a seed.
+    Terrain,
+    /// Drag a region or take the whole room: damage, with a path kept clear.
+    Ruin,
+    /// Drag along a wall: the doorway and its sliding door in one gesture.
+    Door,
+    /// Click a floor, then the door it operates.
+    Lever,
+    /// Click a floor: a checkpoint the player synchronises at.
+    Checkpoint,
 }
 
 /// The strip's groups, in order.
@@ -206,10 +234,10 @@ impl ToolGroup {
 
 impl GridTool {
     /// Every tool, in strip order (read from the catalog).
-    pub(crate) const ALL: [Self; 20] = {
-        let mut all = [Self::Select; 20];
+    pub(crate) const ALL: [Self; 33] = {
+        let mut all = [Self::Select; 33];
         let mut i = 0;
-        while i < 20 {
+        while i < 33 {
             all[i] = catalog::CATALOG[i].tool;
             i += 1;
         }
@@ -258,7 +286,36 @@ impl GridTool {
             Self::Sculpt => "Sculpt",
             Self::Cells => "Cells",
             Self::Slab => "Upper floor",
+            Self::Room => "Room",
+            Self::Corridor => "Corridor",
+            Self::Opening => "Opening",
+            Self::Arcade => "Arcade",
+            Self::Colonnade => "Colonnade",
+            Self::Bridge => "Bridge",
+            Self::Building => "Building",
+            Self::Cathedral => "Cathedral",
+            Self::Terrain => "Terrain patch",
+            Self::Ruin => "Ruin",
+            Self::Door => "Door",
+            Self::Lever => "Lever",
+            Self::Checkpoint => "Checkpoint",
         }
+    }
+
+    /// Whether the tool has a key of its own (the later Build tools are
+    /// reached from the strip: the plain letters are used up).
+    pub(crate) const fn has_key(self) -> bool {
+        !matches!(
+            self,
+            Self::Colonnade
+                | Self::Building
+                | Self::Cathedral
+                | Self::Terrain
+                | Self::Ruin
+                | Self::Door
+                | Self::Lever
+                | Self::Checkpoint
+        )
     }
 
     pub(crate) const fn key(self) -> egui::Key {
@@ -280,6 +337,13 @@ impl GridTool {
             Self::Break => egui::Key::X,
             Self::Sculpt => egui::Key::S,
             Self::Cells | Self::Slab => egui::Key::Q,
+            Self::Room | Self::Building => egui::Key::B,
+            Self::Corridor | Self::Cathedral => egui::Key::K,
+            Self::Opening | Self::Door => egui::Key::I,
+            Self::Arcade | Self::Colonnade => egui::Key::Y,
+            Self::Bridge | Self::Terrain | Self::Ruin | Self::Lever | Self::Checkpoint => {
+                egui::Key::J
+            }
         }
     }
 
@@ -312,6 +376,19 @@ impl GridTool {
             Self::Sculpt => "S",
             Self::Cells => "Q",
             Self::Slab => "Shift+Q",
+            Self::Room => "B",
+            Self::Corridor => "K",
+            Self::Opening => "I",
+            Self::Arcade => "Y",
+            Self::Bridge => "J",
+            Self::Colonnade
+            | Self::Building
+            | Self::Cathedral
+            | Self::Terrain
+            | Self::Ruin
+            | Self::Door
+            | Self::Lever
+            | Self::Checkpoint => "",
         }
     }
 
@@ -371,6 +448,43 @@ impl GridTool {
             Self::Slab => {
                 "Adds a floor above this one, with open space underneath (needs a ceiling or open sky above). Drag a rectangle, then press on it and drag up for the height. Remove upper floor and Fill opening are clicks on the region. Tab changes the mode."
             }
+            Self::Room => {
+                "Drag a rectangle for a walled room (the walls come with it). Hold Shift and drag up, or type a number, for the height. Chips: rectangle, octagon or lasso; a new room or inside this one; a style."
+            }
+            Self::Corridor => {
+                "Click waypoints, Enter finishes. Click a higher or lower floor and the corridor ramps or stairs to it. Width, headroom and a style are in the options bar."
+            }
+            Self::Opening => {
+                "Drag along a wall for a door or window. Shift and drag up, or type a number, for the lintel. Chips: door or window, rectangular, pointed or round."
+            }
+            Self::Arcade => {
+                "Drag a line on the floor for a run of arches on piers. Bays, span, pier and rise are in the options bar."
+            }
+            Self::Colonnade => {
+                "Drag a line on the floor for a row of columns, one more than the bays."
+            }
+            Self::Bridge => {
+                "Click the two ends of the deck. Width, parapet and piers are in the options bar."
+            }
+            Self::Building => {
+                "Drag a footprint for a building: storeys, doors, a window rhythm, a stair and a parapet."
+            }
+            Self::Cathedral => {
+                "Drag the nave: its length sets the bays and its depth the width. Aisles, transept, apse, west door and a style are in the options bar."
+            }
+            Self::Terrain => {
+                "Drag a region for hills and slopes. The seed re-rolls them; walkable keeps the ground steppable and the blend fades the edge."
+            }
+            Self::Ruin => {
+                "Drag a region, or take the whole room, to damage it. Paint the path to keep it clear. The seed re-rolls the damage."
+            }
+            Self::Door => {
+                "Drag along a wall: the doorway is cut and a sliding door placed in one gesture. Direction, distance, speed, lock and one-way are in the options bar."
+            }
+            Self::Lever => {
+                "Click a floor to place a lever, then click the door it operates."
+            }
+            Self::Checkpoint => "Click a floor to place a checkpoint.",
         }
     }
 }
@@ -613,6 +727,8 @@ pub(crate) struct GridEditState {
     pub tool: GridTool,
     /// The Edit tool's state.
     pub edit: edit::EditState,
+    /// The Build tools' state.
+    pub build: build::BuildState,
     /// How far the options bar is scrolled sideways, and for which tool (the
     /// scroll starts over when the tool changes).
     pub options_scroll: f32,
@@ -726,10 +842,11 @@ pub(crate) struct GridEditState {
 impl Default for GridEditState {
     fn default() -> Self {
         Self {
-            tool: GridTool::Select,
+            tool: GridTool::Edit,
             edit: edit::EditState::default(),
+            build: build::BuildState::default(),
             options_scroll: 0.0,
-            options_scroll_tool: GridTool::Select,
+            options_scroll_tool: GridTool::Edit,
             selection: GridSelection::new(),
             hover: GridHover::None,
             gesture: Gesture::Idle,
@@ -795,6 +912,7 @@ impl GridEditState {
     pub(crate) fn abandon(&mut self) {
         self.gesture = Gesture::Idle;
         self.edit.abandon();
+        self.build.abandon();
         self.paste = None;
         self.plane_paste = None;
         self.grab = None;
@@ -972,7 +1090,20 @@ impl EditorWorkspace {
             | GridTool::Plane
             | GridTool::Mesh
             | GridTool::Paint
-            | GridTool::Place => C::Crosshair,
+            | GridTool::Place
+            | GridTool::Room
+            | GridTool::Corridor
+            | GridTool::Opening
+            | GridTool::Arcade
+            | GridTool::Colonnade
+            | GridTool::Bridge
+            | GridTool::Building
+            | GridTool::Cathedral
+            | GridTool::Terrain
+            | GridTool::Ruin
+            | GridTool::Door
+            | GridTool::Lever
+            | GridTool::Checkpoint => C::Crosshair,
         }
     }
 
@@ -1002,5 +1133,14 @@ impl EditorWorkspace {
             }
         }
         None
+    }
+}
+
+impl EditorWorkspace {
+    /// The centre of the 3D view's target on the ground, editor units: where
+    /// Play from here puts the player from the Play menu.
+    pub(crate) fn view_centre_on_floor(&self) -> [f32; 3] {
+        let t = self.camera_rig.target;
+        [t[0] as f32, t[1] as f32, t[2] as f32]
     }
 }

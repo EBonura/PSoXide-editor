@@ -19,7 +19,7 @@ use psxed_project::grid::units::snap_to;
 use psxed_project::grid::{GridRoom, CLICK_UNITS, FINE_UNITS};
 
 /// The room and its vertical offset the next rectangle will land in.
-fn room_offset(ws: &EditorWorkspace) -> (usize, i32) {
+pub(super) fn room_offset(ws: &EditorWorkspace) -> (usize, i32) {
     let room = ws.grid_target_room();
     let y = ws
         .project
@@ -80,7 +80,7 @@ fn height_under(
 /// of the same kind in the 3D view continues at its level, so extending a
 /// platform or a ceiling stays on it; otherwise the tool's own height. The
 /// second value says whether the surface under the pointer was taken.
-fn aimed_height(
+pub(super) fn aimed_height(
     ws: &EditorWorkspace,
     ptr: &GridPointer,
     kind: SurfaceKind,

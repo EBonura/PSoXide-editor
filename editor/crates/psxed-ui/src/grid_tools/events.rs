@@ -13,8 +13,8 @@ use crate::workspace::tools2d::{ToolFrame2d, ViewportTool2d};
 use crate::workspace::tools3d::{SelectTool, ToolFrame3d, ViewportTool3d};
 
 use super::{
-    bands_tool, cells_tool, clipboard_tool, dup_tool, edit, face_tools, height_tool, mesh_tool,
-    place_tool, plane_tool, rect_tool, select_tool, triangle_tool, verb_tool, wall_tool,
+    bands_tool, build, cells_tool, clipboard_tool, dup_tool, edit, face_tools, height_tool,
+    mesh_tool, place_tool, plane_tool, rect_tool, select_tool, triangle_tool, verb_tool, wall_tool,
 };
 
 /// A pointer event.
@@ -95,6 +95,29 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
         (GridTool::Edit, Ev::Drag) => edit::drag(ws, &ptr),
         (GridTool::Edit, Ev::Release) => edit::release(ws, &ptr),
         (GridTool::Edit, Ev::Click) => edit::click(ws, &ptr),
+
+        (
+            GridTool::Room
+            | GridTool::Corridor
+            | GridTool::Opening
+            | GridTool::Arcade
+            | GridTool::Colonnade
+            | GridTool::Bridge
+            | GridTool::Building
+            | GridTool::Cathedral
+            | GridTool::Terrain
+            | GridTool::Ruin
+            | GridTool::Door
+            | GridTool::Lever
+            | GridTool::Checkpoint,
+            ev,
+        ) => match ev {
+            Ev::Hover => build::hover(ws, &ptr),
+            Ev::Press => build::press(ws, &ptr),
+            Ev::Drag => build::drag(ws, &ptr),
+            Ev::Release => build::release(ws),
+            Ev::Click => build::click(ws, &ptr),
+        },
 
         (GridTool::Select, Ev::Hover) => select_tool::hover(ws, &ptr),
         (GridTool::Select, Ev::Press) => select_tool::press(ws, &ptr),

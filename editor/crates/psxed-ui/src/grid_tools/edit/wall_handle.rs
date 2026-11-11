@@ -264,10 +264,20 @@ impl WallHandle {
         Ok(out)
     }
 
-    /// Back to the height the cells give it. Needs the SDK Wall API; until
-    /// then a wall has nothing of its own to reset.
-    pub fn reset_to_automatic(&self, _world: &mut GridWorld) -> Result<(), String> {
-        Err("Reset to automatic arrives with the new wall model".to_string())
+    /// Back to what the cells give it, through the SDK's wall API.
+    pub fn reset_to_automatic(&self, world: &mut GridWorld) -> Result<(), String> {
+        use psxed_project::grid::edit::wall_api::{clear_wall_property, WallProp};
+        let view = super::super::wall_section::view_of(world, self.face())
+            .ok_or_else(|| "No wall".to_string())?;
+        for prop in [
+            WallProp::Heights,
+            WallProp::Material,
+            WallProp::Solid,
+            WallProp::Bands,
+        ] {
+            clear_wall_property(world, view.addr, prop).map_err(|e| format!("{e:?}"))?;
+        }
+        Ok(())
     }
 
     /// Whether the wall offers the slide arrow.

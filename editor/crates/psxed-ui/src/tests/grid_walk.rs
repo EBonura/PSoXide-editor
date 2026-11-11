@@ -60,7 +60,7 @@ fn alt_w_toggles_the_overlay_and_the_strip_button_agrees() {
     rig.key_with(egui::Key::W, egui::Modifiers::ALT);
     assert!(rig.ws.grid.overlays.walk, "{}", rig.ws.status);
     // Alt+W is not the Wall tool key: the tool stays.
-    assert_eq!(rig.ws.grid.tool, GridTool::Select);
+    assert_eq!(rig.ws.grid.tool, GridTool::Edit);
     rig.key_with(egui::Key::W, egui::Modifiers::ALT);
     assert!(!rig.ws.grid.overlays.walk);
     // A plain W still picks the Wall tool.

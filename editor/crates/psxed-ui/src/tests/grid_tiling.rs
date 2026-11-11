@@ -94,7 +94,7 @@ fn a_derived_wall_reports_its_whole_run() {
         text.contains("effective: 5 x 3 tiles on this face"),
         "{text}"
     );
-    assert!(text.contains("derived"), "{text}");
+    assert!(text.contains("follows the floors beside it"), "{text}");
     // Fit counts across the whole run, not per sector.
     {
         let world = ws.project.active_scene_mut().world.grid_mut().unwrap();

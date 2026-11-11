@@ -15,20 +15,13 @@ use super::{
     verb_tool,
 };
 
-/// Keys the level verbs still to come (design: `docs/grid/level-tools-design.md`,
-/// 7.12) will take, kept free of other meanings now: B Room,
-/// K Corridor, I Opening, Y Stamps, J Vault. U Raise, A Ramp, T Stairs and
+/// Keys held back for tools still to come: none now (B Room, K Corridor,
+/// I Opening, Y Arcade and J Bridge are tools). U Raise, A Ramp, T Stairs and
 /// S Sculpt are tools now, and so is X Break; E is the Bands tool and N the
 /// Plane tool, Q the Cells tool and Shift+Q the Upper floor tool; G goes to a level
 /// and Z switches the cutaway. Alt+W, Alt+P and Alt+L are the overlays.
 #[cfg(test)]
-pub(crate) const RESERVED_VERB_KEYS: [egui::Key; 5] = [
-    egui::Key::B,
-    egui::Key::K,
-    egui::Key::I,
-    egui::Key::Y,
-    egui::Key::J,
-];
+pub(crate) const RESERVED_VERB_KEYS: [egui::Key; 0] = [];
 
 fn pressed(ctx: &egui::Context, key: egui::Key) -> bool {
     ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, key))
@@ -95,7 +88,7 @@ impl EditorWorkspace {
             }
             return;
         }
-        if super::edit::keys::handle(self, ctx) {
+        if super::edit::keys::handle(self, ctx) || super::build::handle_keys(self, ctx) {
             return;
         }
         let modifiers = ctx.input(|i| i.modifiers);
@@ -270,7 +263,8 @@ impl EditorWorkspace {
         // With the free camera's look button held, W and D fly the camera.
         let flying = ctx.input(|i| i.pointer.secondary_down());
         for tool in GridTool::ALL {
-            if !flying && !tool.shift() && pressed(ctx, tool.key()) && may_choose {
+            if !flying && tool.has_key() && !tool.shift() && pressed(ctx, tool.key()) && may_choose
+            {
                 self.set_grid_tool(tool);
             }
         }
@@ -415,9 +409,10 @@ mod tests {
             assert_eq!(tool.key(), key, "{}", tool.label());
             assert!(!RESERVED_VERB_KEYS.contains(&key));
         }
-        // Every tool has its own key.
-        for (i, a) in GridTool::ALL.iter().enumerate() {
-            for b in &GridTool::ALL[i + 1..] {
+        // Every tool that has a key has its own.
+        let keyed: Vec<GridTool> = GridTool::ALL.into_iter().filter(|t| t.has_key()).collect();
+        for (i, a) in keyed.iter().enumerate() {
+            for b in &keyed[i + 1..] {
                 assert_ne!(
                     (a.key(), a.shift()),
                     (b.key(), b.shift()),

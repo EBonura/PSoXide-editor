@@ -699,6 +699,8 @@ pub struct EditorWorkspace {
     /// to handle. The frontend owns emulator state and build child
     /// processes, so the editor never launches playtest directly.
     pending_playtest_request: Option<EditorPlaytestRequest>,
+    /// Where the next cook puts the player (Play from here); used once.
+    play_spawn: Option<psxed_project::playtest::SpawnOverride>,
     /// The view last read from or written to the view file, so an unchanged
     /// view is not rewritten.
     saved_view_state: psxed_project::EditorViewState,
@@ -2336,6 +2338,7 @@ impl EditorWorkspace {
             last_playtest_budget: None,
             authored_budget_estimate: std::cell::RefCell::new(None),
             pending_playtest_request: None,
+            play_spawn: None,
             saved_view_state: psxed_project::EditorViewState::default(),
             close_confirmed: false,
             emulator_menu_requested: false,
@@ -2966,6 +2969,17 @@ impl EditorWorkspace {
         true
     }
 
+    /// Play with the player at `position` (editor units) facing `yaw_degrees`,
+    /// without editing the project: the next cook moves the player there.
+    pub(crate) fn play_from_here(&mut self, position: [f32; 3], yaw_degrees: f32) {
+        self.play_spawn = Some(psxed_project::playtest::SpawnOverride {
+            position,
+            yaw_degrees,
+        });
+        self.pending_playtest_request = Some(EditorPlaytestRequest::Play);
+        self.status = "Play from here: the player starts at that spot".to_string();
+    }
+
     /// Cook the active project into the playtest example's
     /// `generated/` directory and write a fresh ignored cooked manifest.
     /// Returns a status
@@ -2992,7 +3006,11 @@ impl EditorWorkspace {
         // geometry that doing this again merely for the status summary makes
         // every Play launch needlessly expensive.
         let package_started = std::time::Instant::now();
-        let (package, report) = psxed_project::playtest::build_package(&project, &self.project_dir);
+        let (package, report) = psxed_project::playtest::build_package_with_spawn(
+            &project,
+            &self.project_dir,
+            self.play_spawn.take(),
+        );
         psxed_project::playtest::emit_cook_output(format_args!(
             "[cook] timing: package {} ms",
             package_started.elapsed().as_millis(),

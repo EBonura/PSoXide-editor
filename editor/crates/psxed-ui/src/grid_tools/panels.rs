@@ -433,11 +433,11 @@ impl EditorWorkspace {
                 FaceTarget::Derived {
                     edge, kind, span, ..
                 } => format!(
-                    "{} {} (derived{}) at {},{}",
+                    "{} {}{} at {},{}",
                     edge.label(),
                     kind.label(),
                     if span > 0 {
-                        format!(", floor {}", span + 1)
+                        format!(" (floor {})", span + 1)
                     } else {
                         String::new()
                     },
@@ -447,7 +447,13 @@ impl EditorWorkspace {
             })
             .strong(),
         );
-        if let Some(h) = heights {
+        let mut wall_edit = super::wall_section::WallEdit::default();
+        if matches!(
+            primary.target,
+            FaceTarget::Wall { .. } | FaceTarget::Derived { .. }
+        ) {
+            wall_edit = super::wall_section::draw(ui, world, primary);
+        } else if let Some(h) = heights {
             ui.label(
                 RichText::new(format!("heights {} {} {} {}", h[0], h[1], h[2], h[3]))
                     .size(11.5)
@@ -562,7 +568,7 @@ impl EditorWorkspace {
                 if let Some(d) = primary.derived_wall(world) {
                     ui.label(
                         RichText::new(format!(
-                            "from the height difference with {},{}",
+                            "follows the floors beside it ({},{})",
                             d.owner[0], d.owner[1]
                         ))
                         .size(11.0)
@@ -580,8 +586,8 @@ impl EditorWorkspace {
                     }
                     let mut hidden_now = d.hidden;
                     if ui
-                        .checkbox(&mut hidden_now, "Hidden")
-                        .on_hover_text("Do not draw this face (it keeps blocking if it is solid)")
+                        .checkbox(&mut hidden_now, "Open (not drawn)")
+                        .on_hover_text("Do not draw this wall (it keeps blocking if it is solid)")
                         .changed()
                     {
                         hidden = Some(hidden_now);
@@ -610,6 +616,8 @@ impl EditorWorkspace {
             || solid.is_some()
             || hidden.is_some()
             || reset_override
+            || wall_edit.heights.is_some()
+            || wall_edit.reset
         {
             let faces = faces.to_vec();
             let before = self.project.clone();
@@ -624,6 +632,9 @@ impl EditorWorkspace {
                         Ok(report) => self.status = report.describe(repeats).replace('\n', "; "),
                         Err(error) => self.status = error,
                     }
+                }
+                if let Some(text) = super::wall_section::apply(world, &wall_edit) {
+                    self.status = text;
                 }
                 for face in &faces {
                     if toggle {

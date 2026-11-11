@@ -884,7 +884,7 @@ fn shading_belongs_to_the_world_and_not_to_a_room() {
 
 #[test]
 fn the_world_settings_hold_the_stream_radii_and_the_default_camera() {
-    let mut rig = WindowRig::with_size(Vec2::new(1456.0, 1300.0));
+    let mut rig = WindowRig::with_size(Vec2::new(1456.0, 1500.0));
     rig.ws.select_world();
     frames(&mut rig, 4);
     // The streaming group first: it sits below the camera's.

@@ -1936,7 +1936,11 @@ fn choose_inspector_combo_option(
             "the open {closed:?} combo omitted {label:?}"
         );
     }
-    let choices = text_shape_centers(&open_frame.shapes, option);
+    // Not the tool strip's own buttons (a Door tool, a Checkpoint tool).
+    let choices: Vec<_> = text_shape_centers(&open_frame.shapes, option)
+        .into_iter()
+        .filter(|p| p.y > 150.0)
+        .collect();
     assert_eq!(
         choices.len(),
         1,

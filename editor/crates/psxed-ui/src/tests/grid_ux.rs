@@ -139,14 +139,14 @@ fn the_view_switch_shows_3d_the_plan_or_both_and_both_draw() {
 #[test]
 fn every_tool_has_its_own_key_and_the_key_selects_it() {
     let mut keys: Vec<&str> = Vec::new();
-    for tool in GridTool::ALL {
+    for tool in GridTool::ALL.into_iter().filter(|t| t.has_key()) {
         assert!(!keys.contains(&tool.key_label()), "{}", tool.key_label());
         keys.push(tool.key_label());
         assert!(!tool.tooltip().is_empty() && !tool.label().is_empty());
     }
     let mut rig = GridRig::persp("ux-keys", flat_project(3, 3, false));
     rig.move_to(Pos2::new(400.0, 300.0), egui::Modifiers::NONE);
-    for tool in GridTool::ALL {
+    for tool in GridTool::ALL.into_iter().filter(|t| t.has_key()) {
         let label = tool.key_label();
         let (key, mods) = match label.strip_prefix("Shift+") {
             Some(rest) => (rest, egui::Modifiers::SHIFT),

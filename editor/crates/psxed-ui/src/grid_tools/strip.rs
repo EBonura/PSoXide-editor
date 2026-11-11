@@ -94,6 +94,19 @@ impl EditorWorkspace {
                     .size(11.0),
                 );
             }
+            GridTool::Room
+            | GridTool::Corridor
+            | GridTool::Opening
+            | GridTool::Arcade
+            | GridTool::Colonnade
+            | GridTool::Bridge
+            | GridTool::Building
+            | GridTool::Cathedral
+            | GridTool::Terrain
+            | GridTool::Ruin
+            | GridTool::Door
+            | GridTool::Lever
+            | GridTool::Checkpoint => self.draw_build_options(ui),
             GridTool::Edit => {
                 ui.toggle_value(&mut self.grid.link, "Weld").on_hover_text(
                     "L: off, a floor moves as a block and the walls between heights follow; on, corners that meet move together",
@@ -449,6 +462,9 @@ impl EditorWorkspace {
         if self.is_grid_world() && self.active_workspace == WorkspaceView::Room {
             if !self.edit_hint().is_empty() {
                 return self.edit_hint().to_string();
+            }
+            if !self.build_hint().is_empty() {
+                return self.build_hint().to_string();
             }
             let keys = self.grid_key_hints();
             return match self.grid_hover_text() {

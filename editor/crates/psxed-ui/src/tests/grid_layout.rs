@@ -216,9 +216,7 @@ fn the_tools_sit_in_labelled_groups_on_one_row() {
         y_of(group);
     }
     let row = y_of("Edit");
-    for tool in [
-        "Classic", "Floor", "Ceiling", "Wall", "Sculpt", "Paint", "Place",
-    ] {
+    for tool in ["Classic", "Room", "Corridor", "Stairs"] {
         assert!((y_of(tool) - row).abs() < 4.0, "{tool} is on the row");
     }
     // The order of GridTool::ALL is the order of the groups.
@@ -255,13 +253,13 @@ fn the_status_bar_separates_the_message_the_hints_and_the_budget() {
     let text = text_of(&output);
     // Three parts, each in its own label and readable.
     assert!(text.contains("Placed a spawn"));
-    assert!(text.contains("Shift range"), "hints");
+    assert!(text.contains("Shift+click range"), "hints");
     assert!(text.contains("Room hall"), "{text}");
     assert!(text.contains("16 sectors"), "{text}");
     assert!(text.contains("32 / 16383 faces"), "{text}");
     for needle in [
         "Placed a spawn",
-        "Shift range",
+        "Shift+click range",
         "Room hall",
         "32 / 16383 faces",
     ] {

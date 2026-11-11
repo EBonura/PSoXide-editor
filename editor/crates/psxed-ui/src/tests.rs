@@ -11,6 +11,7 @@ mod grid_audit;
 mod grid_backlog;
 mod grid_backlog_shots;
 mod grid_bands;
+mod grid_build_tools;
 mod grid_cells;
 mod grid_cycle;
 mod grid_derived;

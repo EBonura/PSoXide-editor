@@ -13,7 +13,7 @@ pub(crate) struct ToolEntry {
 }
 
 /// Every tool, in strip order.
-pub(crate) const CATALOG: [ToolEntry; 20] = [
+pub(crate) const CATALOG: [ToolEntry; 33] = [
     ToolEntry {
         tool: GridTool::Edit,
         group: ToolGroup::Edit,
@@ -35,6 +35,66 @@ pub(crate) const CATALOG: [ToolEntry; 20] = [
         hint: "Press a floor, ceiling or wall and drag (walls: along the normal) | Shift-drag a box picks many, Shift+Alt adds | Click Shift adds | = out, - in | Tab Offset/Level | Alt fine | Esc cancel",
     },
     ToolEntry {
+        tool: GridTool::Room,
+        group: ToolGroup::Build,
+        hint: "Drag a rectangle | Shift+drag up or type a number for the height | Enter finishes a lasso | Esc cancel",
+    },
+    ToolEntry {
+        tool: GridTool::Corridor,
+        group: ToolGroup::Build,
+        hint: "Click waypoints, Enter finishes | Click a higher floor for a ramp or stairs | type a number for the width | Esc cancel",
+    },
+    ToolEntry {
+        tool: GridTool::Opening,
+        group: ToolGroup::Build,
+        hint: "Drag along a wall | Shift+drag up or type a number for the lintel | Esc cancel",
+    },
+    ToolEntry {
+        tool: GridTool::Arcade,
+        group: ToolGroup::Build,
+        hint: "Drag a line on the floor | type a number for the bays | Esc cancel",
+    },
+    ToolEntry {
+        tool: GridTool::Colonnade,
+        group: ToolGroup::Build,
+        hint: "Drag a line on the floor | type a number for the bays | Esc cancel",
+    },
+    ToolEntry {
+        tool: GridTool::Bridge,
+        group: ToolGroup::Build,
+        hint: "Click the two ends of the deck | type a number for the width | Esc cancel",
+    },
+    ToolEntry {
+        tool: GridTool::Building,
+        group: ToolGroup::Build,
+        hint: "Drag a footprint | type a number for the storeys | Esc cancel",
+    },
+    ToolEntry {
+        tool: GridTool::Cathedral,
+        group: ToolGroup::Build,
+        hint: "Drag the nave: its length sets the bays, its depth the width | type a number for the bay size | Esc cancel",
+    },
+    ToolEntry {
+        tool: GridTool::Stairs,
+        group: ToolGroup::Build,
+        hint: "Drag a rectangle | Press on it, drag up | R turn the bottom side | Path: click waypoints, Enter, [ ] width | Tab steps/ramp | Esc cancel",
+    },
+    ToolEntry {
+        tool: GridTool::Ramp,
+        group: ToolGroup::Build,
+        hint: "Pick sectors | Press near the side to keep, drag up/down | R turn the side | Tab hold to walkable | Esc cancel",
+    },
+    ToolEntry {
+        tool: GridTool::Spiral,
+        group: ToolGroup::Build,
+        hint: "Click the corners of a ring, Enter closes it | Press on it, drag up for the climb of a storey | Storeys in the option row | Alt+Up/Down level | Esc cancel",
+    },
+    ToolEntry {
+        tool: GridTool::Slab,
+        group: ToolGroup::Build,
+        hint: "Pick sectors | Add floor above: press on them and drag up for the height | Remove upper floor, Fill opening: click them | Tab mode | Alt+Up/Down level | G go to level | Z cutaway | Esc cancel",
+    },
+    ToolEntry {
         tool: GridTool::Floor,
         group: ToolGroup::Build,
         hint: "Drag rectangle | Shift height | Ctrl delete | Esc cancel",
@@ -48,26 +108,6 @@ pub(crate) const CATALOG: [ToolEntry; 20] = [
         tool: GridTool::Wall,
         group: ToolGroup::Build,
         hint: "Drag a run | R direction | Ctrl remove | Esc cancel",
-    },
-    ToolEntry {
-        tool: GridTool::Ramp,
-        group: ToolGroup::Build,
-        hint: "Pick sectors | Press near the side to keep, drag up/down | R turn the side | Tab hold to walkable | Esc cancel",
-    },
-    ToolEntry {
-        tool: GridTool::Stairs,
-        group: ToolGroup::Build,
-        hint: "Drag a rectangle | Press on it, drag up | R turn the bottom side | Path: click waypoints, Enter, [ ] width | Tab steps/ramp | Esc cancel",
-    },
-    ToolEntry {
-        tool: GridTool::Spiral,
-        group: ToolGroup::Build,
-        hint: "Click the corners of a ring, Enter closes it | Press on it, drag up for the climb of a storey | Storeys in the option row | Alt+Up/Down level | Esc cancel",
-    },
-    ToolEntry {
-        tool: GridTool::Slab,
-        group: ToolGroup::Build,
-        hint: "Pick sectors | Add floor above: press on them and drag up for the height | Remove upper floor, Fill opening: click them | Tab mode | Alt+Up/Down level | G go to level | Z cutaway | Esc cancel",
     },
     ToolEntry {
         tool: GridTool::Plane,
@@ -88,6 +128,16 @@ pub(crate) const CATALOG: [ToolEntry; 20] = [
         tool: GridTool::Break,
         group: ToolGroup::Terrain,
         hint: "Pick sectors | Press on them, drag up for intensity | Tab target | Shift+X re-roll | Enter commit | Esc cancel",
+    },
+    ToolEntry {
+        tool: GridTool::Terrain,
+        group: ToolGroup::Terrain,
+        hint: "Drag a region | Shift+X or the dice re-roll the seed | type a number for the amplitude | Esc cancel",
+    },
+    ToolEntry {
+        tool: GridTool::Ruin,
+        group: ToolGroup::Terrain,
+        hint: "Drag a region or take the whole room | Paint path keeps cells clear | dice re-roll | type a number for the intensity | Esc cancel",
     },
     ToolEntry {
         tool: GridTool::Cells,
@@ -113,6 +163,21 @@ pub(crate) const CATALOG: [ToolEntry; 20] = [
         tool: GridTool::Place,
         group: ToolGroup::Objects,
         hint: "Click to place at the sector centre | Shift+click keeps placing | Alt 64 | Shift+Alt free",
+    },
+    ToolEntry {
+        tool: GridTool::Door,
+        group: ToolGroup::Objects,
+        hint: "Drag along a wall: doorway and sliding door in one gesture | Shift+drag up or type a number for the height | Esc cancel",
+    },
+    ToolEntry {
+        tool: GridTool::Lever,
+        group: ToolGroup::Objects,
+        hint: "Click a floor to place a lever, then click the door it operates | Esc cancel",
+    },
+    ToolEntry {
+        tool: GridTool::Checkpoint,
+        group: ToolGroup::Objects,
+        hint: "Click a floor to place a checkpoint | Esc cancel",
     },
 ];
 

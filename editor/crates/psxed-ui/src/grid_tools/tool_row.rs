@@ -106,13 +106,24 @@ fn tool_hover(tool: GridTool) -> String {
 /// What one group of the strip holds.
 fn group_tools(group: ToolGroup) -> Vec<GridTool> {
     tools_of(group)
-        .filter(|tool| !CLASSIC.contains(tool))
+        .filter(|tool| !CLASSIC.contains(tool) && !MORE_BUILD.contains(tool))
         .collect()
 }
 
 /// The tools the single Edit tool replaces. They stay available, in one menu
 /// of the EDIT group, until the Edit tool has proven itself.
 pub(crate) const CLASSIC: [GridTool; 3] = [GridTool::Select, GridTool::Height, GridTool::Extrude];
+
+/// The older Build tools and the keyless Colonnade, in one menu of the BUILD
+/// group so the strip stays within a row or two.
+pub(crate) const MORE_BUILD: [GridTool; 6] = [
+    GridTool::Colonnade,
+    GridTool::Floor,
+    GridTool::Ceiling,
+    GridTool::Wall,
+    GridTool::Plane,
+    GridTool::Mesh,
+];
 
 /// The width the strip needs for `group`: its label, its buttons and, for
 /// OBJECTS, the kind chips.
@@ -141,9 +152,14 @@ fn group_width(ctx: &egui::Context, group: ToolGroup) -> f32 {
                 .x;
             width += button_width(name, key) + BUTTON_SLACK;
         }
-        if group == ToolGroup::Edit {
+        if matches!(group, ToolGroup::Edit | ToolGroup::Build) {
+            let word = if group == ToolGroup::Edit {
+                "Classic"
+            } else {
+                "More"
+            };
             let name = f
-                .layout_no_wrap("Classic".to_string(), button_font.clone(), STUDIO_TEXT)
+                .layout_no_wrap(word.to_string(), button_font.clone(), STUDIO_TEXT)
                 .size()
                 .x;
             width += button_width(name, 0.0) + BUTTON_SLACK;
@@ -224,19 +240,33 @@ impl EditorWorkspace {
             self.row_tool(ui, tool);
         }
         if group == ToolGroup::Edit {
-            self.row_classic(ui);
+            self.row_menu(
+                ui,
+                "Classic",
+                "psxed_classic_tools",
+                &CLASSIC,
+                "The separate Select, Height and Extrude tools",
+            );
+        }
+        if group == ToolGroup::Build {
+            self.row_menu(
+                ui,
+                "More",
+                "psxed_more_build_tools",
+                &MORE_BUILD,
+                "Colonnade, and the floor, ceiling, wall, plane and mesh tools",
+            );
         }
         if group == ToolGroup::Objects {
             self.row_place_kinds(ui);
         }
     }
 
-    /// The Classic menu: the tools the Edit tool replaces.
-    fn row_classic(&mut self, ui: &mut egui::Ui) {
-        let active = CLASSIC.contains(&self.grid.tool);
-        let response = name_and_key_button(ui, "Classic", "", active)
-            .on_hover_text("The separate Select, Height and Extrude tools");
-        let id = ui.make_persistent_id("psxed_classic_tools");
+    /// A menu of tools: Classic (the tools the Edit tool replaces) or More.
+    fn row_menu(&mut self, ui: &mut egui::Ui, name: &str, id: &str, tools: &[GridTool], tip: &str) {
+        let active = tools.contains(&self.grid.tool);
+        let response = name_and_key_button(ui, name, "", active).on_hover_text(tip);
+        let id = ui.make_persistent_id(id);
         if response.clicked() {
             ui.memory_mut(|m| m.toggle_popup(id));
         }
@@ -247,7 +277,7 @@ impl EditorWorkspace {
             egui::PopupCloseBehavior::CloseOnClick,
             |ui| {
                 ui.set_min_width(130.0);
-                for tool in CLASSIC {
+                for &tool in tools {
                     let label = format!("{}  {}", tool.label(), tool.key_label());
                     if ui
                         .selectable_label(self.grid.tool == tool, label)

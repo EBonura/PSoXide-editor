@@ -301,6 +301,14 @@ impl EditorWorkspace {
                 self.request_play_or_rebuild(playtest_status);
             }
         });
+        if ui
+            .ctx()
+            .data_mut(|d| d.remove_temp::<bool>(egui::Id::new("psxed_play_from_here")))
+            .unwrap_or(false)
+        {
+            let at = self.view_centre_on_floor();
+            self.play_from_here(at, 0.0);
+        }
         if let Some(target) = set_boot {
             self.set_boot_target(target);
         }
@@ -384,6 +392,16 @@ impl EditorWorkspace {
     ) {
         // Only an open menu pays for the estimate.
         let budget = self.playtest_budget_for_menu();
+        if ui
+            .button("Play from here")
+            .on_hover_text("Start the player at the centre of the view, without moving the spawn")
+            .clicked()
+        {
+            ui.ctx()
+                .data_mut(|d| d.insert_temp(egui::Id::new("psxed_play_from_here"), true));
+            ui.close_menu();
+        }
+        ui.separator();
         ui.label(RichText::new("Boot at").color(STUDIO_TEXT_WEAK).small());
         if ui
             .selectable_label(current_boot == BootTarget::Gameplay, "Gameplay")

@@ -11,6 +11,8 @@ use super::*;
 #[derive(Clone, Debug)]
 pub(in crate::grid_tools) struct MenuTarget {
     hit: Hit,
+    /// The spot on the ground the right click was over, editor units.
+    spot: Option<[f32; 3]>,
 }
 
 /// Call every frame the viewport is drawn with the Edit tool: records what a
@@ -33,7 +35,12 @@ pub(in crate::grid_tools) fn attach(
                 cycle: 0,
             };
             let hit = target::at(ws, &ptr);
-            ws.grid.edit.menu = (hit.target != Target::Nothing).then_some(MenuTarget { hit });
+            let spot = if hit.point != [0.0; 3] {
+                Some(hit.point)
+            } else {
+                ws.grid_plane_point(&ptr, 0.0)
+            };
+            ws.grid.edit.menu = (hit.target != Target::Nothing).then_some(MenuTarget { hit, spot });
         }
     }
     if ws.grid.edit.menu.is_none() {
@@ -44,11 +51,17 @@ pub(in crate::grid_tools) fn attach(
             ui.close_menu();
             return;
         };
-        show(ws, ui, &menu.hit);
+        show(ws, ui, &menu.hit, menu.spot);
     });
 }
 
-fn show(ws: &mut EditorWorkspace, ui: &mut egui::Ui, hit: &Hit) {
+fn show(ws: &mut EditorWorkspace, ui: &mut egui::Ui, hit: &Hit, spot: Option<[f32; 3]>) {
+    if let Some(at) = spot {
+        if ui.button("Play from here").clicked() {
+            ws.play_from_here(at, 0.0);
+            ui.close_menu();
+        }
+    }
     let is_wall = hit.target.wall().is_some();
     let label = if is_wall { "Select run" } else { "Select room" };
     if ui.button(label).clicked() {

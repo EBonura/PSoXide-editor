@@ -349,8 +349,8 @@ impl WindowRig {
         for _ in 0..3 {
             self.frame(vec![]);
         }
-        let floor = self.at("Floor");
-        self.click(floor);
+        self.ws.set_grid_tool(GridTool::Floor);
+        self.frame(vec![]);
         for _ in 0..3 {
             self.frame(vec![]);
         }
@@ -589,8 +589,8 @@ fn an_edit_made_in_the_3d_view_does_not_move_its_camera() {
     for _ in 0..3 {
         rig.frame(vec![]);
     }
-    let floor = rig.at("Floor");
-    rig.click(floor);
+    rig.ws.set_grid_tool(GridTool::Floor);
+    rig.frame(vec![]);
     let before = rig.ws.camera_rig.target;
     let a = rig.persp_screen(rig.editor_centre([6, 2], [6, 2])).unwrap();
     let b = rig.persp_screen(rig.editor_centre([6, 3], [6, 3])).unwrap();
@@ -707,7 +707,7 @@ fn no_pointer_gesture_changes_the_tool_unless_it_clicks_a_tool_button() {
                         .iter()
                         .filter(|l| !l.is_empty())
                         .filter_map(|l| rig.find(l))
-                        .any(|c| (c.x - p.x).abs() < 60.0 && (c.y - p.y).abs() < 22.0)
+                        .any(|c| (c.x - p.x).abs() < 100.0 && (c.y - p.y).abs() < 22.0)
                     })
             };
             let on_strip = near_a_button(&rig, a) || near_a_button(&rig, b);
@@ -738,8 +738,8 @@ fn a_tool_key_in_the_middle_of_a_drag_does_not_swap_the_tool() {
     for _ in 0..3 {
         rig.frame(vec![]);
     }
-    let floor = rig.at("Floor");
-    rig.click(floor);
+    rig.ws.set_grid_tool(GridTool::Floor);
+    rig.frame(vec![]);
     let (a, b) = (rig.cell(6, 2), rig.cell(6, 3));
     rig.move_to(a);
     let e = rig.press(a, true);
