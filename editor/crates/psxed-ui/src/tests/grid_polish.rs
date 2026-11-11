@@ -562,3 +562,64 @@ mod remembered {
         assert_eq!(reopened.grid.level.y, None, "no storey at that height");
     }
 }
+
+// ---- Deletions say so and can be taken back ----
+
+mod deletions {
+    use super::super::grid_rig::flat_project;
+    use super::*;
+
+    #[test]
+    fn deleting_a_room_offers_an_undo_in_the_status_bar_that_brings_it_back() {
+        let mut rig = WindowRig::starter(SMALL);
+        rig.ws.grid_add_room();
+        let rooms = rig
+            .ws
+            .project
+            .active_scene()
+            .world
+            .grid()
+            .unwrap()
+            .rooms
+            .len();
+        assert!(rooms >= 2);
+        rig.ws.grid_delete_room(1);
+        for _ in 0..3 {
+            rig.frame(vec![]);
+        }
+        let toast = rig
+            .ws
+            .live_undo_toast()
+            .expect("a toast is offered")
+            .to_string();
+        assert!(toast.starts_with("Deleted room "), "{toast}");
+        let undo = visible_texts(&rig)
+            .into_iter()
+            .find(|(t, r)| t == "Undo" && r.top() > SMALL.y - 40.0)
+            .map(|(_, r)| r)
+            .expect("the Undo link is in the status bar");
+        rig.click(undo.center());
+        let after = rig
+            .ws
+            .project
+            .active_scene()
+            .world
+            .grid()
+            .unwrap()
+            .rooms
+            .len();
+        assert_eq!(after, rooms, "undo brought the room back");
+        assert!(rig.ws.live_undo_toast().is_none());
+    }
+
+    #[test]
+    fn any_other_edit_retires_the_toast() {
+        let mut ws =
+            EditorWorkspace::with_project(test_temp_dir("toast"), flat_project(3, 3, true));
+        ws.push_undo();
+        ws.offer_undo("Deleted something.".to_string());
+        assert!(ws.live_undo_toast().is_some());
+        ws.push_undo();
+        assert!(ws.live_undo_toast().is_none());
+    }
+}

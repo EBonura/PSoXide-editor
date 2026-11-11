@@ -397,6 +397,11 @@ impl EditorWorkspace {
         if selected.is_empty() {
             return;
         }
+        let first_name = selected
+            .first()
+            .and_then(|id| self.project.active_scene().node(*id))
+            .map(|n| n.name.clone())
+            .unwrap_or_default();
         self.push_undo();
         let mut removed = 0usize;
         for id in selected.iter().rev() {
@@ -407,12 +412,12 @@ impl EditorWorkspace {
         if removed > 0 {
             self.clear_node_selection_state();
             self.clear_resource_selection_state();
-            self.status = if removed == 1 {
-                "Deleted node".to_string()
-            } else {
-                format!("Deleted {removed} nodes")
-            };
             self.mark_dirty();
+            self.offer_undo(if removed == 1 {
+                format!("Deleted {first_name}.")
+            } else {
+                format!("Deleted {removed} objects.")
+            });
         }
     }
 
@@ -918,6 +923,21 @@ impl EditorWorkspace {
     /// Snapshot the current project before a discrete mutation.
     /// Call once per user action -- paint click, place, add/delete
     /// node, etc -- so each undo step matches one author intent.
+    /// Say what was deleted and offer to take it back: the status bar shows
+    /// `text` with an Undo link until anything else is edited.
+    pub(crate) fn offer_undo(&mut self, text: String) {
+        self.status = text.clone();
+        self.undo_toast = Some((text, self.history.epoch()));
+    }
+
+    /// The toast, while undoing still takes back exactly that deletion.
+    pub(crate) fn live_undo_toast(&self) -> Option<&str> {
+        self.undo_toast
+            .as_ref()
+            .filter(|(_, epoch)| *epoch == self.history.epoch() && self.history.can_undo())
+            .map(|(text, _)| text.as_str())
+    }
+
     pub(crate) fn push_undo(&mut self) {
         self.history.record(self.project.clone());
     }

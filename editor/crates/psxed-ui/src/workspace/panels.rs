@@ -756,11 +756,11 @@ impl EditorWorkspace {
         }
         self.reset_ui_node_selection();
         self.retain_hidden_ui_nodes_for_project();
-        self.status = match removed_name {
-            Some(name) => format!("Deleted UI scene {name}"),
-            None => "Deleted UI scene".to_string(),
-        };
         self.mark_dirty();
+        self.offer_undo(match removed_name {
+            Some(name) => format!("Deleted screen {name}."),
+            None => "Deleted screen.".to_string(),
+        });
     }
 
     /// Enter inline-rename mode for the UI scene at `index`.

@@ -91,6 +91,21 @@ impl PreviewState {
     pub(super) fn observe(&mut self, project: &ProjectDocument) -> u64 {
         if self.snapshot.as_ref() != Some(project) {
             self.generation = self.generation.wrapping_add(1);
+            // Set PSXED_TRACE_PREVIEW=1 to watch this: a generation that keeps
+            // climbing with no edits means two callers hand different
+            // documents to the preview (every flip restarts the light bake).
+            if std::env::var_os("PSXED_TRACE_PREVIEW").is_some() {
+                let was = self.snapshot.as_ref();
+                eprintln!(
+                    "[preview] document generation {}: project '{}' differs from the last one asked about ({} resources vs {}, {} scenes vs {})",
+                    self.generation,
+                    project.name,
+                    project.resources.len(),
+                    was.map_or(0, |p| p.resources.len()),
+                    project.scenes.len(),
+                    was.map_or(0, |p| p.scenes.len()),
+                );
+            }
             self.snapshot = Some(project.clone());
         }
         self.generation

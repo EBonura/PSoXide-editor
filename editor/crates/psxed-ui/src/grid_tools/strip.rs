@@ -535,6 +535,8 @@ impl EditorWorkspace {
             None
         };
         let message = self.status.clone();
+        let toast = self.live_undo_toast().map(str::to_string);
+        let mut undo_clicked = false;
         // A narrow window keeps the hint readable: the secondary chips go
         // first (the face budget stays, it is the cap that matters).
         let screen_width = ctx.screen_rect().width();
@@ -566,6 +568,9 @@ impl EditorWorkspace {
                             )
                             .on_hover_text(&message);
                         });
+                        if toast.is_some() && ui.link("Undo").clicked() {
+                            undo_clicked = true;
+                        }
                         if let Some((budget, room, room_sectors, room_name, room_count)) = &chips {
                             let percent = budget.faces_percent();
                             let colour = if percent >= 85 {
@@ -632,6 +637,10 @@ impl EditorWorkspace {
                     });
                 });
             });
+        if undo_clicked {
+            self.do_undo();
+            self.undo_toast = None;
+        }
     }
 }
 

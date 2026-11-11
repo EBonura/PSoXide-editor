@@ -723,6 +723,11 @@ impl EditorWorkspace {
         if world.rooms.len() <= 1 || index >= world.rooms.len() {
             return;
         }
+        let name = if world.rooms[index].name.is_empty() {
+            format!("{index}")
+        } else {
+            world.rooms[index].name.clone()
+        };
         world.rooms.remove(index);
         let shift = |i: usize| if i > index { i - 1 } else { i };
         self.grid_hidden_rooms = self
@@ -735,8 +740,8 @@ impl EditorWorkspace {
         self.grid.last_room = shift(self.grid.last_room).min(self.grid_room_count() - 1);
         self.grid.selection.clear();
         self.history.record(before);
-        self.status = format!("Deleted room {index}");
         self.grid_changed();
+        self.offer_undo(format!("Deleted room {name}."));
     }
 
     fn grid_room_count(&self) -> usize {

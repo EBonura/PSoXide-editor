@@ -516,6 +516,9 @@ pub struct EditorWorkspace {
     autosave: workspace::autosave::AutosaveState,
     /// What the check before Play found (see `workspace::play_check`).
     play_problems: Vec<workspace::play_check::PlayProblem>,
+    /// A deletion that can be taken back from the status bar: what was
+    /// deleted, and the undo epoch right after it.
+    undo_toast: Option<(String, u64)>,
     /// What the panels measured last frame, for the remembered layout.
     measured: workspace::remember::MeasuredSizes,
     /// Where the user's layout is kept, when this run keeps one.
@@ -2263,6 +2266,7 @@ impl EditorWorkspace {
             last_slots_used: None,
             autosave: workspace::autosave::AutosaveState::default(),
             play_problems: Vec::new(),
+            undo_toast: None,
             measured: workspace::remember::MeasuredSizes::default(),
             user_layout_path: None,
             layout_saved: session_state::UserLayout::default(),
