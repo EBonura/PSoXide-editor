@@ -66,6 +66,7 @@ mod redraw;
 mod scene_tree_selection;
 mod tool_audit;
 mod tool_flows;
+mod tool_matrix;
 mod ui_layout;
 mod ui_preview;
 mod ui_wording;

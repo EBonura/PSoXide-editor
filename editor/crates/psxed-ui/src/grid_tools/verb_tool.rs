@@ -535,6 +535,8 @@ pub(super) fn cancel(ws: &mut EditorWorkspace) -> bool {
                 // as it was, byte for byte.
                 VerbDrag::Break(live) if live.recorded() => {
                     ws.project = *live.start;
+                    // The step recorded at its first change goes with it.
+                    let _ = ws.history.pop_last();
                     ws.grid_changed();
                 }
                 VerbDrag::Break(_) => {}
