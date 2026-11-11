@@ -58,6 +58,20 @@ impl UndoStack {
         true
     }
 
+    /// Take back the newest recorded snapshot, as if it had never been
+    /// recorded: a cancelled gesture restores the document it began with
+    /// and leaves neither an undo step nor a redo step behind. `None` when
+    /// the cursor is not at the newest step.
+    pub(crate) fn pop_last(&mut self) -> Option<ProjectDocument> {
+        if self.cursor != self.timeline.len() {
+            return None;
+        }
+        self.bump_epoch();
+        let snapshot = self.timeline.pop_back()?;
+        self.cursor = self.timeline.len();
+        Some(snapshot)
+    }
+
     /// Whether there is a step to undo.
     pub(crate) fn can_undo(&self) -> bool {
         self.cursor > 0

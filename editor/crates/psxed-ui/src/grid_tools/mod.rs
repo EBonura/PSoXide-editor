@@ -864,6 +864,16 @@ impl EditorWorkspace {
         self.mark_shortcut_group_changed(ShortcutGroup::Tool);
     }
 
+    /// Esc in the middle of a stroke that recorded its undo step at the first
+    /// change: restore the document it began with and drop that step, so the
+    /// cancel leaves no history behind.
+    pub(crate) fn restore_last_history_step(&mut self) {
+        if let Some(before) = self.history.pop_last() {
+            self.project = before;
+            self.grid_changed();
+        }
+    }
+
     /// A grid edit just happened: stale caches, dirty document.
     pub(crate) fn grid_changed(&mut self) {
         self.mark_dirty();

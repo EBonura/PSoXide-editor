@@ -140,11 +140,18 @@ impl EditorWorkspace {
             } else if verb_tool::cancel(self) {
                 // A verb drag, a pick in flight or the region itself.
             } else if !matches!(self.grid.gesture, Gesture::Idle) {
-                // Undo whatever a height drag already did.
-                if let Gesture::Height(g) = std::mem::take(&mut self.grid.gesture) {
-                    if g.delta != 0 {
-                        self.do_undo();
+                // Put the document back as the gesture found it.
+                match std::mem::take(&mut self.grid.gesture) {
+                    Gesture::Height(g) if g.delta != 0 => self.do_undo(),
+                    Gesture::Paint { undo_pushed: true } => self.restore_last_history_step(),
+                    Gesture::Mesh(drag) if drag.changed => self.restore_last_history_step(),
+                    Gesture::Cells(stroke) => {
+                        if stroke.changed() > 0 {
+                            self.project = stroke.into_before();
+                            self.grid_changed();
+                        }
                     }
+                    _ => {}
                 }
                 self.grid.gesture = Gesture::Idle;
                 self.status = "Cancelled".to_string();

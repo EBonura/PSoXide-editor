@@ -124,6 +124,18 @@ pub(crate) struct CellsStroke {
     storeys: usize,
 }
 
+impl CellsStroke {
+    /// How many cells the stroke has changed so far.
+    pub(crate) fn changed(&self) -> usize {
+        self.changed
+    }
+
+    /// The document as the stroke found it, for a cancel.
+    pub(crate) fn into_before(self) -> ProjectDocument {
+        *self.before
+    }
+}
+
 /// The room and click under the pointer.
 fn click_under(ws: &EditorWorkspace, ptr: &GridPointer) -> Option<(usize, [i32; 2])> {
     let world = ws.project.active_scene().world.grid()?;
