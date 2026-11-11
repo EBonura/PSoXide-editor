@@ -481,19 +481,25 @@ impl EditorWorkspace {
             self.refresh_texture_thumbs(ctx);
         }
         let max_height = max_resizable_bottom_dock_height(ctx);
-        egui::TopBottomPanel::bottom("psxed_content_browser")
+        // Each view keeps the height the user gave it: the Library wants a
+        // tall drawer for thumbnails, the Console a short one.
+        let screen_height = ctx.screen_rect().height();
+        let (panel_id, default_height) = match self.content_browser_view {
+            ContentBrowserView::Library => (
+                "psxed_content_browser_library",
+                (screen_height * 0.36).clamp(240.0, 400.0),
+            ),
+            ContentBrowserView::Resources => ("psxed_content_browser", 240.0),
+            ContentBrowserView::Debug => ("psxed_content_browser_console", 220.0),
+        };
+        egui::TopBottomPanel::bottom(panel_id)
             .resizable(true)
-            .default_height(
-                if self.content_browser_view == ContentBrowserView::Library {
-                    380.0
-                } else {
-                    240.0
-                },
-            )
+            .default_height(default_height)
             .min_height(CONTENT_BROWSER_MIN_HEIGHT)
             .max_height(max_height)
             .frame(dock_frame())
             .show(ctx, |ui| {
+                drawer_grip(ui);
                 fixed_panel_content(ui, "psxed_content_browser_fixed_content", |ui| {
                     let content_width = ui.available_width().max(1.0);
                     ui.set_width(content_width);
@@ -1414,4 +1420,14 @@ impl EditorWorkspace {
     pub(crate) fn test_material_thumbnail_signature(&self, id: ResourceId) -> String {
         material_thumbnail_signature(&self.project, id)
     }
+}
+
+/// A short bar centred on the drawer's top edge, where the drawer is dragged
+/// taller or shorter (the whole edge takes the drag; the bar says so).
+fn drawer_grip(ui: &mut egui::Ui) {
+    let top = ui.max_rect().top();
+    let centre = ui.max_rect().center().x;
+    let bar = Rect::from_center_size(Pos2::new(centre, top + 2.0), Vec2::new(44.0, 3.0));
+    ui.painter()
+        .rect_filled(bar, egui::CornerRadius::same(2), STUDIO_BORDER);
 }

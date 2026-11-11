@@ -139,44 +139,26 @@ impl EditorWorkspace {
                     .clicked();
             });
         });
-        ui.add(
-            egui::TextEdit::singleline(&mut self.grid.palette_search)
-                .hint_text("Search materials")
-                .desired_width(f32::INFINITY),
-        );
         let mut resize = 0i32;
-        ui.horizontal(|ui| {
-            ui.checkbox(&mut self.grid.palette_all, "All project materials")
-                .on_hover_text(
-                    "Off: the wall, floor and ceiling materials. On: also HUD, menu, sky and character images.",
+        // The Library drawer is short and wide: the search and the options
+        // share one row there. A dock is narrow: two rows.
+        if fill && ui.available_width() >= 520.0 {
+            ui.horizontal(|ui| {
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.grid.palette_search)
+                        .hint_text("Search materials")
+                        .desired_width(220.0),
                 );
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let at = SWATCH_SIZES
-                    .iter()
-                    .position(|s| *s == self.grid.palette_swatch)
-                    .unwrap_or(0);
-                let bigger = ui
-                    .add_enabled(
-                        at + 1 < SWATCH_SIZES.len(),
-                        egui::Button::new(icons::text(icons::PLUS, 13.0)),
-                    )
-                    .on_hover_text("Bigger previews")
-                    .on_disabled_hover_text("Bigger previews");
-                let smaller = ui
-                    .add_enabled(
-                        at > 0,
-                        egui::Button::new(icons::text(icons::MINUS, 13.0)),
-                    )
-                    .on_hover_text("Smaller previews")
-                    .on_disabled_hover_text("Smaller previews");
-                if bigger.clicked() {
-                    resize = 1;
-                }
-                if smaller.clicked() {
-                    resize = -1;
-                }
+                self.draw_palette_options(ui, &mut resize);
             });
-        });
+        } else {
+            ui.add(
+                egui::TextEdit::singleline(&mut self.grid.palette_search)
+                    .hint_text("Search materials")
+                    .desired_width(f32::INFINITY),
+            );
+            ui.horizontal(|ui| self.draw_palette_options(ui, &mut resize));
+        }
         if shown.is_empty() {
             let text = if total == 0 {
                 "No materials in this project yet. Use + to make a flat one, or the image button to import a picture."
@@ -306,6 +288,37 @@ impl EditorWorkspace {
         if edit {
             self.open_paint_material_in_lab();
         }
+    }
+
+    /// The "All project materials" switch and the preview size buttons.
+    fn draw_palette_options(&mut self, ui: &mut egui::Ui, resize: &mut i32) {
+        ui.checkbox(&mut self.grid.palette_all, "All project materials")
+            .on_hover_text(
+                "Off: the wall, floor and ceiling materials. On: also HUD, menu, sky and character images.",
+            );
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let at = SWATCH_SIZES
+                .iter()
+                .position(|s| *s == self.grid.palette_swatch)
+                .unwrap_or(0);
+            let bigger = ui
+                .add_enabled(
+                    at + 1 < SWATCH_SIZES.len(),
+                    egui::Button::new(icons::text(icons::PLUS, 13.0)),
+                )
+                .on_hover_text("Bigger previews")
+                .on_disabled_hover_text("Bigger previews");
+            let smaller = ui
+                .add_enabled(at > 0, egui::Button::new(icons::text(icons::MINUS, 13.0)))
+                .on_hover_text("Smaller previews")
+                .on_disabled_hover_text("Smaller previews");
+            if bigger.clicked() {
+                *resize = 1;
+            }
+            if smaller.clicked() {
+                *resize = -1;
+            }
+        });
     }
 
     /// Move the palette preview size `steps` sizes up (or down, when

@@ -84,6 +84,7 @@ mod tool_row;
 mod tool_search;
 #[cfg(test)]
 pub(crate) use library::LibraryTab;
+pub(crate) use strip::elide_hint;
 #[cfg(test)]
 pub(crate) use tool_row::{tool_strip_height, CLASSIC, MORE_BUILD};
 
@@ -813,6 +814,9 @@ pub(crate) struct GridEditState {
     pub hover_pinned: bool,
     /// The key and gesture help overlay (`?`) is open.
     pub help_open: bool,
+    /// Share of the left dock's height that Structure takes (the rest is
+    /// Objects).
+    pub structure_fraction: f32,
     /// The tab of the Library drawer.
     pub library_tab: library::LibraryTab,
     /// The search box of the Library tabs other than Materials.
@@ -901,6 +905,7 @@ impl Default for GridEditState {
             view_rect: std::cell::Cell::new(None),
             hover_pinned: false,
             help_open: false,
+            structure_fraction: 0.6,
             library_tab: library::LibraryTab::default(),
             library_search: String::new(),
             tool_search: None,

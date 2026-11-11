@@ -902,7 +902,10 @@ fn the_last_message_is_in_the_status_bar_on_every_tab() {
                 .map(|(_, r)| *r)
         };
         let message = rect_of("Saved").expect("message");
-        let hint = rect_of("Ctrl+").or_else(|| rect_of("Click")).expect("hint");
+        let hint = rect_of("Ctrl+")
+            .or_else(|| rect_of("Click"))
+            .or_else(|| rect_of("Hover"))
+            .expect("hint");
         assert!(
             hint.min.x < message.min.x,
             "{}: {hint:?} {message:?}",

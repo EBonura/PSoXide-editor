@@ -7,8 +7,11 @@ use super::*;
 /// Width of one segment of the workspace control, so the control has a known
 /// width and can sit in the exact middle of the bar.
 const WORKSPACE_SEGMENT_WIDTH: f32 = 88.0;
-/// Room the project name may take before it is cut.
+/// Room the project name may take before it is cut, on a wide screen.
 const PROJECT_NAME_MAX_WIDTH: f32 = 170.0;
+/// What the logo, the five menus and the unsaved dot need to the left of the
+/// workspace control: the name gets the rest, so Help is never pushed under it.
+const PROJECT_BAR_RESERVE: f32 = 320.0;
 /// Height of a segmented control.
 pub(crate) const SEGMENT_HEIGHT: f32 = 26.0;
 
@@ -141,11 +144,13 @@ impl EditorWorkspace {
                 .on_hover_text("PSoXide");
         }
         ui.add_space(2.0);
+        let name_max_width =
+            (ui.available_width() - PROJECT_BAR_RESERVE).clamp(48.0, PROJECT_NAME_MAX_WIDTH);
 
         if self.project_name_editing {
             let edit_id = ui.id().with("project_name_inline_edit");
             let response = ui.add_sized(
-                Vec2::new(154.0, 23.0),
+                Vec2::new((name_max_width - 16.0).max(48.0), 23.0),
                 egui::TextEdit::singleline(&mut self.project.name)
                     .hint_text("Project name")
                     .font(egui::TextStyle::Button)
@@ -171,7 +176,7 @@ impl EditorWorkspace {
             };
             let name = ui
                 .scope(|ui| {
-                    ui.set_max_width(PROJECT_NAME_MAX_WIDTH);
+                    ui.set_max_width(name_max_width);
                     ui.add(
                         egui::Label::new(RichText::new(display_name).strong().size(15.0))
                             .truncate()

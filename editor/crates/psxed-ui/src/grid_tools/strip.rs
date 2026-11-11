@@ -619,9 +619,11 @@ impl EditorWorkspace {
                         }
                         ui.separator();
                         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                            let font = egui::FontId::proportional(12.0);
+                            let shown = elide_hint(ui, &hint, ui.available_width() - 8.0, &font);
                             ui.add(
                                 egui::Label::new(
-                                    RichText::new(&hint).color(STUDIO_TEXT_WEAK).size(12.0),
+                                    RichText::new(&shown).color(STUDIO_TEXT_WEAK).size(12.0),
                                 )
                                 .truncate(),
                             )
@@ -631,6 +633,60 @@ impl EditorWorkspace {
                 });
             });
     }
+}
+
+/// Width of `text` in `font`, in points.
+fn text_width(ui: &egui::Ui, text: &str, font: &egui::FontId) -> f32 {
+    ui.fonts(|f| f.layout_no_wrap(text.to_string(), font.clone(), Color32::WHITE))
+        .size()
+        .x
+}
+
+/// `hint` cut to fit `width`, from the middle: the hint is a run of parts
+/// divided by `|`, and the first part (what the pointer is over) and the last
+/// parts (the keys that act) stay while the ones between give way to an
+/// ellipsis. A single part too long for the room is cut at its end.
+pub(crate) fn elide_hint(ui: &egui::Ui, hint: &str, width: f32, font: &egui::FontId) -> String {
+    if text_width(ui, hint, font) <= width {
+        return hint.to_string();
+    }
+    let parts: Vec<&str> = hint
+        .split('|')
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .collect();
+    if parts.len() >= 2 {
+        // Keep the first part, then take parts from the end while they fit.
+        let join = |tail: &[&str]| format!("{} | ... | {}", parts[0], tail.join(" | "));
+        let mut best: Option<String> = None;
+        for keep in 1..parts.len() {
+            let candidate = join(&parts[parts.len() - keep..]);
+            if text_width(ui, &candidate, font) <= width {
+                best = Some(candidate);
+            } else {
+                break;
+            }
+        }
+        if let Some(best) = best {
+            return best;
+        }
+    }
+    // One long part: keep its head, and its tail, with the ellipsis between.
+    let chars: Vec<char> = hint.chars().collect();
+    let mut head = chars.len() / 2;
+    while head > 4 {
+        let tail = (head / 2).max(4).min(chars.len() - head);
+        let candidate: String = chars[..head]
+            .iter()
+            .chain(['.', '.', '.'].iter())
+            .chain(chars[chars.len() - tail..].iter())
+            .collect();
+        if text_width(ui, &candidate, font) <= width {
+            return candidate;
+        }
+        head -= 2;
+    }
+    hint.to_string()
 }
 
 /// A small arrow button on the edge of the options bar that scrolls it.

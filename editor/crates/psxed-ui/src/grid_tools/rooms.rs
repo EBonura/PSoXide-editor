@@ -9,7 +9,7 @@ use psxed_project::grid::units::snap_to;
 use psxed_project::grid::{CLICK_UNITS, FINE_UNITS};
 
 /// Maximum height of the room list before it scrolls.
-const LIST_MAX_HEIGHT: f32 = 150.0;
+const LIST_MAX_HEIGHT: f32 = 120.0;
 
 impl EditorWorkspace {
     /// The Rooms panel. Does nothing without a grid world.

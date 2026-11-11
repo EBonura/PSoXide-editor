@@ -56,29 +56,48 @@ impl EditorWorkspace {
                 );
         });
         if current != FacingShade::OFF {
-            ui.horizontal(|ui| {
-                let mut fields = [
-                    ("Floor", percent(current.up)),
-                    ("Ceil", percent(current.down)),
-                    ("E-W", percent(current.side_x)),
-                    ("N-S", percent(current.side_z)),
-                ];
-                let mut edited = false;
-                for (name, value) in &mut fields {
-                    ui.label(RichText::new(*name).color(STUDIO_TEXT_WEAK).size(10.0));
-                    edited |= ui
-                        .add(egui::DragValue::new(value).range(0..=100).suffix("%"))
-                        .changed();
-                }
-                if edited {
-                    next = FacingShade {
-                        up: from_percent(fields[0].1),
-                        down: from_percent(fields[1].1),
-                        side_x: from_percent(fields[2].1),
-                        side_z: from_percent(fields[3].1),
-                    };
-                }
-            });
+            // Two pairs a row: four in a line clipped the last at the
+            // narrowest dock.
+            let mut fields = [
+                ("Floor", percent(current.up)),
+                ("Ceil", percent(current.down)),
+                ("E-W", percent(current.side_x)),
+                ("N-S", percent(current.side_z)),
+            ];
+            let mut edited = false;
+            egui::Grid::new("grid_facing_shade_fields")
+                .num_columns(4)
+                .spacing([6.0, 4.0])
+                .show(ui, |ui| {
+                    for (i, (name, value)) in fields.iter_mut().enumerate() {
+                        ui.add(
+                            egui::Label::new(
+                                RichText::new(*name).color(STUDIO_TEXT_WEAK).size(10.5),
+                            )
+                            .wrap_mode(egui::TextWrapMode::Extend),
+                        )
+                        .on_hover_text(match *name {
+                            "Floor" => "How bright a floor is",
+                            "Ceil" => "How bright a ceiling is",
+                            "E-W" => "How bright a wall facing east or west is",
+                            _ => "How bright a wall facing north or south is",
+                        });
+                        edited |= ui
+                            .add(egui::DragValue::new(value).range(0..=100).suffix("%"))
+                            .changed();
+                        if i % 2 == 1 {
+                            ui.end_row();
+                        }
+                    }
+                });
+            if edited {
+                next = FacingShade {
+                    up: from_percent(fields[0].1),
+                    down: from_percent(fields[1].1),
+                    side_x: from_percent(fields[2].1),
+                    side_z: from_percent(fields[3].1),
+                };
+            }
         }
         if next != current {
             // Recorded by the Rooms panel's inspector transaction, like

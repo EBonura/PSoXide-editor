@@ -13,7 +13,7 @@ use psxed_project::grid::storeys::{Storey, STOREY_MIN_CELLS, STOREY_PITCH};
 use psxed_project::grid::{GridWorld, CLICK_UNITS};
 
 /// Maximum height of the storey list before it scrolls.
-const LIST_MAX_HEIGHT: f32 = 150.0;
+const LIST_MAX_HEIGHT: f32 = 96.0;
 
 /// The click index a storey's name is kept under.
 pub(crate) fn name_key(height: i32) -> i32 {
@@ -211,7 +211,12 @@ impl EditorWorkspace {
     pub(crate) fn draw_grid_left_dock(&mut self, ui: &mut egui::Ui) {
         let content_width = ui.available_width().max(1.0);
         let total = ui.available_height().max(1.0);
-        let top = (total * 0.58).max(160.0).min(total - 120.0).max(60.0);
+        // Structure on top, Objects below, a handle between them. Each keeps
+        // room to show its header and a few rows however short the window is.
+        let handle = STRUCTURE_HANDLE_HEIGHT;
+        let min_part = STRUCTURE_MIN_PART.min((total - handle) * 0.5);
+        let top = ((total - handle) * self.grid.structure_fraction)
+            .clamp(min_part, (total - handle - min_part).max(min_part));
         ui.allocate_ui_with_layout(
             Vec2::new(content_width, top),
             egui::Layout::top_down(egui::Align::Min),
@@ -229,6 +234,28 @@ impl EditorWorkspace {
                     });
             },
         );
+        let (rect, response) =
+            ui.allocate_exact_size(Vec2::new(content_width, handle), Sense::drag());
+        let response = response
+            .on_hover_cursor(egui::CursorIcon::ResizeVertical)
+            .on_hover_text("Drag to give Structure or Objects more room");
+        if response.dragged() && total > handle {
+            let delta = ui.input(|input| input.pointer.delta().y);
+            self.grid.structure_fraction =
+                (self.grid.structure_fraction + delta / (total - handle)).clamp(0.2, 0.85);
+        }
+        let colour = if response.dragged() || response.hovered() {
+            STUDIO_ACCENT
+        } else {
+            STUDIO_BORDER
+        };
+        ui.painter().line_segment(
+            [
+                Pos2::new(rect.left() + 10.0, rect.center().y),
+                Pos2::new(rect.right() - 10.0, rect.center().y),
+            ],
+            Stroke::new(1.0, colour),
+        );
         let rest = ui.available_height().max(1.0);
         ui.allocate_ui_with_layout(
             Vec2::new(content_width, rest),
@@ -241,6 +268,11 @@ impl EditorWorkspace {
         );
     }
 }
+
+/// Height of the handle between Structure and Objects.
+const STRUCTURE_HANDLE_HEIGHT: f32 = 8.0;
+/// The least height either part of the left dock keeps.
+const STRUCTURE_MIN_PART: f32 = 110.0;
 
 /// The head of a section inside the Structure panel: the panel's own header
 /// is the heavy one, so a section is a quiet line with its buttons at the

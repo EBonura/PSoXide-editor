@@ -36,6 +36,7 @@ mod grid_paint;
 mod grid_pick;
 mod grid_pick_shots;
 mod grid_planes;
+mod grid_polish;
 mod grid_rig;
 mod grid_screens;
 mod grid_sculpt;
