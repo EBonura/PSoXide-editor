@@ -67,6 +67,7 @@ mod scene_tree_selection;
 mod tool_audit;
 mod tool_edit_table;
 mod tool_flows;
+mod tool_library;
 mod tool_matrix;
 mod tool_objects;
 mod ui_layout;

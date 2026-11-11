@@ -291,12 +291,35 @@ pub(super) fn lib_open(rig: &mut WindowRig, tab: &str) -> bool {
             .max_by(|a, b| a.1.center().y.total_cmp(&b.1.center().y))
             .map(|(_, r)| r)
     };
-    if lowest(rig, tab).is_none() {
+    // The closed drawer is one bar that describes what is in it.
+    let is_closed = |rig: &WindowRig| texts(rig).iter().any(|(t, _)| t.starts_with("materials, meshes"));
+    for _ in 0..3 {
+        if !is_closed(rig) {
+            break;
+        }
         let Some(r) = lowest(rig, "Library") else { return false };
         rig.click(r.center());
-        frames(rig, 3);
+        frames(rig, 4);
     }
-    let Some(r) = lowest(rig, tab) else { return false };
+    if is_closed(rig) {
+        return false;
+    }
+    // The tabs share a row: the one level with the Materials tab.
+    let row = texts(rig)
+        .into_iter()
+        .filter(|(t, r)| t.trim() == "Materials" && r.center().y > rig.size.y * 0.5)
+        .map(|(_, r)| r)
+        .min_by(|a, b| a.center().y.total_cmp(&b.center().y));
+    let Some(row) = row else { return false };
+    let hit = texts(rig)
+        .into_iter()
+        .filter(|(t, r)| {
+            t.trim_start_matches(|c: char| !c.is_alphanumeric()).trim() == tab
+                && (r.center().y - row.center().y).abs() < 6.0
+        })
+        .map(|(_, r)| r)
+        .next();
+    let Some(r) = hit else { return false };
     rig.click(r.center());
     frames(rig, 3);
     true
@@ -304,10 +327,24 @@ pub(super) fn lib_open(rig: &mut WindowRig, tab: &str) -> bool {
 
 /// Click the first Library row that carries `icon`.
 pub(super) fn lib_row(rig: &mut WindowRig, icon: char) -> bool {
-    let hit = texts(rig)
+    lib_row_nth(rig, icon, 0)
+}
+
+/// Click the `n`th (from the top) Library row that carries `icon`.
+pub(super) fn lib_row_nth(rig: &mut WindowRig, icon: char, n: usize) -> bool {
+    // Only rows under the drawer's tab row (the left dock has icons too).
+    let tab = texts(rig)
         .into_iter()
-        .filter(|(t, r)| t.contains(icon) && r.center().y > rig.size.y * 0.5)
-        .min_by(|a, b| a.1.center().y.total_cmp(&b.1.center().y));
+        .filter(|(t, r)| t.trim() == "Materials" && r.center().y > rig.size.y * 0.5)
+        .map(|(_, r)| r)
+        .min_by(|a, b| a.center().y.total_cmp(&b.center().y));
+    let Some(tab) = tab else { return false };
+    let mut rows: Vec<(String, Rect)> = texts(rig)
+        .into_iter()
+        .filter(|(t, r)| t.contains(icon) && r.center().y > tab.center().y + 8.0 && r.min.x >= tab.min.x - 40.0)
+        .collect();
+    rows.sort_by(|a, b| a.1.center().y.total_cmp(&b.1.center().y));
+    let hit = rows.into_iter().nth(n);
     match hit {
         Some((_, r)) => {
             rig.click(r.center());
