@@ -121,7 +121,7 @@ fn pick_place_resource(rig: &mut WindowRig, shown: &str, filter: fn(&psxed_proje
 }
 
 /// One object kind, placed by its chip and put through the whole life.
-fn object_life(v: View, chip: &str, tool: GridTool) -> Result<String, String> {
+pub(super) fn object_life(v: View, chip: &str, tool: GridTool) -> Result<String, String> {
     let mut rig = v.rig(Fixture::Starter);
     v.aim_near(&mut rig, [-1, -1], [7, 6], 0.55);
     let ids0 = node_ids(&rig);
@@ -257,7 +257,7 @@ fn finish_delete(rig: &mut WindowRig, id: NodeId, name: String) -> Result<String
     Ok(name)
 }
 
-const KINDS: [(&str, GridTool); 6] = [
+pub(super) const KINDS: [(&str, GridTool); 6] = [
     ("Light", GridTool::Place),
     ("Prop", GridTool::Place),
     ("Actor", GridTool::Place),

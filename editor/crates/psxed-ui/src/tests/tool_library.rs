@@ -14,15 +14,11 @@ fn rig_for(v: View) -> super::grid_live::WindowRig {
     rig
 }
 
-#[test]
-fn the_library_tabs_arm_their_tools_and_place_in_every_view() {
-    let mut bad = Vec::new();
+/// (tab, view, result) for each tab of the drawer in each view.
+pub(super) fn cells() -> Vec<(&'static str, View, Result<(), String>)> {
+    let mut out = Vec::new();
     for v in View::ALL {
-        let mut check = |what: &str, r: Result<(), String>| {
-            if let Err(e) = r {
-                bad.push(format!("{what} [{v:?}]: {e}"));
-            }
-        };
+        let mut check = |what: &'static str, r: Result<(), String>| out.push((what, v, r));
         // Materials: a swatch arms Paint, the next face clicked takes it.
         check("Materials", (|| {
             let mut rig = rig_for(v);
@@ -114,5 +110,14 @@ fn the_library_tabs_arm_their_tools_and_place_in_every_view() {
             Ok(())
         })());
     }
+    out
+}
+
+#[test]
+fn the_library_tabs_arm_their_tools_and_place_in_every_view() {
+    let bad: Vec<String> = cells()
+        .into_iter()
+        .filter_map(|(what, v, r)| r.err().map(|e| format!("{what} [{v:?}]: {e}")))
+        .collect();
     assert!(bad.is_empty(), "{} cells:\n{}", bad.len(), bad.join("\n"));
 }

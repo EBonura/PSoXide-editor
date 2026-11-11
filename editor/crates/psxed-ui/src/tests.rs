@@ -71,6 +71,7 @@ mod tool_flows;
 mod tool_library;
 mod tool_matrix;
 mod tool_objects;
+mod tool_report;
 mod ui_layout;
 mod ui_preview;
 mod ui_wording;
