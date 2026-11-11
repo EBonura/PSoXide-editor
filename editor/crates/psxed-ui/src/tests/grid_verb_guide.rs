@@ -247,12 +247,12 @@ fn the_tools_that_make_heights_offer_to_convert_a_room_with_hand_placed_walls() 
     let mut rig = legacy_plan();
     for (key, tool) in [
         (egui::Key::U, GridTool::Extrude),
-        (egui::Key::A, GridTool::Ramp),
+        (egui::Key::H, GridTool::Ramp),
         (egui::Key::T, GridTool::Stairs),
         (egui::Key::X, GridTool::Break),
         (egui::Key::F, GridTool::Floor),
     ] {
-        press_key(&mut rig, key, false);
+        press_key(&mut rig, key, tool == GridTool::Ramp);
         assert_eq!(rig.tool(), tool);
         let bar = bar_text(&rig);
         assert!(bar.contains(WALLS_PROMPT), "{}: {bar}", tool.label());
@@ -268,8 +268,13 @@ fn the_tools_that_make_heights_offer_to_convert_a_room_with_hand_placed_walls() 
 #[test]
 fn a_derived_room_is_never_asked_to_convert() {
     let mut rig = starter_plan();
-    for key in [egui::Key::U, egui::Key::A, egui::Key::T, egui::Key::F] {
-        press_key(&mut rig, key, false);
+    for (key, shift) in [
+        (egui::Key::U, false),
+        (egui::Key::H, true),
+        (egui::Key::T, false),
+        (egui::Key::F, false),
+    ] {
+        press_key(&mut rig, key, shift);
         assert!(
             !bar_text(&rig).contains("hand-placed"),
             "{}",
@@ -337,8 +342,13 @@ fn not_now_is_remembered_for_that_room_for_the_session() {
     assert!(!bar_text(&rig).contains(WALLS_PROMPT), "{}", bar_text(&rig));
     assert_eq!(rig.world().rooms[0].wall_mode, WallMode::Authored);
     // Another tool, and back: not asked again.
-    for key in [egui::Key::A, egui::Key::T, egui::Key::U, egui::Key::F] {
-        press_key(&mut rig, key, false);
+    for (key, shift) in [
+        (egui::Key::H, true),
+        (egui::Key::T, false),
+        (egui::Key::U, false),
+        (egui::Key::F, false),
+    ] {
+        press_key(&mut rig, key, shift);
         assert!(!bar_text(&rig).contains(WALLS_PROMPT), "{}", bar_text(&rig));
     }
 }

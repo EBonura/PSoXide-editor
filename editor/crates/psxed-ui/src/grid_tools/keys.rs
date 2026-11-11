@@ -16,7 +16,7 @@ use super::{
 };
 
 /// Keys held back for tools still to come: none now (B Room, K Corridor,
-/// I Opening, Y Arcade and J Bridge are tools). U Raise, A Ramp, T Stairs and
+/// I Opening, Y Arcade and J Bridge are tools). U Raise, Shift+H Ramp, T Stairs and
 /// Shift+U Sculpt are tools now, and so is X Break; E is the Bands tool and N the
 /// Plane tool, Q the Cells tool and Shift+Q the Upper floor tool; G goes to a level
 /// and Z switches the cutaway. Alt+W, Alt+P and Alt+L are the overlays.
@@ -249,6 +249,19 @@ impl EditorWorkspace {
         if pressed_shift(ctx, egui::Key::Q) && may_choose {
             self.set_grid_tool(GridTool::Slab);
         }
+        // W, A, S and D belong to the free camera: the tools they used to
+        // pick are Shift chords beside their siblings. Shift+F Wall (beside
+        // Floor), Shift+C Diagonal (beside Ceiling), Shift+H Ramp (beside
+        // Height).
+        for (key, tool) in [
+            (egui::Key::F, GridTool::Wall),
+            (egui::Key::C, GridTool::Split),
+            (egui::Key::H, GridTool::Ramp),
+        ] {
+            if pressed_shift(ctx, key) && may_choose {
+                self.set_grid_tool(tool);
+            }
+        }
         // Shift+U is the Sculpt tool, beside the Extrude tool's U (S is the
         // free camera's back key).
         if pressed_shift(ctx, egui::Key::U) && may_choose {
@@ -445,7 +458,7 @@ mod tests {
         // The letters the planes and natural terrain tools took.
         for (tool, key) in [
             (GridTool::Extrude, egui::Key::U),
-            (GridTool::Ramp, egui::Key::A),
+            (GridTool::Ramp, egui::Key::H),
             (GridTool::Stairs, egui::Key::T),
             (GridTool::Bands, egui::Key::E),
             (GridTool::Plane, egui::Key::N),
@@ -457,6 +470,17 @@ mod tests {
         ] {
             assert_eq!(tool.key(), key, "{}", tool.label());
             assert!(!RESERVED_VERB_KEYS.contains(&key));
+        }
+        // W, A, S and D are the free camera's: no tool takes them.
+        for tool in GridTool::ALL {
+            assert!(
+                !matches!(
+                    tool.key(),
+                    egui::Key::W | egui::Key::A | egui::Key::S | egui::Key::D
+                ),
+                "{} takes a camera key",
+                tool.label()
+            );
         }
         // Every tool that has a key has its own.
         let keyed: Vec<GridTool> = GridTool::ALL.into_iter().filter(|t| t.has_key()).collect();

@@ -63,9 +63,9 @@ fn alt_w_toggles_the_overlay_and_the_strip_button_agrees() {
     assert_eq!(rig.ws.grid.tool, GridTool::Edit);
     rig.key_with(egui::Key::W, egui::Modifiers::ALT);
     assert!(!rig.ws.grid.overlays.walk);
-    // A plain W still picks the Wall tool.
+    // A plain W is the camera's: it picks no tool.
     rig.key(egui::Key::W);
-    assert_eq!(rig.ws.grid.tool, GridTool::Wall);
+    assert_eq!(rig.ws.grid.tool, GridTool::Edit);
 }
 
 #[test]

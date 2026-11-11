@@ -291,10 +291,10 @@ fn the_question_mark_opens_the_key_help_and_escape_closes_it() {
     ));
     assert!(open.contains("Grid editor keys"), "{open}");
     assert!(open.contains("Shift+drag"), "{open}");
-    for title in ["Extrude (U)", "Ramp (A)", "Stairs (T)", "Overlays"] {
+    for title in ["Extrude (U)", "Ramp (Shift+H)", "Stairs (T)", "Overlays"] {
         assert!(open.contains(title), "{title}: {open}");
     }
-    assert!(open.contains("Ramp (A)"), "{open}");
+    assert!(open.contains("Ramp (Shift+H)"), "{open}");
     draw_with_events(
         &mut ws,
         &ctx,

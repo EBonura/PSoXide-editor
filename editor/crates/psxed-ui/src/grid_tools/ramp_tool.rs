@@ -25,7 +25,7 @@ pub(super) fn nearest_side(region: &Region, cell: [i32; 2]) -> Option<RampDir> {
     RampDir::ALL.into_iter().min_by_key(|d| dist(*d))
 }
 
-/// Hover: the side a press here would keep (A).
+/// Hover: the side a press here would keep (side A).
 pub(super) fn hover(ws: &mut EditorWorkspace, cell: [i32; 2]) {
     ws.grid.verb.ramp_hover = None;
     if ws.grid.tool != GridTool::Ramp {

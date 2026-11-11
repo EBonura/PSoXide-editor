@@ -496,14 +496,21 @@ fn tool_keys_switch_tools() {
     for (key, tool) in [
         (egui::Key::F, GridTool::Floor),
         (egui::Key::C, GridTool::Ceiling),
-        (egui::Key::W, GridTool::Wall),
         (egui::Key::H, GridTool::Height),
         (egui::Key::P, GridTool::Paint),
-        (egui::Key::D, GridTool::Split),
         (egui::Key::O, GridTool::Place),
         (egui::Key::V, GridTool::Edit),
     ] {
         rig.key(key);
+        assert_eq!(rig.ws.grid.tool, tool);
+    }
+    // The tools W, A and D used to pick are Shift chords: those keys are the camera's.
+    for (key, tool) in [
+        (egui::Key::F, GridTool::Wall),
+        (egui::Key::C, GridTool::Split),
+        (egui::Key::H, GridTool::Ramp),
+    ] {
+        rig.key_with(key, egui::Modifiers::SHIFT);
         assert_eq!(rig.ws.grid.tool, tool);
     }
     // The classic Select tool is Shift+V.

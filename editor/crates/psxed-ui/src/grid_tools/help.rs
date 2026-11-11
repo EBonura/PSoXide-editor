@@ -414,7 +414,7 @@ const OVERLAYS: Rows = &[
     ),
 ];
 const OTHER: Rows = &[
-    ("Diagonal (D)", "Click a floor or ceiling to flip its diagonal"),
+    ("Diagonal (Shift+C)", "Click a floor or ceiling to flip its diagonal"),
     (
         "Diagonal: Shift+click",
         "Void or restore the triangle under the pointer: the other half closes itself with a diagonal wall",

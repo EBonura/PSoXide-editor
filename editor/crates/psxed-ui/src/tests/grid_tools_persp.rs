@@ -272,11 +272,12 @@ fn in_a_grid_world_wasd_only_flies_the_free_camera_while_looking() {
     let mut rig = GridRig::persp("persp-wasd", flat_project(3, 3, false));
     let before = rig.ws.camera_rig.free_position;
     rig.move_to(Pos2::new(400.0, 300.0), egui::Modifiers::NONE);
-    rig.key(egui::Key::W);
-    assert_eq!(rig.ws.grid.tool, GridTool::Wall, "W is the Wall tool");
+    let tool = rig.ws.grid.tool;
+    for key in [egui::Key::W, egui::Key::A, egui::Key::S, egui::Key::D] {
+        rig.key(key);
+        assert_eq!(rig.ws.grid.tool, tool, "{key:?} picks no tool");
+    }
     assert_eq!(rig.ws.camera_rig.free_position, before, "and does not fly");
-    rig.key(egui::Key::D);
-    assert_eq!(rig.ws.grid.tool, GridTool::Split);
 }
 
 #[test]

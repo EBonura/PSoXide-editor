@@ -330,15 +330,15 @@ impl GridTool {
             Self::Select => egui::Key::V,
             Self::Floor => egui::Key::F,
             Self::Ceiling => egui::Key::C,
-            Self::Wall => egui::Key::W,
+            Self::Wall => egui::Key::F,
             Self::Plane | Self::Mesh => egui::Key::N,
             Self::Height => egui::Key::H,
             Self::Paint => egui::Key::P,
-            Self::Split => egui::Key::D,
+            Self::Split => egui::Key::C,
             Self::Place => egui::Key::O,
             Self::Bands => egui::Key::E,
             Self::Extrude => egui::Key::U,
-            Self::Ramp => egui::Key::A,
+            Self::Ramp => egui::Key::H,
             Self::Stairs | Self::Spiral => egui::Key::T,
             Self::Break => egui::Key::X,
             Self::Sculpt => egui::Key::U,
@@ -359,7 +359,14 @@ impl GridTool {
     pub(crate) const fn shift(self) -> bool {
         matches!(
             self,
-            Self::Select | Self::Mesh | Self::Slab | Self::Spiral | Self::Sculpt
+            Self::Select
+                | Self::Mesh
+                | Self::Slab
+                | Self::Spiral
+                | Self::Sculpt
+                | Self::Wall
+                | Self::Split
+                | Self::Ramp
         )
     }
 
@@ -369,16 +376,16 @@ impl GridTool {
             Self::Select => "Shift+V",
             Self::Floor => "F",
             Self::Ceiling => "C",
-            Self::Wall => "W",
+            Self::Wall => "Shift+F",
             Self::Plane => "N",
             Self::Mesh => "Shift+N",
             Self::Height => "H",
             Self::Paint => "P",
-            Self::Split => "D",
+            Self::Split => "Shift+C",
             Self::Place => "O",
             Self::Bands => "E",
             Self::Extrude => "U",
-            Self::Ramp => "A",
+            Self::Ramp => "Shift+H",
             Self::Stairs => "T",
             Self::Spiral => "Shift+T",
             Self::Break => "X",
