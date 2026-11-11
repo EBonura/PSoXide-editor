@@ -259,6 +259,7 @@ fn deleting_a_selected_cell_clears_it_entirely() {
 fn the_height_tool_drags_a_cell_corner_and_its_neighbours_follow() {
     let mut rig = GridRig::top("grid-height-vertex", flat_project(3, 3, false));
     rig.tool(GridTool::Height);
+    rig.ws.grid.link = true;
     // The lattice vertex shared by cells (0,0), (1,0), (0,1), (1,1).
     let vertex = rig.top_at(S, S);
     let up = vertex + Vec2::new(0.0, -2.0 * crate::grid_tools::view::TOP_PIXELS_PER_CLICK);
@@ -274,19 +275,9 @@ fn the_height_tool_drags_a_cell_corner_and_its_neighbours_follow() {
     assert_eq!(floor_heights(rig.world(), 0, [0, 0]).unwrap(), [0; 4]);
 }
 
-#[test]
-fn l_unlinks_so_only_the_picked_corner_moves() {
-    let mut rig = GridRig::top("grid-height-unlink", flat_project(3, 3, false));
-    rig.tool(GridTool::Height);
-    rig.key(egui::Key::L);
-    assert!(!rig.ws.grid.link);
-    let vertex = rig.top_at(S, S);
-    rig.drag(
-        vertex,
-        vertex + Vec2::new(0.0, -crate::grid_tools::view::TOP_PIXELS_PER_CLICK),
-    );
+fn raised_corners(rig: &GridRig) -> usize {
     let w = rig.world();
-    let raised: usize = [[0, 0], [1, 0], [0, 1], [1, 1]]
+    [[0, 0], [1, 0], [0, 1], [1, 1]]
         .iter()
         .map(|c| {
             floor_heights(w, 0, *c)
@@ -295,8 +286,23 @@ fn l_unlinks_so_only_the_picked_corner_moves() {
                 .filter(|h| **h == 256)
                 .count()
         })
-        .sum();
-    assert_eq!(raised, 1);
+        .sum()
+}
+
+#[test]
+fn weld_is_off_by_default_so_only_the_picked_corner_moves_and_l_turns_it_on() {
+    let mut rig = GridRig::top("grid-height-weld", flat_project(3, 3, false));
+    rig.tool(GridTool::Height);
+    assert!(!rig.ws.grid.link, "Weld starts off");
+    let vertex = rig.top_at(S, S);
+    let up = vertex + Vec2::new(0.0, -crate::grid_tools::view::TOP_PIXELS_PER_CLICK);
+    rig.drag(vertex, up);
+    assert_eq!(raised_corners(&rig), 1);
+    rig.ws.do_undo();
+    rig.key(egui::Key::L);
+    assert!(rig.ws.grid.link);
+    rig.drag(vertex, up);
+    assert_eq!(raised_corners(&rig), 4, "the four corners at the vertex");
 }
 
 #[test]

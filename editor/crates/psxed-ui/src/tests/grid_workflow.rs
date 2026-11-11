@@ -46,6 +46,7 @@ fn a_new_level_from_nothing_to_a_saved_file() {
     // 2. Raise a floor: the Height tool drags the corner shared by four
     // sectors up two clicks, and the neighbours follow.
     rig.tool(GridTool::Height);
+    rig.ws.grid.link = true;
     let vertex = rig.top_at(2.0 * S, 2.0 * S);
     rig.drag(
         vertex,

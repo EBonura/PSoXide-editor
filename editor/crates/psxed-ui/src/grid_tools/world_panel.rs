@@ -67,9 +67,7 @@ impl EditorWorkspace {
     /// The Inspector of the World.
     pub(crate) fn draw_world_inspector(&mut self, ui: &mut egui::Ui) {
         let material_options = self.project.material_options();
-        let world_sector_size = self.project.world_sector_size_for_node(NodeId::ROOT);
         let mut nav_target: Option<ResourceId> = None;
-        let mut snap_to_floor = false;
         let mut changed = false;
 
         {
@@ -105,29 +103,36 @@ impl EditorWorkspace {
                 changed |= self.draw_texel_density(ui);
             },
         );
-        inspector_section(ui, "world-shading", icons::SUN, "Shading", true, |ui| {
-            self.draw_grid_shading(ui);
+        inspector_section(ui, "world-look", icons::SUN, "Look", true, |ui| {
+            // Sky first; the rest of the mood is below it.
+            let mut sky_nav = None;
+            if let Some(node) = self.project.active_scene_mut().node_mut(NodeId::ROOT) {
+                if let NodeKind::World { sky, .. } = &mut node.kind {
+                    changed |= draw_world_sky(ui, false, sky, &material_options, &mut sky_nav);
+                }
+            }
+            if sky_nav.is_some() {
+                nav_target = sky_nav;
+            }
+            inspector_section(ui, "world-shading", icons::SUN, "Shading", true, |ui| {
+                self.draw_grid_shading(ui);
+            });
+            inspector_section(
+                ui,
+                "world-global-light",
+                icons::LIGHTBULB,
+                "Global light",
+                true,
+                |ui| {
+                    self.draw_grid_global_light(ui);
+                },
+            );
+            ui.label(
+                RichText::new("Ambient and fog: per room.")
+                    .small()
+                    .color(STUDIO_TEXT_WEAK),
+            );
         });
-        inspector_section(
-            ui,
-            "world-global-light",
-            icons::LIGHTBULB,
-            "Global light",
-            true,
-            |ui| {
-                self.draw_grid_global_light(ui);
-            },
-        );
-        inspector_section(
-            ui,
-            "world-streaming",
-            icons::LAYERS,
-            "Streaming",
-            false,
-            |ui| {
-                changed |= self.draw_stream_radii(ui);
-            },
-        );
         inspector_section(
             ui,
             "world-camera",
@@ -150,16 +155,27 @@ impl EditorWorkspace {
             },
         );
 
-        // Message, physics and sky.
+        inspector_section(
+            ui,
+            "world-streaming",
+            icons::LAYERS,
+            "Streaming and far view",
+            false,
+            |ui| {
+                changed |= self.draw_stream_radii(ui);
+            },
+        );
+
+        // Message and physics.
         if let Some(node) = self.project.active_scene_mut().node_mut(NodeId::ROOT) {
-            changed |= draw_transform_policy_editor(
-                ui,
-                node,
-                world_sector_size,
-                &material_options,
-                &mut nav_target,
-                &mut snap_to_floor,
-            );
+            if let NodeKind::World {
+                physics,
+                world_message,
+                ..
+            } = &mut node.kind
+            {
+                changed |= draw_world_message_and_physics(ui, physics, world_message);
+            }
         }
         if changed {
             self.mark_dirty();
@@ -171,44 +187,90 @@ impl EditorWorkspace {
         }
     }
 
-    /// The draw, active and lead radii of the level, in sectors.
+    /// The "Streaming and far view" group: how far the level draws and keeps
+    /// rooms, whether the far view is on and where it starts, in sectors.
     fn draw_stream_radii(&mut self, ui: &mut egui::Ui) -> bool {
         let Some(world) = self.project.active_scene().world.grid() else {
             return false;
         };
         let mut next = world.stream;
-        let fields: [(&str, &mut u8, &str); 3] = [
-            (
-                "Draw far",
-                &mut next.draw_far,
-                "A room further than this many sectors from the camera, walking through the doors, is neither drawn nor kept in memory. 0 draws every room that can be reached.",
-            ),
-            (
-                "Active",
-                &mut next.active_radius,
-                "Actors in rooms within this many sectors of the player think.",
-            ),
-            (
-                "Lead",
-                &mut next.lead_radius,
-                "Rooms between Draw far and Draw far plus this are prefetched and evicted first.",
-            ),
-        ];
-        for (label, value, hint) in fields {
+        let sectors = |ui: &mut egui::Ui, label: &str, value: &mut u8, hint: &str| {
             inspector_property_row(ui, label, |ui| {
                 let mut v = i32::from(*value);
-                if ui
+                let changed = ui
                     .add(
                         egui::DragValue::new(&mut v)
                             .range(0..=255)
                             .suffix(" sectors"),
                     )
                     .on_hover_text(hint)
-                    .changed()
-                {
+                    .changed();
+                if changed {
                     *value = v.clamp(0, 255) as u8;
                 }
             });
+        };
+        sectors(
+            ui,
+            "Draw distance",
+            &mut next.draw_far,
+            "A room further than this many sectors from the camera, walking through the doors, is neither drawn nor kept in memory. 0 draws every room that can be reached.",
+        );
+        sectors(
+            ui,
+            "Actors think within",
+            &mut next.active_radius,
+            "Actors in rooms within this many sectors of the player think.",
+        );
+        sectors(
+            ui,
+            "Prefetch margin",
+            &mut next.lead_radius,
+            "Rooms between the draw distance and the draw distance plus this are loaded ahead and dropped first.",
+        );
+        inspector_property_row(ui, "Neighbours only", |ui| {
+            ui.checkbox(&mut next.ring, "")
+                .on_hover_text(
+                    "Draw and stream only the room you are in and the rooms one door away, whatever the distances say. For a world cut into even chunks.",
+                )
+                .changed()
+        });
+        inspector_property_row(ui, "Far view", |ui| {
+            ui.checkbox(&mut next.flood.on, "On")
+                .on_hover_text(
+                    "Stream the level by distance and draw what is beyond the near rooms as a far view.",
+                )
+                .changed()
+        });
+        if next.flood.on {
+            sectors(
+                ui,
+                "Far view starts at",
+                &mut next.flood.near_radius,
+                "Cells within this many sectors of the camera are drawn whole, collide and run actors. Beyond it the far view shows.",
+            );
+            sectors(
+                ui,
+                "Kept in memory to",
+                &mut next.flood.res_radius,
+                "Cells within this many sectors of the player stay loaded so the drawn set can grow into them without a wait. At least where the far view starts.",
+            );
+            next.flood.res_radius = next.flood.res_radius.max(next.flood.near_radius);
+            sectors(
+                ui,
+                "Far panel spacing",
+                &mut next.flood.panels,
+                "Everything beyond the near rooms is drawn as panels baked at a lattice of viewpoints this many sectors apart. 0 for none. Needs a cube sky.",
+            );
+        }
+        if ui
+            .button("Far view preset")
+            .on_hover_text(
+                "The values the Citadel uses: draw 12, actors 8, prefetch 4, neighbours only, far view on from 12 sectors, kept to 13, panels every 10",
+            )
+            .clicked()
+        {
+            apply_far_view_preset(&mut next);
         }
         if next != world.stream {
             if let Some(world) = self.project.active_scene_mut().world.grid_mut() {
@@ -219,4 +281,18 @@ impl EditorWorkspace {
         }
         false
     }
+}
+
+/// The values the Citadel streams with (`projects/zz-far-s10`): draw 12, actors
+/// 8, prefetch 4, neighbours only, far view on from 12 sectors, kept to 13,
+/// panels every 10. Every other setting is left as it is.
+pub(crate) fn apply_far_view_preset(stream: &mut psxed_project::grid::StreamRadii) {
+    stream.draw_far = 12;
+    stream.active_radius = 8;
+    stream.lead_radius = 4;
+    stream.ring = true;
+    stream.flood.on = true;
+    stream.flood.near_radius = 12;
+    stream.flood.res_radius = 13;
+    stream.flood.panels = 10;
 }

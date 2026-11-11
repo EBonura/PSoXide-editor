@@ -96,7 +96,7 @@ pub(crate) mod verb_tool;
 pub(crate) mod view;
 mod walk_overlay;
 mod wall_tool;
-mod world_panel;
+pub(crate) mod world_panel;
 
 pub(crate) use events::{grid_tool_2d, grid_tool_3d};
 pub(crate) use materials_panel::nearest_swatch;
@@ -319,7 +319,7 @@ impl GridTool {
                 "Pick a mesh in the Meshes palette (right dock), click a floor to place it. Drag to move, R turns a quarter, [ and ] 15 degrees, Delete removes. Arches carry a perch at the crown."
             }
             Self::Height => {
-                "Drag a vertex, edge or face up and down. Alt snaps finer, Alt+drag a face moves one triangle. L unlinks."
+                "Drag a vertex, edge or face up and down. Alt snaps finer, Alt+drag a face moves one triangle. L welds corners that share a position."
             }
             Self::Paint => "Click faces to apply the material chosen in the palette. Ctrl samples.",
             Self::Split => {
@@ -471,6 +471,10 @@ pub(crate) struct HeightGesture {
     pub before: Option<Box<ProjectDocument>>,
     /// Set when the drag moves one triangle of a floor or ceiling.
     pub triangle: Option<triangle_tool::TriangleGrab>,
+    /// Set when the drag moves a whole floor or ceiling face: its corners and
+    /// the height they level to at a drag of zero (the highest of them), so a
+    /// face drag always leaves a flat platform.
+    pub flat: Option<(Vec<psxed_project::grid::edit::CornerRef>, i32)>,
 }
 
 /// The one gesture in flight, if any.
@@ -709,7 +713,7 @@ impl Default for GridEditState {
             material: None,
             floor_height: 0,
             ceiling_height: 3 * psxed_project::grid::SECTOR_UNITS,
-            link: true,
+            link: false,
             wall_dir: WallDirection::Auto,
             clipboard: None,
             paste: None,

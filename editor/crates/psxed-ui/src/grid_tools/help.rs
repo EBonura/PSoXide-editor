@@ -125,7 +125,7 @@ const HEIGHT: Rows = &[
         "Alt+drag a floor or ceiling face",
         "Move one triangle of it: the surface becomes split-level and a diagonal wall shows between the halves live; Shift is the fine step in this gesture, Esc undoes it",
     ),
-    ("L", "Link or unlink corners that share a position"),
+    ("L", "Weld or unweld: with Weld on, corners that share a position move together (off by default)"),
     (
         "PgUp / PgDn, ] / [",
         "Nudge the selection a click; Shift for a fine step",

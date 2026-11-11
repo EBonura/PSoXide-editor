@@ -95,13 +95,10 @@ pub(crate) fn node_transform_inspector(kind: &NodeKind) -> NodeTransformInspecto
     }
 }
 
-pub(crate) fn draw_world_settings(
+pub(crate) fn draw_world_message_and_physics(
     ui: &mut egui::Ui,
-    sky: &mut SkySettings,
     physics: &mut WorldPhysicsSettings,
     world_message: &mut Option<psxed_project::WorldMessage>,
-    texture_options: &[(ResourceId, String)],
-    nav_target: &mut Option<ResourceId>,
 ) -> bool {
     let mut changed = false;
     egui::CollapsingHeader::new(icons::label(icons::FILE, "World Message"))
@@ -142,8 +139,20 @@ pub(crate) fn draw_world_settings(
                 ui.label(RichText::new("units/tick²").color(STUDIO_TEXT_WEAK));
             });
         });
+    changed
+}
+
+/// The World's sky settings.
+pub(crate) fn draw_world_sky(
+    ui: &mut egui::Ui,
+    open: bool,
+    sky: &mut SkySettings,
+    texture_options: &[(ResourceId, String)],
+    nav_target: &mut Option<ResourceId>,
+) -> bool {
+    let mut changed = false;
     egui::CollapsingHeader::new(icons::label(icons::SUN, "Sky"))
-        .default_open(true)
+        .default_open(open)
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Mode").color(STUDIO_TEXT_WEAK));
@@ -471,6 +480,19 @@ pub(crate) fn draw_world_settings(
                 });
             }
         });
+    changed
+}
+
+pub(crate) fn draw_world_settings(
+    ui: &mut egui::Ui,
+    sky: &mut SkySettings,
+    physics: &mut WorldPhysicsSettings,
+    world_message: &mut Option<psxed_project::WorldMessage>,
+    texture_options: &[(ResourceId, String)],
+    nav_target: &mut Option<ResourceId>,
+) -> bool {
+    let mut changed = draw_world_message_and_physics(ui, physics, world_message);
+    changed |= draw_world_sky(ui, true, sky, texture_options, nav_target);
     changed
 }
 

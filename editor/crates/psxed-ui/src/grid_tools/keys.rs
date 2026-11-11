@@ -300,9 +300,9 @@ impl EditorWorkspace {
         if pressed(ctx, egui::Key::L) {
             self.grid.link = !self.grid.link;
             self.status = if self.grid.link {
-                "Vertices linked: coincident corners move together".to_string()
+                "Weld on: coincident corners move together".to_string()
             } else {
-                "Vertices unlinked".to_string()
+                "Weld off: corners move one at a time".to_string()
             };
         }
         // G goes to a level, Z switches the cutaway.

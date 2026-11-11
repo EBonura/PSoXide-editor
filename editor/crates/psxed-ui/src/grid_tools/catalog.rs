@@ -22,7 +22,7 @@ pub(crate) const CATALOG: [ToolEntry; 19] = [
     ToolEntry {
         tool: GridTool::Height,
         group: ToolGroup::Edit,
-        hint: "Drag up/down | Alt fine | Alt+drag a face: one triangle | L link | PgUp/PgDn nudge | Esc cancel",
+        hint: "Drag up/down | Alt fine | Alt+drag a face: one triangle | L weld | PgUp/PgDn nudge | Esc cancel",
     },
     ToolEntry {
         tool: GridTool::Extrude,

@@ -129,6 +129,7 @@ fn a_vertex_hidden_behind_a_wall_is_not_picked_but_the_wall_is() {
 fn shift_drag_raises_a_selected_vertex_by_clicks_in_3d() {
     let mut rig = GridRig::persp("persp-shift-drag", flat_project(5, 5, false));
     rig.tool(GridTool::Select);
+    rig.ws.grid.link = true;
     let corner = ground(&rig, 2.0, 2.0, 0.0);
     rig.click(corner);
     let one_click = (rig.screen_of([2.0 * S, 0.0, 2.0 * S]).y

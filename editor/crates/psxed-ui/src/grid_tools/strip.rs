@@ -95,13 +95,14 @@ impl EditorWorkspace {
                 );
             }
             GridTool::Select | GridTool::Height => {
-                // Link welds the corners being lifted: Height always has
+                // Weld moves the corners that share a position together: Height always has
                 // some, Select once something is picked. Move and Global are
                 // the gizmo of a selected node.
                 let picked = !self.grid.selection.is_empty();
                 if self.grid.tool == GridTool::Height || picked {
-                    ui.toggle_value(&mut self.grid.link, "Link")
-                        .on_hover_text("L: coincident corners move together");
+                    ui.toggle_value(&mut self.grid.link, "Weld").on_hover_text(
+                        "L: weld, so coincident corners move together (off by default)",
+                    );
                 }
                 if self.grid.tool == GridTool::Select {
                     self.draw_merge_buttons(ui);
