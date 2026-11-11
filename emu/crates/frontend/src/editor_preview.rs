@@ -2407,6 +2407,100 @@ mod tests {
             posed_origin.y,
         );
     }
+
+    /// The default project's player seen from far away and far off the view
+    /// axis (the editor's overview) is a small standing figure, not a streak.
+    /// Past about 8,000 units off axis the model path's X rows overflowed the
+    /// GTE's i16 range, so single-joint vertices collapsed onto one column
+    /// while the blended seam vertices did not, and the triangles between them
+    /// drew a long thin line lying along the screen.
+    #[test]
+    fn a_far_off_axis_player_keeps_a_standing_figure_aspect() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../projects/default");
+        let project = ProjectDocument::load_from_path(&root.join("project.ron"))
+            .expect("tracked default project");
+        let scene = project.active_scene();
+        let player = scene
+            .nodes()
+            .iter()
+            .find(|node| node.name == "Aletha (Player)")
+            .expect("default player actor");
+        let spawn = player.transform.translation;
+        let mut hidden = HashSet::from([player.id]);
+        hidden.extend(player.children.iter().copied());
+
+        let mut textures = EditorTextures::new();
+        textures.refresh(&project, &root);
+        textures.refresh_models(&project, &root);
+        let mut assets = crate::editor_assets::EditorAssets::new();
+        assets.refresh(&project, &root);
+
+        let frame = |camera: ViewportCameraState, hidden: &HashSet<NodeId>| {
+            build_phase1_frame(
+                &project,
+                camera,
+                false,
+                false,
+                hidden,
+                NodeId::ROOT,
+                None,
+                None,
+                &[],
+                None,
+                &textures,
+                &assets,
+            )
+        };
+        let key = |entry: &GpuCmdLogEntry| format!("{entry:?}");
+
+        // The same camera on either side of the player, 9,500 units off axis.
+        for (yaw_q12, side) in [(0u16, -1.0f32), (2048, 1.0)] {
+            let camera = ViewportCameraState {
+                mode: psxed_ui::ViewportCameraMode::Orbit,
+                yaw_q12,
+                pitch_q12: 300,
+                radius: 24000,
+                target: [
+                    (spawn[0] + side * 9500.0) as i32,
+                    1000,
+                    spawn[2] as i32,
+                ],
+                position: [0; 3],
+            };
+            let with_player = frame(camera, &HashSet::new());
+            let without = frame(camera, &hidden);
+            let mut remaining: Vec<String> = without.cmd_log.iter().map(key).collect();
+            let (mut x0, mut x1, mut y0, mut y1) = (i32::MAX, i32::MIN, i32::MAX, i32::MIN);
+            let mut triangles = 0;
+            for entry in &with_player.cmd_log {
+                if let Some(at) = remaining.iter().position(|k| *k == key(entry)) {
+                    remaining.swap_remove(at);
+                    continue;
+                }
+                // Textured triangle (0x24..=0x27) or Gouraud (0x34..=0x37).
+                let words: &[usize] = match entry.opcode {
+                    0x24..=0x27 => &[1, 3, 5],
+                    0x34..=0x37 => &[1, 4, 7],
+                    _ => continue,
+                };
+                triangles += 1;
+                for &w in words {
+                    let word = entry.fifo.as_slice()[w];
+                    let (x, y) = (word as u16 as i16 as i32, (word >> 16) as u16 as i16 as i32);
+                    x0 = x0.min(x);
+                    x1 = x1.max(x);
+                    y0 = y0.min(y);
+                    y1 = y1.max(y);
+                }
+            }
+            let (width, height) = (x1 - x0, y1 - y0);
+            assert!(triangles >= 40, "yaw {yaw_q12}: only {triangles} triangles drawn");
+            assert!(
+                height * 10 >= width * 13 && width >= 3,
+                "yaw {yaw_q12}: the player is {width} x {height} on screen, not a standing figure"
+            );
+        }
+    }
 }
 
 #[cfg(test)]
