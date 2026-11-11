@@ -270,7 +270,10 @@ pub(super) fn build(world: &mut GridWorld, spec: &Spec, weld: bool) -> Result<Bu
             Plan::Heights(HeightsPlan::new(world, &[corner], Profile::Uniform, weld)?),
             Axis::Vertical,
         ),
-        Kind::Tilt(_) | Kind::TiltCorner(_) if sdk_tilt(world, spec).is_some() => {
+        // Weld off: the SDK tilt, which slopes the picked cells and leaves
+        // their neighbours where they are. Weld on: the heights plan below,
+        // which takes the neighbours' coincident corners along.
+        Kind::Tilt(_) | Kind::TiltCorner(_) if !weld && sdk_tilt(world, spec).is_some() => {
             let plan = sdk_tilt(world, spec).ok_or("Nothing to slope")?;
             (Plan::Tilt(Box::new(plan?)), Axis::Vertical)
         }

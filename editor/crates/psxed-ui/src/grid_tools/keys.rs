@@ -17,7 +17,7 @@ use super::{
 
 /// Keys held back for tools still to come: none now (B Room, K Corridor,
 /// I Opening, Y Arcade and J Bridge are tools). U Raise, A Ramp, T Stairs and
-/// S Sculpt are tools now, and so is X Break; E is the Bands tool and N the
+/// Shift+U Sculpt are tools now, and so is X Break; E is the Bands tool and N the
 /// Plane tool, Q the Cells tool and Shift+Q the Upper floor tool; G goes to a level
 /// and Z switches the cutaway. Alt+W, Alt+P and Alt+L are the overlays.
 #[cfg(test)]
@@ -249,6 +249,11 @@ impl EditorWorkspace {
         if pressed_shift(ctx, egui::Key::Q) && may_choose {
             self.set_grid_tool(GridTool::Slab);
         }
+        // Shift+U is the Sculpt tool, beside the Extrude tool's U (S is the
+        // free camera's back key).
+        if pressed_shift(ctx, egui::Key::U) && may_choose {
+            self.set_grid_tool(GridTool::Sculpt);
+        }
         // Shift+T is the Spiral tool, beside the Stairs tool's T.
         if pressed_shift(ctx, egui::Key::T) && may_choose {
             self.set_grid_tool(GridTool::Spiral);
@@ -445,7 +450,7 @@ mod tests {
             (GridTool::Bands, egui::Key::E),
             (GridTool::Plane, egui::Key::N),
             (GridTool::Break, egui::Key::X),
-            (GridTool::Sculpt, egui::Key::S),
+            (GridTool::Sculpt, egui::Key::U),
             (GridTool::Cells, egui::Key::Q),
             (GridTool::Slab, egui::Key::Q),
             (GridTool::Spiral, egui::Key::T),

@@ -194,6 +194,40 @@ fn an_edge_slopes_from_the_opposite_edge() {
     assert_eq!(heights(&rig, [2, 2]), Some([256, 256, 0, 0]));
 }
 
+/// With Weld on (the L key), an edge shared by two cells moves both: the
+/// dragged cell slopes and its neighbour's corners on that edge follow, so
+/// no step opens between them. With Weld off the neighbour stays.
+#[test]
+fn weld_on_an_edge_drag_takes_the_neighbour_along_and_off_it_does_not() {
+    let mut rig = edit_rig("edit-edge-weld-off", flat_project(5, 5, true));
+    assert!(!rig.ws.grid.link, "weld starts off");
+    rig.drag(at(&rig, 2.5, 0.0, 2.04), at(&rig, 2.5, 256.0 / S, 2.04));
+    assert_eq!(heights(&rig, [2, 2]), Some([256, 256, 0, 0]));
+    assert_eq!(
+        heights(&rig, [2, 1]),
+        Some([0; 4]),
+        "weld off: the neighbour stays"
+    );
+
+    let mut rig = edit_rig("edit-edge-weld-on", flat_project(5, 5, true));
+    rig.key(egui::Key::L);
+    assert!(rig.ws.grid.link, "L turns weld on");
+    rig.drag(at(&rig, 2.5, 0.0, 2.04), at(&rig, 2.5, 256.0 / S, 2.04));
+    assert_eq!(
+        heights(&rig, [2, 2]),
+        Some([256, 256, 0, 0]),
+        "{}",
+        hint(&rig)
+    );
+    // The north neighbour's south corners (se, sw) are the same two points.
+    assert_eq!(
+        heights(&rig, [2, 1]),
+        Some([0, 0, 256, 256]),
+        "{}",
+        hint(&rig)
+    );
+}
+
 /// An edge of a half-sector cell slopes that cell alone: the other three
 /// cells of its sector stay where they are.
 #[test]

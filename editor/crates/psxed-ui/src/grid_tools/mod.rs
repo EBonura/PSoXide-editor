@@ -341,7 +341,7 @@ impl GridTool {
             Self::Ramp => egui::Key::A,
             Self::Stairs | Self::Spiral => egui::Key::T,
             Self::Break => egui::Key::X,
-            Self::Sculpt => egui::Key::S,
+            Self::Sculpt => egui::Key::U,
             Self::Cells | Self::Slab => egui::Key::Q,
             Self::Room | Self::Building => egui::Key::B,
             Self::Corridor => egui::Key::K,
@@ -357,7 +357,10 @@ impl GridTool {
     /// the solid sibling of the Plane tool's N, and the Upper floor tool Shift+Q,
     /// beside the Cells tool's Q: every plain letter is taken).
     pub(crate) const fn shift(self) -> bool {
-        matches!(self, Self::Select | Self::Mesh | Self::Slab | Self::Spiral)
+        matches!(
+            self,
+            Self::Select | Self::Mesh | Self::Slab | Self::Spiral | Self::Sculpt
+        )
     }
 
     pub(crate) const fn key_label(self) -> &'static str {
@@ -379,7 +382,7 @@ impl GridTool {
             Self::Stairs => "T",
             Self::Spiral => "Shift+T",
             Self::Break => "X",
-            Self::Sculpt => "S",
+            Self::Sculpt => "Shift+U",
             Self::Cells => "Q",
             Self::Slab => "Shift+Q",
             Self::Room => "B",

@@ -189,7 +189,10 @@ fn the_face_budget_warns_orange_at_85_percent_and_red_at_the_cap() {
 fn the_walkability_overlay_is_on_while_sculpting_and_the_keys_work() {
     let mut rig = GridRig::top("sculpt-keys", flat_project(10, 10, false));
     assert!(!rig.ws.walk_overlay_on());
+    // S is the free camera's back key: it never picks Sculpt. Shift+U does.
     rig.key(egui::Key::S);
+    assert_ne!(rig.ws.grid.tool, GridTool::Sculpt);
+    rig.key_with(egui::Key::U, egui::Modifiers::SHIFT);
     assert_eq!(rig.ws.grid.tool, GridTool::Sculpt);
     assert!(rig.ws.walk_overlay_on());
     let radius = rig.ws.grid.sculpt.params.radius;

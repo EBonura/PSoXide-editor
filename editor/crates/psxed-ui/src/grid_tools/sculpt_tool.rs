@@ -1,4 +1,4 @@
-//! The Sculpt tool (S): terraforming with a brush, in the Top and 3D views.
+//! The Sculpt tool (Shift+U): terraforming with a brush, in the Top and 3D views.
 //!
 //! Press and drag over the ground: the brush (a circle that follows the
 //! pointer on the surface) raises, smooths, flattens, ramps or ripples it,
