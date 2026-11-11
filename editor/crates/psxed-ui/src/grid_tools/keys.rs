@@ -33,11 +33,50 @@ fn pressed_shift(ctx: &egui::Context, key: egui::Key) -> bool {
 
 impl EditorWorkspace {
     /// Handle this frame's grid shortcuts. Call before the generic ones.
+    /// A press-and-release in a viewport that changed nothing and said
+    /// nothing gets a sentence saying so and how the tool is used. The press
+    /// is seen at the start of its frame, the verdict at the start of the
+    /// frame after the release, once the tool has had its say.
+    fn watch_gesture_effect(&mut self, ctx: &egui::Context) {
+        if self.grid.effect_pending {
+            self.grid.effect_pending = false;
+            if let Some(mark) = self.grid.effect_mark.take() {
+                if super::events::effect_mark(self) == mark
+                    && matches!(self.grid.gesture, Gesture::Idle)
+                {
+                    self.status = format!(
+                        "{}: that did nothing here. {}",
+                        self.grid.tool.label(),
+                        super::events::how_to_use(self.grid.tool)
+                    );
+                }
+            }
+        }
+        let (pressed, released, pos) = ctx.input(|i| {
+            (
+                i.pointer.primary_pressed(),
+                i.pointer.primary_released(),
+                i.pointer.interact_pos(),
+            )
+        });
+        if pressed {
+            let in_view = pos.is_some_and(|p| {
+                self.last_persp_viewport_rect.contains(p)
+                    || self.last_orthographic_viewport_rect.contains(p)
+            });
+            self.grid.effect_mark = in_view.then(|| super::events::effect_mark(self));
+        }
+        if released {
+            self.grid.effect_pending = self.grid.effect_mark.is_some();
+        }
+    }
+
     pub(crate) fn handle_grid_shortcuts(&mut self, ctx: &egui::Context, focus_taken: bool) {
         self.handle_grid_help_key(ctx, focus_taken);
         if !self.is_grid_world() || self.active_workspace != WorkspaceView::Room || focus_taken {
             return;
         }
+        self.watch_gesture_effect(ctx);
         self.handle_tool_search_key(ctx);
         if self.grid.tool_search.is_some() {
             return;

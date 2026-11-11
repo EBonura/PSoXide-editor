@@ -27,8 +27,31 @@ pub(crate) enum Ev {
     Click,
 }
 
+/// What a gesture can change that a person sees.
+pub(super) fn effect_mark(ws: &EditorWorkspace) -> String {
+    format!(
+        "{}|{}|{:?}|{}|{}|{}|{}",
+        ws.history.epoch(),
+        ws.grid.selection.items().len(),
+        ws.grid.verb.region.as_ref().map(|r| r.len()),
+        ws.grid.verb.path.len() + ws.grid.verb.lasso.len(),
+        ws.grid.build.hint,
+        ws.edit_hint(),
+        ws.status,
+    )
+}
+
+/// The first clause of a tool's hint: how to use it.
+pub(super) fn how_to_use(tool: GridTool) -> &'static str {
+    tool.hint().split(" | ").next().unwrap_or("")
+}
+
 /// Send one event to the active tool.
-pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
+pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, ptr: GridPointer) {
+    dispatch_inner(ws, ev, ptr);
+}
+
+fn dispatch_inner(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
     ptr.cycle = ws.cycle_for(ev, &ptr);
     if ws.grid.grab.is_some() {
         match ev {

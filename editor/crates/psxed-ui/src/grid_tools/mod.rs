@@ -744,6 +744,11 @@ pub(crate) struct GridEditState {
     pub options_scroll: f32,
     pub options_scroll_tool: GridTool,
     pub selection: GridSelection,
+    /// What the pointer gesture in flight began from, to tell afterwards
+    /// whether it did anything (see `events::dispatch`).
+    pub effect_mark: Option<String>,
+    /// The press ended and its verdict is due.
+    pub effect_pending: bool,
     pub hover: GridHover,
     pub gesture: Gesture,
     /// Material the Paint tool and new surfaces use.
@@ -867,6 +872,8 @@ impl Default for GridEditState {
             options_scroll: 0.0,
             options_scroll_tool: GridTool::Edit,
             selection: GridSelection::new(),
+            effect_mark: None,
+            effect_pending: false,
             hover: GridHover::None,
             gesture: Gesture::Idle,
             material: None,

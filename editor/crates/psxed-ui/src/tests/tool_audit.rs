@@ -1027,3 +1027,60 @@ fn a_tool_does_not_inherit_the_source_of_the_last_one() {
         }
     }
 }
+
+/// No tool ends a press-drag or a click on the floor or a wall with no change
+/// to the document or the selection and no message.
+#[test]
+fn no_tool_ends_a_gesture_silently() {
+    let mut silent = Vec::new();
+    for fixture in [Fixture::Starter, Fixture::StylesDemo] {
+        let mut rig = fixture.rig();
+        let base = rig.ws.project.clone();
+        for tool in GridTool::ALL {
+            for view in ["3d", "plan"] {
+                for g in GESTURES.iter().filter(|g| g.view == view && !g.name.starts_with("esc")) {
+                    let mut ran = true;
+                    let (mut hint0, mut edit0) = (String::new(), String::new());
+                    let o = run(&mut rig, &base, tool, Start::Strip, |rig| {
+                        if view == "plan" {
+                            plan(rig);
+                        } else {
+                            persp(rig);
+                            ran = match g.name {
+                                "drag-wall" => wall_px(rig).is_some(),
+                                _ => floor_px(rig).is_some(),
+                            };
+                        }
+                        hint0 = rig.ws.build_hint().to_string();
+                        edit0 = rig.ws.edit_hint().to_string();
+                        if ran {
+                            (g.f)(rig);
+                        }
+                    })
+                    .expect("every tool starts from the strip");
+                    if !ran {
+                        continue;
+                    }
+                    let status = rig.ws.status.clone();
+                    let spoke = !rig.ws.build_hint().is_empty() && rig.ws.build_hint() != hint0
+                        || !rig.ws.edit_hint().is_empty() && rig.ws.edit_hint() != edit0
+                        || !status.is_empty()
+                        && !status.starts_with("Tool:")
+                        && !status.starts_with("View:");
+                    if !(o.changed || o.picked_changed || spoke) {
+                        silent.push(format!(
+                            "{} {} {}:{} -> status {:?}",
+                            fixture.name(),
+                            tool.label(),
+                            view,
+                            g.name,
+                            status
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    assert!(silent.is_empty(), "{}", silent.join("\n"));
+}
+
