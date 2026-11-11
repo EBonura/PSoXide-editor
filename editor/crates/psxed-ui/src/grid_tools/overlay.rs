@@ -750,6 +750,7 @@ impl EditorWorkspace {
         self.draw_verb_overlay_3d(painter, rect);
         self.draw_extrude_overlay_3d(painter, rect);
         self.draw_walk_overlay_3d(painter, rect);
+        self.draw_player_ghost_3d(painter, rect);
         self.draw_heat_overlay_3d(painter, rect);
         self.draw_leaf_overlay_3d(painter, rect);
         self.draw_leaf_hover_3d(painter, rect);

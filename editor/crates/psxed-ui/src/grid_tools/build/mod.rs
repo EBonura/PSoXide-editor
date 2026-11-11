@@ -286,13 +286,35 @@ fn refresh(ws: &mut EditorWorkspace) {
     if out.changed || was_changed {
         ws.grid_changed();
     }
-    ws.grid.build.hint = hint_of(&drag, &out, ws.grid.build.amount.text());
+    let ruler = ruler_of(ws, &drag);
+    ws.grid.build.hint = hint_of(&drag, &out, ws.grid.build.amount.text(), &ruler);
     drag.last = out;
     ws.grid.build.drag = Some(drag);
 }
 
-fn hint_of(drag: &Drag, out: &Outcome, typed: &str) -> String {
+/// What a drag measures, in sectors and player heights: the height it
+/// raises, else the rectangle it covers. Empty when it measures nothing yet.
+fn ruler_of(ws: &EditorWorkspace, drag: &Drag) -> String {
+    let Some(world) = ws.project.active_scene().world.grid() else {
+        return String::new();
+    };
+    if let Some(v) = drag.geo.value.filter(|v| *v != 0) {
+        return super::ruler::rise_text(world, v);
+    }
+    if drag.geo.a != drag.geo.b && !drag.geo.whole_room {
+        let r = drag.geo.rect();
+        let w = (r.max[0] - r.min[0]).abs() + 1;
+        let d = (r.max[1] - r.min[1]).abs() + 1;
+        return super::ruler::footprint_text(world, w, d);
+    }
+    String::new()
+}
+
+fn hint_of(drag: &Drag, out: &Outcome, typed: &str, ruler: &str) -> String {
     let mut text = out.text.clone();
+    if !ruler.is_empty() && !out.refused {
+        text += &format!(" | {ruler}");
+    }
     if let Some((name, _)) = drag.kind.amount() {
         if !typed.is_empty() {
             text += &format!(" | {name}: {typed}");

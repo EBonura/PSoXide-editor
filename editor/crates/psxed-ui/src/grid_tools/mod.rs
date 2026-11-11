@@ -70,6 +70,7 @@ mod preview_view;
 mod ramp_tool;
 mod rect_tool;
 mod rooms;
+mod ruler;
 mod rooms_walls;
 mod rules_panel;
 pub(crate) mod sculpt_tool;
@@ -86,6 +87,10 @@ mod tool_search;
 pub(crate) use library::LibraryTab;
 #[cfg(test)]
 pub(crate) use strip::elide_hint;
+#[cfg(test)]
+pub(crate) use ruler::{
+    length_text as ruler_length_text, rise_text as ruler_rise_text, step_up_grid as ruler_step_up,
+};
 #[cfg(test)]
 pub(crate) use tool_row::{tool_strip_height, CLASSIC, MORE_BUILD};
 

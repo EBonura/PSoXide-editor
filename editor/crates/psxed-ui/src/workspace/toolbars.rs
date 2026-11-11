@@ -464,6 +464,10 @@ impl EditorWorkspace {
         {
             self.toggle_leaf_overlay();
         }
+        ui.checkbox(&mut self.grid.overlays.player_ghost, "Player size")
+            .on_hover_text(
+                "A ghost the size of the player (1024 units tall) at the pointer, to judge headroom, doorways and steps by eye",
+            );
         let mut perf = self.grid.overlays.perf;
         if ui
             .checkbox(&mut perf, "Perf")

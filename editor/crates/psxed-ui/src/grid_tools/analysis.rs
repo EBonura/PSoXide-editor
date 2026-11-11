@@ -26,6 +26,8 @@ pub(crate) struct Overlays {
     pub perf: bool,
     /// Leaf sizes (Alt+L): every cell outlined and labelled with its size.
     pub leaves: bool,
+    /// A player-sized ghost at the pointer (off by default).
+    pub player_ghost: bool,
     /// Cycles the frame spends outside the world, editable: the player and
     /// the sky (470,000 and 58,000 measured on the Cathedral).
     pub reserve: u32,
@@ -40,6 +42,7 @@ impl Default for Overlays {
             walk: false,
             perf: false,
             leaves: false,
+            player_ghost: false,
             reserve: HeatOptions::default().reserve,
             heat_sync: false,
         }

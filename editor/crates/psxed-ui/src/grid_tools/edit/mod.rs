@@ -488,13 +488,33 @@ pub(super) fn set_amount(ws: &mut EditorWorkspace, amount: i32) {
         drag.amount = amount;
         drag.last = out;
         ws.grid_changed();
+        let ruler = vertical_ruler(ws, &drag);
         ws.status = readout(&drag);
         ws.grid.edit.hint = format!(
-            "{} | type a number, Enter applies, Esc cancels",
+            "{}{ruler} | type a number, Enter applies, Esc cancels",
             readout(&drag)
         );
     }
     ws.grid.edit.drag = Some(drag);
+}
+
+/// " | <size>" for a drag: a rise in sectors and player heights with whether
+/// the player steps up it, a push in sectors and player heights.
+fn vertical_ruler(ws: &EditorWorkspace, drag: &Drag) -> String {
+    if drag.amount == 0 || drag.last.refused.is_some() {
+        return String::new();
+    }
+    let Some(world) = ws.project.active_scene().world.grid() else {
+        return String::new();
+    };
+    match drag.axis {
+        Axis::Vertical => format!(" | {}", super::ruler::rise_text(world, drag.amount)),
+        // A push is counted in sectors.
+        Axis::Horizontal(_) => format!(
+            " | {}",
+            super::ruler::length_text(world, drag.amount * psxed_project::grid::SECTOR_UNITS)
+        ),
+    }
 }
 
 /// The readout of a drag: what it does and by how much.

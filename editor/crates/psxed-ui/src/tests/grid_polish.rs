@@ -454,3 +454,51 @@ mod play_check {
             .starts_with("Play stopped: The level needs more memory"));
     }
 }
+
+// ---- The ruler ----
+
+mod ruler {
+    use super::super::grid_rig::*;
+    use super::*;
+    use crate::grid_tools::GridTool;
+
+    #[test]
+    fn sizes_are_told_in_sectors_and_player_heights_and_a_rise_says_if_it_can_be_stepped() {
+        let ws = EditorWorkspace::with_project(test_temp_dir("ruler"), flat_project(4, 4, true));
+        let world = ws.project.active_scene().world.grid().unwrap();
+        // The test world is scale 1:1: a sector is 1024 editor units, which is
+        // exactly one player height.
+        assert_eq!(
+            crate::grid_tools::ruler_length_text(world, 3 * 1024),
+            "3 sectors, 3.0 player heights"
+        );
+        let limit = crate::grid_tools::ruler_step_up(world).expect("a cookable scale");
+        assert!(limit > 0 && limit < 1024, "{limit}");
+        assert!(
+            crate::grid_tools::ruler_rise_text(world, limit).ends_with("the player steps up it")
+        );
+        assert!(
+            crate::grid_tools::ruler_rise_text(world, limit + 64).ends_with("too tall to step up")
+        );
+        assert!(!crate::grid_tools::ruler_rise_text(world, -256).contains("step"));
+    }
+
+    #[test]
+    fn a_floor_drag_in_the_edit_tool_shows_its_size_in_the_hint() {
+        let mut rig = GridRig::persp("ruler-drag", flat_project(5, 5, true));
+        rig.tool(GridTool::Edit);
+        let from = rig.screen_of([2.5 * S, 0.0, 2.5 * S]);
+        let to = rig.screen_of([2.5 * S, 256.0, 2.5 * S]);
+        rig.drag_hold(from, to, egui::Modifiers::NONE);
+        let hint = rig.ws.grid.edit.hint.clone();
+        assert!(hint.contains("player heights"), "{hint}");
+        assert!(hint.contains("the player steps up it"), "{hint}");
+        rig.release(to, egui::Modifiers::NONE);
+    }
+
+    #[test]
+    fn the_player_ghost_is_off_until_the_overlay_is_switched_on() {
+        let ws = EditorWorkspace::with_project(test_temp_dir("ghost"), flat_project(2, 2, true));
+        assert!(!ws.grid.overlays.player_ghost);
+    }
+}

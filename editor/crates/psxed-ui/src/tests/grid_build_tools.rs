@@ -98,6 +98,21 @@ fn a_room_in_3d_lifts_with_a_typed_number_and_escape_restores() {
 }
 
 #[test]
+fn a_build_drag_says_its_size_in_sectors_and_player_heights() {
+    let mut rig = GridRig::top("build-ruler", derived_project_for_tiling(5, 5));
+    rig.tool(GridTool::Room);
+    let from = rig.cell_centre(6, 0);
+    let to = rig.cell_centre(11, 5);
+    rig.drag_hold(from, to, egui::Modifiers::NONE);
+    let text = hint(&rig);
+    assert!(
+        text.contains("sectors") && text.contains("player heights"),
+        "{text}"
+    );
+    rig.release(to, egui::Modifiers::NONE);
+}
+
+#[test]
 fn an_octagon_room_has_cut_corners() {
     let mut rig = GridRig::top("build-room-oct", derived_project_for_tiling(5, 5));
     rig.tool(GridTool::Room);
