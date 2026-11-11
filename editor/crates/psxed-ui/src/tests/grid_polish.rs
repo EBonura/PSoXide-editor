@@ -161,3 +161,29 @@ fn a_long_hint_keeps_its_first_and_last_words_and_gives_way_in_the_middle() {
     assert!(shown[2].len() < shown[1].len(), "{} {}", shown[1], shown[2]);
     assert!(shown[3].len() < hint.len() && !shown[3].is_empty());
 }
+
+#[test]
+fn the_world_form_says_how_many_save_slots_are_used() {
+    let mut ws = EditorWorkspace::with_project(
+        test_temp_dir("save-slots"),
+        super::grid_rig::flat_project(2, 2, true),
+    );
+    assert_eq!(ws.save_slots_text(), "slots used 0 of 832");
+    ws.last_slots_used = Some(3);
+    assert_eq!(ws.save_slots_text(), "slots used 3 of 832");
+}
+
+#[test]
+fn continue_from_save_is_its_own_choice_among_the_game_actions() {
+    use crate::inspector_character_ui::{ui_action_same_variant, CONTINUE_ACTION_ID};
+    use psxed_project::UiAction;
+    assert!(!ui_action_same_variant(
+        &UiAction::Game(0),
+        &UiAction::Game(CONTINUE_ACTION_ID)
+    ));
+    assert!(ui_action_same_variant(
+        &UiAction::Game(7),
+        &UiAction::Game(0)
+    ));
+    assert_eq!(CONTINUE_ACTION_ID, 401);
+}

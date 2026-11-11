@@ -300,7 +300,10 @@ pub(super) fn build(world: &mut GridWorld, spec: &Spec, weld: bool) -> Result<Bu
 fn sdk_tilt(world: &GridWorld, spec: &Spec) -> Option<Result<TiltPlan, String>> {
     let first = spec.faces.first()?;
     let kind = surface_kind(first)?;
-    let FaceTarget::Surface { span: first_span, .. } = first.target else {
+    let FaceTarget::Surface {
+        span: first_span, ..
+    } = first.target
+    else {
         return None;
     };
     let mut cells: BTreeSet<[i32; 2]> = BTreeSet::new();
@@ -340,7 +343,14 @@ fn sdk_tilt(world: &GridWorld, spec: &Spec) -> Option<Result<TiltPlan, String>> 
         SurfaceKind::Floor => TiltTarget::Floor,
         SurfaceKind::Ceiling => TiltTarget::Ceiling,
     };
-    Some(TiltPlan::new(world, first.room, usize::from(first_span), cells, target, hinge))
+    Some(TiltPlan::new(
+        world,
+        first.room,
+        usize::from(first_span),
+        cells,
+        target,
+        hinge,
+    ))
 }
 
 /// The hinge and the dragged side of a tilt, from the outline of `corners`.

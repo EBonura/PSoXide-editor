@@ -1412,6 +1412,15 @@ impl EditorWorkspace {
                             &scene_options,
                             &option_choices,
                         );
+                        // A Continue button is found by its tag.
+                        if matches!(
+                            action,
+                            UiAction::Game(crate::inspector_character_ui::CONTINUE_ACTION_ID)
+                        ) && tag.is_empty()
+                        {
+                            *tag = crate::inspector_character_ui::CONTINUE_BUTTON_TAG.to_string();
+                            changed = true;
+                        }
                     },
                 );
                 inspector_section(

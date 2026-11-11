@@ -2134,7 +2134,26 @@ pub(crate) fn ui_action_same_variant(a: &UiAction, b: &UiAction) -> bool {
             | (UiAction::Back, UiAction::Back)
             | (UiAction::SetOption { .. }, UiAction::SetOption { .. })
             | (UiAction::Game(_), UiAction::Game(_))
-    )
+    ) && is_continue_action(a) == is_continue_action(b)
+}
+
+/// The game action id of the title screen's Continue button.
+pub(crate) const CONTINUE_ACTION_ID: u16 = 401;
+/// The tag a Continue button carries, so the game can hide it when no save
+/// with a rest point exists.
+pub(crate) const CONTINUE_BUTTON_TAG: &str = "menu.continue";
+
+fn is_continue_action(action: &UiAction) -> bool {
+    matches!(action, UiAction::Game(CONTINUE_ACTION_ID))
+}
+
+/// What the action picker calls `action`.
+fn ui_action_picker_label(action: &UiAction) -> &'static str {
+    if is_continue_action(action) {
+        "Continue from save"
+    } else {
+        action.label()
+    }
 }
 
 /// Editor for a button's [`UiAction`]: a variant combo plus the
@@ -2172,13 +2191,17 @@ pub(crate) fn draw_ui_action_editor(
             delta: 1,
         },
         UiAction::Game(0),
+        UiAction::Game(CONTINUE_ACTION_ID),
     ];
     egui::ComboBox::from_label("Action")
-        .selected_text(action.label())
+        .selected_text(ui_action_picker_label(action))
         .show_ui(ui, |ui| {
             for candidate in &variants {
                 if ui
-                    .selectable_label(ui_action_same_variant(action, candidate), candidate.label())
+                    .selectable_label(
+                        ui_action_same_variant(action, candidate),
+                        ui_action_picker_label(candidate),
+                    )
                     .clicked()
                     && !ui_action_same_variant(action, candidate)
                 {
@@ -2208,6 +2231,15 @@ pub(crate) fn draw_ui_action_editor(
         UiAction::SetOption { option, delta } => {
             changed |= draw_ui_option_picker(ui, "Option", option, option_choices);
             changed |= drag_i32(ui, "Delta", delta, -65536, 65536);
+        }
+        UiAction::Game(CONTINUE_ACTION_ID) => {
+            ui.label(
+                RichText::new(
+                    "Loads the saved game and puts the player at the last checkpoint rested at. Give the button the tag menu.continue and the game shows it only when a save exists.",
+                )
+                .small()
+                .color(STUDIO_TEXT_WEAK),
+            );
         }
         UiAction::Game(id) => {
             let mut value = *id as i32;

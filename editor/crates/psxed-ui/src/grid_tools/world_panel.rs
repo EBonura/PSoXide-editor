@@ -64,6 +64,19 @@ impl EditorWorkspace {
         }
     }
 
+    /// "slots used N of 832": the count from the last cook when there was one
+    /// (it counts every record that keeps its state), else the numbers the
+    /// project holds so far.
+    pub(crate) fn save_slots_text(&self) -> String {
+        let used = self
+            .last_slots_used
+            .map_or(self.project.persistent_slots.len(), usize::from);
+        format!(
+            "slots used {used} of {}",
+            psx_level::POI_PERSISTENT_FLAG_CAPACITY
+        )
+    }
+
     /// The Inspector of the World.
     pub(crate) fn draw_world_inspector(&mut self, ui: &mut egui::Ui) {
         let material_options = self.project.material_options();
@@ -163,6 +176,24 @@ impl EditorWorkspace {
             false,
             |ui| {
                 changed |= self.draw_stream_radii(ui);
+            },
+        );
+
+        inspector_section(
+            ui,
+            "world-save-slots",
+            icons::SAVE,
+            "Save slots",
+            false,
+            |ui| {
+                ui.label(RichText::new(self.save_slots_text()).color(STUDIO_TEXT));
+                ui.label(
+                    RichText::new(
+                        "Each door and lever that keeps its state between visits takes one. The editor numbers them when you Play and keeps the numbers, so adding a door never changes the others.",
+                    )
+                    .small()
+                    .color(STUDIO_TEXT_WEAK),
+                );
             },
         );
 

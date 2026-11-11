@@ -3485,6 +3485,13 @@ pub(crate) fn draw_node_kind_editor(
                     title,
                     body,
                 } => {
+                    ui.label(
+                        RichText::new(
+                            "A rest point. Pressing the action button here heals the player, brings the enemies back, shuts the doors and levers that do not keep their state, and saves the game here.",
+                        )
+                        .small()
+                        .color(STUDIO_TEXT_WEAK),
+                    );
                     ui.horizontal(|ui| {
                         ui.label(RichText::new("Checkpoint ID").color(STUDIO_TEXT_WEAK));
                         changed |= ui.text_edit_singleline(checkpoint_id).changed();

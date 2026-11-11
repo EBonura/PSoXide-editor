@@ -509,6 +509,8 @@ pub struct EditorWorkspace {
     /// object it blames. The auto-focus only ever jumps to the first
     /// focusable error; this list lets the author pick any row.
     last_cook_errors: Vec<psxed_project::playtest::PlaytestValidationError>,
+    /// Save-flag slots the last cook used (`PlaytestPackage::persistent_slots_used`).
+    last_slots_used: Option<u16>,
     /// Project-portable Room-workspace clipboard. Unlike Duplicate, this owns
     /// material names rather than trusting project-local resource ids, so it
     /// deliberately survives switching or creating projects.
@@ -2240,6 +2242,7 @@ impl EditorWorkspace {
             gizmo_space: GizmoSpace::Global,
             ui_transform_mode: UiTransformMode::Move,
             last_cook_errors: Vec::new(),
+            last_slots_used: None,
             clipboard_notice: None,
             renaming: None,
             pending_rename_focus: false,
@@ -3042,6 +3045,15 @@ impl EditorWorkspace {
                 .and_then(|c| project.resource(c.source_resource).map(|r| r.name.clone())),
         });
         if let Some(package) = package.as_ref() {
+            self.last_slots_used = Some(package.persistent_slots_used);
+            // Keep every record on the slot the cook gave it: the table lives
+            // in the project, so adding a door never renumbers the others. It
+            // is bookkeeping, not an edit: no undo step, but the project is
+            // unsaved until the next save.
+            if package.persistent_slots != self.project.persistent_slots {
+                self.project.persistent_slots = package.persistent_slots.clone();
+                self.dirty = true;
+            }
             self.last_playtest_budget = Some(psxed_project::playtest::cooked_playtest_budgets(
                 &project, package,
             ));

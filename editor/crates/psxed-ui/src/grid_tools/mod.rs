@@ -84,6 +84,7 @@ mod tool_row;
 mod tool_search;
 #[cfg(test)]
 pub(crate) use library::LibraryTab;
+#[cfg(test)]
 pub(crate) use strip::elide_hint;
 #[cfg(test)]
 pub(crate) use tool_row::{tool_strip_height, CLASSIC, MORE_BUILD};
