@@ -263,17 +263,17 @@ impl EditorWorkspace {
             }
         }
         // Paint: R turns the brush a quarter clockwise (Shift+R the other
-        // way), F flips it horizontally (Shift+F vertically). Taken before
-        // the tool keys, because F is also the Floor tool's key; the Floor
-        // tool is a click away on the tool row while Paint is active. Like
-        // the tool keys they are taken and ignored with a pointer button
-        // down, so a key during a stroke cannot change the paint under it.
+        // way), M mirrors it horizontally (Shift+M vertically). None of
+        // them is a tool key, so every tool key still chooses its tool while
+        // Paint is active. Like the tool keys they are taken and ignored with
+        // a pointer button down, so a key during a stroke cannot change the
+        // paint under it.
         if self.grid.tool == GridTool::Paint {
             // Shift first: the plain key also matches with Shift held.
             let turn_back = pressed_shift(ctx, egui::Key::R);
             let turn = !turn_back && pressed(ctx, egui::Key::R);
-            let flip_v = pressed_shift(ctx, egui::Key::F);
-            let flip_h = !flip_v && pressed(ctx, egui::Key::F);
+            let flip_v = pressed_shift(ctx, egui::Key::M);
+            let flip_h = !flip_v && pressed(ctx, egui::Key::M);
             // `]` draws the paint bigger, `[` smaller (1/4x, 1/2x, 1x, 2x,
             // 4x). Taken here, before the height nudge those keys have in
             // the other tools.

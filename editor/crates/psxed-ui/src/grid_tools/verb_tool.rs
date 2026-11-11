@@ -377,6 +377,17 @@ fn drag_from_idle(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     drag(ws, ptr);
 }
 
+/// Take back the newest undo step when it holds the document as it is now:
+/// the gesture recorded its step before it knew it would change nothing.
+/// Returns whether a step was dropped.
+fn drop_empty_step(ws: &mut EditorWorkspace) -> bool {
+    if ws.history.last() == Some(&ws.project) {
+        let _ = ws.history.pop_last();
+        return true;
+    }
+    false
+}
+
 pub(super) fn release(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     match std::mem::take(&mut ws.grid.gesture) {
         Gesture::Marquee {
@@ -408,6 +419,13 @@ pub(super) fn release(ws: &mut EditorWorkspace, ptr: &GridPointer) {
             ws.grid.verb.stairs_refusal = None;
         }
         Gesture::Verb(g) => {
+            // A gesture that came to nothing (a refused flight, a break that
+            // broke nothing) leaves no undo step.
+            let recorded = g.before.is_none()
+                || matches!(&g.drag, VerbDrag::Break(live) if live.recorded());
+            if recorded {
+                drop_empty_step(ws);
+            }
             // The amount stays in the status line; the region stays too.
             if let VerbDrag::Wall(live) = &g.drag {
                 super::extrude_tool::finished(ws, live, g.amount);
@@ -522,13 +540,13 @@ pub(super) fn cancel(ws: &mut EditorWorkspace) -> bool {
                 VerbDrag::Break(_) => {}
                 // A slab drag records its change at once, whatever the amount.
                 VerbDrag::Slab(_) => {
-                    if g.before.is_none() {
+                    if g.before.is_none() && !drop_empty_step(ws) {
                         ws.do_undo();
                     }
                 }
                 // A recorded step means the document changed: take it back.
                 _ => {
-                    if g.before.is_none() && g.amount != 0 {
+                    if g.before.is_none() && g.amount != 0 && !drop_empty_step(ws) {
                         ws.do_undo();
                     }
                 }

@@ -487,8 +487,8 @@ impl EditorWorkspace {
         ui.label(RichText::new(format!("{} deg", orient.degrees())).size(11.0));
         tight_separator(ui);
         for (axis, label, hint) in [
-            (0usize, "Flip H (F)", "Mirror the paint left to right"),
-            (1usize, "Flip V (Shift+F)", "Mirror the paint top to bottom"),
+            (0usize, "Flip H (M)", "Mirror the paint left to right"),
+            (1usize, "Flip V (Shift+M)", "Mirror the paint top to bottom"),
         ] {
             if ui
                 .selectable_label(orient.flip[axis], label)

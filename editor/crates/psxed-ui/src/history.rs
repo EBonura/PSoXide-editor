@@ -72,6 +72,11 @@ impl UndoStack {
         Some(snapshot)
     }
 
+    /// The newest recorded snapshot (the document before the last edit).
+    pub(crate) fn last(&self) -> Option<&ProjectDocument> {
+        self.timeline.get(self.cursor.checked_sub(1)?)
+    }
+
     /// How many steps can be undone.
     pub(crate) fn steps(&self) -> usize {
         self.cursor

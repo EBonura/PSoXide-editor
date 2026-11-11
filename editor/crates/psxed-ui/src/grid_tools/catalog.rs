@@ -47,7 +47,7 @@ pub(crate) const CATALOG: [ToolEntry; 33] = [
     ToolEntry {
         tool: GridTool::Opening,
         group: ToolGroup::Build,
-        hint: "Drag along a wall | Shift+drag up or type a number for the lintel | Esc cancel",
+        hint: "Drag along a wall | Shift+drag up or type a number for the lintel | Ctrl+drag up for a window sill | Esc cancel",
     },
     ToolEntry {
         tool: GridTool::Arcade,
@@ -152,7 +152,7 @@ pub(crate) const CATALOG: [ToolEntry; 33] = [
     ToolEntry {
         tool: GridTool::Paint,
         group: ToolGroup::Surface,
-        hint: "Click or drag paint | R / Shift+R turn | F / Shift+F flip | [ ] scale | Ctrl sample | pick in the palette",
+        hint: "Click or drag paint | R / Shift+R turn | M / Shift+M mirror | [ ] scale | Ctrl sample | pick in the palette",
     },
     ToolEntry {
         tool: GridTool::Bands,

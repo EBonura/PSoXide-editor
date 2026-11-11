@@ -11,7 +11,7 @@ use std::collections::BTreeSet;
 use psxed_project::grid::edit::verbs::arcade::{
     build_arcade, build_colonnade, ArcadeParams, Colonnade, Layout,
 };
-use psxed_project::grid::edit::verbs::bridge::{build_bridge, BridgeParams};
+use psxed_project::grid::edit::verbs::bridge::{build_bridge, BridgeParams, BridgeRefusal};
 use psxed_project::grid::edit::verbs::building::{build_building, BuildingParams};
 use psxed_project::grid::edit::verbs::capture::{repeat_bay, Along};
 use psxed_project::grid::edit::verbs::cathedral::{build_cathedral, CathedralParams, Transept};
@@ -21,6 +21,7 @@ use psxed_project::grid::edit::verbs::corridor::{
 use psxed_project::grid::edit::verbs::doorway_door::{doorway_with_door, DoorwayDoor};
 use psxed_project::grid::edit::verbs::opening::{
     arch_head, cut_opening_on_span, ArchShape, OpeningKind, OpeningParams, OpeningProfile,
+    OpeningRefusal,
 };
 use psxed_project::grid::edit::verbs::room::{lay_room, Footprint, RoomParams, RoomTarget};
 use psxed_project::grid::edit::verbs::ruin::{ruin_region, RuinParams};
@@ -371,7 +372,51 @@ fn opening(project: &mut ProjectDocument, o: &Options, geo: &Geo) -> Outcome {
                 String::new()
             },
         ),
-        Err(e) => Outcome::refusal(e.describe()),
+        Err(e) => Outcome::refusal(opening_words(&e, run, opts.head)),
+    }
+}
+
+/// A refused opening in a designer's words, with what to change.
+pub(crate) fn opening_words(e: &OpeningRefusal, run: WallRun, head: OpeningHead) -> String {
+    // The rise of an arch over this run, grid units (as `arch_head` makes it).
+    let width = (run.to - run.from) * psxed_project::grid::CLICK_UNITS;
+    let rise = match head {
+        OpeningHead::Rectangular => 0,
+        OpeningHead::Pointed => width * 3 / 4,
+        OpeningHead::Round => width / 2,
+    };
+    match e {
+        OpeningRefusal::TooLow { least } if rise > 0 => format!(
+            "This arch springs too low to walk under. Raise Lintel to {} or more, or make the \
+             opening narrower",
+            clicks((least + rise + 63) / 64 * 64)
+        ),
+        OpeningRefusal::NoHost => "An opening is cut between a floor and a ceiling, and one of \
+             them is missing behind that wall. Add the floor or the ceiling there first"
+            .to_string(),
+        OpeningRefusal::TopAboveCeiling { max } => format!(
+            "The top is higher than the ceiling there. Set Lintel to {} or less",
+            clicks(*max)
+        ),
+        OpeningRefusal::TooLow { least } => format!(
+            "A door must be at least {} tall. Raise Lintel",
+            clicks(*least)
+        ),
+        OpeningRefusal::SillAboveTop => {
+            "The sill must be lower than the lintel. Lower Sill or raise Lintel".to_string()
+        }
+        OpeningRefusal::BadArch => "An arch needs a run of two or more clicks along the wall \
+             and a Lintel above its spring. Drag further along the wall, or pick Rectangular"
+            .to_string(),
+        OpeningRefusal::FineCells => "This wall is in a storey that keeps whole sectors, or in \
+             cells too fine to cut through. Drag across the whole sector, or merge the cells \
+             with the Cells tool first"
+            .to_string(),
+        OpeningRefusal::AlreadyOpen => {
+            "That stretch is already open. Drag along a part of the wall that is still closed"
+                .to_string()
+        }
+        other => other.describe(),
     }
 }
 
@@ -510,6 +555,24 @@ fn bridge(project: &mut ProjectDocument, o: &Options, geo: &Geo) -> Outcome {
             clicks(r.length),
             r.piers.len()
         )),
+        Err(BridgeRefusal::PierOutOfRange { needed }) => {
+            let column = psxed_project::grid::ColumnSpec::default();
+            let least = column.plinth + column.capital + 128;
+            Outcome::refusal(if needed < least {
+                format!(
+                    "A pier does not fit: the deck is {} above the ground there and a pier needs \
+                     {}. Set Piers every to 0, or click ends on higher floors",
+                    clicks(needed.max(0)),
+                    clicks(least)
+                )
+            } else {
+                format!(
+                    "A pier would be {} tall, more than a column can be. Set Piers every to 0, \
+                     or click lower ends",
+                    clicks(needed)
+                )
+            })
+        }
         Err(e) => Outcome::refusal(e.describe()),
     }
 }
@@ -556,12 +619,26 @@ fn building(project: &mut ProjectDocument, o: &Options, geo: &Geo) -> Outcome {
 fn cathedral(project: &mut ProjectDocument, o: &Options, geo: &Geo) -> Outcome {
     let opts = &o.cathedral;
     let rect = geo.rect();
-    let bay = geo.value.map_or(opts.bay, |v| v.clamp(1, 4));
+    let bay = geo.value.map_or(opts.bay, |v| v.clamp(2, 4));
     // The long side is the nave: its length is the bays, its depth minus the
     // aisles the nave's width.
     let bays = (rect.width() / bay).clamp(1, 16);
     let aisles = opts.aisle_width * 2;
-    let nave_width = (rect.depth() - aisles).max(1);
+    let nave_width = rect.depth() - aisles;
+    if nave_width < 2 {
+        return Outcome::refusal(format!(
+            "The nave would be {} wide: it needs two sectors or more between the aisles. Drag a \
+             deeper area (at least {} sectors across), or set Aisle lower",
+            plural(nave_width.max(0) as usize, "sector", "sectors"),
+            2 + aisles
+        ));
+    }
+    if nave_width > 8 {
+        return Outcome::refusal(format!(
+            "The nave would be {nave_width} sectors wide, and eight is the most. Drag a shallower \
+             area, or set Aisle higher"
+        ));
+    }
     let tgt = RoomTarget::New(name_of(project, "Cathedral"));
     let style = match &opts.style {
         StyleResolved::Style(s) => Some(s.clone()),
@@ -675,6 +752,26 @@ fn ruin(project: &mut ProjectDocument, o: &Options, geo: &Geo) -> Outcome {
     }
 }
 
+/// The material of a door's slab. A box without a drawable material is
+/// dropped by the cook, which then refuses the door that names it, so the
+/// slab always takes one a room can use: the metal accent when the project
+/// has it, else the wall or floor of the graybox set, else a material the
+/// world's own floors already use (the first one found).
+fn door_material(project: &ProjectDocument) -> Option<psxed_project::ResourceId> {
+    let roles = Roles::graybox(project);
+    roles.accent.or(roles.wall).or(roles.floor).or_else(|| {
+        let world = project.active_scene().world.grid()?;
+        world.rooms.iter().find_map(|room| {
+            room.leaves().find_map(|(_, sector)| {
+                sector
+                    .spans()
+                    .iter()
+                    .find_map(|span| span.floor.as_ref().and_then(|f| f.tri_a.material))
+            })
+        })
+    })
+}
+
 /// The door's own name: "Door 1", "Door 2", the first free one.
 pub(crate) fn free_name(project: &ProjectDocument, stem: &str) -> String {
     let scene = project.active_scene();
@@ -693,6 +790,15 @@ fn door(project: &mut ProjectDocument, o: &Options, geo: &Geo) -> Outcome {
         return Outcome::wait("Drag along a wall");
     };
     let opts: &DoorOpts = &o.door;
+    if run.span > 0 {
+        // The SDK's doorway_with_door cuts the ground storey only (see NOTES,
+        // "needs SDK"): refuse in words instead of cutting the wrong floor.
+        return Outcome::refusal(
+            "A sliding door can only be placed on the ground floor for now. On this floor, cut \
+             the doorway with the Opening tool"
+                .to_string(),
+        );
+    }
     let top = geo.value.unwrap_or(opts.height);
     let opening = opening_params(run, false, opts.head, top, 0);
     let name = free_name(project, "Door");
@@ -707,7 +813,7 @@ fn door(project: &mut ProjectDocument, o: &Options, geo: &Geo) -> Outcome {
     let params = DoorwayDoor {
         opening,
         name: name.clone(),
-        material: Roles::graybox(project).accent,
+        material: door_material(project),
         direction: opts.direction,
         ticks: opts.ticks,
         lock,
@@ -740,7 +846,7 @@ fn door(project: &mut ProjectDocument, o: &Options, geo: &Geo) -> Outcome {
             }
             Outcome::made(format!("{name}: doorway cut and a sliding door placed"))
         }
-        Err(e) => Outcome::refusal(e.describe()),
+        Err(e) => Outcome::refusal(opening_words(&e, run, opts.head)),
     }
 }
 

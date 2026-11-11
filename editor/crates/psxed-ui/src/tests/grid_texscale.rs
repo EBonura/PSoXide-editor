@@ -216,11 +216,11 @@ fn paint_window() -> WindowRig {
 }
 
 /// The options bar's button labelled `label`, by its text in the row of the
-/// Paint options (the row of "Flip H (F)").
+/// Paint options (the row of "Flip H (M)").
 fn option(rig: &WindowRig, label: &str) -> Option<Rect> {
     let anchor = texts(rig)
         .into_iter()
-        .find(|(t, _)| t.trim_start_matches(|c: char| !c.is_alphanumeric()).trim() == "Flip H (F)")?
+        .find(|(t, _)| t.trim_start_matches(|c: char| !c.is_alphanumeric()).trim() == "Flip H (M)")?
         .1;
     texts(rig)
         .into_iter()

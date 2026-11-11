@@ -361,7 +361,7 @@ impl Options {
             BuildKind::Corridor => self.corridor.width = value.clamp(1, 8),
             BuildKind::Arcade | BuildKind::Colonnade => self.arcade.bays = value.clamp(1, 32),
             BuildKind::Building => self.building.storeys = value.clamp(1, 4),
-            BuildKind::Cathedral => self.cathedral.bay = value.clamp(1, 4),
+            BuildKind::Cathedral => self.cathedral.bay = value.clamp(2, 4),
             BuildKind::Bridge => self.bridge.width = value.max(256),
             BuildKind::Terrain => self.terrain.amplitude = (value / 256).max(0),
             BuildKind::Ruin => self.ruin.intensity = (value / 256).clamp(0, 100) as u32,

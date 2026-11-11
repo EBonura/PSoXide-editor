@@ -138,7 +138,7 @@ const PAINT: Rows = &[
     ),
     ("Click, drag", "Apply the palette material to faces"),
     ("R, Shift+R", "Turn the paint a quarter clockwise, counter-clockwise"),
-    ("F, Shift+F", "Flip the paint horizontally, vertically (F is Paint's while Paint is active)"),
+    ("M, Shift+M", "Mirror the paint horizontally, vertically (Paint)"),
     (
         "[ and ]",
         "Lay the paint 0.25x, 0.5x, 1x, 2x or 4x (1x: one 64x64 texture per sector in a new world; 2x twice as big). The options bar has a button for each",

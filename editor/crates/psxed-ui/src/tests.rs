@@ -65,6 +65,7 @@ mod raster;
 mod redraw;
 mod scene_tree_selection;
 mod tool_audit;
+mod tool_flows;
 mod ui_layout;
 mod ui_preview;
 mod ui_wording;

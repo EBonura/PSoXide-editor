@@ -55,6 +55,13 @@ pub(crate) struct Drag {
     y_offset: i32,
     /// The click a wall run began at.
     anchor_click: i32,
+    /// The run was cut short where the wall ends.
+    clamped: bool,
+    /// The run was widened to whole sectors (a column of several storeys).
+    whole_sectors: bool,
+    /// Ctrl or Cmd held: pointer travel is the sill. The pointer y and the
+    /// sill when it began.
+    sill_lift: Option<(f32, i32)>,
 }
 
 /// The state of the Build tools. Not saved with the project.
@@ -149,13 +156,31 @@ fn cell_under(
     Some(view::cell_at_editor(world.scale, p[0], p[2]))
 }
 
-/// The floor height (room relative) of the sector `cell` in `room`, if it
-/// has one.
+/// The floor height of the sector `cell`, relative to `room`, if any room has
+/// a floor there. The room the gesture aims at is looked in first; a cell
+/// that belongs to another room (a plan click on a neighbour, a platform
+/// beside the room) names that room's floor, shifted by the rooms' offsets.
+/// A cell held by a larger leaf answers with that leaf's mean height.
 fn floor_at(ws: &EditorWorkspace, room: usize, cell: [i32; 2]) -> Option<i32> {
-    let r = ws.project.active_scene().world.grid()?.rooms.get(room)?;
-    let [x, z] = r.local(cell)?;
-    let f = r.sector(x, z)?.ground_floor()?;
-    Some(f.heights.iter().sum::<i32>() / 4)
+    let world = ws.project.active_scene().world.grid()?;
+    let click = [
+        cell[0] * CLICKS_PER_SECTOR + CLICKS_PER_SECTOR / 2,
+        cell[1] * CLICKS_PER_SECTOR + CLICKS_PER_SECTOR / 2,
+    ];
+    let target_offset = world.rooms.get(room).map_or(0, |r| r.y_offset);
+    let height_in = |r: &psxed_project::grid::GridRoom| {
+        let (key, sector) = r.leaf_at(click)?;
+        if !r.contains_leaf(key) {
+            return None;
+        }
+        let f = sector.ground_floor()?;
+        Some(f.heights.iter().sum::<i32>() / 4 + r.y_offset - target_offset)
+    };
+    world
+        .rooms
+        .get(room)
+        .and_then(height_in)
+        .or_else(|| world.rooms.iter().find_map(height_in))
 }
 
 /// A lattice corner under the pointer, in sector coordinates (a lasso corner).
@@ -245,6 +270,79 @@ fn wall_under(ws: &EditorWorkspace, ptr: &GridPointer) -> Option<WallRun> {
     })
 }
 
+/// Whether the click `c` along the wall `run` stands on a sector that has a
+/// floor and a ceiling in the run's storey: somewhere an opening can be cut.
+fn host_at(ws: &EditorWorkspace, run: &WallRun, c: i32) -> bool {
+    let Some(room) = ws
+        .project
+        .active_scene()
+        .world
+        .grid()
+        .and_then(|w| w.rooms.get(run.room))
+    else {
+        return false;
+    };
+    let n = CLICKS_PER_SECTOR;
+    let s = c.div_euclid(n);
+    let probe = match run.side {
+        WallEdge::North => [c, run.cell[1] * n],
+        WallEdge::South => [c, run.cell[1] * n + n - 1],
+        WallEdge::West => [run.cell[0] * n, c],
+        _ => [run.cell[0] * n + n - 1, c],
+    };
+    let _ = s;
+    room.leaf_at(probe).is_some_and(|(_, sector)| {
+        sector
+            .spans()
+            .get(usize::from(run.span))
+            .is_some_and(|sp| sp.floor.is_some() && sp.ceiling.is_some())
+    })
+}
+
+/// Whether the column behind the wall holds several storeys. Such a column
+/// stays whole sectors, so an opening in it is a whole sector wide.
+fn is_tall_column(ws: &EditorWorkspace, run: &WallRun) -> bool {
+    let Some(room) = ws
+        .project
+        .active_scene()
+        .world
+        .grid()
+        .and_then(|w| w.rooms.get(run.room))
+    else {
+        return false;
+    };
+    let n = CLICKS_PER_SECTOR;
+    let probe = match run.side {
+        WallEdge::North => [run.cell[0] * n, run.cell[1] * n],
+        WallEdge::South => [run.cell[0] * n, run.cell[1] * n + n - 1],
+        WallEdge::West => [run.cell[0] * n, run.cell[1] * n],
+        _ => [run.cell[0] * n + n - 1, run.cell[1] * n],
+    };
+    room.leaf_at(probe).is_some_and(|(_, s)| s.span_count() > 1)
+}
+
+/// `from..to` widened to whole sectors.
+fn whole_sectors(from: i32, to: i32) -> (i32, i32) {
+    let n = CLICKS_PER_SECTOR;
+    (from.div_euclid(n) * n, (to + n - 1).div_euclid(n) * n)
+}
+
+/// Pull `at` back toward the anchor until every click between them stands on
+/// a sector an opening can be cut in. Returns the click and whether it moved.
+fn clamp_to_wall(ws: &EditorWorkspace, run: &WallRun, anchor: i32, at: i32) -> (i32, bool) {
+    let step = if at >= anchor { 1 } else { -1 };
+    let mut last = anchor;
+    let mut c = anchor;
+    while c != at {
+        c += step;
+        if !host_at(ws, run, c) {
+            return (last, true);
+        }
+        last = c;
+    }
+    (at, false)
+}
+
 // ---- gesture ----
 
 fn begin(ws: &mut EditorWorkspace, kind: BuildKind, geo: Geo, y_offset: i32) {
@@ -260,6 +358,9 @@ fn begin(ws: &mut EditorWorkspace, kind: BuildKind, geo: Geo, y_offset: i32) {
         lift: None,
         y_offset,
         anchor_click: geo_anchor,
+        clamped: false,
+        whole_sectors: false,
+        sill_lift: None,
     });
     ws.grid.gesture = Gesture::Edit;
 }
@@ -317,6 +418,12 @@ fn ruler_of(ws: &EditorWorkspace, drag: &Drag) -> String {
 
 fn hint_of(drag: &Drag, out: &Outcome, typed: &str, ruler: &str) -> String {
     let mut text = out.text.clone();
+    if drag.clamped {
+        text += " | the wall ends here";
+    }
+    if drag.whole_sectors {
+        text += " | a storey opens a whole sector at a time";
+    }
     if !ruler.is_empty() && !out.refused {
         text += &format!(" | {ruler}");
     }
@@ -488,6 +595,10 @@ fn start(ws: &mut EditorWorkspace, kind: BuildKind, at: &GridPointer) {
             ws.status = "Point at a wall first: an opening is cut in a wall".to_string();
             return;
         };
+        let mut run = run;
+        if is_tall_column(ws, &run) {
+            (run.from, run.to) = whole_sectors(run.from, run.to);
+        }
         geo.room = run.room;
         geo.wall = Some(run);
         let off = ws
@@ -503,6 +614,22 @@ fn start(ws: &mut EditorWorkspace, kind: BuildKind, at: &GridPointer) {
     let Some(cell) = cell_under(ws, at, y_offset, base) else {
         return;
     };
+    // Terrain and Ruin change the room under the press, not the room the
+    // editor happens to have active (a plan drag over another room is a drag
+    // in that room).
+    let mut y_offset = y_offset;
+    if matches!(kind, BuildKind::Terrain | BuildKind::Ruin) {
+        if let Some(r) = ws.top_room_at(cell) {
+            geo.room = r;
+            y_offset = ws
+                .project
+                .active_scene()
+                .world
+                .grid()
+                .and_then(|w| w.rooms.get(r))
+                .map_or(0, |r| r.y_offset);
+        }
+    }
     geo.a = cell;
     geo.b = cell;
     begin(ws, kind, geo, y_offset);
@@ -521,12 +648,40 @@ pub(super) fn drag(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     let typed = !ws.grid.build.amount.is_empty();
     let (room, y_offset, base) = (d.geo.room, d.y_offset, d.geo.base);
     let wall = d.geo.wall;
+    let anchor_cell = d.geo.a;
     let lift = d.lift;
+    let window = kind == BuildKind::Opening && ws.grid.build.opts.opening.window;
+    if ptr.command() && window && !typed {
+        // Sill mode: the shape stays, pointer travel is the height of the sill.
+        let opening = &ws.grid.build.opts.opening;
+        let (y0, v0) = ws
+            .grid
+            .build
+            .drag
+            .as_ref()
+            .and_then(|d| d.sill_lift)
+            .unwrap_or((ptr.pos.y, opening.sill));
+        let top = opening.top;
+        let origin = ground_point(ws, wall.map_or(anchor_cell, |w| w.cell), y_offset, base);
+        let ppu = ws.grid_pixels_per_unit(ptr, origin);
+        let step = if ptr.alt() { FINE_UNITS } else { CLICK_UNITS };
+        let raw = ((y0 - ptr.pos.y) / ppu).round() as i32;
+        let value = snap_to(v0 + raw, step).clamp(0, (top - CLICK_UNITS).max(0));
+        if let Some(d) = ws.grid.build.drag.as_mut() {
+            d.sill_lift = Some((y0, v0));
+        }
+        ws.grid.build.opts.opening.sill = value;
+        refresh(ws);
+        return;
+    }
+    if let Some(d) = ws.grid.build.drag.as_mut() {
+        d.sill_lift = None;
+    }
     if ptr.shift() && kind.amount().is_some() && !typed {
         // Height mode: the shape stays, pointer travel is the amount.
         let current = amount_units(&ws.grid.build.opts, kind);
         let (y0, v0) = lift.unwrap_or((ptr.pos.y, current));
-        let origin = ground_point(ws, d.geo.a, y_offset, base);
+        let origin = ground_point(ws, wall.map_or(anchor_cell, |w| w.cell), y_offset, base);
         let ppu = ws.grid_pixels_per_unit(ptr, origin);
         let step = if ptr.alt() { FINE_UNITS } else { CLICK_UNITS };
         let raw = ((y0 - ptr.pos.y) / ppu).round() as i32;
@@ -545,11 +700,19 @@ pub(super) fn drag(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     }
     if let Some(run) = wall {
         if let Some(at) = along_click(ws, ptr, run.side, run.cell, [0.0; 3]) {
+            let anchor = ws.grid.build.drag.as_ref().map_or(at, |d| d.anchor_click);
+            let (at, clamped) = clamp_to_wall(ws, &run, anchor, at);
+            let tall = is_tall_column(ws, &run);
             if let Some(d) = ws.grid.build.drag.as_mut() {
+                d.clamped = clamped;
+                d.whole_sectors = tall;
                 if let Some(w) = d.geo.wall.as_mut() {
                     // The run grows from where it began.
                     w.from = d.anchor_click.min(at);
                     w.to = d.anchor_click.max(at) + 1;
+                    if tall {
+                        (w.from, w.to) = whole_sectors(w.from, w.to);
+                    }
                 }
             }
             refresh(ws);
@@ -719,10 +882,37 @@ pub(super) fn click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
         BuildKind::Opening | BuildKind::Door => {
             // A click is a door two clicks wide at the pointer.
             start(ws, kind, ptr);
+            let tall = ws
+                .grid
+                .build
+                .drag
+                .as_ref()
+                .and_then(|d| d.geo.wall)
+                .is_some_and(|w| is_tall_column(ws, &w));
             if let Some(d) = ws.grid.build.drag.as_mut() {
+                let anchor = d.anchor_click;
                 if let Some(w) = d.geo.wall.as_mut() {
-                    w.from -= 1;
+                    w.from = anchor - 1;
                     w.to = w.from + 2;
+                    if tall {
+                        (w.from, w.to) = whole_sectors(anchor, anchor + 1);
+                    }
+                }
+            }
+            // A click at the very start or end of a wall keeps the run on it.
+            if let Some(run) = ws.grid.build.drag.as_ref().and_then(|d| d.geo.wall) {
+                let mut moved = run;
+                if !host_at(ws, &run, run.from) {
+                    moved.from += 1;
+                    moved.to += 1;
+                } else if !host_at(ws, &run, run.to - 1) {
+                    moved.from -= 1;
+                    moved.to -= 1;
+                }
+                if moved != run {
+                    if let Some(w) = ws.grid.build.drag.as_mut().and_then(|d| d.geo.wall.as_mut()) {
+                        *w = moved;
+                    }
                 }
             }
             if ws.grid.build.drag.is_some() {

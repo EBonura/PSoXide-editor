@@ -3938,7 +3938,9 @@ pub(crate) fn draw_node_kind_editor(
                 psxed_project::LogicNodeKind::Door {
                     box_prop,
                     start_open,
-                    ..
+                    slide,
+                    lock,
+                    refusal,
                 } => {
                     ui.horizontal(|ui| {
                         ui.label(RichText::new("Box Prop").color(STUDIO_TEXT_WEAK));
@@ -3950,6 +3952,108 @@ pub(crate) fn draw_node_kind_editor(
                             .changed();
                     });
                     changed |= ui.checkbox(start_open, "Start open").changed();
+                    match slide {
+                        Some(s) => {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new("Slides").color(STUDIO_TEXT_WEAK));
+                                egui::ComboBox::from_id_salt("door_slide_dir")
+                                    .selected_text(format!("{:?}", s.direction))
+                                    .width(70.0)
+                                    .show_ui(ui, |ui| {
+                                        for d in [
+                                            psxed_project::DoorDirection::Up,
+                                            psxed_project::DoorDirection::Down,
+                                            psxed_project::DoorDirection::East,
+                                            psxed_project::DoorDirection::West,
+                                            psxed_project::DoorDirection::South,
+                                            psxed_project::DoorDirection::North,
+                                        ] {
+                                            changed |= ui
+                                                .selectable_value(
+                                                    &mut s.direction,
+                                                    d,
+                                                    format!("{d:?}"),
+                                                )
+                                                .changed();
+                                        }
+                                    });
+                                changed |= ui
+                                    .add(
+                                        egui::DragValue::new(&mut s.distance)
+                                            .range(1..=16384)
+                                            .suffix(" units"),
+                                    )
+                                    .changed();
+                                changed |= ui
+                                    .add(
+                                        egui::DragValue::new(&mut s.ticks)
+                                            .range(1..=600)
+                                            .suffix(" ticks"),
+                                    )
+                                    .changed();
+                            });
+                        }
+                        None => {
+                            if ui
+                                .button("Add a slide")
+                                .on_hover_text("The door does not move yet: give it a direction")
+                                .clicked()
+                            {
+                                *slide = Some(psxed_project::DoorSlide {
+                                    direction: psxed_project::DoorDirection::Up,
+                                    distance: 512,
+                                    ticks: 60,
+                                });
+                                changed = true;
+                            }
+                        }
+                    }
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("Lock").color(STUDIO_TEXT_WEAK));
+                        let before = match lock {
+                            psxed_project::DoorLock::Unlocked => 0,
+                            psxed_project::DoorLock::Locked => 1,
+                            psxed_project::DoorLock::OneWay { .. } => 2,
+                        };
+                        let mut now = before;
+                        ui.selectable_value(&mut now, 0, "Open");
+                        ui.selectable_value(&mut now, 1, "Locked");
+                        ui.selectable_value(&mut now, 2, "One way");
+                        if now != before {
+                            *lock = match now {
+                                0 => psxed_project::DoorLock::Unlocked,
+                                1 => psxed_project::DoorLock::Locked,
+                                _ => psxed_project::DoorLock::OneWay {
+                                    refuse_from: psxed_project::DoorSide::South,
+                                },
+                            };
+                            changed = true;
+                        }
+                    });
+                    if let psxed_project::DoorLock::OneWay { refuse_from } = lock {
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("Refuses from").color(STUDIO_TEXT_WEAK));
+                            for (side, arrow) in [
+                                (psxed_project::DoorSide::North, "\u{2191} N"),
+                                (psxed_project::DoorSide::East, "\u{2192} E"),
+                                (psxed_project::DoorSide::South, "\u{2193} S"),
+                                (psxed_project::DoorSide::West, "\u{2190} W"),
+                            ] {
+                                changed |= ui.selectable_value(refuse_from, side, arrow).changed();
+                            }
+                        });
+                    }
+                    if *lock != psxed_project::DoorLock::Unlocked {
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("Refusal text").color(STUDIO_TEXT_WEAK));
+                            changed |= ui
+                                .add(
+                                    egui::TextEdit::singleline(refusal)
+                                        .hint_text("shown when the door will not open"),
+                                )
+                                .changed();
+                        });
+                    }
                     changed |= ui
                         .checkbox(persistent, "Remember across death and saves")
                         .changed();

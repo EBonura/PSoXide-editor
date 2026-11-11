@@ -80,13 +80,13 @@ fn r_and_f_turn_and_flip_the_paint_and_a_click_stores_them_on_the_face() {
     rig.key_with(egui::Key::R, shift());
     rig.click(rig.cell_centre(1, 0));
     assert_eq!(floor_uv(&rig, 1).turns, 3);
-    // F flips horizontally, on top of the turn the brush still has.
-    rig.key(egui::Key::F);
+    // M mirrors horizontally, on top of the turn the brush still has.
+    rig.key(egui::Key::M);
     rig.click(rig.cell_centre(2, 0));
     assert_eq!(floor_uv(&rig, 2).turns, 3);
     assert_eq!(floor_uv(&rig, 2).flip, [true, false]);
-    // Shift+F flips vertically.
-    rig.key_with(egui::Key::F, shift());
+    // Shift+M mirrors vertically.
+    rig.key_with(egui::Key::M, shift());
     rig.click(rig.cell_centre(3, 0));
     assert_eq!(floor_uv(&rig, 3).flip, [true, true]);
     // The keys changed the brush, not the faces painted before.
@@ -98,7 +98,7 @@ fn r_and_f_turn_and_flip_the_paint_and_a_click_stores_them_on_the_face() {
 fn the_turn_is_part_of_the_paints_one_undo_step() {
     let (mut rig, _) = painting();
     rig.key(egui::Key::R);
-    rig.key(egui::Key::F);
+    rig.key(egui::Key::M);
     rig.click(rig.cell_centre(0, 0));
     assert_eq!(floor_uv(&rig, 0).turns, 1);
     rig.ws.do_undo();
@@ -159,40 +159,50 @@ fn keys_during_a_drag_are_taken_and_ignored() {
         egui::Modifiers::NONE,
     );
     rig.key(egui::Key::R);
-    rig.key(egui::Key::F);
+    rig.key(egui::Key::M);
     rig.release(rig.cell_centre(2, 0), egui::Modifiers::NONE);
     assert_eq!(rig.ws.grid.paint.orient, crate::PaintOrient::default());
     for x in 0..3 {
         assert!(floor_uv(&rig, x).is_identity(), "x {x}");
     }
-    assert_eq!(rig.ws.grid.tool, GridTool::Paint, "F did not pick Floor");
+    assert_eq!(rig.ws.grid.tool, GridTool::Paint, "a key during a stroke does not change the tool");
 }
 
 #[test]
-fn r_and_f_collide_with_no_other_binding_while_paint_is_active() {
+fn paint_turn_and_mirror_keys_are_not_tool_keys_so_every_tool_key_still_switches() {
     let (mut rig, _) = painting();
-    // F flips the paint; it does not pick the Floor tool.
-    rig.key(egui::Key::F);
+    // M mirrors the paint; it does not pick another tool.
+    rig.key(egui::Key::M);
     assert_eq!(rig.ws.grid.tool, GridTool::Paint);
     assert!(rig.ws.grid.paint.orient.flip[0]);
-    // Shift+F is the vertical flip, not Floor either.
-    rig.key_with(egui::Key::F, shift());
+    // Shift+M mirrors it vertically.
+    rig.key_with(egui::Key::M, shift());
     assert_eq!(rig.ws.grid.tool, GridTool::Paint);
     assert_eq!(rig.ws.grid.paint.orient.flip, [true, true]);
-    // The other keys keep their meaning: L links, U picks Raise.
+    // R turns it.
+    rig.key(egui::Key::R);
+    assert_ne!(rig.ws.grid.paint.orient.degrees(), 0, "R turned the paint");
+    // The other keys keep their meaning: L links.
     let link = rig.ws.grid.link;
     rig.key(egui::Key::L);
     assert_ne!(rig.ws.grid.link, link);
-    rig.key(egui::Key::U);
-    assert_eq!(rig.ws.grid.tool, GridTool::Extrude);
-    // Away from Paint, F is the Floor tool again and R does not touch the
-    // brush.
+    // Every plain tool key chooses its tool while Paint is active, F (Floor)
+    // included.
+    for tool in GridTool::ALL {
+        if !tool.has_key() || tool.shift() || tool == GridTool::Paint {
+            continue;
+        }
+        rig.tool(GridTool::Paint);
+        rig.key(tool.key());
+        assert_ne!(rig.ws.grid.tool, GridTool::Paint, "{} key {:?}", tool.label(), tool.key());
+        assert_eq!(rig.ws.grid.tool.key(), tool.key(), "{}", tool.label());
+    }
+    // Away from Paint, M and R do not touch the brush.
     rig.tool(GridTool::Select);
     let brush = rig.ws.grid.paint.orient;
     rig.key(egui::Key::R);
+    rig.key(egui::Key::M);
     assert_eq!(rig.ws.grid.paint.orient, brush);
-    rig.key(egui::Key::F);
-    assert_eq!(rig.ws.grid.tool, GridTool::Floor);
 }
 
 #[test]
@@ -236,7 +246,7 @@ fn the_preview_follows_the_pointer_and_the_keys_and_goes_when_it_leaves() {
     let (mut rig, _) = painting();
     rig.move_to(rig.cell_centre(0, 0), egui::Modifiers::NONE);
     rig.key(egui::Key::R);
-    rig.key(egui::Key::F);
+    rig.key(egui::Key::M);
     let ghost = published(&rig).expect("preview");
     assert_eq!(ghost.orient.turns, 1);
     assert_eq!(ghost.orient.flip, [true, false]);
@@ -284,7 +294,7 @@ fn only_the_paint_tool_with_a_material_previews_and_ctrl_samples_instead() {
 fn the_preview_is_what_the_click_writes() {
     let (mut rig, _) = painting();
     rig.key(egui::Key::R);
-    rig.key_with(egui::Key::F, shift());
+    rig.key_with(egui::Key::M, shift());
     rig.move_to(rig.cell_centre(1, 0), egui::Modifiers::NONE);
     let ghost = published(&rig).expect("preview");
     // Apply the preview to a copy of the world: the same bytes as the click.
@@ -410,8 +420,8 @@ fn the_options_bar_shows_the_turn_in_degrees_and_a_button_for_each_action() {
         "0 deg",
         "Turn left (Shift+R)",
         "Turn right (R)",
-        "Flip H (F)",
-        "Flip V (Shift+F)",
+        "Flip H (M)",
+        "Flip V (Shift+M)",
     ] {
         assert!(
             bar_text(&rig, label).is_some(),
@@ -443,9 +453,9 @@ fn the_options_bar_buttons_turn_and_flip_the_paint() {
     click(&mut rig, "Turn left (Shift+R)");
     click(&mut rig, "Turn left (Shift+R)");
     assert_eq!(rig.ws.grid.paint.orient.turns, 3);
-    click(&mut rig, "Flip H (F)");
+    click(&mut rig, "Flip H (M)");
     assert_eq!(rig.ws.grid.paint.orient.flip, [true, false]);
-    click(&mut rig, "Flip V (Shift+F)");
+    click(&mut rig, "Flip V (Shift+M)");
     assert_eq!(rig.ws.grid.paint.orient.flip, [true, true]);
     assert!(bar_text(&rig, "270 deg").is_some(), "{:?}", bar_texts(&rig));
     assert_eq!(rig.ws.grid.tool, GridTool::Paint);

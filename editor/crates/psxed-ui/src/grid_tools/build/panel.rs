@@ -319,7 +319,7 @@ impl EditorWorkspace {
                 }
                 BuildKind::Cathedral => {
                     let g = &mut o.cathedral;
-                    num(ui, "Bay", &mut g.bay, 1..=4, "Sectors per bay");
+                    num(ui, "Bay", &mut g.bay, 2..=4, "Sectors per bay");
                     num(
                         ui,
                         "Aisle",
