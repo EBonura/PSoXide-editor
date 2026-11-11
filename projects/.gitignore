@@ -57,6 +57,11 @@
 # from (ribs, haunches and keel from grid geometry, lamps in the rib feet).
 !rib-room-h/
 !rib-room-h/**
+# The arch foot study: a generated monolith mesh converted to grid geometry
+# (sloped, welded cells, a hollow through the foot) with its vein baked onto
+# the wall faces. Work in progress.
+!arch-mesh-study/
+!arch-mesh-study/**
 # The per-user editor view file inside a tracked project stays local.
 **/.psxed-view.ron
 **/.psxed-session.ron
