@@ -3095,11 +3095,16 @@ impl EditorWorkspace {
         if !report.is_ok() {
             // The cook's own refusals are shown as they are (the memory
             // refusal names the biggest rooms), each with its link.
-            problems.extend(report.errors.iter().map(|e| workspace::play_check::PlayProblem {
-                text: e.message.clone(),
-                blocking: true,
-                target: e.target.map(workspace::play_check::ProblemTarget::Cook),
-            }));
+            problems.extend(
+                report
+                    .errors
+                    .iter()
+                    .map(|e| workspace::play_check::PlayProblem {
+                        text: e.message.clone(),
+                        blocking: true,
+                        target: e.target.map(workspace::play_check::ProblemTarget::Cook),
+                    }),
+            );
             self.report_play_problems(problems);
             self.last_cook_errors = report.errors.clone();
             let _ = report

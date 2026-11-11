@@ -55,6 +55,10 @@
 !zz-far-s10/**
 # The per-user editor view file inside a tracked project stays local.
 **/.psxed-view.ron
+**/.psxed-session.ron
+**/.psxed-autosave.ron
+**/.psxed-autosave.bad.ron
+**/.psxed-autosave.ron.tmp
 
 # Animation-generation auditions and review renders are local working inputs.
 # Cooked runtime clips under assets/animations remain tracked.
