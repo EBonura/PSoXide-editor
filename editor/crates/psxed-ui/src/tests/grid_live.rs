@@ -185,7 +185,7 @@ impl WindowRig {
         Self::with_world(ws, guard, size)
     }
 
-    fn with_world(ws: EditorWorkspace, guard: ScratchProjectDir, size: Vec2) -> Self {
+    pub(super) fn with_world(ws: EditorWorkspace, guard: ScratchProjectDir, size: Vec2) -> Self {
         let ctx = egui::Context::default();
         ctx.set_fonts(fonts());
         let texture = ctx.load_texture(

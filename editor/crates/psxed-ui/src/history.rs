@@ -72,6 +72,12 @@ impl UndoStack {
         Some(snapshot)
     }
 
+    /// How many steps can be undone (tests count a gesture's steps).
+    #[cfg(test)]
+    pub(crate) fn steps(&self) -> usize {
+        self.cursor
+    }
+
     /// Whether there is a step to undo.
     pub(crate) fn can_undo(&self) -> bool {
         self.cursor > 0

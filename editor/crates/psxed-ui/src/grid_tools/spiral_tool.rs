@@ -68,6 +68,38 @@ pub(super) fn keep_ring(ws: &mut EditorWorkspace) {
     ws.grid.verb.stairs_path = ring;
 }
 
+/// A rectangle dragged for the spiral: its outline is the ring, and the
+/// whole footprint takes the press for the climb.
+pub(super) fn ring_from_region(ws: &mut EditorWorkspace, region: &Region) {
+    let Some(b) = region.bounds() else {
+        return;
+    };
+    let (w, d) = (b.max[0] - b.min[0] + 1, b.max[1] - b.min[1] + 1);
+    if w.max(d) < 3 || w.min(d) < 2 {
+        ws.grid.verb.region = None;
+        ws.grid.verb.stairs_path.clear();
+        ws.status = "A spiral winds round a ring of sectors: drag a rectangle at least 3 by 2 sectors"
+            .to_string();
+        return;
+    }
+    let corners = [
+        [b.min[0], b.min[1]],
+        [b.max[0], b.min[1]],
+        [b.max[0], b.max[1]],
+        [b.min[0], b.max[1]],
+    ];
+    let Some(ring) = ring_cells(&corners) else {
+        ws.status = SpiralRefusal::NotARing.describe();
+        return;
+    };
+    ws.status = format!(
+        "Ring of {} sectors. Press on it and drag up for the climb of a storey",
+        ring.len()
+    );
+    ws.grid.verb.region = Some(Region::from_rect(region.room, b));
+    ws.grid.verb.stairs_path = ring;
+}
+
 /// The ring and its room, or why there is none.
 fn ring_of(ws: &EditorWorkspace) -> Result<(usize, Vec<[i32; 2]>), String> {
     let region = ws

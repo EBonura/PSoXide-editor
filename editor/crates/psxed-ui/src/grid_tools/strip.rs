@@ -460,7 +460,7 @@ impl EditorWorkspace {
 
     /// The left of the hint bar: what the pointer is over, then the keys of
     /// the active tool. A tab without tools says what its pointer does.
-    fn status_hint(&self) -> String {
+    pub(crate) fn status_hint(&self) -> String {
         if self.is_grid_world() && self.active_workspace == WorkspaceView::Room {
             if !self.edit_hint().is_empty() {
                 return self.edit_hint().to_string();

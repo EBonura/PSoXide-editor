@@ -436,6 +436,8 @@ fn the_spiral_tool_winds_stairs_round_a_ring_and_esc_puts_them_back() {
     let original = rig.ws.project.clone();
     rig.key_with(egui::Key::T, egui::Modifiers::SHIFT);
     assert_eq!(rig.ws.grid.tool, GridTool::Spiral, "{}", rig.ws.status);
+    // The Path source (the rig has no options bar to click it in).
+    rig.ws.grid.verb.source = crate::grid_tools::verb_state::RegionSource::Path;
     // The corners of a square ring, Enter closes it.
     for (x, z) in [(1, 1), (6, 1), (6, 5), (1, 5)] {
         rig.click(rig.cell_centre(x, z));

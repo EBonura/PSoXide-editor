@@ -160,14 +160,59 @@ pub(super) fn on_tool_changed(ws: &mut EditorWorkspace) {
     ws.grid.verb.lasso_cursor = None;
     ws.grid.verb.preview.clear();
     match ws.grid.tool {
-        // A ring is a path; a flight is a rectangle or a path: the other
-        // sources make no order of treads.
-        GridTool::Spiral => ws.grid.verb.source = RegionSource::Path,
+        // A ring is a rectangle or a path; a flight is a rectangle or a
+        // path: the other sources make no order of treads.
+        GridTool::Spiral => ws.grid.verb.source = ws.grid.verb.spiral_source,
         GridTool::Stairs => ws.grid.verb.source = ws.grid.verb.stairs_source,
         // Extrude picks with the box and a click: no brush, path or lasso.
         GridTool::Extrude => ws.grid.verb.source = RegionSource::Marquee,
+        // The other region tools share one choice, so the source Spiral or
+        // Stairs needed does not follow a person into Ramp.
+        GridTool::Ramp | GridTool::Break | GridTool::Slab => {
+            ws.grid.verb.source = ws.grid.verb.shared_source;
+        }
         _ => {}
     }
+    use_selection(ws);
+}
+
+/// The sectors the Edit tool has selected, as a region of one room (the room
+/// of the first selected sector), or `None` when nothing is selected.
+fn selection_region(ws: &EditorWorkspace) -> Option<Region> {
+    let cells = ws.grid.selection.cells();
+    let room = cells.iter().next()?.0;
+    let region = Region::from_cells(
+        room,
+        cells.iter().filter(|(r, _)| *r == room).map(|(_, c)| *c),
+    );
+    (!region.is_empty()).then_some(region)
+}
+
+/// Switching to a region tool with sectors selected: the selection is the
+/// region. (A Spiral makes a ring of its bounding rectangle.)
+fn use_selection(ws: &mut EditorWorkspace) {
+    let tool = ws.grid.tool;
+    if !matches!(
+        tool,
+        GridTool::Ramp | GridTool::Stairs | GridTool::Spiral | GridTool::Break | GridTool::Slab
+    ) {
+        return;
+    }
+    let Some(region) = selection_region(ws) else {
+        return;
+    };
+    ws.grid.verb.region = Some(region.clone());
+    if tool == GridTool::Spiral {
+        super::spiral_tool::ring_from_region(ws, &region);
+        return;
+    }
+    if tool == GridTool::Stairs {
+        ws.grid.verb.stairs_path.clear();
+    }
+    ws.status = format!(
+        "Using your selection: {} sectors. Press on it and drag up or down",
+        region.len()
+    );
 }
 
 pub(super) fn hover(ws: &mut EditorWorkspace, ptr: &GridPointer) {
@@ -194,6 +239,7 @@ pub(super) fn press(ws: &mut EditorWorkspace, ptr: &GridPointer) {
         return;
     }
     let Some((room, cell)) = cell_under(ws, &ptr.at_press()) else {
+        ws.status = "Press on a floor to start: this spot has no sector".to_string();
         return;
     };
     let verb = &ws.grid.verb;
@@ -266,8 +312,68 @@ pub(super) fn drag(ws: &mut EditorWorkspace, ptr: &GridPointer) {
         }
         Gesture::Verb(_) => update_amount(ws, ptr),
         Gesture::Marquee { .. } => super::extrude_tool::box_drag(ws, ptr),
+        Gesture::Idle => drag_from_idle(ws, ptr),
         _ => {}
     }
+}
+
+/// A drag that began without a gesture, with Path or Lasso as the source: a
+/// press on the finished-or-open shape closes it and drags the amount; a
+/// press elsewhere drags a rectangle, so the first thing a person tries on
+/// the floor always does something.
+fn drag_from_idle(ws: &mut EditorWorkspace, ptr: &GridPointer) {
+    if !matches!(
+        ws.grid.tool,
+        GridTool::Ramp | GridTool::Stairs | GridTool::Spiral | GridTool::Break | GridTool::Slab
+    ) || !matches!(
+        ws.grid.verb.source,
+        RegionSource::Path | RegionSource::Lasso
+    ) {
+        return;
+    }
+    let at = ptr.at_press();
+    let Some((room, cell)) = cell_under(ws, &at) else {
+        return;
+    };
+    // An open lasso closes under the pointer, as Enter would.
+    if ws.grid.verb.lasso.len() >= 3 {
+        super::lasso::close(ws);
+    }
+    let open = !ws.grid.verb.path.is_empty() || !ws.grid.verb.lasso.is_empty();
+    let on_shape = ws
+        .grid
+        .verb
+        .region
+        .as_ref()
+        .is_some_and(|r| r.room == room && r.contains(cell));
+    if on_shape && !ptr.shift() {
+        if open {
+            if ws.grid.tool == GridTool::Stairs {
+                super::stairs_tool::keep_path(ws);
+            }
+            if ws.grid.tool == GridTool::Spiral {
+                super::spiral_tool::keep_ring(ws);
+            }
+            finish_path(ws);
+        }
+        if ws.grid.verb.path.is_empty() && ws.grid.verb.lasso.is_empty() {
+            if matches!(begin_amount(ws, ptr, room, cell), Begin::Started) {
+                update_amount(ws, ptr);
+            }
+        }
+        return;
+    }
+    // A rectangle instead of waypoints.
+    ws.grid.verb.path.clear();
+    ws.grid.verb.lasso.clear();
+    ws.grid.verb.lasso_cursor = None;
+    ws.grid.gesture = Gesture::Region(RegionGesture::Marquee {
+        room,
+        anchor: cell,
+        current: cell,
+        add: ptr.shift(),
+    });
+    drag(ws, ptr);
 }
 
 pub(super) fn release(ws: &mut EditorWorkspace, ptr: &GridPointer) {
@@ -289,8 +395,11 @@ pub(super) fn release(ws: &mut EditorWorkspace, ptr: &GridPointer) {
                 CellRect::from_corners(anchor, current),
             ));
             describe_region(ws, &region);
-            ws.grid.verb.region = Some(region);
+            ws.grid.verb.region = Some(region.clone());
             ws.grid.verb.stairs_refusal = None;
+            if ws.grid.tool == GridTool::Spiral {
+                super::spiral_tool::ring_from_region(ws, &region);
+            }
         }
         Gesture::Region(RegionGesture::Brush { cells, .. }) => {
             describe_region(ws, &cells);

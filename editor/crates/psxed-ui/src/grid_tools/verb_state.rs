@@ -171,6 +171,10 @@ pub(crate) struct VerbState {
     pub stairs_path: Vec<[i32; 2]>,
     /// Stairs: how the flight is placed, a rectangle (the default) or a path.
     pub stairs_source: RegionSource,
+    /// Spiral: how the ring is made, a rectangle (the default) or a path.
+    pub spiral_source: RegionSource,
+    /// Ramp, Break and Upper floor: the source the options bar last chose.
+    pub shared_source: RegionSource,
     /// Stairs: the sector the last press or typed apply was on, which picks
     /// the bottom side of a rectangle when R has not.
     pub stairs_press: [i32; 2],
@@ -213,6 +217,8 @@ impl Default for VerbState {
             stairs: StairsParams::default(),
             stairs_path: Vec::new(),
             stairs_source: RegionSource::Marquee,
+            spiral_source: RegionSource::Marquee,
+            shared_source: RegionSource::Marquee,
             stairs_press: [0, 0],
             stairs_refusal: None,
             spiral: super::spiral_tool::SpiralOptions::default(),

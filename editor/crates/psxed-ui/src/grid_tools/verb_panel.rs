@@ -19,7 +19,7 @@ impl EditorWorkspace {
             ui.label(RichText::new("Region").color(STUDIO_TEXT_WEAK).size(11.0));
             // A flight is a rectangle or a path; the other sources make no order
             // of treads.
-            let stairs = self.grid.tool == GridTool::Stairs;
+            let stairs = matches!(self.grid.tool, GridTool::Stairs | GridTool::Spiral);
             let sources: &[RegionSource] = if stairs {
                 &[RegionSource::Marquee, RegionSource::Path]
             } else {
@@ -30,7 +30,11 @@ impl EditorWorkspace {
                 let (label, hint) = if stairs && source == RegionSource::Marquee {
                     (
                         "Rectangle",
-                        "Drag a rectangle: the treads run from its bottom side across its depth",
+                        if self.grid.tool == GridTool::Spiral {
+                            "Drag a rectangle: the spiral winds round its outline"
+                        } else {
+                            "Drag a rectangle: the treads run from its bottom side across its depth"
+                        },
                     )
                 } else if stairs {
                     (
@@ -43,7 +47,14 @@ impl EditorWorkspace {
                 if ui.selectable_label(on, label).on_hover_text(hint).clicked() {
                     self.grid.verb.source = source;
                     self.grid.verb.path.clear();
-                    if stairs {
+                    if self.grid.tool == GridTool::Spiral {
+                        self.grid.verb.spiral_source = source;
+                        self.grid.verb.region = None;
+                        self.grid.verb.stairs_path.clear();
+                    } else if !stairs {
+                        self.grid.verb.shared_source = source;
+                    }
+                    if self.grid.tool == GridTool::Stairs {
                         self.grid.verb.stairs_source = source;
                         // The other way of making a flight starts afresh.
                         self.grid.verb.region = None;

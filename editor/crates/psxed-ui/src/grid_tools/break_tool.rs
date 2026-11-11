@@ -349,6 +349,12 @@ pub(crate) fn status_line(report: &BreakReport, faces_before: usize, faces_after
             report.rejected
         ));
     }
+    if parts.len() == 1 && delta == 0 {
+        return format!(
+            "Break seed {}, {} percent: nothing broke here. Drag higher, press Shift+X to re-roll, or pick more sectors",
+            report.seed, report.intensity
+        );
+    }
     format!(
         "Break seed {}, {} percent: {}",
         report.seed,
@@ -480,7 +486,7 @@ mod tests {
         };
         assert_eq!(
             status_line(&nothing, 5, 5),
-            "Break seed 1, 0 percent: +0 faces"
+            "Break seed 1, 0 percent: nothing broke here. Drag higher, press Shift+X to re-roll, or pick more sectors"
         );
     }
 
