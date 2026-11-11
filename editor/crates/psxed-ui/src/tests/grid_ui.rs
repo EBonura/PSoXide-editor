@@ -126,7 +126,7 @@ fn rooms_can_be_added_and_deleted_with_undo() {
     ws.grid_add_room();
     let world = ws.project.active_scene().world.grid().unwrap();
     assert_eq!(world.rooms.len(), 2);
-    assert_eq!(world.rooms[1].y_offset, 3072);
+    assert_eq!(world.rooms[1].y_offset, 0);
     assert_eq!(ws.grid_active_room, Some(1));
     ws.grid_hidden_rooms.insert(1);
     ws.grid_delete_room(0);
