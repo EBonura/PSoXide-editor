@@ -309,16 +309,23 @@ pub(crate) enum InteractionKind {
     PointOfInterest,
     Message,
     Checkpoint,
+    Lever,
 }
 
 impl InteractionKind {
-    pub(crate) const ALL: [Self; 3] = [Self::PointOfInterest, Self::Message, Self::Checkpoint];
+    pub(crate) const ALL: [Self; 4] = [
+        Self::PointOfInterest,
+        Self::Message,
+        Self::Checkpoint,
+        Self::Lever,
+    ];
 
     pub(crate) const fn label(self) -> &'static str {
         match self {
             Self::PointOfInterest => "Point of interest",
             Self::Message => "Message",
             Self::Checkpoint => "Checkpoint",
+            Self::Lever => "Lever",
         }
     }
 }
@@ -342,15 +349,34 @@ pub(crate) fn interaction_kind_of(scene: &Scene, entity: NodeId) -> Option<Inter
         NodeKind::Interactable { kind, .. } => match kind {
             InteractableKind::Message { .. } => InteractionKind::Message,
             InteractableKind::Checkpoint { .. } => InteractionKind::Checkpoint,
+            InteractableKind::Switch { .. } => InteractionKind::Lever,
         },
         _ => return None,
     })
 }
 
+/// The Interaction kind a node already is (a node that is none counts as a
+/// checkpoint, the catch-all).
+pub(crate) fn interaction_kind_of_node(kind: &NodeKind) -> InteractionKind {
+    match kind {
+        NodeKind::PointOfInterest { .. } => InteractionKind::PointOfInterest,
+        NodeKind::Interactable {
+            kind: InteractableKind::Message { .. },
+            ..
+        } => InteractionKind::Message,
+        NodeKind::Interactable {
+            kind: InteractableKind::Switch { .. },
+            ..
+        } => InteractionKind::Lever,
+        _ => InteractionKind::Checkpoint,
+    }
+}
+
 /// `kind` as another Interaction kind, keeping the prompt, the radius and
 /// whether it is enabled; `None` when it is not an Interaction or already is
 /// that kind. The two nodes behind an Interaction are an Interactable (a
-/// message or a checkpoint) and a Point of Interest (a readable beacon).
+/// message, a checkpoint or a lever) and a Point of Interest (a readable
+/// beacon).
 pub(crate) fn convert_interaction(kind: &NodeKind, to: InteractionKind) -> Option<NodeKind> {
     let (prompt, radius, enabled) = match kind {
         NodeKind::PointOfInterest {
@@ -367,14 +393,7 @@ pub(crate) fn convert_interaction(kind: &NodeKind, to: InteractionKind) -> Optio
         } => (prompt.clone(), *radius, *enabled),
         _ => return None,
     };
-    let current = match kind {
-        NodeKind::PointOfInterest { .. } => InteractionKind::PointOfInterest,
-        NodeKind::Interactable {
-            kind: InteractableKind::Message { .. },
-            ..
-        } => InteractionKind::Message,
-        _ => InteractionKind::Checkpoint,
-    };
+    let current = interaction_kind_of_node(kind);
     if current == to {
         return None;
     }
@@ -420,6 +439,17 @@ pub(crate) fn convert_interaction(kind: &NodeKind, to: InteractionKind) -> Optio
                 body: "Relay synchronized.".to_string(),
             },
             prompt,
+            radius,
+            enabled,
+        },
+        InteractionKind::Lever => NodeKind::Interactable {
+            kind: InteractableKind::Switch {
+                target: String::new(),
+                behavior: psxed_project::SwitchBehavior::Toggle,
+                unlocks: false,
+                persistent: true,
+            },
+            prompt: "PULL".to_string(),
             radius,
             enabled,
         },

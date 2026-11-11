@@ -2014,6 +2014,9 @@ fn fresh_project_inspector_switches_logic_to_door_and_interactable_to_checkpoint
         psxed_project::LogicNodeKind::Door {
             box_prop: String::new(),
             start_open: false,
+            slide: None,
+            lock: psxed_project::DoorLock::Unlocked,
+            refusal: String::new(),
         },
         "picking Door must seat the defaults"
     );

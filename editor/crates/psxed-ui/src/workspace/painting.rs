@@ -862,6 +862,7 @@ impl EditorWorkspace {
                     // Authored projects keep whatever they already store.
                     wait_ticks: -1,
                     enabled: true,
+                    persistent: false,
                 },
             ),
             PlaceKind::Destructible => (

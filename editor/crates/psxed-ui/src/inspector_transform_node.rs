@@ -3447,6 +3447,39 @@ pub(crate) fn draw_node_kind_editor(
                         )
                         .changed();
                 }
+                InteractableKind::Switch {
+                    target,
+                    behavior,
+                    unlocks,
+                    persistent,
+                } => {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("Operates").color(STUDIO_TEXT_WEAK));
+                        changed |= ui
+                            .add(egui::TextEdit::singleline(target).hint_text("name of a door"))
+                            .changed();
+                    });
+                    ui.horizontal(|ui| {
+                        changed |= ui
+                            .selectable_value(
+                                behavior,
+                                psxed_project::SwitchBehavior::OneShot,
+                                "One shot",
+                            )
+                            .changed();
+                        changed |= ui
+                            .selectable_value(
+                                behavior,
+                                psxed_project::SwitchBehavior::Toggle,
+                                "Toggle",
+                            )
+                            .changed();
+                    });
+                    changed |= ui.checkbox(unlocks, "Unlocks the door").changed();
+                    changed |= ui
+                        .checkbox(persistent, "Remember across death and saves")
+                        .changed();
+                }
                 InteractableKind::Checkpoint {
                     checkpoint_id,
                     title,
@@ -3735,6 +3768,7 @@ pub(crate) fn draw_node_kind_editor(
             delay_ticks,
             wait_ticks,
             enabled,
+            persistent,
         } => {
             ui.weak(
                 "Event-graph node. The NODE NAME is its targetname; \
@@ -3782,6 +3816,9 @@ pub(crate) fn draw_node_kind_editor(
                             *logic_kind = psxed_project::LogicNodeKind::Door {
                                 box_prop: String::new(),
                                 start_open: false,
+                                slide: None,
+                                lock: psxed_project::DoorLock::Unlocked,
+                                refusal: String::new(),
                             };
                             changed = true;
                         }
@@ -3831,6 +3868,7 @@ pub(crate) fn draw_node_kind_editor(
                 psxed_project::LogicNodeKind::Door {
                     box_prop,
                     start_open,
+                    ..
                 } => {
                     ui.horizontal(|ui| {
                         ui.label(RichText::new("Box Prop").color(STUDIO_TEXT_WEAK));
@@ -3842,6 +3880,9 @@ pub(crate) fn draw_node_kind_editor(
                             .changed();
                     });
                     changed |= ui.checkbox(start_open, "Start open").changed();
+                    changed |= ui
+                        .checkbox(persistent, "Remember across death and saves")
+                        .changed();
                 }
             }
             ui.separator();
@@ -4605,14 +4646,7 @@ pub(crate) fn viewport_camera_mode_label(mode: ViewportCameraMode) -> &'static s
 /// Checkpoint. Choosing another turns `kind` into the matching node, keeping
 /// the prompt, the radius and whether it is enabled.
 pub(crate) fn draw_interaction_kind_picker(ui: &mut egui::Ui, kind: &mut NodeKind) -> bool {
-    let current = match kind {
-        NodeKind::PointOfInterest { .. } => InteractionKind::PointOfInterest,
-        NodeKind::Interactable {
-            kind: InteractableKind::Message { .. },
-            ..
-        } => InteractionKind::Message,
-        _ => InteractionKind::Checkpoint,
-    };
+    let current = crate::objects::interaction_kind_of_node(kind);
     let mut chosen = None;
     ui.horizontal(|ui| {
         ui.label(RichText::new("Kind").color(STUDIO_TEXT_WEAK));
