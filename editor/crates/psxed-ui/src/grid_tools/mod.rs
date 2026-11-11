@@ -35,6 +35,7 @@ mod clipboard_tool;
 mod cycle;
 mod density_panel;
 mod dup_tool;
+pub(crate) mod edit;
 pub(crate) mod events;
 pub(crate) mod extrude_tool;
 mod face_tools;
@@ -89,6 +90,15 @@ mod wall_tool;
 mod world_panel;
 
 pub(crate) use events::{grid_tool_2d, grid_tool_3d};
+
+/// Right click without movement over a viewport: the Edit tool's menu.
+pub(crate) fn edit_context_menu(
+    ws: &mut EditorWorkspace,
+    response: &egui::Response,
+    view: view::GridView,
+) {
+    edit::menu::attach(ws, response, view);
+}
 pub(crate) use materials_panel::nearest_swatch;
 
 /// The Cells tool's quarter sector target (for tests).
@@ -104,6 +114,8 @@ use view::{GridPointer, GridView};
 /// The grid tools, in strip order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum GridTool {
+    /// The one context-sensitive tool: what the pointer is over decides.
+    Edit,
     /// Pick, range-select, box-select, shift-drag heights.
     Select,
     /// Drag a rectangle of floor.
@@ -176,7 +188,8 @@ impl ToolGroup {
 
 impl GridTool {
     /// Every tool, in row order (grouped).
-    pub(crate) const ALL: [Self; 19] = [
+    pub(crate) const ALL: [Self; 20] = [
+        Self::Edit,
         Self::Select,
         Self::Height,
         Self::Floor,
@@ -214,7 +227,7 @@ impl GridTool {
     /// The row group of the tool.
     pub(crate) const fn group(self) -> ToolGroup {
         match self {
-            Self::Select | Self::Height => ToolGroup::Pick,
+            Self::Edit | Self::Select | Self::Height => ToolGroup::Pick,
             Self::Floor | Self::Wall | Self::Ceiling | Self::Plane | Self::Mesh => {
                 ToolGroup::Create
             }
@@ -243,6 +256,7 @@ impl GridTool {
 
     pub(crate) const fn label(self) -> &'static str {
         match self {
+            Self::Edit => "Edit",
             Self::Select => "Select",
             Self::Floor => "Floor",
             Self::Ceiling => "Ceiling",
@@ -267,6 +281,7 @@ impl GridTool {
 
     pub(crate) const fn key(self) -> egui::Key {
         match self {
+            Self::Edit => egui::Key::V,
             Self::Select => egui::Key::V,
             Self::Floor => egui::Key::F,
             Self::Ceiling => egui::Key::C,
@@ -290,12 +305,13 @@ impl GridTool {
     /// the solid sibling of the Plane tool's N, and the Upper floor tool Shift+Q,
     /// beside the Cells tool's Q: every plain letter is taken).
     pub(crate) const fn shift(self) -> bool {
-        matches!(self, Self::Mesh | Self::Slab | Self::Spiral)
+        matches!(self, Self::Select | Self::Mesh | Self::Slab | Self::Spiral)
     }
 
     pub(crate) const fn key_label(self) -> &'static str {
         match self {
-            Self::Select => "V",
+            Self::Edit => "V",
+            Self::Select => "Shift+V",
             Self::Floor => "F",
             Self::Ceiling => "C",
             Self::Wall => "W",
@@ -319,6 +335,9 @@ impl GridTool {
 
     pub(crate) const fn tooltip(self) -> &'static str {
         match self {
+            Self::Edit => {
+                "Hover shows what a drag does. Drag a floor to raise it, an edge to slope from it, a corner to lift it, a wall to push the room, a wall's arrow to slide it. Click selects, Shift+drag boxes, R repeats."
+            }
             Self::Select => {
                 "Click a vertex, edge or face. Shift extends a range, Ctrl toggles, drag boxes, Shift-drag raises and lowers."
             }
@@ -499,6 +518,8 @@ pub(crate) enum Gesture {
     Walls(WallGesture),
     Height(Box<HeightGesture>),
     /// A marquee over the view, from `start` to `current`.
+    /// An Edit tool gesture (its state is in `GridEditState::edit`).
+    Edit,
     Marquee {
         start: Pos2,
         current: Pos2,
@@ -604,6 +625,8 @@ pub(crate) struct NewPlane {
 /// All grid editing state of the workspace. Not saved with the project.
 pub(crate) struct GridEditState {
     pub tool: GridTool,
+    /// The Edit tool's state.
+    pub edit: edit::EditState,
     /// The last SHAPE tool used: what the row's split button shows and what
     /// a click on its face picks.
     pub last_shape: GridTool,
@@ -721,6 +744,7 @@ impl Default for GridEditState {
     fn default() -> Self {
         Self {
             tool: GridTool::Select,
+            edit: edit::EditState::default(),
             last_shape: GridTool::Extrude,
             options_scroll: 0.0,
             options_scroll_tool: GridTool::Select,
@@ -788,6 +812,7 @@ impl GridEditState {
     /// Forget any in-flight gesture and ghost (a document swap, a tool change).
     pub(crate) fn abandon(&mut self) {
         self.gesture = Gesture::Idle;
+        self.edit.abandon();
         self.paste = None;
         self.plane_paste = None;
         self.grab = None;
@@ -921,7 +946,7 @@ impl EditorWorkspace {
             return C::Grab;
         }
         match &self.grid.gesture {
-            Gesture::Height(_) => return C::ResizeVertical,
+            Gesture::Height(_) | Gesture::Edit => return C::ResizeVertical,
             Gesture::Rect(_) | Gesture::Walls(_) | Gesture::Marquee { .. } => return C::Crosshair,
             Gesture::Plane(_) | Gesture::Mesh(_) => return C::Grabbing,
             Gesture::Paint { .. } => return C::Crosshair,
@@ -935,7 +960,8 @@ impl EditorWorkspace {
         }
         let over = !matches!(self.grid.hover, GridHover::None);
         match self.grid.tool {
-            GridTool::Select if over => C::PointingHand,
+            GridTool::Edit | GridTool::Select if over => C::PointingHand,
+            GridTool::Edit => C::Default,
             GridTool::Select => C::Default,
             GridTool::Height if over => C::ResizeVertical,
             GridTool::Height => C::Default,

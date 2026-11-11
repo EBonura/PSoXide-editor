@@ -268,6 +268,13 @@ impl EditorWorkspace {
             tool2d.primary_released(self, ui, &tool_frame);
         }
         tool2d.frame_end(self, &tool_frame);
+        if top_view && self.is_grid_world() && !dnd_active {
+            crate::grid_tools::edit_context_menu(
+                self,
+                &response,
+                crate::grid_tools::view::GridView::Top(transform),
+            );
+        }
         if tool_frame.clicked {
             tool2d.primary_clicked(self, ui, &tool_frame);
         }

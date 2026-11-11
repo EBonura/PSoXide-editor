@@ -553,7 +553,10 @@ fn grip_status(handle: Handle, plane: &GridPlane) -> String {
 
 /// Whether `tool` works on planes.
 fn active_tool(ws: &EditorWorkspace) -> bool {
-    matches!(ws.grid.tool, GridTool::Select | GridTool::Plane)
+    matches!(
+        ws.grid.tool,
+        GridTool::Select | GridTool::Edit | GridTool::Plane
+    )
 }
 
 /// Pointer moved without a button. Returns whether a plane owns the hover.

@@ -201,7 +201,7 @@ fn begin_mesh(ws: &mut EditorWorkspace) -> bool {
 
 /// Whether a scene node stands on one of the selected floors: in the sector,
 /// and above that floor by no more than a hall's height.
-fn nodes_on_floors(ws: &EditorWorkspace, faces: &[FaceRef]) -> Vec<NodeId> {
+pub(super) fn nodes_standing_on(ws: &EditorWorkspace, faces: &[FaceRef]) -> Vec<NodeId> {
     let Some(world) = ws.project.active_scene().world.grid() else {
         return Vec::new();
     };
@@ -258,7 +258,7 @@ fn begin_cells(ws: &mut EditorWorkspace) -> bool {
         faces.iter().map(|f| f.cell()[0]).min().unwrap_or(0),
         faces.iter().map(|f| f.cell()[1]).min().unwrap_or(0),
     ];
-    let standing = nodes_on_floors(ws, &faces);
+    let standing = nodes_standing_on(ws, &faces);
     let before = Box::new(ws.project.clone());
     let saved = saved_nodes(ws);
     // Copy the standing nodes through the same naming as a node duplicate.

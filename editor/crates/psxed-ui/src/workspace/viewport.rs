@@ -173,6 +173,13 @@ impl EditorWorkspace {
                 modifiers,
             );
         }
+        if self.is_grid_world() && !dnd_active {
+            crate::grid_tools::edit_context_menu(
+                self,
+                &response,
+                crate::grid_tools::view::GridView::Persp(rect),
+            );
+        }
         if response.hovered() {
             self.update_free_camera_keyboard(ui);
             let scroll = ui.input(|i| i.raw_scroll_delta);

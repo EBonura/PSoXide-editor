@@ -495,11 +495,14 @@ fn tool_keys_switch_tools() {
         (egui::Key::P, GridTool::Paint),
         (egui::Key::D, GridTool::Split),
         (egui::Key::O, GridTool::Place),
-        (egui::Key::V, GridTool::Select),
+        (egui::Key::V, GridTool::Edit),
     ] {
         rig.key(key);
         assert_eq!(rig.ws.grid.tool, tool);
     }
+    // The classic Select tool is Shift+V.
+    rig.key_with(egui::Key::V, egui::Modifiers::SHIFT);
+    assert_eq!(rig.ws.grid.tool, GridTool::Select);
 }
 
 #[test]

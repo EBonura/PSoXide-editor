@@ -95,6 +95,9 @@ impl EditorWorkspace {
             }
             return;
         }
+        if super::edit::keys::handle(self, ctx) {
+            return;
+        }
         let modifiers = ctx.input(|i| i.modifiers);
         if modifiers.command || modifiers.ctrl || modifiers.alt {
             return;
@@ -193,6 +196,10 @@ impl EditorWorkspace {
             && pressed_shift(ctx, egui::Key::M)
         {
             self.grid_merge();
+        }
+        // Shift+V is the classic Select tool (V is Edit).
+        if pressed_shift(ctx, egui::Key::V) && may_choose {
+            self.set_grid_tool(GridTool::Select);
         }
         // Shift+N is the Mesh tool (before the tool keys, which would take
         // the N for the Plane tool whatever Shift says).

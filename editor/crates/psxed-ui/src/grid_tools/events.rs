@@ -13,7 +13,7 @@ use crate::workspace::tools2d::{ToolFrame2d, ViewportTool2d};
 use crate::workspace::tools3d::{SelectTool, ToolFrame3d, ViewportTool3d};
 
 use super::{
-    bands_tool, cells_tool, clipboard_tool, dup_tool, face_tools, height_tool, mesh_tool,
+    bands_tool, cells_tool, clipboard_tool, dup_tool, edit, face_tools, height_tool, mesh_tool,
     place_tool, plane_tool, rect_tool, select_tool, triangle_tool, verb_tool, wall_tool,
 };
 
@@ -90,6 +90,12 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
     }
     match (ws.grid.tool, ev) {
         (GridTool::Plane, _) => {}
+        (GridTool::Edit, Ev::Hover) => edit::hover(ws, &ptr),
+        (GridTool::Edit, Ev::Press) => edit::press(ws, &ptr),
+        (GridTool::Edit, Ev::Drag) => edit::drag(ws, &ptr),
+        (GridTool::Edit, Ev::Release) => edit::release(ws, &ptr),
+        (GridTool::Edit, Ev::Click) => edit::click(ws, &ptr),
+
         (GridTool::Select, Ev::Hover) => select_tool::hover(ws, &ptr),
         (GridTool::Select, Ev::Press) => select_tool::press(ws, &ptr),
         (GridTool::Select, Ev::Drag) => select_tool::drag(ws, &ptr),
@@ -285,7 +291,10 @@ impl ViewportTool2d for GridTool2d {
         let Some(pos) = f.press_origin.or(f.pointer_interact) else {
             return;
         };
-        if ws.grid.tool == GridTool::Select && ws.grid.paste.is_none() && ws.grid.grab.is_none() {
+        if matches!(ws.grid.tool, GridTool::Select | GridTool::Edit)
+            && ws.grid.paste.is_none()
+            && ws.grid.grab.is_none()
+        {
             let world = f.transform.screen_to_world(pos);
             let on_selected_node = f
                 .hits
@@ -333,7 +342,7 @@ impl ViewportTool2d for GridTool2d {
         };
         let world = f.transform.screen_to_world(pos);
         let node_under = f.hits.iter().any(|h| h.contains(world));
-        if ws.grid.tool == GridTool::Select
+        if matches!(ws.grid.tool, GridTool::Select | GridTool::Edit)
             && ws.grid.paste.is_none()
             && ws.grid.grab.is_none()
             && node_under
@@ -374,7 +383,7 @@ impl GridTool3d {
     }
 
     fn node_target(ws: &EditorWorkspace, f: &ToolFrame3d) -> bool {
-        ws.grid.tool == GridTool::Select
+        matches!(ws.grid.tool, GridTool::Select | GridTool::Edit)
             && ws.grid.paste.is_none()
             && ws.grid.grab.is_none()
             && matches!(

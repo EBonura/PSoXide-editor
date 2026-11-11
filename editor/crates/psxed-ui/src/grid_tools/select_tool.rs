@@ -92,7 +92,7 @@ fn all_surface_cells(selection: &[GridElement], kind_of: FaceTarget) -> Vec<[i32
 }
 
 /// The elements a Shift-click at `picked` adds, given what is selected.
-fn extend_range(
+pub(super) fn extend_range(
     world: &GridWorld,
     selected: &[GridElement],
     picked: GridElement,

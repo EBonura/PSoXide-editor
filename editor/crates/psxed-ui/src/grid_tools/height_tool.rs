@@ -37,6 +37,18 @@ pub(super) fn top_element(
     transform: ViewportTransform,
     pos: Pos2,
 ) -> Option<GridElement> {
+    top_element_with(ws, transform, pos, TOP_VERTEX_PIXELS, TOP_EDGE_PIXELS)
+}
+
+/// [`top_element`] with the pick radii given, in pixels (the Edit tool shrinks
+/// them with the size of a cell on screen).
+pub(super) fn top_element_with(
+    ws: &EditorWorkspace,
+    transform: ViewportTransform,
+    pos: Pos2,
+    vertex_px: f32,
+    edge_px: f32,
+) -> Option<GridElement> {
     let world = ws.project.active_scene().world.grid()?;
     let scale = world.scale;
     let size = scale.sector_editor_units() as f32;
@@ -44,7 +56,7 @@ pub(super) fn top_element(
     let cell = cell_at_editor(scale, wx, wz);
     let room = ws.top_room_at(cell)?;
     if !world.rooms[room].leaves.is_sectors_only() {
-        return top_leaf_element(ws, world, room, transform, pos);
+        return top_leaf_element(ws, world, room, transform, pos, vertex_px, edge_px);
     }
     let surface_of = |cell: [i32; 2]| {
         let r = &world.rooms[room];
@@ -64,7 +76,7 @@ pub(super) fn top_element(
     let (gx, gz) = ((wx / size).round() as i32, (wz / size).round() as i32);
     let vertex_screen =
         transform.world_to_screen(view::editor_xz(scale, gx * SECTOR_UNITS, gz * SECTOR_UNITS));
-    if vertex_screen.distance(pos) <= TOP_VERTEX_PIXELS {
+    if vertex_px > 0.0 && vertex_screen.distance(pos) <= vertex_px {
         for (dx, dz) in [(-1, -1), (0, -1), (-1, 0), (0, 0)] {
             let c = [gx + dx, gz + dz];
             if let Some(face) = surface_of(c) {
@@ -92,7 +104,7 @@ pub(super) fn top_element(
         (zoom_px(fx), 3),
     ];
     if let Some((d, edge)) = candidates.into_iter().min_by(|a, b| a.0.total_cmp(&b.0)) {
-        if d <= TOP_EDGE_PIXELS {
+        if edge_px > 0.0 && d <= edge_px {
             return Some(GridElement::Edge(psxed_project::grid::edit::EdgeRef {
                 face,
                 layer: 0,
@@ -111,6 +123,8 @@ fn top_leaf_element(
     room: usize,
     transform: ViewportTransform,
     pos: Pos2,
+    vertex_px: f32,
+    edge_px: f32,
 ) -> Option<GridElement> {
     let [wx, wz] = transform.screen_to_world(pos);
     let (key, sector) = view::leaf_at_editor(world.scale, &world.rooms[room], wx, wz)?;
@@ -133,7 +147,7 @@ fn top_leaf_element(
         .iter()
         .enumerate()
         .map(|(i, c)| (i, screen(c.0, c.1).distance(pos)))
-        .filter(|(_, d)| *d <= TOP_VERTEX_PIXELS)
+        .filter(|(_, d)| vertex_px > 0.0 && *d <= vertex_px)
         .min_by(|a, b| a.1.total_cmp(&b.1))
     {
         return Some(GridElement::Vertex(CornerRef {
@@ -152,7 +166,7 @@ fn top_leaf_element(
         (zoom_px(fx), 3),
     ];
     if let Some((d, edge)) = candidates.into_iter().min_by(|a, b| a.0.total_cmp(&b.0)) {
-        if d <= TOP_EDGE_PIXELS {
+        if edge_px > 0.0 && d <= edge_px {
             return Some(GridElement::Edge(psxed_project::grid::edit::EdgeRef {
                 face,
                 layer: 0,

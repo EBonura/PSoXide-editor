@@ -94,6 +94,11 @@ impl EditorWorkspace {
                     .size(11.0),
                 );
             }
+            GridTool::Edit => {
+                ui.checkbox(&mut self.grid.edit.weld, "Weld").on_hover_text(
+                    "Off: a floor moves as a block and the walls between heights follow. On: corners that meet move together.",
+                );
+            }
             GridTool::Select | GridTool::Height => {
                 // Link welds the corners being lifted: Height always has
                 // some, Select once something is picked. Move and Global are
@@ -343,6 +348,7 @@ impl EditorWorkspace {
             return "Drag a handle: corners and edges stretch, green ring turns, blue tip tilts | Drag body slides, Shift up/down | Alt 64, Shift+Alt free | R turn | Del | Ctrl+C/V";
         }
         match self.grid.tool {
+            GridTool::Edit => "Hover shows the drag | Click select | Shift+click range | Ctrl toggle | Shift+drag box | double-click room or run | type a number, Enter | R repeat | ` cycle | Esc cancel",
             GridTool::Plane => {
                 "Click a surface to place a plane | Drag sizes it | Click a plane to select | Alt 64, Shift+Alt free"
             }
@@ -454,6 +460,9 @@ impl EditorWorkspace {
     /// the active tool. A tab without tools says what its pointer does.
     fn status_hint(&self) -> String {
         if self.is_grid_world() && self.active_workspace == WorkspaceView::Room {
+            if !self.edit_hint().is_empty() {
+                return self.edit_hint().to_string();
+            }
             let keys = self.grid_key_hints();
             return match self.grid_hover_text() {
                 Some(over) => format!("{over}   |   {keys}"),
