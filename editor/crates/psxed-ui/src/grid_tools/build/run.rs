@@ -776,6 +776,8 @@ fn place_object(project: &mut ProjectDocument, kind: BuildKind, o: &Options, geo
                 behavior: o.lever.behavior,
                 unlocks: o.lever.unlocks,
                 persistent: o.lever.persistent,
+                handle: None,
+                handle_slide: None,
             },
             "PULL".to_string(),
             640,
@@ -859,6 +861,7 @@ pub(crate) fn bind_lever(project: &mut ProjectDocument, lever: NodeId, door: &st
                         behavior,
                         unlocks,
                         persistent,
+                        ..
                     },
                 ..
             } = &mut node.kind

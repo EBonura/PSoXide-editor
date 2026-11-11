@@ -1053,6 +1053,8 @@ pub fn lever(project: &mut ProjectDocument, r: &LeverReq) -> Result<String, Stri
                 behavior,
                 unlocks: r.unlocks.unwrap_or(false),
                 persistent: r.persistent.unwrap_or(true),
+                handle: None,
+                handle_slide: None,
             },
             prompt: "PULL".to_string(),
             radius: 640,

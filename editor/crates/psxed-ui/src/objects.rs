@@ -448,6 +448,8 @@ pub(crate) fn convert_interaction(kind: &NodeKind, to: InteractionKind) -> Optio
                 behavior: psxed_project::SwitchBehavior::Toggle,
                 unlocks: false,
                 persistent: true,
+                handle: None,
+                handle_slide: None,
             },
             prompt: "PULL".to_string(),
             radius,

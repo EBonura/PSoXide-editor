@@ -3452,6 +3452,8 @@ pub(crate) fn draw_node_kind_editor(
                     behavior,
                     unlocks,
                     persistent,
+                    handle,
+                    handle_slide,
                 } => {
                     ui.horizontal(|ui| {
                         ui.label(RichText::new("Operates").color(STUDIO_TEXT_WEAK));
@@ -3479,6 +3481,67 @@ pub(crate) fn draw_node_kind_editor(
                     changed |= ui
                         .checkbox(persistent, "Remember across death and saves")
                         .changed();
+                    // The handle: a box prop that slides when the lever is pulled.
+                    let mut name = handle.clone().unwrap_or_default();
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("Handle").color(STUDIO_TEXT_WEAK));
+                        if ui
+                            .add(egui::TextEdit::singleline(&mut name).hint_text("name of a box prop"))
+                            .on_hover_text("The box prop that moves when the lever is pulled, and keeps its place with the saved state")
+                            .changed()
+                        {
+                            *handle = (!name.trim().is_empty()).then(|| name.trim().to_string());
+                            if handle.is_some() && handle_slide.is_none() {
+                                *handle_slide = Some(psxed_project::DoorSlide {
+                                    direction: psxed_project::DoorDirection::Down,
+                                    distance: 160,
+                                    ticks: 20,
+                                });
+                            }
+                            changed = true;
+                        }
+                    });
+                    if handle.is_some() {
+                        if let Some(slide) = handle_slide.as_mut() {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new("Handle moves").color(STUDIO_TEXT_WEAK));
+                                egui::ComboBox::from_id_salt("lever_handle_dir")
+                                    .selected_text(format!("{:?}", slide.direction))
+                                    .show_ui(ui, |ui| {
+                                        for d in [
+                                            psxed_project::DoorDirection::Up,
+                                            psxed_project::DoorDirection::Down,
+                                            psxed_project::DoorDirection::East,
+                                            psxed_project::DoorDirection::West,
+                                            psxed_project::DoorDirection::South,
+                                            psxed_project::DoorDirection::North,
+                                        ] {
+                                            changed |= ui
+                                                .selectable_value(
+                                                    &mut slide.direction,
+                                                    d,
+                                                    format!("{d:?}"),
+                                                )
+                                                .changed();
+                                        }
+                                    });
+                                changed |= ui
+                                    .add(
+                                        egui::DragValue::new(&mut slide.distance)
+                                            .range(1..=4096)
+                                            .suffix(" units"),
+                                    )
+                                    .changed();
+                                changed |= ui
+                                    .add(
+                                        egui::DragValue::new(&mut slide.ticks)
+                                            .range(1..=600)
+                                            .suffix(" ticks"),
+                                    )
+                                    .changed();
+                            });
+                        }
+                    }
                 }
                 InteractableKind::Checkpoint {
                     checkpoint_id,
