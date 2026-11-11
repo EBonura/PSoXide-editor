@@ -513,6 +513,8 @@ pub struct EditorWorkspace {
     last_slots_used: Option<u16>,
     /// The autosave's timers.
     autosave: workspace::autosave::AutosaveState,
+    /// What the check before Play found (see `workspace::play_check`).
+    play_problems: Vec<workspace::play_check::PlayProblem>,
     /// Project-portable Room-workspace clipboard. Unlike Duplicate, this owns
     /// material names rather than trusting project-local resource ids, so it
     /// deliberately survives switching or creating projects.
@@ -2250,6 +2252,7 @@ impl EditorWorkspace {
             last_cook_errors: Vec::new(),
             last_slots_used: None,
             autosave: workspace::autosave::AutosaveState::default(),
+            play_problems: Vec::new(),
             clipboard_notice: None,
             renaming: None,
             pending_rename_focus: false,
@@ -3024,6 +3027,7 @@ impl EditorWorkspace {
         let mut project = self.project.clone();
         project.normalize_loaded();
         self.clear_validation_issues();
+        let mut problems = self.walkability_problems();
         self.last_playtest_budget = Some(psxed_project::playtest::estimate_playtest_budgets(
             &project,
             &self.project_dir,
@@ -3071,6 +3075,14 @@ impl EditorWorkspace {
         psxed_project::playtest::write_cook_result(package.as_ref(), dir)
             .map_err(|e| format!("write playtest output: {e}"))?;
         if !report.is_ok() {
+            // The cook's own refusals are shown as they are (the memory
+            // refusal names the biggest rooms), each with its link.
+            problems.extend(report.errors.iter().map(|e| workspace::play_check::PlayProblem {
+                text: e.message.clone(),
+                blocking: true,
+                target: e.target.map(workspace::play_check::ProblemTarget::Cook),
+            }));
+            self.report_play_problems(problems);
             self.last_cook_errors = report.errors.clone();
             let _ = report
                 .focus_target()
@@ -3080,6 +3092,7 @@ impl EditorWorkspace {
                 report.error_messages().join("; ")
             ));
         }
+        self.report_play_problems(problems);
         let warning_suffix = if report.warnings.is_empty() {
             String::new()
         } else {

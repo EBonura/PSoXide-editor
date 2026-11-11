@@ -345,3 +345,112 @@ mod autosave {
         assert!(dir.join(".psxed-autosave.bad.ron").exists());
     }
 }
+
+// ---- The check before Play ----
+
+mod play_check {
+    use super::super::grid_rig::flat_project;
+    use super::*;
+    use crate::workspace::play_check::ProblemTarget;
+    use psxed_project::grid::{GridRoom, GridSurface};
+
+    /// A 4 x 4 hall with the player in it, and a 2 x 2 room far to the east
+    /// that nothing joins to the hall.
+    fn island_level() -> EditorWorkspace {
+        let mut project = flat_project(4, 4, true);
+        let mut island = GridRoom::new("Island", 2, 2);
+        island.origin = [12, 0];
+        for z in 0..2 {
+            for x in 0..2 {
+                let s = island.sector_or_insert(x, z).unwrap();
+                s.set_ground_floor(Some(GridSurface::flat(0, None)));
+                s.set_ground_ceiling(Some(GridSurface::flat(3072, None)));
+            }
+        }
+        project
+            .active_scene_mut()
+            .world
+            .grid_mut()
+            .unwrap()
+            .rooms
+            .push(island);
+        let spawn = project.active_scene_mut().add_node(
+            psxed_project::NodeId::ROOT,
+            "Player Spawn",
+            psxed_project::NodeKind::SpawnPoint {
+                player: true,
+                character: None,
+            },
+        );
+        project
+            .active_scene_mut()
+            .node_mut(spawn)
+            .unwrap()
+            .transform
+            .translation = [1024.0, 0.0, 1024.0];
+        EditorWorkspace::with_project(test_temp_dir("play-check"), project)
+    }
+
+    #[test]
+    fn a_room_the_player_cannot_walk_to_is_named_in_a_sentence_with_a_link() {
+        let ws = island_level();
+        let problems = ws.walkability_problems();
+        assert_eq!(problems.len(), 1, "{problems:?}");
+        let p = &problems[0];
+        assert!(
+            p.text
+                .starts_with("In Island, 4 sectors cannot be walked to"),
+            "{}",
+            p.text
+        );
+        assert!(!p.blocking, "a lever may open the way: a note, not a stop");
+        assert!(matches!(
+            p.target,
+            Some(ProblemTarget::Sector { room: 1, .. })
+        ));
+    }
+
+    #[test]
+    fn no_player_start_is_said_plainly() {
+        let ws = EditorWorkspace::with_project(
+            test_temp_dir("play-check-none"),
+            flat_project(3, 3, true),
+        );
+        let problems = ws.walkability_problems();
+        assert_eq!(problems.len(), 1);
+        assert!(
+            problems[0].text.contains("no player start"),
+            "{}",
+            problems[0].text
+        );
+    }
+
+    #[test]
+    fn reporting_puts_the_sentence_in_the_status_the_console_and_the_list_and_select_it_frames_the_room(
+    ) {
+        let mut ws = island_level();
+        let problems = ws.walkability_problems();
+        ws.report_play_problems(problems.clone());
+        assert!(
+            ws.status.starts_with("Heads up: In Island"),
+            "{}",
+            ws.status
+        );
+        assert!(ws
+            .play_debug_terminal_lines
+            .iter()
+            .any(|l| l.starts_with("[check] Note: In Island")));
+        assert_eq!(ws.play_problems, problems);
+        assert!(ws.select_play_problem(problems[0].target.unwrap()));
+        assert_eq!(ws.selection.selected_room, Some(1));
+        // A blocking one says it stopped Play and leads the status.
+        ws.report_play_problems(vec![crate::workspace::play_check::PlayProblem {
+            text: "The level needs more memory than the PlayStation has.".to_string(),
+            blocking: true,
+            target: None,
+        }]);
+        assert!(ws
+            .status
+            .starts_with("Play stopped: The level needs more memory"));
+    }
+}

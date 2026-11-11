@@ -887,6 +887,7 @@ impl EditorWorkspace {
     }
 
     pub(crate) fn draw_debug_terminal_tab(&mut self, ui: &mut egui::Ui) {
+        self.draw_play_problems(ui);
         let terminal_width = ui.available_width().max(1.0);
         let terminal_height = ui.available_height().max(1.0);
         egui::Frame::new()

@@ -88,7 +88,21 @@ pub(crate) fn build_embedded_playtest_disc(volume_id: &str) -> Result<PathBuf, S
     let world_pack = embedded_world_pack_payload()?;
     let ui_pack = embedded_ui_pack_payload()?;
     let music = embedded_xa_music_files()?;
-    let image = embedded_playtest_disc_image(volume_id, exe_bytes, world_pack, ui_pack, &music)?;
+    // The packs the disc is about to carry must sit where the executable was
+    // built to read them; a second cook between the build and the pack would
+    // leave them elsewhere and the guest would read the wrong sectors.
+    let manifest = std::fs::read_to_string(
+        editor_playtest_generated_dir().join(psxed_project::playtest::COOKED_MANIFEST_FILENAME),
+    )
+    .ok();
+    let image = embedded_playtest_disc_image_checked(
+        volume_id,
+        exe_bytes,
+        world_pack,
+        ui_pack,
+        &music,
+        manifest.as_deref(),
+    )?;
 
     let cue_path = editor_playtest_disc_path();
     let bin_path = cue_path.with_extension("bin");
@@ -129,13 +143,27 @@ struct XaMusicFile {
     expected_lba: u32,
 }
 
-#[cfg(feature = "editor")]
+#[cfg(all(feature = "editor", test))]
 fn embedded_playtest_disc_image(
     volume_id: &str,
     exe_bytes: Vec<u8>,
     world_pack: Option<Vec<u8>>,
     ui_pack: Option<Vec<u8>>,
     music: &[XaMusicFile],
+) -> Result<Vec<u8>, String> {
+    embedded_playtest_disc_image_checked(volume_id, exe_bytes, world_pack, ui_pack, music, None)
+}
+
+/// [`embedded_playtest_disc_image`], also checking the layout against the
+/// cooked manifest text when there is one (`psx_iso::verify_playtest_layout`).
+#[cfg(feature = "editor")]
+fn embedded_playtest_disc_image_checked(
+    volume_id: &str,
+    exe_bytes: Vec<u8>,
+    world_pack: Option<Vec<u8>>,
+    ui_pack: Option<Vec<u8>>,
+    music: &[XaMusicFile],
+    manifest: Option<&str>,
 ) -> Result<Vec<u8>, String> {
     Exe::parse(&exe_bytes).map_err(|e| format!("parse EXE: {e:?}"))?;
     let mut builder = IsoBuilder::new().volume_id(volume_id);
@@ -162,6 +190,9 @@ fn embedded_playtest_disc_image(
             .ok_or_else(|| format!("{}: not a whole number of XA sectors", file.name))?;
     }
     let extents = builder.file_extents();
+    if let Some(manifest) = manifest {
+        psx_iso::verify_playtest_layout(manifest, &extents)?;
+    }
     for file in music {
         let landed = extents
             .iter()
@@ -679,6 +710,37 @@ mod tests {
             &world_pack_sector[..psx_iso::WORLD_PACK_MAGIC.len()],
             &psx_iso::WORLD_PACK_MAGIC
         );
+    }
+
+    #[test]
+    #[cfg(feature = "editor")]
+    fn a_pack_that_lands_off_the_cooked_sector_is_refused_before_the_disc_is_written() {
+        let world_pack = psx_iso::build_world_pack(&[(0, b"room-zero".as_slice())]);
+        let wrong = "pub const WORLD_PACK_START_LBA: u32 = 9999;\n";
+        let err = embedded_playtest_disc_image_checked(
+            "DEMO_10",
+            test_exe(),
+            Some(world_pack.clone()),
+            None,
+            &[],
+            Some(wrong),
+        )
+        .expect_err("the pack is not on sector 9999");
+        assert!(err.contains("WORLD_PACK_START_LBA"), "{err}");
+        // A manifest that agrees, or none, builds.
+        let right = format!(
+            "pub const WORLD_PACK_START_LBA: u32 = {};\n",
+            psx_iso::WORLD_PACK_DEFAULT_START_LBA
+        );
+        embedded_playtest_disc_image_checked(
+            "DEMO_10",
+            test_exe(),
+            Some(world_pack),
+            None,
+            &[],
+            Some(&right),
+        )
+        .expect("a pack on its cooked sector builds");
     }
 
     fn test_exe() -> Vec<u8> {

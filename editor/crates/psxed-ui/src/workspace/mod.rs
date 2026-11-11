@@ -8,6 +8,7 @@ mod geometry;
 mod input;
 mod objects_panel;
 mod painting;
+pub(crate) mod play_check;
 mod panels;
 mod selection;
 mod toolbars;
