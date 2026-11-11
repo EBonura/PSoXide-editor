@@ -311,10 +311,11 @@ pub(crate) struct TiltPlan {
 }
 
 impl TiltPlan {
-    /// Plan tilting `cells` of `room` about `hinge`.
+    /// Plan tilting `cells` of `room`, on storey `span`, about `hinge`.
     pub fn new(
         world: &GridWorld,
         room: usize,
+        span: usize,
         cells: BTreeSet<[i32; 2]>,
         target: TiltTarget,
         hinge: Hinge,
@@ -335,6 +336,7 @@ impl TiltPlan {
                 cells,
                 target,
                 hinge,
+                span,
                 rise: 0,
                 force: true,
             },

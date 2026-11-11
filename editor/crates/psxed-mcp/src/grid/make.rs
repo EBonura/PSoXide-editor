@@ -1323,6 +1323,8 @@ pub struct TiltReq {
     pub rise: i32,
     /// Apply even where a floor ends up too steep to stand on.
     pub force: Option<bool>,
+    /// The storey of a column of several floors (default 0, the ground).
+    pub span: Option<usize>,
 }
 
 /// Tilt cells by an offset, keeping their shape.
@@ -1356,6 +1358,7 @@ pub fn tilt(project: &mut ProjectDocument, r: &TiltReq) -> Result<String, String
         cells: rect.cells().collect(),
         target,
         hinge: Hinge::Edge(hinge),
+        span: r.span.unwrap_or(0),
         rise: r.rise,
         force: r.force.unwrap_or(false),
     };

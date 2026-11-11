@@ -295,15 +295,19 @@ pub(super) fn build(world: &mut GridWorld, spec: &Spec, weld: bool) -> Result<Bu
     })
 }
 
-/// The SDK tilt of a spec, when it applies: ground floors or ceilings of one
-/// room (the SDK tilts the ground span; other storeys use the corner plan).
+/// The SDK tilt of a spec, when it applies: floors or ceilings of one room on
+/// one storey (the SDK tilts the span it is given).
 fn sdk_tilt(world: &GridWorld, spec: &Spec) -> Option<Result<TiltPlan, String>> {
     let first = spec.faces.first()?;
     let kind = surface_kind(first)?;
+    let FaceTarget::Surface { span: first_span, .. } = first.target else {
+        return None;
+    };
     let mut cells: BTreeSet<[i32; 2]> = BTreeSet::new();
     for face in &spec.faces {
         match face.target {
-            FaceTarget::Surface { kind: k, span: 0 } if k == kind && face.room == first.room => {}
+            FaceTarget::Surface { kind: k, span }
+                if k == kind && span == first_span && face.room == first.room => {}
             _ => return None,
         }
         let (lo, hi) = face.leaf.sector_range();
@@ -336,7 +340,7 @@ fn sdk_tilt(world: &GridWorld, spec: &Spec) -> Option<Result<TiltPlan, String>> 
         SurfaceKind::Floor => TiltTarget::Floor,
         SurfaceKind::Ceiling => TiltTarget::Ceiling,
     };
-    Some(TiltPlan::new(world, first.room, cells, target, hinge))
+    Some(TiltPlan::new(world, first.room, usize::from(first_span), cells, target, hinge))
 }
 
 /// The hinge and the dragged side of a tilt, from the outline of `corners`.
