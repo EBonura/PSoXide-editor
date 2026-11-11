@@ -88,7 +88,7 @@ fn apply_to_selection(ws: &mut EditorWorkspace, kind: Kind, amount: i32, verb: &
         }
     };
     let before = ws.project.clone();
-    let weld = ws.grid.edit.weld;
+    let weld = ws.grid.link;
     let Some(world) = ws.project.active_scene_mut().world.grid_mut() else {
         return;
     };

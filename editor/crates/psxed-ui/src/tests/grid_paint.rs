@@ -360,7 +360,12 @@ fn frames(rig: &mut WindowRig, n: usize) {
 fn options_row(rig: &WindowRig) -> (f32, f32) {
     let snap = texts(rig)
         .into_iter()
-        .find(|(t, r)| t.starts_with("Snap ") && r.min.y > 60.0 && r.max.y < 240.0)
+        .find(|(t, r)| {
+            t.starts_with("Snap ")
+                && r.min.y
+                    > ACTION_BAR_COMPACT_HEIGHT + crate::grid_tools::tool_strip_height(&rig.ctx)
+                && r.max.y < ACTION_BAR_COMPACT_HEIGHT + crate::grid_tools::chrome_height(&rig.ctx)
+        })
         .expect("Snap in the options bar")
         .1;
     (snap.center().y, snap.min.x)
@@ -371,7 +376,7 @@ fn bar_texts(rig: &WindowRig) -> Vec<(String, Rect)> {
     let (y, right) = options_row(rig);
     texts(rig)
         .into_iter()
-        .filter(|(_, r)| (r.center().y - y).abs() < 8.0 && r.min.x > 290.0 && r.max.x < right)
+        .filter(|(_, r)| (r.center().y - y).abs() < 8.0 && r.max.x < right)
         .collect()
 }
 

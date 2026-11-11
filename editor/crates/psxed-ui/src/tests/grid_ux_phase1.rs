@@ -92,3 +92,106 @@ fn a_cells_stroke_is_one_undo_step() {
     rig.ws.do_undo();
     assert!(rig.ws.project == before);
 }
+
+#[test]
+fn the_rooms_plus_makes_a_walled_room_beside_the_current_one_at_its_floor() {
+    let mut project = flat_project(4, 4, false);
+    project.active_scene_mut().world.grid_mut().unwrap().rooms[0].y_offset = 512;
+    let mut rig = GridRig::top("ux-add-room", project);
+    let before = rig.ws.project.clone();
+    rig.ws.grid_add_room();
+    let world = rig.world();
+    assert_eq!(world.rooms.len(), 2);
+    let (first, new) = (&world.rooms[0], &world.rooms[1]);
+    assert_eq!(new.y_offset, first.y_offset, "at the floor level");
+    assert!(
+        new.origin[0] >= first.origin[0] + first.width as i32,
+        "beside"
+    );
+    assert_eq!(new.sector_count(), 36);
+    let sector = new.sector(0, 0).unwrap();
+    assert!(sector.ground_floor().is_some() && sector.ground_ceiling().is_some());
+    // The room's walls are the derived closure walls: it is a derived room.
+    assert!(matches!(
+        new.wall_mode,
+        psxed_project::grid::WallMode::Derived
+    ));
+    // A second one does not land on the first.
+    rig.ws.grid_add_room();
+    let world = rig.world();
+    let (a, b) = (&world.rooms[1], &world.rooms[2]);
+    assert!(b.origin[0] >= a.origin[0] + a.width as i32);
+    rig.ws.do_undo();
+    rig.ws.do_undo();
+    assert!(rig.ws.project == before);
+}
+
+#[test]
+fn a_height_press_on_empty_space_boxes_and_one_on_nothing_movable_says_why() {
+    let mut rig = GridRig::top("ux-height-box", flat_project(4, 4, false));
+    rig.tool(GridTool::Height);
+    // Off the room: a box selection, not a dead press.
+    let off = rig.cell_centre(-1, -1);
+    rig.drag_hold(off, rig.cell_centre(-1, 0), egui::Modifiers::NONE);
+    assert!(
+        matches!(
+            rig.ws.grid.gesture,
+            crate::grid_tools::Gesture::Marquee { .. }
+        ),
+        "no box started"
+    );
+    rig.key(egui::Key::Escape);
+    rig.release(rig.cell_centre(-1, 0), egui::Modifiers::NONE);
+    assert!(matches!(
+        rig.ws.grid.gesture,
+        crate::grid_tools::Gesture::Idle
+    ));
+    assert!(rig.ws.status.contains("Cancelled"));
+}
+
+#[test]
+fn dragging_a_floor_face_in_height_leaves_a_flat_platform() {
+    let mut project = flat_project(3, 3, false);
+    // A sloped floor under the pointer: one corner already higher.
+    {
+        let room = &mut project.active_scene_mut().world.grid_mut().unwrap().rooms[0];
+        let floor = room
+            .sector_mut(1, 1)
+            .and_then(|s| s.ground_floor_mut())
+            .unwrap();
+        floor.heights = [0, 0, 256, 0];
+    }
+    let mut rig = GridRig::top("ux-flat-face", project);
+    rig.tool(GridTool::Height);
+    let centre = rig.cell_centre(1, 1);
+    rig.drag(
+        centre,
+        centre + egui::Vec2::new(0.0, -2.0 * crate::grid_tools::view::TOP_PIXELS_PER_CLICK),
+    );
+    let heights = floor_heights(rig.world(), 0, [1, 1]).unwrap();
+    assert!(
+        heights.iter().all(|h| *h == heights[0]) && heights[0] > 256,
+        "not a flat platform: {heights:?}"
+    );
+}
+
+#[test]
+fn the_far_view_preset_sets_the_citadel_values_and_leaves_the_rest() {
+    let mut stream = psxed_project::grid::StreamRadii::DEFAULT;
+    stream.flood.skin = true;
+    crate::grid_tools::world_panel::apply_far_view_preset(&mut stream);
+    assert_eq!(
+        (stream.draw_far, stream.active_radius, stream.lead_radius),
+        (12, 8, 4)
+    );
+    assert!(stream.ring && stream.flood.on);
+    assert_eq!(
+        (
+            stream.flood.near_radius,
+            stream.flood.res_radius,
+            stream.flood.panels
+        ),
+        (12, 13, 10)
+    );
+    assert!(stream.flood.skin, "an unrelated setting stays");
+}

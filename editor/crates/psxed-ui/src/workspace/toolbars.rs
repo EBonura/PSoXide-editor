@@ -363,7 +363,6 @@ impl EditorWorkspace {
                 // on the right.
                 if grid_room {
                     ui.horizontal(|ui| self.draw_grid_view_header(ui));
-                    ui.separator();
                 }
                 if self.active_workspace == WorkspaceView::Material {
                     ui.horizontal_wrapped(|ui| self.draw_material_lab_toolbar(ui));
@@ -379,7 +378,7 @@ impl EditorWorkspace {
                         self.handle_animation_viewer_action(action);
                     }
                 } else if grid_room {
-                    self.draw_grid_options_bar(ui);
+                    // The options bar is its own panel under the tool strip.
                 } else if self.is_grid_world() {
                     ui.horizontal_wrapped(|ui| self.draw_viewport_toolbar(ui));
                 } else {

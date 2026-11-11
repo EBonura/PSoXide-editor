@@ -159,6 +159,7 @@ pub(super) fn begin_drag(ws: &mut EditorWorkspace, ptr: &GridPointer) -> bool {
         delta: 0,
         before: Some(Box::new(ws.project.clone())),
         triangle: Some(triangle),
+        flat: None,
     }));
     true
 }
@@ -180,6 +181,7 @@ pub(crate) fn pose_drag(
         delta: 0,
         before: Some(Box::new(before)),
         triangle: Some(triangle),
+        flat: None,
     };
     nudge_gesture(ws, &mut gesture, delta);
     ws.grid.gesture = Gesture::Height(Box::new(gesture));

@@ -841,7 +841,13 @@ fn the_world_has_one_entry_in_structure_and_it_opens_the_world_settings() {
     assert!(rig.ws.selection.selected_nodes.contains(&NodeId::ROOT));
     assert!(row_is_highlighted(&rig, "World"));
     let shown = inspector_texts(&rig);
-    for section in ["Physics", "Sky", "Shading", "Streaming", "Default camera"] {
+    for section in [
+        "Physics",
+        "Sky",
+        "Shading",
+        "Streaming and far view",
+        "Default camera",
+    ] {
         assert!(has_text(&shown, section), "{section} missing: {shown:?}");
     }
     // The World is not a row of the Objects list, nor is it offered twice.
@@ -878,30 +884,32 @@ fn shading_belongs_to_the_world_and_not_to_a_room() {
 
 #[test]
 fn the_world_settings_hold_the_stream_radii_and_the_default_camera() {
-    let mut rig = WindowRig::new();
+    let mut rig = WindowRig::with_size(Vec2::new(1456.0, 1300.0));
     rig.ws.select_world();
     frames(&mut rig, 4);
-    // Open the two sections.
-    for section in ["Streaming", "Default camera"] {
-        let at = rig.at(section);
-        rig.click(at);
-        frames(&mut rig, 3);
-    }
+    // The streaming group first: it sits below the camera's.
+    let at = rig.at("Streaming and far view");
+    rig.click(at);
+    frames(&mut rig, 3);
     let shown = inspector_texts(&rig);
-    for field in ["Draw far", "Active", "Lead"] {
+    for field in ["Draw distance", "Actors think within", "Prefetch margin"] {
         assert!(has_text(&shown, field), "{field}: {shown:?}");
     }
-    assert!(
-        shown.iter().any(|t| t.contains("no Camera part")),
-        "the camera says when it applies: {shown:?}"
-    );
     // A radius is edited by dragging its value.
     let before = rig.world().stream;
-    let at = rig.at("Draw far");
+    let at = rig.at("Draw distance");
     let value = at + Vec2::new(90.0, 0.0);
     rig.drag(value, value + Vec2::new(24.0, 0.0));
     frames(&mut rig, 3);
     assert_ne!(rig.world().stream, before, "{}", rig.ws.status);
+    let at = rig.at("Default camera");
+    rig.click(at);
+    frames(&mut rig, 3);
+    let shown = inspector_texts(&rig);
+    assert!(
+        shown.iter().any(|t| t.contains("no Camera part")),
+        "the camera says when it applies: {shown:?}"
+    );
 }
 
 #[test]
@@ -988,20 +996,11 @@ fn collider_node3d_and_mesh_instance_are_in_no_menu() {
 }
 
 #[test]
-fn the_objects_menu_says_actor_where_it_said_entity() {
+fn the_place_chips_say_actor_where_the_menu_said_entity() {
     let mut rig = WindowRig::new();
     frames(&mut rig, 3);
-    let place = rig.at("Place");
-    let arrow = Pos2::new(place.x + 40.0, place.y);
-    rig.click(arrow);
-    frames(&mut rig, 3);
-    let texts: Vec<String> = texts_in(
-        &rig,
-        Rect::from_min_max(Pos2::new(700.0, 60.0), Pos2::new(1100.0, 200.0)),
-    )
-    .into_iter()
-    .map(|t| t.0)
-    .collect();
+    let strip = Rect::from_min_max(Pos2::new(0.0, 40.0), Pos2::new(rig.size.x, 130.0));
+    let texts: Vec<String> = texts_in(&rig, strip).into_iter().map(|t| t.0).collect();
     for item in ["Light", "Prop", "Actor"] {
         assert!(texts.iter().any(|t| t == item), "{item}: {texts:?}");
     }

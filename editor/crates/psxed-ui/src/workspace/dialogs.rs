@@ -59,6 +59,7 @@ impl EditorWorkspace {
         self.draw_action_bar(ctx, playtest_status, play_metrics);
         if self.is_grid_world() && self.active_workspace == WorkspaceView::Room {
             self.draw_grid_tool_row(ctx);
+            self.draw_grid_options_panel(ctx);
         }
         self.draw_left_dock(ctx);
         match play_panel {

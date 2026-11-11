@@ -204,7 +204,7 @@ fn the_tools_sit_in_labelled_groups_on_one_row() {
         for shape in &output.shapes {
             if let egui::Shape::Text(t) = &shape.shape {
                 // The row is the strip under the top bar; the palette says Paint too.
-                if t.galley.text() == label && t.pos.x < 1600.0 && t.pos.y < 100.0 {
+                if t.galley.text() == label && t.pos.y < 100.0 && t.pos.y > 40.0 {
                     found.push(t.pos.y);
                 }
             }
@@ -212,12 +212,12 @@ fn the_tools_sit_in_labelled_groups_on_one_row() {
         assert_eq!(found.len(), 1, "{label}: {found:?}");
         found[0]
     };
-    for group in ["CREATE", "SHAPE", "SURFACE", "OBJECTS"] {
+    for group in ["EDIT", "BUILD", "TERRAIN", "SURFACE", "OBJECTS"] {
         y_of(group);
     }
-    let row = y_of("Select");
+    let row = y_of("Edit");
     for tool in [
-        "Height", "Floor", "Ceiling", "Wall", "Extrude", "Paint", "Bands", "Place",
+        "Classic", "Floor", "Ceiling", "Wall", "Sculpt", "Paint", "Place",
     ] {
         assert!((y_of(tool) - row).abs() < 4.0, "{tool} is on the row");
     }
@@ -230,7 +230,7 @@ fn the_tools_sit_in_labelled_groups_on_one_row() {
             seen.push(g);
         }
     }
-    assert_eq!(seen, ["PICK", "CREATE", "SHAPE", "SURFACE", "OBJECTS"]);
+    assert_eq!(seen, ["EDIT", "BUILD", "TERRAIN", "SURFACE", "OBJECTS"]);
 }
 
 fn font_size_of(output: &egui::FullOutput, needle: &str) -> Option<f32> {
@@ -297,7 +297,7 @@ fn link_move_and_global_show_only_when_they_have_something_to_act_on() {
         EditorWorkspace::with_project(test_temp_dir("layout-link"), flat_project(4, 4, true));
     ws.set_grid_tool(GridTool::Select);
     let text = screen(&mut ws);
-    for label in ["Link", "  Move", "  Global"] {
+    for label in ["Weld", "  Move", "  Global"] {
         assert!(
             !text.contains(label),
             "{label:?} with nothing selected:\n{text}"
@@ -306,13 +306,13 @@ fn link_move_and_global_show_only_when_they_have_something_to_act_on() {
     // A corner selected: Link has something to do.
     ws.apply_grid_pose("select=vertex:1,1,0").unwrap();
     let text = screen(&mut ws);
-    assert!(text.contains("Link"), "{text}");
+    assert!(text.contains("Weld"), "{text}");
     assert!(!text.contains("  Move"), "{text}");
     // The Height tool always has corners to weld.
     ws.apply_grid_pose("select=cells:0,0:0,0").unwrap();
     ws.grid.selection.clear();
     ws.set_grid_tool(GridTool::Height);
-    assert!(screen(&mut ws).contains("Link"));
+    assert!(screen(&mut ws).contains("Weld"));
     // A node selected: the gizmo controls.
     ws.set_grid_tool(GridTool::Select);
     ws.place_kind = PlaceKind::PointLightMarker;

@@ -148,11 +148,9 @@ impl EditorWorkspace {
                     Gesture::Height(g) if g.delta != 0 => self.do_undo(),
                     Gesture::Paint { undo_pushed: true } => self.restore_last_history_step(),
                     Gesture::Mesh(drag) if drag.changed => self.restore_last_history_step(),
-                    Gesture::Cells(stroke) => {
-                        if stroke.changed() > 0 {
-                            self.project = stroke.into_before();
-                            self.grid_changed();
-                        }
+                    Gesture::Cells(stroke) if stroke.changed() > 0 => {
+                        self.project = stroke.into_before();
+                        self.grid_changed();
                     }
                     _ => {}
                 }
@@ -164,8 +162,12 @@ impl EditorWorkspace {
                 self.status = "Selection cleared".to_string();
             }
         }
-        let delete_key =
-            ctx.input(|i| i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace));
+        // Backspace edits a typed amount and must never delete the selection
+        // while a drag is in progress; Delete stays the delete key.
+        let busy = !matches!(self.grid.gesture, Gesture::Idle) || ctx.wants_keyboard_input();
+        let delete_key = ctx.input(|i| {
+            i.key_pressed(egui::Key::Delete) || (!busy && i.key_pressed(egui::Key::Backspace))
+        });
         if delete_key {
             // With a mesh selected in the Mesh tool, Delete removes it; with
             // a band line selected, the line; otherwise the picked faces.
@@ -305,9 +307,9 @@ impl EditorWorkspace {
         if pressed(ctx, egui::Key::L) {
             self.grid.link = !self.grid.link;
             self.status = if self.grid.link {
-                "Vertices linked: coincident corners move together".to_string()
+                "Weld on: coincident corners move together".to_string()
             } else {
-                "Vertices unlinked".to_string()
+                "Weld off: corners move one at a time".to_string()
             };
         }
         // G goes to a level, Z switches the cutaway.

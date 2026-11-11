@@ -29,6 +29,7 @@ mod analysis;
 mod band_panel;
 mod bands_tool;
 mod break_tool;
+mod catalog;
 pub(crate) mod cell_size;
 mod cells_tool;
 mod clipboard_tool;
@@ -78,6 +79,15 @@ mod stairs_tool;
 mod strip;
 mod tiling_panel;
 mod tool_row;
+#[cfg(test)]
+pub(crate) use tool_row::{tool_strip_height, CLASSIC};
+
+/// Height of the strip plus the options bar under it: where the viewport
+/// column starts below the top bar.
+#[cfg(test)]
+pub(crate) fn chrome_height(ctx: &egui::Context) -> f32 {
+    tool_strip_height(ctx) + crate::OPTIONS_BAR_HEIGHT + 8.0
+}
 mod triangle_tool;
 mod verb_guide;
 mod verb_overlay;
@@ -87,7 +97,7 @@ pub(crate) mod verb_tool;
 pub(crate) mod view;
 mod walk_overlay;
 mod wall_tool;
-mod world_panel;
+pub(crate) mod world_panel;
 
 pub(crate) use events::{grid_tool_2d, grid_tool_3d};
 
@@ -158,16 +168,15 @@ pub(crate) enum GridTool {
     Slab,
 }
 
-/// The tool row's groups, in order.
+/// The strip's groups, in order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ToolGroup {
-    /// Choosing and moving what exists (no label on the row).
-    Pick,
-    /// Making the shell: floors, walls, ceilings, planes, meshes.
-    Create,
-    /// The level verbs (region, then verb, then amount) and the diagonal:
-    /// one split button on the row, the rest in its menu.
-    Shape,
+    /// Choosing and moving what exists.
+    Edit,
+    /// Making the shell: floors, walls, ceilings, ramps, stairs, planes, meshes.
+    Build,
+    /// Shaping natural ground: sculpt, break, cells, the diagonal.
+    Terrain,
     /// Dressing the surfaces: paint and wall bands.
     Surface,
     /// Nodes: lights, spawns, props, entities.
@@ -175,11 +184,20 @@ pub(crate) enum ToolGroup {
 }
 
 impl ToolGroup {
+    /// The groups in strip order.
+    pub(crate) const ALL: [Self; 5] = [
+        Self::Edit,
+        Self::Build,
+        Self::Terrain,
+        Self::Surface,
+        Self::Objects,
+    ];
+
     pub(crate) const fn label(self) -> &'static str {
         match self {
-            Self::Pick => "PICK",
-            Self::Create => "CREATE",
-            Self::Shape => "SHAPE",
+            Self::Edit => "EDIT",
+            Self::Build => "BUILD",
+            Self::Terrain => "TERRAIN",
             Self::Surface => "SURFACE",
             Self::Objects => "OBJECTS",
         }
@@ -187,62 +205,26 @@ impl ToolGroup {
 }
 
 impl GridTool {
-    /// Every tool, in row order (grouped).
-    pub(crate) const ALL: [Self; 20] = [
-        Self::Edit,
-        Self::Select,
-        Self::Height,
-        Self::Floor,
-        Self::Wall,
-        Self::Ceiling,
-        Self::Plane,
-        Self::Mesh,
-        Self::Extrude,
-        Self::Ramp,
-        Self::Stairs,
-        Self::Spiral,
-        Self::Break,
-        Self::Sculpt,
-        Self::Cells,
-        Self::Slab,
-        Self::Split,
-        Self::Paint,
-        Self::Bands,
-        Self::Place,
-    ];
-
-    /// The tools the SHAPE split button holds, in its menu's order.
-    pub(crate) const SHAPES: [Self; 9] = [
-        Self::Extrude,
-        Self::Ramp,
-        Self::Stairs,
-        Self::Spiral,
-        Self::Break,
-        Self::Sculpt,
-        Self::Cells,
-        Self::Slab,
-        Self::Split,
-    ];
-
-    /// The row group of the tool.
-    pub(crate) const fn group(self) -> ToolGroup {
-        match self {
-            Self::Edit | Self::Select | Self::Height => ToolGroup::Pick,
-            Self::Floor | Self::Wall | Self::Ceiling | Self::Plane | Self::Mesh => {
-                ToolGroup::Create
-            }
-            Self::Extrude
-            | Self::Ramp
-            | Self::Stairs
-            | Self::Spiral
-            | Self::Break
-            | Self::Sculpt
-            | Self::Cells
-            | Self::Slab
-            | Self::Split => ToolGroup::Shape,
-            Self::Paint | Self::Bands => ToolGroup::Surface,
-            Self::Place => ToolGroup::Objects,
+    /// Every tool, in strip order (read from the catalog).
+    pub(crate) const ALL: [Self; 20] = {
+        let mut all = [Self::Select; 20];
+        let mut i = 0;
+        while i < 20 {
+            all[i] = catalog::CATALOG[i].tool;
+            i += 1;
         }
+        all
+    };
+
+    /// The strip group of the tool.
+    #[cfg(test)]
+    pub(crate) const fn group(self) -> ToolGroup {
+        catalog::entry(self).group
+    }
+
+    /// The one-line hint the status bar shows for the tool.
+    pub(crate) const fn hint(self) -> &'static str {
+        catalog::entry(self).hint
     }
 
     /// Whether the tool is one of the level verbs (region, then verb, then
@@ -355,7 +337,7 @@ impl GridTool {
                 "Pick a mesh in the Meshes palette (right dock), click a floor to place it. Drag to move, R turns a quarter, [ and ] 15 degrees, Delete removes. Arches carry a perch at the crown."
             }
             Self::Height => {
-                "Drag a vertex, edge or face up and down. Alt snaps finer, Alt+drag a face moves one triangle. L unlinks."
+                "Drag a vertex, edge or face up and down. Alt snaps finer, Alt+drag a face moves one triangle. L welds corners that share a position."
             }
             Self::Paint => "Click faces to apply the material chosen in the palette. Ctrl samples.",
             Self::Split => {
@@ -507,6 +489,10 @@ pub(crate) struct HeightGesture {
     pub before: Option<Box<ProjectDocument>>,
     /// Set when the drag moves one triangle of a floor or ceiling.
     pub triangle: Option<triangle_tool::TriangleGrab>,
+    /// Set when the drag moves a whole floor or ceiling face: its corners and
+    /// the height they level to at a drag of zero (the highest of them), so a
+    /// face drag always leaves a flat platform.
+    pub flat: Option<(Vec<psxed_project::grid::edit::CornerRef>, i32)>,
 }
 
 /// The one gesture in flight, if any.
@@ -627,9 +613,6 @@ pub(crate) struct GridEditState {
     pub tool: GridTool,
     /// The Edit tool's state.
     pub edit: edit::EditState,
-    /// The last SHAPE tool used: what the row's split button shows and what
-    /// a click on its face picks.
-    pub last_shape: GridTool,
     /// How far the options bar is scrolled sideways, and for which tool (the
     /// scroll starts over when the tool changes).
     pub options_scroll: f32,
@@ -745,7 +728,6 @@ impl Default for GridEditState {
         Self {
             tool: GridTool::Select,
             edit: edit::EditState::default(),
-            last_shape: GridTool::Extrude,
             options_scroll: 0.0,
             options_scroll_tool: GridTool::Select,
             selection: GridSelection::new(),
@@ -754,7 +736,7 @@ impl Default for GridEditState {
             material: None,
             floor_height: 0,
             ceiling_height: 3 * psxed_project::grid::SECTOR_UNITS,
-            link: true,
+            link: false,
             wall_dir: WallDirection::Auto,
             clipboard: None,
             paste: None,
@@ -862,9 +844,6 @@ impl EditorWorkspace {
             // that works on a selection (Height, Extrude) finds it intact.
         }
         self.grid.tool = tool;
-        if tool.group() == ToolGroup::Shape {
-            self.grid.last_shape = tool;
-        }
         self.active_tool = match tool {
             GridTool::Select => ViewTool::Select,
             GridTool::Place => ViewTool::Place,

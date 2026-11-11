@@ -120,7 +120,8 @@ fn same_surface(world: &psxed_project::grid::GridWorld, face: FaceRef) -> Vec<Gr
 /// The faces of the wall that run on from `face` along its edge: the same
 /// kind of wall, on the same edge of the next cell, as far as it goes.
 fn wall_run(world: &psxed_project::grid::GridWorld, face: FaceRef) -> Vec<GridElement> {
-    let (edge, make): (WallEdge, Box<dyn Fn([i32; 2]) -> FaceRef>) = match face.target {
+    type Maker = Box<dyn Fn([i32; 2]) -> FaceRef>;
+    let (edge, make): (WallEdge, Maker) = match face.target {
         FaceTarget::Derived {
             edge,
             kind,

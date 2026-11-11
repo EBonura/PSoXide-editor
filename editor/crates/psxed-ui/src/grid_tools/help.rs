@@ -125,7 +125,7 @@ const HEIGHT: Rows = &[
         "Alt+drag a floor or ceiling face",
         "Move one triangle of it: the surface becomes split-level and a diagonal wall shows between the halves live; Shift is the fine step in this gesture, Esc undoes it",
     ),
-    ("L", "Link or unlink corners that share a position"),
+    ("L", "Weld or unweld: with Weld on, corners that share a position move together (off by default)"),
     (
         "PgUp / PgDn, ] / [",
         "Nudge the selection a click; Shift for a fine step",
@@ -500,28 +500,48 @@ impl EditorWorkspace {
             return;
         }
         let mut open = true;
-        let sections: [(&str, Rows); 20] = [
-            ("Select (V)", SELECT),
-            ("Floor (F) and Ceiling (C)", FLOOR),
-            ("Wall (W)", WALL),
-            ("Plane (N)", PLANE),
-            ("Mesh (Shift+N)", MESH),
-            ("Height (H)", HEIGHT),
-            ("Paint (P)", PAINT),
-            ("Bands (E)", BANDS),
-            ("Extrude (U)", EXTRUDE),
-            ("Ramp (A)", RAMP),
-            ("Stairs (T)", STAIRS),
-            ("Spiral (Shift+T)", SPIRAL),
-            ("Break (X)", BREAK),
-            ("Sculpt (S)", SCULPT),
-            ("Cells (Q)", CELLS),
-            ("Upper floor (Shift+Q) and storeys", SLAB),
-            ("Overlays", OVERLAYS),
-            ("More", OTHER),
-            ("Snapping and reserved keys", SNAP),
-            ("Camera and project", VIEW),
+        let title = |tool: GridTool| format!("{} ({})", tool.label(), tool.key_label());
+        let sections: Vec<(String, Rows)> = vec![
+            (title(GridTool::Select), SELECT),
+            (
+                format!(
+                    "{} and {}",
+                    title(GridTool::Floor),
+                    title(GridTool::Ceiling)
+                ),
+                FLOOR,
+            ),
+            (title(GridTool::Wall), WALL),
+            (title(GridTool::Plane), PLANE),
+            (title(GridTool::Mesh), MESH),
+            (title(GridTool::Height), HEIGHT),
+            (title(GridTool::Paint), PAINT),
+            (title(GridTool::Bands), BANDS),
+            (title(GridTool::Extrude), EXTRUDE),
+            (title(GridTool::Ramp), RAMP),
+            (title(GridTool::Stairs), STAIRS),
+            (title(GridTool::Spiral), SPIRAL),
+            (title(GridTool::Break), BREAK),
+            (title(GridTool::Sculpt), SCULPT),
+            (title(GridTool::Cells), CELLS),
+            (format!("{} and storeys", title(GridTool::Slab)), SLAB),
+            ("Overlays".to_string(), OVERLAYS),
+            ("More".to_string(), OTHER),
+            ("Snapping and reserved keys".to_string(), SNAP),
+            ("Camera and project".to_string(), VIEW),
         ];
+        // The strip's own order and grouping, from the catalog.
+        let tools_line = ToolGroup::ALL
+            .iter()
+            .map(|group| {
+                let tools = super::catalog::tools_of(*group)
+                    .map(|t| format!("{} {}", t.key_label(), t.label()))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("{}: {tools}", group.label())
+            })
+            .collect::<Vec<_>>()
+            .join(" | ");
         let screen_height = ctx.screen_rect().height();
         egui::Window::new("Grid editor keys")
             .id(keys_window_id(screen_height))
@@ -535,7 +555,7 @@ impl EditorWorkspace {
             .show(ctx, |ui| {
                 ui.set_width(1500.0_f32.min(ctx.screen_rect().width() - 60.0));
                 ui.label(
-                    RichText::new("Tools: V Select, H Height | F Floor, C Ceiling, W Wall, N Plane, Shift+N Mesh, P Paint, D Diagonal, O Place, E Bands | U Extrude, A Ramp, T Stairs, Shift+T Spiral, X Break, S Sculpt, Q Cells, Shift+Q Upper floor | Shift+M Merge (Select, Bands, Cells) | Alt+Up/Down| Alt+Up/Down storey, G go to storey, Z cutaway")
+                    RichText::new(format!("Tools: {tools_line} | Shift+M Merge (Select, Bands, Cells) | Alt+Up/Down storey, G go to storey, Z cutaway"))
                         .color(STUDIO_TEXT_WEAK),
                 );
                 ui.label(
@@ -578,7 +598,7 @@ impl EditorWorkspace {
                         }
                         any = true;
                         ui.add_space(4.0);
-                        ui.label(RichText::new(*title).strong().color(STUDIO_TEXT));
+                        ui.label(RichText::new(title.as_str()).strong().color(STUDIO_TEXT));
                         egui::Grid::new(format!("grid_help_found_{title}"))
                             .num_columns(2)
                             .spacing([12.0, 2.0])
@@ -617,7 +637,7 @@ impl EditorWorkspace {
                     for (index, (title, rows)) in sections.iter().enumerate() {
                         let ui = &mut columns[column_of[index]];
                         ui.add_space(4.0);
-                        ui.label(RichText::new(*title).strong().color(STUDIO_TEXT));
+                        ui.label(RichText::new(title.as_str()).strong().color(STUDIO_TEXT));
                         egui::Grid::new(format!("grid_help_{title}"))
                             .num_columns(2)
                             .max_col_width(column_width * 0.64)

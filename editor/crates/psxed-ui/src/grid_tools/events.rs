@@ -128,11 +128,11 @@ pub(crate) fn dispatch(ws: &mut EditorWorkspace, ev: Ev, mut ptr: GridPointer) {
                 };
             }
         }
-        (GridTool::Height, Ev::Press) => {
-            height_tool::begin(ws, &ptr);
-        }
-        (GridTool::Height, Ev::Drag) => height_tool::drag(ws, &ptr),
-        (GridTool::Height, Ev::Release) => height_tool::release(ws),
+        (GridTool::Height, Ev::Press) => height_tool::press(ws, &ptr),
+        // A press on empty space starts a box selection, which Select's drag
+        // and release finish (they carry a height drag too).
+        (GridTool::Height, Ev::Drag) => select_tool::drag(ws, &ptr),
+        (GridTool::Height, Ev::Release) => select_tool::release(ws, &ptr),
         (GridTool::Height, Ev::Click) => select_tool::click(ws, &ptr),
 
         (GridTool::Mesh, Ev::Hover) => mesh_tool::hover(ws, &ptr),

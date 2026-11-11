@@ -261,7 +261,7 @@ pub(super) fn build(world: &mut GridWorld, spec: &Spec, weld: bool) -> Result<Bu
             let out = plan.outward;
             let len = ((out[0] * out[0] + out[1] * out[1]) as f32).sqrt().max(1.0);
             let axis = Axis::Horizontal([out[0] as f32 / len, out[1] as f32 / len]);
-            (Plan::Push(plan), axis)
+            (Plan::Push(Box::new(plan)), axis)
         }
         Kind::Stretch(side) => {
             let walls: Vec<WallHandle> = spec

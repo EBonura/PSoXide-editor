@@ -10,6 +10,13 @@ use psxed_project::grid::edit::{
 use psxed_project::grid::surface::WallFacing;
 use psxed_project::grid::GridSplit;
 
+/// Sectors along a side of a room made with the Rooms plus button (the
+/// starter room's size).
+const NEW_ROOM_SIDE: usize = 6;
+/// Ceiling height of such a room when the room beside it has no ceiling to
+/// copy: two sectors, like the starter.
+const NEW_ROOM_HEIGHT: i32 = 2 * psxed_project::grid::SECTOR_UNITS;
+
 impl EditorWorkspace {
     /// Palette, then the properties of what the grid tools have picked.
     /// Returns whether a grid selection (faces, a plane, a mesh or a level
@@ -659,18 +666,75 @@ impl EditorWorkspace {
             self.status = "Too many rooms".to_string();
             return;
         }
-        let top = world.rooms.iter().map(|r| r.y_offset).max().unwrap_or(0);
-        let origin = world.rooms.last().map_or([0, 0], |r| r.origin);
-        let mut room =
-            psxed_project::grid::GridRoom::new_derived(format!("Room {}", world.rooms.len()), 1, 1);
+        // Beside the room being worked in (the selected one, else the target),
+        // on its floor level, walled by the room's own derived closure walls,
+        // with a floor and a ceiling in the look of that room.
+        let reference = self
+            .selection
+            .selected_room
+            .or(self.grid_active_room)
+            .unwrap_or(self.grid.last_room)
+            .min(world.rooms.len().saturating_sub(1));
+        let look = world.rooms.get(reference).map(|r| {
+            let sector = r
+                .leaves
+                .iter()
+                .find_map(|(_, sector)| sector.ground_floor().map(|_| sector));
+            (
+                r.origin,
+                r.width as i32,
+                r.y_offset,
+                r.defaults.wall_material,
+                sector
+                    .and_then(|s| s.ground_floor())
+                    .and_then(|f| f.tri_a.material),
+                sector
+                    .and_then(|s| s.ground_ceiling())
+                    .map(|c| (c.heights[0], c.tri_a.material)),
+            )
+        });
+        let (ref_origin, ref_width, y_offset, wall, floor, ceiling) =
+            look.unwrap_or(([0, 0], 0, 0, None, None, None));
+        let side = NEW_ROOM_SIDE;
+        // East of the reference with a sector of gap, further east while that
+        // footprint would overlap another room.
+        let mut origin = [ref_origin[0] + ref_width + 1, ref_origin[1]];
+        while world.rooms.iter().any(|r| {
+            origin[0] < r.origin[0] + r.width as i32
+                && r.origin[0] < origin[0] + side as i32
+                && origin[1] < r.origin[1] + r.depth as i32
+                && r.origin[1] < origin[1] + side as i32
+        }) {
+            origin[0] += 1;
+        }
+        let (ceiling_height, ceiling_material) = ceiling.unwrap_or((NEW_ROOM_HEIGHT, floor));
+        let mut room = psxed_project::grid::GridRoom::new_derived(
+            format!("Room {}", world.rooms.len()),
+            side,
+            side,
+        );
         room.origin = origin;
-        room.y_offset = top + 3 * psxed_project::grid::SECTOR_UNITS;
+        room.y_offset = y_offset;
+        room.defaults.wall_material = wall.or(floor);
+        for z in 0..side {
+            for x in 0..side {
+                if let Some(sector) = room.sector_or_insert(x, z) {
+                    sector.set_ground_floor(Some(psxed_project::grid::GridSurface::flat_auto(
+                        0, floor,
+                    )));
+                    sector.set_ground_ceiling(Some(psxed_project::grid::GridSurface::flat_auto(
+                        ceiling_height,
+                        ceiling_material,
+                    )));
+                }
+            }
+        }
         world.rooms.push(room);
         let index = world.rooms.len() - 1;
         self.grid_active_room = Some(index);
         self.grid.last_room = index;
         self.history.record(before);
-        self.status = format!("Added room {index}; draw its floor with the Floor tool");
+        self.status = format!("Added room {index}: {NEW_ROOM_SIDE} by {NEW_ROOM_SIDE} sectors with a floor, a ceiling and walls");
         self.grid_changed();
     }
 

@@ -536,7 +536,7 @@ fn the_help_page_names_the_natural_terrain_keys() {
 fn the_strip_has_break_in_the_shape_group_and_rough_is_gone() {
     use crate::grid_tools::ToolGroup;
     assert_eq!(GridTool::Break.label(), "Break");
-    assert_eq!(GridTool::Break.group(), ToolGroup::Shape);
+    assert_eq!(GridTool::Break.group(), ToolGroup::Terrain);
     assert_eq!(GridTool::Break.key(), egui::Key::X);
     assert!(GridTool::Break.is_verb());
     // The keys switch tools, in the Top view rig; M (it was Rough) is free.

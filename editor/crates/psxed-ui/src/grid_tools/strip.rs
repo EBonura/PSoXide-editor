@@ -95,18 +95,19 @@ impl EditorWorkspace {
                 );
             }
             GridTool::Edit => {
-                ui.checkbox(&mut self.grid.edit.weld, "Weld").on_hover_text(
-                    "Off: a floor moves as a block and the walls between heights follow. On: corners that meet move together.",
+                ui.toggle_value(&mut self.grid.link, "Weld").on_hover_text(
+                    "L: off, a floor moves as a block and the walls between heights follow; on, corners that meet move together",
                 );
             }
             GridTool::Select | GridTool::Height => {
-                // Link welds the corners being lifted: Height always has
+                // Weld moves the corners that share a position together: Height always has
                 // some, Select once something is picked. Move and Global are
                 // the gizmo of a selected node.
                 let picked = !self.grid.selection.is_empty();
                 if self.grid.tool == GridTool::Height || picked {
-                    ui.toggle_value(&mut self.grid.link, "Link")
-                        .on_hover_text("L: coincident corners move together");
+                    ui.toggle_value(&mut self.grid.link, "Weld").on_hover_text(
+                        "L: weld, so coincident corners move together (off by default)",
+                    );
                 }
                 if self.grid.tool == GridTool::Select {
                     self.draw_merge_buttons(ui);
@@ -184,10 +185,23 @@ impl EditorWorkspace {
         }
     }
 
-    /// The options bar: a bar of one fixed height under the viewport header,
-    /// whatever the tool. It shows the active tool's options, or its key
-    /// hints when it has none, and Snap at its right end. Nothing in it can
-    /// grow the bar, so switching tools never moves the viewport.
+    /// The options bar as a panel across the window, directly under the tool
+    /// strip: always in the same place, one fixed height.
+    pub(crate) fn draw_grid_options_panel(&mut self, ctx: &egui::Context) {
+        egui::TopBottomPanel::top("psxed_options_bar")
+            .exact_height(OPTIONS_BAR_HEIGHT + 8.0)
+            .frame(
+                egui::Frame::new()
+                    .fill(STUDIO_PANEL_HEADER)
+                    .inner_margin(egui::Margin::symmetric(10, 4)),
+            )
+            .show(ctx, |ui| self.draw_grid_options_bar(ui));
+    }
+
+    /// The options bar: a bar of one fixed height, whatever the tool. It
+    /// shows only the active tool's options (nothing when it has none) and
+    /// Snap at its right end. Nothing in it can grow the bar, so switching
+    /// tools never moves the viewport.
     pub(crate) fn draw_grid_options_bar(&mut self, ui: &mut egui::Ui) {
         let (bar, _) = ui.allocate_exact_size(
             Vec2::new(ui.available_width(), OPTIONS_BAR_HEIGHT),
@@ -347,34 +361,7 @@ impl EditorWorkspace {
         {
             return "Drag a handle: corners and edges stretch, green ring turns, blue tip tilts | Drag body slides, Shift up/down | Alt 64, Shift+Alt free | R turn | Del | Ctrl+C/V";
         }
-        match self.grid.tool {
-            GridTool::Edit => "Hover shows the drag | Click select | Shift+click range | Ctrl toggle | Shift+drag box | double-click room or run | type a number, Enter | R repeat | ` cycle | Esc cancel",
-            GridTool::Plane => {
-                "Click a surface to place a plane | Drag sizes it | Click a plane to select | Alt 64, Shift+Alt free"
-            }
-            GridTool::Select => {
-                "Click pick | Shift range | Ctrl toggle | Drag box | Shift-drag height | Del delete | Ctrl+C/V copy"
-            }
-            GridTool::Mesh => {
-                "Click a floor to place | Drag moves | R turns, [ ] 15 | - = scale | Del removes | Alt 64"
-            }
-            GridTool::Floor => "Drag rectangle | Shift height | Ctrl delete | Esc cancel",
-            GridTool::Ceiling => "Drag rectangle | Shift height | Ctrl delete | Esc cancel",
-            GridTool::Wall => "Drag a run | R direction | Ctrl remove | Esc cancel",
-            GridTool::Height => "Drag up/down | Alt fine | Alt+drag a face: one triangle | L link | PgUp/PgDn nudge | Esc cancel",
-            GridTool::Paint => "Click or drag paint | R / Shift+R turn | F / Shift+F flip | [ ] scale | Ctrl sample | pick in the palette",
-            GridTool::Split => "Click a floor or ceiling flips its diagonal | Shift+click voids a triangle | Click again for the ceiling in Top",
-            GridTool::Bands => "Hover a wall, click to cut | Drag a line | Del removes it | Shift+click picks a band | Esc cancel",
-            GridTool::Extrude => "Press a floor, ceiling or wall and drag (walls: along the normal) | Shift-drag a box picks many, Shift+Alt adds | Click Shift adds | = out, - in | Tab Offset/Level | Alt fine | Esc cancel",
-            GridTool::Ramp => "Pick sectors | Press near the side to keep, drag up/down | R turn the side | Tab hold to walkable | Esc cancel",
-            GridTool::Stairs => "Drag a rectangle | Press on it, drag up | R turn the bottom side | Path: click waypoints, Enter, [ ] width | Tab steps/ramp | Esc cancel",
-            GridTool::Spiral => "Click the corners of a ring, Enter closes it | Press on it, drag up for the climb of a storey | Storeys in the option row | Alt+Up/Down level | Esc cancel",
-            GridTool::Break => "Pick sectors | Press on them, drag up for intensity | Tab target | Shift+X re-roll | Enter commit | Esc cancel",
-            GridTool::Slab => "Pick sectors | Add floor above: press on them and drag up for the height | Remove upper floor, Fill opening: click them | Tab mode | Alt+Up/Down level | G go to level | Z cutaway | Esc cancel",
-            GridTool::Sculpt => "Press and drag on the ground | Shift inverts | [ ] radius | Tab mode | Ramp: drag A to B | Dunes: drag across | Esc cancels the stroke",
-            GridTool::Cells => "Paint to subdivide | Alt+paint merges | Shift+M merges the cell under the pointer | [ ] brush | Alt+L cell sizes",
-            GridTool::Place => "Click to place at the sector centre | Shift+click keeps placing | Alt 64 | Shift+Alt free",
-        }
+        self.grid.tool.hint()
     }
 
     /// Faces facing the camera with their centre inside the 3D view: a cheap

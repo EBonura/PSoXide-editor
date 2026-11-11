@@ -44,7 +44,7 @@ impl EditorWorkspace {
         super::levels_panel::structure_section_header(ui, icons::HOUSE, "Rooms", |ui| {
             add = ui
                 .button(icons::text(icons::PLUS, 14.0))
-                .on_hover_text("Add an empty room one storey above the highest")
+                .on_hover_text("Add a room beside this one: floor, ceiling and walls")
                 .clicked();
         });
         egui::ScrollArea::vertical()

@@ -4,7 +4,7 @@
 //! tool. The pointer's vertical travel is turned into grid units at the
 //! rate that keeps the grabbed point under the pointer, then snapped to
 //! clicks (finer with Alt). The corners that move are the selection's, plus
-//! every corner coincident with them while linking is on (L toggles it).
+//! every corner coincident with them while Weld is on (L toggles it; off by default).
 
 use super::pick::PickLevel;
 use super::view::cell_at_editor;
@@ -187,6 +187,22 @@ pub(super) fn element_at(ws: &EditorWorkspace, ptr: &GridPointer) -> Option<Grid
     }
 }
 
+/// A press with the Height tool: a height drag on what is under the pointer;
+/// on empty space a box selection; on something Height cannot move, a hint
+/// that says why.
+pub(super) fn press(ws: &mut EditorWorkspace, ptr: &GridPointer) {
+    if begin(ws, ptr) {
+        return;
+    }
+    if element_at(ws, &ptr.at_press()).is_none() {
+        super::select_tool::start_marquee(ws, ptr);
+    } else {
+        ws.status = "Height cannot move that: it has no corner to raise or lower. \
+                     Pick a floor, ceiling or wall face, an edge or a corner"
+            .to_string();
+    }
+}
+
 /// Start a height drag on what is under the pointer (or the selection when
 /// that is part of it).
 pub(super) fn begin(ws: &mut EditorWorkspace, ptr: &GridPointer) -> bool {
@@ -245,6 +261,28 @@ pub(super) fn begin(ws: &mut EditorWorkspace, ptr: &GridPointer) -> bool {
         })
         .unwrap_or([0.0; 3]);
     let ppu = ws.grid_pixels_per_unit(&press, grab);
+    // Pressing a whole floor or ceiling face levels it: every drag leaves a
+    // flat platform at the highest corner's height plus the drag.
+    let flat = match element {
+        GridElement::Face(face)
+            if matches!(
+                face.target,
+                psxed_project::grid::edit::FaceTarget::Surface { .. }
+            ) =>
+        {
+            let heights = corners
+                .iter()
+                .filter(|c| c.face == face)
+                .filter_map(|c| Some((*c, c.grid_pos(world)?[1])))
+                .collect::<Vec<_>>();
+            heights
+                .iter()
+                .map(|(_, y)| *y)
+                .max()
+                .map(|top| (heights.into_iter().map(|(c, _)| c).collect(), top))
+        }
+        _ => None,
+    };
     ws.grid.gesture = Gesture::Height(Box::new(HeightGesture {
         drag,
         press_y: press.pos.y,
@@ -252,6 +290,7 @@ pub(super) fn begin(ws: &mut EditorWorkspace, ptr: &GridPointer) -> bool {
         delta: 0,
         before: Some(before),
         triangle: None,
+        flat,
     }));
     true
 }
@@ -286,6 +325,11 @@ pub(super) fn nudge_gesture(ws: &mut EditorWorkspace, g: &mut HeightGesture, del
             triangle.prepare(world, delta);
         }
         g.drag.apply(world, delta);
+        if let Some((corners, top)) = &g.flat {
+            for corner in corners {
+                corner.set_world_height(world, top.saturating_add(delta));
+            }
+        }
     }
     g.delta = delta;
     ws.grid_changed();
@@ -300,7 +344,7 @@ pub(super) fn nudge_gesture(ws: &mut EditorWorkspace, g: &mut HeightGesture, del
             "Height {:+} units ({clicks:+.2} clicks), {} corners{}",
             delta,
             g.drag.len(),
-            if ws.grid.link { "" } else { ", unlinked" }
+            if ws.grid.link { ", welded" } else { "" }
         ),
     };
 }

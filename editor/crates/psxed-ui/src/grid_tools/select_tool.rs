@@ -145,6 +145,11 @@ pub(super) fn press(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     if ptr.shift() && height_tool::begin(ws, ptr) {
         return;
     }
+    start_marquee(ws, ptr);
+}
+
+/// Begin a box selection at the press.
+pub(super) fn start_marquee(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     ws.grid.gesture = Gesture::Marquee {
         start: ptr.press.unwrap_or(ptr.pos),
         current: ptr.pos,

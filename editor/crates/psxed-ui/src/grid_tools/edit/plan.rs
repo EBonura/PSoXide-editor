@@ -296,7 +296,7 @@ pub(crate) enum Plan {
     /// Corners move.
     Heights(HeightsPlan),
     /// A room's wall is pushed.
-    Push(PushPlan),
+    Push(Box<PushPlan>),
 }
 
 impl Plan {

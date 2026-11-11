@@ -89,9 +89,6 @@ pub(super) struct Drag {
 /// The state of the Edit tool. Not saved with the project.
 #[derive(Default)]
 pub(crate) struct EditState {
-    /// Whether coincident corners move together (off: a floor moves as a
-    /// block and the walls between heights derive).
-    pub weld: bool,
     /// What a press-drag would do now, for the hint bar.
     pub hint: String,
     /// The wall whose slide arrow shows: the last one hovered.
@@ -315,7 +312,7 @@ fn box_select(ws: &mut EditorWorkspace, ptr: &GridPointer, additive: bool) {
 /// Build the plan for `spec` and start the drag.
 fn begin(ws: &mut EditorWorkspace, ptr: &GridPointer, hit: &Hit, spec: Spec) {
     let before = Box::new(ws.project.clone());
-    let weld = ws.grid.edit.weld;
+    let weld = ws.grid.link;
     let Some(world) = ws.project.active_scene_mut().world.grid_mut() else {
         return;
     };
