@@ -171,6 +171,8 @@ impl EditorWorkspace {
         if pressed(ctx, egui::Key::Escape) {
             if self.cancel_level_pick() {
                 // The go-to-level click was waiting.
+            } else if self.cancel_node_gesture() {
+                self.status = "Cancelled".to_string();
             } else if plane_tool::cancel(self)
                 || bands_tool::cancel(self)
                 || super::sculpt_tool::cancel(self)

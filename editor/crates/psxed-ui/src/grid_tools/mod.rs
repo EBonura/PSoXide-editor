@@ -747,6 +747,9 @@ pub(crate) struct GridEditState {
     /// What the pointer gesture in flight began from, to tell afterwards
     /// whether it did anything (see `events::dispatch`).
     pub effect_mark: Option<String>,
+    /// The document a node drag began from, and the undo steps then, so Esc
+    /// puts the node back.
+    pub node_before: Option<(Box<ProjectDocument>, usize)>,
     /// The press ended and its verdict is due.
     pub effect_pending: bool,
     pub hover: GridHover,
@@ -874,6 +877,7 @@ impl Default for GridEditState {
             selection: GridSelection::new(),
             effect_mark: None,
             effect_pending: false,
+            node_before: None,
             hover: GridHover::None,
             gesture: Gesture::Idle,
             material: None,
@@ -980,6 +984,32 @@ impl EditorWorkspace {
 
     /// Switch the grid tool, abandoning any ghost, and keep the shared tool
     /// state the node tools read in step.
+    /// A drag of a node (light, spawn, actor) begins.
+    pub(crate) fn begin_node_gesture(&mut self) {
+        self.grid.gesture = Gesture::Node;
+        self.grid.node_before = Some((Box::new(self.project.clone()), self.history.steps()));
+    }
+
+    /// Esc during a node drag: the node goes back and the drag leaves no
+    /// undo step. Returns whether there was a drag.
+    pub(crate) fn cancel_node_gesture(&mut self) -> bool {
+        if !matches!(self.grid.gesture, Gesture::Node) {
+            return false;
+        }
+        if let Some((before, steps)) = self.grid.node_before.take() {
+            if self.project != *before {
+                if self.history.steps() > steps {
+                    self.history.pop_last();
+                }
+                self.project = *before;
+                self.grid_changed();
+            }
+        }
+        self.end_node_drag_2d();
+        self.grid.gesture = Gesture::Idle;
+        true
+    }
+
     pub(crate) fn set_grid_tool(&mut self, tool: GridTool) {
         if self.grid.tool != tool {
             // A duplicate in flight is cancelled, not left half done.

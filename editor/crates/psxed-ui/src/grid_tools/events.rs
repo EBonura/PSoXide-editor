@@ -347,7 +347,7 @@ impl ViewportTool2d for GridTool2d {
                 .iter()
                 .any(|h| h.id == ws.selection.selected_node && h.contains(world));
             if on_selected_node {
-                ws.grid.gesture = Gesture::Node;
+                ws.begin_node_gesture();
                 return;
             }
         }
@@ -445,7 +445,7 @@ impl ViewportTool3d for GridTool3d {
             return;
         };
         if Self::node_target(ws, frame) {
-            ws.grid.gesture = Gesture::Node;
+            ws.begin_node_gesture();
             SelectTool.primary_pressed(ws, frame);
             return;
         }

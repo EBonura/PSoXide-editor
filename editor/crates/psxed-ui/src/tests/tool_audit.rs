@@ -1100,3 +1100,41 @@ fn every_catalog_tool_starts_from_the_strip_the_search_and_its_key() {
         }
     }
 }
+
+/// Esc in the middle of a press-drag puts the document back exactly and
+/// leaves no undo step, for every tool, in both views.
+#[test]
+fn esc_in_the_middle_of_a_drag_restores_exactly_for_every_tool() {
+    let mut bad = Vec::new();
+    for fixture in [Fixture::Starter, Fixture::StylesDemo] {
+        let mut rig = fixture.rig();
+        let base = rig.ws.project.clone();
+        for tool in GridTool::ALL {
+            for g in GESTURES.iter().filter(|g| g.name == "esc-mid-drag") {
+                let view = g.view;
+                let o = run(&mut rig, &base, tool, Start::Strip, |rig| {
+                    if view == "plan" {
+                        plan(rig);
+                    } else {
+                        persp(rig);
+                    }
+                    if view == "plan" || floor_px(rig).is_some() {
+                        (g.f)(rig);
+                    }
+                })
+                .unwrap();
+                if o.changed || o.history_steps != 0 {
+                    bad.push(format!(
+                        "{} {} {}: changed {} steps {}",
+                        fixture.name(),
+                        tool.label(),
+                        view,
+                        o.changed,
+                        o.history_steps
+                    ));
+                }
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
