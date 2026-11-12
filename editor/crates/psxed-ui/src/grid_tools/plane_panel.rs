@@ -206,6 +206,13 @@ impl EditorWorkspace {
                     .on_hover_text("Show the material unlit instead of baking light into it");
                 ui.checkbox(&mut edited.enabled, "Enabled")
                     .on_hover_text("A disabled plane is neither drawn nor collided with");
+                draw_shown_by(ui, &mut edited.shown_by, "drawn");
+                if edited.shown_by.is_some() && edited.collision != PlaneCollision::Decor {
+                    ui.colored_label(
+                        Color32::from_rgb(220, 120, 100),
+                        "A plane shown by logic must be Decor (the cook refuses otherwise)",
+                    );
+                }
                 ui.horizontal(|ui| {
                     ui.label("Collision");
                     egui::ComboBox::from_id_salt("plane_collision")
@@ -254,7 +261,8 @@ impl EditorWorkspace {
             || edited.fullbright != original.fullbright
             || edited.enabled != original.enabled
             || edited.collision != original.collision
-            || edited.camera_pass != original.camera_pass;
+            || edited.camera_pass != original.camera_pass
+            || edited.shown_by != original.shown_by;
         if !transform_changed && !shared_changed && ops.is_empty() {
             return;
         }
@@ -275,6 +283,7 @@ impl EditorWorkspace {
                         p.enabled = edited.enabled;
                         p.collision = edited.collision;
                         p.camera_pass = edited.camera_pass;
+                        p.shown_by = edited.shown_by.clone();
                     }
                     for op in &ops {
                         op.apply(&mut p.uv);

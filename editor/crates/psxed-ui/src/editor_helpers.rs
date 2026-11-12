@@ -733,7 +733,8 @@ pub(crate) fn entity_bound_kind_and_size(
         // clickable where it fires; point-like logic nodes get a
         // small marker bound.
         NodeKind::Logic { kind, .. } => match kind {
-            psxed_project::LogicNodeKind::TriggerVolume { size } => Some((
+            psxed_project::LogicNodeKind::TriggerVolume { size }
+            | psxed_project::LogicNodeKind::Hazard { size, .. } => Some((
                 EntityBoundKind::Logic,
                 [
                     (f32::from(size[0]) * 0.5).max(32.0),

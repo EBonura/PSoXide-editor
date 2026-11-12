@@ -202,10 +202,12 @@ impl EditorWorkspace {
             if let NodeKind::World {
                 physics,
                 world_message,
+                start_abilities,
                 ..
             } = &mut node.kind
             {
-                changed |= draw_world_message_and_physics(ui, physics, world_message);
+                changed |=
+                    draw_world_message_and_physics(ui, physics, world_message, start_abilities);
             }
         }
         if changed {

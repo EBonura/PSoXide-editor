@@ -20,7 +20,16 @@ pub(crate) fn draw_transform_policy_editor(
             culling: _,
             physics,
             world_message,
-        } => draw_world_settings(ui, sky, physics, world_message, texture_options, nav_target),
+            start_abilities,
+        } => draw_world_settings(
+            ui,
+            sky,
+            physics,
+            world_message,
+            start_abilities,
+            texture_options,
+            nav_target,
+        ),
         NodeKind::ArchProp { geometry, .. } => {
             arch_prop_transform_editor(ui, &mut node.transform, world_sector_size, *geometry)
         }
@@ -95,12 +104,80 @@ pub(crate) fn node_transform_inspector(kind: &NodeKind) -> NodeTransformInspecto
     }
 }
 
+/// The abilities the player starts the world with. Anything they do not start
+/// with is earned from a Point of Interest that grants it.
+pub(crate) fn draw_world_abilities(
+    ui: &mut egui::Ui,
+    start_abilities: &mut psxed_project::PlayerAbilities,
+) -> bool {
+    let mut changed = false;
+    egui::CollapsingHeader::new(icons::label(icons::FOOTPRINTS, "Abilities"))
+        .default_open(true)
+        .show(ui, |ui| {
+            ui.label(RichText::new("The player starts with").color(STUDIO_TEXT_WEAK));
+            changed |= ui
+                .checkbox(&mut start_abilities.sprint, "Sprint")
+                .on_hover_text("Hold Circle to sprint")
+                .changed();
+            changed |= ui
+                .checkbox(&mut start_abilities.dash, "Dash")
+                .on_hover_text("Tap Circle to dash; the dash's first frames cannot be hurt")
+                .changed();
+            ui.label(
+                RichText::new(
+                    "What is left off is earned: give a Point of Interest an ability reward.",
+                )
+                .small()
+                .color(STUDIO_TEXT_WEAK),
+            );
+        });
+    changed
+}
+
+/// A plane, mesh or emitter that is drawn only while a logic node is on (or
+/// off): a laser beam a Timer switches, a lamp a Door lights. `what` is the
+/// verb for the hover text ("drawn", "emits"). Empty text switches nothing.
+pub(crate) fn draw_shown_by(
+    ui: &mut egui::Ui,
+    shown_by: &mut Option<psxed_project::grid::LogicVisibility>,
+    what: &str,
+) -> bool {
+    let mut source = shown_by
+        .as_ref()
+        .map(|visibility| visibility.source.clone())
+        .unwrap_or_default();
+    let mut invert = shown_by.as_ref().is_some_and(|visibility| visibility.invert);
+    let mut changed = false;
+    ui.horizontal(|ui| {
+        ui.label("Shown by");
+        changed |= ui
+            .add(egui::TextEdit::singleline(&mut source).hint_text("logic node name"))
+            .on_hover_text(format!(
+                "Name of a Timer, Door, Hazard, Multisource or Switch. It is {what} only while \
+                 that node is on. Empty: always."
+            ))
+            .changed();
+    });
+    if !source.trim().is_empty() {
+        changed |= ui
+            .checkbox(&mut invert, "while it is off")
+            .on_hover_text("Show it in the node's off state instead of its on state")
+            .changed();
+    }
+    if changed {
+        *shown_by = (!source.trim().is_empty())
+            .then(|| psxed_project::grid::LogicVisibility { source, invert });
+    }
+    changed
+}
+
 pub(crate) fn draw_world_message_and_physics(
     ui: &mut egui::Ui,
     physics: &mut WorldPhysicsSettings,
     world_message: &mut Option<psxed_project::WorldMessage>,
+    start_abilities: &mut psxed_project::PlayerAbilities,
 ) -> bool {
-    let mut changed = false;
+    let mut changed = draw_world_abilities(ui, start_abilities);
     egui::CollapsingHeader::new(icons::label(icons::FILE, "World Message"))
         .default_open(world_message.is_some())
         .show(ui, |ui| {
@@ -488,10 +565,12 @@ pub(crate) fn draw_world_settings(
     sky: &mut SkySettings,
     physics: &mut WorldPhysicsSettings,
     world_message: &mut Option<psxed_project::WorldMessage>,
+    start_abilities: &mut psxed_project::PlayerAbilities,
     texture_options: &[(ResourceId, String)],
     nav_target: &mut Option<ResourceId>,
 ) -> bool {
-    let mut changed = draw_world_message_and_physics(ui, physics, world_message);
+    let mut changed =
+        draw_world_message_and_physics(ui, physics, world_message, start_abilities);
     changed |= draw_world_sky(ui, true, sky, texture_options, nav_target);
     changed
 }
@@ -3641,12 +3720,52 @@ pub(crate) fn draw_node_kind_editor(
             );
             changed |= draw_message_pages_editor(ui, "point-of-interest-it", pages_it, 2);
             ui.separator();
-            let mut has_reward = reward.is_some();
-            if ui.checkbox(&mut has_reward, "Grant item").changed() {
-                *reward = has_reward.then(psxed_project::PointOfInterestReward::default);
+            // Abilities first: a fragment is a reward of abilities and no item.
+            let mut abilities = reward
+                .as_ref()
+                .map_or(psxed_project::PlayerAbilities::none(), |r| r.abilities);
+            ui.label(RichText::new("Unlocks").color(STUDIO_TEXT_WEAK));
+            let abilities_changed = ui
+                .horizontal(|ui| {
+                    let sprint = ui
+                        .checkbox(&mut abilities.sprint, "Sprint")
+                        .on_hover_text("Hold Circle to sprint")
+                        .changed();
+                    let dash = ui
+                        .checkbox(&mut abilities.dash, "Dash")
+                        .on_hover_text("Tap Circle to dash")
+                        .changed();
+                    sprint || dash
+                })
+                .inner;
+            if abilities_changed {
+                if let Some(existing) = reward.as_mut() {
+                    existing.abilities = abilities;
+                } else {
+                    *reward = Some(psxed_project::PointOfInterestReward::abilities_only(
+                        abilities,
+                    ));
+                }
                 changed = true;
             }
-            if let Some(reward) = reward {
+            // An abilities-only reward with nothing left ticked is no reward.
+            if reward
+                .as_ref()
+                .is_some_and(|r| !r.has_item() && r.abilities.is_none())
+            {
+                *reward = None;
+                changed = true;
+            }
+            let mut has_item = reward.as_ref().is_some_and(|r| r.has_item());
+            if ui.checkbox(&mut has_item, "Grant item").changed() {
+                if let Some(existing) = reward.as_mut() {
+                    existing.grants_item = has_item;
+                } else {
+                    *reward = Some(psxed_project::PointOfInterestReward::default());
+                }
+                changed = true;
+            }
+            if let Some(reward) = reward.as_mut().filter(|r| r.has_item()) {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("Item name").color(STUDIO_TEXT_WEAK));
                     changed |= ui.text_edit_singleline(&mut reward.item_name).changed();
@@ -3853,6 +3972,8 @@ pub(crate) fn draw_node_kind_editor(
                     psxed_project::LogicNodeKind::Relay => "Relay",
                     psxed_project::LogicNodeKind::Multisource { .. } => "Multisource",
                     psxed_project::LogicNodeKind::Door { .. } => "Door",
+                    psxed_project::LogicNodeKind::Timer { .. } => "Timer",
+                    psxed_project::LogicNodeKind::Hazard { .. } => "Hazard",
                 };
                 egui::ComboBox::from_id_salt("logic-node-kind")
                     .selected_text(current)
@@ -3889,6 +4010,28 @@ pub(crate) fn draw_node_kind_editor(
                                 slide: None,
                                 lock: psxed_project::DoorLock::Unlocked,
                                 refusal: String::new(),
+                            };
+                            changed = true;
+                        }
+                        let is_timer =
+                            matches!(logic_kind, psxed_project::LogicNodeKind::Timer { .. });
+                        if ui.selectable_label(is_timer, "Timer").clicked() && !is_timer {
+                            *logic_kind = psxed_project::LogicNodeKind::Timer {
+                                on_ticks: 60,
+                                off_ticks: 60,
+                                phase_ticks: 0,
+                                running: true,
+                            };
+                            changed = true;
+                        }
+                        let is_hazard =
+                            matches!(logic_kind, psxed_project::LogicNodeKind::Hazard { .. });
+                        if ui.selectable_label(is_hazard, "Hazard").clicked() && !is_hazard {
+                            *logic_kind = psxed_project::LogicNodeKind::Hazard {
+                                size: [256, 192, 256],
+                                damage: 25,
+                                interval_ticks: 30,
+                                start_on: true,
                             };
                             changed = true;
                         }
@@ -4058,6 +4201,62 @@ pub(crate) fn draw_node_kind_editor(
                         .checkbox(persistent, "Remember across death and saves")
                         .changed();
                 }
+                psxed_project::LogicNodeKind::Timer {
+                    on_ticks,
+                    off_ticks,
+                    phase_ticks,
+                    running,
+                } => {
+                    ui.weak(
+                        "Free-running cycle: on, then off, forever. Each change sends \
+                         its Target an explicit On or Off. 60 ticks are one second.",
+                    );
+                    changed |= drag_u16(ui, "On ticks", on_ticks, 1, 3600);
+                    changed |= drag_u16(ui, "Off ticks", off_ticks, 1, 3600);
+                    changed |= drag_u16(ui, "Phase ticks", phase_ticks, 0, 7200);
+                    if *phase_ticks >= on_ticks.saturating_add(*off_ticks) {
+                        ui.weak("Phase wraps past the cycle length.");
+                    }
+                    changed |= ui
+                        .checkbox(running, "Running from level load")
+                        .on_hover_text(
+                            "Off: it waits for a trigger. On starts it, Off stops it and sends Off.",
+                        )
+                        .changed();
+                }
+                psxed_project::LogicNodeKind::Hazard {
+                    size,
+                    damage,
+                    interval_ticks,
+                    start_on,
+                } => {
+                    ui.weak(
+                        "Hurts the player standing inside while it is on. A dash's first \
+                         frames pass through. Switch it with On/Off from a Timer, or gate \
+                         it with a Master.",
+                    );
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("Extent").color(STUDIO_TEXT_WEAK));
+                        for (axis, label) in ["X", "Y", "Z"].iter().enumerate() {
+                            let mut value = i32::from(size[axis]);
+                            if ui
+                                .add(
+                                    egui::DragValue::new(&mut value)
+                                        .speed(16.0)
+                                        .range(1..=16384)
+                                        .prefix(format!("{label} ")),
+                                )
+                                .changed()
+                            {
+                                size[axis] = value.clamp(1, u16::MAX as i32) as u16;
+                                changed = true;
+                            }
+                        }
+                    });
+                    changed |= drag_u16(ui, "Damage per hit", damage, 1, 1000);
+                    changed |= drag_u16(ui, "Re-hit interval (ticks)", interval_ticks, 1, 600);
+                    changed |= ui.checkbox(start_on, "On at level load").changed();
+                }
             }
             ui.separator();
             ui.horizontal(|ui| {
@@ -4223,6 +4422,7 @@ pub(crate) fn draw_particle_emitter_settings(
 ) -> bool {
     let mut changed = false;
     changed |= ui.checkbox(&mut settings.enabled, "Enabled").changed();
+    changed |= draw_shown_by(ui, &mut settings.shown_by, "emitting");
     changed |= texture_resource_picker(
         ui,
         "Mask Texture",
@@ -4903,6 +5103,7 @@ mod sky_ux_tests {
                         &mut sky,
                         &mut physics,
                         &mut world_message,
+                        &mut psxed_project::PlayerAbilities::all(),
                         &[(atlas, "Sunset Atlas".to_string())],
                         &mut nav_target,
                     );
@@ -4921,6 +5122,73 @@ mod sky_ux_tests {
         assert!(
             text.contains("Choose a textured Material before building this sky"),
             "{text}"
+        );
+    }
+
+    fn render_text(draw: impl FnOnce(&mut egui::Ui)) -> String {
+        let ctx = egui::Context::default();
+        let mut fonts = egui::FontDefinitions::default();
+        let proportional = fonts
+            .families
+            .get(&egui::FontFamily::Proportional)
+            .cloned()
+            .expect("default proportional font family");
+        fonts
+            .families
+            .insert(egui::FontFamily::Name("lucide".into()), proportional);
+        ctx.set_fonts(fonts);
+        let mut draw = Some(draw);
+        let output = ctx.run(
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(520.0, 900.0))),
+                ..Default::default()
+            },
+            |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    if let Some(draw) = draw.take() {
+                        draw(ui);
+                    }
+                });
+            },
+        );
+        let mut text = String::new();
+        for clipped in &output.shapes {
+            collect_text(&clipped.shape, &mut text);
+        }
+        text
+    }
+
+    #[test]
+    fn the_world_offers_the_abilities_the_player_starts_with() {
+        let mut start = psxed_project::PlayerAbilities::none();
+        let text = render_text(|ui| {
+            draw_world_abilities(ui, &mut start);
+        });
+        assert!(text.contains("Abilities"), "{text}");
+        assert!(text.contains("The player starts with"), "{text}");
+        assert!(text.contains("Sprint") && text.contains("Dash"), "{text}");
+        assert!(text.contains("earned"), "{text}");
+        assert!(start.is_none(), "drawing alone changes nothing");
+    }
+
+    #[test]
+    fn shown_by_offers_the_node_name_and_the_off_state_only_once_named() {
+        let mut none = None;
+        let text = render_text(|ui| {
+            assert!(!draw_shown_by(ui, &mut none, "drawn"));
+        });
+        assert!(text.contains("Shown by"), "{text}");
+        assert!(!text.contains("while it is off"), "{text}");
+        let mut named = Some(psxed_project::grid::LogicVisibility::while_on("laser timer"));
+        let text = render_text(|ui| {
+            assert!(!draw_shown_by(ui, &mut named, "drawn"));
+        });
+        assert!(text.contains("laser timer"), "{text}");
+        assert!(text.contains("while it is off"), "{text}");
+        assert_eq!(
+            named,
+            Some(psxed_project::grid::LogicVisibility::while_on("laser timer")),
+            "drawing alone changes nothing"
         );
     }
 }

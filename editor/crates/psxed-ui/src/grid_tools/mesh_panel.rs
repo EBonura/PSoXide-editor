@@ -533,6 +533,13 @@ impl EditorWorkspace {
                     .on_hover_text("Show the material unlit instead of baking light into it");
                 ui.checkbox(&mut edited.enabled, "Enabled")
                     .on_hover_text("A disabled mesh is neither drawn, collided with nor given its sockets");
+                draw_shown_by(ui, &mut edited.shown_by, "drawn");
+                if edited.shown_by.is_some() && edited.collide {
+                    ui.colored_label(
+                        Color32::from_rgb(220, 120, 100),
+                        "A mesh shown by logic must not collide (the cook refuses otherwise)",
+                    );
+                }
                 ui.separator();
                 if ui.button(icons::label(icons::TRASH, "Delete mesh")).clicked() {
                     delete = true;
