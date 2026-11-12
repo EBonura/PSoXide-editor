@@ -177,7 +177,7 @@ pub(crate) fn draw_world_message_and_physics(
     world_message: &mut Option<psxed_project::WorldMessage>,
     start_abilities: &mut psxed_project::PlayerAbilities,
 ) -> bool {
-    let mut changed = draw_world_abilities(ui, start_abilities);
+    let mut changed = false;
     egui::CollapsingHeader::new(icons::label(icons::FILE, "World Message"))
         .default_open(world_message.is_some())
         .show(ui, |ui| {
@@ -216,6 +216,8 @@ pub(crate) fn draw_world_message_and_physics(
                 ui.label(RichText::new("units/tick²").color(STUDIO_TEXT_WEAK));
             });
         });
+    // Last, so the sections above keep their place on the page.
+    changed |= draw_world_abilities(ui, start_abilities);
     changed
 }
 
