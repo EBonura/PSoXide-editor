@@ -57,6 +57,7 @@ mod grid_wallfix;
 mod grid_wallfix_shots;
 mod grid_workflow;
 mod grid_world;
+mod new_project_profile;
 mod objects_panel;
 mod palette_zoom;
 mod perf;
