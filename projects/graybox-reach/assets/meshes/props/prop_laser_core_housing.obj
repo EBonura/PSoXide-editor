@@ -1,0 +1,13 @@
+# Blender 4.4.3
+# www.blender.org
+mtllib laser_core_housing.mtl
+o laser_core_housing
+v 150.000000 0.000000 110.000000
+v 225.000000 520.000000 -110.000000
+v 225.600006 520.000000 -110.000000
+vt 0.000000 0.000000
+vt 1.000000 0.000000
+vt 1.000000 1.000000
+s 0
+usemtl laser_front.004
+f 1/1 2/2 3/3

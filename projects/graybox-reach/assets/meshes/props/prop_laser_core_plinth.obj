@@ -1,0 +1,13 @@
+# Blender 4.4.3
+# www.blender.org
+mtllib laser_core_plinth.mtl
+o laser_core_plinth
+v -250.000000 0.000000 215.000000
+v 170.000000 128.000000 -215.000000
+v 170.600006 128.000000 -215.000000
+vt 0.000000 0.000000
+vt 1.000000 0.000000
+vt 1.000000 1.000000
+s 0
+usemtl laser_front.002
+f 1/1 2/2 3/3

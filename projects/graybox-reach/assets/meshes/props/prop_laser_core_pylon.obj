@@ -1,0 +1,13 @@
+# Blender 4.4.3
+# www.blender.org
+mtllib laser_core_pylon.mtl
+o laser_core_pylon
+v -120.000000 0.000000 40.000000
+v 120.000000 1880.000000 -95.000000
+v 120.599998 1880.000000 -95.000000
+vt 0.000000 0.000000
+vt 1.000000 0.000000
+vt 1.000000 1.000000
+s 0
+usemtl laser_front.001
+f 1/1 2/2 3/3
