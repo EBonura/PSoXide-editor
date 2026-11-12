@@ -128,6 +128,35 @@ impl EditorWorkspace {
     /// The instance under the pointer, topmost in the Top view and nearest in
     /// the 3D view: `(room, index, id)`.
     pub(super) fn mesh_under(&self, ptr: &GridPointer) -> Option<u16> {
+        self.mesh_hit(ptr).map(|(_, id)| id)
+    }
+
+    /// The instance under the pointer that no face of the shell hides, for
+    /// the Select and Edit tools: a mesh's box wins over the floor behind it
+    /// but not over a wall in front of it.
+    pub(super) fn mesh_in_front(&self, ptr: &GridPointer) -> Option<u16> {
+        let (t, id) = self.mesh_hit(ptr)?;
+        if let GridView::Persp(rect) = ptr.view {
+            if self
+                .pick_face_3d(rect, ptr.pos)
+                .is_some_and(|face| face.depth < t)
+            {
+                return None;
+            }
+        }
+        Some(id)
+    }
+
+    /// Make `id` the selection: the faces and planes stand down, the
+    /// Inspector shows the instance.
+    pub(super) fn select_mesh_instance(&mut self, id: u16) {
+        self.grid.selection.clear();
+        self.grid.plane_sel.clear();
+        self.grid.mesh_sel = Some(id);
+        self.status = "1 mesh selected".to_string();
+    }
+
+    fn mesh_hit(&self, ptr: &GridPointer) -> Option<(f32, u16)> {
         let world = self.project.active_scene().world.grid()?;
         let mut best: Option<(f32, u16)> = None;
         for (room_index, room) in world.rooms.iter().enumerate() {
@@ -184,7 +213,7 @@ impl EditorWorkspace {
                 }
             }
         }
-        best.map(|(_, id)| id)
+        best
     }
 
     /// Forget a selected instance that no longer exists.

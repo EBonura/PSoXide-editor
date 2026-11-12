@@ -224,3 +224,74 @@ fn minus_and_equals_scale_the_selection_by_eighths_with_undo() {
     }
     assert_eq!(rig.room(0).meshes[0].scale, [32; 3]);
 }
+
+/// Place one instance with the Mesh tool, pick a floor cell far from it with
+/// the tool under test (so nothing but a click on the instance can select it),
+/// and return the instance's id.
+fn placed_then_deselected(rig: &mut GridRig, persp: bool, tool: GridTool) -> u16 {
+    let floor = |rig: &GridRig, c: f32| {
+        if persp {
+            rig.screen_of([c * S, 0.0, c * S])
+        } else {
+            rig.cell_centre(c as i32, c as i32)
+        }
+    };
+    rig.click(floor(rig, 3.5));
+    let id = rig.room(0).meshes[0].id;
+    rig.tool(tool);
+    rig.click(floor(rig, 1.5));
+    assert_eq!(
+        rig.ws.grid.mesh_sel,
+        None,
+        "{tool:?}: {} ({} picked)",
+        rig.ws.status,
+        rig.ws.grid.selection.len()
+    );
+    assert!(!rig.ws.grid.selection.is_empty(), "{tool:?}");
+    id
+}
+
+#[test]
+fn a_click_on_a_mesh_in_3d_selects_it_with_the_edit_and_select_tools() {
+    for tool in [GridTool::Edit, GridTool::Select] {
+        let mut rig = rig("mesh-pick-3d", true);
+        let id = placed_then_deselected(&mut rig, true, tool);
+        let (lo, hi) = {
+            let world = rig.world();
+            let placed = psxed_project::grid::mesh_faces::placed(world, 0, 0).expect("placed");
+            placed.mesh.bounds(&placed.built).expect("bounds")
+        };
+        let s = rig.world().scale;
+        let mid = |i: usize| s.to_editor((lo[i] + hi[i]) / 2) as f32;
+        rig.click(rig.screen_of([mid(0), mid(1), mid(2)]));
+        assert_eq!(
+            rig.ws.grid.mesh_sel,
+            Some(id),
+            "{tool:?}: {}",
+            rig.ws.status
+        );
+        assert!(rig.ws.grid.selection.is_empty(), "{tool:?}");
+        // The Inspector has something to show, and a click on bare floor lets
+        // the instance go.
+        assert_eq!(rig.ws.mesh_primary(), Some(id));
+        rig.click(rig.screen_of([1.5 * S, 0.0, 1.5 * S]));
+        assert_eq!(rig.ws.grid.mesh_sel, None, "{tool:?}");
+    }
+}
+
+#[test]
+fn a_click_on_a_mesh_footprint_in_the_top_view_selects_it() {
+    for tool in [GridTool::Edit, GridTool::Select] {
+        let mut rig = rig("mesh-pick-top", false);
+        let id = placed_then_deselected(&mut rig, false, tool);
+        let at = rig.room(0).meshes[0].position;
+        rig.click(rig.top_at(at[0] as f32, at[2] as f32));
+        assert_eq!(
+            rig.ws.grid.mesh_sel,
+            Some(id),
+            "{tool:?}: {}",
+            rig.ws.status
+        );
+        assert!(rig.ws.grid.selection.is_empty(), "{tool:?}");
+    }
+}

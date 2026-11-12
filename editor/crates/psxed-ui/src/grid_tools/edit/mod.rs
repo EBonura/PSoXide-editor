@@ -340,6 +340,10 @@ pub(super) fn press(ws: &mut EditorWorkspace, ptr: &GridPointer) {
         return;
     }
     let hit = candidate(ws, &press);
+    // A press on a mesh grabs nothing: the click that follows selects it.
+    if pick_select::mesh_over(ws, &press, &hit).is_some() {
+        return;
+    }
     if hit.target == Target::Nothing {
         box_select(ws, ptr, ptr.command());
         return;
@@ -648,4 +652,3 @@ pub(crate) fn lands_on_nothing(ws: &EditorWorkspace, rect: Rect, pos: Pos2) -> b
     };
     target::at(ws, &ptr).target == Target::Nothing
 }
-

@@ -68,6 +68,7 @@ impl EditorWorkspace {
             return;
         };
         self.grid.plane_sel.clear();
+        self.grid.mesh_sel = None;
         let scroll_to = self.project.active_scene().world.grid().and_then(|world| {
             let face = self.grid.selection.faces(world).first().copied()?;
             psxed_project::grid::edit::material_of(world, face, None)
@@ -270,6 +271,12 @@ pub(super) fn marquee_elements(
 }
 
 pub(super) fn click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
+    if !ptr.shift() && !ptr.command() {
+        if let Some(id) = ws.mesh_in_front(ptr) {
+            ws.select_mesh_instance(id);
+            return;
+        }
+    }
     let picked = ws.grid_pick_for_select(ptr, PickLevel::Vertex);
     let Some(world) = ws.project.active_scene().world.grid() else {
         return;
@@ -278,6 +285,7 @@ pub(super) fn click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
         if !ptr.shift() && !ptr.command() {
             ws.grid.selection.clear();
             ws.grid.plane_sel.clear();
+            ws.grid.mesh_sel = None;
         }
         return;
     };

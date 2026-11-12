@@ -34,6 +34,22 @@ pub(super) fn coarsen(hit: Hit, level: usize) -> Hit {
     hit
 }
 
+/// A placed mesh the pointer is over, when the pick under it is only a
+/// floor, a wall or nothing (a corner, an edge or an arrow is a handle and
+/// keeps priority) and no modifier asks to extend a selection.
+pub(super) fn mesh_over(ws: &EditorWorkspace, ptr: &GridPointer, hit: &Hit) -> Option<u16> {
+    if ptr.shift() || ptr.command() {
+        return None;
+    }
+    if !matches!(
+        hit.target,
+        Target::Nothing | Target::Surface(_) | Target::Wall(..)
+    ) {
+        return None;
+    }
+    ws.mesh_in_front(ptr)
+}
+
 /// A click.
 pub(super) fn click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     let now = Instant::now();
@@ -42,10 +58,15 @@ pub(super) fn click(ws: &mut EditorWorkspace, ptr: &GridPointer) {
     });
     ws.grid.edit.last_click = Some((now, ptr.pos));
     let hit = super::candidate(ws, ptr);
+    if let Some(id) = mesh_over(ws, ptr, &hit) {
+        ws.select_mesh_instance(id);
+        return;
+    }
     if hit.target == Target::Nothing {
         if !ptr.shift() && !ptr.command() {
             ws.grid.selection.clear();
             ws.grid.plane_sel.clear();
+            ws.grid.mesh_sel = None;
             ws.status = "Selection cleared".to_string();
         }
         return;
