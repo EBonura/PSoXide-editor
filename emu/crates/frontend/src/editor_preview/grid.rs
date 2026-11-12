@@ -72,6 +72,9 @@ fn cell_bounds(
     })
 }
 
+/// The preview clock runs in vblanks at the console's 60 Hz.
+const PREVIEW_VBLANKS_PER_SECOND: u16 = 60;
+
 /// Widest span the preview camera's fixed-point rotate handles safely; a
 /// world past it is clipped by the same guard the runtime uses.
 const PREVIEW_COORD_LIMIT: i32 = 500_000;
@@ -133,7 +136,61 @@ fn prepare_piece(
         verts,
         uvs: texels,
         colors,
+        scroll: scroll_motion(project, shade, face.material),
     });
+}
+
+/// The UV scroll a Play build gives `material`'s faces: its recipe when the
+/// material selects UV Scroll and its texture can repeat through the window
+/// (the cook's `BoundMaterial::scrolls`). The mode selects the recipe, so
+/// its own `enabled` flag, the model path's switch, is forced on.
+fn scroll_motion(
+    project: &ProjectDocument,
+    shade: FaceShade,
+    material: Option<ResourceId>,
+) -> Option<psxed_project::MaterialUvMotion> {
+    let FaceShade::Textured { slot, .. } = shade else {
+        return None;
+    };
+    let repeats = |size: u8| (8..=128).contains(&size) && size.is_power_of_two();
+    if !repeats(slot.texture_width) || !repeats(slot.texture_height) {
+        return None;
+    }
+    let ResourceData::Material(data) = &project.resource(material?)?.data else {
+        return None;
+    };
+    (data.animation.mode == psxed_project::MaterialAnimationMode::UvScroll).then_some(
+        psxed_project::MaterialUvMotion {
+            enabled: true,
+            ..data.animation.uv_scroll
+        },
+    )
+}
+
+/// `uvs` moved by `motion` at `tick`, placed per axis the way the runtime
+/// places a scrolled quad (`psx_grid::render::scroll_shift`): the lowest
+/// texel lands on `(lowest + scroll) mod tile`, so no corner wraps a byte.
+fn scrolled_uvs(
+    uvs: &[[f64; 2]],
+    motion: psxed_project::MaterialUvMotion,
+    tile: [u8; 2],
+    tick: u32,
+) -> Vec<[f64; 2]> {
+    let offset = motion.offset_at_tick(tick, PREVIEW_VBLANKS_PER_SECOND);
+    let mut shift = [0.0f64; 2];
+    for axis in 0..2 {
+        let lo = uvs.iter().map(|uv| uv[axis]).fold(f64::MAX, f64::min);
+        let hi = uvs.iter().map(|uv| uv[axis]).fold(f64::MIN, f64::max);
+        shift[axis] = f64::from(uv_split::scroll_shift(
+            lo.floor() as i32,
+            hi.ceil() as i32,
+            i32::from(offset[axis]),
+            i32::from(tile[axis]),
+        ));
+    }
+    uvs.iter()
+        .map(|uv| [uv[0] + shift[0], uv[1] + shift[1]])
+        .collect()
 }
 
 /// Prepare `face`, cut at the texture tile boundaries the way the cook cuts
@@ -148,9 +205,17 @@ fn prepare_face(
 ) -> PreparedFace {
     let mut pieces = Vec::new();
     // The preview draws through the same texture window a Play build uses,
-    // so it cuts at the same four-tile pieces.
-    if uv_split::wants_split(face, true) {
-        for piece in uv_split::split(face, scale, true) {
+    // so it cuts at the same four-tile pieces (three for a scrolling
+    // material, which leaves room to shift).
+    let scrolling = scroll_motion(
+        project,
+        face_shade(project, face.material, (0, 0, 0), textures),
+        face.material,
+    )
+    .is_some();
+    let tiles = uv_split::tiles_for(true, scrolling);
+    if !uv_split::fits(&face.texels, tiles) {
+        for piece in uv_split::split_tiles(face, scale, tiles) {
             prepare_piece(project, textures, &piece, face, ambient, rig, &mut pieces);
         }
     } else {
@@ -290,6 +355,7 @@ pub(super) fn walk_grid(
         return;
     };
     let defaults = ProjectUvDefaults(project);
+    let tick = preview_elapsed_vblanks();
     geometry.set_ghost(world, view.paint.as_ref());
     let RoomsToDraw {
         rooms,
@@ -348,12 +414,25 @@ pub(super) fn walk_grid(
                         .filter(|face| view.cutaway.is_none_or(|cut| face.low_y < cut))
                     {
                         for piece in &face.pieces {
+                            let moved = match (piece.scroll, piece.shade) {
+                                (Some(motion), FaceShade::Textured { slot, .. }) => {
+                                    // The frame reads the clock: it is stale a vblank later.
+                                    scratch.clock_used = true;
+                                    Some(scrolled_uvs(
+                                        &piece.uvs,
+                                        motion,
+                                        [slot.texture_width, slot.texture_height],
+                                        tick,
+                                    ))
+                                }
+                                _ => None,
+                            };
                             emit_uv_polygon(
                                 scratch,
                                 camera,
                                 piece.shade,
                                 &piece.verts,
-                                &piece.uvs,
+                                moved.as_deref().unwrap_or(&piece.uvs),
                                 Some(&piece.colors),
                             );
                         }

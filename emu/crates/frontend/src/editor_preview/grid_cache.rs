@@ -36,6 +36,10 @@ pub(super) struct PreparedPiece {
     pub(super) verts: Vec<[f64; 3]>,
     pub(super) uvs: Vec<[f64; 2]>,
     pub(super) colors: Vec<(u8, u8, u8)>,
+    /// The material's UV scroll, when it has one and its texture can repeat.
+    /// Applied at emit time from the preview clock, so the cache does not
+    /// depend on it.
+    pub(super) scroll: Option<psxed_project::MaterialUvMotion>,
 }
 
 /// A face of the world as the cook cuts it into pieces.
