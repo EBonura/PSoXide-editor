@@ -86,9 +86,9 @@ const PREVIEW_MODEL_SOURCE_VERTEX_CAP: usize = PREVIEW_MODEL_VERTEX_CAP;
 const PREVIEW_MODEL_FACE_CAP: usize = 2048;
 const PREVIEW_MODEL_PART_CAP: usize = 128;
 const PREVIEW_MODEL_COMMAND_CAP: usize = TRI_CAP;
-const PREVIEW_PARTICLE_DRAW_CAP: usize = 48;
+const PREVIEW_PARTICLE_DRAW_CAP: usize = 64;
 const PREVIEW_PARTICLE_MIN_SCREEN_SIZE: i16 = 2;
-const PREVIEW_PARTICLE_MAX_SCREEN_SIZE: i16 = 16;
+const PREVIEW_PARTICLE_MAX_SCREEN_SIZE: i16 = 18;
 const PREVIEW_PARTICLE_TEXEL_U: u8 = 64;
 const PREVIEW_PARTICLE_TEXEL_V: u8 = 0;
 /// Cap on placed model-rendering nodes the editor preview will
@@ -545,7 +545,7 @@ fn build_frame(
     walk_particle_emitters(
         project,
         hidden_scene_nodes,
-        textures.particle_slot(),
+        textures,
         preview_tick,
         &mut scratch,
     );
@@ -2416,7 +2416,8 @@ mod tests {
     /// drew a long thin line lying along the screen.
     #[test]
     fn a_far_off_axis_player_keeps_a_standing_figure_aspect() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../projects/default");
+        let root =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../projects/default");
         let project = ProjectDocument::load_from_path(&root.join("project.ron"))
             .expect("tracked default project");
         let scene = project.active_scene();
@@ -2460,11 +2461,7 @@ mod tests {
                 yaw_q12,
                 pitch_q12: 300,
                 radius: 24000,
-                target: [
-                    (spawn[0] + side * 9500.0) as i32,
-                    1000,
-                    spawn[2] as i32,
-                ],
+                target: [(spawn[0] + side * 9500.0) as i32, 1000, spawn[2] as i32],
                 position: [0; 3],
             };
             let with_player = frame(camera, &HashSet::new());
@@ -2494,7 +2491,10 @@ mod tests {
                 }
             }
             let (width, height) = (x1 - x0, y1 - y0);
-            assert!(triangles >= 40, "yaw {yaw_q12}: only {triangles} triangles drawn");
+            assert!(
+                triangles >= 40,
+                "yaw {yaw_q12}: only {triangles} triangles drawn"
+            );
             assert!(
                 height * 10 >= width * 13 && width >= 3,
                 "yaw {yaw_q12}: the player is {width} x {height} on screen, not a standing figure"

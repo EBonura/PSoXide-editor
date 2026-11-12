@@ -2,10 +2,64 @@
 
 use super::*;
 
+/// What one emitter's particles are drawn with: its own sprite (a Material's
+/// image, resolved by the texture cache as the cook resolves it) or the
+/// built-in disc.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct PreviewParticleSprite {
+    pub(crate) slot: MaterialSlot,
+    pub(crate) uv_min: (u8, u8),
+    pub(crate) uv_max: (u8, u8),
+    /// Whether the emitter's own sprite is in use (false: the disc); tests
+    /// read it.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) textured: bool,
+}
+
+/// The sprite for an emitter whose `texture` is given. The runtime samples
+/// the whole sprite, UV 0 to size-1 inside its texture window; the disc keeps
+/// the shared page's fixed rectangle. A sprite the cache cannot place (no
+/// image, a missing resource) falls back to the disc, as the cook does.
+pub(crate) fn particle_sprite(
+    textures: &crate::editor_textures::EditorTextures,
+    texture: Option<psxed_project::ResourceId>,
+) -> PreviewParticleSprite {
+    if let Some(slot) = texture.and_then(|id| textures.slot(id)) {
+        return PreviewParticleSprite {
+            slot,
+            uv_min: (0, 0),
+            uv_max: (
+                slot.texture_width.saturating_sub(1),
+                slot.texture_height.saturating_sub(1),
+            ),
+            textured: true,
+        };
+    }
+    let slot = textures.particle_slot();
+    PreviewParticleSprite {
+        slot,
+        uv_min: (PREVIEW_PARTICLE_TEXEL_U, PREVIEW_PARTICLE_TEXEL_V),
+        uv_max: (
+            PREVIEW_PARTICLE_TEXEL_U + slot.texture_width.saturating_sub(1),
+            PREVIEW_PARTICLE_TEXEL_V + slot.texture_height.saturating_sub(1),
+        ),
+        textured: false,
+    }
+}
+
+/// The blend the runtime draws an emitter with: its cooked two-bit code, where
+/// Opaque and Average share code 0.
+fn particle_blend(mode: psxed_project::PsxBlendMode) -> BlendMode {
+    match psx_blend_mode(mode) {
+        BlendMode::Opaque => BlendMode::Average,
+        other => other,
+    }
+}
+
 pub(crate) fn walk_particle_emitters(
     project: &ProjectDocument,
     hidden_scene_nodes: &HashSet<NodeId>,
-    particle_slot: MaterialSlot,
+    textures: &crate::editor_textures::EditorTextures,
     preview_tick: u32,
     scratch: &mut PreviewScratch,
 ) {
@@ -21,7 +75,7 @@ pub(crate) fn walk_particle_emitters(
         push_particle_emitter_preview(
             settings,
             psx_engine::WorldVertex::new(x.round() as i32, y.round() as i32, z.round() as i32),
-            particle_slot,
+            particle_sprite(textures, settings.texture),
             preview_tick,
             scratch,
         );
@@ -31,7 +85,7 @@ pub(crate) fn walk_particle_emitters(
 pub(crate) fn push_particle_emitter_preview(
     settings: &psxed_project::ParticleEmitterSettings,
     origin: psx_engine::WorldVertex,
-    particle_slot: MaterialSlot,
+    sprite: PreviewParticleSprite,
     preview_tick: u32,
     scratch: &mut PreviewScratch,
 ) {
@@ -57,7 +111,7 @@ pub(crate) fn push_particle_emitter_preview(
         push_particle_preview_sample(
             settings,
             origin,
-            particle_slot,
+            sprite,
             seed,
             age as i32,
             lifetime as i32,
@@ -69,7 +123,7 @@ pub(crate) fn push_particle_emitter_preview(
 fn push_particle_preview_sample(
     settings: &psxed_project::ParticleEmitterSettings,
     origin: psx_engine::WorldVertex,
-    particle_slot: MaterialSlot,
+    sprite: PreviewParticleSprite,
     seed: u32,
     age: i32,
     lifetime: i32,
@@ -129,9 +183,9 @@ fn push_particle_preview_sample(
     push_particle_preview_quad(
         projected,
         half,
-        particle_slot,
+        sprite,
         tint,
-        psx_blend_mode(settings.blend_mode),
+        particle_blend(settings.blend_mode),
         scratch,
     );
 }
@@ -139,7 +193,7 @@ fn push_particle_preview_sample(
 fn push_particle_preview_quad(
     center: psx_gte::scene::Projected,
     half: i16,
-    particle_slot: MaterialSlot,
+    sprite: PreviewParticleSprite,
     tint: (u8, u8, u8),
     blend_mode: BlendMode,
     scratch: &mut PreviewScratch,
@@ -158,11 +212,9 @@ fn push_particle_preview_quad(
     if left == right || top == bottom {
         return;
     }
-    let u0 = PREVIEW_PARTICLE_TEXEL_U;
-    let v0 = PREVIEW_PARTICLE_TEXEL_V;
-    let u1 = u0 + particle_slot.texture_width.saturating_sub(1);
-    let v1 = v0 + particle_slot.texture_height.saturating_sub(1);
-    let material = preview_texture_material(particle_slot, tint, blend_mode);
+    let (u0, v0) = sprite.uv_min;
+    let (u1, v1) = sprite.uv_max;
+    let material = preview_texture_material(sprite.slot, tint, blend_mode);
     let idx = scratch.particle_used;
     scratch.particle_quads[idx] = QuadTexturedMaterial::with_material(
         [(left, top), (right, top), (left, bottom), (right, bottom)],
@@ -239,4 +291,79 @@ fn preview_particle_lerp_rgb(a: [u8; 3], b: [u8; 3], t_q8: i32) -> (u8, u8, u8) 
 fn preview_particle_lerp_u8(a: u8, b: u8, t_q8: i32) -> u8 {
     let inv = 255 - t_q8;
     (((i32::from(a) * inv) + (i32::from(b) * t_q8)) / 255).clamp(0, 255) as u8
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::editor_textures::EditorTextures;
+    use psxed_project::{MaterialResource, MaterialTextureMode, ProjectDocument, ResourceData};
+    use std::path::Path;
+
+    fn project_with_sprite() -> (ProjectDocument, psxed_project::ResourceId) {
+        let mut project = ProjectDocument::new("particle sprite");
+        let mut material = MaterialResource::opaque(None);
+        material.texture_mode = MaterialTextureMode::Generated;
+        let id = project.add_resource("FX / Puff", ResourceData::Material(material));
+        let scene = project.active_scene_mut();
+        scene.add_node(
+            scene.root,
+            "Smoke",
+            NodeKind::ParticleEmitter {
+                settings: psxed_project::ParticleEmitterSettings {
+                    texture: Some(id),
+                    ..Default::default()
+                },
+            },
+        );
+        (project, id)
+    }
+
+    #[test]
+    fn a_textured_emitter_draws_its_sprite_and_an_untextured_one_the_disc() {
+        let (project, id) = project_with_sprite();
+        let mut textures = EditorTextures::new();
+        textures.refresh(&project, Path::new("."));
+        let slot = textures.slot(id).expect("the sprite is in the cache");
+
+        let sprite = particle_sprite(&textures, Some(id));
+        assert!(sprite.textured);
+        assert_eq!(sprite.slot.clut_word, slot.clut_word);
+        assert_eq!(sprite.slot.tpage_word, slot.tpage_word);
+        assert_eq!(sprite.uv_min, (0, 0));
+        assert_eq!(
+            sprite.uv_max,
+            (slot.texture_width - 1, slot.texture_height - 1)
+        );
+
+        let disc = particle_sprite(&textures, None);
+        assert!(!disc.textured);
+        assert_eq!(disc.slot.clut_word, textures.particle_slot().clut_word);
+        assert_eq!(
+            disc.uv_min,
+            (PREVIEW_PARTICLE_TEXEL_U, PREVIEW_PARTICLE_TEXEL_V)
+        );
+        assert_ne!(disc.slot.clut_word, sprite.slot.clut_word);
+
+        // A sprite the cache does not hold (missing resource) is the disc too.
+        let mut other = ProjectDocument::new("elsewhere");
+        let missing = (0..8)
+            .map(|n| {
+                other.add_resource(
+                    format!("R{n}"),
+                    ResourceData::Material(MaterialResource::opaque(None)),
+                )
+            })
+            .last()
+            .unwrap();
+        assert!(!particle_sprite(&textures, Some(missing)).textured);
+    }
+
+    #[test]
+    fn emitter_blend_follows_the_cooked_code() {
+        use psxed_project::PsxBlendMode as P;
+        assert!(matches!(particle_blend(P::Add), BlendMode::Add));
+        assert!(matches!(particle_blend(P::Opaque), BlendMode::Average));
+        assert!(matches!(particle_blend(P::Average), BlendMode::Average));
+    }
 }

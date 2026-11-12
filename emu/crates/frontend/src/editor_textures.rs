@@ -1032,6 +1032,7 @@ fn preview_texture_upload_plan(
     }
 
     push_image_prop_material_uploads(project, project_root, &mut plan);
+    push_particle_sprite_uploads(project, project_root, &mut plan);
 
     for resource in &project.resources {
         if matches!(&resource.data, ResourceData::Material(_)) {
@@ -1218,6 +1219,23 @@ fn push_image_prop_material_uploads(
             continue;
         };
         push_material_resource_upload(project, *material_id, false, project_root, plan);
+    }
+}
+
+/// The sprites of the scene's particle emitters, placed ahead of the unused
+/// library entries so a large palette cannot starve them.
+fn push_particle_sprite_uploads(
+    project: &ProjectDocument,
+    project_root: &Path,
+    plan: &mut Vec<PreviewTextureUploadPlan>,
+) {
+    for node in project.active_scene().nodes() {
+        let NodeKind::ParticleEmitter { settings } = &node.kind else {
+            continue;
+        };
+        if let Some(sprite) = settings.texture {
+            push_material_resource_upload(project, sprite, false, project_root, plan);
+        }
     }
 }
 
