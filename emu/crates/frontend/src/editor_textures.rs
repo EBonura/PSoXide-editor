@@ -46,6 +46,21 @@ const ROOM_CLUT_HALFWORDS: u16 = 16;
 const PREVIEW_CLUT_X_LIMIT: u16 = 320;
 const ROOM_CLUT_FIRST_Y: u16 = 240;
 const ROOM_CLUT_LAST_Y: u16 = 243;
+/// Palettes the framebuffer-tail band holds: 20 to a row over
+/// `ROOM_CLUT_FIRST_Y..=ROOM_CLUT_LAST_Y`.
+const ROOM_CLUT_BAND_CAPACITY: usize = (PREVIEW_CLUT_X_LIMIT / ROOM_CLUT_HALFWORDS) as usize
+    * (ROOM_CLUT_LAST_Y - ROOM_CLUT_FIRST_Y + 1) as usize;
+/// Edge of the texture-page tile the room palettes spill into once the band
+/// is full. A 64 texel tile is 16 halfwords wide, exactly one 4bpp palette,
+/// and 64 rows tall, so one tile carries 64 more palettes.
+const ROOM_PALETTE_TILE_TEXELS: u16 = 64;
+const ROOM_PALETTE_TILE_ROWS: u16 = ROOM_PALETTE_TILE_TEXELS;
+/// Room textures the upper tpage row cannot hold (the cube sky alone takes
+/// six of its eleven pages) go to the lower row, `y = 256`, which model
+/// atlases fill from the left. Room spill pages are taken from the right,
+/// tpage 14 downwards; tpage 15 is the shadow and particle page.
+const SPILL_FIRST_TPAGE: u16 = 14;
+const SPILL_PAGE_COUNT: usize = SPILL_FIRST_TPAGE as usize + 1;
 const SCENE_SKY_CLUT_X: u16 = 0;
 const SCENE_SKY_CLUT_Y: u16 = 244;
 const SCENE_SKY_LAYERED_PAGES: usize = 1;
@@ -138,11 +153,29 @@ pub struct EditorTextures {
     room_signature: Vec<PreviewTextureSignature>,
     /// 8-texel-grid allocator for room textures inside tpages 5..15.
     room_allocator: TextureWindowAtlas<ROOM_TPAGE_COUNT>,
+    /// Overflow room windows in the lower tpage row (`y = 256`); page `k`
+    /// is tpage `SPILL_FIRST_TPAGE - k`.
+    spill_allocator: TextureWindowAtlas<SPILL_PAGE_COUNT>,
+    /// Lowest tpage the lower row's room spill has used, so model atlases
+    /// stop short of it. `SPILL_FIRST_TPAGE + 1` while nothing is spilled.
+    spill_low_tpage: u16,
     /// Halfword X-coord of the next free 4bpp CLUT slot. Each
     /// 4bpp CLUT is 16 halfwords wide.
     next_clut_x: u16,
     /// Y-coord of the next room-material CLUT row in the framebuffer tail.
     next_clut_y: u16,
+    /// The room palette band is full and so is the atlas: nothing more can
+    /// take a palette until the next rebuild.
+    palettes_full: bool,
+    /// Where the next spilled room palette goes: the tile's X (halfwords),
+    /// the Y of its next free row, and how many rows are left. A palette
+    /// is read from anywhere in VRAM, so once the framebuffer-tail band's
+    /// 80 are used the rest live in 64x64 tiles taken from the room atlas.
+    spill_x: u16,
+    spill_y: u16,
+    spill_rows_left: u16,
+    /// Number of unplaced materials the last logged overflow reported.
+    logged_unplaced: usize,
     /// Halfword X-coord cursor inside the indexed model-atlas tpage
     /// row at y=256. Each atlas advances this by its halfword
     /// stride.
@@ -230,8 +263,15 @@ impl EditorTextures {
             scene_sky_signature: None,
             room_signature: Vec::new(),
             room_allocator: TextureWindowAtlas::new(),
+            spill_allocator: TextureWindowAtlas::new(),
+            spill_low_tpage: SPILL_FIRST_TPAGE + 1,
             next_clut_x: 0,
             next_clut_y: ROOM_CLUT_FIRST_Y,
+            palettes_full: false,
+            spill_x: 0,
+            spill_y: 0,
+            spill_rows_left: 0,
+            logged_unplaced: 0,
             // Model atlases live at the tpage row at y=256.
             // Cursor advances by halfword stride per atlas.
             next_model_tpage_x: 0,
@@ -358,10 +398,12 @@ impl EditorTextures {
                 .and_then(|bytes| self.upload_scene_sky_psxt(sky.signature.mode, bytes))
         });
 
+        let mut unplaced: Vec<String> = Vec::new();
         for item in plan {
             if !self.has_room_material_slot() {
-                // Out of slots. Don't insert a stale cache entry.
-                break;
+                // Out of palettes and out of atlas to make more from.
+                unplaced.push(item.name);
+                continue;
             }
             let transition_bytes = item.transition.as_ref().and_then(|source| {
                 psxed_project::generate_transition_material_texture_psxt(
@@ -393,7 +435,8 @@ impl EditorTextures {
                         .flatten()
                 });
             let Some(slot) = slot else {
-                break;
+                unplaced.push(item.name);
+                continue;
             };
             self.cache.insert(item.id, CacheEntry { slot });
             let secondary_slot = match item.secondary.as_ref() {
@@ -419,20 +462,55 @@ impl EditorTextures {
                 self.secondary_cache.insert(item.id, CacheEntry { slot });
             }
         }
+        self.log_unplaced(&unplaced);
+    }
+
+    /// Says, once per distinct count, that materials went without a preview
+    /// texture (they draw flat). A rebuild that loses the same number again
+    /// stays quiet.
+    fn log_unplaced(&mut self, unplaced: &[String]) {
+        if unplaced.len() == self.logged_unplaced {
+            return;
+        }
+        self.logged_unplaced = unplaced.len();
+        if unplaced.is_empty() {
+            return;
+        }
+        let shown: Vec<&str> = unplaced.iter().take(6).map(String::as_str).collect();
+        eprintln!(
+            "[editor textures] {} material(s) have no preview texture: the room atlas is out of \
+             palettes or tiles ({} in the band, then 64 per spilled tile): {}{}",
+            unplaced.len(),
+            ROOM_CLUT_BAND_CAPACITY,
+            shown.join(", "),
+            if unplaced.len() > shown.len() {
+                ", ..."
+            } else {
+                ""
+            },
+        );
     }
 
     fn has_room_material_slot(&self) -> bool {
-        self.next_clut_y <= ROOM_CLUT_LAST_Y
-            && (self.next_clut_x + ROOM_CLUT_HALFWORDS <= PREVIEW_CLUT_X_LIMIT
-                || self.next_clut_y < ROOM_CLUT_LAST_Y)
+        !self.palettes_full
     }
 
     fn clear_room_materials(&mut self) {
         self.cache.clear();
         self.secondary_cache.clear();
         self.room_allocator.clear();
+        self.spill_allocator.clear();
+        let spill_x0 = usize::from(self.spill_low_tpage) * ROOM_TPAGE_HALFWORDS;
+        let spill_x1 = (usize::from(SPILL_FIRST_TPAGE) + 1) * ROOM_TPAGE_HALFWORDS;
+        for row in 256..512 {
+            let base = row * VRAM_WIDTH as usize;
+            self.vram[base + spill_x0..base + spill_x1].fill(0);
+        }
+        self.spill_low_tpage = SPILL_FIRST_TPAGE + 1;
         self.next_clut_x = 0;
         self.next_clut_y = ROOM_CLUT_FIRST_Y;
+        self.palettes_full = false;
+        self.spill_rows_left = 0;
 
         let x0 = ROOM_FIRST_TPAGE as usize * ROOM_TPAGE_HALFWORDS;
         let x1 = (ROOM_LAST_TPAGE as usize + 1) * ROOM_TPAGE_HALFWORDS;
@@ -587,14 +665,11 @@ impl EditorTextures {
         }
         let (clut_x, clut_y) = self.allocate_room_clut()?;
 
-        let placement = self
-            .room_allocator
-            .allocate(u16::from(texture_width), u16::from(texture_height))?;
-        let tpage_index = u16::from(ROOM_FIRST_TPAGE).checked_add(placement.page_index())?;
-        let tpage_x = tpage_index.checked_mul(64)?;
+        let window =
+            self.allocate_room_window(u16::from(texture_width), u16::from(texture_height))?;
         if !self.upload_compact_4bpp_texture(
-            tpage_x.checked_add(u16::from(placement.origin_u()) / 4)?,
-            u16::from(placement.origin_v()),
+            window.x,
+            window.y,
             texture_width_halfwords,
             texture_height_rows,
             &texture,
@@ -627,11 +702,11 @@ impl EditorTextures {
         }
 
         let slot = MaterialSlot {
-            tpage_word: pack_tpage_word(tpage_index, 0),
+            tpage_word: pack_tpage_word(window.tpage_index, window.y_block),
             clut_word: pack_clut_word(clut_x, clut_y),
             texture_window: TextureWindow::power_of_two_tile(
-                placement.origin_u(),
-                placement.origin_v(),
+                window.origin_u,
+                window.origin_v,
                 texture_width,
                 texture_height,
             ),
@@ -683,21 +758,15 @@ impl EditorTextures {
     fn upload_procedural(&mut self, material_name: &str) -> Option<MaterialSlot> {
         let pattern = pattern_for_name(material_name);
         let (clut_x, clut_y) = self.allocate_room_clut()?;
-        let placement = self.room_allocator.allocate(64, 64)?;
-        let tpage_index = u16::from(ROOM_FIRST_TPAGE).checked_add(placement.page_index())?;
-        let tpage_x = tpage_index.checked_mul(64)?;
-        self.upload_4bpp(
-            tpage_x.checked_add(u16::from(placement.origin_u()) / 4)?,
-            u16::from(placement.origin_v()),
-            &pattern.pixels,
-        );
+        let window = self.allocate_room_window(64, 64)?;
+        self.upload_4bpp(window.x, window.y, &pattern.pixels);
         self.upload_clut(clut_x, clut_y, &pattern.palette);
         let slot = MaterialSlot {
-            tpage_word: pack_tpage_word(tpage_index, 0),
+            tpage_word: pack_tpage_word(window.tpage_index, window.y_block),
             clut_word: pack_clut_word(clut_x, clut_y),
             texture_window: TextureWindow::power_of_two_tile(
-                placement.origin_u(),
-                placement.origin_v(),
+                window.origin_u,
+                window.origin_v,
                 64,
                 64,
             ),
@@ -707,16 +776,64 @@ impl EditorTextures {
         Some(slot)
     }
 
+    /// A texture window of `width` x `height` texels for a room material or
+    /// a spilled palette tile: the upper tpage row first, then the lower row
+    /// from the right, where model atlases have not been placed.
+    fn allocate_room_window(&mut self, width: u16, height: u16) -> Option<RoomWindow> {
+        if let Some(placement) = self.room_allocator.allocate(width, height) {
+            let tpage_index = u16::from(ROOM_FIRST_TPAGE).checked_add(placement.page_index())?;
+            return Some(RoomWindow::new(
+                tpage_index,
+                0,
+                placement.origin_u(),
+                placement.origin_v(),
+            ));
+        }
+        let placement = self.spill_allocator.allocate(width, height)?;
+        let tpage_index = SPILL_FIRST_TPAGE.checked_sub(placement.page_index())?;
+        // Model atlases own the lower row from the left; never reach into them.
+        if tpage_index.saturating_mul(64) < self.next_model_tpage_x {
+            self.spill_allocator.release(placement);
+            return None;
+        }
+        self.spill_low_tpage = self.spill_low_tpage.min(tpage_index);
+        Some(RoomWindow::new(
+            tpage_index,
+            1,
+            placement.origin_u(),
+            placement.origin_v(),
+        ))
+    }
+
+    /// The next free 16-entry palette for a room material: the
+    /// framebuffer-tail band first, then rows of 64x64 tiles carved out of
+    /// the room atlas (64 palettes a tile). The first hundred-odd materials
+    /// of a big project used to take every palette and leave the rest flat.
     fn allocate_room_clut(&mut self) -> Option<(u16, u16)> {
         if self.next_clut_x + ROOM_CLUT_HALFWORDS > PREVIEW_CLUT_X_LIMIT {
             self.next_clut_x = 0;
             self.next_clut_y = self.next_clut_y.saturating_add(1);
         }
-        if self.next_clut_y > ROOM_CLUT_LAST_Y {
-            return None;
+        if self.next_clut_y <= ROOM_CLUT_LAST_Y {
+            let slot = (self.next_clut_x, self.next_clut_y);
+            self.next_clut_x = self.next_clut_x.saturating_add(ROOM_CLUT_HALFWORDS);
+            return Some(slot);
         }
-        let slot = (self.next_clut_x, self.next_clut_y);
-        self.next_clut_x = self.next_clut_x.saturating_add(ROOM_CLUT_HALFWORDS);
+        if self.spill_rows_left == 0 {
+            let Some(tile) =
+                self.allocate_room_window(ROOM_PALETTE_TILE_TEXELS, ROOM_PALETTE_TILE_TEXELS)
+            else {
+                self.palettes_full = true;
+                return None;
+            };
+            // 64 texel aligned, so a whole number of palette columns.
+            self.spill_x = tile.x;
+            self.spill_y = tile.y;
+            self.spill_rows_left = ROOM_PALETTE_TILE_ROWS;
+        }
+        let slot = (self.spill_x, self.spill_y);
+        self.spill_y += 1;
+        self.spill_rows_left -= 1;
         Some(slot)
     }
 
@@ -915,8 +1032,11 @@ impl EditorTextures {
             MODEL_TPAGE_MAX_HALFWORDS
         };
         let aligned_tpage_x = align_up_to(self.next_model_tpage_x, MODEL_TPAGE_ALIGNMENT_HALFWORDS);
-        if aligned_tpage_x >= SHADOW_TPAGE_X
-            || aligned_tpage_x.saturating_add(slot_halfwords) > SHADOW_TPAGE_X
+        // Stop short of the shadow page and of any room textures spilled
+        // into this row from the right.
+        let model_limit = SHADOW_TPAGE_X.min(self.spill_low_tpage.saturating_mul(64));
+        if aligned_tpage_x >= model_limit
+            || aligned_tpage_x.saturating_add(slot_halfwords) > model_limit
         {
             return None;
         }
@@ -979,6 +1099,31 @@ impl EditorTextures {
         // whether the atlas consumes one or two base columns.
         self.next_model_tpage_x = aligned_tpage_x.saturating_add(slot_halfwords);
         Some(slot)
+    }
+}
+
+/// Where a room window landed: tpage, which tpage row, the origin inside the
+/// page, and the same as absolute VRAM halfword and row coordinates.
+#[derive(Debug, Clone, Copy)]
+struct RoomWindow {
+    tpage_index: u16,
+    y_block: u16,
+    origin_u: u8,
+    origin_v: u8,
+    x: u16,
+    y: u16,
+}
+
+impl RoomWindow {
+    fn new(tpage_index: u16, y_block: u16, origin_u: u8, origin_v: u8) -> Self {
+        Self {
+            tpage_index,
+            y_block,
+            origin_u,
+            origin_v,
+            x: tpage_index * 64 + u16::from(origin_u) / 4,
+            y: y_block * 256 + u16::from(origin_v),
+        }
     }
 }
 
@@ -2121,7 +2266,7 @@ mod tests {
     #[test]
     fn refresh_prioritizes_scene_materials_over_resource_order() {
         let mut project = ProjectDocument::new("preview");
-        let unused: Vec<_> = (0..80)
+        let unused: Vec<_> = (0..700)
             .map(|index| add_material(&mut project, format!("Unused {index}")))
             .collect();
         let used = add_material(&mut project, "Active Late Material");
@@ -2148,7 +2293,108 @@ mod tests {
 
         assert!(textures.slot(used).is_some());
         assert!(textures.slot(unused[70]).is_some());
-        assert!(textures.slot(unused[79]).is_none());
+        assert!(textures.slot(unused[699]).is_none());
+    }
+
+    /// More materials than the 80 palettes of the framebuffer-tail band: the
+    /// rest take palettes from tiles of the room atlas, so a visible emitter
+    /// sprite and a visible mesh material resolve however late they come in
+    /// the world's order.
+    #[test]
+    fn more_materials_than_the_palette_band_all_get_slots() {
+        use psxed_project::grid::{GridMesh, GridRoom, GridSurface, GridWorld, SceneWorld};
+
+        let mut project = ProjectDocument::new("crowded");
+        // 100 materials on a row of sectors come first in the world's
+        // material order and used to take every palette.
+        let floor: Vec<_> = (0..250)
+            .map(|index| add_material(&mut project, format!("Floor {index}")))
+            .collect();
+        let mesh_material = add_material(&mut project, "Prop");
+        let sprite = add_material(&mut project, "Smoke");
+        let mut room = GridRoom::new("row", 250, 1);
+        for (index, id) in floor.iter().enumerate() {
+            room.sector_or_insert(index, 0)
+                .unwrap()
+                .set_ground_floor(Some(GridSurface::flat(0, Some(*id))));
+        }
+        let mut mesh = GridMesh::new(1, 0, [512, 0, 512]);
+        mesh.materials = vec![Some(mesh_material)];
+        room.meshes.push(mesh);
+        project.active_scene_mut().world = SceneWorld::Grid(GridWorld {
+            rooms: vec![room],
+            ..GridWorld::new()
+        });
+        let scene = project.active_scene_mut();
+        let mut settings = psxed_project::ParticleEmitterSettings::default();
+        settings.texture = Some(sprite);
+        scene.add_node(scene.root, "Smoke", NodeKind::ParticleEmitter { settings });
+
+        let mut textures = EditorTextures::new();
+        textures.refresh(&project, Path::new("."));
+
+        let mut seen = std::collections::HashSet::new();
+        for id in floor.iter().chain([&mesh_material, &sprite]) {
+            let slot = textures
+                .slot(*id)
+                .unwrap_or_else(|| panic!("material {id:?} has no slot"));
+            assert!(
+                seen.insert(slot.clut_word),
+                "each material keeps its own palette"
+            );
+            // The palette is in VRAM, away from every texture window.
+            let x = usize::from(slot.clut_word & 0x3f) * 16;
+            let y = usize::from(slot.clut_word >> 6);
+            assert_ne!(
+                textures.vram_words()[y * VRAM_WIDTH as usize + x + 1],
+                0,
+                "palette entry survives"
+            );
+        }
+        assert!(seen.len() > super::ROOM_CLUT_BAND_CAPACITY);
+        assert!(
+            textures.spill_low_tpage <= super::SPILL_FIRST_TPAGE,
+            "more textures than the upper row holds spill into the lower row"
+        );
+        assert_ne!(
+            textures.slot(sprite).unwrap().tpage_word & 0x10,
+            0,
+            "the late sprite sits in the lower tpage row"
+        );
+        assert_eq!(textures.slot(floor[0]).unwrap().tpage_word & 0x10, 0);
+        assert_eq!(textures.logged_unplaced, 0);
+    }
+
+    /// Spilled room textures never land on a model atlas: with the model row
+    /// claimed up to the shadow page there is nowhere to spill, and the
+    /// materials past the upper row are reported, not drawn over the atlas.
+    #[test]
+    fn room_spill_stays_clear_of_model_atlases() {
+        let mut project = ProjectDocument::new("claimed");
+        let ids: Vec<_> = (0..300)
+            .map(|index| add_material(&mut project, format!("M {index}")))
+            .collect();
+        let mut textures = EditorTextures::new();
+        textures.next_model_tpage_x = 15 * 64;
+        textures.refresh(&project, Path::new("."));
+        assert!(textures.slot(ids[0]).is_some());
+        assert!(textures.slot(ids[299]).is_none());
+        assert_eq!(textures.spill_low_tpage, super::SPILL_FIRST_TPAGE + 1);
+    }
+
+    /// A project past even the spilled capacity keeps what it placed, drops
+    /// the rest, and says so (once).
+    #[test]
+    fn a_hopeless_project_drops_the_tail_and_reports_it() {
+        let mut project = ProjectDocument::new("hopeless");
+        let ids: Vec<_> = (0..700)
+            .map(|index| add_material(&mut project, format!("M {index}")))
+            .collect();
+        let mut textures = EditorTextures::new();
+        textures.refresh(&project, Path::new("."));
+        assert!(textures.slot(ids[0]).is_some());
+        assert!(textures.slot(ids[699]).is_none());
+        assert!(textures.logged_unplaced > 0);
     }
 
     /// Full-height model atlases and room palettes occupy disjoint regions.
