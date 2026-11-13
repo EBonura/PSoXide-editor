@@ -15,7 +15,7 @@ use super::*;
 use super::grid_cache::{
     BoxSource, GridGeometry, LazyBox, PreparedFace, PreparedPiece, PreparedRoom, RoomsToDraw,
 };
-use psxed_project::grid::faces::{cell_faces_with, GridFace};
+use psxed_project::grid::faces::{GridFace, cell_faces_with};
 use psxed_project::grid::lighting::{BakeRig, Gather, GiField, LightScene};
 use psxed_project::grid::mesh_faces::{mesh_faces_with, placed as placed_mesh};
 use psxed_project::grid::plane_faces::plane_faces_with;
@@ -105,11 +105,15 @@ fn prepare_piece(
         fallback_face_color(face.cell[0].unsigned_abs() as usize),
         textures,
     );
-    let sidedness = if face.double_sided {
-        psxed_project::MaterialFaceSidedness::Both
-    } else {
-        psxed_project::MaterialFaceSidedness::Front
-    };
+    // The cook marks a quad double sided when the face asks for it or its
+    // material is Both (`add_piece`); the material's choice used to be
+    // overwritten here, so a Both mesh showed from its front only.
+    let sidedness =
+        if face.double_sided || shade.sidedness() == psxed_project::MaterialFaceSidedness::Both {
+            psxed_project::MaterialFaceSidedness::Both
+        } else {
+            psxed_project::MaterialFaceSidedness::Front
+        };
     let shade = shade.with_sidedness(sidedness);
     let tint = match shade {
         FaceShade::Flat { rgb, .. } => [rgb.0, rgb.1, rgb.2],
@@ -470,4 +474,104 @@ fn plane_bounds(
 pub(super) fn grid_world_bounds(project: &ProjectDocument) -> Option<([f64; 3], [f64; 3])> {
     let bounds = project.active_scene().world.grid()?.editor_bounds()?;
     Some((bounds.min.map(f64::from), bounds.max.map(f64::from)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use psxed_project::grid::mesh::{ImportProxy, ImportedMesh};
+    use psxed_project::grid::mesh::{MeshAsset, MeshKind};
+    use psxed_project::{MaterialFaceSidedness, MaterialResource, ResourceData};
+
+    /// A flat wall like the Cortex laser rib wall: 5120 by 1792 grid units in
+    /// the XY plane, texel UVs at 32 grid units to a texel (one OBJ unit is a 64 texel tile).
+    const WALL_OBJ: &str = "v 0 0 0\nv 5120 0 0\nv 5120 1792 0\nv 0 1792 0\n\
+vt 0 0.875\nvt 2.5 0.875\nvt 2.5 0\nvt 0 0\nf 1/1 2/2 3/3 4/4\n";
+
+    /// One room holding one instance of the wall, drawn with `material`.
+    fn wall_world_and_project(sidedness: MaterialFaceSidedness) -> (ProjectDocument, GridWorld) {
+        let mut project = ProjectDocument::new("mesh-preview");
+        let mut data = MaterialResource::opaque(None);
+        data.face_sidedness = sidedness;
+        data.sync_legacy_sidedness();
+        let material = project.add_resource("wall", ResourceData::Material(data));
+        let imported = ImportedMesh::from_obj(WALL_OBJ, 1.0, "wall.obj", ImportProxy::default())
+            .expect("the wall parses");
+        let mut room = GridRoom::new("r", 8, 4);
+        let mut mesh = psxed_project::grid::mesh::GridMesh::new(1, 0, [1024, 0, 2048]);
+        mesh.set_material(0, Some(material));
+        room.meshes.push(mesh);
+        let world = GridWorld {
+            rooms: vec![room],
+            mesh_assets: vec![MeshAsset::new("wall", MeshKind::Imported(imported))],
+            ..GridWorld::default()
+        };
+        (project, world)
+    }
+
+    /// The faces of the wall instance and what the preview prepares from them.
+    fn prepared_wall(sidedness: MaterialFaceSidedness) -> (Vec<GridFace>, Vec<PreparedFace>) {
+        let (project, world) = wall_world_and_project(sidedness);
+        let mut textures = EditorTextures::new();
+        textures.refresh(&project, std::path::Path::new("."));
+        let mut faces = Vec::new();
+        mesh_faces_with(&world, &ProjectUvDefaults(&project), 0, 0, &mut faces);
+        assert!(!faces.is_empty(), "the wall builds");
+        let prepared = with_bake_rig(&world, None, &[], None, |rig| {
+            faces
+                .iter()
+                .map(|face| prepare_face(&project, &textures, world.scale, face, [0; 3], rig))
+                .collect()
+        });
+        (faces, prepared)
+    }
+
+    #[test]
+    fn a_mesh_with_a_both_material_draws_from_both_sides() {
+        let (faces, prepared) = prepared_wall(MaterialFaceSidedness::Both);
+        // The asset face itself is one sided; the material makes it two.
+        assert!(faces.iter().all(|f| !f.double_sided));
+        let pieces: Vec<_> = prepared.iter().flat_map(|f| &f.pieces).collect();
+        assert!(!pieces.is_empty());
+        assert!(
+            pieces
+                .iter()
+                .all(|p| p.shade.sidedness() == MaterialFaceSidedness::Both)
+        );
+    }
+
+    #[test]
+    fn a_mesh_with_a_front_material_stays_one_sided() {
+        let (_, prepared) = prepared_wall(MaterialFaceSidedness::Front);
+        assert!(
+            prepared
+                .iter()
+                .flat_map(|f| &f.pieces)
+                .all(|p| p.shade.sidedness() == MaterialFaceSidedness::Front)
+        );
+    }
+
+    /// The cook places a mesh face's texel UVs by whole texture tiles only
+    /// (`rebase_texels`), so the preview's UVs are the face's texels moved by
+    /// multiples of the tile, never scaled.
+    #[test]
+    fn mesh_uvs_in_the_preview_are_the_cooked_texels_moved_by_whole_tiles() {
+        let (faces, prepared) = prepared_wall(MaterialFaceSidedness::Both);
+        let face = &faces[0];
+        // 5120 by 1792 grid units at 32 per texel.
+        let span = |axis: usize| {
+            let lo = face.texels.iter().map(|t| t[axis]).fold(f64::MAX, f64::min);
+            let hi = face.texels.iter().map(|t| t[axis]).fold(f64::MIN, f64::max);
+            hi - lo
+        };
+        assert_eq!([span(0), span(1)], [160.0, 56.0]);
+        let pieces = &prepared[0].pieces;
+        assert_eq!(pieces.len(), 1, "three tiles fit one primitive");
+        for (uv, texel) in pieces[0].uvs.iter().zip(&face.texels) {
+            for axis in 0..2 {
+                let moved = texel[axis] - uv[axis];
+                assert_eq!(moved.rem_euclid(64.0), 0.0, "{uv:?} from {texel:?}");
+            }
+        }
+    }
 }

@@ -159,6 +159,62 @@ pub(crate) fn clipped_surface_depth_slot(
     preview_depth_slot(range, avg_sz as u32)
 }
 
+/// Deepest span, in view units, a translucent polygon may keep whole.
+pub(crate) const TRANSLUCENT_SLICE_DEPTH: i32 = 1024;
+/// Most halvings of a translucent polygon's depth span (so at most 2^n pieces).
+pub(crate) const TRANSLUCENT_SLICE_LEVELS: u32 = 4;
+
+/// Cut a convex view-space polygon into pieces whose depth spans are at most
+/// `max_span`, by halving the span with planes of constant depth, at most
+/// `levels` deep. UVs and colours interpolate linearly in view space, as the
+/// clip does, so a piece carries the same picture as the whole.
+pub(crate) fn slice_polygon_by_depth(
+    poly: &[PreviewClipVertex],
+    max_span: i32,
+    levels: u32,
+    out: &mut Vec<Vec<PreviewClipVertex>>,
+) {
+    if poly.len() < 3 {
+        return;
+    }
+    let (lo, hi) = poly.iter().fold((i32::MAX, i32::MIN), |(lo, hi), v| {
+        (lo.min(v.view.z), hi.max(v.view.z))
+    });
+    if levels == 0 || i64::from(hi) - i64::from(lo) <= i64::from(max_span) {
+        out.push(poly.to_vec());
+        return;
+    }
+    let mid = ((i64::from(lo) + i64::from(hi)) / 2) as i32;
+    for far in [false, true] {
+        // Signed distance inside the half: z - mid for the far half, mid - z
+        // for the near one.
+        let distance = |v: &PreviewClipVertex| {
+            let d = i64::from(v.view.z) - i64::from(mid);
+            if far { d } else { -d }
+        };
+        let mut piece: Vec<PreviewClipVertex> = Vec::with_capacity(poly.len() + 2);
+        let mut previous = poly[poly.len() - 1];
+        let mut previous_distance = distance(&previous);
+        for &current in poly {
+            let current_distance = distance(&current);
+            if (previous_distance >= 0) != (current_distance >= 0) {
+                piece.push(interpolate_preview_clip_vertex(
+                    previous,
+                    current,
+                    previous_distance,
+                    current_distance,
+                ));
+            }
+            if current_distance >= 0 {
+                piece.push(current);
+            }
+            previous = current;
+            previous_distance = current_distance;
+        }
+        slice_polygon_by_depth(&piece, max_span, levels - 1, out);
+    }
+}
+
 /// Clip one world-space editor guide segment to the preview frustum before
 /// projecting it. Projecting the endpoints independently is not sufficient:
 /// a radius ring or bound can straddle the camera plane while both projected
@@ -653,4 +709,63 @@ pub(crate) fn push_tri_split(
 
 pub(crate) fn projected_avg_sz(p: [psx_gte::scene::Projected; 3]) -> u32 {
     (p[0].sz as u32 + p[1].sz as u32 + p[2].sz as u32) / 3
+}
+
+#[cfg(test)]
+mod depth_slice_tests {
+    use super::*;
+
+    fn corner(x: i32, z: i32, u: f64) -> PreviewClipVertex {
+        PreviewClipVertex::new(
+            psx_engine::ViewVertex::new(x, 0, z),
+            [u, 0.0],
+            (128, 128, 128),
+        )
+    }
+
+    #[test]
+    fn a_polygon_through_a_lot_of_depth_is_cut_into_shallow_slices() {
+        // A wall seen along its length: 100 to 9100 units deep.
+        let wall = [
+            corner(0, 100, 0.0),
+            corner(100, 100, 0.0),
+            corner(100, 9100, 160.0),
+            corner(0, 9100, 160.0),
+        ];
+        let mut slices = Vec::new();
+        slice_polygon_by_depth(&wall, 1024, 4, &mut slices);
+        assert!(slices.len() > 1);
+        for slice in &slices {
+            let z = slice.iter().map(|v| v.view.z);
+            let span = z.clone().max().unwrap() - z.min().unwrap();
+            assert!(span <= 1024, "span {span}");
+        }
+        // The slices cover the whole depth range and carry the texture
+        // coordinate that belongs to their depth.
+        let all: Vec<_> = slices.iter().flatten().collect();
+        assert_eq!(all.iter().map(|v| v.view.z).min(), Some(100));
+        assert_eq!(all.iter().map(|v| v.view.z).max(), Some(9100));
+        for v in all {
+            let expect = f64::from(v.view.z - 100) / 9000.0 * 160.0;
+            let u = v.uv_q16[0] as f64 / 65536.0;
+            assert!(
+                (u - expect).abs() < 0.5,
+                "z {} u {u} expect {expect}",
+                v.view.z
+            );
+        }
+    }
+
+    #[test]
+    fn a_shallow_polygon_is_left_whole() {
+        let quad = [
+            corner(0, 500, 0.0),
+            corner(100, 500, 0.0),
+            corner(100, 900, 8.0),
+            corner(0, 900, 8.0),
+        ];
+        let mut slices = Vec::new();
+        slice_polygon_by_depth(&quad, 1024, 4, &mut slices);
+        assert_eq!(slices, vec![quad.to_vec()]);
+    }
 }

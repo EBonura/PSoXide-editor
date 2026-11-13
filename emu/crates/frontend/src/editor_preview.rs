@@ -16,7 +16,7 @@ use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
 use emulator_core::gpu::GpuCmdLogEntry;
-use psx_engine::{PrimitivePacketArena, PrimitivePacketScratch, PRIMITIVE_PACKET_SLOT_WORDS};
+use psx_engine::{PRIMITIVE_PACKET_SLOT_WORDS, PrimitivePacketArena, PrimitivePacketScratch};
 use psx_gpu::material::{BlendMode, TextureMaterial};
 use psx_gpu::ot::OrderingTable;
 use psx_gpu::prim::QuadGouraud;
@@ -803,7 +803,42 @@ fn emit_uv_polygon(
         );
     }
     let clipped = clip_preview_polygon(camera.projection, &clip_vertices[..verts.len()]);
-    let clipped = clipped.as_slice();
+    // The OT sorts a polygon by its average depth. A translucent surface that
+    // runs through a lot of depth (a wall seen along its length) would sort at
+    // its middle and land over nearer opaque geometry, so it is cut into depth
+    // slices that each sort where they sit. Opaque faces keep their one slot.
+    let translucent = matches!(
+        shade,
+        FaceShade::Textured { blend_mode, .. } if blend_mode != BlendMode::Opaque
+    );
+    if translucent {
+        let mut slices = Vec::new();
+        slice_polygon_by_depth(
+            clipped.as_slice(),
+            TRANSLUCENT_SLICE_DEPTH,
+            TRANSLUCENT_SLICE_LEVELS,
+            &mut slices,
+        );
+        for slice in &slices {
+            emit_clipped_polygon(scratch, camera, shade, slice, colors.is_some());
+        }
+    } else {
+        emit_clipped_polygon(scratch, camera, shade, clipped.as_slice(), colors.is_some());
+    }
+}
+
+/// Project and submit one clipped convex polygon as a fan of triangles in the
+/// ordering-table slot of its average depth.
+fn emit_clipped_polygon(
+    scratch: &mut PreviewScratch,
+    camera: psx_engine::WorldCamera,
+    shade: FaceShade,
+    clipped: &[PreviewClipVertex],
+    gouraud: bool,
+) {
+    if clipped.len() < 3 {
+        return;
+    }
     let surface_slot = clipped_surface_depth_slot(clipped, scratch.depth_range);
     let Some(anchor) = clipped
         .first()
@@ -823,15 +858,14 @@ fn emit_uv_polygon(
         };
         let p = [anchor.0, previous.0, current.0];
         let uvs = [anchor.1, previous.1, current.1];
-        let tri_colors = match colors {
-            Some(_) => [anchor.2, previous.2, current.2],
-            None => {
-                let color = match shade {
-                    FaceShade::Flat { rgb, .. } => rgb,
-                    FaceShade::Textured { tint, .. } => tint,
-                };
-                [color; 3]
-            }
+        let tri_colors = if gouraud {
+            [anchor.2, previous.2, current.2]
+        } else {
+            let color = match shade {
+                FaceShade::Flat { rgb, .. } => rgb,
+                FaceShade::Textured { tint, .. } => tint,
+            };
+            [color; 3]
         };
         let _ = emit_face_tri_lit_at_slot(scratch, p, uvs, shade, tri_colors, surface_slot);
         previous = current;
