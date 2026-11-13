@@ -4034,6 +4034,7 @@ pub(crate) fn draw_node_kind_editor(
                                 damage: 25,
                                 interval_ticks: 30,
                                 start_on: true,
+                                knockback: 160,
                             };
                             changed = true;
                         }
@@ -4231,11 +4232,14 @@ pub(crate) fn draw_node_kind_editor(
                     damage,
                     interval_ticks,
                     start_on,
+                    knockback,
                 } => {
                     ui.weak(
                         "Hurts the player standing inside while it is on. A dash's first \
                          frames pass through. Switch it with On/Off from a Timer, or gate \
-                         it with a Master.",
+                         it with a Master. With a knockback a touch (walking in, or the \
+                         volume switching on around the player) also pushes them out the \
+                         nearer thin face.",
                     );
                     ui.horizontal(|ui| {
                         ui.label(RichText::new("Extent").color(STUDIO_TEXT_WEAK));
@@ -4257,6 +4261,7 @@ pub(crate) fn draw_node_kind_editor(
                     });
                     changed |= drag_u16(ui, "Damage per hit", damage, 1, 1000);
                     changed |= drag_u16(ui, "Re-hit interval (ticks)", interval_ticks, 1, 600);
+                    changed |= drag_u16(ui, "Knockback past the face (0 = none)", knockback, 0, 4096);
                     changed |= ui.checkbox(start_on, "On at level load").changed();
                 }
             }
