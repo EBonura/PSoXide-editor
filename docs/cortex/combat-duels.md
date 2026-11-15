@@ -36,6 +36,13 @@ The complete trace remains in `report.json`; MCP returns its compact summary. Co
 cargo run --release -p psxed-mcp --example duel-report -- path/to/guest.log
 ```
 
+To run several seeds against one disc and keep the numbers, use the sweep example. It builds the disc once (or reuses the newest with `--skip-build`), records the disc and frontend SHA-256, replays each seed and writes `baseline.json` next to the per-seed artifacts:
+
+```
+cargo run --release -p psxed-mcp --example duel-baseline -- \
+    --frontend target/release/psoxide-emulator --project projects/grid-dungeon --seeds 1,2,3,4,5,6,7,8
+```
+
 A death is **completion**, not a balance or flow pass. The report warns when an actor never used a stance, a vitality channel never took damage, or the player never fired. Long chip-damage loops can reach the time limit without triggering the no-damage watchdog. Damage totals measure observed health loss; they are not raw authored damage or exact hit/miss attribution. AI samples visible commitments, but it is a test controller, not a model of human skill.
 
 Duels log only while enabled and add no geometry. Normal Play uses the same shipping build, with the controller inactive until requested. Hardware frame cost has not been measured. Incremental compilation was disabled during verification to avoid recreating the debug caches removed during disk cleanup.
