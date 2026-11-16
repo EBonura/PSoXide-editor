@@ -14,6 +14,8 @@ path = "src/main.rs"
 [dependencies]
 psxed-project = { workspace = true }
 psxed-format  = { workspace = true }
+# The guest rules file `combat::flow_rules` includes reads its numbers off psx_level::CombatStats.
+psx-level     = { path = "../../../engine/crates/psx-level" }
 image         = { workspace = true }
 serde         = { workspace = true }
 serde_json    = { workspace = true }

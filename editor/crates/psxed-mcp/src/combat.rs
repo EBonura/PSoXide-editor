@@ -93,9 +93,12 @@ mod flow_rules;
 /// Report prototype tuning from the canonical guest resource rules.
 pub fn flow_rules() -> serde_json::Value {
     use flow_rules::*;
-    json!({"status":"prototype","scope":"ranged-equipped editor playtests; legacy entity rules otherwise unchanged",
-        "energy":{"max":ENERGY_MAX,"shot_cost_per_projectile":SHOT_COST,"light_contact_gain":MELEE_GAIN,
-            "heavy_contact_gain":HEAVY_GAIN,"floating_gain_per_second":FLOAT_GAIN_PER_SECOND,
+    // The energy economy is per character data now; these are the starting
+    // numbers every character cooks with unless its CombatStats says otherwise.
+    let stats = psx_level::CombatStats::PLAYER;
+    json!({"status":"prototype","scope":"every combatant, player and enemies, always on; numbers are per character CombatStats (starting values below)",
+        "energy":{"max":stats.energy_max,"shot_cost_per_projectile":stats.shot_cost,"light_contact_gain":stats.light_gain,
+            "heavy_contact_gain":stats.heavy_gain,"floating_gain_per_second":FLOAT_GAIN_PER_SECOND,
             "floating_pauses_while_firing":true,"passive_ground_regen":false,
             "enemy_uses_same_energy":true,"enemies_can_hook":false},
         "ai":{"energy_resume_threshold":AI_RESUME_ENERGY,"followup_memory_ticks":FOLLOWUP_TICKS,

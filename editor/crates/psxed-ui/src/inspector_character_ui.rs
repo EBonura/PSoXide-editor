@@ -138,6 +138,16 @@ pub(crate) fn draw_character_resource_editor(
             }
         });
 
+    egui::CollapsingHeader::new(icons::label(icons::FOCUS, "Combat"))
+        .default_open(false)
+        .show(ui, |ui| {
+            let mut stats = character.combat_stats();
+            if draw_combat_stats_fields(ui, &mut stats) {
+                character.combat = Some(stats);
+                changed = true;
+            }
+        });
+
     egui::CollapsingHeader::new(icons::label(icons::BOX, "Model"))
         .default_open(true)
         .show(ui, |ui| {
@@ -532,16 +542,7 @@ fn draw_enemy_behavior_fields(
     changed |= attack_changed;
 
     ui.separator();
-    ui.label(RichText::new("Combat stats").strong());
-    changed |= drag_u16(ui, "Horizon health", &mut enemy.max_health, 1, u16::MAX);
-    changed |= drag_u16(
-        ui,
-        "Zenith health",
-        &mut enemy.max_health_secondary,
-        1,
-        u16::MAX,
-    );
-    changed |= drag_u16(ui, "Poise", &mut enemy.poise, 0, u16::MAX);
+    ui.label(RichText::new("Contact & reward").strong());
     changed |= drag_u16(ui, "Touch damage", &mut enemy.touch_damage, 0, u16::MAX);
     // Zero is deliberately allowed: an enemy that should grant no currency
     // (a scripted set-piece, a respawning trash spawner) authors it here
@@ -549,6 +550,39 @@ fn draw_enemy_behavior_fields(
     changed |= drag_u16(ui, "Soul value", &mut enemy.soul_value, 0, u16::MAX);
 
     (changed, attack_changed)
+}
+
+/// The character's [`psxed_project::CombatStats`]: the same fields for the
+/// player and every enemy. Health and poise used to live on the enemy block.
+fn draw_combat_stats_fields(ui: &mut egui::Ui, stats: &mut psxed_project::CombatStats) -> bool {
+    let mut changed = false;
+    ui.label(RichText::new("Health & poise").strong());
+    changed |= drag_u16(ui, "Horizon health", &mut stats.max_health, 1, u16::MAX);
+    changed |= drag_u16(
+        ui,
+        "Zenith health",
+        &mut stats.max_health_secondary,
+        1,
+        u16::MAX,
+    );
+    changed |= drag_u16(ui, "Poise", &mut stats.poise, 0, u16::MAX);
+    changed |= ui
+        .checkbox(&mut stats.armour_heavy_attack, "Armoured during heavy hits")
+        .changed();
+    changed |= ui
+        .checkbox(&mut stats.armour_authored_window, "Authored armour windows")
+        .changed();
+    ui.separator();
+    ui.label(RichText::new("Opposite stance (Q12, 4096 = 1x)").strong());
+    changed |= drag_u16(ui, "Damage", &mut stats.opposite_damage_q12, 0, u16::MAX);
+    changed |= drag_u16(ui, "Poise", &mut stats.opposite_poise_q12, 0, u16::MAX);
+    ui.separator();
+    ui.label(RichText::new("Energy").strong());
+    changed |= drag_u16(ui, "Maximum", &mut stats.energy_max, 0, u16::MAX);
+    changed |= drag_u16(ui, "Shot cost", &mut stats.shot_cost, 0, u16::MAX);
+    changed |= drag_u16(ui, "Light hit gain", &mut stats.light_gain, 0, u16::MAX);
+    changed |= drag_u16(ui, "Heavy hit gain", &mut stats.heavy_gain, 0, u16::MAX);
+    changed
 }
 
 pub(crate) fn draw_character_controller_settings(
@@ -679,6 +713,16 @@ pub(crate) fn draw_character_controller_settings(
                 );
             });
     }
+
+    egui::CollapsingHeader::new(icons::label(icons::FOCUS, "Combat"))
+        .default_open(false)
+        .show(ui, |ui| {
+            let mut stats = settings.combat_stats();
+            if draw_combat_stats_fields(ui, &mut stats) {
+                settings.combat = Some(stats);
+                changed = true;
+            }
+        });
 
     egui::CollapsingHeader::new(icons::label(icons::FOCUS, "Enemy AI"))
         .default_open(!player_controlled && settings.enemy.is_some())
