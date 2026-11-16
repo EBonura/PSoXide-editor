@@ -44,7 +44,8 @@ fn the_table_shows_bound_fallback_and_missing_per_kit() {
     let project = project("grid-dungeon");
     let (ctx, aletha) = character_on_set(&project, "Aletha");
     let set = ctx.animation_set(aletha.animation_set).expect("set");
-    let (kits, rows) = combat_verb_coverage_rows(set, aletha.shoot_action());
+    let (kits, rows) =
+        combat_verb_coverage_rows(&ctx.verb_bound(set, aletha.model), aletha.shoot_action());
     assert!(kits.can_swap() && kits.can_dodge());
     assert_eq!(
         cell(&rows, A::LightAttack),
@@ -69,7 +70,8 @@ fn the_table_shows_bound_fallback_and_missing_per_kit() {
     // The light enemy shoots from its Zenith light: its shot is bound there.
     let (ctx, light) = character_on_set(&project, "Light Enemy");
     let set = ctx.animation_set(light.animation_set).expect("set");
-    let (kits, rows) = combat_verb_coverage_rows(set, light.shoot_action());
+    let (kits, rows) =
+        combat_verb_coverage_rows(&ctx.verb_bound(set, light.model), light.shoot_action());
     assert!(kits.can_swap() && !kits.can_dodge());
     assert_eq!(
         cell(&rows, A::RangedAttack),
@@ -81,7 +83,8 @@ fn the_table_shows_bound_fallback_and_missing_per_kit() {
     let project = project_default();
     let (ctx, aletha) = character_on_set(&project, "Aletha");
     let set = ctx.animation_set(aletha.animation_set).expect("set");
-    let (kits, rows) = combat_verb_coverage_rows(set, aletha.shoot_action());
+    let (kits, rows) =
+        combat_verb_coverage_rows(&ctx.verb_bound(set, aletha.model), aletha.shoot_action());
     assert!(!kits.can_shoot() && !kits.can_swap() && kits.can_melee());
     assert_eq!(cell(&rows, A::RangedAim), VerbCoverageCell::NoKit);
     assert_eq!(cell(&rows, A::CritStrike), VerbCoverageCell::NoKit);
@@ -102,6 +105,7 @@ fn shot(project: &ProjectDocument, character: &str, with_table: bool) -> super::
         .expect("set")
         .clone();
     let shoot = resource.shoot_action();
+    let bound = ctx.verb_bound(&set, resource.model);
     let egui_ctx = egui::Context::default();
     egui_ctx.set_fonts(fonts());
     let mut textures = Textures::default();
@@ -122,7 +126,7 @@ fn shot(project: &ProjectDocument, character: &str, with_table: bool) -> super::
                 // The inspector draws the table right under Effective
                 // actions; each shot shows one of the two in full.
                 if with_table {
-                    draw_combat_verb_coverage(ui, &set, shoot, &ctx);
+                    draw_combat_verb_coverage(ui, &set, &bound, shoot, &ctx);
                 } else {
                     draw_character_effective_roles(ui, Some(&set), &ctx);
                 }

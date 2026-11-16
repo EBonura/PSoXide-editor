@@ -959,7 +959,7 @@ pub(crate) fn collect_animation_set_options(project: &ProjectDocument) -> Vec<An
                 for action in psxed_project::CharacterAnimationAction::ALL {
                     action_clips[action.to_index()] = set.action_clip(action);
                     verb_bound[action.to_index()] =
-                        psxed_project::verbs::animation_set_binds(project, set, action);
+                        psxed_project::verbs::animation_set_binds(project, set, None, action);
                 }
                 Some(AnimationSetOption {
                     id: resource.id,

@@ -85,6 +85,7 @@ pub(crate) fn draw_character_resource_editor(
     let bound_skeleton = ctx.model_skeleton(character.model);
     let selected_set = ctx.animation_set(character.animation_set);
     let shoot_action = character.shoot_action();
+    let model_id = character.model;
 
     egui::CollapsingHeader::new(icons::label(icons::FOCUS, "Spawn Defaults"))
         .default_open(true)
@@ -296,7 +297,8 @@ pub(crate) fn draw_character_resource_editor(
             );
             draw_character_effective_roles(ui, selected_set, ctx);
             if let Some(set) = selected_set {
-                draw_combat_verb_coverage(ui, set, shoot_action, ctx);
+                let bound = ctx.verb_bound(set, model_id);
+                draw_combat_verb_coverage(ui, set, &bound, shoot_action, ctx);
             }
 
             let has_set_idle = selected_set
@@ -931,13 +933,13 @@ pub(crate) struct VerbCoverageRow {
 /// from `shoot`, in contract order, with the kits it has. The same rules the
 /// cook warns from (`psx_level::combat_verbs`).
 pub(crate) fn combat_verb_coverage_rows(
-    set: &AnimationSetOption,
+    verb_bound: &[bool; psxed_project::CHARACTER_ANIMATION_ACTION_COUNT],
     shoot: psxed_project::CharacterAnimationAction,
 ) -> (psx_level::combat_verbs::CombatKits, Vec<VerbCoverageRow>) {
     use psx_level::combat_verbs::{self, BoundWithShot, CombatKits, VerbCoverage};
     use psxed_project::CharacterAnimationAction as Action;
     let bindings = BoundWithShot {
-        bound: |action: psx_level::CharacterAnimationAction| set.verb_bound[action.to_index()],
+        bound: |action: psx_level::CharacterAnimationAction| verb_bound[action.to_index()],
         shoot: shoot.to_level(),
     };
     let kits = CombatKits::from_bindings(&bindings);
@@ -970,11 +972,12 @@ pub(crate) fn combat_verb_coverage_rows(
 pub(crate) fn draw_combat_verb_coverage(
     ui: &mut egui::Ui,
     set: &AnimationSetOption,
+    verb_bound: &[bool; psxed_project::CHARACTER_ANIMATION_ACTION_COUNT],
     shoot: psxed_project::CharacterAnimationAction,
     ctx: &CharacterEditorContext,
 ) {
     use psx_level::combat_verbs::CombatKit;
-    let (kits, rows) = combat_verb_coverage_rows(set, shoot);
+    let (kits, rows) = combat_verb_coverage_rows(verb_bound, shoot);
     let missing = rows
         .iter()
         .filter(|row| row.cell == VerbCoverageCell::Missing)

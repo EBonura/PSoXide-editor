@@ -1763,8 +1763,52 @@ pub(crate) struct CharacterEditorContext {
     /// `(model id, skeleton id)`.
     pub(crate) model_skeletons: Vec<(ResourceId, Option<ResourceId>)>,
     pub(crate) animation_sets: Vec<AnimationSetOption>,
+    /// Per `(animation set, model)` a Character uses: whether each action
+    /// has a clip that resolves on that model, as the cook resolves it.
+    pub(crate) character_verb_bound: Vec<(
+        ResourceId,
+        Option<ResourceId>,
+        [bool; psxed_project::CHARACTER_ANIMATION_ACTION_COUNT],
+    )>,
     pub(crate) animation_clips: Vec<(ResourceId, String)>,
     pub(crate) weapons: Vec<(ResourceId, String)>,
+}
+
+/// What each `(animation set, model)` pair a Character uses binds, model
+/// aware (`psxed_project::verbs::animation_set_binds`).
+fn collect_character_verb_bound(
+    project: &ProjectDocument,
+) -> Vec<(
+    ResourceId,
+    Option<ResourceId>,
+    [bool; psxed_project::CHARACTER_ANIMATION_ACTION_COUNT],
+)> {
+    let mut out = Vec::new();
+    for resource in &project.resources {
+        let ResourceData::Character(character) = &resource.data else {
+            continue;
+        };
+        let Some(set_id) = character.animation_set else {
+            continue;
+        };
+        if out
+            .iter()
+            .any(|(set, model, _)| *set == set_id && *model == character.model)
+        {
+            continue;
+        }
+        let Some(ResourceData::AnimationSet(set)) = project.resource(set_id).map(|r| &r.data)
+        else {
+            continue;
+        };
+        let mut bound = [false; psxed_project::CHARACTER_ANIMATION_ACTION_COUNT];
+        for action in psxed_project::CharacterAnimationAction::ALL {
+            bound[action.to_index()] =
+                psxed_project::verbs::animation_set_binds(project, set, character.model, action);
+        }
+        out.push((set_id, character.model, bound));
+    }
+    out
 }
 
 pub(crate) fn build_character_editor_context(project: &ProjectDocument) -> CharacterEditorContext {
@@ -1787,6 +1831,7 @@ pub(crate) fn build_character_editor_context(project: &ProjectDocument) -> Chara
             })
             .collect(),
         animation_sets: collect_animation_set_options(project),
+        character_verb_bound: collect_character_verb_bound(project),
         animation_clips: project
             .resources
             .iter()
@@ -1818,6 +1863,20 @@ impl CharacterEditorContext {
     pub(crate) fn animation_set(&self, set: Option<ResourceId>) -> Option<&AnimationSetOption> {
         let set = set?;
         self.animation_sets.iter().find(|option| option.id == set)
+    }
+
+    /// What a Character on `set` rendering `model` binds, model aware; the
+    /// set's own bindings when the pair is not cached.
+    pub(crate) fn verb_bound(
+        &self,
+        set: &AnimationSetOption,
+        model: Option<ResourceId>,
+    ) -> [bool; psxed_project::CHARACTER_ANIMATION_ACTION_COUNT] {
+        self.character_verb_bound
+            .iter()
+            .find(|(id, m, _)| *id == set.id && *m == model)
+            .map(|(_, _, bound)| *bound)
+            .unwrap_or(set.verb_bound)
     }
 
     pub(crate) fn animation_clip_name(&self, clip: ResourceId) -> &str {
