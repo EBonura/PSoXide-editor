@@ -662,6 +662,7 @@ fn moveset_visual_fallbacks(
         }
         A::DashLeft | A::DashRight => [Some(A::Roll), Some(A::Walk), Some(A::Idle), None],
         A::Stun => [Some(A::HitReact), Some(A::Idle), None, None],
+        A::Knockdown => [Some(A::Stun), Some(A::HitReact), Some(A::Idle), None],
         A::StunRecovery => [Some(A::Stun), Some(A::Idle), None, None],
         A::HitReactAlt => [Some(A::HitReact), Some(A::Idle), None, None],
         A::AltLightAttack => [Some(A::LightAttack), Some(A::Idle), None, None],

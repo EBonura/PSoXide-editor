@@ -92,7 +92,9 @@ fn main() {
             .join(format!("baseline-{stamp}"))
     });
     let mut runs = Vec::new();
-    println!("seed outcome end_tick player_taken enemy_taken switches(p,e)");
+    println!(
+        "seed outcome end_tick player_taken enemy_taken switches(p,e) parries(p,e) crits(p,e) knockdowns(p,e)"
+    );
     for seed in seeds {
         let report = duel::run(
             &frontend,
@@ -103,14 +105,17 @@ fn main() {
         )
         .unwrap_or_else(|error| json!({"seed": seed, "outcome": "run_failed", "error": error}));
         let damage = &report["damage_taken_player_enemy"];
+        let pair = |key: &str| format!("{},{}", report[key][0], report[key][1]);
         println!(
-            "{seed} {} {} {} {} {},{}",
+            "{seed} {} {} {} {} {} {} {} {}",
             report["outcome"].as_str().unwrap_or("?"),
             report["end_tick"],
             damage[0],
             damage[1],
-            report["stance_switches_player_enemy"][0],
-            report["stance_switches_player_enemy"][1],
+            pair("stance_switches_player_enemy"),
+            pair("parries_player_enemy"),
+            pair("crits_player_enemy"),
+            pair("knockdowns_player_enemy"),
         );
         runs.push(compact(&report));
     }
@@ -147,6 +152,10 @@ fn compact(report: &Value) -> Value {
         "projectiles_emitted_player_enemy": pick("projectiles_emitted_player_enemy"),
         "energy_min_player_enemy": pick("energy_min_player_enemy"),
         "energy_end_player_enemy": pick("energy_end_player_enemy"),
+        "parries_player_enemy": pick("parries_player_enemy"),
+        "crits_player_enemy": pick("crits_player_enemy"),
+        "knockdowns_player_enemy": pick("knockdowns_player_enemy"),
+        "combat_events": pick("combat_events"),
         "warnings": pick("warnings"),
         "artifacts": pick("artifacts"),
     })

@@ -29,6 +29,7 @@ pub fn summarize(log: &str) -> Value {
     let mut flow_events = Vec::new();
     let mut shot_events = Vec::new();
     let mut tactic_events = Vec::new();
+    let mut combat_events = Vec::new();
     let mut result = None;
     let mut seed = None;
     let mut one_bar = false;
@@ -50,6 +51,7 @@ pub fn summarize(log: &str) -> Value {
             "duel:flow" if values.len() == 3 => flow_events.push(values),
             "duel:shot" if values.len() == 3 => shot_events.push(values),
             "duel:tactic" if values.len() == 3 => tactic_events.push(values),
+            "duel:event" if values.len() == 3 => combat_events.push(values),
             "duel:end" if values.len() == 2 => result = Some(values),
             _ => {}
         }
@@ -287,6 +289,20 @@ pub fn summarize(log: &str) -> Value {
             warnings.push("No visible-projectile evasion decision was observed.");
         }
     }
+    // Parries (by the defender), crits (by the attacker) and knockdowns (of
+    // the fighter knocked down), per side.
+    let mut parries = [0u32; 2];
+    let mut crits = [0u32; 2];
+    let mut knockdowns = [0u32; 2];
+    for event in &combat_events {
+        let actor = (event[1] as usize).min(1);
+        match event[2] {
+            1 => parries[actor] += 1,
+            2 => crits[actor] += 1,
+            3 => knockdowns[actor] += 1,
+            _ => {}
+        }
+    }
     let energy_min: Vec<_> = (19..21)
         .map(|column| samples.iter().filter_map(|r| r.get(column)).min().copied())
         .collect();
@@ -308,7 +324,7 @@ pub fn summarize(log: &str) -> Value {
                 .collect::<Vec<_>>()
         })
         .collect();
-    json!({"seed":seed,"outcome":name,"completed_by_death":matches!(name,"player_won"|"enemy_won"|"double_ko"),
+    let mut report = json!({"seed":seed,"outcome":name,"completed_by_death":matches!(name,"player_won"|"enemy_won"|"double_ko"),
         "projectiles_emitted_player_enemy":emitted,"shot_events":shot_events,"shot_event_columns":["tick","actor_0_player_1_enemy","energy_after"],
         "energy_min_player_enemy":energy_min,"energy_end_player_enemy":energy_end,
         "flow_events":flow_events,"flow_event_columns":["tick","attacker_0_player_1_enemy","event_1_shot_interrupt"],
@@ -335,7 +351,15 @@ pub fn summarize(log: &str) -> Value {
         "sample_columns":["tick","player_x","player_z","enemy_x","enemy_z","player_health","enemy_health","player_stance","enemy_stance","player_action","enemy_state","intent","stance_reason","stamina_q12","enemy_goal_generation","player_action_start","enemy_goal","enemy_stance_reason","enemy_attack_kind","player_energy","enemy_energy"],
         "decision_columns":["tick","intent","stance_reason","requested_buttons","distance"],
         "intent_names":["hold","approach","melee","ranged","dodge","swap","retreat"],
-        "stance_reasons":["distance","recover_pool_retired","press_after_shots","exposed_channel","forced_break","rebuild_energy","melee_to_ranged","shot_to_melee","overhead_target","ranged_phase","contest_space"],"samples":json_samples,"decisions":decisions})
+        "stance_reasons":["distance","recover_pool_retired","press_after_shots","exposed_channel","forced_break","rebuild_energy","melee_to_ranged","shot_to_melee","overhead_target","ranged_phase","contest_space"],"samples":json_samples,"decisions":decisions});
+    // Kept out of the literal above, which is at the json! recursion limit.
+    report["parries_player_enemy"] = json!(parries);
+    report["crits_player_enemy"] = json!(crits);
+    report["knockdowns_player_enemy"] = json!(knockdowns);
+    report["combat_events"] = json!(combat_events);
+    report["combat_event_columns"] =
+        json!(["tick", "actor_0_player_1_enemy", "kind_1_parry_2_crit_3_knockdown"]);
+    report
 }
 
 /// Run an existing normal Play disc. A start gesture selects the seeded controller.
@@ -615,5 +639,21 @@ mod tests {
             row(a).replace("duel:sample ", "duel:sample 00000000 00000000 ")
         );
         assert_eq!(summarize(&stray)["sample_count"], 0);
+    }
+
+    #[test]
+    fn counts_parries_crits_and_knockdowns_per_side() {
+        let r = summarize(
+            "duel:start 00000001 00000000 00000001\n\
+             duel:event 00000010 00000000 00000001\n\
+             duel:event 00000011 00000000 00000002\n\
+             duel:event 00000020 00000001 00000003\n\
+             duel:event 00000030 00000001 00000001\n\
+             duel:event 00000031 00000001 00000003\n\
+             duel:end 0000003C 00000001\n",
+        );
+        assert_eq!(r["parries_player_enemy"], json!([1, 1]));
+        assert_eq!(r["crits_player_enemy"], json!([1, 0]));
+        assert_eq!(r["knockdowns_player_enemy"], json!([0, 2]));
     }
 }
