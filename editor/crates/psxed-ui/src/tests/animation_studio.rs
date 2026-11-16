@@ -32,39 +32,6 @@ fn default_workspace() -> EditorWorkspace {
     EditorWorkspace::with_project(project_dir, project)
 }
 
-/// The default workspace with Aletha's combo follow-up authoring moved behind
-/// everything else. The studio opens a weapon on its first appearance beat and
-/// Combat on capsule 0, both in data order, and 9a6bbbdc authored the
-/// LightAttackFollowup beat and hitbox first. Tests that author the Light
-/// Attack opener use this so they exercise it rather than whichever action
-/// happens to lead the lists.
-fn default_workspace_light_attack_first() -> EditorWorkspace {
-    let project_dir = default_project_dir();
-    let mut project = ProjectDocument::load_from_path(project_dir.join("project.ron"))
-        .expect("default project parses");
-    let followup = CharacterAnimationAction::LightAttackFollowup;
-    for resource in &mut project.resources {
-        match &mut resource.data {
-            ResourceData::AnimationSet(set) => {
-                set.weapon_appearance_tracks
-                    .sort_by_key(|track| track.action == followup);
-            }
-            ResourceData::Character(character) => {
-                character.combat_capsules.sort_by_key(|volume| {
-                    matches!(
-                        volume.role,
-                        CombatCapsuleRole::Hitbox { action, .. }
-                            | CombatCapsuleRole::ProjectileEmitter { action, .. }
-                            if action == followup
-                    )
-                });
-            }
-            _ => {}
-        }
-    }
-    EditorWorkspace::with_project(project_dir, project)
-}
-
 fn resource_id(
     workspace: &EditorWorkspace,
     name: &str,
@@ -713,10 +680,12 @@ fn moveset_matrix_separates_enabled_actions_from_visual_fallbacks() {
 
     let roll = row(CharacterAnimationAction::Roll);
     assert_eq!(roll.status, MovesetCapabilityStatus::Disabled);
+    // The shared chain: Roll -> Backstep, then the rest pose. The Heavy Enemy
+    // binds no backstep, so the matrix previews Idle, never the walk.
     assert_eq!(
         roll.visual_fallback_action,
-        Some(CharacterAnimationAction::Walk),
-        "the matrix must mirror RuntimeCharacter::clip_for fallback order"
+        Some(CharacterAnimationAction::Idle),
+        "the matrix must mirror the shared fallback chain (combat_verbs::fallback_chain)"
     );
 
     let model_id = match &workspace
@@ -773,7 +742,9 @@ fn moveset_matrix_separates_enabled_actions_from_visual_fallbacks() {
 
 #[test]
 fn weapon_timing_controls_edit_only_the_selected_visibility_beat() {
-    let mut workspace = default_workspace_light_attack_first();
+    // The retired light follow-up's beat and hitbox, which led the lists,
+    // are dropped on load, so the Light Attack opener leads them now.
+    let mut workspace = default_workspace();
     let (character_id, model_id, animation_set_id, _) = character_context(&workspace);
     let weapon_id = resource_id(&workspace, "Sword1 Light Energy", |data| {
         matches!(data, ResourceData::Weapon(_))
@@ -966,7 +937,9 @@ fn weapon_timing_controls_edit_only_the_selected_visibility_beat() {
 
 #[test]
 fn assign_sword_to_left_hand_uses_the_explicit_hand_control() {
-    let mut workspace = default_workspace_light_attack_first();
+    // The retired light follow-up's beat and hitbox, which led the lists,
+    // are dropped on load, so the Light Attack opener leads them now.
+    let mut workspace = default_workspace();
     let (_, _, animation_set_id, _) = character_context(&workspace);
     let light_weapon = resource_id(&workspace, "Sword1 Light Energy", |data| {
         matches!(data, ResourceData::Weapon(_))
@@ -1060,7 +1033,9 @@ fn assign_sword_to_left_hand_uses_the_explicit_hand_control() {
 
 #[test]
 fn pose_and_combat_buttons_write_to_their_own_resources() {
-    let mut workspace = default_workspace_light_attack_first();
+    // The retired light follow-up's beat and hitbox, which led the lists,
+    // are dropped on load, so the Light Attack opener leads them now.
+    let mut workspace = default_workspace();
     let (character_id, model_id, animation_set_id, idle_clip_id) = character_context(&workspace);
     let weapon_id = resource_id(&workspace, "Sword1 Light Energy", |data| {
         matches!(data, ResourceData::Weapon(_))

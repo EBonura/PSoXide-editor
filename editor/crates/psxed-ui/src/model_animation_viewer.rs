@@ -632,63 +632,20 @@ pub(crate) struct MovesetCapabilityRow {
 }
 
 /// Ordered visual fallbacks used by `RuntimeCharacter::clip_for` when an
-/// action is forced without owning a clip. These do not enable gameplay: the
+/// action is forced without owning a clip: the action's documented chain
+/// (`psx_level::combat_verbs::fallback_chain`, the one the runtime and the
+/// cook use), then the rest pose. These do not enable gameplay: the
 /// capability remains disabled until the action itself resolves a clip.
-fn moveset_visual_fallbacks(
-    action: CharacterAnimationAction,
-) -> [Option<CharacterAnimationAction>; 4] {
-    use CharacterAnimationAction as A;
-    match action {
-        A::Idle => [None, None, None, None],
-        A::Walk => [Some(A::Idle), None, None, None],
-        A::Run => [Some(A::Walk), Some(A::Idle), None, None],
-        A::Turn => [Some(A::Idle), None, None, None],
-        A::Roll => [Some(A::Run), Some(A::Walk), Some(A::Idle), None],
-        A::Backstep => [Some(A::Roll), Some(A::Walk), Some(A::Idle), None],
-        A::LightAttack => [Some(A::ComboAttack), Some(A::Idle), None, None],
-        A::LightAttackFollowup | A::LightAttackFinisher => [None, None, None, None],
-        A::HeavyAttack => [Some(A::LightAttack), Some(A::Idle), None, None],
-        A::ComboAttack => [Some(A::LightAttack), Some(A::Idle), None, None],
-        A::Block
-        | A::HitReact
-        | A::Death
-        | A::Intro
-        | A::HookLaunch
-        | A::ArchPerch
-        | A::Fall
-        | A::Land => [Some(A::Idle), None, None, None],
-        A::WalkBackward | A::StrafeLeft | A::StrafeRight => {
-            [Some(A::Walk), Some(A::Idle), None, None]
-        }
-        A::DashLeft | A::DashRight => [Some(A::Roll), Some(A::Walk), Some(A::Idle), None],
-        A::Stun => [Some(A::HitReact), Some(A::Idle), None, None],
-        A::Knockdown => [Some(A::Stun), Some(A::HitReact), Some(A::Idle), None],
-        A::StunRecovery => [Some(A::Stun), Some(A::Idle), None, None],
-        A::HitReactAlt => [Some(A::HitReact), Some(A::Idle), None, None],
-        A::AltLightAttack => [Some(A::LightAttack), Some(A::Idle), None, None],
-        A::AltHeavyAttack => [Some(A::HeavyAttack), Some(A::Idle), None, None],
-        A::AltComboAttack => [Some(A::ComboAttack), Some(A::Idle), None, None],
-        A::WalkWindup | A::WalkWinddown => [Some(A::Walk), Some(A::Idle), None, None],
-        A::WalkWinddownAlt => [Some(A::WalkWinddown), Some(A::Walk), Some(A::Idle), None],
-        A::RunWindup | A::RunWinddown => [Some(A::Run), Some(A::Walk), Some(A::Idle), None],
-        A::RunWinddownAlt => [
-            Some(A::RunWinddown),
-            Some(A::Run),
-            Some(A::Walk),
-            Some(A::Idle),
-        ],
-        // Vertical attacks deliberately do not borrow another attack. Idle is
-        // only the renderer's safe pose if an external caller forces one.
-        A::VertLightAttack | A::VertHeavyAttack | A::VertComboAttack => {
-            [Some(A::Idle), None, None, None]
-        }
-        A::RangedAttack
-        | A::RangedAim
-        | A::RangedWalk
-        | A::RangedBackward
-        | A::RangedLeft
-        | A::RangedRight => [Some(A::Idle), None, None, None],
+fn moveset_visual_fallbacks(action: CharacterAnimationAction) -> Vec<CharacterAnimationAction> {
+    let mut chain: Vec<CharacterAnimationAction> =
+        psx_level::combat_verbs::fallback_chain(action.to_level())
+            .iter()
+            .map(|&step| CharacterAnimationAction::from_level(step))
+            .collect();
+    if action != CharacterAnimationAction::Idle {
+        chain.push(CharacterAnimationAction::Idle);
     }
+    chain
 }
 
 fn valid_animation_clip(
@@ -736,7 +693,6 @@ pub(crate) fn moveset_capability_rows(
                 let (visual_fallback_action, visual_fallback_clip, visual_fallback_name) =
                     moveset_visual_fallbacks(action)
                         .into_iter()
-                        .flatten()
                         .find_map(|fallback| {
                             valid_animation_clip(project, set.action_clip(fallback))
                                 .map(|(clip, name)| (Some(fallback), Some(clip), Some(name)))
@@ -1028,23 +984,8 @@ pub(crate) fn draw_model_animation_viewer_toolbar(
             action = Some(AnimationViewerAction::ProjectChanged);
         }
     }
-    // Side by side so the per-action rules cost one row while collapsed and
-    // never push the Weapon Studio rows below the panel.
-    let rules_changed = ui.columns(2, |columns| {
-        let timing = draw_combat_window_controls(
-            &mut columns[0],
-            project,
-            state.selected_character,
-            state.selected_action,
-        );
-        let chain = draw_action_chain_controls(
-            &mut columns[1],
-            project,
-            state.selected_character,
-            state.selected_action,
-        );
-        timing | chain
-    });
+    let rules_changed =
+        draw_combat_window_controls(ui, project, state.selected_character, state.selected_action);
     if rules_changed {
         action = Some(AnimationViewerAction::ProjectChanged);
     }
@@ -8281,53 +8222,6 @@ fn draw_combat_window_controls(
             });
         }
         ui.label("Hitbox/projectile damage and action push retain their existing authored tracks; combat_timeline in MCP reports them together.");
-    });
-    changed
-}
-
-/// Chain controls sit beside the action timeline; values use source clip frames.
-fn draw_action_chain_controls(
-    ui: &mut egui::Ui,
-    project: &mut ProjectDocument,
-    character: Option<ResourceId>,
-    action: CharacterAnimationAction,
-) -> bool {
-    use CharacterAnimationAction as A;
-    let next = match action {
-        A::LightAttack => A::LightAttackFollowup,
-        A::LightAttackFollowup => A::LightAttackFinisher,
-        _ => return false,
-    };
-    let Some(set_id) = character_animation_set_id(project, character) else {
-        return false;
-    };
-    let Some(resource) = project.resource_mut(set_id) else {
-        return false;
-    };
-    let ResourceData::AnimationSet(set) = &mut resource.data else {
-        return false;
-    };
-    let index = set.action_chains.iter().position(|c| c.action == action);
-    let mut enabled = index.is_some();
-    let mut changed = false;
-    ui.collapsing("R1 combo continuation", |ui| {
-        if ui.checkbox(&mut enabled, format!("Continue into {}", next.label())).changed() {
-            changed = true;
-            if let Some(index) = index { set.action_chains.remove(index); }
-            else { set.action_chains.push(psxed_project::AnimationActionChain { action, next_action: next, input_start: 20, input_end: 34, handoff_frame: 34, blend_ticks: 4 }); }
-        }
-        if let Some(chain) = set.action_chains.iter_mut().find(|c| c.action == action) {
-            ui.label("Source frames; R1 queues one strike. Target must have a bound clip and matching entry pose.");
-            ui.horizontal(|ui| {
-                ui.label("Input opens"); changed |= ui.add(egui::DragValue::new(&mut chain.input_start)).changed();
-                ui.label("closes"); changed |= ui.add(egui::DragValue::new(&mut chain.input_end)).changed();
-                ui.label("Handoff"); changed |= ui.add(egui::DragValue::new(&mut chain.handoff_frame)).changed();
-                ui.label("Blend ticks (60 Hz)"); changed |= ui.add(egui::DragValue::new(&mut chain.blend_ticks).range(1..=12)).changed();
-            });
-            if chain.input_start > chain.input_end || chain.input_end > chain.handoff_frame {
-                ui.colored_label(egui::Color32::YELLOW, "Required: input opens <= closes <= handoff. The cook validates clip bounds.");
-            }
-        }
     });
     changed
 }

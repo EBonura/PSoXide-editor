@@ -48,7 +48,7 @@ pub fn timeline(project: &ProjectDocument, root: &Path, set_id: u64) -> Result<S
         "permissions":"attack/dodge buffer stores one press scoped to this action instance; permission consumes it once; accepted transitions interrupt old motor recovery; movement requires stick intent",
         "legacy_protection":"unconfigured invulnerability uses motor dodge ticks; stance-swap protection is separate; unconfigured armour uses heavy-attack hitbox active frames",
         "bindings_speed_range_and_push":set.action_clips,
-        "windows":set.combat_windows,"combo_handoffs":set.action_chains,
+        "windows":set.combat_windows,
         "characters":characters,"cook_valid":report.is_ok(),"cook_errors":report.errors.iter().map(ToString::to_string).collect::<Vec<_>>(),
         "cooked":cooked
     })).map_err(|e|e.to_string())

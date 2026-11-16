@@ -955,14 +955,18 @@ pub(crate) fn collect_animation_set_options(project: &ProjectDocument) -> Vec<An
         .filter_map(|resource| match &resource.data {
             ResourceData::AnimationSet(set) => {
                 let mut action_clips = [None; psxed_project::CHARACTER_ANIMATION_ACTION_COUNT];
+                let mut verb_bound = [false; psxed_project::CHARACTER_ANIMATION_ACTION_COUNT];
                 for action in psxed_project::CharacterAnimationAction::ALL {
                     action_clips[action.to_index()] = set.action_clip(action);
+                    verb_bound[action.to_index()] =
+                        psxed_project::verbs::animation_set_binds(project, set, action);
                 }
                 Some(AnimationSetOption {
                     id: resource.id,
                     name: resource.name.clone(),
                     skeleton: set.skeleton,
                     action_clips,
+                    verb_bound,
                 })
             }
             _ => None,

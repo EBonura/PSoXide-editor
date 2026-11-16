@@ -68,6 +68,7 @@ mod scene_tree_selection;
 mod tool_audit;
 mod tool_controls;
 mod tool_edit_table;
+mod verb_coverage;
 mod tool_flows;
 mod tool_library;
 mod tool_matrix;

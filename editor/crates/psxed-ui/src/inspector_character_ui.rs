@@ -7,6 +7,9 @@ pub(crate) struct AnimationSetOption {
     pub(crate) name: String,
     pub(crate) skeleton: Option<ResourceId>,
     pub(crate) action_clips: [Option<ResourceId>; psxed_project::CHARACTER_ANIMATION_ACTION_COUNT],
+    /// Whether each action has a clip of its own, resolved as the cook does
+    /// (`psxed_project::verbs::animation_set_binds`).
+    pub(crate) verb_bound: [bool; psxed_project::CHARACTER_ANIMATION_ACTION_COUNT],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -81,6 +84,7 @@ pub(crate) fn draw_character_resource_editor(
         .and_then(|id| ctx.models.iter().find(|(mid, _, _)| *mid == id));
     let bound_skeleton = ctx.model_skeleton(character.model);
     let selected_set = ctx.animation_set(character.animation_set);
+    let shoot_action = character.shoot_action();
 
     egui::CollapsingHeader::new(icons::label(icons::FOCUS, "Spawn Defaults"))
         .default_open(true)
@@ -291,6 +295,9 @@ pub(crate) fn draw_character_resource_editor(
                 .small(),
             );
             draw_character_effective_roles(ui, selected_set, ctx);
+            if let Some(set) = selected_set {
+                draw_combat_verb_coverage(ui, set, shoot_action, ctx);
+            }
 
             let has_set_idle = selected_set
                 .and_then(|set| set.action_clips[psxed_project::CharacterAnimationAction::Idle.to_index()])
@@ -891,6 +898,163 @@ pub(crate) fn draw_character_effective_roles(
                     ui.label(RichText::new("(none)").color(STUDIO_TEXT_WEAK));
                 }
                 ui.end_row();
+            }
+        });
+}
+
+/// How one contract verb is covered for a character, as the coverage table
+/// shows it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum VerbCoverageCell {
+    /// The verb has its own clip (on this action: the shot may sit on
+    /// another one).
+    Bound(psxed_project::CharacterAnimationAction),
+    /// No clip of its own; this stand-in plays (its documented fallback).
+    Fallback(psxed_project::CharacterAnimationAction),
+    /// No clip and no stand-in, in a kit the character has.
+    Missing,
+    /// The character does not have the verb's kit.
+    NoKit,
+    /// An optional verb the character does not bind.
+    Optional,
+}
+
+/// One row of the coverage table.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct VerbCoverageRow {
+    pub(crate) kit: psx_level::combat_verbs::CombatKit,
+    pub(crate) action: psxed_project::CharacterAnimationAction,
+    pub(crate) cell: VerbCoverageCell,
+}
+
+/// The coverage of every contract verb for a character on `set` that shoots
+/// from `shoot`, in contract order, with the kits it has. The same rules the
+/// cook warns from (`psx_level::combat_verbs`).
+pub(crate) fn combat_verb_coverage_rows(
+    set: &AnimationSetOption,
+    shoot: psxed_project::CharacterAnimationAction,
+) -> (psx_level::combat_verbs::CombatKits, Vec<VerbCoverageRow>) {
+    use psx_level::combat_verbs::{self, BoundWithShot, CombatKits, VerbCoverage};
+    use psxed_project::CharacterAnimationAction as Action;
+    let bindings = BoundWithShot {
+        bound: |action: psx_level::CharacterAnimationAction| set.verb_bound[action.to_index()],
+        shoot: shoot.to_level(),
+    };
+    let kits = CombatKits::from_bindings(&bindings);
+    let rows = combat_verbs::COMBAT_VERBS
+        .iter()
+        .map(|verb| {
+            let cell = match combat_verbs::coverage(&bindings, verb.action) {
+                VerbCoverage::Bound(on) => VerbCoverageCell::Bound(Action::from_level(on)),
+                _ if verb.optional => VerbCoverageCell::Optional,
+                _ if !kits.has(verb.kit) => VerbCoverageCell::NoKit,
+                VerbCoverage::Fallback(found) => {
+                    VerbCoverageCell::Fallback(Action::from_level(found))
+                }
+                VerbCoverage::Missing => VerbCoverageCell::Missing,
+            };
+            VerbCoverageRow {
+                kit: verb.kit,
+                action: Action::from_level(verb.action),
+                cell,
+            }
+        })
+        .collect();
+    (kits, rows)
+}
+
+/// Combat verb coverage for a character's Animation Set: every verb of the
+/// fixed contract, grouped by kit, as bound (its clip), fallback (the
+/// stand-in that plays) or missing (red). A kit the character does not have
+/// is one weak line, not a column of reds.
+pub(crate) fn draw_combat_verb_coverage(
+    ui: &mut egui::Ui,
+    set: &AnimationSetOption,
+    shoot: psxed_project::CharacterAnimationAction,
+    ctx: &CharacterEditorContext,
+) {
+    use psx_level::combat_verbs::CombatKit;
+    let (kits, rows) = combat_verb_coverage_rows(set, shoot);
+    let missing = rows
+        .iter()
+        .filter(|row| row.cell == VerbCoverageCell::Missing)
+        .count();
+    let fallback = rows
+        .iter()
+        .filter(|row| matches!(row.cell, VerbCoverageCell::Fallback(_)))
+        .count();
+    ui.add_space(6.0);
+    ui.horizontal_wrapped(|ui| {
+        ui.label(
+            RichText::new(format!("Combat verbs ({})", set.name))
+                .color(STUDIO_TEXT_WEAK)
+                .small(),
+        );
+        if missing > 0 {
+            ui.label(
+                RichText::new(format!("{missing} missing"))
+                    .small()
+                    .strong()
+                    .color(STUDIO_ERROR),
+            );
+        }
+        if fallback > 0 {
+            ui.label(
+                RichText::new(format!("{fallback} on fallback"))
+                    .small()
+                    .color(STUDIO_WARNING),
+            );
+        }
+    });
+    egui::Grid::new("character-combat-verbs")
+        .num_columns(2)
+        .striped(true)
+        .spacing([8.0, 3.0])
+        .show(ui, |ui| {
+            for kit in CombatKit::ALL {
+                let header = if kits.has(kit) {
+                    RichText::new(kit.label()).strong().color(STUDIO_TEXT)
+                } else {
+                    RichText::new(format!("{} (no kit)", kit.label())).color(STUDIO_TEXT_WEAK)
+                };
+                ui.label(header);
+                ui.label("");
+                ui.end_row();
+                if !kits.has(kit) {
+                    continue;
+                }
+                for row in rows.iter().filter(|row| row.kit == kit) {
+                    ui.label(format!("  {}", row.action.label()));
+                    match row.cell {
+                        VerbCoverageCell::Bound(on) => {
+                            let clip = set.action_clips[on.to_index()]
+                                .map(|clip| ctx.animation_clip_name(clip).to_string())
+                                .unwrap_or_else(|| "bound".to_string());
+                            let text = if on == row.action {
+                                clip
+                            } else {
+                                format!("{clip} (on {})", on.label())
+                            };
+                            ui.label(RichText::new(text).color(STUDIO_SUCCESS));
+                        }
+                        VerbCoverageCell::Fallback(found) => {
+                            ui.label(
+                                RichText::new(format!("fallback: {}", found.label()))
+                                    .color(STUDIO_WARNING),
+                            );
+                        }
+                        VerbCoverageCell::Missing => {
+                            ui.label(RichText::new("missing").strong().color(STUDIO_ERROR));
+                        }
+                        VerbCoverageCell::Optional => {
+                            ui.label(RichText::new("(optional)").color(STUDIO_TEXT_WEAK));
+                        }
+                        VerbCoverageCell::NoKit => {
+                            ui.label(RichText::new("(no kit)").color(STUDIO_TEXT_WEAK));
+                        }
+                    }
+                    ui.end_row();
+                }
             }
         });
 }
