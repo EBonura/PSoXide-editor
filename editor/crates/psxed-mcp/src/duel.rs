@@ -2,6 +2,26 @@
 use serde_json::{json, Value};
 use std::{path::Path, process::Command};
 
+/// Columns of one sample row after [`one_bar_row`]: one health value per
+/// fighter. See `sample_columns` in the report.
+const SAMPLE_COLUMNS: usize = 21;
+
+/// A sample row in the one-health-bar layout. A log whose `duel:start`
+/// carries format 1 already is one; an older log has two pools per fighter
+/// (columns 5..9), which become their sum, so old and new logs read alike.
+fn one_bar_row(mut row: Vec<u32>, one_bar: bool) -> Option<Vec<u32>> {
+    if one_bar {
+        return (row.len() == SAMPLE_COLUMNS).then_some(row);
+    }
+    if !matches!(row.len(), 19 | 21 | 23) {
+        return None;
+    }
+    let player = row[5].saturating_add(row[6]);
+    let enemy = row[7].saturating_add(row[8]);
+    row.splice(5..9, [player, enemy]);
+    Some(row)
+}
+
 /// Summarize guest records. Completion and flow coverage are separate results.
 pub fn summarize(log: &str) -> Value {
     let mut samples: Vec<Vec<u32>> = Vec::new();
@@ -11,6 +31,7 @@ pub fn summarize(log: &str) -> Value {
     let mut tactic_events = Vec::new();
     let mut result = None;
     let mut seed = None;
+    let mut one_bar = false;
     for line in log.lines() {
         let Some((label, rest)) = line.split_once(' ') else {
             continue;
@@ -20,10 +41,11 @@ pub fn summarize(log: &str) -> Value {
             .filter_map(|v| u32::from_str_radix(v.trim_start_matches("0x"), 16).ok())
             .collect();
         match label {
-            "duel:start" if values.len() == 2 => seed = Some(values[0]),
-            "duel:sample" if values.len() == 19 || values.len() == 21 || values.len() == 23 => {
-                samples.push(values)
+            "duel:start" if values.len() == 2 || values.len() == 3 => {
+                seed = Some(values[0]);
+                one_bar = values.get(2) == Some(&1);
             }
+            "duel:sample" => samples.extend(one_bar_row(values, one_bar)),
             "duel:decision" if values.len() == 5 => decisions.push(values),
             "duel:flow" if values.len() == 3 => flow_events.push(values),
             "duel:shot" if values.len() == 3 => shot_events.push(values),
@@ -32,7 +54,7 @@ pub fn summarize(log: &str) -> Value {
             _ => {}
         }
     }
-    let mut damage = [[0u32; 2]; 2];
+    let mut damage = [0u32; 2];
     let mut damage_events = [0u32; 2];
     let mut swaps = [0u32; 2];
     let mut stance_ticks = [[0u32; 2]; 2];
@@ -46,42 +68,37 @@ pub fn summarize(log: &str) -> Value {
         let b = &pair[1];
         let dt = b[0].saturating_sub(a[0]);
         for actor in 0..2 {
-            let s = 9 + actor;
+            let s = 7 + actor;
             if a[s] < 2 {
                 stance_ticks[actor][a[s] as usize] += dt;
             }
             if a[s] != b[s] {
                 swaps[actor] += 1;
-                switch_events.push(json!({"tick":b[0],"actor":if actor==0 {"player"} else {"enemy"},"from":a[s],"to":b[s],"reason":if actor==0 {Some(b[14])} else {b.get(19).copied()}}));
+                switch_events.push(json!({"tick":b[0],"actor":if actor==0 {"player"} else {"enemy"},"from":a[s],"to":b[s],"reason":if actor==0 {Some(b[12])} else {b.get(17).copied()}}));
             }
-            let base = 5 + actor * 2;
-            let mut hit = false;
-            for channel in 0..2 {
-                let loss = a[base + channel].saturating_sub(b[base + channel]);
-                damage[actor][channel] += loss;
-                hit |= loss > 0;
-            }
-            if hit {
+            let loss = a[5 + actor].saturating_sub(b[5 + actor]);
+            damage[actor] += loss;
+            if loss > 0 {
                 damage_events[actor] += 1;
             }
         }
-        if b[17] != a[17] {
-            match b[11] {
+        if b[15] != a[15] {
+            match b[9] {
                 6 | 34 | 35 => accepted[0] += 1,
                 7 => accepted[1] += 1,
                 33 => accepted[2] += 1,
                 _ => {}
             }
         }
-        if b[12] != a[12] && b[12] == 3 {
-            if let Some(&kind) = b.get(20) {
+        if b[10] != a[10] && b[10] == 3 {
+            if let Some(&kind) = b.get(18) {
                 if kind < 3 {
                     enemy_windups[kind as usize] += 1;
                 }
             }
         }
         // State values are emitted with the schema instead of inferred from screenshots.
-        if b[12] != a[12] && b[12] == 4 {
+        if b[10] != a[10] && b[10] == 4 {
             enemy_attacks += 1;
         }
     }
@@ -119,8 +136,8 @@ pub fn summarize(log: &str) -> Value {
     if stance_ticks.iter().any(|a| a[0] == 0 || a[1] == 0) {
         warnings.push("Both fighters did not spend time in both stances.");
     }
-    if damage.iter().any(|a| a[0] == 0 || a[1] == 0) {
-        warnings.push("Not every vitality channel took observed damage.");
+    if damage.contains(&0) {
+        warnings.push("A fighter took no observed damage.");
     }
     if accepted[2] == 0 && emitted[0] == 0 {
         warnings.push("Player had no accepted ranged attack.");
@@ -187,9 +204,9 @@ pub fn summarize(log: &str) -> Value {
     for pair in samples.windows(2) {
         let a = &pair[0];
         let b = &pair[1];
-        goal_changes += u32::from((b[16] as u16).wrapping_sub(a[16] as u16));
+        goal_changes += u32::from((b[14] as u16).wrapping_sub(a[14] as u16));
         for actor in 0..2 {
-            if a[9 + actor] != b[9 + actor] {
+            if a[7 + actor] != b[7 + actor] {
                 if entered[actor] && !attacked[actor] {
                     empty_phases[actor] += 1;
                 }
@@ -197,8 +214,8 @@ pub fn summarize(log: &str) -> Value {
                 attacked[actor] = false;
             }
         }
-        attacked[0] |= a[17] != b[17] && matches!(b[11], 6 | 7 | 33 | 34 | 35);
-        attacked[1] |= a[12] != b[12] && b[12] == 3;
+        attacked[0] |= a[15] != b[15] && matches!(b[9], 6 | 7 | 33 | 34 | 35);
+        attacked[1] |= a[10] != b[10] && b[10] == 3;
     }
     let mut tactic_ticks = [[0u32; 9]; 2];
     let mut cover_arrivals = [0u32; 2];
@@ -270,10 +287,10 @@ pub fn summarize(log: &str) -> Value {
             warnings.push("No visible-projectile evasion decision was observed.");
         }
     }
-    let energy_min: Vec<_> = (21..23)
+    let energy_min: Vec<_> = (19..21)
         .map(|column| samples.iter().filter_map(|r| r.get(column)).min().copied())
         .collect();
-    let energy_end: Vec<_> = (21..23)
+    let energy_end: Vec<_> = (19..21)
         .map(|column| samples.last().and_then(|r| r.get(column)).copied())
         .collect();
     let json_samples: Vec<_> = samples
@@ -310,15 +327,15 @@ pub fn summarize(log: &str) -> Value {
             "enemy_goal_changes_per_second":if total==0 {0.0} else {f64::from(goal_changes)*60.0/f64::from(total)},
             "note":"Initial and unfinished final stance visits excluded; an attack start is not proof of a hit. Goal changes are diagnostic, not a balance score."},
         "end_tick":result.as_ref().map(|v|v[0]),"sample_count":samples.len(),"stance_ticks_player_enemy":stance_ticks,
-        "stance_switches_player_enemy":swaps,"damage_taken_player_enemy_hrz_zth":damage,"damage_events_player_enemy":damage_events,
+        "stance_switches_player_enemy":swaps,"damage_taken_player_enemy":damage,"damage_events_player_enemy":damage_events,
         "player_accepted_light_heavy_ranged":accepted,"player_requested_r1_r2":requested,"enemy_attack_entries":enemy_attacks,
         "enemy_windups_light_heavy_ranged":enemy_windups,"switch_events":switch_events,
         "approach_retreat_ranged_decisions":ranges,"warnings":warnings,
-        "measurement_note":"Attack starts are sampled animation changes; moving-fire layers may not match those counts. Projectile emission events count successful launches. Logs predating duel:shot have no emission counts. Damage is observed health loss, not raw attack damage; regeneration between samples may offset it. A death is a completion result, not a balance or flow pass.",
-        "sample_columns":["tick","player_x","player_z","enemy_x","enemy_z","player_hrz","player_zth","enemy_hrz","enemy_zth","player_stance","enemy_stance","player_action","enemy_state","intent","stance_reason","stamina_q12","enemy_goal_generation","player_action_start","enemy_goal","enemy_stance_reason","enemy_attack_kind","player_energy","enemy_energy"],
+        "measurement_note":"Attack starts are sampled animation changes; moving-fire layers may not match those counts. Projectile emission events count successful launches. Logs predating duel:shot have no emission counts. Damage is observed health loss, not raw attack damage; an arch or a vitality circle between samples may offset it. Logs from before the one health bar report each fighter's two pools summed. A death is a completion result, not a balance or flow pass.",
+        "sample_columns":["tick","player_x","player_z","enemy_x","enemy_z","player_health","enemy_health","player_stance","enemy_stance","player_action","enemy_state","intent","stance_reason","stamina_q12","enemy_goal_generation","player_action_start","enemy_goal","enemy_stance_reason","enemy_attack_kind","player_energy","enemy_energy"],
         "decision_columns":["tick","intent","stance_reason","requested_buttons","distance"],
         "intent_names":["hold","approach","melee","ranged","dodge","swap","retreat"],
-        "stance_reasons":["distance","recover_pool","press_after_shots","exposed_channel","forced_break","rebuild_energy","melee_to_ranged","shot_to_melee","overhead_target","ranged_phase","contest_space"],"samples":json_samples,"decisions":decisions})
+        "stance_reasons":["distance","recover_pool_retired","press_after_shots","exposed_channel","forced_break","rebuild_energy","melee_to_ranged","shot_to_melee","overhead_target","ranged_phase","contest_space"],"samples":json_samples,"decisions":decisions})
 }
 
 /// Run an existing normal Play disc. A start gesture selects the seeded controller.
@@ -547,10 +564,56 @@ mod tests {
             json!([0, 0, 1])
         );
         assert_eq!(report["enemy_windups_light_heavy_ranged"], json!([0, 0, 1]));
-        assert_eq!(
-            report["damage_taken_player_enemy_hrz_zth"],
-            json!([[20, 0], [0, 30]])
-        );
+        // An old two-pool log: each fighter's pools are summed.
+        assert_eq!(report["damage_taken_player_enemy"], json!([20, 30]));
         assert_eq!(report["samples"][0][1], -32);
+        assert_eq!(report["samples"][0][5], 200);
+    }
+    #[test]
+    fn reads_the_one_health_bar_format() {
+        let mut a = [0u32; SAMPLE_COLUMNS];
+        a[5] = 200;
+        a[6] = 600;
+        let mut b = a;
+        b[0] = 60;
+        b[5] = 180;
+        b[6] = 550;
+        b[7] = 1;
+        b[9] = 33;
+        b[15] = 60;
+        b[10] = 3;
+        b[18] = 2;
+        b[19] = 80;
+        b[20] = 40;
+        let row = |r: [u32; SAMPLE_COLUMNS]| {
+            format!(
+                "duel:sample {}\n",
+                r.iter()
+                    .map(|x| format!("{x:08X}"))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            )
+        };
+        let log = format!(
+            "duel:start 00000001 00000000 00000001\n{}{}duel:end 0000003C 00000001\n",
+            row(a),
+            row(b)
+        );
+        let report = summarize(&log);
+        assert_eq!(report["damage_taken_player_enemy"], json!([20, 50]));
+        assert_eq!(report["damage_events_player_enemy"], json!([1, 1]));
+        assert_eq!(report["stance_switches_player_enemy"], json!([1, 0]));
+        assert_eq!(
+            report["player_accepted_light_heavy_ranged"],
+            json!([0, 0, 1])
+        );
+        assert_eq!(report["enemy_windups_light_heavy_ranged"], json!([0, 0, 1]));
+        assert_eq!(report["energy_end_player_enemy"], json!([80, 40]));
+        // A row of the old width in a one-bar log is not misread.
+        let stray = format!(
+            "duel:start 00000001 00000000 00000001\n{}",
+            row(a).replace("duel:sample ", "duel:sample 00000000 00000000 ")
+        );
+        assert_eq!(summarize(&stray)["sample_count"], 0);
     }
 }

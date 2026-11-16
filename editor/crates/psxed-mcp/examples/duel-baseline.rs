@@ -92,7 +92,7 @@ fn main() {
             .join(format!("baseline-{stamp}"))
     });
     let mut runs = Vec::new();
-    println!("seed outcome end_tick player_hrz/zth_taken enemy_hrz/zth_taken switches(p,e)");
+    println!("seed outcome end_tick player_taken enemy_taken switches(p,e)");
     for seed in seeds {
         let report = duel::run(
             &frontend,
@@ -102,15 +102,13 @@ fn main() {
             polls,
         )
         .unwrap_or_else(|error| json!({"seed": seed, "outcome": "run_failed", "error": error}));
-        let damage = &report["damage_taken_player_enemy_hrz_zth"];
+        let damage = &report["damage_taken_player_enemy"];
         println!(
-            "{seed} {} {} {}/{} {}/{} {},{}",
+            "{seed} {} {} {} {} {},{}",
             report["outcome"].as_str().unwrap_or("?"),
             report["end_tick"],
-            damage[0][0],
-            damage[0][1],
-            damage[1][0],
-            damage[1][1],
+            damage[0],
+            damage[1],
             report["stance_switches_player_enemy"][0],
             report["stance_switches_player_enemy"][1],
         );
@@ -140,7 +138,7 @@ fn compact(report: &Value) -> Value {
         "outcome": pick("outcome"),
         "end_tick": pick("end_tick"),
         "completed_by_death": pick("completed_by_death"),
-        "damage_taken_player_enemy_hrz_zth": pick("damage_taken_player_enemy_hrz_zth"),
+        "damage_taken_player_enemy": pick("damage_taken_player_enemy"),
         "damage_events_player_enemy": pick("damage_events_player_enemy"),
         "stance_switches_player_enemy": pick("stance_switches_player_enemy"),
         "stance_ticks_player_enemy": pick("stance_ticks_player_enemy"),

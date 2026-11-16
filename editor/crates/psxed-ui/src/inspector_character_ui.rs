@@ -557,14 +557,7 @@ fn draw_enemy_behavior_fields(
 fn draw_combat_stats_fields(ui: &mut egui::Ui, stats: &mut psxed_project::CombatStats) -> bool {
     let mut changed = false;
     ui.label(RichText::new("Health & poise").strong());
-    changed |= drag_u16(ui, "Horizon health", &mut stats.max_health, 1, u16::MAX);
-    changed |= drag_u16(
-        ui,
-        "Zenith health",
-        &mut stats.max_health_secondary,
-        1,
-        u16::MAX,
-    );
+    changed |= drag_u16(ui, "Health", &mut stats.max_health, 1, u16::MAX);
     changed |= drag_u16(ui, "Poise", &mut stats.poise, 0, u16::MAX);
     changed |= ui
         .checkbox(&mut stats.armour_heavy_attack, "Armoured during heavy hits")
@@ -1948,14 +1941,8 @@ pub(crate) fn draw_ui_value_binding_editor(
             for (candidate_label, candidate) in [
                 ("Player Health", UiValueBinding::PlayerHealth),
                 ("Player Health Max", UiValueBinding::PlayerHealthMax),
-                (
-                    "Player Secondary Health",
-                    UiValueBinding::PlayerHealthSecondary,
-                ),
-                (
-                    "Player Secondary Health Max",
-                    UiValueBinding::PlayerHealthSecondaryMax,
-                ),
+                ("Player Energy", UiValueBinding::PlayerEnergy),
+                ("Player Energy Max", UiValueBinding::PlayerEnergyMax),
                 (
                     "Player Health Empty Influence",
                     UiValueBinding::PlayerHealthEmptyInfluence,
@@ -1965,31 +1952,15 @@ pub(crate) fn draw_ui_value_binding_editor(
                     UiValueBinding::PlayerHealthFullInfluence,
                 ),
                 (
-                    "Secondary Empty Influence",
-                    UiValueBinding::PlayerHealthSecondaryEmptyInfluence,
+                    "Player Energy Empty Influence",
+                    UiValueBinding::PlayerEnergyEmptyInfluence,
                 ),
                 (
-                    "Secondary Full Influence",
-                    UiValueBinding::PlayerHealthSecondaryFullInfluence,
+                    "Player Energy Full Influence",
+                    UiValueBinding::PlayerEnergyFullInfluence,
                 ),
                 ("Player Stamina", UiValueBinding::PlayerStamina),
                 ("Player Stamina Max", UiValueBinding::PlayerStaminaMax),
-                (
-                    "Player Active State Health",
-                    UiValueBinding::PlayerStanceActiveHealth,
-                ),
-                (
-                    "Player Active State Health Max",
-                    UiValueBinding::PlayerStanceActiveHealthMax,
-                ),
-                (
-                    "Player Inactive State Health",
-                    UiValueBinding::PlayerStanceInactiveHealth,
-                ),
-                (
-                    "Player Inactive State Health Max",
-                    UiValueBinding::PlayerStanceInactiveHealthMax,
-                ),
                 (
                     "Player State Swap Progress",
                     UiValueBinding::PlayerStanceSwapProgress,
@@ -1998,24 +1969,10 @@ pub(crate) fn draw_ui_value_binding_editor(
                     "Player Active State Is Zenith",
                     UiValueBinding::PlayerStanceActiveIsZenith,
                 ),
-                (
-                    "Player Active State Broken",
-                    UiValueBinding::PlayerStanceActiveBroken,
-                ),
-                (
-                    "Player Inactive State Broken",
-                    UiValueBinding::PlayerStanceInactiveBroken,
-                ),
-                ("Target Horizon Health", UiValueBinding::TargetHealth),
-                ("Target Horizon Health Max", UiValueBinding::TargetHealthMax),
-                (
-                    "Target Zenith Health",
-                    UiValueBinding::TargetHealthSecondary,
-                ),
-                (
-                    "Target Zenith Health Max",
-                    UiValueBinding::TargetHealthSecondaryMax,
-                ),
+                ("Target Health", UiValueBinding::TargetHealth),
+                ("Target Health Max", UiValueBinding::TargetHealthMax),
+                ("Target Energy", UiValueBinding::TargetEnergy),
+                ("Target Energy Max", UiValueBinding::TargetEnergyMax),
                 (
                     "Target State Swap Progress",
                     UiValueBinding::TargetStanceSwapProgress,
@@ -2058,100 +2015,7 @@ pub(crate) fn draw_ui_value_binding_editor(
 }
 
 pub(crate) fn ui_value_binding_same_variant(a: UiValueBinding, b: UiValueBinding) -> bool {
-    matches!(
-        (a, b),
-        (
-            UiValueBinding::ConstantQ12(_),
-            UiValueBinding::ConstantQ12(_)
-        ) | (UiValueBinding::PlayerHealth, UiValueBinding::PlayerHealth)
-            | (UiValueBinding::Option(_), UiValueBinding::Option(_))
-            | (
-                UiValueBinding::PlayerHealthMax,
-                UiValueBinding::PlayerHealthMax
-            )
-            | (
-                UiValueBinding::PlayerHealthSecondary,
-                UiValueBinding::PlayerHealthSecondary
-            )
-            | (
-                UiValueBinding::PlayerHealthSecondaryMax,
-                UiValueBinding::PlayerHealthSecondaryMax
-            )
-            | (
-                UiValueBinding::PlayerHealthEmptyInfluence,
-                UiValueBinding::PlayerHealthEmptyInfluence
-            )
-            | (
-                UiValueBinding::PlayerHealthFullInfluence,
-                UiValueBinding::PlayerHealthFullInfluence
-            )
-            | (
-                UiValueBinding::PlayerHealthSecondaryEmptyInfluence,
-                UiValueBinding::PlayerHealthSecondaryEmptyInfluence
-            )
-            | (
-                UiValueBinding::PlayerHealthSecondaryFullInfluence,
-                UiValueBinding::PlayerHealthSecondaryFullInfluence
-            )
-            | (UiValueBinding::PlayerStamina, UiValueBinding::PlayerStamina)
-            | (
-                UiValueBinding::PlayerStaminaMax,
-                UiValueBinding::PlayerStaminaMax
-            )
-            | (
-                UiValueBinding::PlayerStanceActiveHealth,
-                UiValueBinding::PlayerStanceActiveHealth
-            )
-            | (
-                UiValueBinding::PlayerStanceActiveHealthMax,
-                UiValueBinding::PlayerStanceActiveHealthMax
-            )
-            | (
-                UiValueBinding::PlayerStanceInactiveHealth,
-                UiValueBinding::PlayerStanceInactiveHealth
-            )
-            | (
-                UiValueBinding::PlayerStanceInactiveHealthMax,
-                UiValueBinding::PlayerStanceInactiveHealthMax
-            )
-            | (
-                UiValueBinding::PlayerStanceSwapProgress,
-                UiValueBinding::PlayerStanceSwapProgress
-            )
-            | (
-                UiValueBinding::PlayerStanceActiveIsZenith,
-                UiValueBinding::PlayerStanceActiveIsZenith
-            )
-            | (
-                UiValueBinding::PlayerStanceActiveBroken,
-                UiValueBinding::PlayerStanceActiveBroken
-            )
-            | (
-                UiValueBinding::PlayerStanceInactiveBroken,
-                UiValueBinding::PlayerStanceInactiveBroken
-            )
-            | (UiValueBinding::TargetHealth, UiValueBinding::TargetHealth)
-            | (
-                UiValueBinding::TargetHealthMax,
-                UiValueBinding::TargetHealthMax
-            )
-            | (
-                UiValueBinding::TargetHealthSecondary,
-                UiValueBinding::TargetHealthSecondary
-            )
-            | (
-                UiValueBinding::TargetHealthSecondaryMax,
-                UiValueBinding::TargetHealthSecondaryMax
-            )
-            | (
-                UiValueBinding::TargetStanceSwapProgress,
-                UiValueBinding::TargetStanceSwapProgress
-            )
-            | (
-                UiValueBinding::TargetStanceActiveIsZenith,
-                UiValueBinding::TargetStanceActiveIsZenith
-            )
-    )
+    core::mem::discriminant(&a) == core::mem::discriminant(&b)
 }
 
 /// `true` when two [`UiAction`]s are the same variant, ignoring their
