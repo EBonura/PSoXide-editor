@@ -581,9 +581,27 @@ fn draw_combat_stats_fields(ui: &mut egui::Ui, stats: &mut psxed_project::Combat
     ui.label(RichText::new("Parry & crit").strong());
     changed |= drag_u16(ui, "Parry ticks", &mut stats.parry_ticks, 0, u16::MAX);
     changed |= drag_u16(ui, "Parry refund", &mut stats.parry_refund, 0, u16::MAX);
-    changed |= drag_u16(ui, "Crit window ticks", &mut stats.crit_window_ticks, 0, u16::MAX);
-    changed |= drag_u16(ui, "Crit damage (Q12)", &mut stats.crit_damage_q12, 0, u16::MAX);
-    changed |= drag_u16(ui, "Crit poise (Q12)", &mut stats.crit_poise_q12, 0, u16::MAX);
+    changed |= drag_u16(
+        ui,
+        "Crit window ticks",
+        &mut stats.crit_window_ticks,
+        0,
+        u16::MAX,
+    );
+    changed |= drag_u16(
+        ui,
+        "Crit damage (Q12)",
+        &mut stats.crit_damage_q12,
+        0,
+        u16::MAX,
+    );
+    changed |= drag_u16(
+        ui,
+        "Crit poise (Q12)",
+        &mut stats.crit_poise_q12,
+        0,
+        u16::MAX,
+    );
     ui.separator();
     ui.label(RichText::new("Knockdown").strong());
     changed |= drag_u16(ui, "Down ticks", &mut stats.knockdown_ticks, 0, u16::MAX);

@@ -357,8 +357,11 @@ pub fn summarize(log: &str) -> Value {
     report["crits_player_enemy"] = json!(crits);
     report["knockdowns_player_enemy"] = json!(knockdowns);
     report["combat_events"] = json!(combat_events);
-    report["combat_event_columns"] =
-        json!(["tick", "actor_0_player_1_enemy", "kind_1_parry_2_crit_3_knockdown"]);
+    report["combat_event_columns"] = json!([
+        "tick",
+        "actor_0_player_1_enemy",
+        "kind_1_parry_2_crit_3_knockdown"
+    ]);
     report
 }
 
