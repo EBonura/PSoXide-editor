@@ -611,6 +611,8 @@ fn draw_combat_stats_fields(ui: &mut egui::Ui, stats: &mut psxed_project::Combat
         0,
         u16::MAX,
     );
+    // Read by AI controllers only (an enemy, the duel bot); the pad ignores it.
+    changed |= drag_u8(ui, "AI parry swap %", &mut stats.parry_swap_percent, 0, 100);
     ui.separator();
     ui.label(RichText::new("Knockdown").strong());
     changed |= drag_u16(ui, "Down ticks", &mut stats.knockdown_ticks, 0, u16::MAX);

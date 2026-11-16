@@ -350,8 +350,8 @@ pub fn summarize(log: &str) -> Value {
         "measurement_note":"Attack starts are sampled animation changes; moving-fire layers may not match those counts. Projectile emission events count successful launches. Logs predating duel:shot have no emission counts. Damage is observed health loss, not raw attack damage; an arch or a vitality circle between samples may offset it. Logs from before the one health bar report each fighter's two pools summed. A death is a completion result, not a balance or flow pass.",
         "sample_columns":["tick","player_x","player_z","enemy_x","enemy_z","player_health","enemy_health","player_stance","enemy_stance","player_action","enemy_state","intent","stance_reason","stamina_q12","enemy_goal_generation","player_action_start","enemy_goal","enemy_stance_reason","enemy_attack_kind","player_energy","enemy_energy"],
         "decision_columns":["tick","intent","stance_reason","requested_buttons","distance"],
-        "intent_names":["hold","approach","melee","ranged","dodge","swap","retreat"],
-        "stance_reasons":["distance","recover_pool_retired","press_after_shots","exposed_channel","forced_break","rebuild_energy","melee_to_ranged","shot_to_melee","overhead_target","ranged_phase","contest_space"],"samples":json_samples,"decisions":decisions});
+        "intent_names":["hold","approach","melee","ranged","dodge","swap","retreat","parry_swap","crit"],
+        "stance_reasons":["distance","recover_pool_retired","press_after_shots","exposed_channel","forced_break","rebuild_energy","melee_to_ranged","shot_to_melee","overhead_target","ranged_phase","contest_space","parry"],"samples":json_samples,"decisions":decisions});
     // Kept out of the literal above, which is at the json! recursion limit.
     report["parries_player_enemy"] = json!(parries);
     report["crits_player_enemy"] = json!(crits);
