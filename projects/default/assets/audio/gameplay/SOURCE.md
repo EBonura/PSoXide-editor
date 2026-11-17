@@ -88,4 +88,10 @@ copies now use 11.025 kHz to keep loading within the executable RAM budget.
 <https://kronbits.itch.io/freesfx>, published under Creative Commons CC0 1.0.
 The SDK's `assets/audio/freesfx/report.json` keeps the source hashes. Mono 44.1 kHz
 SPU ADPCM, 1.25 s, 31,536 bytes; it is used as it is, with no trim, resample or
-re-pitch, at full voice volume on both sides' parries.
+re-pitch, on both sides' parries. The cue plays at volume 73, which puts its loudest 50 ms in the mixed output level with the hit cues.
+
+## Shared by every project
+
+This folder is the one copy of the gameplay bank. `projects/graybox-reach/assets/audio/gameplay`
+is a symlink to it, and every grid project already links its `assets` to graybox-reach, so all
+projects resolve the same sixteen gameplay cues (plus the UI sounds they reference).
