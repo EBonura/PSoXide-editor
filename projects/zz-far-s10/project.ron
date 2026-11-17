@@ -2085,7 +2085,7 @@
             id: (113),
             name: "Light Enemy",
             data: Character((
-                combat: Some((max_health: 100, poise: 25, armour_heavy_attack: true, armour_authored_window: true, opposite_damage_q12: 5120, opposite_poise_q12: 5120, energy_max: 100, shot_cost: 20, light_gain: 12, heavy_gain: 20, parry_ticks: 3, parry_refund: 20, crit_window_ticks: 60, crit_damage_q12: 8192, crit_poise_q12: 8192, knockdown_ticks: 134, parry_swap_percent: 50)),
+                combat: Some((max_health: 100, poise: 30, armour_heavy_attack: true, armour_authored_window: true, opposite_damage_q12: 5120, opposite_poise_q12: 5120, energy_max: 100, shot_cost: 20, light_gain: 12, heavy_gain: 20, parry_ticks: 3, parry_refund: 20, crit_window_ticks: 60, crit_damage_q12: 8192, crit_poise_q12: 8192, knockdown_ticks: 134, parry_swap_percent: 50)),
                 model: Some((26)),
                 material: None,
                 animation_set: Some((60)),
@@ -2899,7 +2899,7 @@
             id: (198),
             name: "Light Enemy / Charged Cannon",
             data: Character((
-                combat: Some((max_health: 100, poise: 25, armour_heavy_attack: true, armour_authored_window: true, opposite_damage_q12: 5120, opposite_poise_q12: 5120, energy_max: 100, shot_cost: 20, light_gain: 12, heavy_gain: 20, parry_ticks: 3, parry_refund: 20, crit_window_ticks: 60, crit_damage_q12: 8192, crit_poise_q12: 8192, knockdown_ticks: 134, parry_swap_percent: 50)),
+                combat: Some((max_health: 100, poise: 30, armour_heavy_attack: true, armour_authored_window: true, opposite_damage_q12: 5120, opposite_poise_q12: 5120, energy_max: 100, shot_cost: 20, light_gain: 12, heavy_gain: 20, parry_ticks: 3, parry_refund: 20, crit_window_ticks: 60, crit_damage_q12: 8192, crit_poise_q12: 8192, knockdown_ticks: 134, parry_swap_percent: 50)),
                 model: Some((26)),
                 material: None,
                 animation_set: Some((60)),
