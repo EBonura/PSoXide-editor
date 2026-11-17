@@ -2,7 +2,7 @@
 
 Open Graybox Reach in Play. **Hold Select and tap L2** to reset the encounter and give Aletha an AI controller. Both Horizon and Zenith are enabled. Press any physical button after releasing the start chord to take control. The result pauses the fight at death, a three-minute limit, or thirty seconds without damage. Start a fresh duel by leaving the result and pressing the chord again.
 
-This is a training capability on flagged encounters. It does not change saved health, weapons, damage, animation timing or the scene. It requires a ranged-equipped player and a ranged-capable training opponent. Graybox Reach currently has one such opponent. Other actors are not disabled; use an isolated encounter when comparing results.
+This is a training capability on flagged encounters. It does not change saved health, weapons, damage, animation timing or the scene. It requires a ranged-equipped player and a ranged-capable training opponent. Her opponent is the level's first training entity; hold the right stick fully down while pressing the chord for the second (each eight steps above 192 on the stick name one further, up to the ninth). The level's other training entities leave the duel at its start (dead and nameless, as a room leaving the active set leaves them; New Game spawns them again). Other actors are not disabled; use an isolated encounter when comparing results.
 
 ## Shared policy and normal combat
 
@@ -16,7 +16,7 @@ The enemy receives the player's visible stance for the shared decision policy; h
 
 ## MCP
 
-`combat_duel {"seed":1,"polls":11400,"skip_build":false}` builds the saved project and runs a real PS1 disc. Use `skip_build:true` after building the current code. Seeds are 1..255 except 128, which is reserved for the centered physical controller's default seed 1. The input tape encodes the seed in the right stick only while starting; it is never used as combat camera input.
+`combat_duel {"seed":1,"polls":11400,"skip_build":false,"opponent":0}` builds the saved project and runs a real PS1 disc. `opponent` names her training opponent in level order (0, the default, is the first); `duel-baseline` takes the same as `--opponent N`. Use `skip_build:true` after building the current code. Seeds are 1..255 except 128, which is reserved for the centered physical controller's default seed 1. The input tape encodes the seed in the right stick only while starting; it is never used as combat camera input.
 
 The result includes:
 
