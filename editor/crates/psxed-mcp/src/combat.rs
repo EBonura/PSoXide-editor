@@ -95,7 +95,7 @@ pub fn flow_rules() -> serde_json::Value {
     use flow_rules::*;
     // The energy economy is per character data now; these are the starting
     // numbers every character cooks with unless its CombatStats says otherwise.
-    let stats = psx_level::CombatStats::PLAYER;
+    let stats = psx_level::CombatStats::DEFAULT;
     json!({"status":"prototype","scope":"every combatant, player and enemies, always on; numbers are per character CombatStats (starting values below)",
         "energy":{"max":stats.energy_max,"shot_cost_per_projectile":stats.shot_cost,"light_contact_gain":stats.light_gain,
             "heavy_contact_gain":stats.heavy_gain,"floating_gain_per_second":FLOAT_GAIN_PER_SECOND,
