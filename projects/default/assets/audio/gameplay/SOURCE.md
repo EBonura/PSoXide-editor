@@ -79,3 +79,13 @@ unity pitch and 90% gain. It is separate from the CC0 sources above.
 plays at normal pitch, 90% gain, on a successful player stance switch.
 It is separate from the CC0 sources above. The two encounter voice runtime
 copies now use 11.025 kHz to keep loading within the executable RAM budget.
+
+## Parry cue
+
+`parry.psau` is `assets/audio/freesfx/psau/hit_metal.psau` byte for byte (sha256
+`3905b6ecb3f46a686438a26bb15e20cfb235c906f9ae9323fc9ce63313b96b55`), cooked from
+"Retro Impact Metal 36" in the **Kronbits Free SFX** pack,
+<https://kronbits.itch.io/freesfx>, published under Creative Commons CC0 1.0.
+The SDK's `assets/audio/freesfx/report.json` keeps the source hashes. Mono 44.1 kHz
+SPU ADPCM, 1.25 s, 31,536 bytes; it is used as it is, with no trim, resample or
+re-pitch, at full voice volume on both sides' parries.
