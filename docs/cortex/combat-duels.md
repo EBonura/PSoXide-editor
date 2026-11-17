@@ -46,3 +46,16 @@ cargo run --release -p psxed-mcp --example duel-baseline -- \
 A death is **completion**, not a balance or flow pass. The report warns when an actor never used a stance, an actor never took damage, or the player never fired. Long chip-damage loops can reach the time limit without triggering the no-damage watchdog. Damage totals measure observed health loss; they are not raw authored damage or exact hit/miss attribution. AI samples visible commitments, but it is a test controller, not a model of human skill.
 
 Duels log only while enabled and add no geometry. Normal Play uses the same shipping build, with the controller inactive until requested. Hardware frame cost has not been measured. Incremental compilation was disabled during verification to avoid recreating the debug caches removed during disk cleanup.
+
+## Host duels (any two fighters, any controller)
+
+The disc duel is always the player (driven by the duel bot) against the training enemy (driven by the enemy AI), because the player body still lives in the playtest scene while the enemy AI drives entity slots. The SDK's `tools/psoxide-duel` fights on the host instead, without a disc build: each fighter is an entity of its own table, driven by the enemy tactical AI or by a scripted pad through the possession seam (`FighterWorld::controller_intent`), on the game's own rules, motor and projectile pool. Its fighters come from the project's own cook: the training enemy as authored, and Aletha cooked as an entity in the enemy's place (her Character, controller settings, stats and action clips; the enemy's AI persona). Contact uses the authored hitbox windows on each clip's clock, but the arena is a plain walled room (optionally with pillars), not the level, so a host fight is not the disc fight of the same seed.
+
+```
+psoxide-duel sweep --project projects/grid-dungeon --seeds 200 --out DIR
+psoxide-duel sensitivity --project projects/grid-dungeon --seeds 500 --out DIR
+psoxide-duel log --project projects/grid-dungeon --seed 1 --matchup aletha-ai:enemy-pad > host.log
+cargo run --release -p psxed-mcp --example duel-report -- host.log
+```
+
+`log` writes the same `duel:` lines as the disc (side A in the player's columns, side B in the enemy's), so the summariser and `duel-report` read host logs unchanged. Run the SDK build of the tool from the editor checkout (projects are found under `projects/`); its symmetry tests read `PSOXIDE_PROJECTS_DIR`.
