@@ -63,3 +63,25 @@ pinned SDK, and a failed fetch makes the frontend print `make cook-playtest fail
 and exit non-zero. What went wrong in the lanes was downstream: the scripts ignored
 that exit code and `duel-baseline --skip-build` then took the newest cue already in
 `baked/`. The sweep script above removes that cue first and stops on the failure.
+
+### Reusing a gate result when the inputs are identical
+
+`tools/gates/reuse.sh` wraps a gate whose whole input set can be named. It hashes
+every file in the checkout (hydrated SDK and emulator components, projects, assets,
+`Cargo.lock`, `components.lock.json`, `rust-toolchain.toml`, the gate scripts) except
+`.git`, `.tools`, `build`, `target` and `baked`, plus the command line, `rustc -vV`,
+`cargo -V`, the Cargo, rustc, editor and SDK environment, and any binary passed with
+`--file`. On a match it prints `reused result from <date> (inputs identical), key ...,
+run at <sha>` and replays the stored output; otherwise it runs the gate and stores the
+result (passing runs only) under `.gate-results/`. `--no-reuse` always runs.
+
+- `tools/gates/editor-suites.sh [--no-reuse]`: the three editor suites.
+- `tools/gates/cook-check.sh [--no-reuse]`: keyed also on the `psxed-mcp` and `cook-check` binaries.
+- `sh tools/gates/test-reuse.sh`: a one-byte change in each input class (source, hydrated
+  component, `Cargo.lock`, the SDK pin, project data, asset, toolchain file, gate binary,
+  added, deleted and renamed files, the script, environment, tag, command, toolchain version)
+  forces a rerun.
+
+The disc duel sweep and every gate that depends on the guest build are not wrapped, and
+must not be unless the guest exe sha and disc sha are passed with `--file` or `--tag`.
+Any doubt about the inputs means do not wrap the gate, or pass `--no-reuse`.
