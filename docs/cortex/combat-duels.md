@@ -59,3 +59,11 @@ cargo run --release -p psxed-mcp --example duel-report -- host.log
 ```
 
 `log` writes the same `duel:` lines as the disc (side A in the player's columns, side B in the enemy's), so the summariser and `duel-report` read host logs unchanged. Run the SDK build of the tool from the editor checkout (projects are found under `projects/`); its symmetry tests read `PSOXIDE_PROJECTS_DIR`.
+
+## Entity against entity (disc)
+
+The player's body and fighter now live in the last slot of the entity table (the actor slot: `GameEntities::ACTOR_SLOT`, read through `actor_motor` and `actor`), and an entity can fight another entity: `GameEntities::set_rival(index, Some(slot), team)` points its tactics at that slot instead of the player, puts it on a side of its own for bolts (`CombatTeam::Rival` against `Enemy`), and lets it hold its own attack slot (the shared director only arbitrates the fighters that engage the player). The game resolves its melee token against the rival with the same pose-based contact the player's defence gets (authored capsules on both poses, the legacy arc only when a side has none, world occlusion, the hitbox window mask) and lands it through the rival's own hit path; a bolt hits any fighter on another side, and a parry staggers the attacker or the shooter. A spawn clears every rival.
+
+On the disc: open `projects/grid-rivals` (grid-dungeon with a second training enemy in sight of the first), **hold the right stick up while pressing Select and L2**. The two training entities fight each other and the player is left on her own pad. The log carries `duel:rivals A B`, then `duel:rival-sample` rows (tick, A x/z, B x/z, health A/B, stance A/B, state A/B, energy A/B) and the usual `duel:event` and `duel:end` lines, actor 0 being A. The end codes are those of the player duel with A in the player's place (1: A won, 2: B won, 3: both down, 5: time, 6: thirty seconds without damage).
+
+What an entity reads of its rival differs from what it reads of the player in one place: the rival's attack phase and the ticks to its swing come from its state clock and the record's windup, where the player's come from her pose. That gap goes when every fighter runs the one action system.

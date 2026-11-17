@@ -62,6 +62,12 @@
 # the wall faces. Work in progress.
 !arch-mesh-study/
 !arch-mesh-study/**
+# The rivals duel fixture: grid-dungeon with a second training enemy in sight
+# of the first (where the duel bot trades shots with it), for the disc duel
+# that sets two entities against each other (docs/cortex/combat-duels.md,
+# "Entity against entity").
+!grid-rivals/
+!grid-rivals/**
 # The per-user editor view file inside a tracked project stays local.
 **/.psxed-view.ron
 **/.psxed-session.ron
