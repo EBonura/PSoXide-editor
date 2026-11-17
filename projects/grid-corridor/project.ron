@@ -1792,6 +1792,7 @@
             id: (95),
             name: "Heavy Enemy",
             data: Character((
+                combat: Some((max_health: 100, poise: 50, armour_heavy_attack: true, armour_authored_window: true, opposite_damage_q12: 5120, opposite_poise_q12: 5120, energy_max: 100, shot_cost: 20, light_gain: 12, heavy_gain: 20, parry_ticks: 3, parry_refund: 20, crit_window_ticks: 60, crit_damage_q12: 8192, crit_poise_q12: 8192, knockdown_ticks: 174, parry_swap_percent: 50)),
                 model: Some((97)),
                 material: None,
                 animation_set: Some((100)),
@@ -1908,8 +1909,8 @@
                 turn_clip: None,
                 roll_clip: None,
                 backstep_clip: None,
-                action_clips: [(action: Idle, clip: (98)), (action: Walk, clip: (99)), (action: WalkBackward, clip: (101)), (action: StrafeLeft, clip: (102)), (action: StrafeRight, clip: (103)), (action: Death, clip: (105)), (action: HitReact, clip: (106)), (action: Stun, clip: (109)), (action: LightAttack, clip: (137), options: Some((looping: false, in_place: true, speed_q8: 307, frame_start: 0, frame_end: 65535, push_distance: 0, push_frame_start: 0, push_frame_end: 0))), (action: HeavyAttack, clip: (107), options: Some((looping: false, in_place: true, speed_q8: 307, frame_start: 0, frame_end: 65535, push_distance: 0, push_frame_start: 0, push_frame_end: 0))), (action: RangedAttack, clip: (138), options: Some((looping: false, in_place: true, speed_q8: 307, frame_start: 0, frame_end: 65535, push_distance: 0, push_frame_start: 0, push_frame_end: 0))), (action: Intro, clip: (194)), (action: Turn, clip: (195))],
-                clips: [(98), (99), (101), (102), (103), (105), (106), (107), (109), (137), (138), (194), (195)],
+                action_clips: [(action: Idle, clip: (98)), (action: Walk, clip: (99)), (action: WalkBackward, clip: (101)), (action: StrafeLeft, clip: (102)), (action: StrafeRight, clip: (103)), (action: Death, clip: (105)), (action: HitReact, clip: (106)), (action: Stun, clip: (109), options: Some((looping: false, in_place: false, speed_q8: 256, frame_start: 0, frame_end: 65535, push_distance: 0, push_frame_start: 0, push_frame_end: 0))), (action: LightAttack, clip: (137), options: Some((looping: false, in_place: true, speed_q8: 307, frame_start: 0, frame_end: 65535, push_distance: 0, push_frame_start: 0, push_frame_end: 0))), (action: HeavyAttack, clip: (107), options: Some((looping: false, in_place: true, speed_q8: 307, frame_start: 0, frame_end: 65535, push_distance: 0, push_frame_start: 0, push_frame_end: 0))), (action: RangedAttack, clip: (138), options: Some((looping: false, in_place: true, speed_q8: 307, frame_start: 0, frame_end: 65535, push_distance: 0, push_frame_start: 0, push_frame_end: 0))), (action: Intro, clip: (194)), (action: Turn, clip: (195)), (action: Knockdown, clip: (237), options: Some((looping: false, in_place: false, speed_q8: 256, frame_start: 0, frame_end: 65535, push_distance: 0, push_frame_start: 0, push_frame_end: 0)))],
+                clips: [(98), (99), (101), (102), (103), (105), (106), (107), (109), (137), (138), (194), (195), (237)],
             )),
         ),
         /*[68]*/ (
@@ -3459,6 +3460,20 @@
                 calibration: (in_place: false, offset: (0, 0, 0)),
             )),
         ),
+        /*[163]*/ (
+            id: (237),
+            name: "Heavy Enemy / Knockdown",
+            data: AnimationClip((
+                psxanim_path: "../default/assets/animations/knockdown_v1/heavy_knockdown.psxanim",
+                skeleton: Some((96)),
+                target_model: Some((97)),
+                source: None,
+                bake: ModelNative,
+                role: Hit,
+                looping: false,
+                tags: ["knockdown_v1", "authored", "approved"],
+            )),
+        ),
     ],
-    next_resource_id: 237,
+    next_resource_id: 238,
 )
