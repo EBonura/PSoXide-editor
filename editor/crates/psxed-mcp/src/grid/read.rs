@@ -710,17 +710,103 @@ pub fn budget(world: &GridWorld) -> String {
     out
 }
 
+/// Whether `.psxt` bytes are the importer's "no texture" look: a 64x64 4bpp
+/// image of black and magenta squares, one texel each, alternating in both
+/// directions. Layout: 28 byte header (depth u8 at 12, width u16 at 14,
+/// height u16 at 16, pixel bytes u32 at 20), pixels, then the 16 entry CLUT.
+fn is_no_texture_checker(bytes: &[u8]) -> bool {
+    if bytes.len() < 28 || &bytes[..4] != b"PSXT" || bytes[12] != 4 {
+        return false;
+    }
+    let width = usize::from(u16::from_le_bytes([bytes[14], bytes[15]]));
+    let height = usize::from(u16::from_le_bytes([bytes[16], bytes[17]]));
+    let pixel_bytes = u32::from_le_bytes([bytes[20], bytes[21], bytes[22], bytes[23]]) as usize;
+    if width != 64 || height != 64 || pixel_bytes != width * height / 2 {
+        return false;
+    }
+    let Some(pixels) = bytes.get(28..28 + pixel_bytes) else {
+        return false;
+    };
+    let Some(clut) = bytes.get(28 + pixel_bytes..28 + pixel_bytes + 32) else {
+        return false;
+    };
+    let colour = |index: u8| {
+        let at = usize::from(index) * 2;
+        let v = u16::from(clut[at]) | u16::from(clut[at + 1]) << 8;
+        (v & 31, (v >> 5) & 31, (v >> 10) & 31)
+    };
+    let index = |x: usize, y: usize| {
+        let byte = pixels[y * (width / 2) + x / 2];
+        if x % 2 == 0 {
+            byte & 15
+        } else {
+            byte >> 4
+        }
+    };
+    let (a, b) = (index(0, 0), index(1, 0));
+    let is_black = |(r, g, b): (u16, u16, u16)| r <= 6 && g <= 6 && b <= 6;
+    let is_magenta = |(r, g, b): (u16, u16, u16)| r >= 18 && b >= 18 && g <= 10;
+    let colours_ok = (is_black(colour(a)) && is_magenta(colour(b)))
+        || (is_magenta(colour(a)) && is_black(colour(b)));
+    colours_ok
+        && (0..height)
+            .all(|y| (0..width).all(|x| index(x, y) == if (x + y) % 2 == 0 { a } else { b }))
+}
+
+/// Errors for every material a face uses whose texture is the importer's
+/// "no texture" checker (found by content, or by the importer's "Grid
+/// Fallback" name). Such a floor or wall was never given a real texture.
+pub fn placeholder_texture_errors(
+    project: &ProjectDocument,
+    root: &std::path::Path,
+) -> Vec<String> {
+    let mut errors = Vec::new();
+    for scene in &project.scenes {
+        let Some(world) = scene.world.grid() else {
+            continue;
+        };
+        for id in world.material_ids() {
+            let Some(resource) = project.resource(id) else {
+                continue;
+            };
+            let psxed_project::ResourceData::Material(material) = &resource.data else {
+                continue;
+            };
+            let by_name = resource.name == "Grid Fallback";
+            let by_content = material.psxt_path.as_deref().is_some_and(|path| {
+                std::fs::read(psxed_project::model_import::resolve_path(path, Some(root)))
+                    .is_ok_and(|bytes| is_no_texture_checker(&bytes))
+            });
+            if by_name || by_content {
+                errors.push(format!(
+                    "material '{}' (id {}) is the importer's no-texture checker and a face uses it: give those faces a real material",
+                    resource.name, id.raw()
+                ));
+            }
+        }
+    }
+    errors
+}
+
 /// Cook the project in memory and report its errors, warnings and exact
 /// size. Errors are the cook's own messages, one per line.
 pub fn cook_check(project: &ProjectDocument, root: &std::path::Path) -> String {
     let (package, report) = psxed_project::playtest::build_package(project, root);
+    let placeholders = placeholder_texture_errors(project, root);
     let mut out = String::new();
-    if report.is_ok() {
+    if report.is_ok() && placeholders.is_empty() {
         out.push_str("cook: OK\n");
     } else {
-        let _ = writeln!(out, "cook: FAILED with {} error(s)", report.errors.len());
+        let _ = writeln!(
+            out,
+            "cook: FAILED with {} error(s)",
+            report.errors.len() + placeholders.len()
+        );
         for error in &report.errors {
             let _ = writeln!(out, "- error: {}", error.message);
+        }
+        for error in &placeholders {
+            let _ = writeln!(out, "- error: {error}");
         }
     }
     for warning in &report.warnings {
@@ -739,15 +825,19 @@ pub fn cook_check(project: &ProjectDocument, root: &std::path::Path) -> String {
 /// toolchain run with a tail of its log.
 pub fn cook_gate(project: &ProjectDocument, root: &std::path::Path) -> Result<(), String> {
     let (_, report) = psxed_project::playtest::build_package(project, root);
-    if report.is_ok() {
+    let placeholders = placeholder_texture_errors(project, root);
+    if report.is_ok() && placeholders.is_empty() {
         return Ok(());
     }
     let mut out = format!(
         "the cook refuses this project ({} error(s)); no disc was built:\n",
-        report.errors.len()
+        report.errors.len() + placeholders.len()
     );
     for error in &report.errors {
         let _ = writeln!(out, "- {}", error.message);
+    }
+    for error in &placeholders {
+        let _ = writeln!(out, "- {error}");
     }
     Err(out)
 }
@@ -820,5 +910,77 @@ mod tests {
         let text = budget(&w);
         assert!(text.contains("drawable faces"), "{text}");
         assert!(text.contains("no findings"), "{text}");
+    }
+
+    /// The importer's no-texture look as `.psxt` bytes: 64x64, 4bpp, black
+    /// and magenta squares, a texel each. `checker: false` gives a flat image.
+    fn psxt_64(checker: bool) -> Vec<u8> {
+        let mut bytes = b"PSXT".to_vec();
+        bytes.extend_from_slice(&[1, 0, 0, 0, 0x30, 0x08, 0, 0, 4, 0, 64, 0, 64, 0, 16, 0]);
+        bytes.extend_from_slice(&[0, 8, 0, 0, 32, 0, 0, 0]);
+        for _y in 0..64 {
+            for _x in 0..32 {
+                // Index 0 then 1 across a row, or all index 1.
+                bytes.push(if checker { 0x10 } else { 0x11 });
+            }
+        }
+        // Rows alternate their phase: odd rows start on index 1.
+        let rows = 28..28 + 2048;
+        for (i, byte) in bytes[rows].iter_mut().enumerate() {
+            if checker && (i / 32) % 2 == 1 {
+                *byte = 0x01;
+            }
+        }
+        // CLUT: black, magenta (5 bit 31, 0, 31), then unused black.
+        bytes.extend_from_slice(&[0, 0]);
+        bytes.extend_from_slice(&(31u16 | 31 << 10).to_le_bytes());
+        bytes.extend_from_slice(&[0; 28]);
+        bytes
+    }
+
+    #[test]
+    fn a_face_on_the_no_texture_checker_fails_the_cook_check() {
+        let dir = std::env::temp_dir().join(format!("psxed-placeholder-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("checker.psxt"), psxt_64(true)).unwrap();
+        std::fs::write(dir.join("flat.psxt"), psxt_64(false)).unwrap();
+        let root = psxed_project::projects_dir().join("graybox-reach");
+        let mut project = crate::grid::test_support::new_grid_project();
+        assert!(placeholder_texture_errors(&project, &root).is_empty());
+        // A material on a flat image is fine; on the checker, found by content
+        // although it is not named "Grid Fallback".
+        let flat = project.add_resource(
+            "Flat",
+            psxed_project::ResourceData::Material(psxed_project::MaterialResource::opaque(Some(
+                dir.join("flat.psxt").display().to_string(),
+            ))),
+        );
+        let checker = project.add_resource(
+            "Floor Test",
+            psxed_project::ResourceData::Material(psxed_project::MaterialResource::opaque(Some(
+                dir.join("checker.psxt").display().to_string(),
+            ))),
+        );
+        let world = project.active_scene_mut().world.grid_mut().unwrap();
+        let face = psxed_project::grid::edit::FaceRef::floor(0, [0, 0]);
+        assert!(psxed_project::grid::edit::set_material(
+            world,
+            face,
+            None,
+            Some(flat)
+        ));
+        assert!(placeholder_texture_errors(&project, &root).is_empty());
+        let world = project.active_scene_mut().world.grid_mut().unwrap();
+        psxed_project::grid::edit::set_material(world, face, None, Some(checker));
+        let errors = placeholder_texture_errors(&project, &root);
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert!(errors[0].contains("Floor Test"), "{errors:?}");
+        assert!(cook_check(&project, &root).contains("cook: FAILED"));
+        assert!(cook_gate(&project, &root).is_err());
+        // A material that no face uses is not reported.
+        let world = project.active_scene_mut().world.grid_mut().unwrap();
+        psxed_project::grid::edit::set_material(world, face, None, Some(flat));
+        assert!(placeholder_texture_errors(&project, &root).is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
