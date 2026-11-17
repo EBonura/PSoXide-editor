@@ -81,6 +81,8 @@ These results validate the cover/peek sequence and the existence of distinct mel
 
 ## Enemy lateral evade
 
+Superseded by "One mover" below (step 9, 2026-11-17): the dodge is now the fighter's own roll or a walk aside through its motor, and the 72-unit sidestep tuning is gone. The history stays for the record.
+
 The Light enemy can now commit a fast lateral step in either stance, including with zero Energy. It reacts to a visible, already-released approaching projectile independently of the slower cover-search cadence. It checks both side lanes and moves through the ordinary collision motor. A blocked side selects the other lane; two blocked lanes prevent the attempt.
 
 The shared tuning requests 72 units over 18 simulation ticks (0.3 seconds), followed by 12 ticks of planted recovery (0.2 seconds). A 120-tick cooldown runs from the start and survives stance changes. The step uses the existing left/right strafe clips, faces the opponent, costs no Energy and grants no invulnerability. It cannot cancel an attack windup, active attack, attack recovery or stance transition. Actual travel can be shorter because of collision or arrival tolerance. `combat_flow.ai.lateral_evade` exposes these values and requirements.
@@ -94,3 +96,11 @@ The normal Play build passed 352 runtime unit tests, five integration tests and 
 Every fighter is driven by one `CombatIntent` per tick (`psx_game_runtime::combat_intent`): a move, an optional point to face and aim, and the actions pressed, held and released. The pad reaches the player's rules only through `pad_intent` in the editor playtest (the duel's synthetic pad takes the same road). A tactical enemy's controller (`decide_tactical`) returns an intent and keeps its own goals and timers; `apply_intent` runs it under the shared rules (swap when allowed, turn, strike or shot through the shared kit gate `combat_verbs::attack_for`, collision-bound move). Enemies read the fighter they engage through a `CombatTarget` record, never "the player".
 
 Both the duel bot and every tactical enemy take two decisions from `combat_policy`: `parry_swap` (swap on purpose when a hit seen coming lands inside the parry window; how often is the character's `parry_swap_percent`, a placeholder at 50) and `crit_followup` (spend a parry's crit with the swapped-to weapon). The duel log marks them as `duel:decision` intents 7 (parry swap) and 8 (crit follow-up), and an enemy's deliberate parry as stance reason 11.
+
+## One mover (step 9, 2026-11-17)
+
+Every fighter moves through the same motor: the player's `CharacterMotorState`. Each enemy slot holds one, driven once per think by its controller's `CombatIntent` through the same collision solve and the same game rules as the player (no stamina limit, the decelerating roll, the room's gravity). The move is one form for every controller, a world-space stick (`CombatMove::Move`): the pad turns its stick through the camera, an AI asks for a share of its pace (it tilts the square root, as the motor's stick response is quadratic). Enemies turn at their own Character Controller's rate, run at its run speed with a bound Run clip, slow to the locked-on strafe (90%) and backward (40%) paces while facing their target, and fall off ledges. The game's speed knob (3/4) applies to every character.
+
+The dodge is the evade every fighter has. With the mobility kit (any Roll, Backstep or Dash clip bound) it is the character's roll with its i-frames, read from the motor exactly as the player's are, and the roll clip plays. Without it, a bolt dodge is a walk aside over the roll's frames. The current enemy animation sets bind no roll, so today's enemies walk aside; binding a Roll clip gives them the roll. How often a fighter tries to dodge (`EVADE_COOLDOWN_TICKS`) stays a decision constant. `combat_flow.ai.projectile_evade` in the MCP rules report describes it.
+
+Characters differ only by data: an enemy record carries the motion numbers of its Character Controller (`CharacterMotion`: walk and run speed, turn rate, weight, stamina, the roll), the same numbers the player's character record carries, and both build their motor configuration with one function.
