@@ -68,17 +68,20 @@ fn the_table_shows_bound_fallback_and_missing_per_kit() {
     assert_eq!(rows.len(), psx_level::combat_verbs::COMBAT_VERB_COUNT);
     assert_eq!(rows[0].kit, CombatKit::Core);
 
-    // The light enemy shoots from its Zenith light: its shot is bound there.
+    // The light enemy shoots from its Zenith light (its shot is bound there)
+    // and dashes (its mobility kit).
     let (ctx, light) = character_on_set(&project, "Light Enemy");
     let set = ctx.animation_set(light.animation_set).expect("set");
     let (kits, rows) =
         combat_verb_coverage_rows(&ctx.verb_bound(set, light.model), light.shoot_action());
-    assert!(kits.can_swap() && !kits.can_dodge());
+    assert!(kits.can_swap() && kits.can_dodge());
     assert_eq!(
         cell(&rows, A::RangedAttack),
         VerbCoverageCell::Bound(A::VertLightAttack)
     );
-    assert_eq!(cell(&rows, A::Roll), VerbCoverageCell::NoKit);
+    // Its mobility is the two dashes; it binds no roll of its own.
+    assert_eq!(cell(&rows, A::DashLeft), VerbCoverageCell::Bound(A::DashLeft));
+    assert_eq!(cell(&rows, A::Roll), VerbCoverageCell::Missing);
 
     // The default project's Aletha has no cannon: ranged and swap are "no kit".
     let project = project_default();
