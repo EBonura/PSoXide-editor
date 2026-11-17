@@ -51,9 +51,10 @@ fn the_table_shows_bound_fallback_and_missing_per_kit() {
         cell(&rows, A::LightAttack),
         VerbCoverageCell::Bound(A::LightAttack)
     );
+    // Her Knockdown clip is bound (2026-11-17); Parried still falls back.
     assert_eq!(
         cell(&rows, A::Knockdown),
-        VerbCoverageCell::Fallback(A::Stun)
+        VerbCoverageCell::Bound(A::Knockdown)
     );
     assert_eq!(cell(&rows, A::Parried), VerbCoverageCell::Fallback(A::Stun));
     assert_eq!(cell(&rows, A::GetUp), VerbCoverageCell::Missing);
