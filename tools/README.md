@@ -17,3 +17,49 @@ provided, or the calling target in the [Makefile](../Makefile).
 - [Downstream project setup](../docs/downstream-projects.md)
 - [Contributor checks](../CONTRIBUTING.md)
 - [Disc and executable formats](../crates/psx-iso)
+
+## Running the full gate (shared gate tools)
+
+The scripts in [`gates/`](gates) and the two `psxed-mcp` examples are the one way
+every lane runs the cook and duel gates. They do the same work as the older
+per-lane scripts, only without idle sleeps, with the duel seeds in parallel, and
+stopping on the first thing that is wrong.
+
+```sh
+# Build once (CARGO_TARGET_DIR as usual).
+cargo build --release -p psoxide-emulator --features editor
+cargo build --release -p psxed-mcp --bin psxed-mcp --example duel-baseline --example cook-check
+
+# 1. Refuse to start when a pinned component is not on origin (also run by the sweep).
+sh tools/gates/preflight.sh
+
+# 2. cook_check on all 15 projects; each project returns as soon as its answer arrives.
+tools/gates/cook-check.sh --out-dir "$OUT/cook"      # writes cc-<project>.json per project
+
+# 3. The 20-seed disc duel sweep, seeds concurrent (--jobs defaults to performance cores - 1).
+tools/gates/disc-sweep.sh "$OUT/duel" --jobs 8
+```
+
+- `cook-check` (`psxed-mcp/examples/cook-check.rs`): speaks the MCP lines to
+  `psxed-mcp`, waits for each reply, closes stdin. Prints `== <project>: <reply line>`;
+  the reply line is the same one the old shell driver printed. A failed check is
+  still a reply (read the JSON, as before); the exit status is 1 only when a
+  project gave no reply at all.
+- `duel-baseline --jobs N`: runs the seeds N at a time, one emulator process
+  each, every seed in its own `seed-N` directory. Rows print in seed order and
+  `baseline.json` is built in seed order, so the output matches `--jobs 1` (the
+  sequential run). It exits 1 when any seed could not run.
+- `disc-sweep.sh`: preflight, then per project deletes the old `baked/*.cue|bin`,
+  builds the disc and stops on any build failure or missing cue, then runs that
+  project's seeds. Discs are built one at a time because a disc build writes the
+  checkout's shared `generated/` cook output and guest stage.
+- `preflight.sh`: fetches each revision in `components.lock.json` from its
+  repository into a scratch repo, the way the hydrator does, and fails when one
+  is not reachable (an unpushed SDK pin).
+
+Where a disc build fails silently: it does not at the source. `psoxide-emulator
+build-project-disc` runs `make cook-playtest`, whose `bootstrap` step fetches the
+pinned SDK, and a failed fetch makes the frontend print `make cook-playtest failed`
+and exit non-zero. What went wrong in the lanes was downstream: the scripts ignored
+that exit code and `duel-baseline --skip-build` then took the newest cue already in
+`baked/`. The sweep script above removes that cue first and stops on the failure.
