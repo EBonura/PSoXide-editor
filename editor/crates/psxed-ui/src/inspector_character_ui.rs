@@ -613,6 +613,15 @@ fn draw_combat_stats_fields(ui: &mut egui::Ui, stats: &mut psxed_project::Combat
     );
     // Read by AI controllers only (an enemy, the duel bot); the pad ignores it.
     changed |= drag_u8(ui, "AI parry swap %", &mut stats.parry_swap_percent, 0, 100);
+    // Read by AI controllers only: how long before contact a hit must have
+    // been seen (its tell) for a deliberate parry. Zero adds no delay.
+    changed |= drag_u16(
+        ui,
+        "AI parry reaction ticks",
+        &mut stats.parry_reaction_ticks,
+        0,
+        240,
+    );
     ui.separator();
     ui.label(RichText::new("Knockdown").strong());
     changed |= drag_u16(ui, "Down ticks", &mut stats.knockdown_ticks, 0, u16::MAX);
