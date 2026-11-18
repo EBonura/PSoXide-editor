@@ -384,7 +384,6 @@ mod tests {
                 tags: Vec::new(),
                 calibration: Default::default(),
                 pose_corrections: Vec::new(),
-                preserve_samples: false,
             }),
         );
         project.add_resource(
@@ -400,7 +399,6 @@ mod tests {
                 tags: Vec::new(),
                 calibration: Default::default(),
                 pose_corrections: Vec::new(),
-                preserve_samples: false,
             }),
         );
         (project, id)
