@@ -549,7 +549,6 @@ fn draw_enemy_behavior_fields(
 
     ui.separator();
     ui.label(RichText::new("Contact & reward").strong());
-    changed |= drag_u16(ui, "Touch damage", &mut enemy.touch_damage, 0, u16::MAX);
     // Zero is deliberately allowed: an enemy that should grant no currency
     // (a scripted set-piece, a respawning trash spawner) authors it here
     // rather than needing a separate flag.
