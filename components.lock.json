@@ -3,7 +3,7 @@
   "components": {
     "sdk": {
       "repository": "EBonura/PSoXide",
-      "revision": "ae18e73460b01c2bcfd04d5db986c77862f63b28",
+      "revision": "719be978fff96c03adcd7b2b7a3e99126b53493d",
       "paths": [
         "sdk",
         "crates",
