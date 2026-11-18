@@ -44,7 +44,7 @@
     ),
     bsp_cook_mode: Release,
     animation_error_budget_degrees: 2,
-    animation_track_budget_units: 4,
+    animation_track_budget_units: 16,
     scenes: [
         /*[0]*/ (
             name: "Main",
@@ -1076,7 +1076,6 @@
             id: (33),
             name: "Light Enemy / Walk",
             data: AnimationClip((
-                preserve_samples: true,
                 psxanim_path: "assets/animations/light_walk_v5/walk.psxanim",
                 skeleton: Some((22)),
                 source: None,
@@ -1091,7 +1090,6 @@
             id: (34),
             name: "Light Enemy / Run",
             data: AnimationClip((
-                preserve_samples: true,
                 psxanim_path: "assets/animations/light_motion_v1/run.psxanim",
                 skeleton: Some((22)),
                 source: None,
@@ -1223,7 +1221,6 @@
             id: (54),
             name: "Aletha / Poise Break + Recovery",
             data: AnimationClip((
-                preserve_samples: true,
                 psxanim_path: "assets/animations/player_reactions_v3/poise.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
@@ -1393,7 +1390,6 @@
             id: (64),
             name: "Light Enemy / Turn In Place",
             data: AnimationClip((
-                preserve_samples: true,
                 psxanim_path: "assets/animations/light_motion_v1/turn.psxanim",
                 skeleton: Some((22)),
                 source: None,
@@ -1408,7 +1404,6 @@
             id: (65),
             name: "Light Enemy / Alert",
             data: AnimationClip((
-                preserve_samples: true,
                 psxanim_path: "assets/animations/light_motion_v1/alert.psxanim",
                 skeleton: Some((22)),
                 source: None,
@@ -1474,7 +1469,6 @@
             id: (71),
             name: "Light Enemy / Strafe Left",
             data: AnimationClip((
-                preserve_samples: true,
                 psxanim_path: "assets/animations/light_directional_v1/strafe_left.psxanim",
                 skeleton: Some((22)),
                 source: None,
@@ -1489,7 +1483,6 @@
             id: (72),
             name: "Light Enemy / Strafe Right",
             data: AnimationClip((
-                preserve_samples: true,
                 psxanim_path: "assets/animations/light_directional_v1/strafe_right.psxanim",
                 skeleton: Some((22)),
                 source: None,
@@ -1519,7 +1512,6 @@
             id: (74),
             name: "gen_walk_fwd_windup",
             data: AnimationClip((
-                preserve_samples: true,
                 psxanim_path: "assets/animations/gen/walk_fwd_windup.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
@@ -1535,7 +1527,6 @@
             id: (75),
             name: "gen_walk_fwd_winddown",
             data: AnimationClip((
-                preserve_samples: true,
                 psxanim_path: "assets/animations/gen/walk_fwd_winddown.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
@@ -1551,7 +1542,6 @@
             id: (76),
             name: "gen_walk_fwd_winddown_mirror",
             data: AnimationClip((
-                preserve_samples: true,
                 psxanim_path: "assets/animations/gen/walk_fwd_winddown_mirror.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
@@ -1698,7 +1688,6 @@
             id: (87),
             name: "Aletha / Hit Reaction",
             data: AnimationClip((
-                preserve_samples: true,
                 psxanim_path: "assets/animations/player_reactions_v3/hit.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
@@ -1742,7 +1731,6 @@
             id: (91),
             name: "Light Enemy / Death",
             data: AnimationClip((
-                preserve_samples: true,
                 psxanim_path: "assets/animations/light_death_v2/death.psxanim",
                 skeleton: Some((22)),
                 source: None,
@@ -1757,7 +1745,6 @@
             id: (92),
             name: "Light Enemy / Hit React",
             data: AnimationClip((
-                preserve_samples: true,
                 psxanim_path: "assets/animations/light_hit_v1/hit.psxanim",
                 skeleton: Some((22)),
                 source: None,
@@ -1966,7 +1953,6 @@
             id: (104),
             name: "Light Enemy / Walk Backward",
             data: AnimationClip((
-                preserve_samples: true,
                 psxanim_path: "assets/animations/light_directional_v1/walk_backward.psxanim",
                 skeleton: Some((22)),
                 source: None,
@@ -2023,7 +2009,6 @@
             id: (108),
             name: "Light Enemy / Stun + Recovery",
             data: AnimationClip((
-                preserve_samples: true,
                 psxanim_path: "assets/animations/light_reaction_v1/stun.psxanim",
                 skeleton: Some((22)),
                 source: None,
@@ -2232,7 +2217,6 @@
             id: (139),
             name: "Light Enemy / Heavy Overhead Claw",
             data: AnimationClip((
-                preserve_samples: true,
                 psxanim_path: "assets/animations/light_heavy_v1/heavy.psxanim",
                 skeleton: Some((22)),
                 source: None,
@@ -2261,7 +2245,6 @@
             id: (141),
             name: "Light Enemy / Horizon Light (Single Strike)",
             data: AnimationClip((
-                preserve_samples: true,
                 psxanim_path: "assets/animations/light_attack_v2/strike.psxanim",
                 skeleton: Some((22)),
                 source: None,
@@ -3281,7 +3264,6 @@
             id: (225),
             name: "Aletha / Hook launch",
             data: AnimationClip((
-                preserve_samples: true,
                 psxanim_path: "assets/animations/hook_flight_v2/launch.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
@@ -3296,7 +3278,6 @@
             id: (226),
             name: "Aletha / Braced arch aim bank",
             data: AnimationClip((
-                preserve_samples: true,
                 psxanim_path: "assets/animations/arch_perch_v2/perch_a.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
@@ -3312,7 +3293,6 @@
             id: (227),
             name: "Aletha / Fall",
             data: AnimationClip((
-                preserve_samples: true,
                 psxanim_path: "assets/animations/fall_land_v1/fall.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
@@ -3328,7 +3308,6 @@
             id: (228),
             name: "Aletha / Land",
             data: AnimationClip((
-                preserve_samples: true,
                 psxanim_path: "assets/animations/fall_land_v1/land.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
@@ -3429,7 +3408,6 @@
             id: (234),
             name: "Light Enemy / Knockdown",
             data: AnimationClip((
-                preserve_samples: true,
                 psxanim_path: "assets/animations/knockdown_v1/light_knockdown.psxanim",
                 skeleton: Some((22)),
                 source: None,
@@ -3444,7 +3422,6 @@
             id: (235),
             name: "Aletha / Knockdown",
             data: AnimationClip((
-                preserve_samples: true,
                 psxanim_path: "assets/animations/knockdown_v1/aletha_knockdown.psxanim",
                 skeleton: Some((23)),
                 target_model: Some((27)),
@@ -3474,7 +3451,6 @@
             id: (237),
             name: "Light Enemy / Dash Left",
             data: AnimationClip((
-                preserve_samples: true,
                 psxanim_path: "assets/animations/knockdown_v1/light_dash_left.psxanim",
                 skeleton: Some((22)),
                 source: None,
@@ -3489,7 +3465,6 @@
             id: (238),
             name: "Light Enemy / Dash Right",
             data: AnimationClip((
-                preserve_samples: true,
                 psxanim_path: "assets/animations/knockdown_v1/light_dash_right.psxanim",
                 skeleton: Some((22)),
                 source: None,
