@@ -1,0 +1,4 @@
+# Replays the link order is trained on (make link-order LINK_ORDER_PROJECT=projects/rib-room-h).
+# Idle 600 polls, walk forward, turn, walk, turn, then walk diagonally.
+features cd-stream-bench
+walk.csv 522 2000

@@ -35,7 +35,7 @@
 	hardware-tests hardware-tests-disc hwtest-radius-disc run-hardware-tests \
 	hwtest-run hwtest-diff hwtest-baseline hwtest-compare hwtest-verify-code \
 	hello-engine hello-engine-disc run-hello-engine \
-	cook-playtest build-editor-playtest profile-demo3 profile-demo3-forward \
+	cook-playtest build-editor-playtest link-order profile-demo3 profile-demo3-forward \
 	profile-demo3-paced20 profile-demo3-paced20-forward profile-demo3-disc-stream \
 	profile-demo3-disc-stream-forward profile-demo7-camera-sweep
 
@@ -598,6 +598,45 @@ EDITOR_PLAYTEST_HARDWARE_FEATURES ?= cd-stream-bench ot-2048
 
 build-editor-playtest:
 	sh tools/build_guest_staged.sh $(EDITOR_PLAYTEST_PSX_BUILD_FLAGS) $(EDITOR_PLAYTEST_CARGO_FEATURE_FLAGS)
+
+# Regenerate a project's I-cache link order: LINK_ORDER_PROJECT=projects/<name>.
+# The project's link-order/tapes.txt names the build features ("features <list>") and one
+# replay per line ("<tape> <first route tick> <stop poll>", the tape relative to link-order/,
+# the tick after boot and loading). This builds the project's disc in plain link order, replays
+# every tape with a count for every instruction word, and writes the counts as the project's
+# link-order.layout (psoxide-pgo layout), which every later build of the project is ordered from
+# (SDK tools/psoxide-pgo/README.md, "Link order for editor projects"). Run it when a build warns
+# that the layout no longer binds. The frontend is built here unless LINK_ORDER_FRONTEND names one.
+LINK_ORDER_FRONTEND ?=
+link-order:
+	@test -n "$(LINK_ORDER_PROJECT)" || { echo "usage: make link-order LINK_ORDER_PROJECT=projects/<name>" >&2; exit 2; }
+	@set -eu; \
+	project="$$(cd "$(LINK_ORDER_PROJECT)" && pwd)"; \
+	spec="$$project/link-order/tapes.txt"; \
+	test -f "$$spec" || { echo "no $$spec" >&2; exit 2; }; \
+	frontend="$(LINK_ORDER_FRONTEND)"; \
+	if [ -z "$$frontend" ]; then \
+		cargo build -q --release -p psoxide-emulator --features editor; \
+		frontend="$${CARGO_TARGET_DIR:-$(CURDIR)/target}/release/psoxide-emulator"; \
+	fi; \
+	work="$$(mktemp -d)"; \
+	features="$$(sed -n 's/^features //p' "$$spec")"; \
+	echo "[link-order] plain-order build of $$project (features: $$features)"; \
+	PSOXIDE_GUEST_LAYOUT=off EDITOR_PLAYTEST_FEATURES="$$features" \
+		"$$frontend" build-project-disc --project "$$project" > "$$work/build.log" 2>&1 || { tail -20 "$$work/build.log" >&2; exit 1; }; \
+	cue="$$(tail -1 "$$work/build.log")"; \
+	cp "$(EXAMPLE_OUT)/editor-playtest.exe" "$$work/image.exe"; \
+	cp "$${PSOXIDE_GUEST_LINK_MAP:-$${PSOXIDE_GUEST_STAGE_ROOT:-$(GUEST_STAGE_ROOT)}/editor-playtest.map}" "$$work/link.map"; \
+	grep -v '^features \|^#\|^$$' "$$spec" | while read -r tape tick polls; do \
+		echo "[link-order] replay $$tape from route tick $$tick to poll $$polls"; \
+		"$$frontend" launch --path "$$cue" --embedded-playtest --input-tape "$$project/link-order/$$tape" \
+			--stop-at-poll "$$polls" --steps 40000000000 --pc-log-words \
+			--pc-line-log "$$work/$$tape.words" --pc-line-start-route-tick "$$tick" > "$$work/$$tape.log" 2>&1; \
+	done; \
+	cargo run -q --release --locked -p psoxide-pgo -- layout "$$work/link.map" "$$work/image.exe" \
+		"$$work"/*.words "$$project/link-order.layout"; \
+	rm -rf "$$work"; \
+	echo "[link-order] wrote $$project/link-order.layout"
 
 profile-demo3:
 	$(MAKE) profile-demo3-disc-stream PROFILE_DEMO3_DISC_STREAM_HW=$(PROFILE_DEMO3_HW)
