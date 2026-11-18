@@ -32,6 +32,7 @@ pub fn summarize(log: &str) -> Value {
     let mut combat_events = Vec::new();
     let mut result = None;
     let mut seed = None;
+    let mut opponent_slot = None;
     let mut one_bar = false;
     for line in log.lines() {
         let Some((label, rest)) = line.split_once(' ') else {
@@ -44,6 +45,7 @@ pub fn summarize(log: &str) -> Value {
         match label {
             "duel:start" if values.len() == 2 || values.len() == 3 => {
                 seed = Some(values[0]);
+                opponent_slot = Some(values[1]);
                 one_bar = values.get(2) == Some(&1);
             }
             "duel:sample" => samples.extend(one_bar_row(values, one_bar)),
@@ -353,6 +355,7 @@ pub fn summarize(log: &str) -> Value {
         "intent_names":["hold","approach","melee","ranged","dodge","swap","retreat","parry_swap","crit"],
         "stance_reasons":["distance","recover_pool_retired","press_after_shots","exposed_channel","forced_break","rebuild_energy","melee_to_ranged","shot_to_melee","overhead_target","ranged_phase","contest_space","parry"],"samples":json_samples,"decisions":decisions});
     // Kept out of the literal above, which is at the json! recursion limit.
+    report["opponent_entity_slot"] = json!(opponent_slot);
     report["parries_player_enemy"] = json!(parries);
     report["crits_player_enemy"] = json!(crits);
     report["knockdowns_player_enemy"] = json!(knockdowns);
@@ -365,17 +368,44 @@ pub fn summarize(log: &str) -> Value {
     report
 }
 
-/// Run an existing normal Play disc. A start gesture selects the seeded controller.
-pub fn run(frontend: &Path, cue: &Path, out: &Path, seed: u8, polls: u32) -> Result<Value, String> {
+/// The right stick's vertical value at the duel start that names the
+/// opponent: the level's training entities in order, 0 the first (stick
+/// centred), 1 the second (fully down, 255), each further one 8 lower. The
+/// guest reads it in `duel_opponent`.
+///
+/// # Panics
+///
+/// When `opponent` is above 8 (the guest names nine at most).
+pub fn opponent_stick(opponent: u8) -> u8 {
+    assert!(opponent <= 8, "opponent must be 0..=8");
+    if opponent == 0 {
+        128
+    } else {
+        255 - 8 * (opponent - 1)
+    }
+}
+
+/// Run an existing normal Play disc. A start gesture selects the seeded
+/// controller and the `opponent` (see [`opponent_stick`]).
+pub fn run(
+    frontend: &Path,
+    cue: &Path,
+    out: &Path,
+    seed: u8,
+    opponent: u8,
+    polls: u32,
+) -> Result<Value, String> {
     std::fs::create_dir_all(out).map_err(|e| e.to_string())?;
     let tape = out.join("input.csv");
+    let stick_y = opponent_stick(opponent);
     let mut csv=String::from("psoxide-tape,v2,clock=pad_poll,start_poll=0\nframe,buttons,right_x,right_y,left_x,left_y\n");
     for n in 0..=polls {
         let start = (400..404).contains(&n);
         csv.push_str(&format!(
-            "{n},{},{},128,128,128\n",
+            "{n},{},{},{},128,128\n",
             if start { 257 } else { 0 },
-            if start { seed } else { 128 }
+            if start { seed } else { 128 },
+            if start { stick_y } else { 128 }
         ));
     }
     std::fs::write(&tape, csv).map_err(|e| e.to_string())?;
@@ -642,6 +672,30 @@ mod tests {
             row(a).replace("duel:sample ", "duel:sample 00000000 00000000 ")
         );
         assert_eq!(summarize(&stray)["sample_count"], 0);
+    }
+
+    #[test]
+    fn opponent_stick_names_training_entities_in_order() {
+        // The guest's duel_opponent: centred the first, 248..=255 the
+        // second, each eight below that one further.
+        let guest_skip = |y: u8| {
+            if y >= 0xc0 {
+                usize::from((0xff - y) / 8) + 1
+            } else {
+                0
+            }
+        };
+        for opponent in 0..=8u8 {
+            assert_eq!(guest_skip(opponent_stick(opponent)), usize::from(opponent));
+        }
+        assert_eq!(opponent_stick(0), 128);
+        assert_eq!(opponent_stick(1), 255);
+    }
+
+    #[test]
+    fn reports_the_opponent_slot_from_the_start_line() {
+        let report = summarize("duel:start 0x3 0x2 0x1\nduel:end 0x10 0x5\n");
+        assert_eq!(report["opponent_entity_slot"], json!(2));
     }
 
     #[test]

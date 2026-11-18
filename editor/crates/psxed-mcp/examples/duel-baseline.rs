@@ -15,7 +15,8 @@
 //! (default `projects/graybox-reach`), `--seeds A,B,C` (1..255, not 128), `--polls N`
 //! (default 11400, the 180 second limit), `--out DIR`, `--skip-build` (reuse the
 //! newest disc under `<project>/baked`), `--jobs N` (seeds run at the same time; default
-//! the performance cores minus one, `--jobs 1` is the sequential run).
+//! the performance cores minus one, `--jobs 1` is the sequential run), `--opponent N` (which
+//! training entity she fights, in level order: 0, the default, is the first).
 //!
 //! Seeds are independent: each boots the same read-only disc in its own emulator process and
 //! writes only under its own `seed-N` directory. With `--jobs` above one the seeds finish in any
@@ -91,6 +92,7 @@ fn main() {
     let mut out: Option<PathBuf> = None;
     let mut skip_build = false;
     let mut jobs = default_jobs();
+    let mut opponent = 0u8;
     let mut args = std::env::args().skip(1);
     while let Some(flag) = args.next() {
         let mut value = |name: &str| {
@@ -110,6 +112,10 @@ fn main() {
             "--out" => out = Some(PathBuf::from(value("--out"))),
             "--skip-build" => skip_build = true,
             "--jobs" => jobs = value("--jobs").parse().expect("jobs must be a number"),
+            "--opponent" => {
+                opponent = value("--opponent").parse().expect("opponent must be 0..8");
+                assert!(opponent <= 8, "opponent must be 0..8");
+            }
             other => panic!("unknown flag {other}"),
         }
     }
@@ -140,7 +146,7 @@ fn main() {
     println!(
         "seed outcome end_tick player_taken enemy_taken switches(p,e) parries(p,e) crits(p,e) knockdowns(p,e)"
     );
-    let reports = run_seeds(&frontend, &cue, &out, &seeds, polls, jobs);
+    let reports = run_seeds(&frontend, &cue, &out, &seeds, opponent, polls, jobs);
     let runs: Vec<Value> = reports.iter().map(compact).collect();
     let baseline = json!({
         "project": project,
@@ -149,6 +155,7 @@ fn main() {
         "frontend": frontend,
         "frontend_sha256": sha256(&frontend),
         "polls": polls,
+        "opponent": opponent,
         "runs": runs,
     });
     std::fs::create_dir_all(&out).expect("create output directory");
@@ -170,6 +177,7 @@ fn run_seeds(
     cue: &std::path::Path,
     out: &std::path::Path,
     seeds: &[u8],
+    opponent: u8,
     polls: u32,
     jobs: usize,
 ) -> Vec<Value> {
@@ -194,6 +202,7 @@ fn run_seeds(
                     cue,
                     &out.join(format!("seed-{seed}")),
                     seed,
+                    opponent,
                     polls,
                 )
                 .unwrap_or_else(
@@ -222,6 +231,7 @@ fn compact(report: &Value) -> Value {
     let pick = |key: &str| report.get(key).cloned().unwrap_or(Value::Null);
     json!({
         "seed": pick("seed"),
+        "opponent_entity_slot": pick("opponent_entity_slot"),
         "outcome": pick("outcome"),
         "end_tick": pick("end_tick"),
         "completed_by_death": pick("completed_by_death"),

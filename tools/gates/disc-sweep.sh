@@ -20,7 +20,10 @@
 #   FRONTEND        psoxide-emulator built with --features editor
 #                   (default $CARGO_TARGET_DIR/release/psoxide-emulator)
 #   DUEL_BASELINE   the duel-baseline example (default .../release/examples/duel-baseline)
-#   SWEEP_SPECS     space separated project:seeds (default: the 20-seed sweep)
+#   SWEEP_SPECS     space separated project:seeds[@opponent] (default: the 20-seed sweep).
+#                   @N picks her opponent, the level's Nth training entity from 0 (the
+#                   default); its results go to <outdir>/<project>-o<N>. A project
+#                   named twice is built once.
 set -eu
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -41,8 +44,11 @@ cd "$ROOT"
 sh tools/gates/preflight.sh
 mkdir -p "$OUT"
 
+built=" "
 for spec in $SPECS; do
     p="${spec%%:*}"
+    case "$built" in *" $p "*) continue ;; esac
+    built="$built$p "
     baked="projects/$p/baked"
     rm -f "$baked"/*.cue "$baked"/*.bin
     EDITOR_PLAYTEST_FEATURES="cd-stream-bench host-tty" \
@@ -55,12 +61,13 @@ done
 
 status=0
 for spec in $SPECS; do
-    p="${spec%%:*}"; seeds="${spec#*:}"
+    p="${spec%%:*}"; seeds="${spec#*:}"; opponent=0; name="$p"
+    case "$seeds" in *@*) opponent="${seeds#*@}"; seeds="${seeds%@*}"; name="$p-o$opponent" ;; esac
     # shellcheck disable=SC2086
     "$DUEL_BASELINE" --frontend "$FRONTEND" --project "projects/$p" --seeds "$seeds" \
-        --skip-build --out "$OUT/$p" $JOBS_ARGS >"$OUT/sweep-$p.log" 2>&1 \
-        || { echo "sweep: duel-baseline for $p FAILED, see $OUT/sweep-$p.log" >&2; status=1; }
-    echo "== $p"; cat "$OUT/sweep-$p.log"
+        --opponent "$opponent" --skip-build --out "$OUT/$name" $JOBS_ARGS >"$OUT/sweep-$name.log" 2>&1 \
+        || { echo "sweep: duel-baseline for $name FAILED, see $OUT/sweep-$name.log" >&2; status=1; }
+    echo "== $name"; cat "$OUT/sweep-$name.log"
 done
 [ "$status" -eq 0 ] || exit 1
 echo sweepdone

@@ -20,6 +20,9 @@ struct CombatDuelReq {
     polls: Option<u32>,
     /// Reuse the built normal Play disc. Default false rebuilds from saved project data.
     skip_build: Option<bool>,
+    /// Which training entity she fights, in level order: 0 (default) the
+    /// first, 1 the second, up to 8.
+    opponent: Option<u8>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -85,6 +88,7 @@ impl EditorServer {
             &cue,
             &out,
             seed,
+            req.opponent.unwrap_or(0).min(8),
             req.polls.unwrap_or(11400).clamp(900, 12000),
         )
         .map_err(|e| ErrorData::internal_error(e, None))?;
