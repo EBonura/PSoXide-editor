@@ -472,9 +472,6 @@ fn draw_enemy_behavior_fields(
 
     ui.separator();
     changed |= ui
-        .checkbox(&mut enemy.tactical, "Tactical behaviour")
-        .changed();
-    changed |= ui
         .checkbox(&mut enemy.training, "Encounter test controls")
         .changed();
     ui.label(RichText::new("Awareness & patrol").strong());
