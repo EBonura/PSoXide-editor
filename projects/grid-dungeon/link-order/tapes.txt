@@ -1,0 +1,6 @@
+# Replays the link order is trained on (make link-order LINK_ORDER_PROJECT=projects/grid-dungeon).
+# The duel tapes start the scripted training duel (seed in the right stick X at polls 400-403)
+# and need the duel log, hence host-tty: the layout binds onto builds with these features.
+features cd-stream-bench host-tty
+duel-seed1.csv 705 3600
+duel-seed2.csv 705 3000
