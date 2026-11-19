@@ -603,11 +603,16 @@ build-editor-playtest:
 # The project's link-order/tapes.txt names the build features ("features <list>") and one
 # replay per line ("<tape> <first route tick> <stop poll>", the tape relative to link-order/,
 # the tick after boot and loading). This builds the project's disc in plain link order, replays
-# every tape with a count for every instruction word, and writes the counts as the project's
-# link-order.layout (psoxide-pgo layout), which every later build of the project is ordered from
-# (SDK tools/psoxide-pgo/README.md, "Link order for editor projects"). Run it when a build warns
-# that the layout no longer binds. The frontend is built here unless LINK_ORDER_FRONTEND names one.
+# every tape with a count for every instruction word and a fetch trace (the order the code ran),
+# and writes the project's link-order.layout, which every later build of the project is ordered
+# from (SDK tools/psoxide-pgo/README.md, "Link order for editor projects" and "search"). The counts
+# give psoxide-pgo layout's greedy placement; psoxide-pgo search starts from it, moves functions
+# until the I-cache model's refill stalls over the traced tapes stop falling, and records the
+# placement it found in the layout. Run it when a build warns that the layout no longer binds
+# (a change to the placed code or to the size of the code ahead of it). The frontend is built here
+# unless LINK_ORDER_FRONTEND names one. LINK_ORDER_SEARCH_ROUNDS=0 keeps the greedy placement.
 LINK_ORDER_FRONTEND ?=
+LINK_ORDER_SEARCH_ROUNDS ?= 600
 link-order:
 	@test -n "$(LINK_ORDER_PROJECT)" || { echo "usage: make link-order LINK_ORDER_PROJECT=projects/<name>" >&2; exit 2; }
 	@set -eu; \
@@ -631,10 +636,27 @@ link-order:
 		echo "[link-order] replay $$tape from route tick $$tick to poll $$polls"; \
 		"$$frontend" launch --path "$$cue" --embedded-playtest --input-tape "$$project/link-order/$$tape" \
 			--stop-at-poll "$$polls" --steps 40000000000 --pc-log-words \
-			--pc-line-log "$$work/$$tape.words" --pc-line-start-route-tick "$$tick" > "$$work/$$tape.log" 2>&1; \
+			--pc-line-log "$$work/$$tape.words" --pc-line-start-route-tick "$$tick" \
+			--fetch-trace-log "$$work/$$tape.trace" --fetch-trace-start-route-tick "$$tick" \
+			> "$$work/$$tape.log" 2>&1; \
 	done; \
 	cargo run -q --release --locked -p psoxide-pgo -- layout "$$work/link.map" "$$work/image.exe" \
-		"$$work"/*.words "$$project/link-order.layout"; \
+		"$$work"/*.words "$$work/greedy.layout"; \
+	if [ "$(LINK_ORDER_SEARCH_ROUNDS)" = 0 ]; then \
+		cp "$$work/greedy.layout" "$$project/link-order.layout"; \
+	else \
+		set --; \
+		for trace in "$$work"/*.trace; do \
+			set -- "$$@" --trace "$$(basename "$$trace" .trace)" "$$work/link.map" "$$work/image.exe" "$$trace"; \
+		done; \
+		echo "[link-order] search, $(LINK_ORDER_SEARCH_ROUNDS) rounds"; \
+		cargo run -q --release --locked -p psoxide-pgo -- search "$$work/greedy.layout" \
+			"$$work/link.map" "$$work/image.exe" "$(CURDIR)/sdk/psoxide.ld" \
+			"$$project/link-order.layout" "$$@" --start greedy --seed 1 \
+			--rounds $(LINK_ORDER_SEARCH_ROUNDS) > "$$work/search.log" 2>&1 \
+			|| { tail -20 "$$work/search.log" >&2; exit 1; }; \
+		grep -v '^ *round ' "$$work/search.log" | tail -8; \
+	fi; \
 	rm -rf "$$work"; \
 	echo "[link-order] wrote $$project/link-order.layout"
 

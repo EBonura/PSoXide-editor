@@ -8123,3 +8123,800 @@ w 95:32 96:32 97:32 98:32 99:32 100:32 101:32 102:32 103:32 104:32 105:32 106:32
 w 111:32 112:32 113:32 114:32 115:32 116:4 117:4 130:4 131:4 132:4 133:4 134:4 135:4 136:4 137:4 138:4
 w 139:4 140:4 141:4 142:4 143:4 144:4 145:4
 c 4 141 psx_io::gpu::write_commands_when_ready_slow
+# placement: psoxide-pgo search, seed 1 rounds 600 batch 24: 28802 window replays, 118 moves kept, objective 2.0000 -> 1.7999
+# placement windows: duel-seed1.csv (weight 1), duel-seed2.csv (weight 1)
+s 8001a65c
+o 82a269c48f2e64ec 160 8001a65c memcpy
+o a21e998811c4acf2 44 8001a8dc psx_io::gpu::handoff::write_commands_slow
+o 520ba0dac5bffd0a 24 8001a98c psx_io::gpu::write_commands_when_ready_slow
+o cf8ed786725b6d22 64 8001a9ec psx_io::gpu::handoff::record_words
+o 7e8bcd896f8ce5d3 32 8001aaec psx_gpu::gpu::draw::<psx_gpu::prim::Sprite> @psx_gpu
+o 216251e8c0725eaf 195 8001ab6c editor_playtest::marker_runtime::draw_lock_target_readout::{closure#2} @editor_playtest
+o 050af87870bee6a3 29 8001ae78 <psx_game_runtime::entities::GameEntities<2>>::place_training_actor @editor_playtest
+o 850edf75e48154c8 973 8001aeec <psx_game_runtime::model_rendering::scarf::PlayerScarf>::advance
+o b393bcf9a10d53f0 176 8001be20 <psx_engine::render3d::WorldRenderPass<2048>>::merge_sort_slot_links @editor_playtest
+o 58a87f4800a0a4b2 164 8001c0e0 <psx_game_runtime::model_rendering::scarf::PlayerScarf>::constrain
+o 0f093bdfee724d2b 36 8001c370 psx_level::insert::<64> @editor_playtest
+o aa0cf8317487932d 11 8001c400 psx_game_runtime::entities::body_of
+o 063e3dd7eaa0f1f3 32 8001c42c <alloc::raw_vec::RawVec<psx_residency::engine::Wanted>>::grow_one @editor_playtest
+o 3115a97fce91ee44 29 8001c4ac psx_gpu::gpu::draw::<psx_gpu::prim::FillRect> @psx_gpu
+o 1c2e4df15484f87c 141 8001c520 <psx_engine::game_app::GameApp<editor_playtest::Playtest>>::enter_flow_state @editor_playtest
+o 9027dfc6f8bb82dc 3959 8001c754 <editor_playtest::Playtest>::refresh_actor_pose_snapshots
+o 0e3f118612958cdd 2 80020530 psx_rt::halt
+o cbd4ad56f62ebf7b 7788 80020538 <editor_playtest::Playtest>::update_gameplay
+o ab73cba00ea032c6 317 80027ee8 editor_playtest::overlay::draw_vitality_bar
+o 2251c491219af446 166 800283dc <psx_game_runtime::model_rendering::scarf::PlayerScarf>::collide_body
+o e5aa628c59465413 65 80028674 psx_gpu::gpu::set_draw_mode
+o b7cd9d686897c146 252 80028778 editor_playtest::overlay::draw_expanding_poi_message
+o 90fa73e32c89d899 245 80028b68 editor_playtest::marker_runtime::draw_target_lock_line
+o 4d7db56c9eaa6684 787 80028f3c <psx_engine::render3d::WorldRenderPass<2048>>::submit_predecoded_model_face::<psx_engine::render::PrimitivePacketArena> @editor_playtest
+o 55e4f286a797e7cf 62 80029b88 <editor_playtest::Playtest>::set_present_instances
+o 905a20546a21f2e7 11 80029c80 psx_rt::tty::print
+o 3067a0548b8bcc3f 117 80029cac <psx_engine::game_app::GameApp<editor_playtest::Playtest>>::ui_state_index_for_scene @editor_playtest
+o 50797d9cd7cfff0c 398 80029e80 editor_playtest::marker_runtime::draw_lock_target_readout
+o eb0282d99a9c8b1a 444 8002a4b8 <psx_game_runtime::vram::upload_queue::VramUploadQueue>::step::<<psx_game_runtime::vram::VramRuntime<128, 64, 6, 32>>::load_ui_images_for_scene<4815, 6>::{closure#0}, <psx_game_runtime::vram::VramRuntime<128, 64, 6, 32>>::step_uploads<<psx_game_runtime::vram::VramRuntime<128, 64, 6, 32>>::load_ui_images_for_scene<4815, 6>::{closure#0}>::{closure#0}> @editor_playtest
+o 66e232e4f28ef153 10 8002aba8 __psx_rt_call_on_stack
+o 8544d93ca942cf26 882 8002abd0 <psx_engine::game_app::GameApp<editor_playtest::Playtest>>::perform_action @editor_playtest
+o 737c67b2fdcdff4d 12 8002b998 psx_io::cd::ack_all_and_reset_parameters
+o 39098b9203ce8835 241 8002b9c8 <editor_playtest::Playtest>::player_combat_sample
+o 43a635f25a44f958 340 8002bd8c editor_playtest::fatal_report
+o eefb98d59ba321e1 6557 8002c2dc <editor_playtest::Playtest>::step_streaming_jobs
+o ea18525900c085dc 613 80032950 psx_engine::ui::draw_transformed_text_paint
+o b67d450388eb4b8d 18 800332e4 psx_rt_fatal_fault
+o 507bcdef794ef8e3 3358 8003332c <psx_game_runtime::entities::GameEntities<2>>::decide_tactical::<editor_playtest::game_logic_runtime::SceneEntityMover> @editor_playtest
+o 33e934630166f09a 985 800367a4 <psx_engine::render3d::WorldRenderPass<2048>>::submit_predecoded_model_faces_packed_average_unclamped_batch::<true, psx_engine::render::PrimitivePacketArena> @editor_playtest
+o b44edbe8780392bd 38 80037708 psx_gpu::gpu::draw::<psx_gpu::prim::TriGouraud> @psx_gpu
+o 659ad94a74aeb99f 32 800377a0 <psx_game_runtime::character::RuntimeCharacter>::combat_kits
+o 0ccbec165bad3a5b 919 80037820 <psx_game_runtime::model_rendering::RuntimeModelAsset>::from_record_bytes
+o 523570e77fea0679 117 8003867c <editor_playtest::grid_runtime::GridRuntime>::activate
+o 45cd80c1967771f1 610 80038850 <editor_playtest::Playtest>::time_entity_attacks
+o 737d4ef77afb93fd 29 800391d8 psx_engine::transitions::draw_rect
+o e4141b94b37bd939 19 8003924c psx_math::fmt::u32_hex
+o 5477506fb19bb5ea 762 80039298 <psx_grid::stream::StreamWindow>::refresh_flood
+o f36144dd6724f695 151 80039e80 <psx_engine::game_app::GameApp<editor_playtest::Playtest>>::horizontal_press @editor_playtest
+o f0ddfe68387eba5d 84 8003a0dc <editor_playtest::Playtest>::target_position
+o aa9c53c8f04374db 81 8003a22c psx_engine::character_motor::trace_body_aabb_blocker::{closure#0} @psx_engine
+o d4dd900bd4f3f891 779 8003a370 <editor_playtest::Playtest>::update_follow_camera
+o 0e833256355dd8df 606 8003af9c psx_engine::character_motor::trace_character_blocker
+o e21fe7daa6e1f8a1 67 8003b914 psx_io::gpu::handoff::record_word
+o 4eed282e5f052623 5519 8003ba20 <editor_playtest::Playtest>::draw_world_and_sky
+o 36b20b7383bfc41e 568 8004105c <psx_engine::render3d::WorldRenderPass<2048>>::submit_predecoded_model_face_packed_fast::<psx_engine::render::PrimitivePacketArena> @editor_playtest
+o cade0b1b4b201f37 61 8004193c <editor_playtest::Playtest>::detach_arch
+o 0804f20187951304 168 80041a30 <editor_playtest::Playtest>::motor_config
+o 39d9ea002575b6a6 114 80041cd0 psx_engine::ui::draw_focus_tracer
+o cb4eb3d651f19848 1798 80041e98 <editor_playtest::grid_runtime::GridRuntime>::update_motor
+o 72b44b0c90745f35 14 80043ab0 <editor_playtest::Playtest>::hook_path_clear
+o 8e34f29721938718 176 80043ae8 <editor_playtest::Playtest>::locate_fighters
+o cd9ac2a05eb6c555 450 80043da8 psx_engine::ui::linked_focus_bounds
+o 88988fe93750255c 385 800444b0 <editor_playtest::Playtest>::update_attack_input
+o 1fa7bd763f58bed2 505 80044ab4 <editor_playtest::Playtest>::load_streamed_runtime_models
+o 481c5a1bcf9fad82 120 80045298 <psx_game_runtime::actor_pose::ActorPoseSnapshot>::joint_world_transform_at
+o 94baa2d0befd27e5 106 80045478 <psx_game_runtime::entities::GameEntities<2>>::reaction_ticks::<<editor_playtest::Playtest>::time_entity_attacks::{closure#1}> @editor_playtest
+o 8ea9ad72ceaa1dbc 163 80045620 <editor_playtest::Playtest>::collect_collision_blockers_near_into::<psx_engine::scratch::FixedScratch<psx_engine::character_motor::CharacterCollisionCylinder, 33>> @editor_playtest
+o 97cc30786200057e 426 800458ac <psx_grid::collision::world::GridCollision>::scan_slabs_tree
+o bc242a4ca512e314 15 80045f54 __psx_rt_dispatch_update
+o f3772b4faca8270a 730 80045f90 <editor_playtest::Playtest>::step_hook
+o 6bfc92acfe9d43df 146 80046af8 <editor_playtest::Playtest>::lock_target_valid
+o 1068974b1436a70a 83 80046d40 <psx_io::cd::xa::Engine>::launch::<psx_io::periph::Cd> @psx_io
+o e6e18fe4ecdd6f05 67 80046e8c <editor_playtest::Playtest>::open_demo_outro_once
+o 2e6f13175f0f1ee9 557 80046f98 psx_engine::transitions::render_transition_overlay
+o 8df7b32278155dc3 21 8004784c <psx_cdstream::console::Mmio as psx_cdstream::hw::CdHw>::finish_response @psx_cdstream
+o 1dc41daf2b4b5ece 103 800478a0 <editor_playtest::Playtest>::update_lock_target_switch
+o 12c969d3a8444a25 366 80047a3c <psx_game_runtime::vram::VramRuntime<128, 64, 6, 32>>::ensure_large_ui_texture_uploaded_with_clut_mode @editor_playtest
+o 81817c5caa98942a 7 80047ff4 psx_cdstream::console::enter::<psx_cdstream::engine::Engine<psx_cdstream::console::Mmio, 5, 8>> @psx_cdstream
+o f5718884e1df0bd8 335 80048010 <psx_game_runtime::projectiles::CombatProjectiles<24>>::incoming_threat @editor_playtest
+o e71285655805a2e9 239 8004854c <psx_grid::collision::world::GridCollision>::crossed_leaf
+o 43f4fc0e475a4a66 413 80048908 editor_playtest::input::pad_intent
+o d0a4384c2e40c697 353 80048f7c <psx_game_runtime::vram::VramRuntime<128, 64, 6, 32>>::load_ui_images_for_scene::<4815, 6> @editor_playtest
+o f2df912c6dad9a67 77 80049500 psx_engine::movement::yaw_to_point
+o a6915466210bb011 299 80049634 <editor_playtest::grid_runtime::GridRuntime>::sample_contents
+o 491c126dab7f437b 358 80049ae0 <editor_playtest::Playtest>::game_entity_pose_overrides
+o 0361e5224ac8993a 540 8004a078 <editor_playtest::Playtest>::find_lock_target
+o 21e8edc71812c5cc 9 8004a8e8 psx_rt::dispatch::detach
+o 13eb826d61b34dc8 8 8004a90c <psx_game_runtime::character::PlayerAnim>::action
+o 6771476128dc6267 199 8004a92c <editor_playtest::Playtest>::player_parried
+o 03151aa31c9f9ad7 10019 8004ac48 <editor_playtest::Playtest as psx_engine::scene::Scene>::render
+o 79fb44cba7439b41 538 800548d4 <psx_engine::render3d::WorldRenderPass<2048>>::submit_predecoded_model_faces_layered_bucketed_average_unclamped_extent_safe_batch::<true, psx_engine::render::PrimitivePacketArena> @editor_playtest
+o 57190bd6f7d239c3 64 8005513c core::ptr::drop_in_place::<psx_grid::flood::Flood> @editor_playtest
+o 746bfe0babbc6c58 633 8005523c psx_asset::tracks::joint_pose
+o 80e904162cbeb423 952 80055c20 <psx_engine::render3d::WorldRenderPass<2048>>::submit_predecoded_model_faces_packed_average_unclamped_batch::<false, psx_engine::render::PrimitivePacketArena> @editor_playtest
+o 926ed8acf474973d 15 80056b00 <u8 as psx_level::wire::Wire>::get
+o ec91a987fdc7459a 259 80056b3c <psx_font::FontAtlas>::draw_text_with_spacing
+o 3495fa2d89d6a922 760 80056f48 <psx_game_runtime::vram::VramRuntime<128, 64, 6, 32>>::ensure_texture_uploaded_with_clut_mode @editor_playtest
+o 917e3bf25c8415d8 118 80057b28 <editor_playtest::Playtest>::player_shot_opening
+o d578f7c906be097c 117 80057d00 <psx_game_runtime::character::RuntimeCharacter>::clip_for
+o 4862d7f95d3d1f63 258 80057ed4 <psx_grid::collision::world::GridCollision>::ray_walk
+o dbc2ac2c3cf4456d 508 800582dc <psx_engine::render3d::WorldRenderPass<2048>>::submit_predecoded_model_face_packed_back_average_in_front_fast::<psx_engine::render::PrimitivePacketArena> @editor_playtest
+o c430e30161bb32aa 315 80058acc psx_game_runtime::model_rendering::actor_pose
+o 28473e5ed468f63b 536 80058fb8 <psx_engine::render3d::WorldRenderPass<2048>>::submit_predecoded_model_face_packed_back_in_front_fast::<psx_engine::render::PrimitivePacketArena> @editor_playtest
+o c21b8555b4810e58 63 80059818 <psx_mc::Card<psx_mc::hardware::HardwareCard<&mut psx_io::periph::ControllerPort>>>::free_blocks_in @editor_playtest
+o 7821c6ff305f44a8 441 80059914 <psx_grid::collision::world::GridCollision>::locate
+o 94aba40e3b71d51e 749 80059ff8 psx_font::plan_font_pack
+o 34ecef37f3c42f0a 88 8005abac __psx_rt_dispatch_tramp
+o 408b8b22f74308e8 289 8005ad0c <editor_playtest::Playtest>::predict_swing_contacts
+o f7f868c8959c4d17 533 8005b190 psx_engine::ui::image_effect_vertex_colors
+o 927b54c6e1fdaa26 64 8005b9e4 psx_engine::transitions::draw_fullscreen_average
+o 90e7ef971c832d69 497 8005bae4 <psx_engine::render3d::WorldRenderPass<2048>>::submit_textured_triangle_prepared::<psx_engine::render::PrimitivePacketArena> @editor_playtest
+o 8298c75094c37a3c 71 8005c2a8 <psx_game_runtime::entities::GameEntities<2>>::step_toward @editor_playtest
+o f6b429f0748dd1a9 162 8005c3c4 <editor_playtest::Playtest>::player_swing
+o daae62080a7fec55 61 8005c64c <psx_engine::game_app::GameApp<editor_playtest::Playtest>>::first_gameplay_index @editor_playtest
+o 3e2a41457c50206d 193 8005c740 <psx_asset::Animation>::looped_pose_sample_q12
+o 9befac1393ada3b1 104 8005ca44 <psx_engine::render3d::WorldRenderPass<2048>>::insert_command_in_slot @editor_playtest
+o b292392713405302 251 8005cbe4 <editor_playtest::Playtest as psx_engine::scene::Scene>::ui_node_visible
+o f52f50dc5031beb1 474 8005cfd0 <editor_playtest::Playtest>::init_zeroed
+o 42107e097cab84ae 120 8005d738 <editor_playtest::Playtest>::walk_transition_input
+o 9c95f1d10819c822 744 8005d918 psx_engine::ui::resolved_from_parent
+o 180d26a7c3f8a27c 85 8005e4b8 psx_rt::cache::wait_for_quiet::<psx_rt::cache::HwBus> @psx_rt
+o e67fda1d1060c537 282 8005e60c <editor_playtest::Playtest>::walk_transition_state
+o 384690330f9175c1 679 8005ea74 <psx_game_runtime::vram::VramRuntime<128, 64, 6, 32>>::ensure_sky_texture_uploaded @editor_playtest
+o 36dbfbf9354f373f 32 8005f510 <alloc::raw_vec::RawVec<psx_grid::render::GridMaterial>>::grow_one @editor_playtest
+o 2323a36059c7c4ef 723 8005f590 <psx_game_runtime::entities::GameEntities<2>>::after_tactical_intent @editor_playtest
+o d34a612e0954b0f4 461 800600dc psx_cdstream::console::on_cd_interrupt
+o 3bb568aebcaa1c78 22 80060810 psx_engine::transitions::draw_fullscreen
+o cf34f37e1aa6d126 168 80060868 <psx_game_runtime::entities::GameEntities<2>>::rival_target @editor_playtest
+o ad65e1ba15986bb1 525 80060b08 <psx_engine::render3d::WorldRenderPass<2048>>::submit_predecoded_model_faces_layered_bucketed_average_unclamped_extent_safe_batch::<false, psx_engine::render::PrimitivePacketArena> @editor_playtest
+o 815778cca2bbe2d3 152 8006133c <psx_cdstream::engine::Engine<psx_cdstream::console::Mmio, 5, 8>>::fail @psx_cdstream
+o b6029fec6a0a9179 103 8006159c <psx_game_runtime::fighter_anim::Body<psx_game_runtime::entities::animation::EntityAnim>>::fade @editor_playtest
+o bd4367129a6fab72 499 80061738 psx_engine::render3d::world_pass_model::model_face_with_uv_mapping
+o 387c7acff24882d1 11 80061f04 <editor_playtest::grid_runtime::GridRuntime>::bind_uploaded_textures
+o 1f82ad7af286f899 501 80061f30 <psx_game_runtime::entities::GameEntities<2>>::state_anim @editor_playtest
+o c5fde2fa13b125a8 523 80062704 <psx_engine::game_app::GameApp<editor_playtest::Playtest> as psx_engine::scene::Scene>::init @editor_playtest
+o 74585dd701bbe694 95 80062f30 <[core::option::Option<psx_level::AssetId>; 4] as psx_level::wire::Wire>::get @psx_level
+o 6238b60f0166072c 101 800630ac editor_playtest::playtest_runtime::live_action_speed_q8
+o 874f7bed87e0fdee 421 80063240 <psx_font::FontAtlas>::draw_text_scaled_gouraud_with_spacing_q8
+o 3af80464a21e5554 9 800638d4 <editor_playtest::Playtest>::vitality_modifiers
+o 2d759e986e6a5b71 49 800638f8 <alloc::raw_vec::RawVecInner>::try_allocate_in @psx_level
+o 8de93a39ba71fa47 37 800639bc <psx_engine::character_motor::CharacterBlockerTraceProvider<psx_grid::collision::provider::GridTraceProvider> as psx_engine::collision_query::CollisionTraceProvider>::trace_into @editor_playtest
+o 111886841b25a85c 20 80063a50 <psx_pack::Fnv32>::update
+o 13eb826d61b34dc8 8 80063aa0 <psx_game_runtime::character::PlayerAnim as psx_game_runtime::fighter_anim::AnimState>::action
+o 73a90ae5280460d2 520 80063ac0 psx_game_runtime::model_rendering::scarf::submit_crystal_cloth::<2048> @editor_playtest
+o 6cf42bd00e79a035 81 800642e0 psx_engine::character_motor::point_entry_normal_from_outside
+o 8989540274e39443 12 80064424 psx_rt::tty::println
+o 53c27d4099f7847f 265 80064454 <psx_mc::Card<psx_mc::hardware::HardwareCard<&mut psx_io::periph::ControllerPort>>>::read @editor_playtest
+o e7f4c30b8bb8d32e 63 80064878 psx_game_runtime::model_rendering::instances::pose_override_for
+o db9bc269c063b7a9 442 80064974 <psx_engine::app::App>::run_with_flow::<editor_playtest::Playtest> @editor_playtest
+o bd27caaf6484a013 25 8006505c <psx_game_runtime::entities::GameEntities<2>>::spawn_from_records_with_ids @editor_playtest
+o a24a4a7a51569628 97 800650c0 psx_game_runtime::fighter_anim::blend_ticks
+o de769a6f661e9377 39 80065244 <alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global> @editor_playtest
+o d1998ff944ec5be6 281 800652e0 <psx_grid::collision::world::GridCollision>::ray_skip
+o f56a3528b77fa9d0 193 80065744 psx_engine::ui::draw_linked_focus_background
+o e1c02db3d5288924 393 80065a48 <editor_playtest::Playtest>::duel_observe
+o f5089baae1f84fa7 420 8006606c <psx_game_runtime::asset_streaming::PersistentAssetStreamer<77, 47>>::reset_for_scene_load @editor_playtest
+o 9fb01eb7bf6a423e 69 800666fc <editor_playtest::Playtest>::dismiss_legacy_message
+o 3eddedbb170b7fb0 9365 80066810 <editor_playtest::Playtest as psx_engine::scene::Scene>::render::{closure#2} @editor_playtest
+o a2afa1895aad7391 496 8006fa64 psx_game_runtime::model_rendering::scarf::submit_clipped_cloth::<2048> @editor_playtest
+o 34db752b9da88dbb 36 80070224 <psx_engine::render3d::WorldRenderPass<2048>>::append_command_in_slot @editor_playtest
+o 3e093319957f8c84 154 800702b4 <psx_engine::render::PrimitivePacketWordReservation>::commit
+o b9f74f3849d9e3ec 418 8007051c <psx_engine::ui::UiAffine>::subrect
+o da12717eed0c2151 50 80070ba4 psx_gpu::gpu::draw::<psx_gpu::prim::QuadTexturedMaterial> @psx_gpu
+o 56a23f501d77baab 293 80070c6c psx_game_runtime::model_rendering::instances::draw_ground_decal::<2048, psx_engine::render::PrimitivePacketArena> @editor_playtest
+o d4562863ef41ef82 33 80071100 <psx_game_runtime::vram::VramRuntime<128, 64, 6, 32>>::pending_room_texture_upload @editor_playtest
+o 971608947a42fbdb 320 80071184 editor_playtest::marker_runtime::draw_target_reticle
+o 51fd03f4cc6cff2d 49 80071684 psx_rt::present::wait_flip
+o bf7d4c307c4c246f 394 80071748 <psx_grid::collision::world::GridCollision>::ray_setup
+o 91fb6ec577b8d0f3 127 80071d70 <psx_engine::game_app::GameApp<editor_playtest::Playtest>>::play_node_sfx_event @editor_playtest
+o e688179012a88832 379 80071f6c <psx_game_runtime::model_rendering::phase_assembly::ModelPhaseAssembly>::cloth_fragment
+o 6fea693921292aab 43 80072558 main
+o 09cab5c8a72db9b8 1161 80072604 <editor_playtest::Playtest as psx_engine::scene::Scene>::update
+o d38260a80e78eecd 414 80073828 <editor_playtest::Playtest>::reset_new_game
+o afd27a9437ff3f6e 265 80073ea0 <psx_game_runtime::entities::GameEntities<2>>::spawn_from_records @editor_playtest
+o 8a344e5e7d02cd52 665 800742c4 <psx_grid::collision::provider::GridTraceProvider as psx_engine::collision_query::CollisionTraceProvider>::trace_into
+o 89ffa8586f2d63ac 408 80074d28 <psx_engine::game_app::GameApp<editor_playtest::Playtest>>::render_ui_scene::{closure#3} @editor_playtest
+o 866cc86dd851f422 57 80075388 <psx_engine::render::DepthBand>::slot_depth::<2048> @editor_playtest
+o e233de8d9d6efffb 6204 8007546c <editor_playtest::grid_runtime::GridRuntime>::update_camera
+o 5a4f6a9fd7470080 951 8007b55c psx_game_runtime::model_rendering::submit_model_wireframe::<2048, psx_engine::render::PrimitivePacketArena> @editor_playtest
+o ca451d0a2b6814a5 41 8007c438 psx_engine::fixed::div_q12_i32
+o ce5010cd28bd3a04 6158 8007c4dc <psx_engine::game_app::GameApp<editor_playtest::Playtest>>::render_ui_scene @editor_playtest
+o 3dd9c29d0f70c384 396 80082514 <psx_game_runtime::cd_stream::CdController>::wait_sector::<psx_game_runtime::cd_stream::ring::Hardware> @psx_game_runtime
+o ad9f59c0053a4ce7 325 80082b44 <psx_engine::render3d::WorldRenderPass<2048>>::submit_predecoded_model_faces_bucketed_average_unclamped_extent_safe_batch::<false, psx_engine::render::PrimitivePacketArena> @editor_playtest
+o f3905d4f952dd0ff 4307 80083058 <editor_playtest::Playtest>::draw_room_world_content
+o 0186295f8122d6fa 393 800873a4 <editor_playtest::Playtest>::duel_observe_rivals
+o bbec6f96e026b056 309 800879c8 <psx_asset::Model>::from_bytes
+o e19f44a520789938 177 80087e9c editor_playtest::vram_runtime::model_texture_slot
+o 7b23eb1e944f878a 356 80088160 psx_pad::poll_state::<psx_io::periph::ControllerPort> @psx_engine
+o 2340d247eb786f22 744 800886f0 <psx_grid::collision::world::GridCollision>::scan_walls_tree
+o 0bb1b07a570d93d8 207 80089290 <psx_residency::pool::PagePool<4>>::allocate @editor_playtest
+o 63a674d335fc4b46 134 800895cc <psx_engine::masked_pose::PoseBlends>::blend_toward
+o 0e0649b478fa6ed2 59 800897e4 <psx_engine::render::PrimitivePacketArena as psx_engine::render::PrimitiveSink<psx_gpu::prim::TriTextured>>::push_unchecked @editor_playtest
+o d336ca5774ca03de 442 800898d0 <psx_game_runtime::entities::GameEntities<2>>::drive::<editor_playtest::game_logic_runtime::SceneEntityMover> @editor_playtest
+o 893142fb274e8369 71 80089fb8 <psx_engine::render3d::world_pass_model::PreparedModelDepthSlots>::new::<2048> @editor_playtest
+o b5840661ea4dd23e 740 8008a0d4 <editor_playtest::Playtest>::flush_poi_save
+o bf2903367f8e6045 237 8008ac64 <psx_grid::collision::world::GridCollision>::classify_plane
+o ba14bb26bc2bfd7a 75 8008b018 psx_pad::pad_exchange::<psx_io::periph::ControllerPort> @psx_pad
+o b3e8fdeb02092ac8 355 8008b144 psx_game_runtime::model_rendering::dash_assembly::scatter_body_packets::{closure#1} @psx_game_runtime
+o 1de7e180259c2a56 16 8008b6d0 psx_game_runtime::cd_stream::read_chunk_blocking
+o b76b7512a9a5bac5 457 8008b710 <psx_engine::character_motor::CharacterBlockerTraceProvider<psx_grid::collision::provider::GridTraceProvider> as psx_engine::collision_query::CollisionTraceProvider>::trace_into::{closure#0} @editor_playtest
+o 207d4d624f46d776 386 8008be34 <psx_engine::game_app::GameApp<editor_playtest::Playtest>>::move_focus @editor_playtest
+o c031b866e886d7a1 261 8008c43c <psx_engine::ui::UiShapeColors>::new
+o 601d161d48aed4d8 13 8008c850 <psx_vram::map::VramMap<6>>::note_violation @editor_playtest
+o 06735b313265ae27 7134 8008c884 <editor_playtest::Playtest>::draw_combat_projectiles
+o d2084ccc41ebf81e 384 800937fc psx_asset::tracks::validate
+o 6ea8032d29de94bf 29 80093dfc <psx_rt::present::Presenter>::new
+o df2d243bc8855020 21 80093e70 <psx_game_runtime::entities::GameEntities<2>>::evade_move @editor_playtest
+o b94b58b8ca58fb73 737 80093ec4 psx_game_runtime::model_rendering::death_dissolve::fly_batch::<410, psx_engine::render::PrimitivePacketArena, 2048>::{closure#0} @editor_playtest
+o 11ad32540a597465 92 80094a48 <[[u8; 2]; 4] as psx_level::wire::Wire>::get @psx_level
+o 5964f05709b47e73 410 80094bb8 <psx_grid::collision::world::GridCollision>::slabs_matter
+o 5ebc82aad09c3447 383 80095220 <psx_grid::collision::world::GridCollision>::ray_tree_cell
+o cc76e212e5d33a75 28 8009581c <psx_rt::scratchpad::ScratchpadStack<0, 1024>>::stack_entry::<bool, psx_game_runtime::model_rendering::death_dissolve::fly_batch<410, psx_engine::render::PrimitivePacketArena, 2048>::{closure#0}> @editor_playtest
+o d6e7b336759653ed 1226 8009588c <psx_game_runtime::room_lighting::RuntimeRoomLighting>::shade_model_tint
+o 82be5e32c14ed255 282 80096bb4 <psx_game_runtime::cd_stream::CdController>::try_sector::<psx_game_runtime::cd_stream::ring::Hardware> @editor_playtest
+o 93fa24414f095f0b 106 8009701c psx_engine::sky::cube_face_plane_distance
+o e640e8b18efc3d6b 380 800971c4 <psx_vram::VramAllocator<6, 32>>::free @editor_playtest
+o 5791ea987a43329c 206 800977b4 psx_engine::ui::draw_shape_node
+o 01c867ac412a7542 2315 80097aec <psx_engine::game_app::GameApp<editor_playtest::Playtest> as psx_engine::scene::Scene>::render_overlay @editor_playtest
+o 8005fe3cbad4ac96 735 80099f18 psx_game_runtime::model_rendering::death_dissolve::sweep_faces::<410, psx_engine::render::PrimitivePacketArena, 2048> @editor_playtest
+o 0459879d6756520d 243 8009aa94 psx_engine::affine_surface::cut
+o 6630f8f2f4c1f3eb 412 8009ae60 <psx_game_runtime::entities::GameEntities<2>>::apply_intent::<editor_playtest::game_logic_runtime::SceneEntityMover> @editor_playtest
+o e64ce3b733d5b521 214 8009b4d0 psx_cdstream::console::state
+o 589026cfbec22f44 2 8009b828 <editor_playtest::Playtest>::draw_archive_beacons_world::<psx_engine::render::PrimitivePacketArena> @editor_playtest
+o 74e29fe35ff17347 376 8009b830 <psx_game_runtime::entities::GameEntities<2>>::target_noticed::<editor_playtest::game_logic_runtime::SceneEntityMover> @editor_playtest
+o 85da85895fc43dd6 47 8009be10 <psx_game_runtime::entities::GameEntities<2>>::melee_attack_reach @editor_playtest
+o c7dc01d35a7188c8 380 8009becc <psx_font::FontAtlas>::draw_text_scaled_with_spacing_q8
+o fa8a87635e22ecc8 200 8009c4bc <psx_grid::collision::world::GridCollision>::cell_leaf
+o 5d912cae5a2cbc12 255 8009c7dc <psx_grid::render::GridRenderer>::draw_room_with_marks
+o 11e8be1d5df5f145 197 8009cbd8 <psx_game_runtime::model_rendering::death_dissolve::Dissolver<psx_engine::render::PrimitivePacketArena, 2048>>::flush @editor_playtest
+o cac2274049af4458 117 8009ceec editor_playtest::playtest_runtime::room_lighting_of
+o 8906f02bbcec0147 379 8009d0c0 <psx_grid::flood::Flood>::advance
+o 0323f6c9a157a04a 260 8009d6ac <psx_engine::ui::UiAffine>::point
+o 5ee143c74b74abab 91 8009dabc <psx_game_runtime::entities::GameEntities<2>>::target_in_line_of_sight::<editor_playtest::game_logic_runtime::SceneEntityMover> @editor_playtest
+o 991628b3fc755f06 375 8009dc28 <psx_engine::render3d::WorldRenderPass<2048>>::submit_predecoded_model_faces_bucketed_average_unclamped_extent_safe_batch::<true, psx_engine::render::PrimitivePacketArena> @editor_playtest
+o 6342b6f4299870c6 345 8009e204 psx_engine::ui::shape_polygon
+o 08272c336cc34a42 93 8009e768 <psx_mc::fs::DataCursor>::read_exact::<psx_mc::hardware::HardwareCard<&mut psx_io::periph::ControllerPort>> @editor_playtest
+o 31db6e1b63e5d951 492 8009e8dc <editor_playtest::hud_packets::HudPackets>::lay_out
+o 2179f72f9559a496 342 8009f08c <psx_engine::render3d::WorldRenderPass<2048>>::submit_gouraud_triangle::<psx_engine::render::PrimitivePacketArena> @editor_playtest
+o 720b6f8bd837f7d0 47 8009f5e4 psx_rt::present::stop_walk_and_raise
+o b64e727f73b2f9e2 147 8009f6a0 <editor_playtest::grid_runtime::GridRuntime>::column_seen_from
+o c90320c34d122d07 65 8009f8ec <editor_playtest::Playtest>::upload_level_textures
+o 1470597a2df543d9 279 8009f9f0 psx_engine::render3d::load_world_camera_gte
+o 6aa2ce967c63bbba 332 8009fe4c <psx_vram::VramAllocator<6, 32>>::find_page_run @editor_playtest
+o 4b8e2cda9ddc37e2 236 800a037c psx_engine::ui::draw_shape_border
+o f2c082f5f03bd02a 17 800a072c <psx_mc::Card<psx_mc::hardware::HardwareCard<&mut psx_io::periph::ControllerPort>>>::write_dir @editor_playtest
+o 5593f3bc4b17574b 555 800a0770 <psx_engine::render3d::WorldRenderPass<2048>>::submit_solid_gouraud_faces::<psx_engine::render::PrimitivePacketArena> @editor_playtest
+o 60d70d9691dff195 92 800a101c <[(u8, u8); 4] as psx_level::wire::Wire>::get @psx_level
+o 015e0d9ba32abea5 66 800a118c <psx_game_runtime::entities::GameEntities<2>>::target_within @editor_playtest
+o 821914f0b6b5d735 196 800a1294 <psx_game_runtime::cd_stream::ring::Run<2, 1>>::restart::<psx_game_runtime::cd_stream::ring::Hardware> @editor_playtest
+o 1dbe93e35e620dae 32 800a15a4 <psx_game_runtime::entities::GameEntities<2>>::can_fire_energy @editor_playtest
+o eecf906d82273d8a 166 800a1624 psx_engine::third_person_camera::margin_backoff
+o 589026cfbec22f44 2 800a18bc <editor_playtest::Playtest>::draw_vitality_circles_world
+o 979ca50239aa582f 330 800a18c4 <psx_grid::collision::world::GridCollision>::scan_planes
+o 05968e843bf53a41 324 800a1dec psx_engine::ui::draw_focus_shape_tracer
+o 5bfc02b2cc506ddd 231 800a22fc <psx_game_runtime::vram::VramRuntime<128, 64, 6, 32>>::upload_cube_sky_banded::<32768>::{closure#0} @editor_playtest
+o b228465d841b9f4b 163 800a2698 editor_playtest::hud_sprites::scene
+o ca8e6b4e17f9d251 276 800a2924 <psx_mc::hardware::HardwareCard<&mut psx_io::periph::ControllerPort> as psx_mc::Block>::write_frame @editor_playtest
+o 54884b95a15583ba 128 800a2d74 <psx_grid::collision::world::GridCollision>::ray_walls
+o 79eee1ce0c654e68 319 800a2f74 <editor_playtest::Playtest>::respawn_after_death
+o 3d24e58b4415d1b5 318 800a3470 <psx_grid::flood::Flood>::relax_from
+o fd335677ec04bf9e 437 800a3968 <psx_engine::third_person_camera::TraceCameraCollision<editor_playtest::world_common::CountingTraceProvider<psx_engine::character_motor::CharacterBlockerTraceProvider<psx_grid::collision::provider::GridTraceProvider>>> as psx_engine::third_person_camera::CameraCollisionBackend>::constrain_segment @editor_playtest
+o 36007c0538aa442e 314 800a403c <psx_engine::game_app::GameApp<editor_playtest::Playtest>>::shoulder_tab_press @editor_playtest
+o 79480d1284380f1f 314 800a4524 <editor_playtest::grid_runtime::GridRuntime>::commit_body_step
+o 8f1a463268c5a1d6 229 800a4a0c <psx_vram::VramAllocator<6, 32>>::ensure_room_page @editor_playtest
+o eee5044bd1fdd2c8 95 800a4da0 psx_game_runtime::combat_flow::ranged_band
+o ddae658e42d4afa3 300 800a4f1c psx_engine::ui::draw_message_panel_body
+o ca7bfbb65a4bfadc 293 800a53cc <psx_mc::hardware::HardwareCard<&mut psx_io::periph::ControllerPort> as psx_mc::Block>::read_frame @editor_playtest
+o a189932f91e96409 196 800a5860 <core::str::iter::SplitInternal<char>>::next @psx_engine
+o f1db82926d3dfe92 207 800a5b70 <editor_playtest::hud_sprites::PillFx as core::slice::cmp::SlicePartialEq<editor_playtest::hud_sprites::PillFx>>::equal_same_length @editor_playtest
+o d14fa980e738a0dd 288 800a5eac editor_playtest::runtime_arenas::init_runtime_arenas
+o afec843564909c8d 94 800a632c psx_engine::ui::draw_message_page_pips
+o 82a60ec74121b7e5 57 800a64a4 psx_game_runtime::entities::within_xz
+o 5fd742eba0d84c4c 284 800a6588 psx_engine::ui::draw_focus_corners
+o e1b98611adf15d92 259 800a69f8 <psx_game_runtime::entities::GameEntities<2>>::init_slot @editor_playtest
+o 7b136d5a22f9083b 57 800a6e04 psx_rt::interrupts::pace_direct_flip
+o 0750fc770da8b465 416 800a6ee8 <psx_engine::game_app::GameApp<editor_playtest::Playtest>>::update_ui_music @editor_playtest
+o b45e48076e3b590b 257 800a7568 editor_playtest::world_camera_from_position_focus
+o 4fb989d9c0f9b5aa 236 800a796c psx_game_runtime::cd_stream::read_chunk_blocking_with::<psx_game_runtime::cd_stream::ring::Hardware> @psx_game_runtime
+o 466f7d4d05232e94 217 800a7d1c psx_engine::ui::draw_shape_polygon
+o 53f3d4c123816852 633 800a8080 psx_asset::tracks::joint_pose.53
+o c48f073545c6077b 76 800a8a64 <psx_game_runtime::vram::VramRuntime<128, 64, 6, 32>>::find_vram_slot @editor_playtest
+o c224d2273065c92d 173 800a8b94 <psx_game_runtime::entities::GameEntities<2>>::motor_config @editor_playtest
+o 0349a9d86b8dc2c0 235 800a8e48 psx_engine::cd_drive::yield_music_for_data
+o 958ebb3015999d9d 225 800a91f4 psx_engine::ui::wrapped_line_end
+o c4eb057e17235c56 221 800a9578 editor_playtest::grid_materials::resolve_material
+o 772161e77533cb4e 395 800a98ec <psx_grid::collision::world::GridCollision>::scan_slabs
+o 972fddd4b4da147a 224 800a9f18 <psx_grid::collision::world::GridCollision>::extras_block_point
+o 6d3646fd7aca39fc 222 800aa298 psx_engine::character_motor::aabb_distance_sq_at_fraction_q12
+o 441951855b2d91da 219 800aa610 psx_engine::ui::node_resolved_memo
+o 81f998eb10eaaa17 204 800aa97c psx_engine::ui::draw_perimeter_run
+o 47e492a1e308ac25 261 800aacac <psx_engine::third_person_camera::TraceCameraCollision<editor_playtest::world_common::CountingTraceProvider<psx_engine::character_motor::CharacterBlockerTraceProvider<psx_grid::collision::provider::GridTraceProvider>>> as psx_engine::third_person_camera::CameraCollisionBackend>::solve @editor_playtest
+o 90218bdc43c36a82 219 800ab0c0 <psx_game_runtime::save::SaveBlock>::decode
+o 41c5bef812bad8b0 80 800ab42c psx_cdstream::console::install
+o 99d8ef2a6ef66eb8 117 800ab56c psx_engine::third_person_camera::camera_position_at_height
+o 1c73227e07388301 195 800ab740 <editor_playtest::Playtest>::load_runtime_models
+o 0abeada305ed9ce6 195 800aba4c editor_playtest::loc::translate
+o 55c5f01a983a567a 191 800abd58 <editor_playtest::Playtest>::advance_poi_message
+o 2b184ce63873bb62 76 800ac054 <psx_game_runtime::entities::GameEntities<2>>::enter_state @editor_playtest
+o 4a4deec3f104872b 221 800ac184 psx_game_runtime::model_rendering::rotate_offset_q12
+o 1af7e320b0a2ef4a 191 800ac4f8 <psx_game_runtime::vram::upload_queue::VramUploadQueue>::push
+o c0128460bdc628d4 189 800ac7f4 <psx_engine::game_app::GameApp<editor_playtest::Playtest>>::apply_option_values @editor_playtest
+o 6247f0afaabcaaea 130 800acae8 <psx_asset::Audio>::from_bytes
+o 86eabc786c481820 136 800accf0 <psx_game_runtime::ranged_tactics::RangedExchange>::try_evade
+o 3639e1c6ecf6a466 99 800acf10 psx_level::wire::decode_slice::<u16> @psx_level
+o d14e411a05d0f5f2 45 800ad09c <psx_game_runtime::entities::GameEntities<2>>::plan_face @editor_playtest
+o 2a782164bffaa877 188 800ad150 psx_grid::probe::direct_block
+o 9520923c873959ba 185 800ad440 <psx_residency::engine::Residency<4, 4, 1>>::next_install @editor_playtest
+o 6661b61e57e22e66 185 800ad724 psx_engine::movement::horizontal_view_coordinates
+o fc180cf54c329c4a 183 800ada08 <psx_game_runtime::cd_stream::ring::Run<2, 1>>::restart::<psx_game_runtime::cd_stream::ring::Hardware> @psx_game_runtime
+o b952d13009473b87 73 800adce4 psx_grid::collision::planes::platform_top
+o 9dba01917ab93d42 48 800ade08 psx_grid::render::frustum::load_gte_clip_planes
+o dc53960aedba7a07 19 800adec8 <editor_playtest::Playtest>::duel_log_rival_event
+o 546b867b2982bf93 341 800adf14 <editor_playtest::Playtest>::duel_pad
+o b34e48d48107ccac 182 800ae468 <psx_asset::Animation>::from_bytes
+o 250bafd14fdbef8b 181 800ae740 psx_spu::dma_write
+o 22c4c82556fc80bb 178 800aea14 psx_engine::character_motor::aabb_contact_normal
+o af4236f1e7ed8925 177 800aecdc <psx_grid::collision::world::GridCollision>::plane_blocks_point
+o f352dafeeee45026 175 800aefa0 <psx_game_runtime::cd_stream::ring::Run<2, 1>>::begin::<psx_game_runtime::cd_stream::ring::Hardware> @editor_playtest
+o 30926a7a307834a9 17 800af25c psx_io::cd::xa::set_mixer
+o 154e40d80fdda876 124 800af2a0 <psx_game_runtime::entities::GameEntities<2>>::tactical_turn @editor_playtest
+o fb7b06a4c61cf022 175 800af490 <psx_grid::collision::world::GridCollision>::offer_plane
+o fbc8cbdef74c8f53 80 800af74c psx_engine::ui::text_paint
+o 099e20af83297a98 138 800af88c <psx_grid::collision::world::GridCollision>::ray_advance
+o 5edc704b281d81bd 139 800afab4 <psx_engine::game_app::GameApp<editor_playtest::Playtest>>::focus_preferred_game_action @editor_playtest
+o 995c580ff32ad671 55 800afce0 <psx_game_runtime::projectiles::CombatProjectiles<24>>::is_empty @editor_playtest
+o fa3f8d46f4f46aa3 170 800afdbc psx_engine::character_motor::blocker_contact_normal
+o 953d8cf3b0a23bc5 170 800b0064 <psx_grid::collision::world::GridCollision>::leaf_in
+o dbf91b06249f9319 21 800b030c psx_cdstream::console::leave::<psx_cdstream::engine::Engine<psx_cdstream::console::Mmio, 5, 8>> @psx_cdstream
+o baddc42bf0a4c9a5 221 800b0360 psx_game_runtime::model_rendering::rotate_bounds_center
+o eeb4e86b71d96c76 169 800b06d4 <psx_game_runtime::cd_stream::ring::Run<2, 1>>::begin::<psx_game_runtime::cd_stream::ring::Hardware> @psx_game_runtime
+o 9e2f09e797fa32cf 165 800b0978 <psx_game_runtime::entities::GameEntities<2>>::go_home @editor_playtest
+o 57f086de91b21630 162 800b0c0c <psx_grid::flood::Flood>::new
+o 16212c6955423996 160 800b0e94 <psx_cdstream::engine::Engine<psx_cdstream::console::Mmio, 5, 8>>::settle_drive @psx_cdstream
+o b18b7293ad946528 158 800b1114 psx_engine::ui::draw_focus_sweep
+o 949a2768d8790f57 155 800b138c <psx_grid::collision::world::GridCollision>::scan_foreign
+o e265ae432e13c8e4 31 800b15f8 __psx_rt_flush_i_cache
+o 572d317482ed2240 227 800b1674 <editor_playtest::stance_hud::StanceHud>::refresh_state
+o b9b7ab5882990837 91 800b1a00 psx_mc::fs::entry_name_eq
+o b9dc6f7b4993a274 198 800b1b6c <editor_playtest::Playtest>::stance_hud_input
+o 9d14d88a568aa518 118 800b1e84 psx_engine::ui::message_panel_transition_layout
+o deb9fca6a6a6aa21 116 800b205c <psx_pad::controllers::Controllers>::step::<psx_io::periph::ControllerPort> @psx_engine
+o fbce8d3e9b1aeb1e 152 800b222c psx_engine::ui::node_resolved_inner
+o bfbc811a29baf4e4 72 800b248c <editor_playtest::Playtest>::duel_start_rivals
+o 77ca7869e5ad28d1 389 800b25ac <editor_playtest::Playtest as psx_engine::scene::Scene>::render_post_process
+o dd9c28d86dcd2f37 283 800b2bc0 <psx_engine::third_person_camera::PitchCache>::pitch
+o a8f7932899f9f55e 151 800b302c editor_playtest::grid_materials::bind_uploaded
+o 3926c697353bb678 151 800b3288 <psx_engine::third_person_camera::ThirdPersonCameraState>::snap_to_player_with_yaw
+o e594d66776450004 151 800b34e4 psx_engine::ui::draw_shape_perimeter_run
+o 7f7b97d9bd3a4f92 145 800b3740 <psx_grid::lattice::Candidates as core::iter::traits::iterator::Iterator>::next
+o d9065eb55d5d7777 35 800b3984 <psx_game_runtime::vram::VramRuntime<128, 64, 6, 32>>::next_vram_slot @editor_playtest
+o 0a1512ce8d6aca08 138 800b3a10 psx_game_runtime::model_rendering::model_pose_translated_origin
+o da8c9b10dc07b76a 138 800b3c38 editor_playtest::playtest_runtime::load_poi_save_from_card
+o 2ee82e2c53cf5e4f 89 800b3e60 psx_game_runtime::model_rendering::death_dissolve::fly_batch::<410, psx_engine::render::PrimitivePacketArena, 2048> @editor_playtest
+o 1f4a659e356a427c 530 800b3fc4 <psx_grid::collision::world::GridCollision>::finish
+o f41df7df15b56c09 137 800b480c psx_io::cd::try_command_until_complete_inner
+o 1e327ca321365227 137 800b4a30 <[(u8, u8, u8); 4] as psx_level::wire::Wire>::get @psx_level
+o 14623fd0dfc86926 136 800b4c54 <psx_engine::music::MusicPlayer>::release_for_data_reads
+o 5afdb71c1692f01c 135 800b4e74 psx_cdstream::console::submit
+o 2a2ab86f999333cf 135 800b5090 psx_engine::ui::focus_chrome_sweep_paint
+o 2f749dfd354a9a57 134 800b52ac psx_engine::character_motor::blocker_overlap_at_fraction
+o 56ae819a5b5623aa 43 800b54c4 <psx_gpu::prim::TriGouraud>::new
+o 9604b20f6bc6564e 152 800b5570 psx_engine::render3d::camera_gte_view_matrix
+o 304cebda0c05c9bf 133 800b57d0 <psx_game_runtime::reuse_heap::ReuseHeap as core::alloc::global::GlobalAlloc>::realloc
+o 8bc721d671d4a8d7 128 800b59e4 <psx_residency::engine::Residency<4, 4, 1>>::free_pages_of @editor_playtest
+o 5ad0c0c1a9ebf317 42 800b5be4 <editor_playtest::Playtest>::step_persistent_model_assets
+o 8b9be573f0b8456d 133 800b5c8c <psx_grid::flood::Flood>::begin
+o b0726f44a1dabf0d 72 800b5ea0 <psx_grid::collision::world::GridCollision>::scan_extras_tree
+o 88cdda718e86499f 25 800b5fc0 <psx_game_runtime::entities::GameEntities<2>>::swap_permitted @editor_playtest
+o 18b21db15456f99b 44 800b6024 <psx_gpu::material::TextureWindow>::power_of_two_tile
+o 43da533c0ea0225f 51 800b60d4 <editor_playtest::Playtest>::player_character_for_anim
+o 5ab5267b3fcf7ef3 74 800b61a0 <psx_grid::collision::world::GridCollision>::offer_flat
+o a74c186f2ce7f595 132 800b62c8 <psx_io::cd::xa::Engine>::begin_read_at::<psx_io::periph::Cd> @psx_io
+o 1768f434ed79e8e9 130 800b64d8 psx_engine::ui::draw_focus_ring
+o c400d82995b946cd 129 800b66e0 psx_pad::controllers::config::<psx_io::periph::ControllerPort> @psx_engine
+o d7397e11ca851038 129 800b68e4 psx_vram::upload_16bpp
+o d994ba0f5c1af940 128 800b6ae8 core::str::count::do_count_chars
+o 9b5cee2a05062db0 126 800b6ce8 <psx_mc::hardware::Link<psx_io::periph::ControllerPort>>::xfer @editor_playtest
+o 1578018a2d9e0e24 88 800b6ee0 <editor_playtest::Playtest>::player_action_speed_q8
+o 12e6a21741236ead 127 800b7040 psx_engine::ui::draw_ring_edges
+o 2998ac6cf36bb60b 126 800b723c psx_engine::ui::draw_quad_paint
+o 842de0745ff5b0cc 125 800b7434 psx_engine::third_person_camera::normalize_config
+o b363301a8de14447 124 800b7628 <psx_game_runtime::asset_streaming::PersistentAssetStreamer<77, 47>>::finish_if_done @editor_playtest
+o 99b0d2fddde57bb0 123 800b7818 editor_playtest::vram_runtime::release_ui_images
+o df9c4519e328998b 123 800b7a04 <psx_grid::collision::world::GridCollision>::next_extra
+o 5855d17b52b3f25e 108 800b7bf0 <psx_game_runtime::entities::GameEntities<2>>::track_authored_ranged_charge @editor_playtest
+o 8765f4d99b5e5b7c 288 800b7da0 <editor_playtest::Playtest as psx_engine::scene::Scene>::ui_texture
+o 76c3623a8aee996a 89 800b8220 <psx_engine::third_person_camera::ThirdPersonCameraState>::projection
+o ea4f209577b9b6de 107 800b8384 <psx_engine::render3d::WorldCamera>::project_world
+o 5b4e029eb6274af2 122 800b8530 <psx_engine::third_person_camera::profile::ProfileBlend>::snap
+o 4091de1e6dc230a0 120 800b8718 <editor_playtest::Playtest as psx_engine::scene::Scene>::ui_node_focusable
+o e3658be860ddbe76 120 800b88f8 psx_spu::upload_adpcm_unguarded
+o fa35a072293febf1 119 800b8ad8 editor_playtest::playtest_scene::write_stat_value
+o ef99681f7272a839 16 800b8cb4 <psx_io::periph::Cd as psx_io::cd::xa::Drive>::end_stop
+o 240a345b9dd4ce16 287 800b8cf4 <editor_playtest::Playtest>::player_action_push_speed
+o 341f1c63477774f2 11 800b9170 <psx_cdstream::engine::Engine<psx_cdstream::console::Mmio, 5, 8>>::pause @psx_cdstream
+o 0638b9285ddb7cf0 24 800b919c <psx_game_runtime::entities::GameEntities<2>>::tactical_snapshot @editor_playtest
+o c62db718f879d3ef 119 800b91fc <psx_grid::collision::world::GridCollision>::scan_leaf_sample
+o 2fd80253710fbcf5 115 800b93d8 <psx_engine::music::MusicPlayer>::start_faded
+o a7ea52c8b6979ea7 115 800b95a4 psx_engine::ui::draw_message_dismiss_hint
+o 7a1b590a03b7dace 55 800b9770 <editor_playtest::Playtest>::enter_gait_windup
+o 948f55abe2a886af 401 800b984c <psx_game_runtime::entities::GameEntities<2>>::plan_ranged_exchange::<editor_playtest::game_logic_runtime::SceneEntityMover> @editor_playtest
+o 83abfb09c82b4807 112 800b9e90 psx_engine::character_motor::trace_lerp_point
+o ba0f5064d20e542c 111 800ba050 psx_engine::ui::draw_focus_sweep_half
+o c1422f5eeffe85a1 111 800ba20c <psx_game_runtime::reuse_heap::ReuseHeap as core::alloc::global::GlobalAlloc>::alloc
+o 17d17f4e126bf751 108 800ba3c8 editor_playtest::overlay::draw_chamfered
+o 937e3a899bf8f7ef 106 800ba578 editor_playtest::overlay::draw_message_page
+o 3d43f78bd9b3fb3f 65 800ba720 <psx_engine::render::PrimitivePacketArena as psx_engine::render::PrimitiveSink<psx_gpu::prim::TriTextured>>::push @editor_playtest
+o 55085a7bc7349747 329 800ba824 <psx_grid::render::frustum::FrustumPlanes>::cull_aabb
+o 978be515e24e87e4 106 800bad48 psx_asset::validate_model_parts
+o 45fbdefb9b9301b5 106 800baef0 <[[i32; 3]; 4] as psx_level::wire::Wire>::get @psx_level
+o 9934dee35e9c41bc 105 800bb098 psx_engine::ui::draw_message_panel
+o f91f1403ed6f8650 104 800bb23c <psx_game_runtime::vram::VramRuntime<128, 64, 6, 32>>::effect_texture_page @editor_playtest
+o 0f05950fa85b4d5d 104 800bb3dc <psx_grid::flood::Flood>::finish
+o fca5b9ef81ea5dd4 103 800bb57c psx_engine::ui::draw_controller_prompt_prefix
+o ca89516f0d7bb279 102 800bb718 <editor_playtest::Playtest>::begin_nearest_winddown
+o 48043c5ba1f18e43 76 800bb8b0 editor_playtest::playtest_scene::boost_module_socket_name
+o 551566c45b09a57e 4609 800bb9e0 <psx_engine::app::App>::run_scheduled::<psx_engine::game_app::GameApp<editor_playtest::Playtest>> @editor_playtest
+o bb2edaecca63a081 101 800c01e4 psx_level::wire::decode_slice::<&str> @psx_level
+o 08a3971e2f18e0bc 100 800c0378 psx_cdstream::console::cancel_all
+o dd5c28bdfc8e262f 98 800c0508 <psx_game_runtime::model_rendering::death_dissolve::Corners<410>>::live_point @editor_playtest
+o 0c6c6682f6909dd5 76 800c0690 <psx_cdstream::engine::Engine<psx_cdstream::console::Mmio, 5, 8>>::sync_source @psx_cdstream
+o c20e4e00401245e0 45 800c07c0 psx_game_runtime::combat::melee_window_started
+o d603661daeca00b4 21 800c0874 <psx_rt::scratchpad::ScratchpadStack<0, 1024>>::stack_entry::<bool, <psx_engine::character_motor::CharacterBlockerTraceProvider<psx_grid::collision::provider::GridTraceProvider> as psx_engine::collision_query::CollisionTraceProvider>::trace_into::{closure#0}> @editor_playtest
+o 6c6192252abda74b 97 800c08c8 <psx_mc::Card<psx_mc::hardware::HardwareCard<&mut psx_io::periph::ControllerPort>>>::chain @editor_playtest
+o 5b6c1b69792a32bb 97 800c0a4c <psx_engine::game_app::GameApp<editor_playtest::Playtest>>::enter_or_load_flow_state @editor_playtest
+o 12d4e00bdff91701 52 800c0bd0 <psx_mc::Card<psx_mc::hardware::HardwareCard<&mut psx_io::periph::ControllerPort>>>::read_dir @editor_playtest
+o 16bacf16674c143f 253 800c0ca0 psx_grid::stream::room_at
+o 20f2f46109982d9d 88 800c1094 <psx_grid::collision::world::GridCollision>::offer_platform
+o f1650fb1c58c3e85 11 800c11f4 psx_pad::nobody_answered::<psx_io::periph::ControllerPort> @psx_pad
+o 1f2c761b30de9482 858 800c1220 <psx_engine::render3d::WorldRenderPass<2048>>::submit_textured_view_triangle::<psx_engine::render::PrimitivePacketArena> @editor_playtest
+o 35b596904242052e 87 800c1f88 psx_engine::affine_surface::gpu_draws
+o 39d1d89cc767ff17 71 800c20e4 <psx_grid::render::GridMaterial>::scroll_origin
+o 93041205bba9c3a2 436 800c2200 <psx_grid::render::frustum::FrustumPlanes>::from_view
+o 3c2f09398f359c89 80 800c28d0 psx_engine::ui::draw_archive_panel_chrome
+o dff2843d71ba4182 72 800c2a10 psx_game_runtime::model_rendering::clip_duration_ticks
+o 2789828e42df3635 79 800c2b30 <psx_font::FontAtlas>::text_width
+o 4eb9a438376a2eb4 78 800c2c6c <psx_game_runtime::vram::VramRuntime<128, 64, 6, 32>>::drain_ui_upload_queue::<<psx_game_runtime::vram::VramRuntime<128, 64, 6, 32>>::load_ui_images_for_scene<4815, 6>::{closure#0}> @editor_playtest
+o 083eb1fc46646f7d 78 800c2da4 <psx_game_runtime::vram::VramRuntime<128, 64, 6, 32>>::find_room_texture_vram_slot @editor_playtest
+o 4fc208e933950019 78 800c2edc <psx_cdstream::engine::Engine<psx_cdstream::console::Mmio, 5, 8>>::pause_complete @psx_cdstream
+o 517218d2adee2b66 75 800c3014 <psx_vram::map::VramMap<6>>::claim_inner @editor_playtest
+o 8c66d7b22277cd1e 74 800c3140 <psx_sfx::OneShot>::play
+o e77705c81ae9a65d 71 800c3268 <psx_grid::flood::Flood>::invalidate
+o 8a6a8863f30b8346 70 800c3384 <psx_engine::game_app::GameApp<editor_playtest::Playtest>>::tag_at @editor_playtest
+o f98f3084a0b4e2c6 70 800c349c <psx_cdstream::engine::Engine<psx_cdstream::console::Mmio, 5, 8>>::command @psx_cdstream
+o 2ca695f004adc93f 70 800c35b4 <psx_grid::collision::world::GridCollision>::scan_extras
+o 6e1f5534856f6540 25 800c36cc <psx_game_runtime::grid_stream::DiscTransport as psx_game_runtime::grid_stream::RoomTransport>::poll
+o 2ac91d307775c12e 62 800c3730 <psx_game_runtime::entities::GameEntities<2>>::tactical_walk_speed_q8 @editor_playtest
+o f939f15cb4882a6f 69 800c3828 psx_cdstream::engine::location
+o b70cb2f14f48df67 69 800c393c psx_engine::ui::draw_scaled_text_paint
+o c2ed310ca2a81c34 39 800c3a50 <[i16; 3] as psx_level::wire::Wire>::get @psx_level
+o 9ce8d320de6f6eef 204 800c3aec editor_playtest::world_common::view_camera
+o 54358cfe102afb21 68 800c3e1c <psx_pad::controllers::Slot>::settle::<psx_io::periph::ControllerPort> @psx_engine
+o bc9238d09e4f5e94 68 800c3f2c psx_engine::ui::draw_shape_outline
+o fb575ae4d4ca2397 66 800c403c psx_asset::validate_model_faces
+o 71313f0fbce3bfb1 64 800c4144 psx_engine::ui::text_prefix_chars
+o 640963619f4c42f8 63 800c4244 <&str as psx_level::wire::Wire>::get
+o ba6fcce96c880511 61 800c4340 <alloc::raw_vec::RawVecInner>::finish_grow @psx_grid
+o d698e6aa9de984ee 66 800c4434 psx_grid::render::projection::view_rotation
+o ba6fcce96c880511 61 800c453c <alloc::raw_vec::RawVecInner>::finish_grow @psx_level
+o 8eece03c1fa860ca 60 800c4630 psx_rt::interrupts::install_vblank_counter
+o 10ce61803a31af14 59 800c4720 psx_game_runtime::vram::upload_clut
+o 58a2d8b71adaa456 59 800c480c psx_gpu::gpu::draw::<psx_gpu::prim::QuadTexturedGouraud> @psx_gpu
+o 00845b95939a96be 58 800c48f8 <alloc::raw_vec::RawVecInner>::finish_grow @editor_playtest
+o 2443de93c48730be 58 800c49e0 <psx_game_runtime::reuse_heap::ReuseHeap as core::alloc::global::GlobalAlloc>::dealloc
+o a9d76d7e7618a6f7 43 800c4ac8 <alloc::rc::Rc<core::cell::RefCell<psx_grid::walk::WalkScratch>>>::drop_slow @psx_grid
+o 8f37d089ef6fd32a 251 800c4b74 psx_grid::render::projection::load_view_rotation
+o 7f8dd86b4c50a0e5 56 800c4f60 psx_math::color::lerp_rgb
+o f37daec3630b7377 55 800c5040 psx_engine::third_person_camera::pitch_from_vertical_distance
+o 7ead27dd43019ac8 55 800c511c <psx_gpu::material::TexturedPacketMaterial>::from_texture
+o 7cfffd4fe6ee2007 55 800c51f8 <psx_grid::stream::StreamWindow>::distance_of
+o f0d633f183eb224a 54 800c52d4 <psx_engine::game_app::GameApp<editor_playtest::Playtest>>::state_ref_at @editor_playtest
+o b9448998577334b9 54 800c53ac <psx_game_runtime::vram::VramRuntime<128, 64, 6, 32>>::pending_vram_upload @editor_playtest
+o 4c02ed01c33d9954 54 800c5484 <psx_game_runtime::entities::GameEntities<2>>::track_authored_melee_tell @editor_playtest
+o 8736609905c40df7 32 800c555c psx_io::gpu::handoff::write_command_slow
+o 322d824db486797e 114 800c55dc <editor_playtest::Playtest>::lock_target_indicator_position
+o c3b6eb59a200cbca 48 800c57a4 psx_engine::ui::screen_resolved_node
+o b3eb1fdd8e129e34 38 800c5864 editor_playtest::duel::log_values
+o 19f589ea017be885 663 800c58fc psx_engine::render3d::compute_joint_world_transform
+o 710936b21f674725 266 800c6358 <psx_engine::render3d::WorldRenderPass<2048>>::submit_clipped_textured_triangle::<psx_engine::render::PrimitivePacketArena> @editor_playtest
+o 93944fa75c2dfc63 91 800c6780 <editor_playtest::Playtest>::initial_world_ready
+o 26770d3ff6fe8011 56 800c68ec psx_grid::stream::sort_wanted
+o 8aff0f1f47dc212a 315 800c69cc <psx_grid::collision::world::GridCollision>::vertical_trace
+o ea7771ad736bc770 55 800c6eb8 __psx_rt_present_kick
+o ef898af1b07180fe 123 800c6f94 <editor_playtest::Playtest>::player_clip_duration_vblanks
+o 4de2a8228f677fa3 55 800c7180 psx_rt::present::wait_slot_empty_on::<psx_rt::present::Hardware> @psx_rt
+o c81b0def10f78cd5 274 800c725c <psx_grid::collision::world::GridCollision>::column_gap_all
+o e8a769e560b1dbff 231 800c76a4 <psx_grid::resident::ResidentRooms>::column_probe
+o 78244f908f9304bf 246 800c7a40 <psx_engine::game_app::GameApp<editor_playtest::Playtest> as psx_engine::scene::Scene>::render @editor_playtest
+o 49679e84329a0d45 68 800c7e18 psx_rt::present::wait_arena_free
+o d9951df35c52e3d1 59 800c7f28 <psx_game_runtime::entities::GameEntities<2>>::state_code @editor_playtest
+o dbab860f871cec73 75 800c8014 <psx_grid::collision::scan::Scan>::offer
+o 9c10cd53e9aec702 351 800c8140 <editor_playtest::Playtest>::camera_config
+o 7d20daea6a72e1cc 80 800c86bc <psx_asset::Animation>::translation_looped_q12
+o 224f7a322618419f 310 800c87fc <psx_font::FontAtlas>::draw_text_blended
+o d498d3d13e1450c1 158 800c8cd4 <psx_engine::app::App>::present_pending::<psx_engine::game_app::GameApp<editor_playtest::Playtest>> @editor_playtest
+o f96092b6931ce0ad 52 800c8f4c psx_game_runtime::vram::upload_opaque_clut
+o c061d60b8935cb95 40 800c901c <psx_cdstream::console::Mmio as psx_cdstream::hw::CdHw>::pop_sector @psx_cdstream
+o 3da3a0edcd7ab64d 21 800c90bc psx_game_runtime::vram::scene_sky_texture_kind
+o 0c9d49f939d0f594 998 800c9110 <psx_engine::masked_pose::MaskedPoseBlend>::blend_toward
+o 8649adc01740693f 40 800ca0a8 <psx_game_runtime::combatant::Combatant>::reset
+o 42525525539cbd68 40 800ca148 <alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global> @psx_grid
+o eb272796f9ca32a0 40 800ca1e8 <[i32; 3] as psx_level::wire::Wire>::get @psx_level
+o bfbe5e7be2ee8c06 40 800ca288 <psx_rt::cache::HwBus as psx_rt::cache::Bus>::dma_busy
+o 22aca0ecb1c27ba0 38 800ca328 <[u8; 3] as psx_level::wire::Wire>::get @psx_level
+o df036272ee2716f0 38 800ca3c0 psx_rt::assert_stack_headroom
+o 70aab7219c12cbce 37 800ca458 editor_playtest::overlay::draw_enemy_vitality_hud
+o 1338d326cdfcf123 37 800ca4ec <psx_game_runtime::cd_stream::ring::Hardware as psx_game_runtime::cd_stream::ring::Transport>::service
+o 9a154a561f65d7bf 37 800ca580 psx_level::find_asset_of_kind
+o be9160c260adc36d 37 800ca614 psx_rt::entry::settle_channel
+o f7ed09d412e724fe 36 800ca6a8 <psx_game_runtime::entities::GameEntities<2>>::engage @editor_playtest
+o 4d50d96745c6a41a 36 800ca738 <psx_io::cd::xa::Engine>::stop_without_waiting::<psx_io::periph::Cd> @psx_io
+o f5a042aed868e9c9 35 800ca7c8 psx_cdstream::console::publish::<psx_cdstream::engine::Engine<psx_cdstream::console::Mmio, 5, 8>> @psx_cdstream
+o bb9c852616156e2e 35 800ca854 psx_gpu::gpu::draw::<psx_gpu::prim::QuadFlat> @psx_gpu
+o 59f46516e7dea014 35 800ca8e0 <psx_io::cd::xa::Engine>::start::<psx_io::periph::Cd> @psx_io
+o f18138b2e97db03c 33 800ca96c editor_playtest::playtest_scene::persistent_load_units
+o 5c4a5692283d0d65 33 800ca9f0 editor_playtest::overlay::draw_rect
+o b49df6482924e74e 33 800caa74 <alloc::raw_vec::RawVec<usize>>::grow_one @psx_grid
+o 3d7fc0ed32c29870 108 800caaf8 <psx_engine::render3d::WorldRenderPass<2048>>::submit_facet_reflection_batch::<psx_engine::render::PrimitivePacketArena> @editor_playtest
+o 792395ecb0b792da 33 800caca8 <alloc::raw_vec::RawVec<psx_grid::walk::Node>>::grow_one @psx_grid
+o a58b84ee445aa606 33 800cad2c <alloc::raw_vec::RawVec<alloc::vec::Vec<psx_grid::render::GridMaterial>>>::grow_one @psx_grid
+o 1c84f797aae7f30c 33 800cadb0 <alloc::raw_vec::RawVec<core::option::Option<psx_level::AssetId>>>::grow_one @psx_level
+o 36b6077453c0dd4a 33 800cae34 <alloc::raw_vec::RawVec<psx_level::EntityRecord>>::grow_one @psx_level
+o 85f9c363752c74fe 33 800caeb8 <alloc::raw_vec::RawVec<psx_level::LevelRoomRecord>>::grow_one @psx_level
+o e43fd5e81124218e 33 800caf3c <alloc::raw_vec::RawVec<psx_level::LevelLogicRecord>>::grow_one @psx_level
+o dc44cd4b300bdd5e 33 800cafc0 <alloc::raw_vec::RawVec<psx_level::InteractableRecord>>::grow_one @psx_level
+o 43ce03023c923b0c 22 800cb044 psx_game_runtime::cd_stream::world_pack::read_world_chunk_blocking
+o 961a443a6f016195 178 800cb09c editor_playtest::game_logic_runtime::predicted_contact
+o df00b4e99f375118 319 800cb364 <psx_grid::render::GridRenderer>::emit_dir::<true> @psx_grid
+o 20aac3784113ee07 37 800cb860 psx_game_runtime::model_rendering::equipment::faded_trail_color
+o b78ab8f9c84c716d 139 800cb8f4 <psx_grid::collision::world::GridCollision>::scan_sample
+o 280fe029aaec8d96 241 800cbb20 editor_playtest::game_logic_runtime::swing_ticks_to_contact
+o a1e5c342d1381bd7 44 800cbee4 psx_rt::present::observe_signal
+o 861d326ce4217d2d 47 800cbf94 <psx_engine::render::PrimitivePacketArena>::fence
+o 4056c13c3f5f1445 98 800cc050 psx_engine::render3d::world_pass_model::projected_part_bounds
+o c91e8f115c2921ab 25 800cc1d8 <editor_playtest::Playtest>::predict_swing_contacts::{closure#1} @editor_playtest
+o d896db83a9aa51cb 50 800cc23c psx_math::sincos::atan2_q12
+o 6bf62967a0bf282a 243 800cc304 <psx_game_runtime::combat_fx::CombatFlash>::lit_tint
+o c49b0b2be0e2a8f1 641 800cc6d0 <psx_asset::pose_cache::PoseCache>::pose
+o 10eab46419b0a032 234 800cd0d4 <editor_playtest::Playtest>::entity_swing
+o 81ac0840bf7df260 100 800cd47c <psx_level::LevelMaterialUvMotion>::offset_at_tick
+o 3c79086f4aa4a6d1 537 800cd60c psx_game_runtime::model_rendering::equipment::attachment_socket_pose
+o 0879858254da7c12 1387 800cde70 psx_grid::render::emit::robust_quad
+o e4be744aa0be09f0 293 800cf41c <psx_grid::render::GridRenderer>::emit_dir::<false> @psx_grid
+o e7c6b16f3388ef6e 863 800cf8b0 <editor_playtest::hud_packets::HudPackets>::set_up
+o 1b8118369322e6ef 117 800d062c <psx_engine::render3d::WorldRenderPass<2048>>::submit_textured_triangle::<psx_engine::render::PrimitivePacketArena> @editor_playtest
+o e88ded69f0e66581 355 800d0800 <psx_engine::render3d::WorldRenderPass<2048>>::submit_textured_triangle_leaf::<psx_engine::render::PrimitivePacketArena> @editor_playtest
+o 704f35d79a2592ca 597 800d0d8c <psx_engine::render3d::WorldRenderPass<2048>>::submit_textured_triangle_split::<psx_engine::render::PrimitivePacketArena> @editor_playtest
+o c89a876a9069872e 118 800d16e0 <editor_playtest::grid_runtime::GridRuntime>::trace_point_segment
+o 6b3ea689a491f4ee 91 800d18b8 editor_playtest::model_rendering::enemy_death_dissolve
+o f5a24829ec3355b4 528 800d1a24 <psx_engine::game_app::GameApp<editor_playtest::Playtest>>::resolved_focus @editor_playtest
+o 3fc734aae13c8621 223 800d2264 <psx_game_runtime::entities::GameEntities<2>>::steer @editor_playtest
+o ae2a2fbe07f7ecdb 134 800d25e0 <psx_game_runtime::entities::GameEntities<2>>::defender_with @editor_playtest
+o 71f94e5cadf53271 431 800d27f8 <psx_grid::collision::world::GridCollision>::wall_cross
+o 9ef289ba2bba4f62 673 800d2eb4 <editor_playtest::Playtest>::ranged_target
+o b162d6dcba407e88 138 800d3938 psx_game_runtime::model_rendering::equipment::weapon_local_point_world
+o 8c0cf57a319b41a2 402 800d3b60 <psx_game_runtime::vram::upload_queue::VramUploadQueue>::step::<editor_playtest::vram_runtime::upload_bytes_for, <psx_game_runtime::vram::VramRuntime<128, 64, 6, 32>>::step_uploads<editor_playtest::vram_runtime::upload_bytes_for>::{closure#0}> @editor_playtest
+o 36020dbd8a672299 25 800d41a8 <psx_engine::angle::Angle>::cos
+o a92301d37fb86008 151 800d420c psx_game_runtime::particles::draw_particle_diamond::<2048> @editor_playtest
+o f1d0ee5bad583cbc 309 800d4468 <psx_engine::render3d::LoadedAnchoredCameraGte>::load
+o f96b56605420379e 23 800d493c <psx_engine::angle::Angle>::sin
+o 32c7fbbc02df8a46 710 800d4998 editor_playtest::hud_sprites::bar_moving
+o dc2fe792975d5483 679 800d54b0 <psx_engine::music::MusicPlayer>::update
+o b6f9e31d78bd3c58 59 800d5f4c psx_pad::pad_begin::<psx_io::periph::ControllerPort> @psx_pad
+o 2e54490d5f9e9b19 150 800d6038 <psx_engine::game_app::GameApp<editor_playtest::Playtest>>::scene_combat_music_cue @editor_playtest
+o ce96b4be72848bc3 134 800d6290 <psx_grid::collision::world::GridCollision>::sector_floor
+o 1e341937aadfd078 297 800d64a8 psx_game_runtime::particles::draw_projectile_segment::<2048> @editor_playtest
+o 153a92f07661d642 473 800d694c psx_game_runtime::model_rendering::equipment::submit_equipped_weapon::<5, 48, 410, 32, 2048, false, psx_engine::render::PrimitivePacketArena> @editor_playtest
+o d18d9c14f1aaaefc 171 800d70b0 <editor_playtest::hud_packets::Converter>::quad_node
+o 495b9a20d82c3e71 229 800d735c <psx_game_runtime::combat_timing::Request>::update
+o f447292740908243 160 800d76f0 <editor_playtest::Playtest>::resolve_player_melee
+o 035083c1f4187a52 134 800d7970 psx_asset::tracks::joint_translation
+o cbbd0ef1c179c0f5 647 800d7b88 <psx_game_runtime::ranged_tactics::RangedExchange>::decide
+o 50fb52137db47110 598 800d85a4 <psx_game_runtime::asset_streaming::PersistentAssetStreamer<77, 47>>::begin_group @editor_playtest
+o 176d5b860a4a1e08 1286 800d8efc <psx_game_runtime::asset_streaming::PersistentAssetStreamer<77, 47>>::pump @editor_playtest
+o af8da5446ae5e609 94 800da314 <psx_font::FontAtlas>::draw_backdrop_blended
+o afff1713ef805620 470 800da48c <psx_grid::walk::WalkSet>::compute
+o 91f89dc22ea541c2 158 800dabe4 <psx_grid::collision::world::GridCollision>::march_trace
+o 68c39ba1a29b8c46 30 800dae5c <psx_font::FontAtlas>::glyph_advance
+o 371d8bcdd1bfe5e8 251 800daed4 core::str::converts::from_utf8
+o e44acb12cc07d3c1 576 800db2c0 <psx_grid::collision::world::GridCollision>::blocked_t
+o f8942e8114c3c165 171 800dbbc0 <psx_game_runtime::entities::GameEntities<2>>::push_after_motor::<editor_playtest::game_logic_runtime::SceneEntityMover> @editor_playtest
+o 080f7f0d1495473a 81 800dbe6c <psx_game_runtime::entities::GameEntities<2>>::pace_q8 @editor_playtest
+o b43ca914ee60a48b 11 800dbfb0 memmove
+o bb61737596152955 85 800dbfdc <psx_gpu::prim::QuadTexturedMaterial>::with_material
+o d79beaf93546b945 33 800dc130 <alloc::raw_vec::RawVec<psx_level::LevelBoxPropRecord>>::grow_one @psx_level
+o c2438718e7fc3a72 33 800dc1b4 <alloc::raw_vec::RawVec<psx_level::LevelArchPropRecord>>::grow_one @psx_level
+o 4fad08bc905607c2 33 800dc238 <alloc::raw_vec::RawVec<psx_level::LevelGameEntityRecord>>::grow_one @psx_level
+o 1e00c36f36727f90 33 800dc2bc <alloc::raw_vec::RawVec<psx_level::LevelMaterialUvMotion>>::grow_one @psx_level
+o 78cca4b114f14e16 33 800dc340 <alloc::raw_vec::RawVec<psx_level::ParticleEmitterRecord>>::grow_one @psx_level
+o efc051f45abd44a2 33 800dc3c4 <alloc::raw_vec::RawVec<psx_level::LevelWorldObjectRecord>>::grow_one @psx_level
+o 6c2642697725b1ee 33 800dc448 <alloc::raw_vec::RawVec<psx_level::LevelCylinderPropRecord>>::grow_one @psx_level
+o 3f240d752b795302 33 800dc4cc <alloc::raw_vec::RawVec<psx_level::LevelDestructibleRecord>>::grow_one @psx_level
+o fd5d795ea8ad3b62 33 800dc550 <alloc::raw_vec::RawVec<psx_level::LevelCycloramaQuadRecord>>::grow_one @psx_level
+o 669e2cd80125c046 33 800dc5d4 <alloc::raw_vec::RawVec<psx_level::LevelModelInstanceRecord>>::grow_one @psx_level
+o 77f9deccc950f77e 33 800dc658 <alloc::raw_vec::RawVec<psx_level::InteractableMessageRecord>>::grow_one @psx_level
+o e902a91e0ab1dce2 33 800dc6dc <alloc::raw_vec::RawVec<psx_level::LevelBoxPropSurfaceRecord>>::grow_one @psx_level
+o 84f13ffbf16546bf 28 800dc760 psx_cdstream::console::wait_room
+o 6c3a150adedfc381 260 800dc7d0 <psx_grid::resident::ResidentRooms>::blend
+o b49df6482924e74e 33 800dcbe0 <alloc::raw_vec::RawVec<psx_level::stable::StableId>>::grow_one @psx_level
+o 792395ecb0b792da 33 800dcc64 <alloc::raw_vec::RawVec<&str>>::grow_one @psx_level
+o a0726603908acb5b 17 800dcce8 <psx_io::cd::xa::Engine>::stop::<psx_io::periph::Cd> @psx_io
+o 090ef785742a7bc8 304 800dcd2c <psx_grid::walk::WalkScratch>::expand
+o 8135039eefe5680e 33 800dd1ec <alloc::raw_vec::RawVec<u16>>::grow_one @psx_level
+o 447db09a80f28ae7 30 800dd270 psx_io::gpu::handoff::write_display_control_slow
+o aa277d225ad94171 30 800dd2e8 psx_rt::cache::spin_until_idle::<psx_rt::cache::HwBus> @psx_rt
+o 29330bae3bd9f923 28 800dd360 psx_vram::texture_region_free
+o 99671781c02b6ac7 27 800dd3d0 psx_game_runtime::model_rendering::authored_window
+o 8e1f5a15c100a96d 27 800dd43c psx_grid::collision::body::back_code
+o 71cf712c28a23e1c 27 800dd4a8 psx_io::cd::finish_failed_polled_command
+o 82a65a2ba8cbcddf 27 800dd514 <psx_io::periph::Cd as psx_io::cd::xa::Drive>::look_pause
+o 0741e1091c89309d 25 800dd580 <psx_io::cd::xa::Engine>::reach_end::<psx_io::periph::Cd> @psx_io
+o d6eb420bd83f2132 25 800dd5e4 psx_io::gpu::handoff::display_control_guard_slow
+o eeeeca926bc5b2a9 24 800dd648 <psx_engine::game_app::GameApp<editor_playtest::Playtest>>::flow_index_for_scene_state @editor_playtest
+o ea6fe581c7372124 24 800dd6a8 <psx_rt::scratchpad::ScratchpadStack<0, 1024>>::stack_entry::<(), psx_game_runtime::model_rendering::dash_assembly::scatter_body_packets::{closure#1}> @psx_game_runtime
+o a4724a56e3da633f 24 800dd708 <u16 as psx_level::wire::Wire>::get
+o 3d809de69e38838d 22 800dd768 <psx_game_runtime::cd_stream::ring::Hardware as psx_game_runtime::cd_stream::ring::Transport>::is_idle
+o 0e68460a25864567 22 800dd7c0 <psx_grid::collision::world::GridCollision>::offer_span
+o d9067a29c304163e 22 800dd818 <u32 as psx_level::wire::Wire>::get
+o 9afb8ed2ecc250d2 21 800dd870 <psx_io::periph::Cd as psx_io::cd::xa::Drive>::begin_stop
+o 01314d2b538eb895 607 800dd8c4 psx_game_runtime::model_rendering::equipment::equipped_weapon_placement
+o 1fb985231f8f3b65 19 800de240 psx_rt::cache::flush_instruction_cache
+o b0f5d379b2ca7d7c 19 800de28c psx_rt::dispatch::attach
+o 92f6f6b432838e03 15 800de2d8 psx_vram::texture_window_units
+o a0bf2823ab259e1b 14 800de314 core::str::count::char_count_general_case
+o 890c7006955076a5 13 800de34c psx_game_runtime::cd_stream::checksum_bytes
+o b7721035b9bd3dfa 41 800de380 <psx_game_runtime::ranged_tactics::EvadeMove>::of
+o 2492ff38c3ca1b56 28 800de424 <psx_game_runtime::entities::GameEntities<2>>::tilt_for_share @editor_playtest
+o 6b4b405d8ca00faa 23 800de494 psx_math::int32::isqrt_u32
+o 164bd08146227e28 83 800de4f0 editor_playtest::hud_sprites::corners
+o 6f7aa9565f8a2404 78 800de63c <psx_gpu::prim::TriTextured>::with_material
+o 3dfbb032e5b64b1a 117 800de774 <psx_game_runtime::entities::GameEntities<2>>::move_toward @editor_playtest
+o 1229075d24803b58 39 800de948 <psx_game_runtime::entities::GameEntities<2>>::attack_phase @editor_playtest
+o 757e94825c4c1fb3 491 800de9e4 <psx_grid::collision::world::GridCollision>::line_of_sight
+o a7d366c43275e286 484 800df190 <psx_grid::collision::world::GridCollision>::scan_walls
+o 4ff311ae2e511251 847 800df920 <psx_grid::render::GridRenderer>::select_cells
+o 4ca83f60fa3c6b49 167 800e065c <psx_engine::render3d::WorldRenderPass<2048>>::submit_projected_model_faces::<psx_engine::render::PrimitivePacketArena> @editor_playtest
+o 7191fbb4b67dacb5 526 800e08f8 psx_game_runtime::model_rendering::equipment::submit_weapon_wireframe::<2048, psx_engine::render::PrimitivePacketArena> @editor_playtest
+o d128306685113aba 198 800e1130 <editor_playtest::Playtest>::resolve_attacks_on_player
+o 345fcf4e167eb97f 129 800e1448 <psx_game_runtime::entities::GameEntities<2>>::track_tell @editor_playtest
+o b4707f491c598ef2 334 800e164c <psx_game_runtime::combat::ActiveStrike>::sample
+o cff8cac21ae508c1 119 800e1b84 <editor_playtest::Playtest>::switch_player_anim
+o 4929779c9848e780 185 800e1d60 <editor_playtest::game_logic_runtime::SceneEntityMover>::blockers
+o fa1be57c0ebdfa54 370 800e2044 psx_game_runtime::combat::combat_capsules_overlap
+o 63d8094892b5cd31 242 800e260c <psx_engine::render3d::WorldRenderPass<2048>>::submit_projected_line::<psx_engine::render::PrimitivePacketArena> @editor_playtest
+o 9240aecde013dac4 915 800e29d4 <psx_game_runtime::combat::ActiveStrike>::contact
+o c7e7c2ca2ed4fc44 785 800e3820 <psx_engine::render3d::WorldRenderPass<2048>>::submit_facet_reflection_extent_safe::<psx_engine::render::PrimitivePacketArena> @editor_playtest
+o 7adace7a85f878ab 75 800e4464 psx_game_runtime::combat::melee_tell_tracks
+o 6f908536cadaba28 361 800e4590 psx_engine::character_motor::trace_stand_position::<psx_engine::character_motor::CharacterBlockerTraceProvider<psx_grid::collision::provider::GridTraceProvider>> @editor_playtest
+o 96a1466d9e605318 378 800e4b34 psx_game_runtime::combat::transform_actor_combat_capsule
+o 695b8b1c5f456786 55 800e511c <psx_rt::scratchpad::ScratchpadStack<0, 1024>>::stack_entry::<(), <psx_game_runtime::model_rendering::scarf::PlayerScarf>::tick::{closure#1}> @psx_game_runtime
+o fb995ead18f71d0c 375 800e51f8 <psx_engine::render3d::WorldRenderPass<2048>>::submit_blended_gouraud_quad::<psx_engine::render::PrimitivePacketArena> @editor_playtest
+o 0bca6184d1bd9137 737 800e57d4 <editor_playtest::Playtest>::swing_fighters
+o 0c59a61f735d70c6 137 800e6358 psx_engine::character_motor::trace_supporting_floor::<psx_engine::character_motor::CharacterBlockerTraceProvider<psx_grid::collision::provider::GridTraceProvider>> @editor_playtest
+o bb1c16bf0e334edc 52 800e657c <psx_game_runtime::fighter_action::FighterAction>::attack_request
+o 931c5770032bd593 98 800e664c psx_game_runtime::model_rendering::animation_phase_at_tick_q12
+o 6d09490c9709ad7b 194 800e67d4 <psx_game_runtime::entities::GameEntities<2>>::capture_ranged_point @editor_playtest
+o f42c1aacf142d270 126 800e6adc <psx_asset::Texture>::from_bytes
+o 6c06a7880a2bca2e 238 800e6cd4 <psx_game_runtime::vram::VramRuntime<128, 64, 6, 32>>::track_ui_image_slot @editor_playtest
+o 980411a614e355bd 102 800e708c <editor_playtest::Playtest as psx_engine::scene::Scene>::preferred_ui_focus_action
+o 6594b080ae3ea160 678 800e7224 psx_game_runtime::combat::transform_actor_combat_capsule_sweep::{closure#0} @psx_game_runtime
+o fc6b78ba2e8d91af 34 800e7cbc <psx_rt::scratchpad::ScratchpadStack<0, 1024>>::stack_entry::<core::option::Option<(usize, u8)>, <psx_grid::render::GridRenderer>::emit_dir<false>::{closure#0}> @psx_grid
+o 0ff713e92356692c 891 800e7d44 <psx_grid::render::GridRenderer>::emit_straight::<false> @psx_grid
+o 2868495a6235551b 34 800e8b30 <psx_rt::scratchpad::ScratchpadStack<0, 1024>>::stack_entry::<core::option::Option<(usize, u8)>, <psx_grid::render::GridRenderer>::emit_dir<true>::{closure#0}> @psx_grid
+o 85b2091e6370e088 934 800e8bb8 <psx_grid::render::GridRenderer>::emit_straight::<true> @psx_grid
+o ef2f17cf4826585f 54 800e9a50 <psx_game_runtime::entities::GameEntities<2>>::state_anim::{closure#2} @editor_playtest
+o af57d9e49ba37c9d 157 800e9b28 <psx_engine::character_motor::CharacterBlockerTraceProvider<psx_grid::collision::provider::GridTraceProvider> as psx_engine::collision_query::CollisionTraceProvider>::surely_hits @editor_playtest
+o b8bf77da62966315 363 800e9d9c core::iter::traits::iterator::Iterator::find::check::<u16, psx_game_runtime::combat::predicted_contact_tick<editor_playtest::game_logic_runtime::predicted_contact::{closure#2}>::{closure#1}>::{closure#0} @editor_playtest
+o 576ba615a4ce17e2 65 800ea348 <editor_playtest::Playtest>::finish_swing
+o 5dd65df03812ac48 79 800ea44c <psx_rt::scratchpad::ScratchpadStack<0, 1024>>::stack_entry::<(), <psx_engine::render3d::WorldRenderPass<2048>>::submit_facet_reflection_batch<psx_engine::render::PrimitivePacketArena>::{closure#0}> @editor_playtest
+o a4d339c50bd2d0ad 113 800ea588 editor_playtest::hud_sprites::plane
+o d9da23c1b442ee38 165 800ea74c <psx_grid::collision::world::GridCollision>::slab_g
+o dabb26f831244318 18 800ea9e0 <psx_rt::scratchpad::ScratchpadStack<0, 1024>>::stack_entry::<(), <psx_grid::render::GridRenderer>::draw_room_with_marks::{closure#0}> @psx_grid
+o f3708b64929f1b74 26 800eaa28 <psx_rt::scratchpad::ScratchpadStack<0, 1024>>::stack_entry::<(), <psx_grid::render::GridRenderer>::draw_room_with_marks::{closure#1}> @psx_grid
+o 9f1efcede0dc2d92 601 800eaa90 <psx_grid::render::GridRenderer>::select_quads
+o 6c5c9eccfdc546b0 21 800eb3f4 <psx_rt::scratchpad::ScratchpadStack<0, 1024>>::stack_entry::<(), <psx_grid::render::GridRenderer>::draw_room_with_marks::{closure#2}> @psx_grid
+o 8f60f2b507d8973c 185 800eb448 <psx_grid::render::GridRenderer>::project_corners
+o 616de6adb1d197e4 646 800eb72c <psx_engine::affine_surface::Splitter<(&psx_engine::affine_surface::NearView, *mut u32)>>::refine_first @psx_engine
+o 107ebeadd3ccfaed 219 800ec144 <psx_engine::app::App>::finish_deferred_flip::<psx_engine::game_app::GameApp<editor_playtest::Playtest>> @editor_playtest
+o ac7c4f736d2fd1ec 698 800ec4b0 <psx_grid::collision::world::GridCollision>::ray_slabs
+o 8df852aef4ec034a 192 800ecf98 <psx_asset::Animation>::translation
+o cf01b0c1b6d09f55 49 800ed298 <psx_game_runtime::ranged_tactics::RangedExchange>::order
+o 755bfa9295825133 133 800ed35c <editor_playtest::hud_packets::Converter>::node
+o 585690cbb6931d11 421 800ed570 <psx_engine::character_motor::CharacterMotorState>::try_commit_move::<psx_engine::character_motor::TraceCharacterCollision<psx_engine::character_motor::CharacterBlockerTraceProvider<psx_grid::collision::provider::GridTraceProvider>>> @editor_playtest
+o c22ef34521df6082 13 800edc04 psx_rt::present::wait_slot_empty
+o 88b53d18cb7caf37 116 800edc38 psx_math::int32::div_u64_by_u32
+o 4867d100722e3088 87 800ede08 psx_game_runtime::ranged_tactics::offset
+o c574cb93217c40b4 223 800edf64 <editor_playtest::Playtest>::walk_transition_ticks
+o 886de1f2757546da 395 800ee2e0 <psx_engine::affine_surface::Splitter<(&psx_engine::affine_surface::NearView, *mut u32)>>::refine_second @psx_engine
+o 15017620982c1595 36 800ee90c <psx_game_runtime::entities::GameEntities<2>>::begin_goal @editor_playtest
+o 6dbf365f46a463b5 60 800ee99c psx_game_runtime::particles::fracture::rotated
+o 11d5aac983a3d770 23 800eea8c <psx_game_runtime::entities::GameEntities<2>>::q12_step_component @editor_playtest
+o 076d25a18c3db4a4 272 800eeae8 compiler_builtins::mem::memmove
+o 61d72eb3eef52f99 310 800eef28 psx_game_runtime::model_rendering::euler_q12_rotation
+o 5f17408d2dae577e 99 800ef400 psx_game_runtime::ranged_tactics::lane
+o 44e04af3b087597a 1249 800ef58c <editor_playtest::Playtest>::tick_combat_projectiles::<24> @editor_playtest
+o aac127a8c73d5570 150 800f0910 <psx_grid::collision::world::GridCollision>::slab_cross
+o 8463e191eaaf7f70 401 800f0b68 psx_game_runtime::combat::closest_point_on_segment
+o 884ba5e91320ca4c 201 800f11ac <editor_playtest::Playtest>::release_player_projectile
+o b19487e9542168ee 90 800f14d0 psx_game_runtime::combat::projectile_hurtboxes_dyn
+o c99881b0e23f8717 24 800f1638 <psx_game_runtime::entities::GameEntities<2>>::defender @editor_playtest
+o 74d06c1b78556342 185 800f1698 <editor_playtest::hud_packets::MovingBar>::fill
+o 5b1d96819871e1d3 288 800f197c psx_grid::render::cut::cut_quad
+o bee8ff23c0a60acb 319 800f1dfc <editor_playtest::Playtest>::resolve_enemy_attacks
+o 68e97a083a753cc1 264 800f22f8 <psx_grid::collision::world::GridCollision>::contact
+o bf7b0ffaa3cf939c 42 800f2718 <psx_game_runtime::entities::GameEntities<2>>::plan_ranged_exchange::<editor_playtest::game_logic_runtime::SceneEntityMover>::{closure#0} @editor_playtest
+o 484441affc037cdf 1392 800f27c0 <psx_engine::render3d::WorldRenderPass<2048>>::submit_projected_model_faces_checked::<psx_engine::render::PrimitivePacketArena> @editor_playtest
+o 65a1b0167b9ae553 41 800f3d80 <psx_game_runtime::combatant::Reaction>::shown_by
+o 420bc29c8643fd8d 122 800f3e24 psx_game_runtime::ranged_tactics::concealed
+o 98eb1b562cc815e0 46 800f400c psx_game_runtime::model_rendering::equipment::find_model_socket
+o d820672a2d3f0fa9 8 800f40c4 psx_io::gpu::signal_draw_done_unguarded
+o e6a1b14f36f69aab 109 800f40e4 <psx_game_runtime::entities::GameEntities<2>>::ranked_headings @editor_playtest
+o bc4a40aa96a1f3bb 342 800f4298 psx_game_runtime::model_rendering::equipment::weapon_trail_local_segment
+o ffd8855049f335f7 57 800f47f0 <psx_game_runtime::ranged_tactics::RangedExchange>::decided
+o 031077d2842b26e3 218 800f48d4 <psx_grid::collision::world::GridCollision>::slab_breaks
+o 55cfbabc48263a6b 53 800f4c3c psx_game_runtime::combat::body_hurt_capsule
+o 20996cb5f8881e4c 174 800f4d10 psx_grid::render::cut::put_quad
+o d56171bd2e753b48 349 800f4fc8 <psx_game_runtime::entities::GameEntities<2>>::choose_spacing @editor_playtest
+o dafe2fd06c59858f 21 800f553c <psx_game_runtime::entities::GameEntities<2>>::draw @editor_playtest
+o 9048108c1e1fac57 43 800f5590 psx_io::gpu::kick_draw_done_list
+o 8e37331dc8863a95 1435 800f563c <editor_playtest::Playtest>::release_projectiles
+o b2b92cd27a965325 391 800f6ca8 psx_grid::render::clip::clip_polygon_plane
+o f718f018b46867f6 61 800f72c4 psx_grid::collision::provider::axis_normal
+o e9d58c61125a0b73 77 800f73b8 <psx_engine::render::DepthRange>::new
+o b367d4dc08d734d9 87 800f74ec <editor_playtest::Playtest>::fighter_outgoing
+o 65244bd3d1440755 273 800f7648 <psx_game_runtime::actor_pose::ActorPoseSnapshot>::joint_world_point
+o 386430defefcb717 68 800f7a8c <psx_rt::present::Presenter>::begin_frame
+o 3eafc4e4fef86f58 76 800f7b9c <psx_grid::render::cut::Cut>::halfway
+o 08a634f055117e2e 26 800f7ccc psx_io::gpu::settle_gpu_channel
+o e084888974b2b3a6 53 800f7d34 psx_io::gpu::wait_ready_slow
+o 508a34cfa3fa6fb9 127 800f7e08 psx_game_runtime::particles::fracture::fan_axis
+o 5ad944ebe8d3ca50 150 800f8004 psx_engine::character_motor::decelerating_roll_step::{closure#0} @psx_engine
+o 308b1d187e4361ff 432 800f825c <psx_grid::collision::world::GridCollision>::classify
+o 1804b6f47c52d4ff 137 800f891c <psx_grid::collision::world::GridCollision>::sector_ceil
+o 6c1009aefa83943b 95 800f8b40 <psx_grid::render::cut::Cut>::middle
+o df9ccd4a880fcd82 201 800f8cbc <psx_grid::collision::world::GridCollision>::slab_hit
+o a3c75908d667a43c 132 800f8fe0 <psx_io::periph::Cd>::command_within
+o 18be4b872f21ca4f 40 800f91f0 psx_io::cd::begin_polled_command
+o 7b6f35655d381bba 90 800f9290 <psx_io::cd::xa::Engine>::poll::<psx_io::periph::Cd> @psx_io
+o 6c0f2ae356903016 65 800f93f8 <psx_io::periph::Cd as psx_io::cd::xa::Drive>::head_lba
+o adb8316e8506f597 749 800f94fc <editor_playtest::Playtest>::land_on_fighter
+o e076a23f23635dee 120 800fa0b0 <psx_engine::character_motor::CharacterMotorState>::try_move_at_yaw::<psx_engine::character_motor::TraceCharacterCollision<psx_engine::character_motor::CharacterBlockerTraceProvider<psx_grid::collision::provider::GridTraceProvider>>> @editor_playtest
+o 29495661fb74a06b 75 800fa290 psx_game_runtime::combat::ranged_charge_tracks
+o 6a6a332d61a7d3e9 229 800fa3bc <psx_game_runtime::projectiles::ProjectileImpactEffects<24>>::insert @editor_playtest
+o 91ef01229196886a 46 800fa750 psx_io::cd::read_response_fifo
+o 086fa38faaa8e83a 56 800fa808 <psx_io::cd::xa::Engine>::poll_stopping::<psx_io::periph::Cd> @psx_io
+o ae28b545acb34a2d 116 800fa8e8 <editor_playtest::Playtest>::lock_player_anim_action
+o c1a4a1d6526618e0 17 800faab8 psx_rt::tty::print_hex_u32
+o 7c1e9e4b29c953ba 451 800faafc <editor_playtest::Playtest>::receive_on_player
+o 6674586f96a700ef 160 800fb208 <editor_playtest::hud_sprites::AmmoFx>::start
+o 1598ea710f2eeb0c 204 800fb488 <editor_playtest::Playtest>::show_hit
+o d2751b16158fc64d 93 800fb7b8 <editor_playtest::Playtest>::spawn_combat_hit_sparks
+o 51f4edb3fd88cf42 120 800fb92c editor_playtest::vram_runtime::upload_bytes_for
+o a8e8ab424c398037 150 800fbb0c <editor_playtest::damage_numbers::DamageNumbers>::spawn
+o 74c43d072c09187a 78 800fbd64 psx_game_runtime::vram::upload_model_clut
+o 35f4c4934bc16490 239 800fbe9c <psx_game_runtime::combatant::Combatant>::receive_hit
+o 422fb341e481fdaf 10 800fc258 psx_game_runtime::combatant::armoured
+o 999af748645b6c6d 21 800fc280 psx_io::cd::drain_response_limited
+o 00687a965d7295e5 32 800fc2d4 <editor_playtest::Playtest>::player_reaction_anim
+o ff322fac2b1752f7 371 800fc354 <psx_game_runtime::entities::GameEntities<2>>::receive_hit @editor_playtest
+o 09241a787d529bed 28 800fc920 <psx_vram::VramRect>::new
+o c9d23bd7a84db0e8 107 800fc990 <psx_vram::VramAllocator<6, 32> as psx_vram::VramRegionSource>::alloc_clut @editor_playtest
+o 40b758732049faf9 98 800fcb3c psx_game_runtime::projectiles::velocity_toward
+o 45cd5951db1fb791 276 800fccc4 psx_game_runtime::combat::authored_projectile_charge
+o a1662d81b48a2b7b 53 800fd114 <editor_playtest::Playtest>::commit_shot
+o dc53fb632abdda01 264 800fd1e8 <psx_game_runtime::projectiles::CombatProjectiles<24>>::spawn @editor_playtest
+o 8f9bdab36a375285 10 800fd608 psx_rt::present::wait_idle_on::<psx_rt::present::Hardware> @psx_rt
+o 33b4b5b12b8fb423 91 800fd630 <psx_game_runtime::entities::GameEntities<2>>::armoured @editor_playtest
+o 366960d7e40b52ee 25 800fd79c <psx_game_runtime::combat_fx::CombatFlash>::begin
+o c3dbcf1bd3aadbe6 17 800fd800 <psx_io::periph::ControllerPort as psx_io::controller_port::Transport>::cs_high_gap @psx_pad
+o 8d1e1841ee8024bb 13 800fd844 psx_io::gpu::handoff::run_armed_guard
+o a4eef50259be8d72 383 800fd878 editor_playtest::particle_runtime::draw_projectile_charge
+o ae138d79b2d908d2 35 800fde74 psx_rt::present::wait_drawn_idle_on::<psx_rt::present::Hardware> @psx_rt
+o 5552cc0dc447fc46 93 800fdf00 <editor_playtest::Playtest>::ranged_facing_yaw
+o f037578421178021 127 800fe074 editor_playtest::runtime_config::current_actor_surface_options
+o 0ad29906b3798844 265 800fe270 psx_game_runtime::projectiles::velocity_toward_parts
+o 171f31316b891bac 296 800fe694 <psx_game_runtime::vram::VramRuntime<128, 64, 6, 32>>::ensure_clut_variant::<editor_playtest::model_rendering::flash_palette> @editor_playtest
+o aab7fd44455f42ed 91 800feb34 <editor_playtest::Playtest>::duel_end
+o e4f6bdeba42ebc5a 30 800feca0 <editor_playtest::Playtest>::duel_log_event
+o 3af80464a21e5554 9 800fed18 <psx_game_runtime::vitality::PowerUpLoadout>::modifiers
+o c2714565fe268d76 497 800fed3c <psx_grid::collision::world::GridCollision>::point_blocked
+o f284f888e5c6ecf6 21 800ff500 <editor_playtest::Playtest>::spend_swing_crit
+o 75c6d1629f6e6ebc 94 800ff554 <editor_playtest::Playtest>::switch_player_anim::{closure#0} @editor_playtest
+o a96ae321ea096098 27 800ff6cc psx_pad::command_byte_failed::<psx_io::periph::ControllerPort> @psx_pad
+o d8328834443b015a 56 800ff738 <editor_playtest::Playtest>::show_parry
+o f1673838598edcf2 149 800ff818 psx_vram::upload_bytes
+o 92e2399f2ae7f491 67 800ffa6c <editor_playtest::Playtest>::knock_player_down
+o a164847852abe0e3 201 800ffb78 <editor_playtest::Playtest>::entity_parried_player
+o 0acfbeea69c369fc 109 800ffe9c <editor_playtest::Playtest>::spawn_parry_burst
+o b8bff229dfad9872 197 80100050 psx_game_runtime::vram::resolve_upload_bytes::<4815, 6> @editor_playtest
+o a633cea320d2aaab 247 80100364 __psx_rt_exception_handler
+o 8c6e9d8785248b62 38 80100740 <editor_playtest::Playtest>::tick_combat_projectiles::<24>::{closure#0} @editor_playtest
+o e679195b600d3476 43 801007d8 <editor_playtest::Playtest>::tick_combat_projectiles::<24>::{closure#2} @editor_playtest
+o 24af635a8486ad8e 39 80100884 editor_playtest::player_ranged::player_projectile_visual
+o 6e7499176f478a01 33 80100920 editor_playtest::game_logic_runtime::enemy_projectile_visual
