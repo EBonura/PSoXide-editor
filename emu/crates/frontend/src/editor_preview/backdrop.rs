@@ -1,6 +1,7 @@
 //! Frame clear and sky cyclorama backdrop submission.
 
 use super::*;
+use psx_engine::OtFrameDepth;
 
 /// Stamp a GP0(02h) fill-rectangle into `scratch.clear_packet` and
 /// link it into the back-most OT slot so it runs first when DMA

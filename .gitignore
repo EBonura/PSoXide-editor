@@ -102,6 +102,7 @@ __pycache__/
 /tools/mkisopsx
 /tools/psoxide-link
 /tools/psoxide-pgo
+/tools/psoxide-size
 /tools/psoxide-hazard
 /tools/guest_symbol_gate.sh
 /emu/crates/emulator-core

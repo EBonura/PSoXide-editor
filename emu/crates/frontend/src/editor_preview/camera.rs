@@ -129,10 +129,11 @@ pub(super) fn clamp_i16(value: i32) -> i16 {
     value.clamp(i16::MIN as i32, i16::MAX as i32) as i16
 }
 
-/// Thin alias for the shared Q12 multiply; the editor preview uses it for
-/// camera-basis and gizmo math beyond the rotation helpers.
+/// Q12 multiply, `(value * q12) >> 12` saturated to `i32`, for camera-basis and
+/// gizmo math beyond the rotation helpers (host code: the full product).
 pub(super) fn mul_q12_i32(value: i32, q12: i32) -> i32 {
-    psxed_project::spatial::mul_q12(value, q12)
+    ((i64::from(value) * i64::from(q12)) >> 12).clamp(i64::from(i32::MIN), i64::from(i32::MAX))
+        as i32
 }
 
 pub(super) fn sin_q12_turn(angle_q12: u16) -> i32 {

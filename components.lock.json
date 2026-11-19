@@ -3,7 +3,7 @@
   "components": {
     "sdk": {
       "repository": "EBonura/PSoXide",
-      "revision": "00d17bc94b7435f52879601fabc2dd7db64f056a",
+      "revision": "380b3074009ac346573b06bf57d3bc6577d9926a",
       "paths": [
         "sdk",
         "crates",
@@ -14,6 +14,7 @@
         "tools/mkisopsx",
         "tools/psoxide-link",
         "tools/psoxide-pgo",
+        "tools/psoxide-size",
         "tools/psoxide-hazard",
         "tools/psoxide-dev",
         "tools/psoxide-hwtest",
