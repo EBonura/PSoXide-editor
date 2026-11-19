@@ -1,6 +1,6 @@
 # Launcher art
 
-The pictures the PSoXide demo disc launcher shows for Cortex Ignition: the front cover and
+The pictures the PSoXide demo disc launcher shows for Cortex Ignition and Cortex Citadel: the front cover and
 the back-cover shots, listed in `manifest.txt`. They are captures of the game,
 taken as they were and not drawn on. Nothing here is baked: the demo disc build
 bakes these pictures itself (`menu-art ext`), so there are no blobs to go stale.
