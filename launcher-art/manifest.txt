@@ -4,3 +4,8 @@ id cortex
 front cortex-current-gameplay.png
 back cortex-current-gameplay.png cortex-current-menu.png
 shots cortex-current-menu.png cortex-current-gameplay.png
+
+id citadel
+front cortex-citadel1.png
+back cortex-citadel1.png cortex-citadel2.png
+shots cortex-citadel1.png cortex-citadel2.png
